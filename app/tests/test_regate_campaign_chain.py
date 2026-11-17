@@ -1,4 +1,5 @@
 """Private real Git/flock chain and promoter admission across interruption."""
+from tests.test_support import get_isolated_git_environment
 import contextlib
 import io
 import json
@@ -106,7 +107,7 @@ if name=='b' and os.environ.get('MODE')=='noop':sys.exit(0)
 
     def git(self, root, *args):
         try:
-            result = run_owned_capture(['git', '-C', str(root), *args], text=True, timeout=15)
+            result = run_owned_capture(['git', '-C', str(root), *args], text=True, timeout=15, env=get_isolated_git_environment())
         except subprocess.TimeoutExpired as error:
             write_captured_stderr(error.stderr, preserve_error=True)
             raise
@@ -116,7 +117,7 @@ if name=='b' and os.environ.get('MODE')=='noop':sys.exit(0)
 
     def run_chain(self, root, script, mode='success'):
         return run_owned_cpu_chain(['bash', str(script)], root,
-            env={**os.environ, 'MODE': mode, 'TMPDIR': str(root / 'temporary')},
+            env={**get_isolated_git_environment(), 'MODE': mode, 'TMPDIR': str(root / 'temporary')},
             cwd=root, capture_output=True, text=True, timeout=20)
 
     def admit(self, gates, name):
@@ -183,7 +184,7 @@ if name=='b':
                 self.assertTrue((root / 'late-write-done').exists(),
                                 'the CPU helper returned before its interrupted writer finished')
                 digest = subprocess.check_output(['git', 'hash-object', '--stdin'],
-                                                 input=b'late fixture object', cwd=root).decode().strip()
+                                                 input=b'late fixture object', cwd=root, env=get_isolated_git_environment()).decode().strip()
                 self.assertTrue((root / '.git/objects' / digest[:2] / digest[2:]).is_file())
             finally:
                 # Also let the deliberately live old-code writer exit before
@@ -287,10 +288,10 @@ assert zlib.decompress(blob.read_bytes())==b'blob 32\\0'+b'x'*32
 '''
         with chain_temporary_directory() as tmp:
             root = Path(tmp)
-            environment = dict(os.environ, PYTHONDONTWRITEBYTECODE='1',
+            environment = dict(get_isolated_git_environment(), PYTHONDONTWRITEBYTECODE='1',
                                PYTHONPATH=os.pathsep.join((str(ROOT / 'app'), str(ROOT))),
                                ALEXANDRIA_DATA_DIR=str(root / 'data'),
-                               GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1')
+                               GIT_CONFIG_GLOBAL=os.devnull)
             # The outer owner also contains the intentionally live old-code
             # writer if the discriminator fails, before removing its repository.
             result = run_owned_capture([sys.executable, '-c', worker, str(root)],
@@ -302,7 +303,8 @@ assert zlib.decompress(blob.read_bytes())==b'blob 32\\0'+b'x'*32
         with patch(__name__ + '.run_owned_capture', return_value=result) as capture, \
              contextlib.redirect_stderr(io.StringIO()) as diagnostics:
             self.assertEqual('output', RegateCampaignChainTests.git(None, Path('repo'), 'status'))
-        capture.assert_called_once_with(['git', '-C', 'repo', 'status'], text=True, timeout=15)
+        capture.assert_called_once_with(['git', '-C', 'repo', 'status'], text=True, timeout=15,
+                                        env=get_isolated_git_environment())
         self.assertEqual('diagnostic\n', diagnostics.getvalue())
 
     def test_git_command_failure_preserves_output_and_visible_diagnostics(self):

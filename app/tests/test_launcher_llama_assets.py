@@ -1,4 +1,5 @@
 """Launcher descriptors execute their real prerequisite expressions in Node."""
+from tests.test_support import get_isolated_git_environment
 import json
 import hashlib
 import importlib.util
@@ -100,7 +101,7 @@ class WhisperAssetVerificationTests(unittest.TestCase):
         code = f'import os,pathlib,time;pathlib.Path({str(pidfile)!r}).write_text(str(os.getpid()));time.sleep(3)'
         hook.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' -c ' + shlex.quote(code) + '\n')
         hook.chmod(0o700)
-        subprocess.run(['git', '-C', str(self.source), 'config', 'core.fsmonitor', str(hook)], check=True)
+        subprocess.run(['git', '-C', str(self.source), 'config', 'core.fsmonitor', str(hook)], check=True, env=get_isolated_git_environment())
         started = time.monotonic()
         with patch.object(self.verifier, 'GIT_PROBE_TIMEOUT_SECONDS', .2, create=True):
             with self.assertRaises(subprocess.TimeoutExpired):
@@ -110,7 +111,7 @@ class WhisperAssetVerificationTests(unittest.TestCase):
         with self.assertRaises(ProcessLookupError):
             os.kill(int(pidfile.read_text()), 0)
         self.assertEqual(self.content, self.model.read_bytes())
-        subprocess.run(['git', '-C', str(self.source), 'config', '--unset', 'core.fsmonitor'], check=True)
+        subprocess.run(['git', '-C', str(self.source), 'config', '--unset', 'core.fsmonitor'], check=True, env=get_isolated_git_environment())
         self.assertEqual(self.assets, dict(self.verifier.verify_whisper_assets(self.root),
                                           model_filename=self.model.name))
 
@@ -122,10 +123,10 @@ class WhisperAssetVerificationTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
         self.source=self.root/'whisper.cpp';self.source.mkdir();self.tracked=self.source/'source.c';self.tracked.write_bytes(b'known tracked source bytes\n')
-        subprocess.run(['git','init','-q',str(self.source)],check=True)
-        subprocess.run(['git','-C',str(self.source),'add','source.c'],check=True)
-        subprocess.run(['git','-C',str(self.source),'-c','user.name=Fixture','-c','user.email=fixture@example.test','commit','-qm','fixture'],check=True)
-        self.commit=subprocess.check_output(['git','-C',str(self.source),'rev-parse','HEAD'],text=True).strip()
+        subprocess.run(['git','init','-q',str(self.source)],check=True, env=get_isolated_git_environment())
+        subprocess.run(['git','-C',str(self.source),'add','source.c'],check=True, env=get_isolated_git_environment())
+        subprocess.run(['git','-C',str(self.source),'-c','user.name=Fixture','-c','user.email=fixture@example.test','commit','-qm','fixture'],check=True, env=get_isolated_git_environment())
+        self.commit=subprocess.check_output(['git','-C',str(self.source),'rev-parse','HEAD'],text=True, env=get_isolated_git_environment()).strip()
         self.model=self.root/'models/whisper.cpp/ggml-small.en.bin';self.model.parent.mkdir(parents=True)
         self.content=b'known model fixture bytes'*(1024*100);self.model.write_bytes(self.content)
         self.assets={'source_commit':self.commit,'model_filename':self.model.name,'model_sha256':hashlib.sha256(self.content).hexdigest()}
@@ -158,8 +159,8 @@ class WhisperAssetVerificationTests(unittest.TestCase):
         for name in ('subprocess_ownership.py','macos_subprocess_owner.py','macos_subprocess_kernel.py'):
             shutil.copy2(ROOT/'app'/name,self.root/'app'/name)
         self.model.write_bytes(self.content)
-        result=subprocess.run([sys.executable,str(helper)],capture_output=True,text=True)
+        result=subprocess.run([sys.executable,str(helper)],capture_output=True,text=True, env=get_isolated_git_environment())
         self.assertEqual(0,result.returncode,result.stderr);self.assertEqual(self.assets['model_sha256'],json.loads(result.stdout)['model_sha256'])
         self.model.write_bytes(b'corrupt')
-        result=subprocess.run([sys.executable,str(helper)],capture_output=True,text=True)
+        result=subprocess.run([sys.executable,str(helper)],capture_output=True,text=True, env=get_isolated_git_environment())
         self.assertNotEqual(0,result.returncode);self.assertIn('checksum mismatch',result.stderr);self.assertEqual('',result.stdout)

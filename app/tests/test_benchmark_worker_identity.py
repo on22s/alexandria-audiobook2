@@ -1,4 +1,5 @@
 """Execute actual probe commands against disposable checkouts, without SSH or ML."""
+from tests.test_support import get_isolated_git_environment
 import importlib.util
 import inspect
 import json
@@ -28,7 +29,7 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
     def test_worker_change_after_initial_check_is_refused_by_runtime_observation(self):
         original = env._ssh_run
         dirty = self.remote / 'app' / 'changed_after_check.py'
-        baseline = subprocess.check_output(['git', '-C', str(self.remote), 'rev-parse', 'HEAD'], text=True).strip()
+        baseline = subprocess.check_output(['git', '-C', str(self.remote), 'rev-parse', 'HEAD'], text=True, env=get_isolated_git_environment()).strip()
         for change in ('dirty', 'revision'):
             def race(alias, command, **kwargs):
                 reply = original(alias, command, **kwargs)
@@ -38,7 +39,7 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
                     else:
                         subprocess.run(['git', '-C', str(self.remote), '-c', 'user.name=fixture',
                             '-c', 'user.email=fixture@example.test', 'commit', '--allow-empty',
-                            '-m', 'synthetic race'], check=True, capture_output=True)
+                            '-m', 'synthetic race'], check=True, capture_output=True, env=get_isolated_git_environment())
                 return reply
             with self.subTest(change=change), patch.object(env, '_ssh_run', side_effect=race):
                 with self.assertRaisesRegex(ValueError, 'clean.*match'):
@@ -46,7 +47,7 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
             if dirty.exists():
                 dirty.unlink()
             subprocess.run(['git', '-C', str(self.remote), 'reset', '--hard', baseline],
-                           check=True, capture_output=True)
+                           check=True, capture_output=True, env=get_isolated_git_environment())
             self.assertFalse(self.collect('cpu')['details']['worktree']['dirty'])
 
 
@@ -58,7 +59,7 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
         for name in ('benchmark_environment_identity.py','runtime_info.py'):
             shutil.copyfile(REPO/'app'/name,self.root/'app'/name)
         def git(*args):
-            subprocess.run(['git',*args],check=True,capture_output=True,text=True)
+            subprocess.run(['git',*args],check=True,capture_output=True,text=True, env=get_isolated_git_environment())
         (self.root/'.gitignore').write_text('__pycache__/\n*.pyc\n')
         git('init',str(self.root))
         git('-C',str(self.root),'add','app','.gitignore')
@@ -73,7 +74,7 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
         self.commands = []
         def execute(_alias,command,**kwargs):
             self.commands.append(command)
-            result = subprocess.run([get_bash_executable(),'-c',command],capture_output=True,text=True,timeout=10)
+            result = subprocess.run([get_bash_executable(),'-c',command],capture_output=True,text=True,timeout=10, env=get_isolated_git_environment())
             return SimpleNamespace(returncode=result.returncode,stdout='decorative banner\n'+result.stdout,stderr=result.stderr)
         self.patchers = [patch.object(env,'_ssh_run',side_effect=execute),
             patch.object(env,'get_remote_gpu_name_and_backend',return_value=('fixture-gpu','fixture-backend')),
@@ -93,7 +94,7 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
         self.assertEqual('3.99.worker',details['python_version'])
         self.assertEqual('worker-torch',details['packages']['torch'])
         self.assertEqual(self.python.as_posix(),details['python_executable'])
-        revision = subprocess.run(['git','-C',str(self.remote),'rev-parse','HEAD'],capture_output=True,text=True,check=True).stdout.strip()
+        revision = subprocess.run(['git','-C',str(self.remote),'rev-parse','HEAD'],capture_output=True,text=True,check=True, env=get_isolated_git_environment()).stdout.strip()
         self.assertEqual(revision,details['git_commit'])
         self.assertFalse(details['worktree']['dirty'])
         self.assertNotEqual(details['packages'],details['orchestrator_packages'])
@@ -116,7 +117,7 @@ class BenchmarkWorkerIdentityTests(unittest.TestCase):
                 self.collect(target)
         (self.remote/'app/dirty.py').unlink()
         subprocess.run(['git','-C',str(self.remote),'-c','user.name=fixture','-c','user.email=fixture@example.test',
-            'commit','--allow-empty','-m','different'],capture_output=True,check=True)
+            'commit','--allow-empty','-m','different'],capture_output=True,check=True, env=get_isolated_git_environment())
         for target in ('cpu','llm'):
             with self.subTest(target=target),self.assertRaisesRegex(ValueError,'match'):
                 self.collect(target)

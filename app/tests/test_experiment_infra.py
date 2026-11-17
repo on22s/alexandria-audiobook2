@@ -24,6 +24,7 @@ Each test here corresponds to a defect that actually occurred:
 Imports are lazy where a module needs openai, because update_test_inventory
 imports every test module in an environment that has neither openai nor pytest.
 """
+from tests.test_support import get_isolated_git_environment
 import glob
 import json
 import os
@@ -175,7 +176,7 @@ def stage_index_scripts(tmp):
     The miniature repo registers fixture artifacts in Git before generation,
     so it exercises the same tracked-membership contract as the real checkout.
     """
-    subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True)
+    subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True, env=get_isolated_git_environment())
     audit_dir = os.path.join(tmp, "tools", "audit")
     os.makedirs(audit_dir, exist_ok=True)
     for name in ("collect_results.py", "audit_experiment_artifacts.py", "pipeline_repeat_scoring.py",
@@ -203,9 +204,10 @@ def stage_index_scripts(tmp):
 
 def run_index_script(command, **kwargs):
     """Register each fixture artifact before invoking the actual collector."""
+    environment = get_isolated_git_environment(kwargs.pop('env', None))
     subprocess.run(["git", "add", "ab_test_runtime/experiments"],
-                   cwd=kwargs["cwd"], check=True, capture_output=True)
-    return subprocess.run(command, **kwargs)
+                   cwd=kwargs["cwd"], check=True, capture_output=True, env=environment)
+    return subprocess.run(command, **kwargs, env=environment)
 
 
 class CollectResultsRobustnessTest(unittest.TestCase):
@@ -313,7 +315,7 @@ class CollectResultsRobustnessTest(unittest.TestCase):
                          "legacy_attribution_audit.json"):
                 with open(os.path.join(audit, name), "w", encoding="utf-8") as handle:
                     json.dump({"artifacts": []}, handle)
-            env = dict(os.environ, TZ="America/Chicago")
+            env = dict(get_isolated_git_environment(), TZ="America/Chicago")
             run_index_script([sys.executable, "tools/audit/collect_results.py"], cwd=tmp,
                            env=env, capture_output=True, check=True)
             env["TZ"] = "UTC"

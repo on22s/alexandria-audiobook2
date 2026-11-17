@@ -21,6 +21,7 @@ try:
 except ImportError:
     fcntl = None
 HAVE_FCNTL = globals().get('fcntl') is not None
+from tests.test_support import get_isolated_git_environment
 import os
 import shutil
 import shlex
@@ -76,7 +77,7 @@ def isolated_env(tmpdir, **extra):
     GPU_LOCK and GPU_QLOG; a seventh variable had to be added to all six and
     was added to one. One definition, so the next knob cannot half-land.
     """
-    env = dict(os.environ,
+    env = dict(get_isolated_git_environment(),
                GPU_LOCK=os.path.join(tmpdir, "gpu.lock"),
                GPU_QLOG=os.path.join(tmpdir, "queue.log"),
                GPU_PAUSE_FLAG=os.path.join(tmpdir, "paused"),
@@ -518,7 +519,7 @@ class DirtyTreeGateTest(unittest.TestCase):
 
     def _git(self, *args):
         subprocess.run(["git", "-C", self.root, *args], check=True,
-                       capture_output=True)
+                       capture_output=True, env=get_isolated_git_environment())
 
     def _make_repo(self, dirty):
         os.makedirs(os.path.join(self.root, "app", "experiments"), exist_ok=True)
@@ -773,7 +774,7 @@ class DirtyTreeGateTest(unittest.TestCase):
 
         result = subprocess.run(
             ["bash", GPU_JOB, "--print-source-state", repo_root],
-            capture_output=True, timeout=30)
+            capture_output=True, timeout=30, env=get_isolated_git_environment())
         self.assertEqual(0, result.returncode, result.stderr)
         state = result.stdout.split(b"\0")[0].decode("utf-8")
         self.assertNotEqual("unknown", state, "native repository state must be known")
@@ -843,7 +844,7 @@ openssl() {
 printf '%s\\n' 'public synthetic probe' | source_content_digest
 """
         result = subprocess.run([get_bash_executable(), "-c", script], capture_output=True,
-                                text=True, timeout=10)
+                                text=True, timeout=10, env=get_isolated_git_environment())
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("stdin-digest", result.stdout.strip())
 
@@ -867,7 +868,7 @@ git() {
     esac
 }
 """ + stub + "\n" + self.source_state_body() + "\n}\nget_source_state /synthetic\n"
-                environment = dict(os.environ, TMPDIR=directory.replace(os.sep, "/"))
+                environment = dict(get_isolated_git_environment(), TMPDIR=directory.replace(os.sep, "/"))
                 result = subprocess.run([get_bash_executable(), "-c", script],
                                         env=environment, capture_output=True, timeout=10)
                 self.assertEqual(0, result.returncode, result.stderr)
@@ -879,15 +880,15 @@ git() {
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "repo"
             root.mkdir()
-            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "init", "-q", str(root)], check=True, env=get_isolated_git_environment())
             subprocess.run(["git", "-C", str(root), "-c", "user.name=Test",
                             "-c", "user.email=test@example.com", "commit",
-                            "--allow-empty", "-q", "-m", "public synthetic"], check=True)
+                            "--allow-empty", "-q", "-m", "public synthetic"], check=True, env=get_isolated_git_environment())
             inside = root / "temporary"
             inside.mkdir()
             for temporary in (root / "missing", inside):
                 with self.subTest(tmpdir=temporary.name):
-                    environment = dict(os.environ, TMPDIR=temporary.as_posix())
+                    environment = dict(get_isolated_git_environment(), TMPDIR=temporary.as_posix())
                     command = [get_bash_executable(), GPU_JOB,
                                "--print-source-state", str(root)]
                     clean = subprocess.run(command, env=environment, capture_output=True,

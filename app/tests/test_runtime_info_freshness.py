@@ -1,4 +1,5 @@
 """Real private Git repositories prove fresh HEAD and tracked/untracked changes."""
+from tests.test_support import get_isolated_git_environment
 import asyncio
 import os
 from pathlib import Path
@@ -20,7 +21,7 @@ class RuntimeInfoFreshnessTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup();runtime_info.get_runtime_info.cache_clear()
     def git(self,*args):
-        return subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True,text=True).stdout.strip()
+        return subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True,text=True, env=get_isolated_git_environment()).stdout.strip()
     def observe(self):
         with patch.dict(os.environ,{'ALEXANDRIA_BUILD_COMMIT':''}):
             return runtime_info.get_runtime_info(str(self.root))

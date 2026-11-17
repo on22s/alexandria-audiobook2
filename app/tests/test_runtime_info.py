@@ -1,3 +1,4 @@
+from tests.test_support import get_isolated_git_environment
 from pathlib import Path
 import tempfile
 import subprocess
@@ -11,7 +12,7 @@ class RuntimeInfoTests(unittest.TestCase):
     def test_real_git_nested_branches_survive_loose_and_packed_refs(self):
         with tempfile.TemporaryDirectory() as tmp:
             def git(*args):
-                return subprocess.check_output(['git', '-C', tmp, *args], text=True).strip()
+                return subprocess.check_output(['git', '-C', tmp, *args], text=True, env=get_isolated_git_environment()).strip()
             git('init', '-q')
             git('-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.invalid',
                 'commit', '-q', '--allow-empty', '-m', 'fixture')

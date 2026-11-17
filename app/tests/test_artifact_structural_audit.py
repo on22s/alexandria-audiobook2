@@ -1,3 +1,4 @@
+from tests.test_support import get_isolated_git_environment
 import hashlib
 import contextlib
 import io
@@ -21,7 +22,7 @@ class StructuralAuditTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        subprocess.run(["git", "init", "-q", self.temp.name], check=True, capture_output=True)
+        subprocess.run(["git", "init", "-q", self.temp.name], check=True, capture_output=True, env=get_isolated_git_environment())
         self.repo_patch = patch.object(audit, "REPO", self.temp.name)
         self.repo_patch.start()
         self.addCleanup(self.repo_patch.stop)
@@ -32,7 +33,7 @@ class StructuralAuditTests(unittest.TestCase):
     def write(self, name, document):
         path = self.root / name
         path.write_text(json.dumps(document), encoding="utf-8")
-        subprocess.run(["git", "add", path.name], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "add", path.name], cwd=self.root, check=True, capture_output=True, env=get_isolated_git_environment())
         return path
 
     def test_classifies_all_identity_contracts_without_scientific_claims(self):
@@ -61,7 +62,7 @@ class StructuralAuditTests(unittest.TestCase):
 
     def test_unreadable_json_is_visible_not_skipped(self):
         (self.root / "broken.json").write_text("{", encoding="utf-8")
-        subprocess.run(["git", "add", "broken.json"], cwd=self.root, check=True, capture_output=True)
+        subprocess.run(["git", "add", "broken.json"], cwd=self.root, check=True, capture_output=True, env=get_isolated_git_environment())
         result = audit.build_audit(str(self.root))
         self.assertEqual(1, len(result["artifacts"]))
         self.assertIn("unreadable JSON", result["artifacts"][0]["reason"])
@@ -99,7 +100,7 @@ class IndexableArtifactTests(unittest.TestCase):
 
     def _git(self, *args):
         subprocess.run(["git", *args], cwd=self.tmp.name, check=True,
-                       capture_output=True)
+                       capture_output=True, env=get_isolated_git_environment())
 
     def _write(self, name):
         (self.root / name).write_text(json.dumps({"rows": []}), encoding="utf-8")
@@ -206,7 +207,7 @@ class AuditInputLineEndingTests(unittest.TestCase):
 
     def _git(self, *args, input=None):
         return subprocess.run(["git", *args], cwd=self.tmp.name,
-                              input=input, check=True, capture_output=True)
+                              input=input, check=True, capture_output=True, env=get_isolated_git_environment())
 
     def test_experiment_and_gold_json_check_out_as_pinned_lf_bytes(self):
         inputs = {

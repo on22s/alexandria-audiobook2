@@ -5,6 +5,7 @@ distinguish a real result from a prompt, roster, alias, indexing or scoring
 difference. Raised by external review of the 2026-07-26 results, which reported
 49.0% conditional selection with no per-line record behind it.
 """
+from tests.test_support import get_isolated_git_environment
 import json
 import os
 import tempfile
@@ -377,11 +378,11 @@ class UntrackedHarnessTest(unittest.TestCase):
         from experiments.manifest import _git_state
         import subprocess
         with tempfile.TemporaryDirectory() as repo:
-            subprocess.run(["git", "init", "-q", repo], check=True)
+            subprocess.run(["git", "init", "-q", repo], check=True, env=get_isolated_git_environment())
             path = os.path.join(repo, "input.txt")
             with open(path, "w") as handle:
                 handle.write("tracked input\n")
-            subprocess.run(["git", "-C", repo, "add", "input.txt"], check=True)
+            subprocess.run(["git", "-C", repo, "add", "input.txt"], check=True, env=get_isolated_git_environment())
             self.assertIsNone(_git_state(repo)["untracked_harness_files"])
 
 

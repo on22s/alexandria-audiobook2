@@ -1,4 +1,5 @@
 """Known immutable snapshots and actual comparison artifacts with CPU-only SDKs."""
+from tests.test_support import get_isolated_git_environment
 import contextlib
 import importlib.util
 from importlib import metadata
@@ -32,7 +33,7 @@ class CloudComparisonModelIdentityTests(unittest.TestCase):
         code = f'import os,pathlib,time;pathlib.Path({str(pidfile)!r}).write_text(str(os.getpid()));time.sleep(3)'
         hook.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' -c ' + shlex.quote(code) + '\n')
         hook.chmod(0o700)
-        subprocess.run(['git', '-C', str(source), 'config', 'core.fsmonitor', str(hook)], check=True)
+        subprocess.run(['git', '-C', str(source), 'config', 'core.fsmonitor', str(hook)], check=True, env=get_isolated_git_environment())
         started = time.monotonic()
         with patch.object(helper, 'GIT_PROBE_TIMEOUT_SECONDS', .2, create=True):
             with self.assertRaises(subprocess.TimeoutExpired):
@@ -41,8 +42,8 @@ class CloudComparisonModelIdentityTests(unittest.TestCase):
         self.assertTrue(pidfile.exists())
         with self.assertRaises(ProcessLookupError):
             os.kill(int(pidfile.read_text()), 0)
-        subprocess.run(['git', '-C', str(source), 'config', '--unset', 'core.fsmonitor'], check=True)
-        expected = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
+        subprocess.run(['git', '-C', str(source), 'config', '--unset', 'core.fsmonitor'], check=True, env=get_isolated_git_environment())
+        expected = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True, env=get_isolated_git_environment()).strip()
         self.assertEqual(expected, helper.get_comparison_source_commit(source))
 
     def setUp(self):
@@ -87,15 +88,15 @@ class CloudComparisonModelIdentityTests(unittest.TestCase):
         source=self.root/'source';source.mkdir();(source/'source.py').write_text('known source\n')
         for args in (('init','-q','-b','main'),('config','user.name','Fixture'),('config','user.email','fixture@example.com'),
                      ('config','core.hooksPath',str(self.root/'no-hooks')),('add','source.py'),('commit','-qm','known source')):
-            subprocess.run(['git','-C',str(source),*args],check=True,capture_output=True)
+            subprocess.run(['git','-C',str(source),*args],check=True,capture_output=True, env=get_isolated_git_environment())
         return source
 
     def test_source_commit_names_real_clean_git_blob_and_dirty_source_is_refused(self):
         source=self.source_repo();commit=helper.get_comparison_source_commit(source)
-        self.assertEqual(subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip(),commit)
+        self.assertEqual(subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True, env=get_isolated_git_environment()).strip(),commit)
         (source/'source.py').write_text('changed source\n')
         with self.assertRaises(ValueError):helper.get_comparison_source_commit(source)
-        subprocess.run(['git','-C',str(source),'checkout','--','source.py'],check=True,capture_output=True)
+        subprocess.run(['git','-C',str(source),'checkout','--','source.py'],check=True,capture_output=True, env=get_isolated_git_environment())
         (source/'untracked.py').write_text('unrecorded source\n')
         with self.assertRaises(ValueError):helper.get_comparison_source_commit(source)
 

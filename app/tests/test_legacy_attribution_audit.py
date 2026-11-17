@@ -1,3 +1,4 @@
+from tests.test_support import get_isolated_git_environment
 import hashlib
 import json
 import os
@@ -22,7 +23,7 @@ def _git(root, *args, **kwargs):
         ["git", "-c", "user.name=Fixture",
          "-c", "user.email=fixture@example.invalid",
          "-C", str(root), *args],
-        check=True, capture_output=True, text=True, **kwargs).stdout.strip()
+        check=True, capture_output=True, text=True, **kwargs, env=get_isolated_git_environment()).stdout.strip()
 
 
 def _gold_repo(root, *init_args):
@@ -61,7 +62,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
             def git(root, *args):
                 return subprocess.check_output(['git', '-c', 'user.name=Fixture',
                     '-c', 'user.email=fixture@example.invalid', '-C', str(root), *args],
-                    stderr=subprocess.DEVNULL, text=True).strip()
+                    stderr=subprocess.DEVNULL, text=True, env=get_isolated_git_environment()).strip()
             git(original, 'init', '-b', 'main')
             Path(original, 'tracked').write_text('fixture tree')
             git(original, 'add', 'tracked')
@@ -121,7 +122,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
                          ('remote', 'add', 'origin', 'https://example.invalid/fixture.git'),
                          ('config', 'remote.origin.promisor', 'true'),
                          ('config', 'remote.origin.partialclonefilter', 'blob:none')):
-                subprocess.run(['git', '-C', tmp, *args], check=True, capture_output=True)
+                subprocess.run(['git', '-C', tmp, *args], check=True, capture_output=True, env=get_isolated_git_environment())
             marker = root / 'network-attempt'
             helper = root / 'git-remote-https'
             helper.write_text('#!/bin/sh\ntouch "' + str(marker) + '"\nexit 71\n')
@@ -441,7 +442,7 @@ class LegacyAttributionAuditTests(unittest.TestCase):
             root.mkdir()
             init = subprocess.run(
                 ["git", "init", "-q", "-b", "main", "--object-format=sha256",
-                 str(root)], capture_output=True, text=True)
+                 str(root)], capture_output=True, text=True, env=get_isolated_git_environment())
             if init.returncode:
                 self.skipTest("this Git cannot create a sha256 repository: "
                               + (init.stderr.strip() or init.stdout.strip()))

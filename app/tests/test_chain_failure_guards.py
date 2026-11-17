@@ -11,6 +11,7 @@ the pattern SPREADING: a chain written from today on either aggregates its
 failures or is listed below as a known-legacy exception, which makes the
 exception a decision rather than an oversight.
 """
+from tests.test_support import get_isolated_git_environment
 import os
 import re
 import pathlib
@@ -67,7 +68,7 @@ def prepare_artifact_commit_fixture(root):
                  ('config', 'core.hooksPath', str(root / 'no-hooks')),
                  ('add', '--', 'ab_test_runtime/experiments'),
                  ('commit', '-q', '--allow-empty', '-m', 'fixture baseline')):
-        subprocess.run(['git', '-C', str(root), *args], check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(root), *args], check=True, capture_output=True, env=get_isolated_git_environment())
 
 
 class ChainFailureGuardTest(unittest.TestCase):
@@ -207,7 +208,7 @@ class FallbackChainConfigPreservationTests(unittest.TestCase):
                 chain.write_text(source.replace(
                     'REPO=/home/fakemitch/pinokio/api/alexandria-audiobook2.git',
                     'REPO="'+str(root)+'"'))
-                env = os.environ.copy()
+                env = get_isolated_git_environment()
                 env['PATH'] = str(bins)+os.pathsep+env['PATH']
                 result = subprocess.run(['bash', str(chain)], env=env,
                                         capture_output=True, text=True, timeout=10)
@@ -229,7 +230,7 @@ class ChainFooterExitTests(unittest.TestCase):
                     code='set -uo pipefail\nsource "$1"\nSTAGE_FAILURES=$2\nSTAGE_TOTAL=3\n'+footer
                     result=subprocess.run(['bash','-c',code,'fixture',
                         str(pathlib.Path(CHAINS,'lib/stage.sh')),str(failures)],
-                        capture_output=True,text=True,timeout=10)
+                        capture_output=True,text=True,timeout=10, env=get_isolated_git_environment())
                     self.assertEqual(1 if failures else 0,result.returncode,result.stdout+result.stderr)
                     self.assertIn('HOW TO READ IT',result.stdout)
                     self.assertIn(name,result.stdout)
@@ -265,10 +266,10 @@ class RegateDiagnosticExitTests(unittest.TestCase):
                 prepare_artifact_commit_fixture(root)
                 unrelated = experiments / 'other-session.json'
                 unrelated.write_text('base\n')
-                subprocess.run(['git','-C',str(root),'add',str(unrelated)],check=True)
-                subprocess.run(['git','-C',str(root),'commit','-q','-m','other baseline'],check=True)
+                subprocess.run(['git','-C',str(root),'add',str(unrelated)],check=True, env=get_isolated_git_environment())
+                subprocess.run(['git','-C',str(root),'commit','-q','-m','other baseline'],check=True, env=get_isolated_git_environment())
                 unrelated.write_text('staged WIP\n')
-                subprocess.run(['git','-C',str(root),'add',str(unrelated)],check=True)
+                subprocess.run(['git','-C',str(root),'add',str(unrelated)],check=True, env=get_isolated_git_environment())
                 untracked = experiments / 'untracked-session.json'
                 untracked.write_text('untracked WIP\n')
                 result=run_owned_cpu_chain(['bash',str(script)],root,capture_output=True,text=True)
@@ -276,12 +277,12 @@ class RegateDiagnosticExitTests(unittest.TestCase):
                 measured=json.loads(gate.read_text(encoding='utf-8'))
                 self.assertEqual('staged WIP\n',unrelated.read_text())
                 self.assertEqual('untracked WIP\n',untracked.read_text())
-                staged=subprocess.check_output(['git','-C',str(root),'diff','--cached','--name-only'],text=True).splitlines()
+                staged=subprocess.check_output(['git','-C',str(root),'diff','--cached','--name-only'],text=True, env=get_isolated_git_environment()).splitlines()
                 self.assertEqual(['ab_test_runtime/experiments/other-session.json'],staged)
                 if not fail:
-                    committed=subprocess.check_output(['git','-C',str(root),'show','--pretty=','--name-only','HEAD'],text=True).splitlines()
+                    committed=subprocess.check_output(['git','-C',str(root),'show','--pretty=','--name-only','HEAD'],text=True, env=get_isolated_git_environment()).splitlines()
                     self.assertEqual(['ab_test_runtime/experiments/regate_provenance_campaign.json'],committed)
-                    history = subprocess.check_output(['git','-C',str(root),'log','--format=','--name-only','-3'],text=True)
+                    history = subprocess.check_output(['git','-C',str(root),'log','--format=','--name-only','-3'],text=True, env=get_isolated_git_environment())
                     self.assertIn('ab_test_runtime/experiments/gate_promote__voice.json', history)
                 self.assertEqual(previous['passed'],measured['passed'])
                 self.assertEqual(previous['median_ecapa'],measured['median_ecapa'])
@@ -327,7 +328,7 @@ class AdapterQueueFailureStatusTests(unittest.TestCase):
                         'SUFFIX':'fixture','QUANT':'','COMMIT':'fixture-commit','STATUS':str(root/'status')}
                 prefix += ''.join(f'{key}={shlex.quote(value)}\n' for key,value in values.items())
                 script.write_text(prefix+recipe_and_dispatch,encoding='utf-8')
-                result = subprocess.run(['bash',str(script)],capture_output=True,text=True)
+                result = subprocess.run(['bash',str(script)],capture_output=True,text=True, env=get_isolated_git_environment())
                 self.assertEqual(code,result.returncode,result.stderr)
                 status = (root/'status').read_text(encoding='utf-8')
                 calls = [json.loads(line) for line in (root/'calls.jsonl').read_text().splitlines()]
@@ -344,7 +345,7 @@ class AdapterQueueFailureStatusTests(unittest.TestCase):
                     self.assertIn(f'CPU fixture worker rc={code}',(root/'logs/qwen35_fixture_author_heldout_balanced.log').read_text())
                 else:
                     self.assertIn('COMPLETE qwen35_fixture all recipes',status)
-                    repeat = subprocess.run(['bash',str(script)],capture_output=True,text=True)
+                    repeat = subprocess.run(['bash',str(script)],capture_output=True,text=True, env=get_isolated_git_environment())
                     self.assertEqual(0,repeat.returncode,repeat.stderr)
                     self.assertEqual(3,len((root/'calls.jsonl').read_text().splitlines()))
 
@@ -367,13 +368,13 @@ class QueueRepositoryInspectionTests(unittest.TestCase):
             root = pathlib.Path(tmp)
             valid = root / "repo"
             valid.mkdir()
-            subprocess.run(["git", "init", "-q", str(valid)], check=True)
+            subprocess.run(["git", "init", "-q", str(valid)], check=True, env=get_isolated_git_environment())
             tracked = valid / "source.py"
             tracked.write_text("original = True\n")
             (valid / "RESULTS_INDEX.md").write_text("baseline generated index")
-            subprocess.run(["git", "-C", str(valid), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(valid), "add", "."], check=True, env=get_isolated_git_environment())
             subprocess.run(["git", "-C", str(valid), "-c", "user.name=fixture", "-c",
-                            "user.email=fixture@example.test", "commit", "-qm", "fixture"], check=True)
+                            "user.email=fixture@example.test", "commit", "-qm", "fixture"], check=True, env=get_isolated_git_environment())
             def inspect(repo, env=None):
                 return subprocess.run(["bash", "-c", 'set -euo pipefail; source "$1"; refuse_if_dirty "$2"',
                                        "fixture", str(helper), str(repo)], capture_output=True, text=True, env=env)
@@ -402,7 +403,7 @@ class QueueRepositoryInspectionTests(unittest.TestCase):
             fake_git = shim / "git"
             fake_git.write_text('#!/bin/sh\nprintf " M source.py\\n"\nexit 7\n')
             fake_git.chmod(0o755)
-            env = dict(os.environ, PATH=str(shim) + os.pathsep + os.environ["PATH"])
+            env = dict(get_isolated_git_environment(), PATH=str(shim) + os.pathsep + os.environ["PATH"])
             result = inspect(valid, env)
             self.assertNotEqual(0, result.returncode)
             self.assertIn("could not inspect", result.stdout + result.stderr)
@@ -444,7 +445,7 @@ class ResumeArtifactShapeTests(unittest.TestCase):
                     artifact.write_text("{" if data == "malformed-json" else json.dumps(data))
                     before = artifact.read_bytes()
                 result = subprocess.run(["bash", str(script), "space", "2"],
-                                        capture_output=True, text=True)
+                                        capture_output=True, text=True, env=get_isolated_git_environment())
                 self.assertEqual(expected, result.returncode, result.stdout + result.stderr)
                 if not missing:
                     self.assertEqual(before, artifact.read_bytes())
@@ -479,7 +480,7 @@ run_stage child 2s "${args[@]}" -- bash -c 'touch "$1"' fixture "$2/dispatched"
 printf '%s %s %s\n' "${STAGE_RESULT[child]}" "$STAGE_TOTAL" "$STAGE_FAILURES" > "$2/state"
 '''
                 result = subprocess.run(["bash", "-c", program, "fixture", str(helper), str(root),
-                    predecessor or "missing", second or "none"], capture_output=True, text=True)
+                    predecessor or "missing", second or "none"], capture_output=True, text=True, env=get_isolated_git_environment())
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertFalse((root / "stopped").exists(), result.stdout)
                 self.assertFalse((root / "dispatched").exists(), result.stdout)
@@ -510,7 +511,7 @@ class KnownIdentityGateContractTests(unittest.TestCase):
                 script = root / "verify.sh"
                 script.write_text('set -uo pipefail\nREPO=' + shlex.quote(str(root)) + '\n' + body)
                 before = script.read_bytes()
-                env = dict(os.environ, FIXTURE_CALLS=str(calls), FIXTURE_GOOD=str(good), FIXTURE_BAD=str(bad))
+                env = dict(get_isolated_git_environment(), FIXTURE_CALLS=str(calls), FIXTURE_GOOD=str(good), FIXTURE_BAD=str(bad))
                 result = subprocess.run(["bash", str(script)], capture_output=True, text=True, env=env)
                 self.assertEqual(0 if (good, bad) == (0, 3) else 1,
                                  result.returncode, result.stdout + result.stderr)
@@ -566,7 +567,7 @@ class RegateQueueConstructionTests(unittest.TestCase):
                     'REPO="' + str(root) + '"').replace('/tmp/regate_queue.tsv', str(queue)))
                 prepare_artifact_commit_fixture(root)
                 result = run_owned_cpu_chain(['bash', str(script)], root,
-                    env={**os.environ, 'TMPDIR': str(root)},
+                    env={**get_isolated_git_environment(), 'TMPDIR': str(root)},
                     capture_output=True, text=True, timeout=10)
                 self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertIn('REGATE FAILED: could not build adapter queue', result.stderr)
@@ -633,7 +634,7 @@ class AdapterRecheckRosterTests(unittest.TestCase):
                     'stage_summary recheck_fixture\n')
                 dispatch_log = root / 'dispatch.log'
                 result = subprocess.run(['bash', str(script)],
-                    env=dict(os.environ, DISPATCH_LOG=str(dispatch_log)),
+                    env=dict(get_isolated_git_environment(), DISPATCH_LOG=str(dispatch_log)),
                     capture_output=True, text=True, timeout=10)
                 output = result.stdout + result.stderr
                 valid = kind in ('measured', 'worker_failed')
@@ -722,7 +723,7 @@ class CloudEvaluationProvenanceTests(unittest.TestCase):
                 evaluation_path = root / 'evaluated.json'
                 from tests.test_gpu_lock_owner import run_owned_cpu_chain
                 result = run_owned_cpu_chain(['/usr/bin/bash', str(script)], root, cwd=root,
-                    env=dict(os.environ, PATH=str(bins), SERVER_PID_PATH=str(pid_path), EVALUATION_PATH=str(evaluation_path)),
+                    env=dict(get_isolated_git_environment(), PATH=str(bins), SERVER_PID_PATH=str(pid_path), EVALUATION_PATH=str(evaluation_path)),
                     capture_output=True, text=True, timeout=10)
                 self.assertTrue(pid_path.exists(), result.stdout + result.stderr)
                 pid = int(pid_path.read_text())
@@ -805,7 +806,7 @@ class RemainingGoalGateStatusTests(unittest.TestCase):
                     script.write_text(source)
                     dispatch = root / 'dispatch.log'
                     result = subprocess.run(['bash', str(script)], cwd=root,
-                        env=dict(os.environ, FAILED_GATES=json.dumps(names[:failures]), DISPATCH_LOG=str(dispatch)),
+                        env=dict(get_isolated_git_environment(), FAILED_GATES=json.dumps(names[:failures]), DISPATCH_LOG=str(dispatch)),
                         capture_output=True, text=True, timeout=10)
                     output = result.stdout + result.stderr
                     self.assertEqual(1 if failures else 0, result.returncode, output)
@@ -874,7 +875,7 @@ class ReplayListFailureTests(unittest.TestCase):
                 source = source.replace('/tmp/replay_rest.txt', shlex.quote(str(replay_list)))
                 chain = root / 'chain.sh'
                 chain.write_text(source)
-                env = dict(os.environ, ALEXANDRIA_GPU_LOCK_HELD='1')
+                env = dict(get_isolated_git_environment(), ALEXANDRIA_GPU_LOCK_HELD='1')
                 temporary = root / 'private-lists'
                 temporary.mkdir()
                 env['TMPDIR'] = str(temporary)
@@ -941,7 +942,7 @@ class RegressionChainExitTests(unittest.TestCase):
                 chain = root / "regression.sh"
                 chain.write_text(adapted)
                 chain.chmod(0o755)
-                env = {**os.environ, "PATH": str(binary) + os.pathsep + os.environ["PATH"],
+                env = {**get_isolated_git_environment(), "PATH": str(binary) + os.pathsep + os.environ["PATH"],
                        "GENERATOR_EXIT": str(returncode)}
                 result = run_owned_cpu_chain(["bash", str(chain)], root, env=env,
                                             capture_output=True, text=True, timeout=10)
@@ -998,7 +999,7 @@ class IndependentChainSummaryTests(unittest.TestCase):
                     chain = chains / filename
                     match = re.search(r'(?m)^REPO=(/[^\n ]+)$', source)
                     chain.write_text(source.replace(match.group(1), str(root)) if match else source)
-                    env = {**os.environ, "PATH": str(binary) + os.pathsep + os.environ["PATH"],
+                    env = {**get_isolated_git_environment(), "PATH": str(binary) + os.pathsep + os.environ["PATH"],
                            "CALLS_PATH": str(calls), "FAIL_MODE": mode}
                     if count == 3:
                         result = run_owned_cpu_chain(["bash", str(chain)], root, env=env,
@@ -1044,7 +1045,7 @@ class IndependentChainSummaryTests(unittest.TestCase):
                         artifact.write_text("prior bytes")
                     command = setup + '\nattempt probe ' + shlex.quote(str(artifact)) + ' bash -c ' + shlex.quote(
                         'printf ran > ' + shlex.quote(str(marker)) + '; exit 7') + '\nrc=$?\nprintf "rc=%s total=%s failures=%s\\n" "$rc" "$STAGE_TOTAL" "$STAGE_FAILURES"\nexit "$rc"\n'
-                    result = subprocess.run(["bash", "-c", command], capture_output=True, text=True, timeout=5)
+                    result = subprocess.run(["bash", "-c", command], capture_output=True, text=True, timeout=5, env=get_isolated_git_environment())
                     self.assertEqual(0 if exists else 7, result.returncode, result.stdout + result.stderr)
                     self.assertIn("rc=0 total=0 failures=0" if exists else "rc=7 total=1 failures=1", result.stdout)
                     if exists:

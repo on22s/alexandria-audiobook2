@@ -1,4 +1,5 @@
 """Synthetic source, settings and selected-runtime resume regressions."""
+from tests.test_support import get_isolated_git_environment
 import asyncio
 import copy
 from contextlib import ExitStack, redirect_stdout
@@ -41,7 +42,7 @@ class SourceResumeTests(unittest.TestCase):
             for name in paths:
                 path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('synthetic=1\n')
             def git(*args):
-                return subprocess.check_output(['git', '-C', tmp, *args], text=True).strip()
+                return subprocess.check_output(['git', '-C', tmp, *args], text=True, env=get_isolated_git_environment()).strip()
             git('init', '-q'); git('add', '.')
             git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'fixture')
             head = git('rev-parse', 'HEAD'); baseline = source._get_local_worktree_identity(tmp)
@@ -71,9 +72,9 @@ class SelectedPythonTests(unittest.TestCase):
             root = Path(tmp); (root / 'app').mkdir(); repo = Path(__file__).resolve().parents[1]
             for name in ('runtime_info.py', 'benchmark_environment_identity.py'):
                 shutil.copyfile(repo / name, root / 'app' / name)
-            subprocess.run(['git', 'init', '-q', tmp], check=True)
-            subprocess.run(['git', '-C', tmp, 'add', 'app'], check=True)
-            subprocess.run(['git', '-C', tmp, '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'fixture'], check=True)
+            subprocess.run(['git', 'init', '-q', tmp], check=True, env=get_isolated_git_environment())
+            subprocess.run(['git', '-C', tmp, 'add', 'app'], check=True, env=get_isolated_git_environment())
+            subprocess.run(['git', '-C', tmp, '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'fixture'], check=True, env=get_isolated_git_environment())
             python = root / 'selected-python'
             def install(version):
                 python.write_text('#!' + sys.executable + '\nimport sys,platform\nfrom importlib import metadata\n'
