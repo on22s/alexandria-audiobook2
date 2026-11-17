@@ -4,6 +4,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from project_scope_assets import get_scope_asset_snapshot, get_scope_voice_artifacts
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class ScopeAssetTests(unittest.TestCase):
@@ -30,8 +33,11 @@ class ScopeAssetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve(); file = root/'weights'; file.write_bytes(b'bounded')
             with self.assertRaises(ValueError):get_scope_asset_snapshot(root/'missing')
-            alias = root/'alias'; alias.symlink_to(file)
-            with self.assertRaises(ValueError):get_scope_asset_snapshot(alias)
+            symlink_available = can_symlink()
+            if symlink_available:
+                alias = root/'alias'; alias.symlink_to(file)
+                with self.subTest('symlink alias'):
+                    with self.assertRaises(ValueError):get_scope_asset_snapshot(alias)
             with patch('project_scope_assets.MAX_ASSET_BYTES', 2), self.assertRaises(ValueError):
                 get_scope_asset_snapshot(file)
             with patch('project_scope_assets.os.walk', side_effect=lambda path, onerror:onerror(PermissionError('denied'))):

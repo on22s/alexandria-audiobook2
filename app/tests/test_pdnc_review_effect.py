@@ -10,6 +10,9 @@ import unittest
 from unittest.mock import patch
 
 from experiments import pdnc_review_effect as scorer
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 def gold(source, spans, speaker='Alice', quote_id='q1'):
@@ -286,12 +289,16 @@ class AggregateCLITests(unittest.TestCase):
         inputs = [self.baseline, self.manifest, *[self.root / name for name in
                   ('novel_text.txt', 'quotation_info.csv', 'character_info.csv')]]
         link = self.root / 'input-link'
-        link.symlink_to(self.baseline)
+        symlink_available = can_symlink()
+        if symlink_available:
+            link.symlink_to(self.baseline)
         hardlink = self.root / 'input-hardlink'
         hardlink.hardlink_to(self.baseline)
         before = {p: p.read_bytes() for p in inputs}
         for output in [*inputs, link, hardlink]:
             with self.subTest(output=output.name):
+                if output is link and not symlink_available:
+                    self.skipTest(_SYMLINK_SKIP_REASON)
                 status, _, _ = self.run_cli(self.args[:-1] + [str(output)])
                 self.assertEqual(2, status)
                 self.assertEqual(before, {p: p.read_bytes() for p in inputs})

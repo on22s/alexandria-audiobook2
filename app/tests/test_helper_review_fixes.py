@@ -16,7 +16,10 @@ import lmstudio_settings as lms
 from project import ProjectManager
 import review_script
 from routers import system
+from tests.test_support import can_symlink
 import utils
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class HelperReviewTests(unittest.TestCase):
@@ -25,9 +28,12 @@ class HelperReviewTests(unittest.TestCase):
             root = Path(directory)
             source = root/'book.json'; source.write_bytes(b'[]')
             self.assertEqual(b'[]', review_script._read_review_script_bytes(source))
-            alias = root/'alias.json'; alias.symlink_to(source)
-            with self.assertRaisesRegex(ValueError, 'bounded regular file'):
-                review_script._read_review_script_bytes(alias)
+            symlink_available = can_symlink()
+            if symlink_available:
+                alias = root/'alias.json'; alias.symlink_to(source)
+                with self.subTest('symlink alias'):
+                    with self.assertRaisesRegex(ValueError, 'bounded regular file'):
+                        review_script._read_review_script_bytes(alias)
             folder = root/'folder'; folder.mkdir()
             with self.assertRaisesRegex(ValueError, 'bounded regular file'):
                 review_script._read_review_script_bytes(folder)
@@ -239,14 +245,19 @@ class HelperReviewTests(unittest.TestCase):
             outside = Path(directory) / 'outside.wav'
             outside.touch()
             link = root / 'link.wav'
-            link.symlink_to(outside)
+            symlink_available = can_symlink()
+            if symlink_available:
+                link.symlink_to(outside)
             for path in ('../outside.wav', str(outside), 'link.wav'):
-                chunk = {'audio_path': path}
-                with patch('project._load_audio_segment') as decode:
-                    self.assertEqual(([], 1), manager._load_chunks_with_audio(chunks=[chunk]))
-                    decode.assert_not_called()
-                with self.assertRaises(ValueError):
-                    manager._chapter_fingerprint([chunk])
+                with self.subTest(path=path):
+                    if path == 'link.wav' and not symlink_available:
+                        self.skipTest(_SYMLINK_SKIP_REASON)
+                    chunk = {'audio_path': path}
+                    with patch('project._load_audio_segment') as decode:
+                        self.assertEqual(([], 1), manager._load_chunks_with_audio(chunks=[chunk]))
+                        decode.assert_not_called()
+                    with self.assertRaises(ValueError):
+                        manager._chapter_fingerprint([chunk])
             self.assertEqual(manager.get_chunk_audio_path('inside.wav'), str(root / 'inside.wav'))
 
 

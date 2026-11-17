@@ -14,6 +14,9 @@ import generate_personas as personas
 import generate_script as generation
 import review_script
 import three_pass_generate as three_pass
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 def response(entries):
@@ -100,11 +103,15 @@ class LlmBatchReviewRegressions(unittest.TestCase):
             source = Path(folder, 'book.txt')
             source.write_text('Original prose.')
             alias = Path(folder, 'alias.json')
-            alias.symlink_to(source)
+            symlink_available = can_symlink()
+            if symlink_available:
+                alias.symlink_to(source)
             for output in (source, alias):
                 with self.subTest(output=output), patch.object(sys, 'argv', ['three-pass', str(source), '--output', str(output)]), \
                      patch.object(three_pass, 'make_run_client') as provider, \
                      patch.object(three_pass, 'get_prepared_source') as load, contextlib.redirect_stderr(io.StringIO()):
+                    if output is alias and not symlink_available:
+                        self.skipTest(_SYMLINK_SKIP_REASON)
                     with self.assertRaises(SystemExit) as error:
                         three_pass.main()
                     self.assertNotEqual(0, error.exception.code)

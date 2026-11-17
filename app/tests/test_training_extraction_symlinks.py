@@ -5,6 +5,8 @@ import tempfile
 import unittest
 import zipfile
 
+from tests.test_support import skip_unless_symlink
+
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location('batch_training_extraction_test', ROOT / 'tools/voice_lab/batch_train_lora.py')
 training = importlib.util.module_from_spec(SPEC)
@@ -20,6 +22,7 @@ class TrainingExtractionSymlinkTests(unittest.TestCase):
             stream.writestr(prefix + 'train/clip.wav', b'fixture audio')
         return archive
 
+    @skip_unless_symlink
     def test_symlink_root_is_rejected_before_external_writes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); outside = root / 'outside'; outside.mkdir()
@@ -32,6 +35,7 @@ class TrainingExtractionSymlinkTests(unittest.TestCase):
             self.assertEqual(b'keep', (outside / 'keep.txt').read_bytes())
             self.assertTrue(destination.is_symlink())
 
+    @skip_unless_symlink
     def test_unreferenced_and_internal_symlinks_are_rejected_before_any_archive_write(self):
         for mode in ('external-directory', 'internal-file', 'dangling'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
@@ -60,6 +64,7 @@ class TrainingExtractionSymlinkTests(unittest.TestCase):
             self.assertFalse((dest / 'keep.txt').exists())
             self.assertFalse((dest / 'dataset').exists())
 
+    @skip_unless_symlink
     def test_existing_member_level_symlink_escape_is_still_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); dest = root / 'dest'; dest.mkdir()

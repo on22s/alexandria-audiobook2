@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 import wave
 import tts_benchmark as worker
+from tests.test_support import skip_unless_symlink
 
 
 class TtsOutputBoundaryTests(unittest.TestCase):
@@ -35,6 +36,7 @@ class TtsOutputBoundaryTests(unittest.TestCase):
                 self.assertEqual([], list(output.iterdir()))
                 self.assertEqual(before, payload)
 
+    @skip_unless_symlink
     def test_escaping_output_symlink_is_not_overwritten(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); output = root / 'output'; output.mkdir()

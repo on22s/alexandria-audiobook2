@@ -29,8 +29,15 @@ class PromotionPathComponentTests(unittest.TestCase):
                         with self.assertRaisesRegex(ValueError, 'invalid publication path component'):
                             promote_adapters.rollback(value)
             after = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
-            # Kernel lock file is the only intentional admission artifact.
-            after.pop('models/manifest.json.lock', None)
+            # The kernel lock sidecar is the only intentional admission artifact.
+            # A released Windows byte-range lease leaves one NUL byte in it; POSIX
+            # leaves it empty. Assert that exact identity and keep every data-byte
+            # comparison below unchanged.
+            lock = str(Path('models') / 'manifest.json.lock')
+            self.assertIn(lock, after)
+            if after[lock] == b'\x00':
+                after[lock] = b''
+            self.assertEqual(b'', after.pop(lock))
             self.assertEqual(before, after)
             self.assertEqual(['sentinel'], sorted(p.name for p in outside.iterdir()))
             self.assertEqual(['sentinel'], sorted(p.name for p in backups.iterdir()))

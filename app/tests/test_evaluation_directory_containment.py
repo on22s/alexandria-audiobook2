@@ -4,6 +4,9 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from tests.test_lora_evaluation import evaluation
+from tests.test_support import can_symlink, skip_unless_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class EvaluationDirectoryContainmentTests(unittest.TestCase):
@@ -32,9 +35,13 @@ assert callable(module.evaluate_adapter)
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp,'models');root.mkdir()
             outside=Path(tmp,'outside');outside.mkdir();(outside/'ref_sample.wav').write_bytes(b'fixture reference')
-            (root/'linked').symlink_to(outside,target_is_directory=True)
+            symlink_available = can_symlink()
+            if symlink_available:
+                (root/'linked').symlink_to(outside,target_is_directory=True)
             for adapter_id in ('../outside',str(outside),'linked'):
                 with self.subTest(adapter_id=adapter_id):
+                    if adapter_id == 'linked' and not symlink_available:
+                        self.skipTest(_SYMLINK_SKIP_REASON)
                     engine=Mock();engine.generate_voice.return_value=False
                     with patch.object(evaluation,'apply_evaluation_seed') as seed:
                         with self.assertRaises(ValueError):
@@ -52,6 +59,7 @@ assert callable(module.evaluate_adapter)
                     with self.assertRaises(ValueError):evaluation.cleanup_candidates(str(adapter),None,['owned',name])
                     self.assertTrue((owned/'marker').is_file());self.assertTrue((outside/'marker').is_file())
 
+    @skip_unless_symlink
     def test_symlink_candidates_root_rejects_before_deletion(self):
         with tempfile.TemporaryDirectory() as tmp:
             adapter=Path(tmp,'voice');adapter.mkdir();outside=Path(tmp,'outside');child=outside/'candidate';child.mkdir(parents=True);(child/'marker').write_text('outside')
@@ -83,6 +91,7 @@ assert callable(module.evaluate_adapter)
                 with self.assertRaises(ValueError):evaluation.main()
                 device.assert_not_called();engine.assert_not_called()
 
+    @skip_unless_symlink
     def test_internal_candidate_symlink_does_not_delete_its_target(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp,'candidates');target=root/'target';target.mkdir(parents=True)
