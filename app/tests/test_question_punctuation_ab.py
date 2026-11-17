@@ -239,7 +239,7 @@ ab.main(sys.argv[1:])
             '--voice-config', str(self.voices), '--speakers', 'NARRATOR', '--out-dir', str(self.root)],
             cwd=Path(ab.REPO) / 'app', env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 2, result.stderr)
-        self.assertIn('File exists', result.stderr)
+        self.assertIn('[WinError 183]' if os.name == 'nt' else '[Errno 17]', result.stderr)
         self.assertNotIn('engine bootstrap', result.stderr)
         self.assertEqual(old.read_text(), '{"status":"old"}')
 

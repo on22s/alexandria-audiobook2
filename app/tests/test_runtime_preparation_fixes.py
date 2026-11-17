@@ -83,10 +83,18 @@ class CorpusOptionalModelTests(unittest.TestCase):
             pairs = root / 'pairs.json'
             pairs.write_text(json.dumps([{'audio': str(audio), 'source': str(source),
                                           'output_name': 'book.zip'}]))
+            actual_run = corpus.subprocess.run
+            def run_worker(command, **kwargs):
+                if '--audio' in command and '--model' in command:
+                    return NS(returncode=1)
+                return actual_run(command, **kwargs)
             for fallback in (None, '', 'fallback.gguf'):
-                with patch.object(corpus.subprocess, 'run', return_value=NS(returncode=1)) as run:
+                with patch.object(corpus.subprocess, 'run', side_effect=run_worker) as run:
                     corpus.run_corpus(root, pairs, root, 'model.gguf', fallback)
-                command = run.call_args.args[0]
+                commands = [call.args[0] for call in run.call_args_list
+                            if '--audio' in call.args[0] and '--model' in call.args[0]]
+                self.assertEqual(1, len(commands))
+                command = commands[0]
                 index = json.loads((root / 'corpus_attempts.json').read_text())
                 self.assertEqual(fallback or None, index['rows'][0]['options']['fallback_model'])
                 self.assertTrue(all(isinstance(arg, str) for arg in command))
