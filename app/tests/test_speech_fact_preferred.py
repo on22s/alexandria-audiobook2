@@ -13,12 +13,25 @@ result that looks plausible.
 import re
 import sys
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from tests.test_support import app_python_files
 
 REPO = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(REPO / "app"))
 sys.path.insert(0, str(REPO / "app" / "experiments"))
+
+
+def is_test_package_file(app_dir, path):
+    """-> whether `path` sits inside the app's own tests package.
+
+    Compare PATH PARTS, not the joined string. `str(path)` renders with
+    backslashes on Windows, so the previous `"/tests/" in str(path)` test never
+    matched there and swept app/tests/test_support.py into this inventory as a
+    module deciding speech from punctuation. A relative-first-part comparison
+    answers the same question on every platform: `app/tools/tests_helper.py`
+    stays in the sweep, because only a `tests` DIRECTORY is the test package.
+    """
+    return path.relative_to(app_dir).parts[:1] == ("tests",)
 
 
 class MeasurabilityGateTest(unittest.TestCase):
@@ -198,6 +211,47 @@ class DetectorSelfTest(unittest.TestCase):
                                  SpeechFromPunctuationDetector.hits(line))
 
 
+class TestFileClassificationTest(unittest.TestCase):
+    """The sweep's "is this a test file?" answer must not depend on the OS.
+
+    Native Windows reported app/tests/test_support.py as an offender while
+    Linux passed, because `"/tests/" in str(path)` matched only the POSIX
+    separator. These cases feed the helper a real Windows path and a real POSIX
+    path for the same logical locations, so the answer is pinned on every
+    platform rather than only on the one the suite happens to run on.
+    """
+
+    WINDOWS_APP = PureWindowsPath("C:/work/alexandria-audiobook2/app")
+    POSIX_APP = PurePosixPath("/work/alexandria-audiobook2/app")
+
+    def test_a_file_in_the_tests_package_is_excluded(self):
+        for app_dir, name in [
+                (self.WINDOWS_APP, "tests/test_support.py"),
+                (self.POSIX_APP, "tests/test_support.py"),
+                (self.WINDOWS_APP, "tests/nested/helper.py"),
+                (self.POSIX_APP, "tests/nested/helper.py")]:
+            with self.subTest(app_dir=str(app_dir), name=name):
+                path = app_dir.joinpath(*name.split("/"))
+                self.assertTrue(is_test_package_file(app_dir, path))
+
+    def test_a_name_merely_containing_tests_is_not_excluded(self):
+        """A file that is not in the tests package stays in the sweep.
+
+        Excluding it would hide a real speech decider, which is the failure this
+        inventory exists to catch.
+        """
+        for app_dir, name in [
+                (self.WINDOWS_APP, "latests_report.py"),
+                (self.POSIX_APP, "latests_report.py"),
+                (self.WINDOWS_APP, "tools/tests_helper.py"),
+                (self.POSIX_APP, "tools/tests_helper.py"),
+                (self.WINDOWS_APP, "tests.py"),
+                (self.POSIX_APP, "tests.py")]:
+            with self.subTest(app_dir=str(app_dir), name=name):
+                path = app_dir.joinpath(*name.split("/"))
+                self.assertFalse(is_test_package_file(app_dir, path))
+
+
 class InventoryTest(unittest.TestCase):
     """The sweep, so a new consumer of speech cannot be added silently.
 
@@ -229,8 +283,9 @@ class InventoryTest(unittest.TestCase):
 
     def test_every_speech_decider_consults_the_fact_or_is_listed(self):
         offenders = {}
-        for path in app_python_files(REPO / "app"):
-            if "/tests/" in str(path) or path.name in self.ALLOWED_WITHOUT_THE_FACT:
+        app_dir = REPO / "app"
+        for path in app_python_files(app_dir):
+            if is_test_package_file(app_dir, path) or path.name in self.ALLOWED_WITHOUT_THE_FACT:
                 continue
             src = path.read_text(encoding="utf-8", errors="replace")
             hits = SpeechFromPunctuationDetector.hits(src)
