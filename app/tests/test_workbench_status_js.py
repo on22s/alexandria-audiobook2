@@ -83,6 +83,9 @@ for (const mode of ['running','idle','unavailable']) {
         context[name] = name === 'loadConfig' ? async () => {} : () => {};
     }
     vm.createContext(context);vm.runInContext(core.slice(core.indexOf('function showActionError('),core.indexOf('function showConfirm(')),context);
+    // The Voice Lab bar is the shared #2042 textured component.
+    vm.runInContext(core.slice(core.indexOf('function getTaskLabel('),core.indexOf('function taskStatusLabel(')),context);
+    vm.runInContext(core.slice(core.indexOf('// --- Textured progress bars (#2042) ---'),core.indexOf('// --- End textured progress bars ---')),context);
     const start = workbench.indexOf('function reattachTaskActivity(');
     const init = workbench.indexOf('// Init',start);
     const end = workbench.indexOf('// ── Preparer',init);

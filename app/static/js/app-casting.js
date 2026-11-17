@@ -770,7 +770,14 @@
         el('review-notes').value = mark.notes;
         el('review-position').textContent = t('casting.review.position', '{index} of {count}', {index: r.index + 1, count: r.list.length});
         const done = r.list.filter(v => markOf(s.marks, v.id).status !== 'unreviewed').length;
-        el('review-progress').style.width = `${Math.round(100 * done / r.list.length)}%`;
+        // Ticks: the review texture, shared with the Script tab's review bar
+        // (#2042). The renderer owns the fill width and the aria values.
+        const reviewed = r.list.length ? done / r.list.length : 0;
+        renderTexturedProgress(el('review-progress'), {
+            fraction: reviewed,
+            label: '',
+            valueText: `${Math.round(100 * reviewed)}%`,
+        });
         el('review-prev').disabled = r.index === 0;
         el('review-next').disabled = r.index >= r.list.length - 1;
     }

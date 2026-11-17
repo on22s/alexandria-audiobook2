@@ -239,8 +239,6 @@
             box-shadow: 0 0 10px rgba(252,238,84,0.35);
         }
         html[data-theme="cyberpunk"] .voice-card { border-left-color: var(--cyber-pink); }
-        html[data-theme="cyberpunk"] .progress { background-color: var(--bg-input); }
-        html[data-theme="cyberpunk"] .progress-bar { background-color: var(--cyber-cyan); color: #090b12; }
         html[data-theme="cyberpunk"] #theme-toggle {
             border-color: rgba(252,238,84,0.65);
             color: var(--cyber-yellow);
@@ -288,7 +286,6 @@
         .btn { border-radius: var(--radius-sm); transition: filter var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast); }
         .btn-outline-secondary { --bs-btn-color: var(--text-muted); --bs-btn-border-color: var(--border-input); --bs-btn-hover-color: #ffffff; --bs-btn-hover-bg: var(--text-muted); --bs-btn-hover-border-color: var(--text-muted); --bs-btn-active-color: #ffffff; --bs-btn-active-bg: var(--text-muted); --bs-btn-active-border-color: var(--text-muted); }
         .btn-outline-info { --bs-btn-color: var(--accent-strong); --bs-btn-border-color: var(--accent-strong); }
-        #full-progress-bar { background-color: var(--progress-bg) !important; color: var(--progress-text); }
         .btn:not(:disabled):hover { filter: brightness(1.06); }
         .btn:not(:disabled):active { transform: translateY(1px); }
         .btn:disabled, .btn.disabled { cursor: not-allowed; opacity: 0.62; }
@@ -785,9 +782,6 @@
         html[data-theme="super-night"] .bg-body { background-color: var(--bg-page) !important; }
 
         /* Progress track (Bootstrap default is light gray and shows white when empty/0%) */
-        html[data-theme="night"] .progress,
-        html[data-theme="leek"] .progress,
-        html[data-theme="super-night"] .progress { background-color: var(--bg-input); }
 
         /* ── Bootstrap alert overrides ─────────────────────────────────── */
         html[data-theme="night"] .alert-info,
@@ -934,6 +928,213 @@
             --secondary-accent: #f4a9cb;
             --focus-ring: rgba(57,197,187,0.5);
             --bs-primary-rgb: 57,197,187;
+        }
+
+        /* ── Textured progress bars (#2042) ────────────────────────────────
+           One component for every progress bar in the app (Rule 15).
+           The track is this theme's ink, dimmed and masked by a per-texture
+           pattern; the fill is solid ink; the fill-edge transition is the
+           `.tp-lead`/`.tp-lead2` siblings that the flex row keeps glued to the
+           fill's right edge. Every colour is a theme token, so switching
+           `html[data-theme]` recolours the bars with no re-render.
+
+           Texture per bar (one texture, one meaning):
+             ticks    - Script Review, script generation, casting review
+             dither   - rendering audio (whole book and the per-line bars)
+             halftone - LoRA training and the Voice Lab pipeline
+             hatch    - dataset builder and dataset preparer
+
+           Sizes: 28px tall with square corners; `.tp-sm` (20px) is the in-row
+           variant. Bars that know a fraction get a `.tp-head` row with the
+           label and the tabular percentage in the theme heading colour. */
+        :root, html[data-theme="light"] {
+            --tp-ink: var(--accent);
+            --tp-ink-text: #ffffff;
+            --tp-dim: .5;
+            --tp-dim-halftone: .62;
+        }
+        html[data-theme="night"],
+        html[data-theme="super-night"],
+        html[data-theme="leek"] {
+            --tp-ink: var(--accent);
+            --tp-ink-text: #0b1220;
+            --tp-dim: .62;
+            --tp-dim-halftone: .55;
+        }
+        html[data-theme="bread"] {
+            --tp-ink: var(--accent);
+            --tp-ink-text: #ffffff;
+            --tp-dim: .5;
+            --tp-dim-halftone: .62;
+        }
+        /* Cyberpunk spreads its three neons across the bar types. */
+        html[data-theme="cyberpunk"] {
+            --tp-ink: var(--cyber-cyan);
+            --tp-ink-text: #090b12;
+            --tp-dim: .62;
+            --tp-dim-halftone: .55;
+        }
+        html[data-theme="cyberpunk"] .tp-dither { --tp-ink: var(--cyber-pink); }
+        html[data-theme="cyberpunk"] .tp-halftone { --tp-ink: var(--cyber-yellow); }
+        html[data-theme="cyberpunk"] .tp-hatch { --tp-ink: var(--cyber-cyan); }
+
+        .tp-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: .5rem;
+            margin-bottom: .35rem;
+            color: var(--text-heading);
+        }
+        .tp-head .tp-label { color: var(--text-heading); min-width: 0; overflow-wrap: anywhere; }
+        .tp-head .tp-value {
+            color: var(--text-heading);
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .tp {
+            position: relative;
+            display: flex;
+            align-items: stretch;
+            height: 28px;
+            overflow: hidden;
+            background-color: transparent;
+            border-radius: 0;
+        }
+        /* The track texture. Painted below the fill; the two use the same ink,
+           so the dimmed track over the solid fill composites to the fill's own
+           colour and needs no card-coloured cover band. */
+        .tp::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-color: var(--tp-ink);
+            opacity: var(--tp-dim);
+            -webkit-mask: var(--tp-tex);
+            mask: var(--tp-tex);
+        }
+        .tp-fill {
+            position: relative;
+            flex: 0 0 auto;
+            width: 0;
+            height: 100%;
+            padding-left: .5rem;
+            overflow: hidden;
+            white-space: nowrap;
+            background-color: var(--tp-ink);
+            color: var(--tp-ink-text);
+            font-size: .8rem;
+            font-weight: 500;
+            line-height: 28px;
+            transition: width .45s cubic-bezier(.2, .7, .2, 1);
+        }
+        .tp-lead, .tp-lead2 { position: relative; flex: 0 0 auto; height: 100%; }
+        .tp-sm { height: 20px; }
+        .tp-sm .tp-fill { font-size: .7rem; line-height: 20px; padding-left: .35rem; }
+        /* Indeterminate: no fill and no edge transition, the track texture slides. */
+        .tp-indeterminate .tp-fill,
+        .tp-indeterminate .tp-lead,
+        .tp-indeterminate .tp-lead2 { display: none; }
+        .tp-indeterminate::before { animation: tp-track-slide 3.2s linear infinite; }
+        @keyframes tp-track-slide {
+            from { -webkit-mask-position: 0 0; mask-position: 0 0; }
+            to { -webkit-mask-position: 64px 0; mask-position: 64px 0; }
+        }
+        /* The visible label of a bar that has no fraction to report. */
+        .tp > .tp-label {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            padding: 0 .5rem;
+            font-size: .8rem;
+            font-weight: 500;
+            color: var(--text-heading);
+            pointer-events: none;
+        }
+
+        /* ticks: 2px ticks every 8px, hard edge then one thick lead tick. */
+        .tp-ticks { --tp-tex: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 8px); }
+        .tp-ticks .tp-lead { width: 4px; margin-left: 3px; background-color: var(--tp-ink); }
+
+        /* dither: irregular scattered 2px pixels, a 1px-column fray at the edge. */
+        .tp-dither { --tp-tex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='28' shape-rendering='crispEdges'%3E%3Cg fill='%23000'%3E%3Crect x='1' y='1' width='2' height='2'/%3E%3Crect x='9' y='3' width='2' height='2'/%3E%3Crect x='17' y='1' width='2' height='2'/%3E%3Crect x='5' y='7' width='2' height='2'/%3E%3Crect x='13' y='9' width='2' height='2'/%3E%3Crect x='21' y='7' width='2' height='2'/%3E%3Crect x='2' y='13' width='2' height='2'/%3E%3Crect x='10' y='15' width='2' height='2'/%3E%3Crect x='18' y='13' width='2' height='2'/%3E%3Crect x='6' y='19' width='2' height='2'/%3E%3Crect x='14' y='21' width='2' height='2'/%3E%3Crect x='22' y='19' width='2' height='2'/%3E%3Crect x='1' y='25' width='2' height='2'/%3E%3Crect x='9' y='25' width='2' height='2'/%3E%3Crect x='17' y='24' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 24px 28px; }
+        .tp-dither .tp-lead {
+            width: 10px;
+            background-color: var(--tp-ink);
+            -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='28' shape-rendering='crispEdges'%3E%3Cg fill='%23000'%3E%3Crect x='0' y='0' width='2' height='28'/%3E%3Crect x='2' y='0' width='2' height='2'/%3E%3Crect x='2' y='4' width='2' height='2'/%3E%3Crect x='2' y='8' width='2' height='2'/%3E%3Crect x='2' y='12' width='2' height='2'/%3E%3Crect x='2' y='16' width='2' height='2'/%3E%3Crect x='2' y='20' width='2' height='2'/%3E%3Crect x='2' y='24' width='2' height='2'/%3E%3Crect x='5' y='2' width='3' height='3'/%3E%3Crect x='5' y='11' width='3' height='3'/%3E%3Crect x='5' y='20' width='3' height='3'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 10px 28px;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='28' shape-rendering='crispEdges'%3E%3Cg fill='%23000'%3E%3Crect x='0' y='0' width='2' height='28'/%3E%3Crect x='2' y='0' width='2' height='2'/%3E%3Crect x='2' y='4' width='2' height='2'/%3E%3Crect x='2' y='8' width='2' height='2'/%3E%3Crect x='2' y='12' width='2' height='2'/%3E%3Crect x='2' y='16' width='2' height='2'/%3E%3Crect x='2' y='20' width='2' height='2'/%3E%3Crect x='2' y='24' width='2' height='2'/%3E%3Crect x='5' y='2' width='3' height='3'/%3E%3Crect x='5' y='11' width='3' height='3'/%3E%3Crect x='5' y='20' width='3' height='3'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 10px 28px;
+        }
+
+        /* halftone: round dots on the offset 6px lattice. Off the fill edge the
+           texture stops and a 9px fade hands over to a dot ramp: six radii,
+           each held for exactly one lattice period (6px) and stepping down to
+           the track's own dot, so the edge reads as a halftone gradient. The
+           band's two lattice layers are 3px apart on both axes -- never the
+           same column twice, which is what turns the ramp into stripes. The
+           steps stop at 1.85px because on this lattice neighbouring dots are
+           4.24px apart: anything above ~1.9px touches its neighbour, and the
+           merged pair renders as a solid 6-12px slab with pinholes that reads
+           as a bar at full size (2.6/2.2/2.0px all did).
+
+           The ramp overlaps the fade by one lattice period and fades out at
+           its far end, so both hand-overs are continuous: the first big dots
+           sit ON the fade (a ramp that starts after it leaves a pale column),
+           and the last small dots dim into the track's dimmed dots (ending on
+           a full-ink dot against them reads as a darker column). */
+        .tp-halftone {
+            --tp-dim: var(--tp-dim-halftone);
+            --tp-tex: radial-gradient(circle, #000 1.15px, transparent 1.5px) 0 0 / 6px 6px,
+                      radial-gradient(circle, #000 1.15px, transparent 1.5px) 3px 3px / 6px 6px;
+        }
+        .tp-halftone .tp-lead {
+            width: 9px;
+            background-color: transparent;
+            background-image: linear-gradient(90deg, var(--tp-ink), transparent);
+        }
+        .tp-halftone .tp-lead2 {
+            /* One whole 6px period back over the lead's fade, so the ramp keeps
+               its own offset lattice and the reach is unchanged (9 + 45 - 6 = 48).
+               It cannot share the track's phase at every fill position; the
+               fade-out mask below is what blends it into the track. */
+            width: 45px;
+            margin-left: -6px;
+            background-color: transparent;
+            background-image:
+                radial-gradient(circle, var(--tp-ink) 1.85px, transparent 2.1px),
+                radial-gradient(circle, var(--tp-ink) 1.85px, transparent 2.1px),
+                radial-gradient(circle, var(--tp-ink) 1.71px, transparent 1.96px),
+                radial-gradient(circle, var(--tp-ink) 1.71px, transparent 1.96px),
+                radial-gradient(circle, var(--tp-ink) 1.57px, transparent 1.82px),
+                radial-gradient(circle, var(--tp-ink) 1.57px, transparent 1.82px),
+                radial-gradient(circle, var(--tp-ink) 1.43px, transparent 1.68px),
+                radial-gradient(circle, var(--tp-ink) 1.43px, transparent 1.68px),
+                radial-gradient(circle, var(--tp-ink) 1.29px, transparent 1.54px),
+                radial-gradient(circle, var(--tp-ink) 1.29px, transparent 1.54px),
+                radial-gradient(circle, var(--tp-ink) 1.15px, transparent 1.4px),
+                radial-gradient(circle, var(--tp-ink) 1.15px, transparent 1.4px);
+            background-size: 6px 6px;
+            background-repeat: repeat-y;
+            background-position: 0 0, 3px 3px, 6px 0, 9px 3px, 12px 0, 15px 3px,
+                                 18px 0, 21px 3px, 24px 0, 27px 3px, 30px 0, 33px 3px;
+            -webkit-mask: linear-gradient(90deg, #000 0 18px, rgba(0, 0, 0, .75) 28px, rgba(0, 0, 0, 0) 39px);
+            mask: linear-gradient(90deg, #000 0 18px, rgba(0, 0, 0, .75) 28px, rgba(0, 0, 0, 0) 39px);
+        }
+
+        /* hatch: 1.6px lines at about 55 degrees, a short dithered fray. */
+        .tp-hatch { --tp-tex: repeating-linear-gradient(-55deg, #000 0 1.6px, transparent 1.6px 7px); }
+        .tp-hatch .tp-lead {
+            width: 8px;
+            background-color: var(--tp-ink);
+            -webkit-mask: conic-gradient(#000 25%, transparent 0 50%, #000 0 75%, transparent 0) 0 0 / 4px 4px;
+            mask: conic-gradient(#000 25%, transparent 0 50%, #000 0 75%, transparent 0) 0 0 / 4px 4px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .tp-fill { transition: none; }
+            .tp-indeterminate::before { animation: none; }
         }
 
         html:is([data-theme="bread"], [data-theme="leek"]) {
@@ -2679,6 +2880,10 @@
                     </span>
                 </div>
                 <div class="card-body p-0">
+                    <div id="script-progress" class="tp-wrap px-2 pt-2" hidden>
+                        <div class="tp-head"><span class="tp-label" id="script-progress-label"></span><b class="tp-value" id="script-progress-value"></b></div>
+                        <div id="script-progress-bar" class="tp tp-ticks" role="progressbar" aria-labelledby="script-progress-label" aria-valuemin="0" aria-valuemax="100" aria-busy="true"><div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span></div>
+                    </div>
                     <div id="script-activity" class="small text-muted px-2 py-1 border-bottom" hidden></div>
                     <div id="script-logs" class="log-window" tabindex="0" role="region" data-i18n-attr="aria-label:script.logs.title" aria-label="Script generation logs"></div>
                 </div>
@@ -3049,7 +3254,7 @@
                             <button type="button" class="btn-close" data-bs-dismiss="modal" data-i18n-attr="aria-label:casting.review.close" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <div class="progress mb-3" role="progressbar" data-i18n-attr="aria-label:casting.review.progress" aria-label="Review progress"><div class="progress-bar" id="casting-review-progress" style="width:0%"></div></div>
+                            <div id="casting-review-progress" class="tp tp-ticks mb-3" role="progressbar" data-i18n-attr="aria-label:casting.review.progress" aria-label="Review progress" aria-valuemin="0" aria-valuemax="100"><div class="tp-fill" style="width:0%"></div><span class="tp-lead" aria-hidden="true"></span></div>
                             <div id="casting-review-body"></div>
                             <label class="form-label fw-bold mt-3" for="casting-review-notes" data-i18n="casting.review.notes">Notes</label>
                             <textarea class="form-control" id="casting-review-notes" rows="3" maxlength="2000" data-i18n-attr="placeholder:casting.review.notes-placeholder" placeholder="Pronunciation, casting instinct, next action"></textarea>
@@ -3290,6 +3495,10 @@
 
                     <div id="preparer-progress-section" class="mt-4" style="display:none;">
                         <hr>
+                        <div class="tp-wrap mb-3">
+                            <div class="tp-head"><span class="tp-label" id="preparer-progress-label" data-i18n="core.task-label.preparer">Dataset preparer</span><b class="tp-value" id="preparer-progress-value"></b></div>
+                            <div id="preparer-progress-bar" class="tp tp-hatch" role="progressbar" aria-labelledby="preparer-progress-label" aria-valuemin="0" aria-valuemax="100" aria-busy="true"><div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span></div>
+                        </div>
                         <h5 class="mb-2" data-i18n="preparer.logs.title">Execution Logs</h5>
                         <div id="preparer-logs" class="log-window" style="height:300px;overflow-y:auto;background:var(--log-bg);color:var(--log-color);padding:10px;font-family:monospace;font-size:0.8rem;border-radius:4px;" tabindex="0" role="region" data-i18n-attr="aria-label:preparer.logs.title" aria-label="Execution Logs"></div>
                     </div>
@@ -3437,6 +3646,10 @@
                     </div>
 
                     <!-- Stage progress -->
+                    <div id="vl-progress" class="tp-wrap mb-2" style="display:none;">
+                        <div class="tp-head"><span class="tp-label" id="vl-progress-label" data-i18n="core.task-label.voicelab">Voice Lab pipeline</span><b class="tp-value" id="vl-progress-value"></b></div>
+                        <div id="vl-progress-bar" class="tp tp-halftone" role="progressbar" aria-labelledby="vl-progress-label" aria-valuemin="0" aria-valuemax="100" aria-busy="true"><div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span><span class="tp-lead2" aria-hidden="true"></span></div>
+                    </div>
                     <div id="vl-stage-progress" class="d-flex gap-2 flex-wrap mb-2" style="display:none;"></div>
                 </div>
             </div>
@@ -3603,8 +3816,11 @@
                                     <span><span data-i18n="training.progress.epoch">Epoch:</span> <strong id="lora-epoch-display">0/0</strong></span>
                                     <span><span data-i18n="training.progress.loss">Loss:</span> <strong id="lora-loss-display">--</strong></span>
                                 </div>
-                                <div class="progress mt-1" style="height: 20px;">
-                                    <div id="lora-progress-bar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Training not started" data-i18n-attr="aria-valuetext:training.progress.not-started" class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: 0%">0%</div>
+                                <div class="tp-wrap mt-1">
+                                    <div class="tp-head"><span class="tp-label"></span><b class="tp-value" id="lora-progress-value"></b></div>
+                                    <div id="lora-progress-bar" class="tp tp-halftone" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Training not started" data-i18n-attr="aria-valuetext:training.progress.not-started, aria-label:core.task-label.lora-training" aria-label="LoRA training" aria-busy="true" role="progressbar">
+                                        <div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span><span class="tp-lead2" aria-hidden="true"></span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-8">
@@ -3704,8 +3920,11 @@
                     </div>
 
                     <!-- Progress bar -->
-                    <div class="progress mb-3" style="height: 22px; display: none;" id="dsb-progress-wrap">
-                        <div id="dsb-progress-bar" class="progress-bar progress-bar-striped bg-success" role="progressbar" style="width: 0%">0%</div>
+                    <div class="tp-wrap mb-3" id="dsb-progress-wrap" style="display: none;">
+                        <div class="tp-head"><span class="tp-label"></span><b class="tp-value"></b></div>
+                        <div id="dsb-progress-bar" class="tp tp-hatch" role="progressbar" data-i18n-attr="aria-label:core.task-label.dataset-builder" aria-label="Dataset builder batch" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span>
+                        </div>
                     </div>
 
                     <!-- Spreadsheet table -->
@@ -3779,8 +3998,11 @@
                 <div class="card-body">
                      <div id="chunk-load-status" class="small mb-2" role="status" aria-live="polite"></div>
                      <!-- Full Progress Bar -->
-                     <div class="progress mb-3" style="height: 25px;">
-                         <div id="full-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" data-i18n-attr="aria-label:editor.render.progress" aria-label="Audio rendering progress" aria-valuemin="0" aria-valuemax="100" aria-busy="true" style="width: 100%"><span data-i18n="editor.render.progress-loading">Loading rendering progress…</span></div>
+                     <div class="tp-wrap mb-3">
+                         <div class="tp-head"><span class="tp-label" id="full-progress-label" data-i18n="editor.render.progress-loading">Loading rendering progress…</span><b class="tp-value" id="full-progress-value"></b></div>
+                         <div id="full-progress-bar" class="tp tp-dither" role="progressbar" data-i18n-attr="aria-label:editor.render.progress" aria-label="Audio rendering progress" aria-valuemin="0" aria-valuemax="100" aria-busy="true">
+                             <div class="tp-fill"></div><span class="tp-lead" aria-hidden="true"></span>
+                         </div>
                      </div>
                      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                          <button class="btn btn-outline-secondary btn-sm" id="btn-text-diff" onclick="openTextDiff()" data-i18n-attr="title:editor.integrity.button-title" title="Where the script's words differ from the source"><i class="fas fa-code-compare me-1"></i><span data-i18n="editor.integrity.button">Text integrity</span></button>

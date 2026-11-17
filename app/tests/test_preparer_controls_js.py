@@ -8,6 +8,9 @@ const apiStart=core.indexOf('const API = {'),apiEnd=core.indexOf('// --- Setup T
 run(core.slice(apiStart,apiEnd));
 const escapeStart=core.indexOf('function escapeHtml('),escapeEnd=core.indexOf('// Parse a numeric input',escapeStart);
 run(core.slice(escapeStart,escapeEnd));
+// The preparer bar is the shared #2042 textured component.
+run(core.slice(core.indexOf('// --- Textured progress bars (#2042) ---'),core.indexOf('// --- End textured progress bars ---')));
+run(core.slice(core.indexOf('function getTaskLabel('),core.indexOf('function taskStatusLabel(')));
 const prepStart=source.indexOf('let prepBatchQueue ='),prepEnd=source.indexOf('// List/download the dataset ZIPs',prepStart);
 run(source.slice(prepStart,prepEnd));
 const {File}=require('buffer');context.FormData=FormData;

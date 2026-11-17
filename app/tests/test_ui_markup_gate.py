@@ -105,6 +105,14 @@ KEEP_ENGLISH = frozenset({
     'POST', 'same-origin', 'Content-Type', 'application/json',
     # Bootstrap class lists on the connection-test result: styling, not copy.
     'ms-2 small text-danger', 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2',
+    # #2042 textured progress bars: the component's CSS class set and the
+    # element ids its renderer looks up are wiring, never display copy.
+    'tp tp-dither tp-sm tp-indeterminate', 'tp-indeterminate',
+    'script-progress', 'script-progress-bar', 'script-activity',
+    'vl-progress', 'vl-progress-bar', 'preparer-progress-bar',
+    # #2042 the review's alias-merge stage marker; it must match
+    # core.SPEAKER_MERGE_MARKER byte for byte, so it is a protocol token.
+    'Merging duplicate names:',
 })
 
 # Measured 2026-11-10 on the P5 tree by the counters below. A pane or file that
