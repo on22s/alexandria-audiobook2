@@ -52,6 +52,27 @@ their Linux results do not qualify Windows behavior. Private Windows creation/re
 recovery checks in this gate. Power-loss directory durability and the legacy
 public-stage finalization path remain unqualified.
 
+## Dialogue package cleanup
+
+The required `windows-owner` job also runs all seven dialogue cleanup checks:
+
+```text
+cd app
+python tests/native_windows_dialogue_cleanup_checks.py
+```
+
+Set `PYTHONPATH` to `.` in the Windows shell environment. The runner refuses
+non-Windows hosts before application imports and succeeds only when exactly seven
+tests pass with zero skips. It lives outside `test_*.py` discovery, so Linux
+release shards do not collect or skip these native checks. The CI contract tests
+pin the seven test names, required workflow step, count and zero-skip guards.
+
+The fixtures preserve swapped-in files and nonempty directories, reject unadmitted
+children, and remove both independent manifests even when a payload is locked.
+Real read-only and no-delete-sharing files verify loud refusal, preserved bytes,
+released cleanup handles and successful retry after removing the obstruction.
+Portable dialogue workflow and cleanup tests remain in Linux unit discovery.
+
 ## Adapter publication file flushing
 
 The `windows-owner` job runs the adapter tree sync regression tests:

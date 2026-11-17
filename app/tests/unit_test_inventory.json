@@ -4628,6 +4628,7 @@
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_cpu_pairs_are_resumable_and_changed_inputs_or_audio_refuse_reuse"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_default_packages_use_independent_randomization"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_directory_cleanup_does_not_delete_a_replacement"
+    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_directory_cleanup_reports_replacement_before_open"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_failed_collection_exits_nonzero"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_fidelity_failure_cannot_be_packaged_and_package_audio_tamper_is_detected"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_fidelity_failure_exits_nonzero_even_when_pairs_complete"
@@ -4636,8 +4637,10 @@
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_package_cli_default_seed_is_random"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_package_requires_complete_passing_run_and_separate_concealed_key"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_package_tamper_and_duplicate_answers_are_rejected"
+    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_cleanup_reports_all_failures_and_attempts_both_manifests"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_collision_preserves_foreign_output_directory"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_collision_preserves_foreign_public_file"
+    , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_partial_copy_is_owned_and_cleaned"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_recomputes_fidelity_and_refuses_stale_pass"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_refuses_manifest_that_omits_a_failed_pair"
     , "tests.test_dialogue_continuity_eval.DialogueContinuityEvaluationTests.test_packaging_rejects_a_consistent_request_tamper"
@@ -5557,6 +5560,7 @@
   , "test_expected_prosody_fusion": []
   , "test_experiment_audio_cleanup": [
     "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_dataset_consistency_cleanup_on_success_missing_metadata_metric_error_and_exception"
+    , "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_experiment_basename_expressions_handle_native_trailing_separators"
     , "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_reference_match_cleanup_on_success_missing_metadata_metric_error_and_exception"
   ]
   , "test_experiment_conventions": [
@@ -7961,7 +7965,9 @@
     , "tests.test_local_unit_shards.LocalAggregationTests.test_failed_shard_fails_readiness_but_retains_its_counts"
     , "tests.test_local_unit_shards.LocalAggregationTests.test_missing_receipt_counter_is_unknown_not_zero"
     , "tests.test_local_unit_shards.LocalAggregationTests.test_missing_shard_is_not_a_successful_partial_run"
+    , "tests.test_local_unit_shards.LocalAggregationTests.test_missing_test_dependencies_are_named_before_shards_start"
     , "tests.test_local_unit_shards.LocalAggregationTests.test_windows_environment_keeps_hidden_drive_state_and_clears_git_routing"
+    , "tests.test_local_unit_shards.LocalAggregationTests.test_wrong_test_dependency_version_is_refused"
     , "tests.test_local_unit_shards.LocalVerifierRouteTests.test_ci_shard_keeps_legacy_path_even_when_ready_selects_local_default"
     , "tests.test_local_unit_shards.LocalVerifierRouteTests.test_invalid_local_options_fail_before_running_gates"
     , "tests.test_local_unit_shards.LocalVerifierRouteTests.test_local_discovery_runs_nonunit_gates_once_and_preserves_failed_counts"
@@ -7970,8 +7976,10 @@
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_checkout_failure_keeps_a_failed_shard_artifact_and_cleans_prior_workers"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_ctrl_c_reaps_owned_processes_and_removes_every_registered_worktree"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_dirty_staged_untracked_and_crlf_inputs_are_frozen_without_index_or_ref_changes"
+    , "tests.test_local_unit_shards.LocalWorktreeTests.test_empty_inventory_module_does_not_change_discovery_assignment"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_failure_still_runs_other_shard_and_removes_every_worktree"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_force_added_ignored_file_is_included_in_snapshot"
+    , "tests.test_local_unit_shards.LocalWorktreeTests.test_import_failure_in_empty_inventory_module_is_still_refused"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_insufficient_disk_refuses_before_snapshot_or_explicitly_falls_back_to_serial"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_killed_coordinator_worktrees_are_recovered_without_touching_live_or_unowned_trees"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_native_crlf_overlay_does_not_create_false_dirty_git_status"
@@ -11336,7 +11344,9 @@
     , "tests.test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module"
     , "tests.test_release_verifier.CiEnvParityTests.test_blocked_modules_match_what_ci_omits"
     , "tests.test_release_verifier.CiEnvParityTests.test_changed_file_hints_name_the_missing_generator"
+    , "tests.test_release_verifier.CiEnvParityTests.test_ci_installs_shared_unit_test_requirements_from_app"
     , "tests.test_release_verifier.CiEnvParityTests.test_ci_runs_the_shared_release_verifier"
+    , "tests.test_release_verifier.CiEnvParityTests.test_local_unit_shards_reads_shared_unit_test_requirements"
     , "tests.test_release_verifier.CiEnvParityTests.test_mark_ready_parses_https_and_ssh_origins"
     , "tests.test_release_verifier.CiEnvParityTests.test_mark_ready_requires_current_mergeable_head_and_successful_checks"
     , "tests.test_release_verifier.CiEnvParityTests.test_rolling_selection_executes_isolated_timeout_only"
@@ -11346,6 +11356,7 @@
     , "tests.test_release_verifier.CiEnvParityTests.test_timeout_probe_rejects_short_grace_and_fake_cleanup"
     , "tests.test_release_verifier.CiEnvParityTests.test_timeout_workflow_selection_and_evidence_are_wired"
     , "tests.test_release_verifier.CiEnvParityTests.test_torch_is_absent_from_requirements"
+    , "tests.test_release_verifier.CiEnvParityTests.test_workflows_do_not_install_unit_test_dependencies_inline"
     , "tests.test_release_verifier.CompileArtifactIsolationTests.test_actual_bytecode_is_temporary_and_source_tree_is_unchanged"
     , "tests.test_release_verifier.CompileArtifactIsolationTests.test_compile_error_propagates_and_removes_temporary_bytecode"
     , "tests.test_release_verifier.ReleaseVerifierTests.test_api_summary_rejects_inconsistent_counts_and_duplicate_names"
@@ -16653,6 +16664,11 @@
     , "tests.test_voice_design_worker.VoiceDesignWorkerTests.test_failure_translation_and_conflict_preserve_claim_lifetime"
     , "tests.test_voice_design_worker.VoiceDesignWorkerTests.test_initialization_and_generation_are_owned_worker_operations"
   ]
+  , "test_voice_disclosure_state": [
+    "tests.test_voice_disclosure_state.VoiceDisclosureStateTests.test_caps_recent_books_and_sections_and_migrates_legacy_keys"
+    , "tests.test_voice_disclosure_state.VoiceDisclosureStateTests.test_failed_writes_warn_without_losing_book_scoped_memory"
+    , "tests.test_voice_disclosure_state.VoiceDisclosureStateTests.test_native_actions_defaults_bulk_and_persistence"
+  ]
   , "test_voice_drafts": [
     "tests.test_voice_drafts.VoiceDraftTests.test_acknowledgement_keeps_newest_draft_and_tabs_keep_separate_records"
     , "tests.test_voice_drafts.VoiceDraftTests.test_process_exit_before_debounce_and_fresh_process_recovery_through_real_http"
@@ -17225,8 +17241,11 @@
   ]
   , "test_windows_native_ci": [
     "tests.test_windows_native_ci.NativeWindowsCiTests.test_ci_runs_all_native_methods_on_windows"
+    , "tests.test_windows_native_ci.NativeWindowsCiTests.test_ci_runs_all_seven_native_dialogue_cleanup_checks_without_skips"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_ci_runs_every_native_transaction_check_without_skips"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_invalid_repin_arguments_refuse_before_registry_access"
+    , "tests.test_windows_native_ci.NativeWindowsCiTests.test_native_dialogue_checks_refuse_wrong_host_before_application_imports"
+    , "tests.test_windows_native_ci.NativeWindowsCiTests.test_native_dialogue_runner_rejects_incomplete_or_skipped_checks"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_native_transaction_checks_refuse_a_non_windows_host"
     , "tests.test_windows_native_ci.NativeWindowsCiTests.test_wrong_host_is_refused_instead_of_printing_a_successful_skipped_suite"
   ]

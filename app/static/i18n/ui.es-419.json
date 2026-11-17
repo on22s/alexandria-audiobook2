@@ -1,4 +1,8 @@
 {
+  "voices.sections.label": "Secciones de revisión de personajes",
+  "help.action.setvoicesectionsopen": "Expande o contrae todas las secciones de revisión de personajes. Este navegador recuerda el último estado de cada voz.",
+  "voices.sections.expand-all": "Expandir todo",
+  "voices.sections.collapse-all": "Contraer todo",
   "_meta": {
     "generated_from": "d7343099",
     "locale": "es-419",

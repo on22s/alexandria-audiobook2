@@ -113,13 +113,13 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.work, exist_ok=True)
-    name = os.path.basename(args.adapter.rstrip("/"))
+    name = os.path.basename(os.path.normpath(args.adapter))
     with file_lock(os.path.join(args.work, name) + ".drift"):
         run_drift(args)
 
 
 def run_drift(args):
-    name = os.path.basename(args.adapter.rstrip("/"))
+    name = os.path.basename(os.path.normpath(args.adapter))
     out_path = args.out or os.path.join(
         REPO, "ab_test_runtime", "experiments", f"voice_drift__{name}.json")
     wdir = os.path.join(args.work, name)

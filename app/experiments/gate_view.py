@@ -70,7 +70,7 @@ def pair(adapter, dataset, limit, clips_dir=None, pattern="check_%d.wav"):
         rows.append({"id": "val-%d" % index, "text": text,
                      "human_wav": os.path.relpath(human_wav, REPO),
                      "lora_wav": os.path.relpath(generated, REPO),
-                     "book": os.path.basename(adapter.rstrip("/"))})
+                     "book": os.path.basename(os.path.normpath(adapter))})
     if missing:
         print("  note: %d gate clip(s) absent (%s) - the gate recorded "
               "generation failures for these" % (len(missing), ", ".join(missing[:3])))

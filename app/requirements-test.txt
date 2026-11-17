@@ -1,0 +1,5 @@
+# CPU-only unit-test tools, in addition to app/requirements.txt.
+EbookLib==0.20
+beautifulsoup4==4.15.0
+uv==0.11.14
+httpx==0.28.1
