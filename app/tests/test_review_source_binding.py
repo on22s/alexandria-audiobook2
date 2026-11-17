@@ -998,3 +998,48 @@ class ReviewNewSpeakerSplitTests(unittest.TestCase):
         # Omitted annotations still follow the known source row for BOB.
         self.assertEqual('adult', output[0]['speaker_age_group'])
         self.assertIs(True, output[0]['spoken'])
+
+    def test_published_split_entries_match_what_the_old_speaker_policy_produced(self):
+        """#2036 changes a log warning, not the published review output.
+
+        The expected entries below were read off the pre-#2036 binder (which
+        cleared the inherited speaker fields, warned, and then had the reviewer's
+        supplied annotations re-applied by apply_review_annotations). They are
+        spelled out literally so any future change to the published output of
+        this split fails here, not only in a warning assertion - which is why the
+        review algorithm identity does not move for this fix.
+        """
+        raw, batch = split_batch()
+        output, quality = review.get_review_source_binding(
+            batch, split_reply(batch, **SPLIT_ANNOTATIONS, spoken=True), source_text=raw)
+        self.assertEqual([], quality['warnings'])
+        self.assertEqual([
+            {'spoken': False, 'source_span': [40, 68], 'speaker': 'NARRATOR',
+             'text': 'I had seen that look before.', 'instruct': 'Reflective narration.'},
+            {'source_span': [71, 72], 'speaker': 'TOMAS', 'text': '"…"',
+             'instruct': 'Silent, tense pause.', 'spoken': True,
+             'speaker_gender': 'male', 'speaker_age_group': 'young_adult',
+             'speaker_ageless': True},
+            {'spoken': False, 'source_span': [75, 132], 'speaker': 'NARRATOR',
+             'text': 'For some reason the silence felt heavier than any answer.',
+             'instruct': 'Reflective narration.'},
+            {'spoken': False, 'source_span': [134, 157], 'speaker': 'PROFESSOR VALE',
+             'text': 'The gate opens at dusk.', 'instruct': 'Lecture.'},
+            {'spoken': False, 'source_span': [159, 181], 'speaker': 'MIRA SOL',
+             'text': 'I wondered about that.', 'instruct': 'Quiet fear.'},
+        ], output)
+        # A partially annotated new speaker publishes only the supplied fields,
+        # exactly as the old policy did after clearing the stale ones.
+        raw, batch = split_batch(speaker_gender='female', speaker_age_group='adult',
+                                 speaker_ageless=True)
+        output, quality = review.get_review_source_binding(
+            batch, split_reply(batch, speaker_age_group='young_adult'), source_text=raw)
+        self.assertEqual([], quality['warnings'])
+        self.assertEqual({'spoken': False, 'speaker_gender': 'female',
+                          'speaker_age_group': 'adult', 'speaker_ageless': True,
+                          'source_span': [40, 68], 'speaker': 'NARRATOR',
+                          'text': 'I had seen that look before.',
+                          'instruct': 'Reflective narration.'}, output[0])
+        self.assertEqual({'source_span': [71, 72], 'speaker': 'TOMAS', 'text': '"…"',
+                          'instruct': 'Silent, tense pause.',
+                          'speaker_age_group': 'young_adult'}, output[1])

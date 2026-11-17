@@ -34,7 +34,7 @@ the model reproduced all input keys or made semantically correct speaker choices
 
 The response contract also applies to custom and literal classic-review prompts.
 Index-only review keeps its separate `{n, speaker, instruct}` contract. Review
-algorithm identity is 12 for the current review semantics (14 for a source-span
+algorithm identity is 11 for the current review semantics (13 for a source-span
 book, whose receipt and checkpoint identity carries the source-span version),
 invalidating older completed receipts, checkpoints and benchmark evidence.
 
@@ -64,7 +64,9 @@ text or pauses. For #2036, a corrected speaker with no known source row keeps th
 annotations the reviewer supplied for it: those are the model's evidence, so they
 are neither cleared nor reported, and only an unannotated correction warns.
 Supplied values still win over a known-speaker fallback, and an explicit null is
-a clear rather than evidence. Index-only,
+a clear rather than evidence. The bound entries, receipt and checkpoint are
+byte-identical under either policy - only this log-only warning differs - so
+#2036 does not move the review identity and needs no re-review. Index-only,
 punctuation-recovery, adaptive recombination and partial-label retention use the
 same policy; partial results remain incomplete and retryable. Annotation warnings
 include entry numbers and are printed to the full task log. Successful CLI receipts

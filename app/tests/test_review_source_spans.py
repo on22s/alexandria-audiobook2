@@ -245,7 +245,7 @@ class ReviewSourceSpanTests(unittest.TestCase):
                 self.assertEqual(original, script.read_bytes())
                 self.assertFalse(Path(str(script) + '.review_completed.json').exists())
 
-    def test_span_free_receipts_follow_the_review_algorithm_version_and_skip_the_model(self):
+    def test_span_free_receipts_keep_the_version_11_fingerprint_and_skip_the_model(self):
         for labels_only in (False, True):
             with self.subTest(labels_only=labels_only), tempfile.TemporaryDirectory() as directory:
                 source = copy.deepcopy(SOURCE)
@@ -260,7 +260,7 @@ class ReviewSourceSpanTests(unittest.TestCase):
                     def legacy_identity(identity):
                         identity = {key: value for key, value in identity.items()
                                     if key != 'review_source_sha256'}
-                        identity['algorithm'] = review.REVIEW_ALGORITHM_VERSION
+                        identity['algorithm'] = 11
                         return fingerprint_identity(identity)
                     with patch.object(review, 'get_run_fingerprint_identity', side_effect=legacy_identity):
                         review.main()
