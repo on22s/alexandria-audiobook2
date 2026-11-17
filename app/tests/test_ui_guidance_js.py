@@ -3,7 +3,128 @@ from pathlib import Path
 import subprocess
 import unittest
 
+from tests.test_ui_help_js import DOM_FIXTURE
+
 SOURCE=Path(__file__).resolve().parent.parent/'static/js/app-core.js'
+
+# The Setup header button exactly as index.html authors it (#2016): an icon and
+# a data-i18n span inside the button, plus the eight fields Auto-Configure reads,
+# applies and re-reads. The authored nodes are kept so a test can prove they were
+# never replaced rather than re-created.
+AUTO_CONFIGURE_FIXTURE = r'''
+Element.prototype.querySelector=function(selector){return this.querySelectorAll(selector)[0]||null;};
+Element.prototype.scrollIntoView=function(){};
+Object.defineProperty(Element.prototype,'disabled',{get(){return this.hasAttribute('disabled');},set(value){if(value){this.setAttribute('disabled','');}else{this.removeAttribute('disabled');}}});
+// Real innerHTML assignment replaces every child, which is exactly the damage
+// #2016 was: a button whose authored span silently disappeared.
+Object.defineProperty(Element.prototype,'innerHTML',{get(){return this.htmlText||'';},set(value){this.htmlText=String(value);for(const child of [...this.children]){child.remove();}}});
+context.escapeHtml=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+const pendingRequests=[],toasts=[];
+context.API={get:()=>new Promise((resolve,reject)=>pendingRequests.push({resolve,reject}))};
+context.showToast=(...args)=>toasts.push(args);
+context.showActionError=(...args)=>toasts.push(args);
+context.toggleTTSMode=()=>{};context.toggleSubBatchFields=()=>{};
+function buildButton(){
+ const button=body.appendChild(new Element('button',{id:'btn-auto-configure',type:'button',class:'btn btn-sm btn-outline-info'}));
+ button.appendChild(new Element('i',{class:'fas fa-magic me-1'}));
+ const span=button.appendChild(new Element('span',{'data-i18n':'setup.header.auto-configure'}));
+ span.textContent='Auto-Configure';
+ return button;
+}
+function buildFields(){
+ for(const [id,property,value] of [['tts-mode','value','local'],['parallel-workers','value',1],['compile-codec','checked',false],['batch-group-by-type','checked',true],['sub-batch-enabled','checked',true],['sub-batch-min-size','value',4],['sub-batch-ratio','value',5],['sub-batch-max-items','value',4]]){
+  const field=body.appendChild(new Element('input',{id}));field[property]=value;
+ }
+ const banner=body.appendChild(new Element('div',{id:'auto-config-banner'}));banner.style.display='none';
+ body.appendChild(new Element('div',{id:'auto-config-msg'}));
+}
+function catalog(messages){return {meta:{review_status:{all:'machine-draft',safety:'not-reviewed'}},messages};}
+function setUiCatalog(locale,payload){vm.runInContext('uiCatalogs.set('+JSON.stringify(locale)+','+JSON.stringify(payload)+')',context);}
+vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'),context);
+const source=fs.readFileSync(process.argv[1],'utf8');
+const a=source.indexOf('async function autoConfigureSettings()');
+vm.runInContext(source.slice(a,source.indexOf('// Local/Remote LLM profile state.',a)),context);
+const SPANISH=catalog({
+ 'setup.header.auto-configure':'Configuración automática',
+ 'setup.auto-config.detecting':'Detectando…',
+ 'setup.auto-config.suggested':'Ajustes sugeridos: {summary}. Revisa los ajustes de TTS a continuación.',
+ 'setup.auto-config.suggested-external':'Ajustes sugeridos: {summary}. Se seleccionó TTS externo: inicia un servidor de TTS compatible antes de generar audio.',
+ 'setup.auto-config.settings-changed':'Los ajustes de TTS cambiaron durante la detección. Revísalos antes de volver a ejecutar la configuración automática.',
+ 'setup.auto-config.failed':'No se pudo detectar el hardware',
+ 'setup.auto-config.failed-recovery':'Revisa los detalles del hardware y los ajustes de TTS.',
+});
+'''
+
+# Success path: the authored span and icon survive the busy state, the banner
+# and every string are translated, and a later language switch still reaches the
+# button (#2016: replacing innerHTML made it stay English for good).
+AUTO_CONFIGURE_LOCALE_JS = r'''
+let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{
+const button=buildButton();buildFields();
+const authored=button.children[1],authoredIcon=button.children[0];
+const span=()=>button.querySelector('[data-i18n]');
+setUiCatalog('es-419',SPANISH);await context.applyUiLocale('es-419');
+assert.strictEqual(span(),authored);assert.strictEqual(span().textContent,'Configuración automática');
+const pending=context.autoConfigureSettings();
+assert(span(),'while detecting the button still holds its data-i18n span');
+assert.strictEqual(span(),authored);
+assert.strictEqual(span().textContent,'Detectando…','busy label is the translated key');
+assert.strictEqual(span().getAttribute('data-i18n'),'setup.auto-config.detecting');
+assert.strictEqual(button.querySelector('i').className,'fas fa-spinner fa-spin me-1');
+assert(button.disabled);
+pendingRequests.at(-1).resolve({gpu:{total_gb:16}});await pending;
+assert.strictEqual(span(),authored,'the authored span is never replaced');
+assert.strictEqual(button.querySelector('i'),authoredIcon);
+assert.strictEqual(button.querySelector('i').className,'fas fa-magic me-1');
+assert.strictEqual(span().getAttribute('data-i18n'),'setup.header.auto-configure');
+assert.strictEqual(span().textContent,'Configuración automática');
+assert.strictEqual(button.disabled,false);
+const msg=document.getElementById('auto-config-msg').innerHTML;
+assert(msg.includes('data-i18n="setup.auto-config.suggested"'),msg);
+assert(msg.includes('Ajustes sugeridos: High VRAM (16.0 GB)'),msg);
+assert(!msg.includes('>Suggested settings'),'the rendered banner text is the translation, not the authored English');
+await context.applyUiLocale('en');
+assert.strictEqual(span().getAttribute('data-i18n'),'setup.header.auto-configure');
+assert.strictEqual(span().textContent,'Auto-Configure');
+setUiCatalog('ja',catalog({'setup.header.auto-configure':'自動設定'}));await context.applyUiLocale('ja');
+assert.strictEqual(span().textContent,'自動設定','a language switch still reaches the button');
+await context.applyUiLocale('en');assert.strictEqual(span().textContent,'Auto-Configure');
+finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});
+'''
+
+# Failure path and the other English-only strings: the busy label, the toast, the
+# external banner sentence, the action error and its recovery text.
+AUTO_CONFIGURE_ERRORS_JS = r'''
+let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{
+const button=buildButton();buildFields();
+const span=()=>button.querySelector('[data-i18n]');
+setUiCatalog('es-419',SPANISH);await context.applyUiLocale('es-419');
+const failing=context.autoConfigureSettings();
+assert(span(),'while detecting the button still holds its data-i18n span');
+assert.strictEqual(span().textContent,'Detectando…');
+pendingRequests.at(-1).reject(Error('no hardware'));await failing;
+assert.strictEqual(toasts.length,1);
+assert.strictEqual(toasts[0][0],'No se pudo detectar el hardware');
+assert.strictEqual(toasts[0][1].message,'no hardware');
+assert.strictEqual(toasts[0][2],'Revisa los detalles del hardware y los ajustes de TTS.');
+assert.strictEqual(span().getAttribute('data-i18n'),'setup.header.auto-configure');
+assert.strictEqual(span().textContent,'Configuración automática','an error also restores the button');
+assert.strictEqual(button.querySelector('i').className,'fas fa-magic me-1');
+assert.strictEqual(button.disabled,false);
+const changed=context.autoConfigureSettings();
+document.getElementById('tts-mode').value='external';
+pendingRequests.at(-1).resolve({gpu:{total_gb:16}});await changed;
+assert.strictEqual(toasts.at(-1)[0],'Los ajustes de TTS cambiaron durante la detección. Revísalos antes de volver a ejecutar la configuración automática.');
+assert.strictEqual(toasts.at(-1)[1],'warning');
+const external=context.autoConfigureSettings();
+pendingRequests.at(-1).resolve({gpu:{total_gb:4}});await external;
+const msg=document.getElementById('auto-config-msg').innerHTML;
+assert(msg.includes('data-i18n="setup.auto-config.suggested-external"'),msg);
+assert(msg.includes('Se seleccionó TTS externo'),msg);
+assert.strictEqual(button.disabled,false);
+assert.strictEqual(span().textContent,'Configuración automática');
+finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});
+'''
 class UiGuidanceJsTests(unittest.TestCase):
     def test_theme_switch_finishes_color_transitions_without_finishing_other_motion(self):
         self.run_js(r'''
@@ -19,7 +140,9 @@ context.applyTheme('night');assert.deepEqual(finished,['background-color','color
 
     def test_pending_auto_config_preserves_edits_and_ignores_older_requests(self):
         self.run_js(r'''const assert=require('assert'),fs=require('fs'),vm=require('vm'),s=fs.readFileSync(process.argv[1],'utf8');
-const fields={},toasts=[],requests=[];const el=id=>fields[id]??={value:'initial',checked:false,style:{},innerHTML:'',scrollIntoView(){}};
+const fields={},toasts=[],requests=[];const el=id=>id==='btn-auto-configure'?button:(fields[id]??={value:'initial',checked:false,style:{},innerHTML:'',scrollIntoView(){}});
+const icon={tag:'i',attrs:{},className:'fas fa-magic me-1'};const label={tag:'span',attrs:{'data-i18n':'setup.header.auto-configure'},textContent:'Auto-Configure',setAttribute(k,v){this.attrs[k]=String(v);},getAttribute(k){return Object.hasOwn(this.attrs,k)?this.attrs[k]:null;},hasAttribute(k){return Object.hasOwn(this.attrs,k);},removeAttribute(k){delete this.attrs[k];}};
+const button={disabled:false,children:[icon,label],querySelector(selector){return this.children.find(child=>selector==='i'?child.tag==='i':child.attrs['data-i18n']!==undefined)||null;}};
 const c={document:{getElementById:el},API:{get:()=>new Promise((resolve,reject)=>requests.push({resolve,reject}))},escapeHtml:String,showToast:(...args)=>toasts.push(args),showActionError:(...args)=>toasts.push(args),toggleTTSMode(){},toggleSubBatchFields(){}};vm.createContext(c);vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'),c);const a=s.indexOf('async function autoConfigureSettings()');vm.runInContext(s.slice(a,s.indexOf('// Local/Remote LLM profile state.',a)),c);
 let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{
 for(const [id,property] of [['tts-mode','value'],['parallel-workers','value'],['compile-codec','checked'],['batch-group-by-type','checked'],['sub-batch-enabled','checked'],['sub-batch-min-size','value'],['sub-batch-ratio','value'],['sub-batch-max-items','value']]){
@@ -27,9 +150,15 @@ for(const [id,property] of [['tts-mode','value'],['parallel-workers','value'],['
  const unchanged=()=>JSON.stringify(Object.fromEntries(Object.entries(fields).filter(([k])=>k!==id&&k!=='btn-auto-configure').map(([k,v])=>[k,{value:v.value,checked:v.checked}])));const before=unchanged();el(id)[property]=property==='value'?'changed':!el(id).checked;const value=el(id)[property];requests.at(-1).resolve({gpu:null});await waiting;
  assert.strictEqual(el(id)[property],value,id+' newer edit retained');assert.strictEqual(unchanged(),before,'no partial application');assert.strictEqual(toasts.length,count+1);assert(toasts.at(-1)[0].includes('changed'));assert.strictEqual(el('btn-auto-configure').disabled,false);
 }
-const first=c.autoConfigureSettings(),old=requests.at(-1);const second=c.autoConfigureSettings(),latest=requests.at(-1);old.resolve({gpu:null});await first;assert.strictEqual(el('btn-auto-configure').disabled,true,'older completion cannot enable current request');latest.resolve({gpu:{total_gb:16}});await second;assert.strictEqual(el('parallel-workers').value,4);assert.strictEqual(el('tts-mode').value,'local');assert.strictEqual(el('sub-batch-max-items').value,8);assert.strictEqual(el('btn-auto-configure').disabled,false);
-const stale=c.autoConfigureSettings(),staleRequest=requests.at(-1);const current=c.autoConfigureSettings();const count=toasts.length;staleRequest.reject(Error('old error'));await stale;assert.strictEqual(toasts.length,count);requests.at(-1).reject(Error('current error'));await current;assert.strictEqual(toasts.length,count+1);assert.strictEqual(el('btn-auto-configure').disabled,false);finished=true;
+const first=c.autoConfigureSettings(),old=requests.at(-1);const second=c.autoConfigureSettings(),latest=requests.at(-1);old.resolve({gpu:null});await first;assert.strictEqual(el('btn-auto-configure').disabled,true,'older completion cannot enable current request');latest.resolve({gpu:{total_gb:16}});await second;assert.strictEqual(icon.className,'fas fa-magic me-1','superseded requests restore the authored icon');assert.strictEqual(el('parallel-workers').value,4);assert.strictEqual(el('tts-mode').value,'local');assert.strictEqual(el('sub-batch-max-items').value,8);assert.strictEqual(el('btn-auto-configure').disabled,false);
+const stale=c.autoConfigureSettings(),staleRequest=requests.at(-1);const current=c.autoConfigureSettings();const count=toasts.length;staleRequest.reject(Error('old error'));await stale;assert.strictEqual(toasts.length,count);requests.at(-1).reject(Error('current error'));await current;assert.strictEqual(toasts.length,count+1);assert.strictEqual(icon.className,'fas fa-magic me-1','failed superseded request restores the authored icon');assert.strictEqual(el('btn-auto-configure').disabled,false);finished=true;
 })().catch(e=>{console.error(e);process.exitCode=1;});''')
+
+    def test_auto_configure_keeps_its_i18n_span_and_follows_locale_switches(self):
+        self.run_auto_config_js(AUTO_CONFIGURE_LOCALE_JS)
+
+    def test_auto_configure_busy_toast_banner_and_failure_are_translated(self):
+        self.run_auto_config_js(AUTO_CONFIGURE_ERRORS_JS)
 
     def test_provider_heading_names_hidden_transport_gpu_and_reasoning_controls(self):
         from html.parser import HTMLParser
@@ -139,7 +268,9 @@ vm.runInContext(s.slice(s.indexOf('let finalAudioRequest =')),c);
 
     def test_auto_config_external_requires_server_and_save_without_changing_tiers(self):
         script=r'''const assert=require('assert'),fs=require('fs'),vm=require('vm'),s=fs.readFileSync(process.argv[1],'utf8');
-const fields={};const el=id=>fields[id]||(fields[id]={style:{},innerHTML:'',scrollIntoView(){}});let stats={},applied;
+const fields={};const icon={tag:'i',attrs:{},className:'fas fa-magic me-1'};const label={tag:'span',attrs:{'data-i18n':'setup.header.auto-configure'},textContent:'Auto-Configure',setAttribute(k,v){this.attrs[k]=String(v);},getAttribute(k){return Object.hasOwn(this.attrs,k)?this.attrs[k]:null;},hasAttribute(k){return Object.hasOwn(this.attrs,k);},removeAttribute(k){delete this.attrs[k];}};
+const button={disabled:false,children:[icon,label],querySelector(selector){return this.children.find(child=>selector==='i'?child.tag==='i':child.attrs['data-i18n']!==undefined)||null;}};
+const el=id=>id==='btn-auto-configure'?button:(fields[id]||(fields[id]={style:{},innerHTML:'',scrollIntoView(){}}));let stats={},applied;
 const c={document:{getElementById:el},API:{get:async()=>stats},escapeHtml:t=>String(t),showToast(){}};vm.createContext(c);vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'),c);const a=s.indexOf('async function autoConfigureSettings()');vm.runInContext(s.slice(a,s.indexOf('function _applyAutoSettings(',a)),c);c._applyAutoSettings=settings=>applied=settings;
 let finished=false;process.on('beforeExit',()=>assert(finished));(async()=>{for(const input of [{},{gpu:{total_gb:24},gpu_mismatch:true},{gpu:{total_gb:4}}]){stats=input;await c.autoConfigureSettings();assert.strictEqual(applied.ttsMode,'external');assert.strictEqual(applied.parallelWorkers,1);assert.match(el('auto-config-msg').innerHTML,/start a compatible TTS server and enter its URL/);assert.match(el('auto-config-msg').innerHTML,/Save to apply/);assert.strictEqual(el('btn-auto-configure').disabled,false);}stats={gpu:{total_gb:16}};await c.autoConfigureSettings();assert.strictEqual(applied.ttsMode,'local');assert.strictEqual(applied.subBatchMaxItems,8);assert(!el('auto-config-msg').innerHTML.includes('start a compatible TTS server'));finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});'''
         self.run_js(script)
@@ -183,3 +314,8 @@ c.cycleTheme();assert.strictEqual(theme,null);assert.strictEqual(writes.at(-1)[1
     def run_js(self,script):
         result=subprocess.run(['node','-e',script,str(SOURCE)],capture_output=True,text=True,timeout=15)
         self.assertEqual(result.returncode,0,result.stderr)
+
+    def run_auto_config_js(self,body,source=None):
+        script=DOM_FIXTURE+AUTO_CONFIGURE_FIXTURE+body
+        result=subprocess.run(['node','-e',script,str(source or SOURCE)],capture_output=True,text=True,encoding='utf-8',timeout=20)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)

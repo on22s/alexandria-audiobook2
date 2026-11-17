@@ -16076,6 +16076,7 @@
     , "tests.test_ui_catalog_parity.RealCatalogTests.test_every_locale_carries_exactly_the_english_key_set"
     , "tests.test_ui_catalog_parity.RealCatalogTests.test_every_real_catalog_passes_every_rule"
     , "tests.test_ui_catalog_parity.RealCatalogTests.test_no_locale_claims_a_review_it_does_not_have"
+    , "tests.test_ui_catalog_parity.RealCatalogTests.test_the_auto_configure_flow_keys_are_used_and_translated"
     , "tests.test_ui_catalog_parity.RealCatalogTests.test_the_catalogs_are_utf8_json_without_a_bom"
     , "tests.test_ui_catalog_parity.RealCatalogTests.test_the_english_catalog_matches_a_fresh_harvest_of_the_source"
     , "tests.test_ui_catalog_parity.RealCatalogTests.test_the_html_allowlist_is_small_and_named"
@@ -16119,6 +16120,8 @@
   ]
   , "test_ui_guidance_js": [
     "tests.test_ui_guidance_js.UiGuidanceJsTests.test_auto_config_external_requires_server_and_save_without_changing_tiers"
+    , "tests.test_ui_guidance_js.UiGuidanceJsTests.test_auto_configure_busy_toast_banner_and_failure_are_translated"
+    , "tests.test_ui_guidance_js.UiGuidanceJsTests.test_auto_configure_keeps_its_i18n_span_and_follows_locale_switches"
     , "tests.test_ui_guidance_js.UiGuidanceJsTests.test_banned_tokens_guidance_does_not_recommend_disabling_reasoning"
     , "tests.test_ui_guidance_js.UiGuidanceJsTests.test_confirmation_preserves_multiline_text_and_voice_statuses_are_live"
     , "tests.test_ui_guidance_js.UiGuidanceJsTests.test_connection_check_does_not_claim_to_apply_or_save_settings"
