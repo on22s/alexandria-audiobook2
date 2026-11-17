@@ -7,6 +7,7 @@ import unittest
 import numpy as np
 import soundfile as sf
 import project
+from tests.test_support import skip_unless_symlink
 
 
 class ProjectChunkChapterBatchTests(unittest.TestCase):
@@ -40,6 +41,7 @@ class ProjectChunkChapterBatchTests(unittest.TestCase):
                 project.build_chapter_filename('{chapter_name}',1,'Safe',extension)
         self.assertEqual('Safe.wav',project.build_chapter_filename('{chapter_name}',1,'Safe','wav'))
 
+    @skip_unless_symlink
     def test_native_preview_and_export_admit_same_audio_files_and_keep_source_bytes(self):
         with tempfile.TemporaryDirectory() as tmp,tempfile.TemporaryDirectory() as outside:
             root=Path(tmp);manager=project.ProjectManager(tmp)
