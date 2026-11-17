@@ -4261,12 +4261,26 @@
     , "tests.test_deepseek_benchmark_recovery.RemoteDedupCleanupTests.test_local_dedup_and_unvalidated_remote_paths_are_never_deleted"
   ]
   , "test_deepseek_input_validation": [
-    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_invalid_gold_options_fail_before_loading_or_writing"
+    "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_binary_snapshot_preserves_universal_newline_prompt_decoding"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_cheap_change_token_tracks_a_preserved_mtime_in_place_edit"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_content_version_hashes_all_bytes_in_bounded_blocks"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_content_version_refuses_a_file_changed_during_hashing"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_invalid_gold_options_fail_before_loading_or_writing"
     , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_invalid_rating_does_not_consume_session_or_write_review"
     , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_missing_timezone_data_keeps_measured_queue_eta"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_native_change_query_failure_requires_hashing_instead_of_a_cache_hit"
     , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_nonobject_narrator_override_is_a_validation_error"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_prompt_cache_checks_content_when_all_stat_fields_are_unchanged"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_prompt_read_race_does_not_publish_a_cache_entry"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_prompt_snapshot_aba_does_not_cache_parsed_bytes_under_another_digest"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_racy_cache_window_is_strict_and_clock_rollback_refuses_metadata_hits"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_rapid_preserved_mtime_prompt_edits_return_every_written_content"
     , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_ratings_do_not_coerce_booleans_or_fractional_values"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_recent_equal_negative_prompt_token_does_not_hide_repairs"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_recent_equal_prompt_token_revalidates_content_until_recaptured_safely"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_unchanged_snapshot_refreshes_a_changed_prompt_token"
     , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_valid_prompt_edit_with_preserved_mtime_invalidates_cache"
+    , "tests.test_deepseek_input_validation.DeepSeekInputValidationTests.test_warm_prompt_cache_does_not_read_or_hash_unchanged_content"
   ]
   , "test_deepseek_persistence": [
     "tests.test_deepseek_persistence.PersistenceTests.test_corrupt_and_wrong_shape_books_refuse_without_publishing"
@@ -12200,9 +12214,16 @@
   , "test_run_history_listing_cache": [
     "tests.test_run_history_listing_cache.RunHistoryListingCacheTests.test_cache_isolates_history_directories_and_retains_the_response_cap"
     , "tests.test_run_history_listing_cache.RunHistoryListingCacheTests.test_complete_recovery_scan_primes_the_first_api_listing"
+    , "tests.test_run_history_listing_cache.RunHistoryListingCacheTests.test_failed_snapshot_evicts_metadata_without_publishing_replacement"
+    , "tests.test_run_history_listing_cache.RunHistoryListingCacheTests.test_history_snapshot_aba_does_not_cache_sort_date_from_other_bytes"
+    , "tests.test_run_history_listing_cache.RunHistoryListingCacheTests.test_native_query_failure_hashes_edits_and_never_returns_stale_sorting"
+    , "tests.test_run_history_listing_cache.RunHistoryListingCacheTests.test_rapid_preserved_mtime_history_edits_return_every_written_order"
+    , "tests.test_run_history_listing_cache.RunHistoryListingCacheTests.test_recent_equal_history_token_revalidates_sorting"
     , "tests.test_run_history_listing_cache.RunHistoryListingCacheTests.test_repeated_small_listing_reads_only_requested_complete_records"
     , "tests.test_run_history_listing_cache.RunHistoryListingCacheTests.test_replacement_in_place_edit_new_file_and_deletion_refresh_the_order"
     , "tests.test_run_history_listing_cache.RunHistoryListingCacheTests.test_selected_summary_updates_and_corruption_are_not_hidden_by_cache"
+    , "tests.test_run_history_listing_cache.RunHistoryListingCacheTests.test_sort_cache_checks_content_when_all_stat_fields_are_unchanged"
+    , "tests.test_run_history_listing_cache.RunHistoryListingCacheTests.test_warm_history_cache_does_not_hash_unselected_payloads"
   ]
   , "test_run_history_transactions": [
     "tests.test_run_history_transactions.RunHistoryTransactionTests.test_concurrent_artifacts_and_finish_keep_both_hashes_and_terminal_status"
