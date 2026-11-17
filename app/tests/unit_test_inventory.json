@@ -3465,6 +3465,7 @@
     , "tests.test_cloud_comparison_model_identity.CloudComparisonModelIdentityTests.test_qwen_missing_metadata_executable_publishes_named_failure"
     , "tests.test_cloud_comparison_model_identity.CloudComparisonModelIdentityTests.test_source_commit_names_real_clean_git_blob_and_dirty_source_is_refused"
     , "tests.test_cloud_comparison_model_identity.CloudComparisonModelIdentityTests.test_source_fsmonitor_timeout_reaps_hook_and_clean_control_still_matches"
+    , "tests.test_cloud_comparison_model_identity.CloudComparisonModelIdentityTests.test_unverified_owner_refuses_before_cpu_model_fixture_loads"
   ]
   , "test_cloud_reference_chain": [
     "tests.test_cloud_reference_chain.CloudReferenceChainTests.test_arm0_is_checked_before_any_expensive_worker"
@@ -4232,7 +4233,9 @@
   , "test_dedup_source_boundary": [
     "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_contained_but_unsafe_zip_member_names_are_rejected"
     , "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_outside_datasets_metadata_and_audio_refuse_before_dispatch"
+    , "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_outside_symlink_metadata_and_audio_refuse_before_dispatch"
     , "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_safe_nested_and_internal_symlink_audio_keeps_exact_archive_metadata"
+    , "tests.test_dedup_source_boundary.DedupSourceBoundaryTests.test_safe_nested_audio_keeps_exact_archive_metadata"
   ]
   , "test_deepseek_alignment_processes": [
     "tests.test_deepseek_alignment_processes.AlignmentProcessTests.test_cleanup_refuses_the_wrapper_process_group"
@@ -7688,6 +7691,7 @@
     , "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_manual_native_review_and_nickname_queues_only_request_book_work"
     , "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_secondary_admission_uses_selected_runtime_profile_and_retains_caller_gate"
     , "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_shared_core_ownership_remains_conservative_for_missing_or_invalid_profiles"
+    , "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_workflow_environment_bounds_duplicate_import_paths_without_losing_precedence"
   ]
   , "test_llm_profile_requests_http": [
     "tests.test_llm_profile_requests_http.LlmProfileRequestHttpTests.test_connection_route_passes_complete_profile_and_releases_claim"
@@ -10100,6 +10104,7 @@
     , "tests.test_project_scope_files.ScopeFileTests.test_paths_size_special_files_and_aliases_are_refused"
     , "tests.test_project_scope_files.ScopeFileTests.test_raw_and_streaming_authority_match_without_writes"
     , "tests.test_project_scope_files.ScopeFileTests.test_raw_read_refuses_growth_after_the_descriptor_is_admitted"
+    , "tests.test_project_scope_files.ScopeFileTests.test_symlink_is_refused"
     , "tests.test_project_scope_files.ScopeFileTests.test_tiny_metadata_read_does_not_allocate_the_whole_file_limit"
   ]
   , "test_project_scope_history": [
@@ -10205,6 +10210,7 @@
     , "tests.test_promote_adapters.GateVerdictTests.test_a_passing_gate_is_still_promoted"
     , "tests.test_promote_adapters.GateVerdictTests.test_an_unfinished_identity_check_is_refused"
     , "tests.test_promote_adapters.GateVerdictTests.test_reference_rank_campaign_selects_its_own_gate_prefix"
+    , "tests.test_promote_adapters.GatedAdapterIdentityTests.test_symlinked_explicit_gate_source_never_falls_back_to_same_name"
     , "tests.test_promote_adapters.GatedAdapterIdentityTests.test_unavailable_gated_weights_cannot_change_production_or_publish_backup"
     , "tests.test_promote_adapters.GatedAdapterIdentityTests.test_unusable_explicit_gate_source_never_falls_back_to_same_name"
     , "tests.test_promote_adapters.RollbackMissingMetadataTests.test_revert_removes_promoted_fields_missing_from_original_metadata"
@@ -11397,6 +11403,7 @@
     , "tests.test_release_verifier.ReleaseVerifierTests.test_broken_control_socket_with_live_owner_still_fails_at_timeout"
     , "tests.test_release_verifier.ReleaseVerifierTests.test_exited_owner_socket_keeps_original_command_failure"
     , "tests.test_release_verifier.ReleaseVerifierTests.test_failed_command_terminates_grandchild_process"
+    , "tests.test_release_verifier.ReleaseVerifierTests.test_git_nul_delimited_names_preserve_foreign_newlines_and_quotes"
     , "tests.test_release_verifier.ReleaseVerifierTests.test_git_quoted_unicode_and_newline_names_are_compiled_as_actual_paths"
     , "tests.test_release_verifier.ReleaseVerifierTests.test_json_report_is_written_on_failure_with_secrets_redacted"
     , "tests.test_release_verifier.ReleaseVerifierTests.test_json_report_marks_interrupted_gate_and_returns_130"
@@ -12131,6 +12138,7 @@
     , "tests.test_rollback_backup_deletion.RollbackBackupDeletionTests.test_crashes_restore_precommit_and_finish_committed_partial_cleanup_idempotently"
     , "tests.test_rollback_backup_deletion.RollbackBackupDeletionTests.test_manifest_publication_failure_preserves_all_backup_production_and_metadata_bytes"
     , "tests.test_rollback_backup_deletion.RollbackBackupDeletionTests.test_success_deletes_only_target_backup_and_clears_its_pointer"
+    , "tests.test_rollback_backup_deletion.RollbackBackupDeletionTests.test_symlinked_backup_parent_is_rejected_before_mutation"
     , "tests.test_rollback_backup_deletion.RollbackBackupDeletionTests.test_unsafe_backup_id_parent_or_bundle_is_rejected_before_mutation"
   ]
   , "test_roster_admission": [
