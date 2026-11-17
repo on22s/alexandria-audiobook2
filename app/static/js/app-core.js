@@ -931,7 +931,7 @@
                     // An HTTP-status error stays visible even if a
                     // local-obsolete marker is accidentally present.
                     if (isLocalVoiceLoadObsolete(error)) { return; }
-                    showActionError('Could not load voices', error, 'Retry loading Voices; your voice edits are retained.');
+                    showActionError(t('voice.load.failed', 'Could not load voices'), error, t('voice.load.recovery', 'Retry loading Voices; your voice edits are retained.'));
                 });
             } else if (selectedLink.dataset.tab === 'designer') {
                 loadDesignedVoices();
@@ -1003,8 +1003,8 @@
                 try { return !profile || JSON.stringify(profile) === JSON.stringify(getEditedLlmProfile()); }
                 catch (e) { return false; }
             };
-            if (!baseUrl) { hint.textContent = 'Set the Base URL first.'; return; }
-            hint.textContent = 'Fetching model list...';
+            if (!baseUrl) { hint.textContent = t('setup.llm.models.base-url-first', 'Set the Base URL first.'); return; }
+            hint.textContent = t('setup.llm.models.fetching', 'Fetching model list...');
             try {
                 profile = getEditedLlmProfile();
                 const r = await API.post('/api/llm/models', profile);
@@ -1016,12 +1016,16 @@
                     list.appendChild(opt);
                 });
                 if (r.error) {
-                    hint.textContent = 'Could not list models: ' + r.error;
+                    hint.textContent = t('setup.llm.models.error', 'Could not list models: {error}', {error: r.error});
+                } else if (pluralForm(r.models.length) === 'one') {
+                    hint.textContent = t('setup.llm.models.available-one', '{count} model available - start typing to pick one.', {count: r.models.length});
+                } else if (r.models.length) {
+                    hint.textContent = t('setup.llm.models.available', '{count} models available - start typing to pick one.', {count: r.models.length});
                 } else {
-                    hint.textContent = r.models.length ? `${r.models.length} model(s) available - start typing to pick one.` : 'Server reports no models loaded.';
+                    hint.textContent = t('setup.llm.models.none', 'Server reports no models loaded.');
                 }
             } catch (e) {
-                if (isCurrent()) { hint.textContent = 'Could not list models: ' + e.message; }
+                if (isCurrent()) { hint.textContent = t('setup.llm.models.error', 'Could not list models: {error}', {error: e.message}); }
             }
         }
         document.getElementById('llm-model-refresh').addEventListener('click', refreshLlmModels);
@@ -1033,7 +1037,7 @@
             const button = document.getElementById('llm-key-toggle');
             const visible = input.type === 'password';
             input.type = visible ? 'text' : 'password';
-            button.textContent = visible ? 'Hide key' : 'Show key';
+            button.textContent = visible ? t('setup.llm.key.hide', 'Hide key') : t('setup.llm.key.show', 'Show key');
             button.setAttribute('aria-pressed', String(visible));
         }
 
@@ -1602,7 +1606,7 @@
             select.value = String(previousIndex);
             if (pendingPromptPresetSwitches.has(pass)) { return; }
             if (configSavePending) {
-                showToast('Wait for the configuration save before switching prompt presets.', 'warning');
+                showToast(t('setup.prompts.save-pending', 'Wait for the configuration save before switching prompt presets.'), 'warning');
                 return;
             }
             const target = presets[index];
@@ -1619,7 +1623,7 @@
                     if (!await showConfirm(`Switch to prompt preset "${target?.name || 'Default'}"? This replaces the current prompt text. Discard your unsaved prompt edits?`, {title: 'Replace edited prompt?', actionLabel: 'Switch preset', danger: true})) { return; }
                     if (snapshot !== getPromptPresetEditorSnapshot(pass)
                         || defaultSnapshot !== JSON.stringify(attribution ? {} : passPromptDefaults[pass])) {
-                        showToast('The prompt edits or presets changed. Review them before switching.', 'warning');
+                        showToast(t('setup.prompts.switch-changed', 'The prompt edits or presets changed. Review them before switching.'), 'warning');
                         return;
                     }
                 }
@@ -1628,7 +1632,7 @@
                 else { applyPassPromptPreset(pass, index); }
             } catch (error) {
                 console.error('Prompt preset switch failed:', error);
-                showToast('Could not confirm the preset switch. Your prompt edits were kept; try again.', 'error');
+                showToast(t('setup.prompts.switch-unconfirmed', 'Could not confirm the preset switch. Your prompt edits were kept; try again.'), 'error');
             } finally {
                 pendingPromptPresetSwitches.delete(pass);
             }
@@ -1645,7 +1649,7 @@
                 names.add(name);
                 preset.name = name;
                 if (activeName === 'default') { activeName = name; }
-                showToast(`The ${pass} user preset "default" is now "${name}" to keep it separate from the checked-in prompt. Save configuration to retain this name.`, 'warning');
+                showToast(t('setup.prompts.default-renamed', 'The {pass} user preset "default" is now "{name}" to keep it separate from the checked-in prompt. Save configuration to retain this name.', {pass, name}), 'warning');
             }
             passPromptPresets[pass] = own;
             activePassPromptPreset[pass] = activeName || 'default';
@@ -1654,7 +1658,7 @@
             select.replaceChildren();
             const defaultOption = document.createElement('option');
             defaultOption.value = '-1';
-            defaultOption.textContent = 'Default (checked-in prompt)';
+            defaultOption.textContent = t('setup.prompts.default-option', 'Default (checked-in prompt)');
             select.appendChild(defaultOption);
             passPromptPresets[pass].forEach((preset, index) => {
                 const option = document.createElement('option');
@@ -1730,7 +1734,7 @@
             try {
                 if (!await showConfirm(message, {title: 'Delete prompt preset?', actionLabel: 'Delete preset and save Setup', danger: true})) { return; }
                 if (getPromptPresetEditorSnapshot(pass) !== snapshot) {
-                    showToast('The preset selection or prompt edits changed. Review them before deleting.', 'warning');
+                    showToast(t('setup.prompts.delete-changed', 'The preset selection or prompt edits changed. Review them before deleting.'), 'warning');
                     return;
                 }
                 await remove();
@@ -1742,7 +1746,7 @@
         window.deletePassPromptPreset = async (pass) => {
             const presets = passPromptPresets[pass].map(item => ({...item}));
             const index = presets.findIndex(p => p.name === activePassPromptPreset[pass]);
-            if (index < 0) { showToast('Select a saved preset first.', 'warning'); return; }
+            if (index < 0) { showToast(t('setup.prompts.select-first', 'Select a saved preset first.'), 'warning'); return; }
             try {
                 await applyConfirmedPromptPresetDeletion(pass,
                     `Delete preset "${presets[index].name}" and switch the active ${pass} prompt to the checked-in default? This also saves your current Setup settings.`, async () => {
@@ -1750,10 +1754,10 @@
                         const submitted = getPromptEditorBoxes(pass);
                         await persistPromptPresets({prompts: {[`${pass}_preset`]: 'default', [`${pass}_prompt_presets`]: presets}},
                             () => applyPromptPresetSave(pass, presets, 'default', submitted));
-                        showToast('Prompt preset deleted.', 'success');
+                        showToast(t('setup.prompts.deleted', 'Prompt preset deleted.'), 'success');
                     });
             } catch (e) {
-                showActionError('Could not delete prompt preset', e, 'Review the saved preset list to check whether it was deleted before trying Delete again.');
+                showActionError(t('setup.prompts.delete-failed', 'Could not delete prompt preset'), e, t('setup.prompts.delete-recovery', 'Review the saved preset list to check whether it was deleted before trying Delete again.'));
             }
         };
 
@@ -1811,7 +1815,7 @@
             document.getElementById('prompt-example').value = preset.example || '';
             document.getElementById('prompt-example-block').hidden = variant !== 'michel2_shot';
             document.getElementById('prompt-preset-description').textContent = preset.description || '';
-            document.getElementById('prompt-preset-variant-badge').textContent = 'shape: ' + variant;
+            document.getElementById('prompt-preset-variant-badge').textContent = t('setup.prompts.shape', 'shape: {variant}', {variant});
             const hint = document.getElementById('user-prompt-hint');
             if (['default', 'aliases', 'incremental', 'continuity'].includes(variant)) {
                 setUiMessage(hint, 'setup.prompts.user-prompt.template-hint', '(a template: the pipeline fills {roster} and {batch})', {roster: '{roster}', batch: '{batch}'});
@@ -1854,20 +1858,20 @@
             const saveButtons = ['config-save-button', 'config-save-button-top']
                 .map(id => document.getElementById(id)).filter(Boolean)
                 .map(button => ({button, label: button.innerHTML}));
-            saveButtons.forEach(({button}) => { button.innerHTML = 'Saving…'; });
+            saveButtons.forEach(({button}) => { button.innerHTML = t('designer.save.saving', 'Saving…'); });
             const status = document.getElementById('config-save-status');
-            if (status) { status.textContent = 'Saving configuration…'; }
+            if (status) { status.textContent = t('setup.config.saving-status', 'Saving configuration…'); }
             try {
                 await API.post('/api/config', payload);
-                if (status) { status.textContent = 'Configuration saved.'; }
+                if (status) { status.textContent = t('setup.config.saved', 'Configuration saved.'); }
                 try {
                     if (onSaved) { await onSaved(); }
                 } catch (error) {
                     console.debug('Configuration saved, but saved UI feedback failed', error);
-                    if (status) { status.textContent = 'Configuration saved, but the saved status could not be displayed completely. Your form fields are kept. Reload to view the saved settings before making further changes.'; }
+                    if (status) { status.textContent = t('setup.config.saved-status-unavailable', 'Configuration saved, but the saved status could not be displayed completely. Your form fields are kept. Reload to view the saved settings before making further changes.'); }
                 }
             } catch (error) {
-                if (status) { status.textContent = 'Save was not confirmed. Your form fields are kept. Review the error and current saved settings before trying again.'; }
+                if (status) { status.textContent = t('setup.config.save-unconfirmed', 'Save was not confirmed. Your form fields are kept. Review the error and current saved settings before trying again.'); }
                 throw error;
             } finally {
                 configSavePending = false;
@@ -1915,7 +1919,7 @@
             const retry = document.getElementById('config-refresh-retry');
             savedConfigRefreshPending = true;
             retry.disabled = true;
-            status.textContent = 'Configuration saved. Refreshing saved status…';
+            status.textContent = t('setup.config.refreshing', 'Configuration saved. Refreshing saved status…');
             try {
                 const config = await API.get('/api/config');
                 if (request !== savedConfigRefreshRequest) { return; }
@@ -1928,12 +1932,12 @@
                 const refreshed = await reloadPromptPresets(undefined, config, promptSnapshot);
                 if (request !== savedConfigRefreshRequest) { return; }
                 status.textContent = refreshed ? ''
-                    : 'Configuration saved. Your later prompt edits were kept, so the saved preset list was not reloaded. Review your edits before saving again.';
+                    : t('setup.config.saved-but-edits-kept', 'Configuration saved. Your later prompt edits were kept, so the saved preset list was not reloaded. Review your edits before saving again.');
                 retry.hidden = true;
             } catch (error) {
                 if (request !== savedConfigRefreshRequest) { return; }
                 console.debug('Saved configuration refresh failed', error);
-                status.textContent = 'Configuration saved, but saved profile or preset status could not be refreshed. Your current fields are kept. Check that Alexandria is running, then retry the status refresh; this does not save again.';
+                status.textContent = t('setup.config.refresh-failed', 'Configuration saved, but saved profile or preset status could not be refreshed. Your current fields are kept. Check that Alexandria is running, then retry the status refresh; this does not save again.');
                 retry.hidden = false;
             } finally {
                 if (request === savedConfigRefreshRequest) {
@@ -1973,7 +1977,7 @@
 
         window.deletePromptPreset = async () => {
             const preset = selectedPromptPreset();
-            if (!preset || preset.builtin) { showToast('Built-in prompts cannot be deleted.', 'warning'); return; }
+            if (!preset || preset.builtin) { showToast(t('setup.prompts.builtin-undeletable', 'Built-in prompts cannot be deleted.'), 'warning'); return; }
             try {
                 await applyConfirmedPromptPresetDeletion('attribution',
                     `Delete preset "${preset.name}" and switch the active attribution prompt to "michel2_full"? This also saves your current Setup settings.`, async () => {
@@ -1981,10 +1985,10 @@
                         const submitted = promptBoxes();
                         await persistPromptPresets({prompts: {attribution_preset: 'michel2_full'}, prompt_presets: presets.filter(item => !item.builtin)},
                             () => applyPromptPresetSave('attribution', presets, 'michel2_full', submitted));
-                        showToast('Prompt preset deleted.', 'success');
+                        showToast(t('setup.prompts.deleted', 'Prompt preset deleted.'), 'success');
                     });
             }
-            catch (e) { showActionError('Could not delete prompt preset', e, 'Review the saved preset list to check whether it was deleted before trying Delete again.'); }
+            catch (e) { showActionError(t('setup.prompts.delete-failed', 'Could not delete prompt preset'), e, t('setup.prompts.delete-recovery', 'Review the saved preset list to check whether it was deleted before trying Delete again.')); }
         };
 
         window.previewAttributionPrompt = async () => {
@@ -2009,7 +2013,7 @@
                 document.getElementById('prompt-preview-user').textContent = preview.user_message || '';
                 document.getElementById('prompt-preview-panel').hidden = false;
             } catch (e) {
-                if (isCurrent()) { showActionError('Could not render the prompt', e, 'Check the prompt templates and provider settings, then try What the model will see again.'); }
+                if (isCurrent()) { showActionError(t('setup.prompts.render-failed', 'Could not render the prompt'), e, t('setup.prompts.render-recovery', 'Check the prompt templates and provider settings, then try What the model will see again.')); }
             }
         };
 
@@ -2026,13 +2030,11 @@
             const details = warnings.map((warning) => {
                 const field = warning && warning.field && warning.field !== '$'
                     ? warning.field + ': ' : '';
-                return field + ((warning && warning.message) || 'Invalid saved setting ignored');
+                return field + ((warning && warning.message) || t('setup.config.invalid-setting', 'Invalid saved setting ignored'));
             }).join('; ');
-            const recovery = config.config_needs_backup
-                ? ' Saving will preserve the damaged file as a backup before replacing it.'
-                : '';
-            message.textContent = 'Some saved configuration could not be used; safe defaults are shown.'
-                + recovery + ' ' + details;
+            message.textContent = config.config_needs_backup
+                ? t('setup.config.partial-defaults-backup', 'Some saved configuration could not be used; safe defaults are shown. Saving will preserve the damaged file as a backup before replacing it. {details}', {details})
+                : t('setup.config.partial-defaults', 'Some saved configuration could not be used; safe defaults are shown. {details}', {details});
             banner.style.display = '';
         }
 
@@ -2210,11 +2212,11 @@
                         `<span class="llm-test-pill"><i class="fas fa-comment-dots me-1"></i>${escapeHtml(t('setup.llm.test.pill-reply', 'Reply: "{reply}"', {reply: res.reply || ''}))}</span>`,
                     ].join('');
 
-                    const modeLabel = res.is_remote ? 'Remote' : 'Local';
+                    const modeLabel = res.is_remote ? t('setup.llm.test.mode-remote', 'Remote') : t('setup.llm.test.mode-local', 'Local');
                     const banner = document.getElementById('auto-config-banner');
                     document.getElementById('auto-config-msg').innerHTML =
-                        `<i class="fas fa-check-circle me-1 text-success"></i><strong>Connection check:</strong> ` +
-                        `${modeLabel} LLM connected (${escapeHtml(res.base_url)}, model "${escapeHtml(res.model)}"). This check does not save or apply settings. Click Save Configuration to apply edits.`;
+                        `<i class="fas fa-check-circle me-1 text-success"></i><strong>${escapeHtml(t('setup.llm.test.connection-check', 'Connection check:'))}</strong> ` +
+                        escapeHtml(t('setup.llm.test.connected', '{mode} LLM connected ({url}, model "{model}"). This check does not save or apply settings. Click Save Configuration to apply edits.', {mode: modeLabel, url: res.base_url, model: res.model || ''}));
                     banner.style.display = '';
                     banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 } else {
@@ -2353,7 +2355,7 @@
             const selected = {...activePassPromptPreset};
             promptDefaultsLoadPending = true;
             retry.disabled = true;
-            status.textContent = 'Loading default prompts… Your current edits will be kept.';
+            status.textContent = t('setup.prompts.defaults-loading', 'Loading default prompts… Your current edits will be kept.');
             try {
                 const defaults = await API.get('/api/default_prompts');
                 window.invalidateSetupPreview?.();
@@ -2373,11 +2375,11 @@
                         field.value = defaults[key];
                     }
                 }
-                status.textContent = 'Default prompts loaded. Existing edits and preset choices were kept.';
+                status.textContent = t('setup.prompts.defaults-loaded', 'Default prompts loaded. Existing edits and preset choices were kept.');
                 retry.hidden = true;
             } catch (error) {
                 console.warn('Could not fetch default prompts', error);
-                status.textContent = 'Could not load default prompts. Your current fields are unchanged. Check that Alexandria is running, then retry loading prompts; review the prompts before saving or starting a task.';
+                status.textContent = t('setup.prompts.defaults-failed', 'Could not load default prompts. Your current fields are unchanged. Check that Alexandria is running, then retry loading prompts; review the prompts before saving or starting a task.');
                 retry.hidden = false;
             } finally {
                 promptDefaultsLoadPending = false;
@@ -2394,7 +2396,7 @@
                 .map(field => [field.id, field.value, field.checked]));
             const snapshot = getDraftSnapshot();
             const showKeptDraft = () => {
-                document.getElementById('config-warning-msg').textContent = 'Your settings changed while configuration was loading. Your edits were kept. Retry loading to review replacing them with saved settings.';
+                document.getElementById('config-warning-msg').textContent = t('setup.config.edits-kept', 'Your settings changed while configuration was loading. Your edits were kept. Retry loading to review replacing them with saved settings.');
                 document.getElementById('config-warning-banner').style.display = '';
                 document.getElementById('config-load-retry').style.display = '';
             };
@@ -2523,7 +2525,7 @@
                 // Show previously loaded file
                 if (config.current_file) {
                     document.getElementById('upload-status').innerHTML =
-                        `<span class="text-success"><i class="fas fa-check me-1"></i>Loaded: ${escapeHtml(config.current_file)}</span>`;
+                        `<span class="text-success"><i class="fas fa-check me-1"></i>${escapeHtml(t('setup.config.loaded', 'Loaded: {file}', {file: config.current_file}))}</span>`;
                 }
                 loadConfig.draftSnapshot = getDraftSnapshot();
             } catch (e) {
@@ -2531,7 +2533,7 @@
                 if (loadConfig.draftSnapshot === undefined) { loadConfig.draftSnapshot = snapshot; }
                 console.error("Failed to load config", e);
                 document.getElementById('config-warning-msg').textContent =
-                    'Could not load configuration: ' + (e.message || String(e)) + '. Retry before saving settings.';
+                    t('setup.config.load-failed', 'Could not load configuration: {error}. Retry before saving settings.', {error: e.message || String(e)});
                 document.getElementById('config-warning-banner').style.display = '';
                 document.getElementById('config-load-retry').style.display = '';
             }
@@ -2585,10 +2587,10 @@
                 document.getElementById('persona-reference-chars').value = defaults.persona_reference_chars ?? 12000;
                 document.getElementById('persona-unknown-network-context').checked = defaults.persona_allow_unknown_network_context ?? false;
                 applyGenerationSettings(g);
-                showToast('Default prompts and generation settings are on this form. Click Save Configuration to keep them.', 'success');
+                showToast(t('setup.prompts.defaults-on-form', 'Default prompts and generation settings are on this form. Click Save Configuration to keep them.'), 'success');
             } catch (e) {
                 console.error("Failed to fetch default prompts", e);
-                showToast("Could not load defaults. Check the Alexandria server, then try Reset to Defaults again.", 'error');
+                showToast(t('setup.prompts.defaults-failed-toast', 'Could not load defaults. Check the Alexandria server, then try Reset to Defaults again.'), 'error');
             }
         };
 
@@ -2728,11 +2730,11 @@
                     savedLlmMode = config.llm_mode;
                     savedConfigPromptSnapshot = promptSnapshot;
                     renderActiveLlmModeBadge();
-                    showToast('Configuration Saved!', 'success');
+                    showToast(t('setup.config.saved-toast', 'Configuration Saved!'), 'success');
                     await refreshSavedConfigFeedback(true);
                 });
             } catch (e) {
-                showActionError('Configuration save was not confirmed', e, 'Review the current saved settings and the error details before saving again. Your form fields remain available.');
+                showActionError(t('setup.config.save-failed', 'Configuration save was not confirmed'), e, t('setup.config.save-recovery', 'Review the current saved settings and the error details before saving again. Your form fields remain available.'));
             }
         });
 
@@ -2767,7 +2769,7 @@
                 if (request !== existingUploadsLoadRequest) { return; }
                 console.debug('Existing upload list unavailable', e);
                 if (status) {
-                    status.innerHTML = '<span class="text-warning">Could not refresh existing uploads. The displayed list may be out of date. Check that Alexandria is running, then retry.</span> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadExistingScriptUploads()">Retry uploads</button>';
+                    status.innerHTML = `<span class="text-warning">${escapeHtml(t('script.existing-upload.refresh-failed', 'Could not refresh existing uploads. The displayed list may be out of date. Check that Alexandria is running, then retry.'))}</span> <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadExistingScriptUploads()">${escapeHtml(t('script.existing-upload.retry', 'Retry uploads'))}</button>`;
                 }
             }
         }
@@ -2802,14 +2804,14 @@
                     window._selectedUploadIdentity = { filename: book, token: result.book_identity_token, request };
                 }
                 document.getElementById('file-upload').value = '';
-                statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>Reusing: ${escapeHtml(result.stored_filename)}</span>`;
+                statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${escapeHtml(t('script.existing-upload.reusing', 'Reusing: {file}', {file: result.stored_filename}))}</span>`;
                 document.getElementById('cast-list-panel').style.display = 'none';
                 clearCastListEditor();
                 await loadCastList(false);
             });
             try { await selecting; }
             catch (e) {
-                if (isCurrent()) { statusEl.innerHTML = `<span class="text-danger">${escapeHtml(getActionErrorMessage('Book selection was not confirmed', e, 'Check the current loaded book before selecting another upload.'))}</span>`; }
+                if (isCurrent()) { statusEl.innerHTML = `<span class="text-danger">${escapeHtml(getActionErrorMessage(t('script.existing-upload.select-unconfirmed', 'Book selection was not confirmed'), e, t('script.existing-upload.select-recovery', 'Check the current loaded book before selecting another upload.')))}</span>`; }
             } finally {
                 if (window._existingUploadSelectionPending === selecting) { window._existingUploadSelectionPending = null; }
             }
@@ -2818,12 +2820,12 @@
         window.openRetainedDocxDetails = async function() {
             const details = document.getElementById('docx-retained-details');
             details.hidden = false;
-            details.textContent = 'Loading retained DOCX metadata...';
+            details.textContent = t('script.docx.loading-metadata', 'Loading retained DOCX metadata...');
             try {
                 const inventory = await API.get('/api/uploads/docx-retained');
                 details.textContent = JSON.stringify(inventory, null, 2);
             } catch (error) {
-                details.textContent = 'Retained DOCX inventory unavailable. Retry inspection before offline cleanup.';
+                details.textContent = t('script.docx.inventory-unavailable', 'Retained DOCX inventory unavailable. Retry inspection before offline cleanup.');
             }
         };
 
@@ -2871,7 +2873,7 @@
                 document.getElementById('docx-preview-text').textContent = preview.text;
                 document.getElementById('docx-preview-accept').disabled = false;
                 document.getElementById('docx-preview-panel').hidden = false;
-                status.textContent = 'Review the entire extracted text before accepting. The current book is unchanged.';
+                status.textContent = t('script.docx.review-before-accepting', 'Review the entire extracted text before accepting. The current book is unchanged.');
             } catch (error) {
                 if (!isCurrentDocxPreview(candidate)) { return; }
                 window.resetDocxPreview();
@@ -2881,14 +2883,14 @@
         };
         window.cancelDocxPreview = function() {
             if (docxPreviewCandidate?.selecting) {
-                document.getElementById('upload-status').textContent = 'Book selection has already been submitted; wait for its result before selecting another book.';
+                document.getElementById('upload-status').textContent = t('script.docx.selection-submitted', 'Book selection has already been submitted; wait for its result before selecting another book.');
                 return;
             }
             window.resetDocxPreview();
             window._bookSelectionEpoch++;
             window._existingUploadSelectionRequest = {};
             document.getElementById('file-upload').value = '';
-            document.getElementById('upload-status').textContent = 'DOCX preview cancelled. No new source selected.';
+            document.getElementById('upload-status').textContent = t('script.docx.preview-cancelled', 'DOCX preview cancelled. No new source selected.');
         };
         window.acceptDocxPreview = async function() {
             const candidate = docxPreviewCandidate;
@@ -2912,7 +2914,7 @@
                     if (!isCurrentDocxPreview(candidate)) { return; }
                     candidate.selecting = true;
                     document.getElementById('docx-preview-cancel').disabled = true;
-                    status.textContent = 'Selecting the accepted DOCX text...';
+                    status.textContent = t('script.docx.selecting-accepted', 'Selecting the accepted DOCX text...');
                     const selected = await API.post('/api/uploads/select', {filename: uploaded.stored_filename});
                     if (!isCurrentDocxPreview(candidate)) { return; }
                     candidate.selectedBook = selected.stored_filename;
@@ -2921,7 +2923,7 @@
                         window._selectedUploadIdentity = {filename: currentBookFilename, token: selected.book_identity_token, request: candidate.request};
                     }
                     document.getElementById('existing-upload-select').value = '';
-                    status.textContent = 'Accepted DOCX text: ' + selected.stored_filename + '. Exact original and receipt retained.';
+                    status.textContent = t('script.docx.accepted', 'Accepted DOCX text: {file}. Exact original and receipt retained.', {file: selected.stored_filename});
                     document.getElementById('cast-list-panel').style.display = 'none';
                     clearCastListEditor();
                     await loadCastList(false);
@@ -2939,7 +2941,7 @@
                 // Same same-file retry rule as the preview catch above:
                 // clear the input so picking this DOCX again fires 'change'.
                 document.getElementById('file-upload').value = '';
-                status.textContent = 'DOCX acceptance or selection was not confirmed. Check existing uploads and the current book before retrying. ' + error.message;
+                status.textContent = t('script.docx.accept-unconfirmed', 'DOCX acceptance or selection was not confirmed. Check existing uploads and the current book before retrying. {error}', {error: error.message});
             }
         };
 
@@ -2962,7 +2964,7 @@
             window._existingUploadSelectionRequest = request;
             const isCurrent = () => window._existingUploadSelectionRequest === request
                 && fileInput.files[0] === file;
-            statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Loading file...</span>';
+            statusEl.innerHTML = `<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>${escapeHtml(t('script.upload.loading', 'Loading file...'))}</span>`;
             if (/\.docx$/i.test(file.name)) {
                 await window.previewDocxUpload(file, request);
                 return;
@@ -2978,8 +2980,10 @@
                         window._selectedUploadIdentity = { filename: currentBookFilename, token: res.book_identity_token, request };
                     }
                     document.getElementById('existing-upload-select').value = '';
-                    const verb = res.reused ? 'Reused existing copy' : 'Loaded';
-                    statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${verb}: ${escapeHtml(res.stored_filename)}</span>`;
+                    const fileStatus = res.reused
+                        ? t('script.upload.status-reused', 'Reused existing copy: {file}', {file: res.stored_filename})
+                        : t('script.upload.status-loaded', 'Loaded: {file}', {file: res.stored_filename});
+                    statusEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${escapeHtml(fileStatus)}</span>`;
                     document.getElementById('cast-list-panel').style.display = 'none';
                     clearCastListEditor();
                     await loadCastList(false);
@@ -2992,7 +2996,7 @@
                 // again; otherwise the "try again" message cannot be acted on.
                 fileInput.value = '';
                 window.renderEpubExtractionReport?.(null);
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Book upload was not confirmed', e, 'Check the current loaded book and existing uploads before uploading again.'))}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage(t('script.upload.unconfirmed', 'Book upload was not confirmed'), e, t('script.upload.unconfirmed-recovery', 'Check the current loaded book and existing uploads before uploading again.')))}</span>`;
             }
         });
 
@@ -3015,7 +3019,7 @@
         }
         document.getElementById('btn-gen-script-fresh').addEventListener('click', async () => {
             if (document.getElementById('script-batch-mode')?.checked) {
-                showToast('Start over applies to a single book. Turn off Batch Mode to use it.', 'warning');
+                showToast(t('script.start-over.single-book', 'Start over applies to a single book. Turn off Batch Mode to use it.'), 'warning');
                 return;
             }
             const book = currentBookFilename;
@@ -3028,22 +3032,22 @@
             }
             catch (e) {
                 console.error('Could not check Script status before starting over:', e);
-                showToast('Script status could not be checked. Check that Alexandria is running, then try Start over again.', 'warning');
+                showToast(t('script.start-over.status-unavailable', 'Script status could not be checked. Check that Alexandria is running, then try Start over again.'), 'warning');
                 return;
             }
             const question = running
                 ? 'Cancel the current run, discard its saved progress, and start again from chunk 1?'
                 : 'Discard the saved progress for this text and start again from chunk 1?';
             if (!await showConfirm(question, {title: 'Discard script progress?', actionLabel: 'Start over', danger: true})) { return; }
-            if (!isCurrent()) { showToast('The book or Batch Mode changed. Review it before starting over.', 'warning'); return; }
+            if (!isCurrent()) { showToast(t('script.start-over.changed', 'The book or Batch Mode changed. Review it before starting over.'), 'warning'); return; }
             if (running) {
                 await cancelTask('/api/generate_script/cancel', { onSuccess: () => _resetPauseBtn('btn-pause-script') });
                 if (!(await waitForScriptToStop())) {
-                    showToast('The run has not stopped yet - try Start over again in a moment.', 'warning');
+                    showToast(t('script.start-over.not-stopped', 'The run has not stopped yet - try Start over again in a moment.'), 'warning');
                     return;
                 }
             }
-            if (!isCurrent()) { showToast('The book or Batch Mode changed. Review it before starting over.', 'warning'); return; }
+            if (!isCurrent()) { showToast(t('script.start-over.changed', 'The book or Batch Mode changed. Review it before starting over.'), 'warning'); return; }
             _scriptStartOver = true;
             // the page's own poller re-enables Generate a tick after the run
             // stops; a click on a still-disabled button is silently dropped
@@ -3065,18 +3069,18 @@
             const panel = document.getElementById('book-preflight-result');
             panel.style.display = '';
             const stale = result.source_is_current === false
-                ? '<div class="text-warning">The selected source has changed. This result belongs to the earlier source.</div>' : '';
+                ? `<div class="text-warning">${escapeHtml(t('script.preflight.source-changed', 'The selected source has changed. This result belongs to the earlier source.'))}</div>` : '';
             const summary = result.summary;
             let details = '';
             if (summary) {
                 const plan = summary.planned_calls || {};
-                details = `<div>Predicted full-book calls: Step 1 ${escapeHtml(plan[1] ?? 0)}, Step 2 ${escapeHtml(plan[2] ?? 0)}, Step 3 ${escapeHtml(plan[3] ?? 0)}. Retries can add calls.</div>`;
+                details = `<div>${escapeHtml(t('script.preflight.planned-calls', 'Predicted full-book calls: Step 1 {step1}, Step 2 {step2}, Step 3 {step3}. Retries can add calls.', {step1: plan[1] ?? 0, step2: plan[2] ?? 0, step3: plan[3] ?? 0}))}</div>`;
                 details += (summary.samples || []).map(sample => {
                     const codes = Object.entries(sample.failure_codes || {}).map(([code, count]) => `${code}: ${count}`).join(', ');
-                    return `<div>${escapeHtml(sample.label)} sample, source chunk ${escapeHtml(sample.chunk_index + 1)}: ${escapeHtml(sample.status)}${codes ? ` — ${escapeHtml(codes)}` : ''}${sample.error ? ` — ${escapeHtml(sample.error)}` : ''}</div>`;
+                    return `<div>${escapeHtml(t('script.preflight.sample-row', '{label} sample, source chunk {chunk}: {status}', {label: sample.label, chunk: sample.chunk_index + 1, status: sample.status}))}${codes ? ` — ${escapeHtml(codes)}` : ''}${sample.error ? ` — ${escapeHtml(sample.error)}` : ''}</div>`;
                 }).join('');
             }
-            panel.innerHTML = `<strong>Book test: ${escapeHtml(result.status)}</strong> · ${escapeHtml(result.source_filename || '')}${stale}${details}${result.error ? `<div class="text-danger">${escapeHtml(result.error)}</div>` : ''}<div class="text-muted">Samples use the configured model and prompts. Passing samples does not establish full-book accuracy. Adjust settings or start generation when ready.</div>`;
+            panel.innerHTML = `<strong>${escapeHtml(t('script.preflight.heading', 'Book test: {status}', {status: result.status}))}</strong> · ${escapeHtml(result.source_filename || '')}${stale}${details}${result.error ? `<div class="text-danger">${escapeHtml(result.error)}</div>` : ''}<div class="text-muted">${escapeHtml(t('script.preflight.guidance', 'Samples use the configured model and prompts. Passing samples does not establish full-book accuracy. Adjust settings or start generation when ready.'))}</div>`;
             document.getElementById('btn-cancel-book-preflight').style.display = result.status === 'running' ? '' : 'none';
             renderBookPreflightVisibility();
         }
@@ -3088,19 +3092,19 @@
         window.startBookPreflight = async () => {
             if (bookPreflightPending || bookPreflightJob) { return; }
             if (document.getElementById('script-batch-mode')?.checked) {
-                showToast('Switch off Batch Mode to test one book with the LLM.', 'warning');
+                showToast(t('script.preflight.batch-mode', 'Switch off Batch Mode to test one book with the LLM.'), 'warning');
                 return;
             }
             const source = getLoadedScriptSourceFilename();
-            if (!source) { showToast('Select or upload a book before running preflight.', 'warning'); return; }
+            if (!source) { showToast(t('script.preflight.no-source', 'Select or upload a book before running preflight.'), 'warning'); return; }
             const button = document.getElementById('btn-book-preflight');
             bookPreflightPending = true;
             button.disabled = true;
             try {
-                if (!(await confirmIfRemote('this book sample test', true))) { return; }
+                if (!(await confirmIfRemote(t('core.remote.task.book-sample-test', 'this book sample test'), true))) { return; }
                 if (document.getElementById('script-batch-mode')?.checked) { return; }
                 if (source !== getLoadedScriptSourceFilename()) {
-                    showToast('The loaded book changed. Review it before running preflight.', 'warning'); return;
+                    showToast(t('script.preflight.book-changed', 'The loaded book changed. Review it before running preflight.'), 'warning'); return;
                 }
                 const result = await API.post('/api/generate_script/preflight', {
                     strip_front_matter: _isStripFrontMatterChecked(),
@@ -3128,7 +3132,7 @@
                     }
                 });
             } catch (error) {
-                showActionError('Book test was not confirmed', error, 'Review the current book-test status and selected source before testing or cancelling again.');
+                showActionError(t('script.preflight.unconfirmed', 'Book test was not confirmed'), error, t('script.preflight.unconfirmed-recovery', 'Review the current book-test status and selected source before testing or cancelling again.'));
             } finally {
                 bookPreflightPending = false;
                 button.disabled = bookPreflightJob !== null;
@@ -3141,9 +3145,9 @@
             if (!job) { return; }
             try {
                 await API.post(`/api/generate_script/preflight/${job}/cancel`, {});
-                showToast('Book-test cancellation queued; waiting for the worker to exit.', 'info');
+                showToast(t('script.preflight.cancel-queued', 'Book-test cancellation queued; waiting for the worker to exit.'), 'info');
             } catch (error) {
-                showActionError('Book test was not confirmed', error, 'Review the current book-test status and selected source before testing or cancelling again.');
+                showActionError(t('script.preflight.unconfirmed', 'Book test was not confirmed'), error, t('script.preflight.unconfirmed-recovery', 'Review the current book-test status and selected source before testing or cancelling again.'));
             }
         };
         // End book-preflight controls.
@@ -3161,7 +3165,7 @@
 
             const hasLoadedFile = !!getLoadedScriptSourceFilename();
             if (!hasLoadedFile && fileInput.files.length === 0) {
-                statusEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Please select a text file first using the file picker above.</span>';
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>${escapeHtml(t('script.upload.select-file', 'Please select a text file first using the file picker above.'))}</span>`;
                 return;
             }
 
@@ -3178,7 +3182,7 @@
             retryBtn.style.display = 'none';
             cancelBtn.style.display = 'inline-block';
             pauseBtn.style.display = 'inline-block';
-            pauseBtn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+            pauseBtn.innerHTML = `<i class="fas fa-pause me-1"></i>${escapeHtml(t('core.pause.pause', 'Pause'))}`;
             pauseBtn.classList.remove('btn-outline-success');
             pauseBtn.classList.add('btn-outline-warning');
             _resetPauseBtn('btn-pause-script');
@@ -3203,9 +3207,9 @@
                 pauseBtn.style.display = 'none';
                 const detail = e.message || 'Unknown error';
                 if (detail.includes('No input file')) {
-                    statusEl.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>No file loaded. Please select a text file first.</span>';
+                    statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>${escapeHtml(t('script.upload.no-file', 'No file loaded. Please select a text file first.'))}</span>`;
                 } else {
-                    statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Script generation start was not confirmed', e, 'Check the Script task state, selected book and Test Connection in Setup before starting again.'))}</span>`;
+                    statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage(t('script.start.unconfirmed', 'Script generation start was not confirmed'), e, t('script.start.unconfirmed-recovery', 'Check the Script task state, selected book and Test Connection in Setup before starting again.')))}</span>`;
                 }
             }
         });
@@ -3238,7 +3242,7 @@
         function _resetPauseBtn(btnId) {
             const btn = document.getElementById(btnId);
             if (!btn) { return; }
-            btn.innerHTML = '<i class="fas fa-pause me-1"></i>Pause';
+            btn.innerHTML = `<i class="fas fa-pause me-1"></i>${escapeHtml(t('core.pause.pause', 'Pause'))}`;
             btn.classList.remove('btn-outline-success');
             btn.classList.add('btn-outline-warning');
         }
@@ -4723,8 +4727,8 @@
             const select = document.getElementById('voices-scope');
             if (!select) { return; }
             const { pending, have, total } = _voicesScopeState();
-            select.options[0].textContent = `Only characters without a voice yet (${pending.length})`;
-            select.options[1].textContent = `All characters (regenerate ${total})`;
+            select.options[0].textContent = t('voice.scope.pending', 'Only characters without a voice yet ({count})', {count: pending.length});
+            select.options[1].textContent = t('voice.scope.all', 'All characters (regenerate {count})', {count: total});
             if (!select.dataset.userSet) {
                 select.value = (pending.length >= 1 && have.length >= 1) ? 'new' : 'all';
             }
@@ -4763,11 +4767,11 @@
             try {
                 try { await API.post('/api/voice_library/casts', { name: cast }); } catch (e) { if (e.status !== 409) { throw e; } }
                 const res = await API.post('/api/voice_library/save', { cast, characters: have, cast_specific: [] });
-                showToast(`Saved ${have.length} current voices to the library as "${cast}".`, 'success');
+                showToast(t('voice.library.saved', 'Saved {count} current voices to the library as "{cast}".', {count: have.length, cast}), 'success');
                 if (typeof loadCastLibrary === 'function') { try { await loadCastLibrary(); } catch (e) { /* display only */ } }
                 return !!res;
             } catch (e) {
-                showActionError('Not started: saving current voices to the library failed', e, 'Check the cast library for the saved voices before starting again. Keep the save-to-library option enabled to protect the current assignments.');
+                showActionError(t('voice.library.save-failed', 'Not started: saving current voices to the library failed'), e, t('voice.library.save-failed-recovery', 'Check the cast library for the saved voices before starting again. Keep the save-to-library option enabled to protect the current assignments.'));
                 return false;
             }
         }
@@ -4780,13 +4784,13 @@
             const advancedToggle = document.getElementById('advanced-persona-toggle');
             const batchInput = document.getElementById('persona-batch-size');
             try {
-                if (!(await confirmIfRemote('this persona generation', true))) { return; }
+                if (!(await confirmIfRemote(t('core.remote.task.persona-generation', 'this persona generation'), true))) { return; }
                 const advanced = !!(advancedToggle && advancedToggle.checked);
                 const batchSize = Math.max(1, Math.min(parseInt(batchInput?.value || '40', 10) || 40, 200));
                 const contextLines = getPersonaContextLines();
                 const newOnly = voicesScopeIsNew();
                 if (!newOnly && !(await keepCurrentVoicesIfAsked())) { return; }
-                statusSpan.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${advanced ? 'Starting advanced...' : 'Starting...'}`;
+                statusSpan.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${escapeHtml(advanced ? t('voice.persona.starting-advanced', 'Starting advanced...') : t('voice.persona.starting', 'Starting...'))}`;
                 if (cancelButton) {
                     cancelButton.style.display = '';
                 }
@@ -4794,7 +4798,7 @@
                 started = true;
                 pollPersonaStatus();
             } catch (e) {
-                showActionError("Failed to start persona generation", e, "Check the persona task status before starting again. For an LLM refusal, use Setup → Test Connection and review the selected model.");
+                showActionError(t('voice.persona.start-failed', 'Failed to start persona generation'), e, t('voice.persona.start-failed-recovery', 'Check the persona task status before starting again. For an LLM refusal, use Setup → Test Connection and review the selected model.'));
                 statusSpan.innerText = '';
                 if (cancelButton) {
                     cancelButton.style.display = 'none';
@@ -4808,9 +4812,9 @@
             await cancelTask('/api/cancel_persona', {
                 onSuccess: () => {
                     const statusSpan = document.getElementById('persona-status');
-                    if (statusSpan) { statusSpan.innerText = 'Cancelling...'; }
+                    if (statusSpan) { statusSpan.innerText = t('core.cancel.cancelling', 'Cancelling...'); }
                 },
-                errorMessage: (e) => getActionErrorMessage('Persona cancellation is unconfirmed', e, 'Check the persona task status before cancelling again; generation may still be running.'),
+                errorMessage: (e) => getActionErrorMessage(t('voice.persona.cancel-unconfirmed', 'Persona cancellation is unconfirmed'), e, t('voice.persona.cancel-recovery', 'Check the persona task status before cancelling again; generation may still be running.')),
                 toastType: 'error',
             });
         }
@@ -4822,7 +4826,7 @@
             const states = window._voicesByName?.[speaker]?.persona_states || [];
             const token = typeof _voiceCardsBookToken === 'undefined' ? '' : _voiceCardsBookToken;
             const previous = field.dataset.bookToken === token && field.dataset.speaker === speaker ? field.value : '';
-            field.innerHTML = (states.length ? '<option value="" disabled>Choose base or state persona</option>' : '')
+            field.innerHTML = (states.length ? `<option value="" disabled>${escapeHtml(t('voices.recovery.choose-state', 'Choose base or state persona'))}</option>` : '')
                 + `<option value="__base__" data-i18n="voices.recovery.base" data-i18n-source="Base character persona">${escapeHtml(t('voices.recovery.base', 'Base character persona'))}</option>`
                 + states.map(state => `<option value="${escapeHtml(state.version_id)}">${escapeHtml(`${state.gender} · ${state.age_group.replaceAll('_', ' ')} · state ${state.state_number}`)}</option>`).join('');
             field.value = states.length ? (previous === '__base__' || states.some(state => state.version_id === previous) ? previous : '') : '__base__';
@@ -4845,7 +4849,7 @@
         const personaJson = document.getElementById('persona-recovery-json')?.value.trim();
         const status = document.getElementById('persona-recovery-status');
         if (!speaker || !personaJson) {
-            if (status) { status.textContent = 'Speaker and persona JSON are required.'; }
+            if (status) { status.textContent = t('voices.recovery.required', 'Speaker and persona JSON are required.'); }
             return;
         }
         try {
@@ -4866,12 +4870,12 @@
                 Object.assign(payload, {state_version: state.version_id, book_token: token});
             }
             await API.post('/api/persona/recover', payload);
-            if (status) { status.textContent = resume ? 'Validated and resumed.' : 'Validated and saved.'; }
+            if (status) { status.textContent = resume ? t('voices.recovery.validated-resumed', 'Validated and resumed.') : t('voices.recovery.validated-saved', 'Validated and saved.'); }
             await loadVoices();
-            showToast(`Persona recovered for ${speaker}.`, 'success');
+            showToast(t('voices.recovery.recovered', 'Persona recovered for {speaker}.', {speaker}), 'success');
         } catch (e) {
-            if (status) { status.textContent = getActionErrorMessage('Persona recovery failed', e, 'Keep the pasted JSON. Check the speaker and validation details before correcting and submitting it again.'); }
-            showActionError("Persona recovery failed", e, "Keep the pasted persona JSON. Check the speaker and validation details, then correct the JSON before submitting again.");
+            if (status) { status.textContent = getActionErrorMessage(t('voices.recovery.failed', 'Persona recovery failed'), e, t('voices.recovery.failed-recovery', 'Keep the pasted JSON. Check the speaker and validation details before correcting and submitting it again.')); }
+            showActionError(t('voices.recovery.failed', 'Persona recovery failed'), e, t('voices.recovery.retry-recovery', 'Keep the pasted persona JSON. Check the speaker and validation details, then correct the JSON before submitting again.'));
         }
     };
 
@@ -4902,7 +4906,7 @@
             const retry = document.getElementById('persona-refresh-retry');
             personaVoiceRefreshPending = true;
             retry.disabled = true;
-            status.textContent = 'Refreshing Voices after the persona task…';
+            status.textContent = t('voices.refresh.refreshing', 'Refreshing Voices after the persona task…');
             let refreshedResources = [];
             const failedResources = new Set();
             try {
@@ -4932,7 +4936,7 @@
                 if (!isCurrent()) { return false; }
                 const complete = failedResources.size === 0;
                 status.textContent = complete ? ''
-                    : 'The persona task has ended, but Voices or its reference lists could not be fully refreshed. Previously loaded lists are kept. Check that Alexandria is running, then retry the Voices refresh; this does not regenerate personas.';
+                    : t('voices.refresh.incomplete', 'The persona task has ended, but Voices or its reference lists could not be fully refreshed. Previously loaded lists are kept. Check that Alexandria is running, then retry the Voices refresh; this does not regenerate personas.');
                 retry.hidden = complete;
                 return complete;
             } finally {
@@ -4940,7 +4944,7 @@
                     personaVoiceRefreshPending = false;
                     retry.disabled = false;
                     if (book !== currentBookFilename) {
-                        status.textContent = 'The book changed during the Voices refresh. Review the current book, then retry the Voices refresh.';
+                        status.textContent = t('voices.refresh.book-changed', 'The book changed during the Voices refresh. Review the current book, then retry the Voices refresh.');
                         retry.hidden = false;
                     }
                 }
@@ -4960,7 +4964,7 @@
                     const advanced = !!(document.getElementById('advanced-persona-toggle')?.checked);
                     renderManualRequest(status, 'persona');
                     statusSpan.innerText = status.ownership_unconfirmed ? getTaskOwnershipMessage(status)
-                        : status.running ? (advanced ? 'Advanced running...' : 'Running...') : 'Finished';
+                        : status.running ? (advanced ? t('voices.status.running-advanced', 'Advanced running...') : t('voices.status.running', 'Running...')) : t('voices.status.finished', 'Finished');
                     if (cancelButton) {
                         cancelButton.style.display = status.running ? '' : 'none';
                     }
@@ -4978,16 +4982,16 @@
                         const recoveryContext = document.getElementById('persona-recovery-context');
                         const lastLog = (status.logs || []).filter(Boolean).slice(-1)[0] || 'Unknown persona-generation error';
                         if (recoveryContext) {
-                            recoveryContext.textContent = `Stage: persona generation · Error: ${lastLog} · Next action: paste validated persona JSON below, then resume.`;
+                            recoveryContext.textContent = t('voices.recovery.stage-error', 'Stage: persona generation · Error: {error} · Next action: paste validated persona JSON below, then resume.', {error: lastLog});
                             recoveryContext.style.display = '';
                         }
                         if (recoveryStatus) {
-                            recoveryStatus.textContent = 'Persona generation stopped with an error. Copy the prompt, paste validated JSON, and resume manually.';
+                            recoveryStatus.textContent = t('voices.recovery.stopped', 'Persona generation stopped with an error. Copy the prompt, paste validated JSON, and resume manually.');
                         }
                     }
                     const refreshed = await refreshPersonaVoiceResources(true);
-                    showToast(failed ? 'Persona generation stopped; manual recovery is available.'
-                        : refreshed ? 'Persona task ended. Voices refreshed.' : 'Persona task ended; the Voices refresh needs attention.', failed || !refreshed ? 'warning' : 'success');
+                    showToast(failed ? t('voices.persona.stopped-toast', 'Persona generation stopped; manual recovery is available.')
+                        : refreshed ? t('voices.persona.ended-refreshed', 'Persona task ended. Voices refreshed.') : t('voices.persona.ended-refresh-needed', 'Persona task ended; the Voices refresh needs attention.'), failed || !refreshed ? 'warning' : 'success');
                     statusSpan.innerText = '';
                     if (cancelButton) {
                         cancelButton.style.display = 'none';
@@ -6158,7 +6162,7 @@
                 const focus = getVoiceListFocusSnapshot(container, _voiceCardsBookToken);
                 const panels = getVoicePanelSnapshot(container, _voiceCardsBookToken);
                 if (voices.length === 0) {
-                    container.innerHTML = '<div class="alert alert-info">No voices found. Generate a script first.</div>';
+                    container.innerHTML = `<div class="alert alert-info">${escapeHtml(t('voice.list.empty', 'No voices found. Generate a script first.'))}</div>`;
                     _voiceCardsRevision = ownRevision;
                     _voiceCardsBookToken = ownBookToken;
                     loadVoices.publishedGeneration = generation;
@@ -6228,8 +6232,8 @@
                 await API.post(`/api/voices/${encodeURIComponent(speaker)}/versions/${encodeURIComponent(versionId)}/select`,
                     _voiceCardsBookToken ? {book_token: _voiceCardsBookToken} : {});
                 await loadVoices();
-                showToast(`Selected ${versionId} for ${speaker}.`, 'success');
-            } catch (e) { showActionError("Version selection failed", e, "Reload Voices to check the active saved version before selecting again."); }
+                showToast(t('voice.version.selected', 'Selected {version} for {speaker}.', {version: versionId, speaker}), 'success');
+            } catch (e) { showActionError(t('voice.version.select-failed', 'Version selection failed'), e, t('voice.version.select-failed-recovery', 'Reload Voices to check the active saved version before selecting again.')); }
         };
 
         window.addVoiceVersion = async function addVoiceVersion(button) {
@@ -6248,14 +6252,14 @@
                 }
                 await flushVoiceSaves();
                 if (book !== currentBookFilename || card?.isConnected === false) {
-                    showToast('The book changed. Review it before adding a voice version.', 'warning'); return;
+                    showToast(t('safety.voice.version_book_changed', 'The book changed. Review it before adding a voice version.'), 'warning'); return;
                 }
                 await API.post(`/api/voices/${encodeURIComponent(speaker)}/versions`, {
                     version_id: values.name, age_group: values.description || 'adult'
                 });
-                showToast(`Version saved for ${speaker}.`, 'success');
+                showToast(t('voice.version.saved', 'Version saved for {speaker}.', {speaker}), 'success');
                 if (book === currentBookFilename) { await loadVoices(); }
-            } catch (e) { showActionError("Version save failed", e, "Reload Voices to check whether the version was saved before adding it again."); }
+            } catch (e) { showActionError(t('voice.version.save-failed', 'Version save failed'), e, t('voice.version.save-failed-recovery', 'Reload Voices to check whether the version was saved before adding it again.')); }
             finally { button.disabled = false; }
         };
 
@@ -6290,12 +6294,12 @@
                 // point at this NEW revision, defeating the
                 // loader's stale-row detection.
                 _voiceSaveSnapshot = { ..._voiceSaveSnapshot, revision: result.revision };
-                if (isLatest()) { showToast('Narrator strategy saved.', 'success'); }
+                if (isLatest()) { showToast(t('voice.narrator.saved', 'Narrator strategy saved.'), 'success'); }
             })();
             window._narratorStrategySave = saving;
             try { await saving; }
             catch (e) {
-                if (isLatest()) { showActionError("Narrator strategy failed", e, "Reload Voices to check the saved narrator strategy before changing it again."); }
+                if (isLatest()) { showActionError(t('voice.narrator.failed', 'Narrator strategy failed'), e, t('voice.narrator.failed-recovery', 'Reload Voices to check the saved narrator strategy before changing it again.')); }
             } finally {
                 if (window._narratorStrategySave === saving) { window._narratorStrategySave = null; }
             }
@@ -6314,7 +6318,7 @@
             if (focus) {
                 const selected = focus.value;
                 const names = (window._voicesNames || []).filter(name => name !== 'NARRATOR' && name !== 'Narrator');
-                focus.innerHTML = '<option value="">No focus override</option>' +
+                focus.innerHTML = `<option value="">${escapeHtml(t('voice.narrator.no-focus-override', 'No focus override'))}</option>` +
                     names.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
                 focus.value = names.includes(selected) ? selected : '';
             }
@@ -6322,7 +6326,7 @@
                 const selected = version.value;
                 const narrator = window._voicesByName?.NARRATOR || window._voicesByName?.Narrator;
                 const versions = Object.keys(narrator?.config?.versions || {}).sort();
-                version.innerHTML = '<option value="">Default narrator</option>' +
+                version.innerHTML = `<option value="">${escapeHtml(t('voice.narrator.default-narrator', 'Default narrator'))}</option>` +
                     versions.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`).join('');
                 version.value = versions.includes(selected) ? selected : '';
             }
@@ -6347,9 +6351,9 @@
                 });
                 if (!isCurrent()) { return; }
                 const selected = result.selected || {};
-                status.textContent = `Selected ${selected.adapter_id || selected.voice || selected.type || 'default'}.`;
+                status.textContent = t('voice.narrator.preview-selected', 'Selected {voice}.', {voice: selected.adapter_id || selected.voice || selected.type || 'default'});
             } catch (e) {
-                if (isCurrent()) { showActionError("Narrator preview failed", e, "Check the narrator strategy, selected speaker and saved version, then preview again."); }
+                if (isCurrent()) { showActionError(t('voice.narrator.preview-failed', 'Narrator preview failed'), e, t('voice.narrator.preview-failed-recovery', 'Check the narrator strategy, selected speaker and saved version, then preview again.')); }
             }
         };
 
@@ -6384,7 +6388,7 @@
                     helperText: t('voice.audit.help', 'Correct the assignment notes. Empty fields leave existing saved values unchanged.')});
                 if (!values) { return; }
                 if (book !== currentBookFilename || card?.isConnected === false || card?.dataset.voice !== speaker) {
-                    showToast('The book or voice changed. Review it before saving the audit.', 'warning'); return;
+                    showToast(t('voice.audit.changed', 'The book or voice changed. Review it before saving the audit.'), 'warning'); return;
                 }
                 await postVoiceTarget(button, `/api/voices/${encodeURIComponent(speaker)}/persona-voice-audit`, {
                     persona_ref: current.persona_ref || null,
@@ -6393,8 +6397,8 @@
                     suggestion_reason: values.name,
                 });
                 if (book === currentBookFilename) { await loadVoices(); }
-                showToast(`Persona-to-voice audit updated for ${speaker}.`, 'success');
-            } catch (e) { showActionError("Audit update failed", e, "Reload Voices and check the current persona-to-voice audit before saving it again."); }
+                showToast(t('voice.audit.updated', 'Persona-to-voice audit updated for {speaker}.', {speaker}), 'success');
+            } catch (e) { showActionError(t('voice.audit.failed', 'Audit update failed'), e, t('voice.audit.failed-recovery', 'Reload Voices and check the current persona-to-voice audit before saving it again.')); }
             finally { button.disabled = false; }
         };
 
@@ -6409,8 +6413,8 @@
                 await ensureStateCardCurrent(card, token);
                 await API.del(`/api/voices/${encodeURIComponent(speaker)}/versions/${encodeURIComponent(version)}?book_token=${encodeURIComponent(token)}`);
                 await loadVoices();
-                showToast('Saved state persona removed. Its audio files were kept.', 'success');
-            } catch (e) { showActionError('State removal failed', e, 'Reload Voices and review its applied timeline before trying again.'); }
+                showToast(t('voice.state.removed', 'Saved state persona removed. Its audio files were kept.'), 'success');
+            } catch (e) { showActionError(t('voice.state.remove-failed', 'State removal failed'), e, t('voice.state.remove-failed-recovery', 'Reload Voices and review its applied timeline before trying again.')); }
         };
 
         window.regeneratePersona = async function regeneratePersona(button) {
@@ -6420,14 +6424,14 @@
             const token = version ? _voiceCardsBookToken : null;
             try {
                 if (version) { await flushVoiceSaves(); }
-                if (!(await confirmIfRemote('this persona regeneration', true))) { return; }
+                if (!(await confirmIfRemote(t('core.remote.task.persona-regeneration', 'this persona regeneration'), true))) { return; }
                 if (version) { await ensureStateCardCurrent(card, token); }
                 const payload = {speaker, advanced: false, context_lines: getPersonaContextLines()};
                 if (version) { Object.assign(payload, {advanced: true, state_version: version, book_token: token}); }
                 await API.post('/api/generate_personas', payload);
                 pollPersonaStatus();
-                showToast(`Persona regeneration started for ${speaker}.`, 'success');
-            } catch (e) { showActionError("Persona regeneration failed", e, "Check the persona task status before regenerating again. For an LLM refusal, use Setup → Test Connection."); }
+                showToast(t('voice.persona.regeneration-started', 'Persona regeneration started for {speaker}.', {speaker}), 'success');
+            } catch (e) { showActionError(t('voice.persona.regeneration-failed', 'Persona regeneration failed'), e, t('voice.persona.regeneration-failed-recovery', 'Check the persona task status before regenerating again. For an LLM refusal, use Setup → Test Connection.')); }
         };
 
         // Voice Design from a chosen line (#1232): the card lists the character's
@@ -6447,13 +6451,13 @@
                     const text = String(line.text || '');
                     option.value = text;
                     option.title = text;
-                    option.textContent = `[${line.chars} ch${line.in_range ? '' : ', outside range'}] ${text.length > 90 ? text.slice(0, 90) + '…' : text}`;
+                    option.textContent = t('voice.design.line-option', '[{chars} ch{range}] {text}', {chars: line.chars, range: line.in_range ? '' : t('voice.design.line-option-outside', ', outside range'), text: text.length > 90 ? text.slice(0, 90) + '…' : text});
                     return option;
                 });
                 select.replaceChildren(select.options[0], ...options);
                 select.dataset.loaded = '1';
             } catch (e) {
-                showActionError('Could not load the character\'s lines', e, 'Reload Voices and open the list again.');
+                showActionError(t('voice.design.load-lines-failed', "Could not load the character's lines"), e, t('voice.design.load-lines-recovery', 'Reload Voices and open the list again.'));
             } finally {
                 delete select.dataset.loading;
             }
@@ -6473,7 +6477,7 @@
             const speaker = card?.dataset.voice;
             const refText = card?.querySelector('.design-line-select')?.value || '';
             if (!speaker || !refText) {
-                showToast('Choose one of the character\'s lines first.', 'warning');
+                showToast(t('voice.design.choose-line-first', "Choose one of the character's lines first."), 'warning');
                 return;
             }
             const version = card.dataset.version || null;
@@ -6486,9 +6490,11 @@
                 if (version) { Object.assign(payload, {state_version: version, book_token: token}); }
                 await API.post('/api/generate_personas', payload);
                 pollPersonaStatus();
-                const what = count > 1 ? `${count} voices for ${speaker}` : `${speaker}'s voice`;
-                showToast(`Designing ${what} from the chosen line. Each new voice and the current one stay under Saved candidates.`, 'success');
-            } catch (e) { showActionError('Voice design failed', e, 'Check the persona task status before designing again. A character needs a persona first.'); }
+                const what = count > 1
+                    ? t('voice.design.what-voices', '{count} voices for {speaker}', {count, speaker})
+                    : t('voice.design.what-voice', "{speaker}'s voice", {speaker});
+                showToast(t('voice.design.designing', 'Designing {what} from the chosen line. Each new voice and the current one stay under Saved candidates.', {what}), 'success');
+            } catch (e) { showActionError(t('voice.design.failed', 'Voice design failed'), e, t('voice.design.failed-recovery', 'Check the persona task status before designing again. A character needs a persona first.')); }
         };
 
         window.generateAgeVersion = async function generateAgeVersion(button, presetAge) {
@@ -6507,17 +6513,17 @@
                 if (!isCurrent()) {
                     showToast(t('safety.voice.age_book_changed', 'The book or voice changed. Review it before generating an age version.'), 'warning'); return;
                 }
-                if (!(await confirmIfRemote('this age-version generation', true))) { return; }
+                if (!(await confirmIfRemote(t('core.remote.task.age-version-generation', 'this age-version generation'), true))) { return; }
                 if (!isCurrent()) {
-                    showToast('The book or voice changed. Review it before generating an age version.', 'warning'); return;
+                    showToast(t('safety.voice.age_book_changed', 'The book or voice changed. Review it before generating an age version.'), 'warning'); return;
                 }
                 await API.post('/api/generate_personas', {
                     speaker, age_group: values.name, advanced: false,
                     context_lines: getPersonaContextLines(),
                 });
                 pollPersonaStatus();
-                showToast(`Generating ${values.name} version for ${speaker}.`, 'success');
-            } catch (e) { showActionError("Age version generation failed", e, "Check the persona task status and saved age versions before generating again. Use an age profile listed in the dialog."); }
+                showToast(t('voice.age.generating', 'Generating {age} version for {speaker}.', {age: values.name, speaker}), 'success');
+            } catch (e) { showActionError(t('voice.age.failed', 'Age version generation failed'), e, t('voice.age.failed-recovery', 'Check the persona task status and saved age versions before generating again. Use an age profile listed in the dialog.')); }
             finally { button.disabled = false; }
         };
 
@@ -6604,7 +6610,7 @@
                 && cast === (window._selectedCast || null)
                 && generation === (window._voiceSuggestionGeneration || 0)};
             try {
-                if (!(await confirmIfRemote('this voice suggestion', true))) { return; }
+                if (!(await confirmIfRemote(t('core.remote.task.voice-suggestion', 'this voice suggestion'), true))) { return; }
                 if (!context.isCurrent()) { return; }
                 const onlyUnset = characterNames ? false : voicesScopeIsNew();
                 if (!characterNames && !onlyUnset && !(await keepCurrentVoicesIfAsked())) { return; }
@@ -6707,7 +6713,7 @@
             const token = _voiceCardsBookToken;
             try {
                 await flushVoiceSaves();
-                if (!(await confirmIfRemote('these state voice suggestions', true))) { return; }
+                if (!(await confirmIfRemote(t('core.remote.task.state-voice-suggestions', 'these state voice suggestions'), true))) { return; }
                 await ensureStateCardCurrent(card, token);
                 const result = await API.post('/api/suggest_voices', {characters: [speaker],
                     state_version: card.dataset.version, book_token: token});
@@ -7377,7 +7383,7 @@
                     </li>`).join('');
                 panel.innerHTML = `
                     <div class="border rounded p-2">
-                        <div class="small fw-bold mb-1">${escapeHtml(summary)} — cast "${escapeHtml(cast)}"</div>
+                        <div class="small fw-bold mb-1">${escapeHtml(t('voice.cast.bulk-result-heading', '{summary} — cast "{cast}"', {summary, cast}))}</div>
                         <div class="alert alert-light border py-1 px-2 small mb-2"><i class="fas fa-info-circle me-1"></i>${escapeHtml(total === 1 ? t('voice.cast.bulk-total.one', '{count} voice applied in total, across the selected saved books. Your currently loaded book\'s voice settings and audio are unchanged. To use a saved book\'s updated voices, load it from Saved Scripts; loading replaces the current script and chunks.', {count: total}) : t('voice.cast.bulk-total.many', '{count} voices applied in total, across the selected saved books. Your currently loaded book\'s voice settings and audio are unchanged. To use a saved book\'s updated voices, load it from Saved Scripts; loading replaces the current script and chunks.', {count: total}))}</div>
                         <ul class="list-group list-group-flush border rounded mb-2">${rows || '<li class="list-group-item small text-muted py-2 px-2">' + escapeHtml(t('voice.cast.bulk-no-books', 'No books updated.')) + '</li>'}</ul>
                         <button class="btn btn-sm btn-outline-secondary" onclick="renderCastMembers()">${escapeHtml(t('voice.cast.done', 'Done'))}</button>
@@ -7638,7 +7644,7 @@
             const row = document.querySelector(`#chunks-table-body tr[data-id="${chunkId}"]`);
             const getSpeaker = () => row ? (row.querySelector('.chunk-speaker')?.value || row.querySelector('select')?.value || '') : '';
             const speaker = getSpeaker();
-            if (!speaker) { showToast('Pick the line\'s speaker first.', 'warning'); return; }
+            if (!speaker) { showToast(t('voice.change.pick-speaker', "Pick the line's speaker first."), 'warning'); return; }
             const book = currentBookFilename;
             const current = (window._voicesByName && window._voicesByName[speaker])?.config || {};
             try {
@@ -7648,13 +7654,15 @@
                     helperText: t('voice.change.help', 'Describe how the character sounds from this line on. Leave empty to remove this change point. Regenerate later lines to hear the change.')});
                 if (!values) { return; }
                 if (book !== currentBookFilename || row?.isConnected === false || getSpeaker() !== speaker) {
-                    showToast('The book or line speaker changed. Review it before saving the change point.', 'warning'); return;
+                    showToast(t('voice.change.changed', 'The book or line speaker changed. Review it before saving the change point.'), 'warning'); return;
                 }
                 await API.post(`/api/voices/${encodeURIComponent(speaker)}/style_timeline`, { from_index: chunkId, character_style: values.name });
                 if (book === currentBookFilename) { await loadVoices(); }
-                showToast(values.name ? `${speaker} changes from line ${chunkId + 1}. Regenerate the later lines to hear it.` : `Change point at line ${chunkId + 1} removed.`, 'success', 8000);
+                showToast(values.name
+                    ? t('voice.change.saved', '{speaker} changes from line {line}. Regenerate the later lines to hear it.', {speaker, line: chunkId + 1})
+                    : t('voice.change.removed', 'Change point at line {line} removed.', {line: chunkId + 1}), 'success', 8000);
             } catch (e) {
-                showActionError("Could not save the change", e, "Review the current book, line speaker and saved change point before saving again.");
+                showActionError(t('voice.change.save-failed', 'Could not save the change'), e, t('voice.change.save-failed-recovery', 'Review the current book, line speaker and saved change point before saving again.'));
             }
         }
 
@@ -8182,7 +8190,7 @@
                 panel.style.display = 'none';
                 return;
             }
-            summary.textContent = 'Comparing…';
+            summary.textContent = t('editor.integrity.comparing', 'Comparing…');
             try {
                 const diff = await API.get('/api/editor/integrity');
                 if (!isCurrent()) { return; }
@@ -8190,7 +8198,7 @@
             } catch (e) {
                 if (!isCurrent()) { return; }
                 summary.textContent = '';
-                showActionError("Text integrity unavailable", e, "Refresh the Editor and run Text integrity again. A failed check does not establish that the source matches.", "error");
+                showActionError(t('editor.integrity.failed', 'Text integrity unavailable'), e, t('editor.integrity.failed-recovery', 'Refresh the Editor and run Text integrity again. A failed check does not establish that the source matches.'), "error");
             }
         }
 
@@ -8198,22 +8206,26 @@
             const panel = document.getElementById('text-diff-panel');
             const summary = document.getElementById('text-diff-summary');
             if (diff.status === 'unavailable') {
-                summary.textContent = 'Source comparison unavailable';
+                summary.textContent = t('editor.integrity.unavailable', 'Source comparison unavailable');
                 panel.style.display = '';
-                panel.textContent = diff.reason || 'No original source is on record.';
+                panel.textContent = diff.reason || t('editor.integrity.no-source', 'No original source is on record.');
                 textDiffRequest++;
                 return;
             }
-            const t = diff.totals || {};
+            const totals = diff.totals || {};
             const hunks = diff.hunks || [];
-            summary.textContent = `${t.script_words} script words vs ${t.source_words} source · ${t.deleted} dropped, ${t.inserted} added, ${t.replaced} changed · ${hunks.length} place${hunks.length === 1 ? '' : 's'}`;
+            const diffValues = {script: totals.script_words, source: totals.source_words, deleted: totals.deleted,
+                inserted: totals.inserted, replaced: totals.replaced, count: hunks.length};
+            summary.textContent = pluralForm(hunks.length) === 'one'
+                ? t('editor.integrity.summary-one', '{script} script words vs {source} source · {deleted} dropped, {inserted} added, {replaced} changed · {count} place', diffValues)
+                : t('editor.integrity.summary', '{script} script words vs {source} source · {deleted} dropped, {inserted} added, {replaced} changed · {count} places', diffValues);
             const kindClass = { delete: 'table-danger', insert: 'table-success', replace: 'table-warning' };
             const rows = hunks.map(h => `
                 <tr class="${kindClass[h.kind] || ''}">
-                    <td class="text-nowrap small">${escapeHtml(h.kind)}<br><span class="text-muted">chunk ${escapeHtml(String(h.chunk))}</span></td>
+                    <td class="text-nowrap small">${escapeHtml(h.kind)}<br><span class="text-muted">${escapeHtml(t('editor.integrity.chunk', 'chunk {number}', {number: String(h.chunk)}))}</span></td>
                     <td class="small"><span class="text-muted">${escapeHtml(h.source_before)}</span> <strong>${escapeHtml(h.source_words) || '∅'}</strong> <span class="text-muted">${escapeHtml(h.source_after)}</span></td>
                     <td class="small"><strong>${escapeHtml(h.script_words) || '∅'}</strong></td>
-                    <td class="text-nowrap">${h.entry_index != null ? `<button class="btn btn-sm btn-link p-0" onclick="scrollToChunkRow(${Number(h.entry_index)})">entry ${Number(h.entry_index) + 1}</button>` : ''}</td>
+                    <td class="text-nowrap">${h.entry_index != null ? `<button class="btn btn-sm btn-link p-0" onclick="scrollToChunkRow(${Number(h.entry_index)})">${escapeHtml(t('editor.integrity.entry', 'entry {number}', {number: Number(h.entry_index) + 1}))}</button>` : ''}</td>
                 </tr>`).join('');
             panel.style.display = '';
             panel.innerHTML = `
@@ -8221,10 +8233,10 @@
                     ${hunks.length ? `
                     <div class="table-responsive" style="max-height: 40vh; overflow-y: auto;">
                         <table class="table table-sm mb-0">
-                            <thead><tr><th>Kind</th><th>Source</th><th>Script</th><th></th></tr></thead>
+                            <thead><tr><th>${escapeHtml(t('editor.integrity.col-kind', 'Kind'))}</th><th>${escapeHtml(t('editor.integrity.col-source', 'Source'))}</th><th>${escapeHtml(t('editor.integrity.col-script', 'Script'))}</th><th></th></tr></thead>
                             <tbody>${rows}</tbody>
                         </table>
-                    </div>` : '<div class="small text-success mb-0">Every source word is in the script, in order.</div>'}
+                    </div>` : `<div class="small text-success mb-0">${escapeHtml(t('editor.integrity.all-present', 'Every source word is in the script, in order.'))}</div>`}
                 </div>`;
             textDiffRequest++;
         }
@@ -8232,7 +8244,7 @@
         function scrollToChunkRow(id) {
             const tr = document.querySelector(`tr[data-id="${id}"]`);
             if (!tr) {
-                showToast(`Entry ${id + 1} is not in the table yet.`, 'warning');
+                showToast(t('editor.integrity.entry-missing', 'Entry {number} is not in the table yet.', {number: id + 1}), 'warning');
                 return;
             }
             if (tr.style.display === 'none') {
@@ -8240,10 +8252,10 @@
                 if (filter?.checked) {
                     filter.checked = false;
                     applyDriftFilter();
-                    showToast(`Showing all chunks to reveal entry ${id + 1}.`, 'info');
+                    showToast(t('editor.integrity.entry-showing-all', 'Showing all chunks to reveal entry {number}.', {number: id + 1}), 'info');
                 }
                 if (tr.style.display === 'none') {
-                    showToast(`Entry ${id + 1} is hidden. Show all chunks, then try its link again.`, 'warning');
+                    showToast(t('editor.integrity.entry-hidden', 'Entry {number} is hidden. Show all chunks, then try its link again.', {number: id + 1}), 'warning');
                     return;
                 }
             }
@@ -8314,7 +8326,7 @@
                 const res = await API.post('/api/chunks/drift_check', indices ? { indices } : {});
                 if (!res.measured) {
                     if (btn) { btn.disabled = false; }
-                    showToast('Voice check not measured: no speechbrain interpreter configured (Voice Lab → rocm_python).', 'warning');
+                    showToast(t('editor.drift.not-measured', 'Voice check not measured: no speechbrain interpreter configured (Voice Lab → rocm_python).'), 'warning');
                     return;
                 }
                 _startPolling('logs:drift_check', () => API.get('/api/status/drift_check'), {
@@ -8324,12 +8336,12 @@
                         if (btn) { btn.disabled = false; }
                         await loadChunks(true);
                         const last = (s.logs || []).slice(-1)[0] || '';
-                        showToast(last.startsWith('NOT MEASURED') ? last : `Voice check: ${last}`, /\b0 flagged\b/.test(last) ? 'success' : 'warning');
+                        showToast(last.startsWith('NOT MEASURED') ? last : t('editor.drift.result', 'Voice check: {result}', {result: last}), /\b0 flagged\b/.test(last) ? 'success' : 'warning');
                     },
                 });
             } catch (e) {
                 if (btn) { btn.disabled = false; }
-                showActionError("Voice check failed", e, "Check the Voice Lab interpreter and speechbrain setup, then check the voice-check task status before starting again.", "error");
+                showActionError(t('editor.drift.failed', 'Voice check failed'), e, t('editor.drift.failed-recovery', 'Check the Voice Lab interpreter and speechbrain setup, then check the voice-check task status before starting again.'), "error");
             }
         }
 
@@ -8367,7 +8379,7 @@
                         const progressBar = document.createElement('div');
                         progressBar.className = 'tp tp-dither tp-sm tp-indeterminate';
                         progressBar.style.width = '100px';
-                        progressBar.innerHTML = '<span class="tp-label" role="status" aria-label="Generating audio">Generating…</span>';
+                        progressBar.innerHTML = `<span class="tp-label" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</span>`;
                         actionContainer.replaceChild(progressBar, existingBtn);
                     }
                 } else {
@@ -8375,7 +8387,7 @@
                         const btn = document.createElement('button');
                         btn.className = 'btn btn-sm btn-primary';
                         btn.onclick = () => generateChunk(chunk.id);
-                        btn.innerHTML = '<i class="fas fa-play"></i> Gen';
+                        btn.innerHTML = `<i class="fas fa-play"></i> ${escapeHtml(t('core.editor.generate-short', 'Gen'))}`;
                         actionContainer.replaceChild(btn, existingProgress);
                     }
                     const action = actionContainer.querySelector('button');
@@ -8436,17 +8448,20 @@
             if (!panel) { return; }
             if (!info || !Number.isInteger(info.count) || !Array.isArray(info.rows)) {
                 panel.style.display = '';
-                panel.textContent = 'Delivery review is unavailable; refresh before relying on its warnings.';
+                panel.textContent = t('editor.delivery.unavailable', 'Delivery review is unavailable; refresh before relying on its warnings.');
                 return;
             }
             panel.style.display = info.count || deliveryRetryClaim ? '' : 'none';
-            const rows = info.rows.map(row => `<li><strong>Entry ${escapeHtml(String(row.entry))} · ${escapeHtml(row.speaker)}</strong>: ${escapeHtml(row.text)}<br><small>${escapeHtml(row.instruct)}</small></li>`).join('');
-            panel.innerHTML = `<strong>Needs delivery review: ${info.count} entries</strong>
-                <p class="small mb-2">Step 3 exhausted its retries for these entries and used generic delivery instructions. Text and speakers were retained.</p>
+            const rows = info.rows.map(row => `<li><strong>${escapeHtml(t('editor.delivery.row', 'Entry {entry} · {speaker}', {entry: String(row.entry), speaker: row.speaker}))}</strong>: ${escapeHtml(row.text)}<br><small>${escapeHtml(row.instruct)}</small></li>`).join('');
+            const heading = pluralForm(info.count) === 'one'
+                ? t('editor.delivery.heading-one', 'Needs delivery review: {count} entry', {count: info.count})
+                : t('editor.delivery.heading', 'Needs delivery review: {count} entries', {count: info.count});
+            panel.innerHTML = `<strong>${escapeHtml(heading)}</strong>
+                <p class="small mb-2">${escapeHtml(t('editor.delivery.explanation', 'Step 3 exhausted its retries for these entries and used generic delivery instructions. Text and speakers were retained.'))}</p>
                 <div style="max-height:16rem;overflow:auto"><ol>${rows}</ol></div>
                 ${info.retry_refusal ? `<p class="small">${escapeHtml(info.retry_refusal)}</p>` : ''}
-                <button class="btn btn-sm btn-outline-warning" onclick="retryDeliveryInstructions()" ${!info.retry_available || deliveryRetryPending || deliveryRetryClaim ? 'disabled' : ''}>Retry delivery only</button>
-                ${deliveryRetryClaim ? '<button class="btn btn-sm btn-outline-danger ms-2" onclick="cancelDeliveryInstructions()">Cancel delivery retry</button>' : ''}`;
+                <button class="btn btn-sm btn-outline-warning" onclick="retryDeliveryInstructions()" ${!info.retry_available || deliveryRetryPending || deliveryRetryClaim ? 'disabled' : ''}>${escapeHtml(t('editor.delivery.retry-only', 'Retry delivery only'))}</button>
+                ${deliveryRetryClaim ? `<button class="btn btn-sm btn-outline-danger ms-2" onclick="cancelDeliveryInstructions()">${escapeHtml(t('editor.delivery.cancel-retry', 'Cancel delivery retry'))}</button>` : ''}`;
         }
 
         async function refreshDeliveryReview() {
@@ -8469,7 +8484,7 @@
                 await ensureEditorRenderSnapshot();
                 const info = await refreshDeliveryReview();
                 if (!info || !info.count || !info.retry_available) { return; }
-                if (!await confirmIfRemote('this delivery-only retry', true)) { return; }
+                if (!await confirmIfRemote(t('core.remote.task.delivery-retry', 'this delivery-only retry'), true)) { return; }
                 const started = await API.post('/api/annotated_script/delivery_review/retry', {snapshot: info.snapshot});
                 deliveryRetryClaim = started.claim_id;
                 renderDeliveryReview(info);
@@ -8482,11 +8497,11 @@
                         deliveryRetryClaim = null;
                         await loadChunks(true);
                         await refreshDeliveryReview();
-                        showToast('Delivery retry is no longer running. Review the refreshed flagged entries before generating audio.', 'info');
+                        showToast(t('editor.delivery.no-longer-running', 'Delivery retry is no longer running. Review the refreshed flagged entries before generating audio.'), 'info');
                     },
                 });
             } catch (e) {
-                showActionError("Delivery retry failed", e, "Check the delivery retry status and refreshed flagged entries before retrying. For an LLM refusal, use Setup \u2192 Test Connection.", "warning");
+                showActionError(t('editor.delivery.retry-failed', 'Delivery retry failed'), e, t('editor.delivery.retry-failed-recovery', 'Check the delivery retry status and refreshed flagged entries before retrying. For an LLM refusal, use Setup → Test Connection.'), "warning");
             } finally {
                 deliveryRetryPending = false;
                 await refreshDeliveryReview();
@@ -8498,9 +8513,9 @@
             const claim = deliveryRetryClaim;
             try {
                 await API.post('/api/annotated_script/delivery_review/cancel', {claim_id: claim});
-                showToast('Cancellation queued; the provider call must return before ownership is released.', 'info');
+                showToast(t('editor.delivery.cancel-queued', 'Cancellation queued; the provider call must return before ownership is released.'), 'info');
             } catch (e) {
-                showActionError("Delivery cancellation failed", e, "Check delivery retry status before cancelling again; the provider call may still be running.", "warning");
+                showActionError(t('editor.delivery.cancel-failed', 'Delivery cancellation failed'), e, t('editor.delivery.cancel-failed-recovery', 'Check delivery retry status before cancelling again; the provider call may still be running.'), "warning");
             }
         };
 
@@ -8876,7 +8891,7 @@
                                 void playingAudio.play().then(() => {
                                     if (refreshBook !== currentBookFilename || !playingAudio.isConnected) { playingAudio.pause(); }
                                 }).catch(() => {
-                                    showToast('The editor refreshed, but playback could not resume. Press Play on the chunk to continue listening.', 'warning');
+                                    showToast(t('editor.playback.resume-failed', 'The editor refreshed, but playback could not resume. Press Play on the chunk to continue listening.'), 'warning');
                                 });
                             }, {once: true});
                             replacement.replaceWith(playingAudio);
@@ -8957,7 +8972,7 @@
                 }
                 await API.post('/api/tts/recovery/clear', {expected_book_token: token});
                 if (book === currentBookFilename && token === chunkSnapshotBookToken) {
-                    showToast('Retained recovery windows cleared. Saved takes were kept.', 'success');
+                    showToast(t('editor.recovery.cleared', 'Retained recovery windows cleared. Saved takes were kept.'), 'success');
                 }
             } catch (error) {
                 showToast(error.message, 'error');
@@ -8974,7 +8989,7 @@
                 await loadChunks();
                 await window.generateChunk(id);
             } catch (e) {
-                showActionError("Failed to change take", e, "Refresh the Editor and check whether the take changed before retrying.", "error");
+                showActionError(t('editor.take.change-failed', 'Failed to change take'), e, t('editor.take.change-failed-recovery', 'Refresh the Editor and check whether the take changed before retrying.'), "error");
             }
         };
 
@@ -8985,7 +9000,7 @@
                 if (!context.isCurrent()) { return; }
                 await loadChunks(true);
             } catch (e) {
-                showActionError("Failed to insert line", e, "Refresh the Editor and check whether the new line exists before inserting again.", "error");
+                showActionError(t('editor.line.insert-failed', 'Failed to insert line'), e, t('editor.line.insert-failed-recovery', 'Refresh the Editor and check whether the new line exists before inserting again.'), "error");
             }
         };
 
@@ -9039,7 +9054,7 @@
                         <div id="${toastId}" class="toast align-items-center text-white bg-warning border-0" role="alert">
                             <div class="d-flex">
                                 <div class="toast-body text-dark"><span class="deleted-line-summary"></span>
-                                    <a href="#" class="ms-2 fw-bold text-dark">Undo</a>
+                                    <a href="#" class="ms-2 fw-bold text-dark">${escapeHtml(t('editor.delete.undo', 'Undo'))}</a>
                                 </div>
                                 <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="${escapeHtml(t('core.toast.dismiss', 'Dismiss notification'))}"></button>
                             </div>
@@ -9061,7 +9076,7 @@
                     release();
                 }
             } catch (e) {
-                showActionError("Failed to delete line", e, "Refresh the Editor and check whether the line was removed before deleting again. Use Undo if the completed deletion is still offered.", "error");
+                showActionError(t('editor.line.delete-failed', 'Failed to delete line'), e, t('editor.line.delete-failed-recovery', 'Refresh the Editor and check whether the line was removed before deleting again. Use Undo if the completed deletion is still offered.'), "error");
             }
         };
 
@@ -9099,7 +9114,7 @@
                 showToast(t('editor.delete.restored', 'Line restored'), 'success');
                 await loadChunks(true);
             } catch (e) {
-                showActionError("Undo failed", e, "Refresh the Editor and check whether the deleted line was restored before using Undo again.", "error");
+                showActionError(t('editor.delete.undo-failed', 'Undo failed'), e, t('editor.delete.undo-failed-recovery', 'Refresh the Editor and check whether the deleted line was restored before using Undo again.'), "error");
             } finally {
                 if (button) { button.disabled = false; }
                 renderDeleteUndo();
@@ -9122,7 +9137,7 @@
             sequencePauseTimer = null;
             const isCurrentSequence = () => isPlayingSequence && sequenceEpoch === playbackSequenceEpoch;
             const btn = document.getElementById('btn-play-seq');
-            btn.innerHTML = '<i class="fas fa-stop me-1"></i>Stop';
+            btn.innerHTML = `<i class="fas fa-stop me-1"></i>${escapeHtml(t('editor.sequence.stop', 'Stop'))}`;
             btn.onclick = stopSequence;
             btn.classList.replace('btn-primary', 'btn-danger');
 
@@ -9153,7 +9168,7 @@
             } catch (error) {
                 if (!isCurrentSequence()) { return; }
                 console.error('Playback timing plan failed:', error);
-                showActionError('Could not load playback timing', error, 'Check the reported error and your connection, then try playing the sequence again.', 'warning');
+                showActionError(t('editor.playback.timing-failed', 'Could not load playback timing'), error, t('editor.playback.timing-failed-recovery', 'Check the reported error and your connection, then try playing the sequence again.'), 'warning');
                 stopSequence();
                 return;
             }
@@ -9206,7 +9221,7 @@
             const finish = () => {
                 stopSequence();
                 if (skippedCount > 0) {
-                    showToast(`Play Sequence finished - ${skippedCount} chunk(s) skipped due to playback errors`, 'warning');
+                    showToast(t('editor.sequence.finished', 'Play Sequence finished - {count} chunk(s) skipped due to playback errors', {count: skippedCount}), 'warning');
                 }
             };
             const startAudio = (audio, chunkId) => {
@@ -9384,7 +9399,7 @@
 
             const btn = document.getElementById('btn-play-seq');
             if (btn) {
-                btn.innerHTML = '<i class="fas fa-play me-1"></i>Play Sequence';
+                btn.innerHTML = `<i class="fas fa-play me-1"></i>${escapeHtml(t('editor.sequence.play', 'Play Sequence'))}`;
                 btn.onclick = playSequence;
                 btn.classList.replace('btn-danger', 'btn-primary');
             }
@@ -9951,7 +9966,7 @@
             const request = {};
             window._chapterPresetImportRequest = request;
             const isCurrent = () => window._chapterPresetImportRequest === request;
-            if (file.size > 1048576) { showToast('Could not import presets: file exceeds the 1 MiB limit.', 'error'); return; }
+            if (file.size > 1048576) { showToast(t('audio.presets.too-large', 'Could not import presets: file exceeds the 1 MiB limit.'), 'error'); return; }
             const reader = new FileReader();
             reader.onload = () => {
                 if (!isCurrent()) { return; }
@@ -9964,11 +9979,11 @@
                     const merged = {...getChapterTemplatePresets(), ...valid};
                     if (!setLocalStorageValue(CHAPTER_PRESETS_KEY, JSON.stringify(merged))) { throw new Error('browser storage is unavailable'); }
                     renderChapterTemplatePresets();
-                    showToast(`Imported ${Object.keys(valid).length} chapter preset(s).`, 'success');
-                } catch (e) { showActionError("Could not import presets", e, "Keep the preset file. Check that it contains valid chapter presets and that browser storage is available, then import again.", "error"); }
+                    showToast(t('audio.presets.imported', 'Imported {count} chapter preset(s).', {count: Object.keys(valid).length}), 'success');
+                } catch (e) { showActionError(t('audio.presets.import-failed', 'Could not import presets'), e, t('audio.presets.import-failed-recovery', 'Keep the preset file. Check that it contains valid chapter presets and that browser storage is available, then import again.'), "error"); }
             };
             reader.onerror = () => {
-                if (isCurrent()) { showToast('Could not import presets: file could not be read.', 'error'); }
+                if (isCurrent()) { showToast(t('audio.presets.unreadable', 'Could not import presets: file could not be read.'), 'error'); }
             };
             reader.readAsText(file);
         };
@@ -10018,7 +10033,7 @@
         function renderChapterList(rows, exported) {
             const el = document.getElementById('chapter-list');
             document.getElementById('chapter-zip-link').style.display = exported && rows.some(r => r.exists) ? '' : 'none';
-            if (!rows.length) { el.innerHTML = `<span class="text-muted">${exported ? 'No exported chapter files found.' : 'No chapter files are currently planned. Export checks saved files before keeping them.'}</span>`; return; }
+            if (!rows.length) { el.innerHTML = `<span class="text-muted">${escapeHtml(exported ? t('audio.chapters.none-exported', 'No exported chapter files found.') : t('audio.chapters.none-planned', 'No chapter files are currently planned. Export checks saved files before keeping them.'))}</span>`; return; }
             el.innerHTML = '<ol class="mb-0 ps-3">' + rows.map(r => {
                 const name = escapeHtml(r.file);
                 if (exported && r.exists) {
@@ -10056,10 +10071,12 @@
                 if (request !== chapterPreviewRequest || book !== currentBookFilename ||
                     JSON.stringify(params) !== JSON.stringify(chapterExportParams())) { return; }
                 renderChapterList(result.chapters, false);
-                document.getElementById('chapter-status').textContent = `${result.chapters.length} chapter(s) planned for export${params.changed_only ? ' with Changed only enabled' : ''}. Saved files are checked during export.`;
+                document.getElementById('chapter-status').textContent = params.changed_only
+                    ? t('audio.chapters.planned-changed-only', '{count} chapter(s) planned for export with Changed only enabled. Saved files are checked during export.', {count: result.chapters.length})
+                    : t('audio.chapters.planned', '{count} chapter(s) planned for export. Saved files are checked during export.', {count: result.chapters.length});
             } catch (e) {
                 if (request === chapterPreviewRequest && book === currentBookFilename) {
-                    showActionError("Preview failed", e, "Review the chapter range and filename template, then preview the export again.", "error");
+                    showActionError(t('audio.chapters.preview-failed', 'Preview failed'), e, t('audio.chapters.preview-failed-recovery', 'Review the chapter range and filename template, then preview the export again.'), "error");
                 }
             }
         });
@@ -10077,14 +10094,16 @@
                 if (book !== currentBookFilename || JSON.stringify(params) !== JSON.stringify(chapterExportParams())) {
                     throw new Error('The book or chapter settings changed. Preview the current selection before exporting.');
                 }
-                statusEl.textContent = `Checking saved files and exporting selected chapters${params.changed_only ? ' with Changed only enabled' : ''}…`;
+                statusEl.textContent = params.changed_only
+                    ? t('audio.chapters.exporting-changed-only', 'Checking saved files and exporting selected chapters with Changed only enabled…')
+                    : t('audio.chapters.exporting', 'Checking saved files and exporting selected chapters…');
                 window.resetExportMasteringView?.(); window.resetExportQualityView?.();
                 await API.post('/api/export_chapters', params);
                 pollExport('chapter_export');
             } catch (e) {
                 releaseTaskStart('chapter_export');
                 cancelBtn.style.display = 'none';
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('Chapter export start is unconfirmed', e, 'Check the export task status and output list before starting again. If the server refused the request, review the validation details below.'))}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage(t('audio.chapters.export-unconfirmed', 'Chapter export start is unconfirmed'), e, t('safety.core.export.audacity-recovery', 'Check the export task status and output list before starting again. If the server refused the request, review the validation details below.')))}</span>`;
             }
         });
         document.getElementById('chapter-cancel-btn').addEventListener('click', async () => {
@@ -10103,7 +10122,7 @@
             try {
                 const resp = await fetch('/api/m4b_cover', { method: 'POST', body: formData });
                 if (!resp.ok) { throw new Error((await resp.json()).detail || resp.statusText); }
-                statusEl.textContent = 'Uploaded';
+                statusEl.textContent = t('audio.m4b.cover.uploaded', 'Uploaded');
                 statusEl.className = 'small text-success';
             } catch (err) {
                 console.error('Failed to upload M4B cover:', err);
@@ -10118,7 +10137,7 @@
             try {
                 await API.del('/api/m4b_cover');
                 document.getElementById('m4b-cover-input').value = '';
-                statusEl.textContent = 'Removed';
+                statusEl.textContent = t('audio.m4b.cover.removed', 'Removed');
                 statusEl.className = 'small text-muted';
             } catch (err) {
                 console.error('Failed to remove M4B cover:', err);
@@ -10133,7 +10152,7 @@
             if (!claimTaskStart('m4b_export')) { return; }
             const statusEl = document.getElementById('m4b-status');
             const perChunk = document.getElementById('m4b-per-chunk').checked;
-            statusEl.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Exporting M4B...</span>';
+            statusEl.innerHTML = `<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>${escapeHtml(t('audio.m4b.exporting', 'Exporting M4B...'))}</span>`;
 
             try {
                 const publication = await window.getM4bPublicationPayload?.() || {};
@@ -10154,7 +10173,7 @@
                 pollExport('m4b_export');
             } catch (e) {
                 releaseTaskStart('m4b_export');
-                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage('M4B export start is unconfirmed', e, 'Check the export task status and output list before starting again. If the server refused the request, review the validation details below.'))}</span>`;
+                statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage(t('audio.m4b.export-unconfirmed', 'M4B export start is unconfirmed'), e, t('safety.core.export.audacity-recovery', 'Check the export task status and output list before starting again. If the server refused the request, review the validation details below.')))}</span>`;
             }
         };
 
@@ -10201,7 +10220,7 @@
                     if (consecutiveErrors % MAX_SILENT_ERRORS === 0) {
                         const taskKey = key.replace(/^reattach:/, '');
                         const label = displayLabel || (typeof TASK_LABELS !== 'undefined' && TASK_LABELS[taskKey] ? getTaskLabel(taskKey) : t('core.task.fallback-label', 'Task'));
-                        showToast(`Having trouble reaching Alexandria for ${label} status updates. It is still retrying and has not cancelled the run from this page. Save your work, check that Alexandria is still running, then reopen the page if this continues.`, 'warning');
+                        showToast(t('core.poll.reconnect-trouble', 'Having trouble reaching Alexandria for {task} status updates. It is still retrying and has not cancelled the run from this page. Save your work, check that Alexandria is still running, then reopen the page if this continues.', {task: label}), 'warning');
                     }
                 } finally {
                     pending = false;
@@ -10228,7 +10247,7 @@
             if (!btn) { return; }
             const showsResume = btn.classList.contains('btn-outline-success');
             if (status.paused && !showsResume) {
-                btn.innerHTML = '<i class="fas fa-play me-1"></i>Resume';
+                btn.innerHTML = `<i class="fas fa-play me-1"></i>${escapeHtml(t('core.pause.resume', 'Resume'))}`;
                 btn.classList.remove('btn-outline-warning');
                 btn.classList.add('btn-outline-success');
                 if (!_autoPauseNotified[taskName] && status.logs.some(l => l.includes('[AUTO-PAUSE]'))) {
@@ -10356,7 +10375,7 @@
                 panel.hidden = !reply.value.trim() && !retained.children.length;
                 document.getElementById('manual-llm-submit').disabled = true;
                 reply.disabled = false;
-                document.getElementById('manual-llm-status').textContent = 'The pipeline is no longer waiting for this request. Any reply text is retained below; check the task activity before continuing.';
+                document.getElementById('manual-llm-status').textContent = t('manual.no-longer-waiting', 'The pipeline is no longer waiting for this request. Any reply text is retained below; check the task activity before continuing.');
                 return;
             }
             _manualTask = taskName;
@@ -10366,7 +10385,7 @@
             try { full = (await API.get('/api/manual_llm/pending')).pending; } catch (e) {
                 if (_manualRequested === req.id && _manualTask === taskName && _manualLoadWarningFor !== req.id && _manualShown !== req.id) {
                     _manualLoadWarningFor = req.id;
-                    document.getElementById('manual-llm-status').textContent = 'Could not load this model request. Automatic checks will continue; if it does not appear, check that Alexandria is still running.';
+                    document.getElementById('manual-llm-status').textContent = t('manual.load-failed', 'Could not load this model request. Automatic checks will continue; if it does not appear, check that Alexandria is still running.');
                 }
                 console.error('Failed to load manual model request:', e);
                 return;
@@ -10377,14 +10396,14 @@
             ++_manualReplySequence;
             _manualReplySubmitting = null;
             window._manualPending = full;
-            document.getElementById('manual-llm-title').textContent = `request ${full.sequence}`;
+            document.getElementById('manual-llm-title').textContent = t('manual.title', 'request {sequence}', {sequence: full.sequence});
             renderManualReplyHint(full.stage_hint || '');
             document.getElementById('manual-llm-prompt').textContent = manualPromptText(full);
             const reply = document.getElementById('manual-llm-reply');
             if (reply.value.trim() && _manualReplyFor !== full.id && (_manualReplyAcknowledged !== _manualReplyFor || reply.value !== _manualAcknowledgedText)) {
                 const retained = document.createElement('details');
                 const title = document.createElement('summary');
-                title.textContent = 'Retained reply from an earlier request';
+                title.textContent = t('manual.retained-reply', 'Retained reply from an earlier request');
                 const draft = document.createElement('textarea');
                 draft.value = reply.value;
                 draft.readOnly = true;
@@ -10399,8 +10418,8 @@
             reply.disabled = false;
             document.getElementById('manual-llm-submit').disabled = false;
             panel.hidden = false;
-            document.getElementById('manual-llm-status').textContent = `Your turn: request ${full.sequence}. Paste the model’s answer and submit it. Earlier unsent replies, if any, are retained below.`;
-            const message = `The pipeline needs your reply to request ${full.sequence}. Use the manual reply panel at the top of the page.`;
+            document.getElementById('manual-llm-status').textContent = t('manual.your-turn', 'Your turn: request {sequence}. Paste the model’s answer and submit it. Earlier unsent replies, if any, are retained below.', {sequence: full.sequence});
+            const message = t('manual.needs-reply', 'The pipeline needs your reply to request {sequence}. Use the manual reply panel at the top of the page.', {sequence: full.sequence});
             showManualReplyToast(message, 'warning', 8000);
             notifyJobDone(taskName, message, 'needs your reply');
         }
@@ -10436,12 +10455,12 @@
                 _manualReplyAcknowledged = req.id;
                 _manualAcknowledgedText = submittedText;
                 renderManualReplyHint('');
-                document.getElementById('manual-llm-status').textContent = `Reply to request ${req.sequence} sent. The pipeline will validate it; wait for the next task update.`;
-                showManualReplyToast(`Reply to request ${req.sequence} sent to the pipeline.`, 'success');
+                document.getElementById('manual-llm-status').textContent = t('manual.reply-sent-status', 'Reply to request {sequence} sent. The pipeline will validate it; wait for the next task update.', {sequence: req.sequence});
+                showManualReplyToast(t('manual.reply-sent-toast', 'Reply to request {sequence} sent to the pipeline.', {sequence: req.sequence}), 'success');
             } catch (e) {
                 console.error('Failed to submit manual model reply:', e);
                 if (submission !== _manualReplySequence || _manualRequested !== req.id || window._manualPending?.id !== req.id) { return; }
-                const message = 'Could not confirm submission. Your text is still here. Check the task activity; if it is still waiting for this request, select Submit reply again.';
+                const message = t('manual.submit-unconfirmed', 'Could not confirm submission. Your text is still here. Check the task activity; if it is still waiting for this request, select Submit reply again.');
                 document.getElementById('manual-llm-status').textContent = message;
                 showManualReplyToast(message, 'error');
                 btn.disabled = false;

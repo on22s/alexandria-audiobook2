@@ -71,7 +71,7 @@ const context = {
     return {json:async()=>({text:'Synthetic source',policy_text:'Review',
       warnings:[],preview_digest:'a'.repeat(64)})};}
 };
-context.window=context; vm.createContext(context);
+context.window=context; vm.createContext(context);context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));
 vm.runInContext(source,context);
 '''
         program = 'const markup=' + json.dumps(parser.upload) + ';\n'

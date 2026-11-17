@@ -34,7 +34,7 @@ function client(stored='',hash=''){
  const window={location:{hash},history:{pushState(_s,_t,h){pushes.push(h);window.location.hash=h;},replaceState(_s,_t,h){replaces.push(h);window.location.hash=h;}},addEventListener:(event,fn)=>events[event]=fn};
  const ctx={window,localStorage:{getItem:()=>{if(blocked){throw Error('private storage');}return stored;},setItem:(_k,v)=>{if(blocked){throw Error('private storage');}stored=v;}},document:{
  querySelector(){throw Error('tab data must not become a CSS selector');},querySelectorAll:selector=>selector==='.nav-link'?links:Object.values(tabs),getElementById:id=>id==='navbarNav'?{classList:{contains:()=>false}}:tabs[id]},pollLmStudioStatus:()=>loads.push('setup'),loadChunks:()=>loads.push('editor'),loadVoices:reuse=>{assert.strictEqual(reuse,false);loads.push('voices');}};
- vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('const TAB_STORAGE_KEY ='),source.indexOf('// --- LLM model picker')),ctx);
+ vm.createContext(ctx);ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));vm.runInContext(source.slice(source.indexOf('const TAB_STORAGE_KEY ='),source.indexOf('// --- LLM model picker')),ctx);
  return {ctx,window,links,loads,pushes,replaces,tabs,events,block:()=>blocked=true};
 }
 for(const name of ['', 'setup', 'unknown', '"x][data-tab="voices', 'voices"] , .nav-link', '日本語']){
@@ -62,7 +62,7 @@ for(const tabName of ['editor','voices','setup']){
   const skip={addEventListener:(event,handler)=>skipHandlers[event]=handler};
   const document={activeElement:skip,querySelectorAll:selector=>selector==='.nav-link'?links:Object.values(tabs),getElementById:id=>id==='skip-main-link'?skip:id==='main-content'?main:id==='navbarNav'?{classList:{contains:()=>false}}:tabs[id]};
   const context={window,document,localStorage:{getItem:()=>null,setItem(){}},loadChunks:()=>loads.push('editor'),loadVoices:()=>loads.push('voices'),pollLmStudioStatus:()=>loads.push('setup')};
-  vm.createContext(context);vm.runInContext(source.slice(source.indexOf('const TAB_STORAGE_KEY ='),source.indexOf('// --- LLM model picker')),context);
+  vm.createContext(context);context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));vm.runInContext(source.slice(source.indexOf('const TAB_STORAGE_KEY ='),source.indexOf('// --- LLM model picker')),context);
   context.restoreTab();const initialLoads=loads.length;
   for(const activation of ['pointer','Enter-generated click']){
    document.activeElement=skip;let prevented=false;
@@ -86,7 +86,7 @@ const fields={},errors=[],rendered=[];let filename;
 const element=id=>fields[id]||(fields[id]={value:'preset text',innerHTML:'',checked:false});
 const ctx={window:{},console:{error:(...args)=>errors.push(args),warn:(...args)=>errors.push(args)},document:{getElementById:element},llmProfiles:{},passPromptDefaults:{cast:{whole_book_prompt:'cast whole',incremental_prompt:'cast incremental'},pass1:{system_prompt:'preset',user_prompt:'preset'},pass3:{system_prompt:'preset',user_prompt:'preset'}},API:{get:async path=>{assert.strictEqual(path,'/api/config');return {tts:{},current_file:filename};}}};
 for(const name of ['renderConfigWarnings','applyPauseSupport','renderActiveLlmModeBadge','populateLlmInputs','onLlmModeChange','toggleSubBatchFields','toggleTTSMode','renderPromptPresets','renderPassPromptPresets']){ctx[name]=()=>{};}
-vm.createContext(ctx);vm.runInContext(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')),ctx);
+vm.createContext(ctx);ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));vm.runInContext(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')),ctx);
 const bookStart=source.indexOf('let currentBookFilename =');if(bookStart>=0){vm.runInContext(source.slice(bookStart,source.indexOf('async function loadConfig()',bookStart)),ctx);}
 vm.runInContext(source.slice(source.indexOf('async function loadConfig()'),source.indexOf('// Reset prompts and generation settings to factory defaults')),ctx);
 (async()=>{for(const name of names){filename=name;await ctx.loadConfig();rendered.push(element('upload-status').innerHTML);}assert.deepStrictEqual(errors,[]);console.log(JSON.stringify(rendered));})().catch(e=>{console.error(e);process.exitCode=1;});
@@ -119,7 +119,7 @@ vm.runInContext(source.slice(source.indexOf('async function loadConfig()'),sourc
 const target={style:{}},link={dataset:{tab:'setup'},classList:{add(){},remove(){}},setAttribute(){},removeAttribute(){}};
 let shown=true,hides=0,loads=0;const nav={classList:{contains:()=>shown}};
 const c={window:{innerWidth:700,location:{hash:'#setup'}},document:{querySelectorAll:selector=>selector==='.nav-link'?[link]:[target],getElementById:id=>id==='navbarNav'?nav:target},getTabLink:()=>link,rememberTab(){},pollLmStudioStatus:()=>loads++,bootstrap:{Collapse:{getOrCreateInstance:node=>{assert.strictEqual(node,nav);return{hide(){hides++;shown=false;}};}}}};
-vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function isLocalVoiceLoadObsolete'),source.indexOf('function getActionErrorMessage(')),c);const a=source.indexOf('function activateTab(');vm.runInContext(source.slice(a,source.indexOf('function restoreTab(',a)),c);
+vm.createContext(c);c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));vm.runInContext(source.slice(source.indexOf('function isLocalVoiceLoadObsolete'),source.indexOf('function getActionErrorMessage(')),c);const a=source.indexOf('function activateTab(');vm.runInContext(source.slice(a,source.indexOf('function restoreTab(',a)),c);
 for(const width of [700,800,991,992,1200]){shown=true;const count=hides;c.window.innerWidth=width;c.activateTab('setup',false);assert.strictEqual(hides-count,width<992?1:0);assert.strictEqual(target.style.display,'block');}
 shown=false;c.window.innerWidth=800;const count=hides;c.activateTab('setup',false);assert.strictEqual(hides,count);assert.strictEqual(loads,6);
 """)
