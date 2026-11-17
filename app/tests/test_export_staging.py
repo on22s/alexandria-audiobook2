@@ -15,6 +15,7 @@ import export_staging
 
 from export_staging import (ExportStaging, create_export_staging, reclaim_export_staging,
                             MARKER, OWNER_LOCK, PREFIXES)
+from tests.test_support import skip_unless_symlink
 
 
 APP = Path(__file__).resolve().parent.parent
@@ -2700,6 +2701,7 @@ print(json.dumps(reclaim_export_staging((sys.argv[2],))))
             self.assertTrue((stage.path / MARKER).is_file())
             self.assertTrue(foreign.is_dir())
 
+    @skip_unless_symlink
     def test_unknown_sibling_missing_marker_and_foreign_parent_are_preserved(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

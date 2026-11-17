@@ -16,8 +16,10 @@ from fastapi.testclient import TestClient
 from routers import preparer
 import preparer_numeric_settings as numeric
 from tests import test_preparer_batch_uploads as batch_fixture
+from tests.test_support import can_symlink
 
 CLI_SOURCE = Path(__file__).resolve().parents[2] / 'alexandria_preparer_rocm_compatible.py'
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class PreparerInputOutputContractTests(unittest.TestCase):
@@ -103,7 +105,7 @@ class PreparerInputOutputContractTests(unittest.TestCase):
                                                        min_confidence=0, min_snr=0).min_confidence)
 
     def test_actual_cli_validation_block_calls_shared_rules_before_pipeline(self):
-        tree = ast.parse(CLI_SOURCE.read_text())
+        tree = ast.parse(CLI_SOURCE.read_text(encoding='utf-8'))
         main = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main')
         start = next(i for i, node in enumerate(main.body) if isinstance(node, ast.Assign) and
                      any(isinstance(target, ast.Name) and target.id == 'WAV2VEC2_MODEL_REVISION' for target in node.targets)) + 1
@@ -132,11 +134,15 @@ class PreparerInputOutputContractTests(unittest.TestCase):
             (root / 'dataset.zip').write_bytes(data.getvalue())
             (root / 'metadata.json').write_bytes(b'private metadata')
             (root / '.upload.tmp').write_bytes(b'private staging')
-            (root / 'alias.zip').symlink_to(root / 'metadata.json')
+            symlink_available = can_symlink()
+            if symlink_available:
+                (root / 'alias.zip').symlink_to(root / 'metadata.json')
             app = FastAPI(); app.include_router(preparer.router)
             with patch.object(preparer, 'PREPARER_OUTPUT_DIR', str(root)), TestClient(app) as client:
                 for name in ('metadata.json', '.upload.tmp', 'alias.zip'):
                     with self.subTest(name=name):
+                        if name == 'alias.zip' and not symlink_available:
+                            self.skipTest(_SYMLINK_SKIP_REASON)
                         self.assertEqual(400, client.get('/api/preparer/download/' + name).status_code)
                 response = client.get('/api/preparer/download/dataset.zip')
                 self.assertEqual(200, response.status_code)

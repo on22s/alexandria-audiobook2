@@ -2674,7 +2674,8 @@
     , "tests.test_casting_catalog.CastingMarkTests.test_marks_merge_and_persist"
   ]
   , "test_casting_layout": [
-    "tests.test_casting_layout.CastingLayoutTests.test_research_assets_load_in_order_and_reuse_host_theme"
+    "tests.test_casting_layout.CastingLayoutTests.test_play_all_is_at_the_top_of_the_results_list"
+    , "tests.test_casting_layout.CastingLayoutTests.test_research_assets_load_in_order_and_reuse_host_theme"
     , "tests.test_casting_layout.CastingLayoutTests.test_research_sidebar_and_results_are_siblings_with_stable_hooks"
   ]
   , "test_casting_research": [
@@ -7964,7 +7965,9 @@
     , "tests.test_local_unit_shards.LocalAggregationTests.test_failed_shard_fails_readiness_but_retains_its_counts"
     , "tests.test_local_unit_shards.LocalAggregationTests.test_missing_receipt_counter_is_unknown_not_zero"
     , "tests.test_local_unit_shards.LocalAggregationTests.test_missing_shard_is_not_a_successful_partial_run"
+    , "tests.test_local_unit_shards.LocalAggregationTests.test_missing_test_dependencies_are_named_before_shards_start"
     , "tests.test_local_unit_shards.LocalAggregationTests.test_windows_environment_keeps_hidden_drive_state_and_clears_git_routing"
+    , "tests.test_local_unit_shards.LocalAggregationTests.test_wrong_test_dependency_version_is_refused"
     , "tests.test_local_unit_shards.LocalVerifierRouteTests.test_ci_shard_keeps_legacy_path_even_when_ready_selects_local_default"
     , "tests.test_local_unit_shards.LocalVerifierRouteTests.test_invalid_local_options_fail_before_running_gates"
     , "tests.test_local_unit_shards.LocalVerifierRouteTests.test_local_discovery_runs_nonunit_gates_once_and_preserves_failed_counts"
@@ -7973,8 +7976,10 @@
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_checkout_failure_keeps_a_failed_shard_artifact_and_cleans_prior_workers"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_ctrl_c_reaps_owned_processes_and_removes_every_registered_worktree"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_dirty_staged_untracked_and_crlf_inputs_are_frozen_without_index_or_ref_changes"
+    , "tests.test_local_unit_shards.LocalWorktreeTests.test_empty_inventory_module_does_not_change_discovery_assignment"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_failure_still_runs_other_shard_and_removes_every_worktree"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_force_added_ignored_file_is_included_in_snapshot"
+    , "tests.test_local_unit_shards.LocalWorktreeTests.test_import_failure_in_empty_inventory_module_is_still_refused"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_insufficient_disk_refuses_before_snapshot_or_explicitly_falls_back_to_serial"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_killed_coordinator_worktrees_are_recovered_without_touching_live_or_unowned_trees"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_native_crlf_overlay_does_not_create_false_dirty_git_status"
@@ -11330,7 +11335,9 @@
     , "tests.test_release_verifier.CiEnvParityTests.test_block_ml_imports_hides_an_installed_module"
     , "tests.test_release_verifier.CiEnvParityTests.test_blocked_modules_match_what_ci_omits"
     , "tests.test_release_verifier.CiEnvParityTests.test_changed_file_hints_name_the_missing_generator"
+    , "tests.test_release_verifier.CiEnvParityTests.test_ci_installs_shared_unit_test_requirements_from_app"
     , "tests.test_release_verifier.CiEnvParityTests.test_ci_runs_the_shared_release_verifier"
+    , "tests.test_release_verifier.CiEnvParityTests.test_local_unit_shards_reads_shared_unit_test_requirements"
     , "tests.test_release_verifier.CiEnvParityTests.test_mark_ready_parses_https_and_ssh_origins"
     , "tests.test_release_verifier.CiEnvParityTests.test_mark_ready_requires_current_mergeable_head_and_successful_checks"
     , "tests.test_release_verifier.CiEnvParityTests.test_rolling_selection_executes_isolated_timeout_only"
@@ -11340,6 +11347,7 @@
     , "tests.test_release_verifier.CiEnvParityTests.test_timeout_probe_rejects_short_grace_and_fake_cleanup"
     , "tests.test_release_verifier.CiEnvParityTests.test_timeout_workflow_selection_and_evidence_are_wired"
     , "tests.test_release_verifier.CiEnvParityTests.test_torch_is_absent_from_requirements"
+    , "tests.test_release_verifier.CiEnvParityTests.test_workflows_do_not_install_unit_test_dependencies_inline"
     , "tests.test_release_verifier.CompileArtifactIsolationTests.test_actual_bytecode_is_temporary_and_source_tree_is_unchanged"
     , "tests.test_release_verifier.CompileArtifactIsolationTests.test_compile_error_propagates_and_removes_temporary_bytecode"
     , "tests.test_release_verifier.ReleaseVerifierTests.test_api_summary_rejects_inconsistent_counts_and_duplicate_names"
@@ -14367,7 +14375,19 @@
     , "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_the_detector_fires_on_the_import_that_broke_ci"
     , "tests.test_suite_imports_are_ci_installable.SuiteImportsAreCIInstallableTest.test_the_set_is_read_from_the_files_that_define_it"
   ]
-  , "test_support": []
+  , "test_support": [
+    "tests.test_support.FixtureCapabilityTests.test_available_fork_context_is_selected_explicitly"
+    , "tests.test_support.FixtureCapabilityTests.test_directory_symlink_denial_is_not_hidden_by_file_support"
+    , "tests.test_support.FixtureCapabilityTests.test_fork_requirement_skips_but_spawn_remains_available"
+    , "tests.test_support.FixtureCapabilityTests.test_missing_symlink_attribute_is_unsupported"
+    , "tests.test_support.FixtureCapabilityTests.test_real_symlink_probe_cleans_its_temporary_directory"
+    , "tests.test_support.FixtureCapabilityTests.test_spawn_context_runs_a_real_picklable_worker"
+    , "tests.test_support.FixtureCapabilityTests.test_supported_symlink_probe_is_cached_and_runs_body"
+    , "tests.test_support.FixtureCapabilityTests.test_symlink_errors_are_cached_with_explicit_skip_reasons"
+    , "tests.test_support.FixtureCapabilityTests.test_temp_cleanup_failure_is_not_a_capability_skip"
+    , "tests.test_support.FixtureCapabilityTests.test_temp_setup_failure_is_not_a_capability_skip"
+    , "tests.test_support.FixtureCapabilityTests.test_unexpected_probe_failure_is_not_a_skip"
+  ]
   , "test_synthesis_audio": [
     "tests.test_synthesis_audio.SynthesisAudioTests.test_adaptive_gap_tops_up_and_trims_actual_quiet_frames_with_a_cap"
     , "tests.test_synthesis_audio.SynthesisAudioTests.test_cancellation_inside_final_publication_lock_preserves_prior_output"
@@ -16634,6 +16654,11 @@
     "tests.test_voice_design_worker.VoiceDesignWorkerTests.test_cancelled_request_keeps_started_provider_claim_until_real_output_finishes"
     , "tests.test_voice_design_worker.VoiceDesignWorkerTests.test_failure_translation_and_conflict_preserve_claim_lifetime"
     , "tests.test_voice_design_worker.VoiceDesignWorkerTests.test_initialization_and_generation_are_owned_worker_operations"
+  ]
+  , "test_voice_disclosure_state": [
+    "tests.test_voice_disclosure_state.VoiceDisclosureStateTests.test_caps_recent_books_and_sections_and_migrates_legacy_keys"
+    , "tests.test_voice_disclosure_state.VoiceDisclosureStateTests.test_failed_writes_warn_without_losing_book_scoped_memory"
+    , "tests.test_voice_disclosure_state.VoiceDisclosureStateTests.test_native_actions_defaults_bulk_and_persistence"
   ]
   , "test_voice_drafts": [
     "tests.test_voice_drafts.VoiceDraftTests.test_acknowledgement_keeps_newest_draft_and_tabs_keep_separate_records"
