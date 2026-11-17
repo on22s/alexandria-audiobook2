@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import sys
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -454,7 +455,7 @@ class ConfigTests(unittest.TestCase):
                 from tts_capabilities import get_tts_capability_modes
                 self.assertEqual({"pause_resume": False, "tts_modes": get_tts_capability_modes()}, config["capabilities"])
                 config = asyncio.run(system_module.get_config())
-                self.assertIs(system_module.pause_resume_supported(), config["capabilities"]["pause_resume"])
+                self.assertIs(sys.platform != "win32", config["capabilities"]["pause_resume"])
                 profile = system_module.LLMConfig(
                     base_url="http://localhost:1234/v1", api_key="x", model_name="m")
                 payload = system_module.AppConfig(
