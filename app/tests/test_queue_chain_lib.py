@@ -9,10 +9,11 @@ which is why the chains belong here and the waiting is by name.
 Three behaviours are pinned because each has already failed in this repo.
 """
 import re
-import subprocess
 import sys
 import unittest
 from pathlib import Path
+
+from tests.test_support import run_bash_fixture
 
 REPO = Path(__file__).parent.parent.parent
 LIB = REPO / "run_chains" / "lib" / "queue.sh"
@@ -50,8 +51,8 @@ class ChainTest(unittest.TestCase):
     def test_every_committed_chain_parses(self):
         for chain in CHAINS:
             with self.subTest(chain=chain.name):
-                out = subprocess.run(["bash", "-n", str(chain)],
-                                     capture_output=True, text=True)
+                out = run_bash_fixture(["-n", str(chain)],
+                                       capture_output=True, text=True)
                 self.assertEqual(0, out.returncode, out.stderr)
 
     def test_every_chain_refuses_a_dirty_tree_before_doing_work(self):
@@ -99,8 +100,8 @@ class ChainTest(unittest.TestCase):
 
 class PredecessorWaitTests(unittest.TestCase):
     def run_wait(self, body):
-        return subprocess.run(["bash", "-c", 'set -uo pipefail\nsource "$1"\n'+body,
-                               "fixture", str(LIB)], capture_output=True, text=True, timeout=5)
+        return run_bash_fixture(["-c", 'set -uo pipefail\nsource "$1"\n'+body,
+                                 "fixture", str(LIB)], capture_output=True, text=True, timeout=5)
 
     def test_actual_caller_loops_refuse_inspection_errors_before_following_stage(self):
         for name in ("narrator_x_context_20260821.sh", "anchor_and_separator_table_20260826.sh"):

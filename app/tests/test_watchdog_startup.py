@@ -2,10 +2,11 @@
 import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import unittest
+
+from tests.test_support import run_bash_fixture
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -53,8 +54,8 @@ class WatchdogStartupTests(unittest.TestCase):
             env = dict(os.environ, PATH=str(binary)+os.pathsep+os.environ['PATH'],
                        STATES=str(state), CALLS=str(calls), OUTCOME=outcome,
                        SEEN=str(root/"observed"), OUTPUT=str(root/"test_corpus_output"))
-            result = subprocess.run(['bash', str(script)], cwd=tmp, env=env,
-                                    capture_output=True, text=True, timeout=10)
+            result = run_bash_fixture([str(script)], cwd=tmp, env=env,
+                                      capture_output=True, text=True, timeout=10)
             self.assertEqual(expected_code, result.returncode, result.stdout+result.stderr)
             output = root / 'test_corpus_output'
             records = [json.loads(line) for line in calls.read_text().splitlines()]

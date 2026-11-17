@@ -12,7 +12,8 @@ import unittest
 
 from tests.test_gpu_lock_owner import run_owned_cpu_chain
 from tests.test_owned_server_cleanup import ROOT, is_running, cleanup_fixture
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import get_bash_executable, get_bash_path, requires_linux_queue_tools
+from tests.test_support import run_bash_fixture
 
 
 class ManagedServerChainTests(unittest.TestCase):
@@ -58,7 +59,7 @@ http.server.HTTPServer(('127.0.0.1',int(sys.argv[1])),Handler).serve_forever()
                      FIXTURE_LEASE_DELAY=str(lease_delay))
             pid=None
             try:
-                result=run_owned_cpu_chain(['bash',str(program)],root,env=env,capture_output=True,text=True,timeout=10)
+                result=run_owned_cpu_chain([get_bash_executable(),get_bash_path(program)],root,env=env,capture_output=True,text=True,timeout=10)
                 if (root/'server.pid').exists():pid=int((root/'server.pid').read_text())
                 self.assertIsNotNone(pid,result.stdout+result.stderr)
                 expected={'INT':130,'TERM':143,'HUP':129}.get(sent_signal,1 if duplicate or mode!='healthy' else 0)
@@ -104,7 +105,7 @@ http.server.HTTPServer(('127.0.0.1',int(sys.argv[1])),Handler).serve_forever()
             program='REPO='+shlex.quote(tmp)+'; source "$REPO/run_chains/lib/managed_server.sh"; start_managed_server 8099 "$REPO/log" 1 .01 touch "$REPO/launched"'
             env=dict(os.environ,GPU_LOCK=str(root/'gpu.lock'),ALEXANDRIA_GPU_LOCK_PID=str(os.getpid()),ALEXANDRIA_GPU_LOCK_HELD='1')
             (root/'gpu.lock').touch()
-            result=subprocess.run(['bash','-c',program],env=env,capture_output=True,text=True,timeout=5)
+            result=run_bash_fixture(['-c',program],env=env,capture_output=True,text=True,timeout=5)
             self.assertEqual(4,result.returncode,result.stdout+result.stderr)
             self.assertFalse((root/'launched').exists())
             self.assertFalse((root/'log').exists())

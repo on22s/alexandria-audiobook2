@@ -1,13 +1,13 @@
 """Native queue admission and completion under real filesystem write failures."""
 import os
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import unittest
 
 from tests.test_gpu_job import GPU_JOB, isolated_env
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import requires_linux_queue_tools, run_bash_fixture
+from tests.test_support import skip_unless_full_write_device
 
 
 class QueueIoFailureTest(unittest.TestCase):
@@ -34,11 +34,11 @@ class QueueIoFailureTest(unittest.TestCase):
         command = worker or [sys.executable, "-c",
                             "import pathlib,sys; pathlib.Path(sys.argv[1]).write_text('ran')",
                             str(self.output)]
-        argv = ["bash", GPU_JOB, name, *command]
+        argv = [GPU_JOB, name, *command]
         if prefix:
-            argv = ["bash", "-c", prefix, "fixture", GPU_JOB, *command]
-        return subprocess.run(argv, env=self.env, capture_output=True,
-                              text=True, timeout=30)
+            argv = ["-c", prefix, "fixture", GPU_JOB, *command]
+        return run_bash_fixture(argv, env=self.env, capture_output=True,
+                                text=True, timeout=30)
 
     def assert_refused(self, result):
         self.assertEqual(8, result.returncode, result.stderr)
@@ -46,17 +46,23 @@ class QueueIoFailureTest(unittest.TestCase):
         self.assertFalse(list(self.pending.glob("*.probe")))
 
     def test_unwritable_initial_log_never_launches_worker(self):
-        for mode in ("directory", "missing-parent", "full"):
+        for mode in ("directory", "missing-parent"):
             with self.subTest(mode=mode):
                 destination = self.root / mode
                 if mode == "directory":
                     destination.mkdir()
-                elif mode == "missing-parent":
-                    destination = destination / "queue.log"
                 else:
-                    destination.symlink_to("/dev/full")
+                    destination = destination / "queue.log"
                 self.env["GPU_QLOG"] = str(destination)
                 self.assert_refused(self.run_job())
+
+    @skip_unless_full_write_device
+    def test_initial_log_that_fails_the_write_never_launches_worker(self):
+        """The log OPENS and the write fails, which is a different refusal."""
+        destination = self.root / "full"
+        destination.symlink_to("/dev/full")
+        self.env["GPU_QLOG"] = str(destination)
+        self.assert_refused(self.run_job())
 
     @requires_linux_queue_tools
     def test_pending_directory_failure_never_launches_worker(self):

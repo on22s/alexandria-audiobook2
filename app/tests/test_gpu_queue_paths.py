@@ -11,7 +11,7 @@ import time
 import unittest
 
 from tests.test_gpu_job import GPU_JOB, isolated_env, copy_gpu_owner
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import get_bash_executable, run_bash_fixture, requires_linux_queue_tools
 
 
 @requires_linux_queue_tools
@@ -47,8 +47,10 @@ class QueuePathTests(unittest.TestCase):
     def test_all_launch_forms_share_lock_log_pending_and_identity(self):
         alias = self.bin / "queue-alias"
         alias.symlink_to(self.script)
-        commands = [["gpu_job.sh"], ["bash", "gpu_job.sh"],
-                    ["bash", str(self.script)], ["bash", "../repo with spaces/gpu_job.sh"], [str(alias)]]
+        shell = get_bash_executable()
+        commands = [["gpu_job.sh"], [shell, "gpu_job.sh"],
+                    [shell, str(self.script)],
+                    [shell, "../repo with spaces/gpu_job.sh"], [str(alias)]]
         logs = self.repo / "ab_test_runtime/logs"
         for command in commands:
             with self.subTest(command=command):
@@ -77,7 +79,8 @@ class QueuePathTests(unittest.TestCase):
         (logs / "gpu_paused").write_text("paused")
         stderr_path = self.root / "paused-job.stderr"
         with open(stderr_path, "w") as stderr:
-            process = subprocess.Popen(["bash", "gpu_job.sh", "paused", "touch", str(self.root / "worker-ran")],
+            process = subprocess.Popen([get_bash_executable(), "gpu_job.sh", "paused",
+                                        "touch", str(self.root / "worker-ran")],
                                        cwd=self.cwd, env=self.env, start_new_session=True,
                                        stdout=subprocess.DEVNULL, stderr=stderr)
         qlog = logs / "gpu_jobq.log"
@@ -148,7 +151,8 @@ class QueuePathTests(unittest.TestCase):
                     self.env["LLM_PREFLIGHT_PYTHON"] = sys.executable
                 else:
                     self.env.pop("LLM_PREFLIGHT_PYTHON")
-                result = self.run_wrapper(["bash", "gpu_job.sh"], "preflight", "true")
+                result = self.run_wrapper([get_bash_executable(), "gpu_job.sh"],
+                                          "preflight", "true")
                 self.assertEqual(6, result.returncode, result.stderr)
                 self.assertIn("NO_LLM", (self.repo / "ab_test_runtime/logs/gpu_jobq.log").read_text())
 
@@ -160,8 +164,18 @@ class QueueNameTests(unittest.TestCase):
                 root = Path(tmp)
                 env = isolated_env(tmp, ALLOW_DIRTY_TREE="1", GPU_NOTIFY="0")
                 marker = root / "worker-ran"
-                result = subprocess.run(["bash", GPU_JOB, name, "touch", str(marker)],
-                                        env=env, capture_output=True, text=True, timeout=15)
+                # A newline cannot cross an argv hop on Windows: the shell
+                # truncates its command line there, so gpu_job.sh was handed
+                # `x` and accepted a name it must refuse. The environment block
+                # carries every byte, so the name arrives intact and is set as
+                # $1 in the same shell. gpu_job.sh takes its own path from
+                # BASH_SOURCE, so it reads the same $1 and runs the same
+                # preamble it would under exec, and refuses before any record.
+                env["FIXTURE_JOB_NAME"] = name
+                result = run_bash_fixture(
+                    ["-c", 'job=$1; set -- "$FIXTURE_JOB_NAME" touch; source "$job"',
+                     "fixture", str(GPU_JOB)],
+                    env=env, capture_output=True, text=True, timeout=15)
                 self.assertEqual(2, result.returncode, result.stderr)
                 self.assertIn("job name", result.stderr)
                 self.assertFalse(marker.exists())

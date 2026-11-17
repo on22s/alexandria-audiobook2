@@ -27,6 +27,11 @@ from tests.test_support import requires_linux_queue_tools
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CHAINS = os.path.join(REPO, "run_chains")
 
+# A chain fixture copies scripts, stages and native git commands; under
+# concurrent shards it needs well past 10s on Windows. Keep the Linux
+# cap; give native Windows room.
+CHAIN_TIMEOUT = 30 if os.name == 'nt' else 10
+
 # Chains that captured per-item exit codes without aggregating them, as of
 # 2026-08-18. They are frozen history: each one describes a run that already
 # happened, and its log is the evidence. Do not add to this list - use
@@ -213,7 +218,7 @@ class FallbackChainConfigPreservationTests(unittest.TestCase):
                 env = get_isolated_git_environment()
                 env['PATH'] = str(bins)+os.pathsep+env['PATH']
                 result = run_bash_fixture([str(chain)], env=env,
-                                        capture_output=True, text=True, timeout=10)
+                                        capture_output=True, text=True, timeout=CHAIN_TIMEOUT)
                 self.assertEqual(0 if ready else 1, result.returncode, result.stderr)
                 self.assertEqual(b'concurrent-config' if ready else b'current user configuration',
                                  config.read_bytes())
@@ -232,7 +237,7 @@ class ChainFooterExitTests(unittest.TestCase):
                     code='set -uo pipefail\nsource "$1"\nSTAGE_FAILURES=$2\nSTAGE_TOTAL=3\n'+footer
                     result=run_bash_fixture(['-c',code,'fixture',
                         str(pathlib.Path(CHAINS,'lib/stage.sh')),str(failures)],
-                        capture_output=True,text=True,timeout=10, env=get_isolated_git_environment())
+                        capture_output=True,text=True,timeout=CHAIN_TIMEOUT, env=get_isolated_git_environment())
                     self.assertEqual(1 if failures else 0,result.returncode,result.stdout+result.stderr)
                     self.assertIn('HOW TO READ IT',result.stdout)
                     self.assertIn(name,result.stdout)
@@ -568,7 +573,7 @@ class RegateQueueConstructionTests(unittest.TestCase):
                 prepare_artifact_commit_fixture(root)
                 result = run_owned_cpu_chain([get_bash_executable(), str(script)], root,
                     env={**get_isolated_git_environment(), 'TMPDIR': str(root)},
-                    capture_output=True, text=True, timeout=10)
+                    capture_output=True, text=True, timeout=CHAIN_TIMEOUT)
                 self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertIn('REGATE FAILED: could not build adapter queue', result.stderr)
                 self.assertNotIn('REGATE START', result.stdout)
@@ -635,7 +640,7 @@ class AdapterRecheckRosterTests(unittest.TestCase):
                 dispatch_log = root / 'dispatch.log'
                 result = run_bash_fixture([str(script)],
                     env=dict(get_isolated_git_environment(), DISPATCH_LOG=str(dispatch_log)),
-                    capture_output=True, text=True, timeout=10)
+                    capture_output=True, text=True, timeout=CHAIN_TIMEOUT)
                 output = result.stdout + result.stderr
                 valid = kind in ('measured', 'worker_failed')
                 expected_paths = [str(experiments / ('gate_recheck__' + name + '.json'))
@@ -724,7 +729,7 @@ class CloudEvaluationProvenanceTests(unittest.TestCase):
                 from tests.test_gpu_lock_owner import run_owned_cpu_chain
                 result = run_owned_cpu_chain(['/usr/bin/bash', str(script)], root, cwd=root,
                     env=dict(get_isolated_git_environment(), PATH=str(bins), SERVER_PID_PATH=str(pid_path), EVALUATION_PATH=str(evaluation_path)),
-                    capture_output=True, text=True, timeout=10)
+                    capture_output=True, text=True, timeout=CHAIN_TIMEOUT)
                 self.assertTrue(pid_path.exists(), result.stdout + result.stderr)
                 pid = int(pid_path.read_text())
                 with self.assertRaises(ProcessLookupError):
@@ -808,7 +813,7 @@ class RemainingGoalGateStatusTests(unittest.TestCase):
                     dispatch = root / 'dispatch.log'
                     result = run_bash_fixture([str(script)], cwd=root,
                         env=dict(get_isolated_git_environment(), FAILED_GATES=json.dumps(names[:failures]), DISPATCH_LOG=str(dispatch)),
-                        capture_output=True, text=True, timeout=10)
+                        capture_output=True, text=True, timeout=CHAIN_TIMEOUT)
                     output = result.stdout + result.stderr
                     self.assertEqual(1 if failures else 0, result.returncode, output)
                     self.assertIn('rank-2 gate failures: ' + str(failures) + ' of 6', output)
@@ -884,7 +889,7 @@ class ReplayListFailureTests(unittest.TestCase):
                 before = {name: (data / name).read_bytes() for name in ('valid.json', 'broken.json')}
                 prepare_artifact_commit_fixture(root)
                 result = run_owned_cpu_chain([get_bash_executable(), str(chain)], root, env=env, cwd=root,
-                                        capture_output=True, text=True, timeout=10)
+                                        capture_output=True, text=True, timeout=CHAIN_TIMEOUT)
                 output = result.stdout + result.stderr
                 failed = case not in ('empty', 'valid')
                 self.assertEqual(1 if failed else 0, result.returncode, output)
@@ -946,7 +951,7 @@ class RegressionChainExitTests(unittest.TestCase):
                 env = {**get_isolated_git_environment(), "PATH": str(binary) + os.pathsep + os.environ["PATH"],
                        "GENERATOR_EXIT": str(returncode)}
                 result = run_owned_cpu_chain([get_bash_executable(), str(chain)], root, env=env,
-                                            capture_output=True, text=True, timeout=10)
+                                            capture_output=True, text=True, timeout=CHAIN_TIMEOUT)
                 self.assertEqual(returncode, result.returncode, result.stdout + result.stderr)
                 self.assertIn(f"rc={returncode}", result.stdout)
                 self.assertIn("chunks completed", result.stdout)
@@ -1004,13 +1009,13 @@ class IndependentChainSummaryTests(unittest.TestCase):
                            "CALLS_PATH": str(calls), "FAIL_MODE": mode}
                     if count == 3:
                         result = run_owned_cpu_chain([get_bash_executable(), str(chain)], root, env=env,
-                                                    capture_output=True, text=True, timeout=10)
+                                                    capture_output=True, text=True, timeout=CHAIN_TIMEOUT)
                     else:
                         wrapper = root / "gpu_job.sh"
                         write_bash_fixture(wrapper, '#!/bin/bash\nshift\nexec "$@"\n')
                         wrapper.chmod(0o755)
                         result = run_bash_fixture([str(chain)], env=env,
-                                                capture_output=True, text=True, timeout=10)
+                                                capture_output=True, text=True, timeout=CHAIN_TIMEOUT)
                     output = result.stdout + result.stderr
                     failures = 0 if mode == "none" else 1 if mode == "first" else count
                     self.assertEqual(1 if failures else 0, result.returncode, output)

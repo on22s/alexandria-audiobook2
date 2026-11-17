@@ -10,7 +10,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import requires_linux_queue_tools, run_bash_fixture
 
 ROOT=Path(__file__).resolve().parents[2]
 
@@ -25,7 +25,9 @@ def is_running(pid):
 def cleanup_fixture(pid):
     if is_running(pid):
         try:
-            os.kill(pid,signal.SIGKILL)
+            # Windows has no SIGKILL; there SIGTERM is TerminateProcess, which
+            # is the same immediate kill this teardown asks for.
+            os.kill(pid,getattr(signal,'SIGKILL',signal.SIGTERM))
         except ProcessLookupError:
             return
         deadline=time.monotonic()+3
@@ -58,7 +60,7 @@ class OwnedServerCleanupRaceTests(unittest.TestCase):
                 'if kill -0 "$pid" 2>/dev/null; then kill -KILL "$pid"; wait "$pid"; exit 99; fi\n'
                 '[ "$queries" = 2 ] || exit 98\n'
                 'exit "$rc"\n')
-            result = subprocess.run(['bash', str(script), str(ROOT)],
+            result = run_bash_fixture([str(script), str(ROOT)],
                 capture_output=True, text=True, timeout=5)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
@@ -122,7 +124,7 @@ class OwnedServerLauncherTests(unittest.TestCase):
             sentinel=subprocess.Popen(['sleep','60'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             pid=None
             try:
-                result=subprocess.run(['bash',str(script)],env=env,capture_output=True,text=True,timeout=8)
+                result=run_bash_fixture([str(script)],env=env,capture_output=True,text=True,timeout=8)
                 pid=int((root/'server.pid').read_text())
                 self.assertEqual(1,result.returncode,result.stdout+result.stderr)
                 self.assertFalse(is_running(pid),'readiness failure left launched child alive')
@@ -153,12 +155,12 @@ class OwnedServerLauncherTests(unittest.TestCase):
                 root=Path(tmp);script,env,model=self.fixture(root,script_name,'delayed')
                 pid=None
                 try:
-                    result=subprocess.run(['bash',str(script)],env=env,capture_output=True,text=True,timeout=8)
+                    result=run_bash_fixture([str(script)],env=env,capture_output=True,text=True,timeout=8)
                     self.assertEqual(0,result.returncode,result.stdout+result.stderr)
                     pid=int((root/'server.pid').read_text());self.assertTrue(is_running(pid))
                     self.assertFalse((root/'term_seen').exists())
                     # The endpoint's next probe succeeds, with the same launch stamp.
-                    result=subprocess.run(['bash',str(script)],env=env,capture_output=True,text=True,timeout=8)
+                    result=run_bash_fixture([str(script)],env=env,capture_output=True,text=True,timeout=8)
                     self.assertEqual(0,result.returncode,result.stdout+result.stderr)
                     self.assertEqual(pid,int((root/'server.pid').read_text()))
                     self.assertTrue(is_running(pid));self.assertFalse((root/'term_seen').exists())
@@ -172,7 +174,7 @@ class OwnedServerLauncherTests(unittest.TestCase):
         try:
             for value in ('', '0','-1','not-a-pid',str(unrelated.pid)):
                 with self.subTest(value=value):
-                    result=subprocess.run(['bash','-c','source "$1"; stop_owned_server "$2"','fixture',str(helper),value],
+                    result=run_bash_fixture(['-c','source "$1"; stop_owned_server "$2"','fixture',str(helper),value],
                         capture_output=True,text=True,timeout=3)
                     self.assertEqual(1,result.returncode,result.stdout+result.stderr)
                     self.assertIn('REFUS',result.stderr)
