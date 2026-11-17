@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 from experiments import gpu_guard
 from subprocess_ownership import run_owned_capture
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import requires_linux_queue_tools, get_isolated_git_environment
 
 ROOT=Path(__file__).resolve().parents[2]
 GPU_JOB=ROOT/'gpu_job.sh'
@@ -68,7 +68,7 @@ def run_owned_cpu_chain(command, root, env=None, **kwargs):
     if not wrapper.exists():
         wrapper.write_text('#!/bin/bash\nexec bash ' + str(GPU_JOB) + ' "$@"\n')
         wrapper.chmod(0o755)
-    environment = dict(os.environ if env is None else env)
+    environment = get_isolated_git_environment(env)
     environment["GPU_LOCK"] = str(root / "owned_cpu_fixture.lock")
     environment["ALEXANDRIA_GPU_LOCK_HELD"] = "1"
     owner = ('exec 9>"$GPU_LOCK"; flock -x 9; '

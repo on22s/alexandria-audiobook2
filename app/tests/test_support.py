@@ -24,6 +24,50 @@ import unittest
 from unittest.mock import patch
 
 
+def get_isolated_git_environment(extra=None):
+    """Keep fixture Git commands out of the caller's repository and index.
+
+    Preserve HOME and global Git settings: portability fixtures exercise those
+    settings explicitly. Only inherited repository/config injection is removed;
+    fixtures needing neutral global settings can supply GIT_CONFIG_GLOBAL.
+    """
+    environment = os.environ.copy()
+    if extra:
+        environment.update(extra)
+    excluded = {
+        'GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR',
+        'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+        'GIT_PREFIX', 'GIT_NAMESPACE', 'GIT_CEILING_DIRECTORIES',
+        'GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT',
+    }
+    for name in list(environment):
+        normalized = name.upper()
+        if normalized in excluded or normalized.startswith(('GIT_CONFIG_KEY_', 'GIT_CONFIG_VALUE_')):
+            del environment[name]
+    environment['GIT_CONFIG_NOSYSTEM'] = '1'
+    return environment
+
+
+def isolate_git_environment(test_case=None):
+    """Scope fixture Git readers, or enter until a TestCase finishes cleanup.
+
+    Apply deliberate adversarial Git overrides inside this scope. HOME and
+    global settings follow get_isolated_git_environment's preservation policy.
+    Optional TestCase ownership also supports Python without enterContext().
+    """
+    @contextmanager
+    def scope():
+        with patch.dict(os.environ, get_isolated_git_environment(), clear=True):
+            yield
+
+    context = scope()
+    if test_case is not None:
+        cleanup = ExitStack()
+        test_case.addCleanup(cleanup.close)
+        cleanup.enter_context(context)
+    return context
+
+
 @functools.lru_cache(maxsize=1)
 def _probe_symlink():
     with tempfile.TemporaryDirectory() as directory:

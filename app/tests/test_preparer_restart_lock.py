@@ -16,6 +16,7 @@ import unittest
 
 from tests.test_gpu_job import isolated_env, copy_gpu_owner
 from tests.test_gpu_lock_owner import run_owned_cpu_chain
+from tests.test_support import get_isolated_git_environment
 from tests.test_support import requires_linux_queue_tools
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -61,7 +62,8 @@ raise SystemExit(statuses[min(len(rows)-1,len(statuses)-1)])
             env.pop(key, None)
         for args in (['git','init','-q',str(root)], ['git','-C',str(root),'add','.'],
                      ['git','-C',str(root),'-c','user.name=CPU fixture','-c','user.email=fixture@example.invalid','commit','-qm','CPU fixtures']):
-            subprocess.run(args, check=True, capture_output=True, timeout=5)
+            subprocess.run(args, check=True, capture_output=True, timeout=5,
+                           env=get_isolated_git_environment())
         return env
 
     def assert_owned(self, root, count):

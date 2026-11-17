@@ -2690,8 +2690,12 @@
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h4 class="m-0"><span class="step-indicator step-active">3</span><span data-i18n="voices.header.title">Voice Configuration</span></h4>
-                    <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
                         <span id="voices-ready-count" class="text-muted small"></span>
+                        <label class="voice-review-toggle small" for="voices-show-reviews">
+                            <input type="checkbox" role="switch" id="voices-show-reviews" checked onchange="setVoiceReviewVisibility(this.checked)">
+                            <span data-i18n="voices.review.show-buttons">Show review buttons</span>
+                        </label>
                         <div class="d-flex gap-2 flex-wrap" role="group" data-i18n-attr="aria-label:voices.sections.label" aria-label="Persona review sections">
                             <button type="button" class="btn btn-sm btn-outline-primary voice-section-control" id="voices-expand-sections" aria-controls="voices-list" onclick="setVoiceSectionsOpen(true)" data-i18n="voices.sections.expand-all">Expand all</button>
                             <button type="button" class="btn btn-sm btn-outline-primary voice-section-control" id="voices-collapse-sections" aria-controls="voices-list" onclick="setVoiceSectionsOpen(false)" data-i18n="voices.sections.collapse-all">Collapse all</button>

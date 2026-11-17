@@ -1,4 +1,5 @@
 """Native guard CLI, known PCM and PEFT files; copied chain with CPU workers."""
+from tests.test_support import get_isolated_git_environment
 import importlib.util
 import json
 import os
@@ -37,8 +38,8 @@ p=pathlib.Path(sys.argv[sys.argv.index('--out')+1]);p.parent.mkdir(parents=True,
 '''
         for name in ('ljspeech_prepare.py','ljspeech_build.py','ljspeech_generate.py','prosody_fidelity.py','ljspeech_score.py','verify_adapter_stops.py'):(self.root/'app/experiments'/name).write_text(worker)
         (self.root/'app/train_lora.py').write_text(worker)
-        config=self.root/'app/config.json';config.write_text('{}');self.env=dict(os.environ,FIXTURE_ROOT=str(self.root),PYTHON=sys.executable,CONFIG=str(config))
-        for args in (('init','-q','-b','main'),('config','user.name','Fixture'),('config','user.email','fixture@example.com'),('config','core.hooksPath',str(self.root/'no-hooks')),('add','-A'),('commit','-q','-m','fixture baseline')):subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True)
+        config=self.root/'app/config.json';config.write_text('{}');self.env=dict(get_isolated_git_environment(),FIXTURE_ROOT=str(self.root),PYTHON=sys.executable,CONFIG=str(config))
+        for args in (('init','-q','-b','main'),('config','user.name','Fixture'),('config','user.email','fixture@example.com'),('config','core.hooksPath',str(self.root/'no-hooks')),('add','-A'),('commit','-q','-m','fixture baseline')):subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True, env=get_isolated_git_environment())
 
     def run_chain(self,**env):
         result=subprocess.run(['bash',str(self.root/'run_chains/chain.sh')],cwd=self.root.parent,env=dict(self.env,**env),capture_output=True,text=True,timeout=30)

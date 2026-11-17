@@ -8,6 +8,7 @@ evidence to it in Part I. Taking either side alone would have lost work.
 
 So the refusal is the load-bearing behaviour, and it is tested first.
 """
+from tests.test_support import get_isolated_git_environment
 import os
 import subprocess
 import tempfile
@@ -29,7 +30,7 @@ class ResolveGeneratedTest(unittest.TestCase):
 
     def git(self, *args, check=True):
         return subprocess.run(["git", "-C", self.repo, *args],
-                              capture_output=True, text=True, check=check)
+                              capture_output=True, text=True, check=check, env=get_isolated_git_environment())
 
     def write(self, rel, text):
         path = os.path.join(self.repo, rel)
@@ -51,7 +52,7 @@ class ResolveGeneratedTest(unittest.TestCase):
 
     def run_script(self):
         return subprocess.run(["bash", SCRIPT], cwd=self.repo,
-                              capture_output=True, text=True, timeout=120)
+                              capture_output=True, text=True, timeout=120, env=get_isolated_git_environment())
 
     def test_it_refuses_a_conflict_in_real_code(self):
         """The load-bearing case: regenerating would discard one side."""

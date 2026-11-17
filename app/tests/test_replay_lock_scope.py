@@ -1,4 +1,5 @@
 """Disposable Bash chain, real flock, native replay provenance and scoped commits."""
+from tests.test_support import get_isolated_git_environment
 import json
 import os
 from pathlib import Path
@@ -74,7 +75,7 @@ exit "$rc"
                 shutil.copyfile(GPU_JOB, wrapper)
                 copy_gpu_owner(str(root))
                 for args in (('add','-A'),('commit','-q','-m','native CPU queue fixture')):
-                    subprocess.run(['git','-C',str(root),*args],check=True,capture_output=True)
+                    subprocess.run(['git','-C',str(root),*args],check=True,capture_output=True, env=get_isolated_git_environment())
             result = subprocess.run(['bash',str(chain)],cwd=root,env=env,capture_output=True,text=True,timeout=10)
             self.assertEqual(1 if fail_first else 0,result.returncode,result.stdout+result.stderr+'\n'+ '\n'.join(p.read_text() for p in (root/'ab_test_runtime/logs/replay_evidence').glob('*.log')))
             events = [json.loads(line) for line in (root/'ab_test_runtime/events.jsonl').read_text().splitlines()]

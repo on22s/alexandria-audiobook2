@@ -1,4 +1,5 @@
 """Actual historical driver under private Git, CPU workers and native timeouts."""
+from tests.test_support import get_isolated_git_environment
 import contextlib
 import io
 import json
@@ -31,7 +32,7 @@ def write_captured_stderr(stderr,*,preserve_error=False):
 class MorningChainTests(unittest.TestCase):
     def git(self,*args):
         try:
-            result=run_owned_capture([shutil.which('git') or 'git','-C',str(self.root),*args],text=True,timeout=15)
+            result=run_owned_capture([shutil.which('git') or 'git','-C',str(self.root),*args],text=True,timeout=15, env=get_isolated_git_environment())
         except subprocess.TimeoutExpired as error:
             write_captured_stderr(error.stderr,preserve_error=True)
             raise
@@ -64,7 +65,7 @@ out.write_text(json.dumps({'status':'partial' if mode=='partial' else 'complete'
 raise SystemExit(7 if mode=='fail_full' else 0)
 ''')
         self.write('app/experiments/pair_e_row.py','import os,pathlib,sys\np=pathlib.Path(os.environ["FIXTURE_ROOT"])/"scored"\nwith p.open("a") as f:f.write(sys.argv[1]+"\\n")\nraise SystemExit(4 if os.environ.get("FIXTURE_MODE")=="score_fail" else 0)\n')
-        self.env=dict(os.environ,FIXTURE_ROOT=str(self.root),FIXTURE_DEADLINE=str(int(time.time())+20000),PATH=str(self.root/'bin')+os.pathsep+os.environ['PATH'])
+        self.env=dict(get_isolated_git_environment(),FIXTURE_ROOT=str(self.root),FIXTURE_DEADLINE=str(int(time.time())+20000),PATH=str(self.root/'bin')+os.pathsep+os.environ['PATH'])
 
     def write(self,relative,source):
         path=self.root/relative;path.write_text(source);path.chmod(0o755)
@@ -197,7 +198,7 @@ print('fixture stdout');print('fixture stderr',file=sys.stderr)
                    '#!/bin/sh\nprintf "%s\\n" "$FIXTURE_CHECK"; pwd; printf "diagnostic\\n" >&2; exit 7\n')
         result=self.run_chain(FIXTURE_CHECK='explicit environment')
         self.assertIsInstance(result,subprocess.CompletedProcess)
-        native_cwd=subprocess.check_output([get_bash_executable(),'-c','pwd'],cwd=self.root.parent,text=True).strip()
+        native_cwd=subprocess.check_output([get_bash_executable(),'-c','pwd'],cwd=self.root.parent,text=True, env=get_isolated_git_environment()).strip()
         self.assertEqual((7,'explicit environment\n'+native_cwd+'\n','diagnostic\n'),
                          (result.returncode,result.stdout,result.stderr))
 

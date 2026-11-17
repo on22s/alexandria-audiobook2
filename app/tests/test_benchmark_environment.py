@@ -1,3 +1,4 @@
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 from tests.test_support import assert_file_lock_released
 import json
 import tempfile
@@ -237,11 +238,12 @@ class BenchmarkArtifactBoundaryTests(unittest.TestCase):
         finally:
             os.chdir(before)
 
+    @isolate_git_environment()
     def test_untracked_content_boundary_collision_cannot_reuse_identity(self):
         import subprocess
         with tempfile.TemporaryDirectory() as tmp:
-            subprocess.run(['git', 'init', '-q', tmp], check=True, capture_output=True)
-            subprocess.run(['git', '-C', tmp, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'Initial'], check=True, capture_output=True)
+            subprocess.run(['git', 'init', '-q', tmp], check=True, capture_output=True, env=get_isolated_git_environment())
+            subprocess.run(['git', '-C', tmp, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-q', '--allow-empty', '-m', 'Initial'], check=True, capture_output=True, env=get_isolated_git_environment())
             app = Path(tmp) / 'app'
             app.mkdir()
             first, second = app / 'a.py', app / 'b.py'
@@ -298,7 +300,7 @@ env.save_environment_baseline(target,{'runtime':target},path)
                     ready, loaded = root / (target + '.ready'), root / (target + '.loaded')
                     proc = subprocess.Popen([sys.executable, '-c', worker, str(path), target,
                         str(ready), str(loaded), str(release)], stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE, text=True)
+                        stderr=subprocess.PIPE, text=True, env=get_isolated_git_environment())
                     workers.append(proc)
                     wait_file(ready)
                     if target == 'local':
@@ -332,22 +334,22 @@ class RemoteCheckoutArtifactTests(unittest.TestCase):
         payload = {'hostname': 'fixture', 'python_version': '3.11', 'torch': '2.10', 'qwen_tts': 'fixture'}
         for object_format in ('sha1', 'sha256'):
             with self.subTest(object_format=object_format), tempfile.TemporaryDirectory() as tmp:
-                subprocess.run(['git', 'init', '-q', '--object-format=' + object_format, tmp], check=True, capture_output=True)
+                subprocess.run(['git', 'init', '-q', '--object-format=' + object_format, tmp], check=True, capture_output=True, env=get_isolated_git_environment())
                 tools = Path(tmp) / 'tools'
                 tools.mkdir()
                 script = tools / 'worker.py'
                 script.write_text('print("original")\n')
-                subprocess.run(['git', '-C', tmp, 'add', 'tools'], check=True, capture_output=True)
+                subprocess.run(['git', '-C', tmp, 'add', 'tools'], check=True, capture_output=True, env=get_isolated_git_environment())
                 subprocess.run(['git', '-C', tmp, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
-                    'commit', '-qm', 'Fixture'], check=True, capture_output=True)
-                revision = subprocess.check_output(['git', '-C', tmp, 'rev-parse', 'HEAD'], text=True).strip()
+                    'commit', '-qm', 'Fixture'], check=True, capture_output=True, env=get_isolated_git_environment())
+                revision = subprocess.check_output(['git', '-C', tmp, 'rev-parse', 'HEAD'], text=True, env=get_isolated_git_environment()).strip()
                 self.assertEqual(40 if object_format == 'sha1' else 64, len(revision))
                 def remote(_alias, command, **_kwargs):
                     prefix = ''
                     if not command.startswith('git '):
                         command = command.split(' && ', 1)[1]
                         prefix = json.dumps(payload) + '\n'
-                    result = subprocess.run(['bash', '-c', command], capture_output=True, text=True)
+                    result = subprocess.run(['bash', '-c', command], capture_output=True, text=True, env=get_isolated_git_environment())
                     result.stdout = 'login banner\n' + 'a' * 64 + '\n' + 'b' * 40 + '\n' + prefix + result.stdout
                     return result
                 with patch.object(benchmark_environment, '_ssh_run', side_effect=remote), \
