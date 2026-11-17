@@ -11464,6 +11464,15 @@
     , "tests.test_remote_tts_asset_staging.RemoteTTSAssetStagingTests.test_creation_failure_and_no_asset_payload_do_not_transfer"
     , "tests.test_remote_tts_asset_staging.RemoteTTSAssetStagingTests.test_native_mktemp_is_private_unique_and_ignores_a_precreated_fixed_directory_symlink"
   ]
+  , "test_remote_warning_active_profile": [
+    "tests.test_remote_warning_active_profile.ActiveProfileClassificationTests.test_garbage_config_is_local_rather_than_an_exception"
+    , "tests.test_remote_warning_active_profile.ActiveProfileClassificationTests.test_the_mirror_never_decides_the_classification"
+    , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_a_stale_hosted_mirror_cannot_invent_a_remote_run"
+    , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_a_stale_local_mirror_cannot_hide_a_hosted_active_profile"
+    , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_remote_mode_reports_remote"
+    , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_the_resolver_sees_the_real_config_and_redaction_still_applies"
+    , "tests.test_remote_warning_active_profile.SupportSummaryTests.test_the_voicelab_summary_classifies_the_active_profile"
+  ]
   , "test_repair_candidate_reference_text": [
     "tests.test_repair_candidate_reference_text.RepairCandidateReferenceTextTests.test_returns_copy_with_matching_text"
   ]

@@ -32,7 +32,7 @@ from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_
                                get_failover_llm_config,
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
                                get_active_llm_config, get_current_status,
-                               get_saved_llm_profile)
+                               get_saved_llm_profile, is_active_llm_remote)
 
 from core import (
     get_task_lifecycle,
@@ -1070,8 +1070,11 @@ async def get_config():
 
     # Precomputed drift-aware answer to "is the active LLM endpoint remote?"
     # so the frontend doesn't have to re-derive it from llm_mode alone (which
-    # can drift from the actual active base_url) - see lmstudio_settings.is_remote_llm.
-    config["is_remote"] = is_remote_llm(config["llm_mode"], config.get("llm", {}).get("base_url", ""))
+    # can drift from the actual active base_url) - see
+    # lmstudio_settings.is_active_llm_remote. Resolved from the SAME active
+    # profile a run uses, not from the `llm` mirror, which a benchmark's cached
+    # concurrency, a hand edit or a script can leave pointing elsewhere (#2007).
+    config["is_remote"] = is_active_llm_remote(config)
     # Same question for the profile a failover would switch TO, decided here
     # (Rule 15) so the frontend can warn before a run that might land on a
     # billed endpoint without the user having chosen it as active.
