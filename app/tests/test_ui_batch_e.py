@@ -90,7 +90,7 @@ class BatchEMarkupTests(unittest.TestCase):
         self.assertLess(html.index('id="voices-list"'), html.index('id="voices-advanced"'))
         core = (STATIC / 'js/app-core.js').read_text(encoding='utf8')
         self.assertIn('voice-card-advanced', core)
-        self.assertIn('getStateVoiceCardsMarkup(voices) + getVoiceSeedRepairMarkup(ownSnapshot)', core)
+        self.assertIn('getStateVoiceCardsMarkup(voices, ownBookToken) + getVoiceSeedRepairMarkup(ownSnapshot)', core)
 
     def test_required_feedback_is_associated_before_work(self):
         core = (STATIC / 'js/app-core.js').read_text(encoding='utf8')

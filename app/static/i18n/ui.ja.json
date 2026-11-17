@@ -1,4 +1,8 @@
 {
+  "voices.sections.label": "ペルソナ確認セクション",
+  "help.action.setvoicesectionsopen": "すべてのペルソナ確認セクションを展開または折りたたみます。各音声の最後の状態はこのブラウザーに保存されます。",
+  "voices.sections.expand-all": "すべて展開",
+  "voices.sections.collapse-all": "すべて折りたたむ",
   "_meta": {
     "generated_from": "d7343099",
     "locale": "ja",
@@ -1268,6 +1272,9 @@
   "error.book.switch_tasks_running": "タスクの実行中は{operation}できません: {tasks}。完了を待つか、キャンセルしてください。",
   "error.generation.no_input": "入力ファイルが選択されていません",
   "error.generation.no_recovery": "再開できる失敗済みまたは未完了の3パス生成がありません。",
+  "error.manual_llm.no_pending_request": "返信を待っているリクエストはありません。",
+  "error.manual_llm.pending_corrupt": "データディレクトリ内の手動LLMリクエストファイル manual_llm/pending.json が破損しています。手動リクエストをキャンセルするかアプリを再起動してから、このファイルを削除または名前変更して、もう一度お試しください。",
+  "error.manual_llm.pending_read_failed": "手動LLMの保留中のリクエストを読み取れませんでした。もう一度お試しください。",
   "error.review.restart_discard_failed": "レビューチェックポイントの削除処理に失敗しました。一部の進捗はすでに破棄されている可能性があります。レビュー完了記録、スクリプト、編集内容は保持されており、新しいレビューは開始されていません。再試行する前にレビューログを確認してください。バッチ1から開始するには、進捗をさらに整理する必要があるかもしれません。",
   "error.review.restart_receipt_discard_failed": "レビューチェックポイントは破棄されましたが、レビュー完了記録は削除できず保持されています。新しいレビューは開始されていません。スクリプトと編集内容は保持されています。変更がなくても再レビューするオプションを有効にしてから、「レビュー開始」でバッチ1から開始してください。",
   "error.review.restart_reservation_lost": "レビューの進捗（チェックポイントとレビュー完了記録）は破棄されましたが、タスクの予約が無効になったため、新しいレビューは開始されていません。スクリプトと編集内容は保持されています。「レビュー開始」でバッチ1から開始してください。",
@@ -2058,6 +2065,7 @@
   "help.field.voices-hide-ready.what": "すでに準備完了とマークされた登場人物を隠します。",
   "help.field.voices-keep-in-library.what": "現在の声を置き換える前にライブラリへ保存します。",
   "help.field.voices-scope.what": "声がまだない登場人物にだけ割り当てるか、すべての登場人物に割り当てる（現在の声を置き換える）かを選びます。",
+  "help.field.voices-show-reviews.what": "すべての音声カードで、人物設定と音声のレビューボタンを表示または非表示にします。ブラウザーの保存領域を利用できる場合は表示設定を保存します。保存済みのレビュー状態は変わりません。",
   "help.field.voices-state-filter.what": "すべての登場人物を表示するか、状態カードがある/ない登場人物だけを表示します（状態ごとの声、例：時間跳躍）。",
   "help.item.alias-row-remove": "このエイリアス行をエディターから削除します。編集を残すにはエイリアスを保存してください。",
   "help.item.auto-config-banner": "フォームに表示されている値を保ったまま、推奨設定の通知を閉じます。",
@@ -5118,8 +5126,6 @@
   "voice.card.lora-adapter-aria": "{name} の学習済み LoRA の声",
   "voice.card.lora-adapter-empty": "-- 学習済みアダプターを選択 --",
   "voice.card.lora-style-aria": "{name} の LoRA 音声スタイル",
-  "voice.card.mark-persona": "ペルソナをレビュー済みにする",
-  "voice.card.mark-voice": "声をレビュー済みにする",
   "voice.card.more-candidates": "候補をさらに生成",
   "voice.card.more-candidates-aria": "{name} の声の候補をさらに生成",
   "voice.card.not-downloaded": "（未ダウンロード）",
@@ -6142,5 +6148,17 @@
   "setup.llm.active.saved": "使用中：{active}",
   "casting.coverage.combination": "{book}／{value}：{count}",
   "casting.taxonomy.count": "{label}（{count}）",
-  "setup.llm.active.loading": "保存済みの場所を確認中…"
+  "setup.llm.active.loading": "保存済みの場所を確認中…",
+  "voice.card.review-persona": "人物設定を確認",
+  "voice.card.review-voice": "音声を確認",
+  "voice.card.persona-approved": "人物設定を承認済み",
+  "voice.card.persona-reviewed": "人物設定を確認済み",
+  "voice.card.persona-rejected": "人物設定を却下済み",
+  "voice.card.voice-approved": "音声を承認済み",
+  "voice.card.voice-reviewed": "音声を確認済み",
+  "voice.card.voice-rejected": "音声を却下済み",
+  "voices.review.show-buttons": "確認ボタンを表示",
+  "voice.review.saved": "{speaker} の確認状態を保存しました。",
+  "voice.review.save-error": "承認状態の更新に失敗しました",
+  "voice.review.save-recovery": "音声画面を再読み込みし、現在の承認状態を確認してから再試行してください。音声の割り当ては引き続き利用できます。"
 }

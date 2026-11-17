@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests.test_promote_adapters import promote_adapters
-from tests.test_support import write_test_adapter
+from tests.test_support import skip_unless_symlink, write_test_adapter
 
 
 class PromotionCampaignSourceTests(unittest.TestCase):
@@ -67,6 +67,7 @@ class PromotionCampaignSourceTests(unittest.TestCase):
                     self.gate(selected, adapter if explicit else None)
                     self.assertEqual(str(adapter), promote_adapters.get_adapter_source('voice'))
 
+    @skip_unless_symlink
     def test_rank_campaign_refuses_symlink_to_other_campaign(self):
         wrong = self.make_adapter('REFERENCE_RANK2_SOURCE')
         linked = self.roots['REFERENCE_RANK1_SOURCE'] / 'voice' / 'adapter'

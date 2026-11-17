@@ -1,9 +1,12 @@
 """Dataset diagnostics retain extracted audio only while the metric owns it."""
+import ast
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -13,6 +16,34 @@ from tests.test_upload_event_loop import wav_bytes
 
 
 class ExperimentAudioCleanupTests(unittest.TestCase):
+    def test_experiment_basename_expressions_handle_native_trailing_separators(self):
+        experiments = Path(ref_clip_match.__file__).parent
+        expected = {
+            'build_unseen_holdout.py': 1, 'gate_view.py': 1,
+            'ref_clip_match.py': 1, 'ref_clip_edges.py': 1,
+            'text_audio_alignment_pilot.py': 1,
+            'verify_adapter_identity.py': 1, 'voice_drift.py': 2,
+        }
+        for filename, count in expected.items():
+            tree = ast.parse((experiments / filename).read_text(encoding='utf-8'))
+            expressions = [node for node in ast.walk(tree)
+                           if isinstance(node, ast.Call)
+                           and ast.unparse(node.func) == 'os.path.basename'
+                           and len(node.args) == 1
+                           and isinstance(node.args[0], ast.Call)
+                           and ast.unparse(node.args[0].func) in
+                           ('os.path.normpath', 'd.rstrip', 'adapter.rstrip',
+                            'source_dir.rstrip', 'args.source_dir.rstrip', 'args.adapter.rstrip')]
+            self.assertEqual(count, len(expressions), filename)
+            for expression in expressions:
+                code = compile(ast.Expression(expression), filename, 'eval')
+                for suffix in ('', '/', os.sep, os.sep * 2):
+                    with self.subTest(filename=filename, line=expression.lineno, suffix=suffix):
+                        path = str(Path('models') / 'voice') + suffix
+                        args = SimpleNamespace(adapter=path, source_dir=path)
+                        self.assertEqual('voice', eval(code, {
+                            'os': os, 'd': path, 'adapter': path, 'source_dir': path, 'args': args}))
+
     def check_cli(self, module, case):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

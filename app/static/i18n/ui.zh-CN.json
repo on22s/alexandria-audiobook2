@@ -1,4 +1,8 @@
 {
+  "voices.sections.label": "角色设定审核区域",
+  "help.action.setvoicesectionsopen": "展开或折叠所有角色设定审核区域。此浏览器会记住每个声音的最后状态。",
+  "voices.sections.expand-all": "全部展开",
+  "voices.sections.collapse-all": "全部折叠",
   "_meta": {
     "generated_from": "d7343099",
     "locale": "zh-CN",
@@ -1268,6 +1272,9 @@
   "error.book.switch_tasks_running": "有任务正在运行时无法{operation}：{tasks}。请等待它们完成或取消它们。",
   "error.generation.no_input": "未选择输入文件",
   "error.generation.no_recovery": "没有可恢复的失败或未完成的三遍生成。",
+  "error.manual_llm.no_pending_request": "没有正在等待回复的请求。",
+  "error.manual_llm.pending_corrupt": "数据目录中的手动 LLM 请求文件 manual_llm/pending.json 已损坏。请先取消手动请求（或重启应用），然后删除或重命名此文件，再重试。",
+  "error.manual_llm.pending_read_failed": "无法读取待处理的手动 LLM 请求。请重试。",
   "error.review.restart_discard_failed": "审校检查点清理失败；部分进度可能已被丢弃。已保留审校完成凭据、脚本和编辑内容，新审校尚未启动。请在重试前检查审校日志；从第 1 批开始前，可能还需要进一步清理进度。",
   "error.review.restart_receipt_discard_failed": "审校检查点已丢弃，但审校完成凭据因无法删除而被保留；新审校尚未启动。脚本和编辑内容已保留。请启用即使内容未更改也重新审校的选项，然后点击开始审校，从第 1 批开始。",
   "error.review.restart_reservation_lost": "审校进度（检查点和审校完成凭据）已丢弃，但由于任务预留已失效，新审校尚未启动。脚本和编辑内容已保留。请点击开始审校，从第 1 批开始。",
@@ -2058,6 +2065,7 @@
   "help.field.voices-hide-ready.what": "隐藏已标记为就绪的角色。",
   "help.field.voices-keep-in-library.what": "在替换当前声音之前，将其保存到库中。",
   "help.field.voices-scope.what": "只给尚无声音的角色分配声音，或给所有角色分配（替换当前声音）。",
+  "help.field.voices-show-reviews.what": "显示或隐藏所有声音卡片上的角色设定和声音审核按钮。浏览器存储可用时会保存此显示偏好；不会更改已保存的审核状态。",
   "help.field.voices-state-filter.what": "显示所有角色，或只显示有/无状态卡片的角色（按状态变化的声音，例如 时间跳跃）。",
   "help.item.alias-row-remove": "从编辑器中移除此别名行。保存别名以保留编辑。",
   "help.item.auto-config-banner": "关闭建议设置提示，同时保留表单中显示的值。",
@@ -5118,8 +5126,6 @@
   "voice.card.lora-adapter-aria": "{name} 的训练好的 LoRA 声音",
   "voice.card.lora-adapter-empty": "-- 选择训练好的适配器 --",
   "voice.card.lora-style-aria": "{name} 的 LoRA 声音风格",
-  "voice.card.mark-persona": "标记人物设定为已审阅",
-  "voice.card.mark-voice": "标记声音为已审阅",
   "voice.card.more-candidates": "生成更多候选",
   "voice.card.more-candidates-aria": "为 {name} 生成更多声音候选",
   "voice.card.not-downloaded": "（未下载）",
@@ -6142,5 +6148,17 @@
   "setup.llm.active.saved": "当前：{active}",
   "casting.coverage.combination": "{book}／{value}：{count}",
   "casting.taxonomy.count": "{label}（{count}）",
-  "setup.llm.active.loading": "正在检查已保存的位置…"
+  "setup.llm.active.loading": "正在检查已保存的位置…",
+  "voice.card.review-persona": "审核角色设定",
+  "voice.card.review-voice": "审核声音",
+  "voice.card.persona-approved": "角色设定已批准",
+  "voice.card.persona-reviewed": "角色设定已审核",
+  "voice.card.persona-rejected": "角色设定已拒绝",
+  "voice.card.voice-approved": "声音已批准",
+  "voice.card.voice-reviewed": "声音已审核",
+  "voice.card.voice-rejected": "声音已拒绝",
+  "voices.review.show-buttons": "显示审核按钮",
+  "voice.review.saved": "已保存 {speaker} 的审核状态。",
+  "voice.review.save-error": "审核状态更新失败",
+  "voice.review.save-recovery": "重新加载声音页面，确认当前审核状态后再试。声音分配仍然可用。"
 }

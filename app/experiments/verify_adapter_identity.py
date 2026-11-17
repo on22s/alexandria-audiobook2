@@ -169,7 +169,7 @@ def main():
              "seed": str(args.seed)}
     pairs, failed = [], 0
     print(f"{len(clips)} held-out lines through "
-          f"{os.path.basename(args.adapter.rstrip('/'))}\n")
+          f"{os.path.basename(os.path.normpath(args.adapter))}\n")
     for i, (human_wav, text) in enumerate(clips):
         gen = os.path.join(work, f"check_{i}.wav")
         try:
