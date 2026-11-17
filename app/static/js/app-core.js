@@ -1395,18 +1395,26 @@
 
         async function autoConfigureSettings() {
             const btn = document.getElementById('btn-auto-configure');
+            // The authored icon and the data-i18n span are never replaced: the
+            // span's key switches to the busy label and back, so applyUiCatalog
+            // can repaint the button in whatever locale is active afterwards
+            // (#2016). Same helper every other keyed node uses (Rule 15).
+            const label = btn.querySelector('[data-i18n]');
+            const icon = btn.querySelector('i');
+            const iconClass = icon ? icon.className : '';
             const request = {};
             btn._autoConfigureRequest = request;
             const snapshot = getAutoSettingsSnapshot();
             const isCurrent = () => btn._autoConfigureRequest === request;
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Detecting…';
+            if (icon) { icon.className = 'fas fa-spinner fa-spin me-1'; }
+            if (label) { setUiMessage(label, 'setup.auto-config.detecting', 'Detecting…'); }
 
             try {
                 const stats = await API.get('/api/system/stats');
                 if (!isCurrent()) { return; }
                 if (getAutoSettingsSnapshot() !== snapshot) {
-                    showToast('The TTS settings changed during detection. Your edits were kept; review them before running Auto-Configure again.', 'warning');
+                    showToast(t('setup.auto-config.settings-changed', 'The TTS settings changed during detection. Your edits were kept; review them before running Auto-Configure again.'), 'warning');
                     return;
                 }
                 const { settings, summary } = _computeAutoSettings(stats);
@@ -1414,15 +1422,21 @@
 
                 const banner = document.getElementById('auto-config-banner');
                 document.getElementById('auto-config-msg').innerHTML =
-                    `<i class="fas fa-check-circle me-1 text-success"></i><strong>Suggested settings:</strong> ${escapeHtml(summary)}.${settings.ttsMode === 'external' ? ' External TTS selected: start a compatible TTS server and enter its URL below before generating audio.' : ''} Review the TTS settings below, then click Save to apply.`;
+                    '<i class="fas fa-check-circle me-1 text-success"></i>' + (settings.ttsMode === 'external'
+                        ? uiMessageMarkup('setup.auto-config.suggested-external', 'Suggested settings: {summary}. External TTS selected: start a compatible TTS server and enter its URL below before generating audio. Review the TTS settings below, then click Save to apply.', {summary})
+                        : uiMessageMarkup('setup.auto-config.suggested', 'Suggested settings: {summary}. Review the TTS settings below, then click Save to apply.', {summary}));
                 banner.style.display = '';
                 banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } catch (e) {
-                if (isCurrent()) { showActionError('Hardware detection failed', e, 'Review the hardware details and TTS settings before trying Auto-Configure again.'); }
+                if (isCurrent()) {
+                    showActionError(t('setup.auto-config.failed', 'Hardware detection failed'), e,
+                        t('setup.auto-config.failed-recovery', 'Review the hardware details and TTS settings before trying Auto-Configure again.'));
+                }
             } finally {
                 if (isCurrent()) {
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-magic me-1"></i>Auto-Configure';
+                    if (icon) { icon.className = iconClass; }
+                    if (label) { setUiMessage(label, 'setup.header.auto-configure', 'Auto-Configure'); }
                 }
             }
         }
