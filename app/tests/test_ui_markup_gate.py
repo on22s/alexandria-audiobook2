@@ -60,6 +60,9 @@ KEEP_ENGLISH = frozenset({
     # Cast prompt editor ids and API field names; visible labels/help remain keyed.
     'cast-whole-book-prompt', 'cast-incremental-prompt',
     'cast_whole_book_prompt', 'cast_incremental_prompt',
+    # #2045 labels-only review: the switch id and its saved config field, both
+    # wiring rather than copy; the visible label and help are keyed.
+    'review-labels-only', 'review_labels_only',
     # KeyboardEvent.code values and the editor pane id are identifiers in the
     # editor shortcut handler, not display copy. Keep the numeric ratchet fixed.
     'Space', 'ArrowDown', 'ArrowUp', 'KeyR', 'KeyE', 'editor-tab',

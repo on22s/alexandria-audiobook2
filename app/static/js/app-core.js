@@ -2489,6 +2489,7 @@
                     if (config.prompts.review_user_prompt) {
                         document.getElementById('review-user-prompt').value = config.prompts.review_user_prompt;
                     }
+                    document.getElementById('review-labels-only').checked = config.prompts.review_labels_only === true;
                     if (config.prompts.persona_system_prompt) {
                         document.getElementById('persona-system-prompt').value = config.prompts.persona_system_prompt;
                     }
@@ -2584,6 +2585,7 @@
                 }
                 document.getElementById('persona-reference-chars').value = defaults.persona_reference_chars ?? 12000;
                 document.getElementById('persona-unknown-network-context').checked = defaults.persona_allow_unknown_network_context ?? false;
+                document.getElementById('review-labels-only').checked = defaults.review_labels_only === true;
                 applyGenerationSettings(g);
                 showToast('Default prompts and generation settings are on this form. Click Save Configuration to keep them.', 'success');
             } catch (e) {
@@ -2649,6 +2651,7 @@
                     attribution_preset: presetPayload.active,
                     review_system_prompt: document.getElementById('review-system-prompt').value,
                     review_user_prompt: document.getElementById('review-user-prompt').value,
+                    review_labels_only: document.getElementById('review-labels-only').checked,
                     persona_system_prompt: document.getElementById('persona-system-prompt').value,
                     persona_user_prompt: document.getElementById('persona-user-prompt').value,
                     persona_advanced_prompt: document.getElementById('persona-advanced-prompt').value,

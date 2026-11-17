@@ -140,6 +140,7 @@
             'pass3-user-prompt': {what: 'Step 3 user prompt template. It must keep {batch}.'},
             'review-system-prompt': {what: 'Instructions for the review pass: which mistakes to fix and how.'},
             'review-user-prompt': {what: 'Template for each review batch. It must keep {context} and {batch}.'},
+            'review-labels-only': {what: "Only correct each line's speaker and delivery labels; the script text is never rewritten. Part of a completed review's identity, so changing it reviews the book again. Use it when the model keeps editing text, or with the manual LLM to keep replies short."},
             'persona-system-prompt': {what: 'System instruction for voice-persona generation, shared by basic and advanced modes.'},
             'persona-user-prompt': {what: 'Template for a basic persona. It uses {speaker}, {narrator_context} and {sample_lines}.'},
             'persona-reference-chars': {what: 'How much character evidence the advanced persona compilation may send per request. The model’s context may force smaller requests.'},

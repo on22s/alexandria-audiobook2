@@ -2303,6 +2303,11 @@
                                 <textarea class="form-control font-monospace" id="pass3_directed-user-prompt" rows="5" style="font-size: 0.85em;" aria-describedby="pass3_directed-prompt-help"></textarea>
                                 <div data-i18n="setup.prompts.pass3_directed.help" class="form-text" id="pass3_directed-prompt-help">Shared by Directed replies + timed pauses and Intent only + timed pauses. Save Setup before generating. Keep one {batch} placeholder and the n, answers, action, delivery and gap response fields. Intent only omits delivery when composing notes. Use the default ordinary Step 3 preset.</div>
                             </details>
+                            <div class="mb-3 form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="review-labels-only" aria-describedby="review-labels-only-help">
+                                <label data-i18n="setup.prompts.review-labels-only.label" class="form-check-label" for="review-labels-only">Labels-only review</label>
+                                <div data-i18n="setup.prompts.review-labels-only.help" class="form-text" id="review-labels-only-help">The review pass only corrects the speaker and delivery labels of each line and never rewrites the script text. This setting is part of a completed review's identity, so turning it on or off makes an already-reviewed book review again. Useful when the model keeps rewriting text, or with the manual LLM to keep replies short.</div>
+                            </div>
                             <div class="mb-3">
                                 <label data-i18n="setup.prompts.review-system-prompt.label" class="form-label" for="review-system-prompt">Review System Prompt</label>
                                 <textarea class="form-control font-monospace" id="review-system-prompt" rows="12" style="font-size: 0.85em;"></textarea>
