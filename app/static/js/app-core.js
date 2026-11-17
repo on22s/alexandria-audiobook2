@@ -5202,17 +5202,17 @@
                 (/\sdata-stale-allowed(\s|=|$)/.test(attributes) ? tag : `<${kind}${attributes} disabled>`));
         }
 
-        function getStateVoiceCardsMarkup(voices) {
+        function getStateVoiceCardsMarkup(voices, bookId = window._voiceRosterBookToken || '') {
             let index = 0;
             return voices.map(voice => {
-                const base = createVoiceCard(voice, index++);
+                const base = createVoiceCard(voice, index++, bookId);
                 if (!voice.persona_states?.length) { return base; }
                 const states = voice.persona_states.map(state => {
                     const config = voice.config?.versions?.[state.version_id] || {};
                     const label = t('voice.state.card-label', '{name} ({gender} · {age}) — state {number}', {name: voice.name, gender: state.gender, age: state.age_group.replaceAll('_', ' '), number: state.state_number});
                     const stale = state.current !== true;   // the server's rule (#1040 review C37)
                     const markup = createVoiceCard({...voice, version_id: state.version_id, display_name: label,
-                        config, state_stale: stale, state_line_count: state.line_count, traits: null, persona_states: voice.persona_states}, index++);
+                        config, state_stale: stale, state_line_count: state.line_count, traits: null, persona_states: voice.persona_states}, index++, bookId);
                     // Generate the persona first; pending/stale forms cannot publish invented versions.
                     return stale ? disableStaleCardControls(markup) : markup;
                 }).join('');
@@ -5314,7 +5314,105 @@
             }
         }
 
-        function createVoiceCard(voice, index) {
+        function getVoiceSectionStorageKey(bookId) {
+            return 'alex-voice-sections:' + encodeURIComponent(bookId);
+        }
+
+        const VOICE_SECTION_LIMITS = {books: 20, sections: 1000};
+
+        function getVoiceSectionId(speaker, version) {
+            return JSON.stringify([speaker, version || '', 'persona-review']);
+        }
+
+        function ensureVoiceSectionState(bookId) {
+            if (!bookId) { return {sections: {}, updatedAt: 0}; }
+            if (!window._voiceSectionStates) { window._voiceSectionStates = new Map(); }
+            let state = window._voiceSectionStates.get(bookId);
+            if (!state) {
+                state = {sections: {}, updatedAt: 0};
+                try { const stored = JSON.parse(window.localStorage.getItem(getVoiceSectionStorageKey(bookId)));
+                    if (stored?.sections && typeof stored.sections === 'object' && !Array.isArray(stored.sections)) {
+                        state.sections = Object.fromEntries(Object.entries(stored.sections)
+                            .filter(([, open]) => typeof open === 'boolean').slice(-VOICE_SECTION_LIMITS.sections));
+                    }
+                } catch (error) { console.warn?.('Could not read voice section state.', error); }
+            }
+            window._voiceSectionStates.delete(bookId);
+            window._voiceSectionStates.set(bookId, state);
+            while (window._voiceSectionStates.size > VOICE_SECTION_LIMITS.books) {
+                window._voiceSectionStates.delete(window._voiceSectionStates.keys().next().value);
+            }
+            return state;
+        }
+
+        function isVoiceSectionOpen(bookId, speaker, version) {
+            return window._voiceSectionStates?.get(bookId)?.sections[getVoiceSectionId(speaker, version)] ?? true;
+        }
+
+        function saveVoiceSectionStates(bookId, sections) {
+            if (!bookId) { return; }
+            const state = ensureVoiceSectionState(bookId);
+            state.sections = Object.fromEntries(Object.entries(sections)
+                .filter(([, open]) => typeof open === 'boolean').slice(-VOICE_SECTION_LIMITS.sections));
+            state.updatedAt = Date.now();
+            let keys = [];
+            let migrated = false;
+            try { keys = Array.from({length: window.localStorage.length}, (_, index) => window.localStorage.key(index)); migrated = window.localStorage.getItem('alex-voice-sections-migrated') === 'true';
+            } catch (error) { console.warn?.('Could not persist voice section state.', error); return; }
+            if (!migrated) {
+                for (const key of keys) {
+                    if (!key?.startsWith('alex-voice-section-collapsed-')) { continue; }
+                    try { window.localStorage.removeItem(key); } catch (error) { console.warn?.('Could not persist voice section state.', error); return; }
+                }
+                try { window.localStorage.setItem('alex-voice-sections-migrated', 'true'); } catch (error) { console.warn?.('Could not persist voice section state.', error); return; }
+            }
+            const currentKey = getVoiceSectionStorageKey(bookId);
+            const books = [];
+            for (const key of keys) {
+                if (!key?.startsWith('alex-voice-sections:') || key === currentKey) { continue; }
+                let updatedAt = 0;
+                try { updatedAt = Number(JSON.parse(window.localStorage.getItem(key))?.updatedAt) || 0; } catch (error) { }
+                books.push({key, updatedAt});
+            }
+            books.sort((left, right) => right.updatedAt - left.updatedAt);
+            for (const book of books.slice(VOICE_SECTION_LIMITS.books - 1)) {
+                try { window.localStorage.removeItem(book.key); } catch (error) { console.warn?.('Could not persist voice section state.', error); return; }
+            }
+            try { window.localStorage.setItem(currentKey, JSON.stringify(state)); } catch (error) { console.warn?.('Could not persist voice section state.', error); }
+        }
+
+        function pruneVoiceSectionStates(bookId, voices) {
+            const live = new Set();
+            for (const voice of voices) {
+                live.add(getVoiceSectionId(voice.name, voice.version_id));
+                for (const state of voice.persona_states || []) { live.add(getVoiceSectionId(voice.name, state.version_id)); }
+            }
+            const state = ensureVoiceSectionState(bookId);
+            saveVoiceSectionStates(bookId, Object.fromEntries(Object.entries(state.sections).filter(([key]) => live.has(key))));
+        }
+
+        function saveVoiceSectionState(details) {
+            if (!details.isConnected) { return; }
+            const card = details.closest('.voice-card');
+            details.querySelector('summary').setAttribute('aria-expanded', String(details.open));
+            const bookId = card?.dataset.voiceSectionBook;
+            if (!bookId) { return; }
+            const state = ensureVoiceSectionState(bookId);
+            const key = getVoiceSectionId(card.dataset.voice, card.dataset.version);
+            if ((state.sections[key] ?? true) === details.open) { return; }
+            delete state.sections[key];
+            state.sections[key] = details.open;
+            saveVoiceSectionStates(bookId, state.sections);
+        }
+
+        function setVoiceSectionsOpen(open) {
+            for (const details of document.querySelectorAll('#voices-list .voice-card-advanced')) {
+                details.open = open;
+                saveVoiceSectionState(details);
+            }
+        }
+
+        function createVoiceCard(voice, index, bookId = window._voiceRosterBookToken || '') {
             const roster = ensureVoiceRosterCache();
             const config = voice.config || {};
             const label = voice.display_name || voice.name;
@@ -5324,8 +5422,10 @@
                 ? [config.voice, ...AVAILABLE_VOICES] : AVAILABLE_VOICES;
 
             const ready = !!config.ready;
+            ensureVoiceSectionState(bookId);
+            const sectionOpen = isVoiceSectionOpen(bookId, voice.name, voice.version_id);
             return `
-                <div class="card voice-card mb-3${ready ? ' border-success' : ''}" data-voice="${escapeHtml(voice.name)}" data-version="${escapeHtml(voice.version_id || '')}" data-has-states="${voice.persona_states?.length ? '1' : '0'}" data-ready="${ready ? '1' : '0'}">
+                <div class="card voice-card mb-3${ready ? ' border-success' : ''}" data-voice="${escapeHtml(voice.name)}" data-version="${escapeHtml(voice.version_id || '')}" data-voice-section-book="${escapeHtml(bookId)}" data-has-states="${voice.persona_states?.length ? '1' : '0'}" data-ready="${ready ? '1' : '0'}">
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
@@ -5335,8 +5435,8 @@
                                     <label class="form-check-label" for="voice-ready-${index}">${uiMessageMarkup('voice.card.ready', 'Ready')}</label>
                                 </div>
                                 <p class="small voice-next-step">${config.ready ? uiMessageMarkup('voices.essential.ready', 'Ready is explicitly selected. Review persona and voice approvals separately.') : uiMessageMarkup('voices.essential.next', 'Next: pick a voice, listen, then mark Ready.')}</p>
-                                <details class="voice-card-advanced workflow-disclosure">
-                                    <summary>${uiMessageMarkup('voices.card.advanced', 'Persona review, versions, design and aliases')}</summary>
+                                <details class="voice-card-advanced workflow-disclosure" ${sectionOpen ? 'open' : ''} ontoggle="saveVoiceSectionState(this)">
+                                    <summary data-voice-focus-key="persona-review" aria-expanded="${sectionOpen}">${uiMessageMarkup('voices.card.advanced', 'Persona review, versions, design and aliases')}</summary>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.regenerate-aria', 'Regenerate persona for {name}', {name: label}))}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>${uiMessageMarkup('voice.card.regenerate', 'Regenerate persona')}</button>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml(t('voice.card.age-version-aria', 'Generate age version for {name}', {name: label}))}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>${uiMessageMarkup('voice.card.age-version', 'Generate age version')}</button>
                                 <div class="input-group input-group-sm mt-1">
@@ -5784,7 +5884,7 @@
                 || (document.activeElement !== document.body && document.activeElement !== snapshot.control)) { return; }
             const card = Array.from(container.querySelectorAll('.voice-card')).find(row => row.dataset.voice === snapshot.speaker && (row.dataset.version || '') === (snapshot.version || ''));
             if (!card) { return; }
-            const controls = Array.from(card.querySelectorAll('button,input,select,textarea'));
+            const controls = Array.from(card.querySelectorAll('button,input,select,textarea,summary'));
             const control = controls.includes(snapshot.control) ? snapshot.control : controls.find(field => field.tagName === snapshot.tag
                 && (snapshot.key ? field.getAttribute('data-voice-focus-key') === snapshot.key
                     : snapshot.label ? field.getAttribute('aria-label') === snapshot.label
@@ -6047,6 +6147,10 @@
                 }
                 updateNarratorPreviewFields();
                 const container = document.getElementById('voices-list');
+                for (const details of container.querySelectorAll?.('.voice-card-advanced') || []) {
+                    saveVoiceSectionState(details);
+                }
+                pruneVoiceSectionStates(ownBookToken, voices);
                 const focus = getVoiceListFocusSnapshot(container, _voiceCardsBookToken);
                 const panels = getVoicePanelSnapshot(container, _voiceCardsBookToken);
                 if (voices.length === 0) {
@@ -6061,7 +6165,7 @@
                     releaseStaleSingleVoiceFenceLocal();
                     return loadVoices.publishedResult;
                 }
-                container.innerHTML = getStateVoiceCardsMarkup(voices) + getVoiceSeedRepairMarkup(ownSnapshot);
+                container.innerHTML = getStateVoiceCardsMarkup(voices, ownBookToken) + getVoiceSeedRepairMarkup(ownSnapshot);
                 window.stopOrphanedVoicePreview?.();
                 window.applyTtsCapabilityGuidance?.();
                 _voiceCardsRevision = ownRevision;

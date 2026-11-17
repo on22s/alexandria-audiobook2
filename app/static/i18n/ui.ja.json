@@ -1,4 +1,8 @@
 {
+  "voices.sections.label": "ペルソナ確認セクション",
+  "help.action.setvoicesectionsopen": "すべてのペルソナ確認セクションを展開または折りたたみます。各音声の最後の状態はこのブラウザーに保存されます。",
+  "voices.sections.expand-all": "すべて展開",
+  "voices.sections.collapse-all": "すべて折りたたむ",
   "_meta": {
     "generated_from": "d7343099",
     "locale": "ja",

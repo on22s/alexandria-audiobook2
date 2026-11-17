@@ -1,4 +1,8 @@
 {
+  "voices.sections.label": "角色设定审核区域",
+  "help.action.setvoicesectionsopen": "展开或折叠所有角色设定审核区域。此浏览器会记住每个声音的最后状态。",
+  "voices.sections.expand-all": "全部展开",
+  "voices.sections.collapse-all": "全部折叠",
   "_meta": {
     "generated_from": "d7343099",
     "locale": "zh-CN",

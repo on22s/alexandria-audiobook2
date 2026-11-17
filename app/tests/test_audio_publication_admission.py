@@ -8,6 +8,7 @@ from unittest.mock import patch
 import numpy as np
 import soundfile as sf
 import audio_validation as subject
+from tests.test_support import skip_unless_symlink
 from tts import TTSEngine
 
 
@@ -48,6 +49,7 @@ class AudioPublicationAdmissionTests(unittest.TestCase):
                 pcm,rate=sf.read(output);self.assertEqual(24000,rate);np.testing.assert_allclose(pcm,.2,atol=4e-5)
                 self.assertEqual(str(output),str(subject.validate_generated_audio(str(output))))
 
+    @skip_unless_symlink
     def test_absent_output_and_broken_symlink_are_cleared_without_following_target(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);path=root/'render.wav';subject.remove_stale_audio(path)

@@ -12,6 +12,7 @@ from generation_checkpoint_deltas import GenerationCheckpointDeltas
 from tests.test_experiment_infra import stage_index_scripts
 
 REPO = Path(__file__).resolve().parents[2]
+SUBPROCESS_TIMEOUT_SECONDS = 30
 sys.path.insert(0, str(REPO))
 from tools.audit.pipeline_repeat_scoring import get_pipeline_repeat_scores
 
@@ -39,10 +40,10 @@ def index_pointer(root, name, target):
     relative = f"app/fixtures/{name}"
     blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=root,
                           input=target, check=True, capture_output=True,
-                          text=True).stdout.strip()
+                          text=True, timeout=SUBPROCESS_TIMEOUT_SECONDS).stdout.strip()
     subprocess.run(["git", "update-index", "--add", "--cacheinfo",
                     f"120000,{blob},{relative}"], cwd=root, check=True,
-                   capture_output=True)
+                   capture_output=True, timeout=SUBPROCESS_TIMEOUT_SECONDS)
     (root / relative).write_text(target, encoding="utf-8")
 
 
@@ -68,7 +69,7 @@ class PipelineRepeatScoringTests(unittest.TestCase):
             def run():
                 return subprocess.run([sys.executable, str(root / "tools/audit/collect_results.py"),
                                        "--rescore-repeats"], cwd=root, capture_output=True,
-                                      text=True, timeout=10)
+                                      text=True, timeout=SUBPROCESS_TIMEOUT_SECONDS)
             for mode in ("absent", "unreadable", "partial"):
                 with self.subTest(mode=mode):
                     score_path.write_bytes(prior)
@@ -99,7 +100,8 @@ class PipelineRepeatScoringTests(unittest.TestCase):
             (fixtures / "attribution_gold_grimgar03.json").write_text(
                 json.dumps(gold))
             subprocess.run(["git", "add", "app/fixtures/attribution_gold_grimgar03.json"],
-                           cwd=root, check=True, capture_output=True)
+                           cwd=root, check=True, capture_output=True,
+                           timeout=SUBPROCESS_TIMEOUT_SECONDS)
             pointer = fixtures / "attribution_gold_grimgar03_provisional.json"
             index_pointer(root, pointer.name, "attribution_gold_grimgar03.json")
             repeats = root / "ab_test_runtime/pipeline_repeats"
@@ -115,7 +117,7 @@ class PipelineRepeatScoringTests(unittest.TestCase):
                 return subprocess.run(
                     [sys.executable, str(root / "tools/audit/collect_results.py"),
                      "--rescore-repeats"], cwd=root, capture_output=True,
-                    text=True, timeout=10)
+                    text=True, timeout=SUBPROCESS_TIMEOUT_SECONDS)
 
             result = run()
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -163,7 +165,7 @@ class PipelineRepeatScoringTests(unittest.TestCase):
                     result = subprocess.run(
                         [sys.executable, str(root / "tools/audit/collect_results.py"),
                          "--rescore-repeats"], cwd=root, capture_output=True,
-                        text=True, timeout=10)
+                        text=True, timeout=SUBPROCESS_TIMEOUT_SECONDS)
                     self.assertNotEqual(0, result.returncode,
                                         result.stdout + result.stderr)
                     self.assertIn(expected, result.stderr)
@@ -204,7 +206,8 @@ class PipelineRepeatScoringTests(unittest.TestCase):
             for name in ("artifact_structural_audit", "legacy_attribution_audit"):
                 (audit / (name + ".json")).write_text('{"artifacts": []}')
             collector = subprocess.run([sys.executable, str(root / "tools/audit/collect_results.py"),
-                                        "--rescore-repeats"], cwd=root, capture_output=True, text=True)
+                                        "--rescore-repeats"], cwd=root, capture_output=True, text=True,
+                                        timeout=SUBPROCESS_TIMEOUT_SECONDS)
             self.assertEqual(collector.returncode, 0, collector.stdout + collector.stderr)
             row = json.loads((repeats / "repeat_scores.json").read_text())["rows"][0]
             self.assertEqual((row["n"], row["correct"], row["accuracy_pct"]), (6, 1, 16.7))
@@ -212,13 +215,15 @@ class PipelineRepeatScoringTests(unittest.TestCase):
             writer.save_checkpoint({"segmented": [], "named": []})
             writer.save_checkpoint(checkpoint)
             replayed = subprocess.run([sys.executable, str(root / "tools/audit/collect_results.py"),
-                                       "--rescore-repeats"], cwd=root, capture_output=True, text=True)
+                                       "--rescore-repeats"], cwd=root, capture_output=True, text=True,
+                                       timeout=SUBPROCESS_TIMEOUT_SECONDS)
             self.assertEqual(replayed.returncode, 0, replayed.stdout + replayed.stderr)
             row = json.loads((repeats / "repeat_scores.json").read_text())["rows"][0]
             self.assertEqual((row["n"], row["correct"], row["accuracy_pct"]), (6, 1, 16.7))
             shutil.copy2(REPO / "ab_test_runtime/pipeline_repeats/score_repeats.py", repeats)
             report = subprocess.run([sys.executable, str(repeats / "score_repeats.py")],
-                                    cwd=root, capture_output=True, text=True)
+                                    cwd=root, capture_output=True, text=True,
+                                    timeout=SUBPROCESS_TIMEOUT_SECONDS)
             self.assertEqual(report.returncode, 0, report.stdout + report.stderr)
             self.assertRegex(report.stdout, r"run1\s+6\s+6\s+1\s+16\.67%")
 
