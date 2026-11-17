@@ -199,6 +199,9 @@ MARKUP_BASELINE = {
 # event names, field names, HTTP methods, console diagnostics, one internal error
 # string that is caught before display, server-backed data (pair names, stage
 # names, status tokens) and the template HTML that embeds the keyed t() calls.
+# #2018 lowered app-voicelab.js 128 -> 115: the Voice Lab failure paths now
+# pass keyed text to showActionError/getActionErrorMessage/copyToClipboard
+# instead of bare English action and recovery strings.
 JS_BASELINE = {
     'app-advanced-intros.js': 0, 'app-casting-labels.js': 0,
     'app-phone-layout.js': 0,
@@ -216,7 +219,7 @@ JS_BASELINE = {
     'app-speaker-review.js': 37, 'app-speech-verification.js': 14,
     'app-synthesis-windows.js': 28, 'app-take-history.js': 28, 'app-training.js': 217,
     'app-translated-edition.js': 9, 'app-tts-capabilities.js': 28,
-    'app-tts-diagnostics.js': 11, 'app-voicelab.js': 128, 'app-word-timing.js': 23,
+    'app-tts-diagnostics.js': 11, 'app-voicelab.js': 115, 'app-word-timing.js': 23,
     'app-workbench.js': 282, 'app-workspace.js': 86,
 }
 

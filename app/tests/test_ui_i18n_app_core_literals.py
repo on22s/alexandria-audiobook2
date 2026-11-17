@@ -1,25 +1,29 @@
 """The scanned UI modules must never show the user a bare English literal.
 
-What this verifies, precisely: for every call to ``showToast``,
-``showActionError``, ``getActionErrorMessage`` and ``confirmIfRemote`` in
-``app/static/js/app-core.js`` and ``app/static/js/app-training.js``, and for
-every ``.textContent =`` / ``.innerText =`` assignment, the user-visible text is
-not written as a raw string literal. User-facing English lives in
+What this verifies, precisely: in every file listed in SOURCES
+(``app-core.js``, ``app-training.js``, ``app-voicelab.js``), the first argument of
+``showToast``, ``showActionError``, ``getActionErrorMessage`` and
+``confirmIfRemote``, the extra shown arguments in EXTRA_SHOWN_ARGS (the recovery
+text of ``showActionError`` / ``getActionErrorMessage`` and the subject of
+``copyToClipboard``), and every ``.textContent =`` / ``.innerText =`` assignment
+are not written as raw string literals. Other arguments are not scanned; add an
+entry to EXTRA_SHOWN_ARGS when another argument reaches the screen. User-facing English lives in
 ``t('<key>', '<English>', {...})`` so that ``app/static/i18n/ui.*.json`` can
 translate it; a raw literal is shown to every locale exactly as typed.
 
 #2017 wrote this for app-core.js. #2019 found the same bug in the Training tab
 and converted its eighteen failure paths, so the scanner is parametrised by
 file (SOURCES) rather than copied: one scanner, one rule set, every file that
-adopts it listed there. #2018's app-voicelab.js belongs here too when it lands;
-the alternative is a second and then a third copy that drift apart (Rule 15).
+adopts it listed there. #2018 added app-voicelab.js the same way, and the
+clipboard-subject check, which found two subjects #2017 had missed. The
+alternative is a second and then a third copy that drift apart (Rule 15).
 
 What it does not cover: HTML assembled with ``.innerHTML =`` (a template that
 calls ``t()`` inside is invisible to a text scan) and labels set through other
 helpers. Those shapes were converted in the same change, but a guard over them
 would have to re-implement the template grammar to stay honest, so it is out of
-scope here. This guard pins the two shapes that held 175 of the 258 literals
-measured on origin/main.
+scope here. In app-core.js those two shapes held 175 of the 258 literals #2017
+measured.
 
 The allowlist is the honest part. It is empty: #2017 converted every literal it
 found, and the last two (inside ``autoConfigureSettings()``) were converted by
@@ -34,9 +38,10 @@ from pathlib import Path
 JS = Path(__file__).resolve().parent.parent / 'static' / 'js'
 CORE = JS / 'app-core.js'
 TRAINING = JS / 'app-training.js'
+VOICELAB = JS / 'app-voicelab.js'
 # Every file this guard covers. A file added here is scanned by every test
 # below; that is the whole point of keeping the scanner parametrised.
-SOURCES = {'app-core.js': CORE, 'app-training.js': TRAINING}
+SOURCES = {'app-core.js': CORE, 'app-training.js': TRAINING, 'app-voicelab.js': VOICELAB}
 
 HELPERS = ('showToast', 'showActionError', 'getActionErrorMessage', 'confirmIfRemote')
 TEXT_TARGETS = ('textContent', 'innerText')
@@ -228,6 +233,12 @@ def _translated_template(source, index, raw):
 # shown to the user; the scan checks it as well as the first argument (#2017).
 RECOVERY_HELPERS = ('showActionError', 'getActionErrorMessage')
 
+# Every helper argument beyond the first that reaches the screen: name ->
+# (argument index, label). copyToClipboard's subject renders as
+# '<subject> copied to the clipboard.' (#2018).
+EXTRA_SHOWN_ARGS = {name: (2, 'recovery') for name in RECOVERY_HELPERS}
+EXTRA_SHOWN_ARGS['copyToClipboard'] = (1, 'subject')
+
 
 def argument_starts(text, index):
     """Start offsets of each top-level argument of the call whose '(' ends at index."""
@@ -342,21 +353,21 @@ def scan(source):
             raw, _end = read_literal(source, index)
             if raw is not None and has_prose(raw) and not _translated_template(source, index, raw):
                 findings.append((line_of(source, match.start()), name, raw))
-    for name in RECOVERY_HELPERS:
+    for name, (position, label) in EXTRA_SHOWN_ARGS.items():
         for match in re.finditer(r'(?<![\w.])' + name + r'\s*\(', source):
             if not mask[match.start()]:
                 continue
             starts = argument_starts(source, match.end())
-            if len(starts) < 3:
+            if len(starts) <= position:
                 continue
-            index = starts[2]
+            index = starts[position]
             while index < len(source) and source[index].isspace():
                 index += 1
             if index >= len(source) or source[index] not in QUOTES:
                 continue
             raw, _end = read_literal(source, index)
             if raw is not None and has_prose(raw) and not _translated_template(source, index, raw):
-                findings.append((line_of(source, match.start()), name + ' recovery', raw))
+                findings.append((line_of(source, match.start()), name + ' ' + label, raw))
     # A message argument that is not itself a literal can still hold one: the
     # ternary `refused ? 'Dataset upload refused' : 'Upload error'` was exactly
     # that shape in app-training.js (#2019), and the first-token check above
@@ -368,13 +379,13 @@ def scan(source):
             starts = argument_starts(source, match.end())
             if starts:
                 findings.extend(arm_findings(source, starts[0], name))
-    for name in RECOVERY_HELPERS:
+    for name, (position, label) in EXTRA_SHOWN_ARGS.items():
         for match in re.finditer(r'(?<![\w.])' + name + r'\s*\(', source):
             if not mask[match.start()]:
                 continue
             starts = argument_starts(source, match.end())
-            if len(starts) >= 3:
-                findings.extend(arm_findings(source, starts[2], name + ' recovery'))
+            if len(starts) > position:
+                findings.extend(arm_findings(source, starts[position], name + ' ' + label))
     for target in TEXT_TARGETS:
         for match in re.finditer(r'\.\s*' + target + r'\s*=(?!=)\s*', source):
             if not mask[match.start()]:
@@ -409,6 +420,13 @@ class ScannerFixtureTests(unittest.TestCase):
         self.assertIn(('showActionError recovery', 'Recovery text.'), found)
         self.assertIn(('getActionErrorMessage recovery', 'Recovery.'), found)
         self.assertEqual(6, len(found))
+
+    def test_a_bare_clipboard_subject_is_reported(self):
+        source = ("copyToClipboard(text, 'Persona prompt');\n"
+                  "copyToClipboard(text, t('core.copy.subject-prompt', 'Prompt'));\n"
+                  "copyToClipboard(text);\n")
+        found = [(site, raw) for _line, site, raw in scan(source)]
+        self.assertEqual([('copyToClipboard subject', 'Persona prompt')], found)
 
     def test_a_bare_recovery_argument_is_reported_even_when_the_action_is_translated(self):
         source = ("showActionError(t('core.save.failed', 'Could not save'), err, 'Try again later.');\n"

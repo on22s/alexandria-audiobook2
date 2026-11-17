@@ -4932,7 +4932,7 @@
         const scope = state ? `\nUse only this state's supplied evidence: ${state.gender}, ${state.age_group}, segment ${state.state_number}.` : '';
         const prompt = `${system}\n\n${userTemplate.replaceAll('{speaker}', speaker)
             .replaceAll('{sample_lines}', samples).replaceAll('{narrator_context}', narration)}${scope}`;
-        await copyToClipboard(prompt, 'Persona prompt');
+        await copyToClipboard(prompt, t('core.copy.subject-persona-prompt', 'Persona prompt'));
     };
 
         let personaVoiceRefreshRequest = 0;
@@ -10471,7 +10471,7 @@
         async function copyManualPrompt() {
             const req = window._manualPending;
             if (!req) { return; }
-            await copyToClipboard(manualPromptText(req), 'Prompt');
+            await copyToClipboard(manualPromptText(req), t('core.copy.subject-prompt', 'Prompt'));
         }
 
         async function submitManualReply() {

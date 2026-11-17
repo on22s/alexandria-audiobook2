@@ -113,7 +113,7 @@
                 await API.post('/api/voicelab/config', body);
                 showToast(t('voicelab.settings.saved', 'Voice Lab settings saved.'), 'success');
                 await loadVoicelabConfig();
-            } catch (e) { showActionError('Voice Lab settings save is unconfirmed', e, 'Keep your settings. Check the saved Pipeline settings & environment before saving again.'); }
+            } catch (e) { showActionError(t('voicelab.settings.save-unconfirmed', 'Voice Lab settings save is unconfirmed'), e, t('voicelab.settings.save-unconfirmed-recovery', 'Keep your settings. Check the saved Pipeline settings & environment before saving again.')); }
         };
 
         let _voicelabInspectRequest = 0;
@@ -217,7 +217,7 @@
             try {
                 body = getVoicelabRequest();
             } catch (e) {
-                showActionError('Pipeline settings need attention', e, 'Keep the current settings and correct the field identified below before running the pipeline.', 'warning');
+                showActionError(t('voicelab.start.settings-invalid', 'Pipeline settings need attention'), e, t('voicelab.start.settings-invalid-recovery', 'Keep the current settings and correct the field identified below before running the pipeline.'), 'warning');
                 return;
             }
             if (!body.stages.length) { showToast(t('voicelab.start.no-stages', 'Select at least one stage to run.'), 'warning'); return; }
@@ -248,11 +248,11 @@
                 pollVoicelab(result.zips_dir);
             } catch (e) {
                 if (phase === 'Preflight') {
-                    document.getElementById('voicelab-status').textContent = getActionErrorMessage('Pipeline preflight did not finish', e, 'Keep the current settings. Check the configured paths, stages and numeric fields, then run the pipeline again.');
-                    showActionError('Pipeline preflight failed', e, 'Check the configured paths, stages and numeric fields before running the pipeline again.');
+                    document.getElementById('voicelab-status').textContent = getActionErrorMessage(t('voicelab.start.preflight-unconfirmed', 'Pipeline preflight did not finish'), e, t('voicelab.start.preflight-unconfirmed-recovery', 'Keep the current settings. Check the configured paths, stages and numeric fields, then run the pipeline again.'));
+                    showActionError(t('voicelab.start.preflight-failed', 'Pipeline preflight failed'), e, t('voicelab.start.preflight-failed-recovery', 'Check the configured paths, stages and numeric fields before running the pipeline again.'));
                 } else {
                     document.getElementById('voicelab-status').innerHTML =
-                        `<span class="text-danger">${escapeHtml(getActionErrorMessage('Pipeline start is unconfirmed', e, 'Check the pipeline task status before running again. Review any configuration or stage refusal below.'))}</span>`;
+                        `<span class="text-danger">${escapeHtml(getActionErrorMessage(t('voicelab.start.start-unconfirmed', 'Pipeline start is unconfirmed'), e, t('voicelab.start.start-unconfirmed-recovery', 'Check the pipeline task status before running again. Review any configuration or stage refusal below.')))}</span>`;
                 }
             } finally {
                 startButton.innerHTML = startLabel;
@@ -384,10 +384,10 @@
             try {
                 text = await _fetchVoicelabDiagnostics();
             } catch (e) {
-                showActionError('Could not fetch diagnostics', e, 'Check the app connection, then request the sanitized diagnostics again.');
+                showActionError(t('voicelab.diagnostics.fetch-failed', 'Could not fetch diagnostics'), e, t('voicelab.diagnostics.fetch-failed-recovery', 'Check the app connection, then request the sanitized diagnostics again.'));
                 return;
             }
-            await copyToClipboard(text, 'Sanitized diagnostics');
+            await copyToClipboard(text, t('voicelab.diagnostics.copy-subject', 'Sanitized diagnostics'));
         };
 
         window.downloadVoicelabDiagnostics = async () => {
@@ -404,7 +404,7 @@
                 a.remove();
                 URL.revokeObjectURL(url);
             } catch (e) {
-                showActionError('Could not download diagnostics', e, 'Check the app connection and browser download permissions, then download again or use Copy Diagnostics.');
+                showActionError(t('voicelab.diagnostics.download-failed', 'Could not download diagnostics'), e, t('voicelab.diagnostics.download-failed-recovery', 'Check the app connection and browser download permissions, then download again or use Copy Diagnostics.'));
             }
         };
 
