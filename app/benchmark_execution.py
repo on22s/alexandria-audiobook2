@@ -10,6 +10,7 @@ import shlex
 
 from subprocess_ownership import start_owned_subprocess, get_subprocess_lease_options
 from benchmark_remote_command import is_llm_benchmark_command
+from windows_subprocess_owner import WindowsOwnerCleanupError
 
 BENCHMARK_STATE = contextvars.ContextVar('benchmark_execution_state', default=None)
 
@@ -94,11 +95,11 @@ def run_benchmark_subprocess(command, *, timeout=None, check=False, input=None,
                     if process.poll() is None:
                         ensure_failed_subprocess_stopped(process, state)
                 finally:
-                    if process in state.get('processes', []):
-                        state['processes'].remove(process)
                     control = getattr(process, '_alexandria_control', None)
                     if control is not None:
                         control.close()
+                    if process in state.get('processes', []):
+                        state['processes'].remove(process)
                     for stream in (process.stdin, process.stdout, process.stderr):
                         if stream is not None:
                             stream.close()
@@ -123,6 +124,8 @@ class _BenchmarkResource:
                 raise BenchmarkCancelled('Benchmark cancellation requested')
             try:
                 result = value(*args, **kwargs)
+            except WindowsOwnerCleanupError:
+                raise
             except Exception:
                 if self._state.get('cancel'):
                     raise BenchmarkCancelled('Benchmark cancellation requested') from None

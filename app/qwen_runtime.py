@@ -19,6 +19,7 @@ from pathlib import Path
 
 from subprocess_ownership import (run_owned_capture, start_owned_subprocess,
                                   stop_owned_subprocess)
+from windows_subprocess_owner import WindowsOwnerCleanupError
 
 MODEL_NAME = "Qwen3-ForcedAligner-0.6B"
 
@@ -580,6 +581,8 @@ def get_qwen_capability(root, cancel_check=None, timeout=DEFAULT_PROBE_TIMEOUT_S
     try:
         completed = run_owned_capture(command, timeout=timeout,
                                       env=_isolated_worker_env())
+    except WindowsOwnerCleanupError:
+        raise
     except subprocess.TimeoutExpired:
         return _not_ready("Qwen capability probe timed out.", python, model_dir)
     except (OSError, ValueError) as error:
@@ -738,6 +741,8 @@ def get_qwen_runtime_identity(python_path, cancel_check=None, timeout=60):
         completed = run_owned_capture(
             [selected, "-c", _IDENTITY_SOURCE], timeout=timeout,
             env=_isolated_worker_env(), **capture_options)
+    except WindowsOwnerCleanupError:
+        raise
     except (subprocess.TimeoutExpired, OSError, ValueError) as error:
         raise ValueError("Qwen runtime identity capture failed: %s" % error) from error
     if completed.returncode != 0:

@@ -1099,6 +1099,7 @@
             let saved = 'light';
             try { saved = localStorage.getItem('alex-theme') || 'light'; } catch (e) { /* storage blocked */ }
             applyTheme(saved);
+            restoreVoiceReviewVisibility();
         })();
 
         function createSerializedSaveQueue({ write, delay = 500, onDirty = () => {}, onSaved = () => {}, onError = () => {}, guardAmbiguous = false }) {
@@ -3007,7 +3008,7 @@
             while (Date.now() - started < maxMs) {
                 let status;
                 try { status = await API.get('/api/status/script'); } catch (e) { return false; }
-                if (!status.running) { return true; }
+                if (!status.running && !status.ownership_unconfirmed) { return true; }
                 await new Promise(r => setTimeout(r, 500));
             }
             return false;
@@ -3021,7 +3022,10 @@
             const batch = !!document.getElementById('script-batch-mode')?.checked;
             const isCurrent = () => book === currentBookFilename && batch === !!document.getElementById('script-batch-mode')?.checked;
             let running = false;
-            try { running = !!(await API.get('/api/status/script')).running; }
+            try {
+                const state = await API.get('/api/status/script');
+                running = !!(state.running || state.ownership_unconfirmed);
+            }
             catch (e) {
                 console.error('Could not check Script status before starting over:', e);
                 showToast('Script status could not be checked. Check that Alexandria is running, then try Start over again.', 'warning');
@@ -4955,7 +4959,8 @@
                 onTick: status => {
                     const advanced = !!(document.getElementById('advanced-persona-toggle')?.checked);
                     renderManualRequest(status, 'persona');
-                    statusSpan.innerText = status.running ? (advanced ? 'Advanced running...' : 'Running...') : 'Finished';
+                    statusSpan.innerText = status.ownership_unconfirmed ? getTaskOwnershipMessage(status)
+                        : status.running ? (advanced ? 'Advanced running...' : 'Running...') : 'Finished';
                     if (cancelButton) {
                         cancelButton.style.display = status.running ? '' : 'none';
                     }
@@ -5201,17 +5206,17 @@
                 (/\sdata-stale-allowed(\s|=|$)/.test(attributes) ? tag : `<${kind}${attributes} disabled>`));
         }
 
-        function getStateVoiceCardsMarkup(voices) {
+        function getStateVoiceCardsMarkup(voices, bookId = window._voiceRosterBookToken || '') {
             let index = 0;
             return voices.map(voice => {
-                const base = createVoiceCard(voice, index++);
+                const base = createVoiceCard(voice, index++, bookId);
                 if (!voice.persona_states?.length) { return base; }
                 const states = voice.persona_states.map(state => {
                     const config = voice.config?.versions?.[state.version_id] || {};
                     const label = t('voice.state.card-label', '{name} ({gender} · {age}) — state {number}', {name: voice.name, gender: state.gender, age: state.age_group.replaceAll('_', ' '), number: state.state_number});
                     const stale = state.current !== true;   // the server's rule (#1040 review C37)
                     const markup = createVoiceCard({...voice, version_id: state.version_id, display_name: label,
-                        config, state_stale: stale, state_line_count: state.line_count, traits: null, persona_states: voice.persona_states}, index++);
+                        config, state_stale: stale, state_line_count: state.line_count, traits: null, persona_states: voice.persona_states}, index++, bookId);
                     // Generate the persona first; pending/stale forms cannot publish invented versions.
                     return stale ? disableStaleCardControls(markup) : markup;
                 }).join('');
@@ -5219,6 +5224,36 @@
             }).join('');
         }
 
+
+        function setVoiceReviewVisibility(shown, persist = true) {
+            document.getElementById('voices-tab')?.classList.toggle('voice-reviews-hidden', !shown);
+            const toggle = document.getElementById('voices-show-reviews');
+            if (toggle) { toggle.checked = shown; }
+            if (persist) {
+                try { localStorage.setItem('alex-voice-reviews-shown', String(shown)); } catch (error) {}
+            }
+        }
+
+        function restoreVoiceReviewVisibility() {
+            let shown = true;
+            try { shown = localStorage.getItem('alex-voice-reviews-shown') !== 'false'; } catch (error) {}
+            setVoiceReviewVisibility(shown, false);
+        }
+
+        function getVoiceReviewButtonsMarkup(config) {
+            const actions = [
+                ['approved', uiMessageMarkup('voice.card.approve-persona', 'Approve persona'), uiMessageMarkup('voice.card.approve-voice', 'Approve voice'), uiMessageMarkup('voice.card.persona-approved', 'Persona approved'), uiMessageMarkup('voice.card.voice-approved', 'Voice approved')],
+                ['reviewed', uiMessageMarkup('voice.card.review-persona', 'Review persona'), uiMessageMarkup('voice.card.review-voice', 'Review voice'), uiMessageMarkup('voice.card.persona-reviewed', 'Persona reviewed'), uiMessageMarkup('voice.card.voice-reviewed', 'Voice reviewed')],
+                ['rejected', uiMessageMarkup('voice.card.reject-persona', 'Reject persona'), uiMessageMarkup('voice.card.reject-voice', 'Reject voice'), uiMessageMarkup('voice.card.persona-rejected', 'Persona rejected'), uiMessageMarkup('voice.card.voice-rejected', 'Voice rejected')],
+            ];
+            return actions.map(([status, personaLabel, voiceLabel, personaState, voiceState]) =>
+                ['persona', 'voice'].map((side, index) => {
+                    const pressed = config[`${side}_status`] === status;
+                    const label = pressed ? [personaState, voiceState][index] : [personaLabel, voiceLabel][index];
+                    return `<button class="btn btn-sm voice-review-button" type="button" data-review-status="${status}" data-review-side="${side}" aria-pressed="${pressed}" onclick="setVoiceApproval(this, '${side}_status', '${status}')">${label}</button>`;
+                }).join('')
+            ).join('');
+        }
 
         function getVoiceReviewStatusLabel(status) {
             if (status === 'unreviewed') { return t('voice.card.review-unreviewed', 'unreviewed'); }
@@ -5266,10 +5301,11 @@
             for (const node of document.querySelectorAll('.voice-state-needs-generation')) {
                 node.textContent = t('voice.card.state-needs-generation', 'State persona needs generation for the current script.');
             }
-            for (const node of document.querySelectorAll('.voice-review-labels')) {
+            for (const node of document.querySelectorAll('.voice-review-actions')) {
                 const persona = node.getAttribute('data-persona-status');
                 const voice = node.getAttribute('data-voice-status');
-                node.textContent = getVoiceReviewText(persona, voice);
+                node.setAttribute('aria-label', t('voice.card.approval-group', 'Approval status'));
+                node.setAttribute('aria-description', getVoiceReviewText(persona, voice));
                 node.title = getVoiceReviewSupportText(persona, voice);
             }
             for (const node of document.querySelectorAll('.voice-line-count')) {
@@ -5282,7 +5318,105 @@
             }
         }
 
-        function createVoiceCard(voice, index) {
+        function getVoiceSectionStorageKey(bookId) {
+            return 'alex-voice-sections:' + encodeURIComponent(bookId);
+        }
+
+        const VOICE_SECTION_LIMITS = {books: 20, sections: 1000};
+
+        function getVoiceSectionId(speaker, version) {
+            return JSON.stringify([speaker, version || '', 'persona-review']);
+        }
+
+        function ensureVoiceSectionState(bookId) {
+            if (!bookId) { return {sections: {}, updatedAt: 0}; }
+            if (!window._voiceSectionStates) { window._voiceSectionStates = new Map(); }
+            let state = window._voiceSectionStates.get(bookId);
+            if (!state) {
+                state = {sections: {}, updatedAt: 0};
+                try { const stored = JSON.parse(window.localStorage.getItem(getVoiceSectionStorageKey(bookId)));
+                    if (stored?.sections && typeof stored.sections === 'object' && !Array.isArray(stored.sections)) {
+                        state.sections = Object.fromEntries(Object.entries(stored.sections)
+                            .filter(([, open]) => typeof open === 'boolean').slice(-VOICE_SECTION_LIMITS.sections));
+                    }
+                } catch (error) { console.warn?.('Could not read voice section state.', error); }
+            }
+            window._voiceSectionStates.delete(bookId);
+            window._voiceSectionStates.set(bookId, state);
+            while (window._voiceSectionStates.size > VOICE_SECTION_LIMITS.books) {
+                window._voiceSectionStates.delete(window._voiceSectionStates.keys().next().value);
+            }
+            return state;
+        }
+
+        function isVoiceSectionOpen(bookId, speaker, version) {
+            return window._voiceSectionStates?.get(bookId)?.sections[getVoiceSectionId(speaker, version)] ?? true;
+        }
+
+        function saveVoiceSectionStates(bookId, sections) {
+            if (!bookId) { return; }
+            const state = ensureVoiceSectionState(bookId);
+            state.sections = Object.fromEntries(Object.entries(sections)
+                .filter(([, open]) => typeof open === 'boolean').slice(-VOICE_SECTION_LIMITS.sections));
+            state.updatedAt = Date.now();
+            let keys = [];
+            let migrated = false;
+            try { keys = Array.from({length: window.localStorage.length}, (_, index) => window.localStorage.key(index)); migrated = window.localStorage.getItem('alex-voice-sections-migrated') === 'true';
+            } catch (error) { console.warn?.('Could not persist voice section state.', error); return; }
+            if (!migrated) {
+                for (const key of keys) {
+                    if (!key?.startsWith('alex-voice-section-collapsed-')) { continue; }
+                    try { window.localStorage.removeItem(key); } catch (error) { console.warn?.('Could not persist voice section state.', error); return; }
+                }
+                try { window.localStorage.setItem('alex-voice-sections-migrated', 'true'); } catch (error) { console.warn?.('Could not persist voice section state.', error); return; }
+            }
+            const currentKey = getVoiceSectionStorageKey(bookId);
+            const books = [];
+            for (const key of keys) {
+                if (!key?.startsWith('alex-voice-sections:') || key === currentKey) { continue; }
+                let updatedAt = 0;
+                try { updatedAt = Number(JSON.parse(window.localStorage.getItem(key))?.updatedAt) || 0; } catch (error) { }
+                books.push({key, updatedAt});
+            }
+            books.sort((left, right) => right.updatedAt - left.updatedAt);
+            for (const book of books.slice(VOICE_SECTION_LIMITS.books - 1)) {
+                try { window.localStorage.removeItem(book.key); } catch (error) { console.warn?.('Could not persist voice section state.', error); return; }
+            }
+            try { window.localStorage.setItem(currentKey, JSON.stringify(state)); } catch (error) { console.warn?.('Could not persist voice section state.', error); }
+        }
+
+        function pruneVoiceSectionStates(bookId, voices) {
+            const live = new Set();
+            for (const voice of voices) {
+                live.add(getVoiceSectionId(voice.name, voice.version_id));
+                for (const state of voice.persona_states || []) { live.add(getVoiceSectionId(voice.name, state.version_id)); }
+            }
+            const state = ensureVoiceSectionState(bookId);
+            saveVoiceSectionStates(bookId, Object.fromEntries(Object.entries(state.sections).filter(([key]) => live.has(key))));
+        }
+
+        function saveVoiceSectionState(details) {
+            if (!details.isConnected) { return; }
+            const card = details.closest('.voice-card');
+            details.querySelector('summary').setAttribute('aria-expanded', String(details.open));
+            const bookId = card?.dataset.voiceSectionBook;
+            if (!bookId) { return; }
+            const state = ensureVoiceSectionState(bookId);
+            const key = getVoiceSectionId(card.dataset.voice, card.dataset.version);
+            if ((state.sections[key] ?? true) === details.open) { return; }
+            delete state.sections[key];
+            state.sections[key] = details.open;
+            saveVoiceSectionStates(bookId, state.sections);
+        }
+
+        function setVoiceSectionsOpen(open) {
+            for (const details of document.querySelectorAll('#voices-list .voice-card-advanced')) {
+                details.open = open;
+                saveVoiceSectionState(details);
+            }
+        }
+
+        function createVoiceCard(voice, index, bookId = window._voiceRosterBookToken || '') {
             const roster = ensureVoiceRosterCache();
             const config = voice.config || {};
             const label = voice.display_name || voice.name;
@@ -5292,8 +5426,10 @@
                 ? [config.voice, ...AVAILABLE_VOICES] : AVAILABLE_VOICES;
 
             const ready = !!config.ready;
+            ensureVoiceSectionState(bookId);
+            const sectionOpen = isVoiceSectionOpen(bookId, voice.name, voice.version_id);
             return `
-                <div class="card voice-card mb-3${ready ? ' border-success' : ''}" data-voice="${escapeHtml(voice.name)}" data-version="${escapeHtml(voice.version_id || '')}" data-has-states="${voice.persona_states?.length ? '1' : '0'}" data-ready="${ready ? '1' : '0'}">
+                <div class="card voice-card mb-3${ready ? ' border-success' : ''}" data-voice="${escapeHtml(voice.name)}" data-version="${escapeHtml(voice.version_id || '')}" data-voice-section-book="${escapeHtml(bookId)}" data-has-states="${voice.persona_states?.length ? '1' : '0'}" data-ready="${ready ? '1' : '0'}">
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
@@ -5303,8 +5439,8 @@
                                     <label class="form-check-label" for="voice-ready-${index}">${uiMessageMarkup('voice.card.ready', 'Ready')}</label>
                                 </div>
                                 <p class="small voice-next-step">${config.ready ? uiMessageMarkup('voices.essential.ready', 'Ready is explicitly selected. Review persona and voice approvals separately.') : uiMessageMarkup('voices.essential.next', 'Next: pick a voice, listen, then mark Ready.')}</p>
-                                <details class="voice-card-advanced workflow-disclosure">
-                                    <summary>${uiMessageMarkup('voices.card.advanced', 'Persona review, versions, design and aliases')}</summary>
+                                <details class="voice-card-advanced workflow-disclosure" ${sectionOpen ? 'open' : ''} ontoggle="saveVoiceSectionState(this)">
+                                    <summary data-voice-focus-key="persona-review" aria-expanded="${sectionOpen}">${uiMessageMarkup('voices.card.advanced', 'Persona review, versions, design and aliases')}</summary>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.regenerate-aria', 'Regenerate persona for {name}', {name: label}))}" onclick="regeneratePersona(this)"><i class="fas fa-rotate me-1"></i>${uiMessageMarkup('voice.card.regenerate', 'Regenerate persona')}</button>
                                 <button class="btn btn-sm btn-outline-primary mt-1" type="button" aria-label="${escapeHtml(t('voice.card.age-version-aria', 'Generate age version for {name}', {name: label}))}" onclick="generateAgeVersion(this)" ${voice.version_id ? 'hidden' : ''}><i class="fas fa-person-circle-plus me-1"></i>${uiMessageMarkup('voice.card.age-version', 'Generate age version')}</button>
                                 <div class="input-group input-group-sm mt-1">
@@ -5314,16 +5450,9 @@
                                 </div>
                                 ${voice.version_id ? `<button class="btn btn-sm btn-outline-secondary mt-1" type="button" data-stale-allowed aria-label="${escapeHtml(t('voice.card.recover-aria', 'Recover persona for {name}', {name: label}))}" onclick="openStatePersonaRecovery(this)">${uiMessageMarkup('voice.card.recover', 'Recover persona')}</button>` : ''}
                                 ${voice.version_id ? `<button class="btn btn-sm btn-outline-danger mt-1" type="button"${config.persona_state ? ' data-stale-allowed' : ''} aria-label="${escapeHtml(t('voice.card.remove-state-aria', 'Remove saved state persona for {name}', {name: label}))}" onclick="removeStatePersona(this)">${uiMessageMarkup('voice.card.remove-state', 'Remove saved state persona')}</button>` : ''}
-                                <div class="small text-muted">${voice.version_id && voice.state_stale ? `<span class="voice-state-needs-generation">${uiMessageMarkup('voice.card.state-needs-generation', 'State persona needs generation for the current script.')}</span> ` : ''}<span class="voice-review-labels" data-persona-status="${escapeHtml(config.persona_status || 'unreviewed')}" data-voice-status="${escapeHtml(config.voice_status || 'unassigned')}" title="${escapeHtml(getVoiceReviewSupportText(config.persona_status || 'unreviewed', config.voice_status || 'unassigned'))}">${escapeHtml(getVoiceReviewText(config.persona_status || 'unreviewed', config.voice_status || 'unassigned'))}</span></div>
+                                ${voice.version_id && voice.state_stale ? `<div class="small text-muted voice-state-needs-generation">${uiMessageMarkup('voice.card.state-needs-generation', 'State persona needs generation for the current script.')}</div>` : ''}
                                 ${config.persona_voice_audit ? `<div class="small text-muted" title="${escapeHtml(config.persona_voice_audit.suggestion_reason || '')}">${uiMessageMarkup('voice.card.audit', 'Persona-to-voice audit: {adapter} · {persona}', {adapter: config.persona_voice_audit.voice_adapter_id || t('voice.card.audit-manual', 'manual'), persona: config.persona_voice_audit.persona_ref || t('voice.card.audit-inline', 'inline persona')})} <button class="btn btn-sm btn-link p-0" type="button" aria-label="${escapeHtml(t('voice.card.audit-edit-aria', 'Edit persona-to-voice audit for {name}', {name: label}))}" onclick="editPersonaVoiceAudit(this)">${uiMessageMarkup('voice.card.audit-edit', 'Edit')}</button></div>` : ''}
-                                <div class="d-flex flex-wrap gap-1 mt-1" role="group" aria-label="${escapeHtml(t('voice.card.approval-group', 'Approval status'))}" aria-describedby="voice-approval-help">
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'persona_status', 'approved')">${uiMessageMarkup('voice.card.approve-persona', 'Approve persona')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'persona_status', 'reviewed')">${uiMessageMarkup('voice.card.mark-persona', 'Mark persona reviewed')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'persona_status', 'rejected')">${uiMessageMarkup('voice.card.reject-persona', 'Reject persona')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-success" type="button" onclick="setVoiceApproval(this, 'voice_status', 'approved')">${uiMessageMarkup('voice.card.approve-voice', 'Approve voice')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-secondary" type="button" onclick="setVoiceApproval(this, 'voice_status', 'reviewed')">${uiMessageMarkup('voice.card.mark-voice', 'Mark voice reviewed')}</button>
-                                    <button style="flex:1 1 45%;min-width:0;" class="btn btn-sm btn-outline-danger" type="button" onclick="setVoiceApproval(this, 'voice_status', 'rejected')">${uiMessageMarkup('voice.card.reject-voice', 'Reject voice')}</button>
-                                </div>
+                                <div class="voice-review-actions mt-1 mb-2" data-persona-status="${escapeHtml(config.persona_status || 'unreviewed')}" data-voice-status="${escapeHtml(config.voice_status || 'unassigned')}" role="group" aria-label="${escapeHtml(t('voice.card.approval-group', 'Approval status'))}" aria-describedby="voice-approval-help" aria-description="${escapeHtml(getVoiceReviewText(config.persona_status || 'unreviewed', config.voice_status || 'unassigned'))}" title="${escapeHtml(getVoiceReviewSupportText(config.persona_status || 'unreviewed', config.voice_status || 'unassigned'))}">${getVoiceReviewButtonsMarkup(config)}</div>
                                 <div class="input-group input-group-sm mt-2" ${voice.version_id ? 'hidden' : ''}>
                                     <select class="form-select voice-version-select" aria-label="${escapeHtml(t('voice.card.version-aria', 'Voice version for {name}', {name: label}))}" onchange="selectVoiceVersion(this)">
                                         <option value="" disabled data-i18n="voice.card.version-empty" data-i18n-source="Choose a saved version">${t('voice.card.version-empty', 'Choose a saved version')}</option>
@@ -5759,7 +5888,7 @@
                 || (document.activeElement !== document.body && document.activeElement !== snapshot.control)) { return; }
             const card = Array.from(container.querySelectorAll('.voice-card')).find(row => row.dataset.voice === snapshot.speaker && (row.dataset.version || '') === (snapshot.version || ''));
             if (!card) { return; }
-            const controls = Array.from(card.querySelectorAll('button,input,select,textarea'));
+            const controls = Array.from(card.querySelectorAll('button,input,select,textarea,summary'));
             const control = controls.includes(snapshot.control) ? snapshot.control : controls.find(field => field.tagName === snapshot.tag
                 && (snapshot.key ? field.getAttribute('data-voice-focus-key') === snapshot.key
                     : snapshot.label ? field.getAttribute('aria-label') === snapshot.label
@@ -6022,6 +6151,10 @@
                 }
                 updateNarratorPreviewFields();
                 const container = document.getElementById('voices-list');
+                for (const details of container.querySelectorAll?.('.voice-card-advanced') || []) {
+                    saveVoiceSectionState(details);
+                }
+                pruneVoiceSectionStates(ownBookToken, voices);
                 const focus = getVoiceListFocusSnapshot(container, _voiceCardsBookToken);
                 const panels = getVoicePanelSnapshot(container, _voiceCardsBookToken);
                 if (voices.length === 0) {
@@ -6036,7 +6169,7 @@
                     releaseStaleSingleVoiceFenceLocal();
                     return loadVoices.publishedResult;
                 }
-                container.innerHTML = getStateVoiceCardsMarkup(voices) + getVoiceSeedRepairMarkup(ownSnapshot);
+                container.innerHTML = getStateVoiceCardsMarkup(voices, ownBookToken) + getVoiceSeedRepairMarkup(ownSnapshot);
                 window.stopOrphanedVoicePreview?.();
                 window.applyTtsCapabilityGuidance?.();
                 _voiceCardsRevision = ownRevision;
@@ -6221,12 +6354,18 @@
         };
 
         window.setVoiceApproval = async function setVoiceApproval(button, field, status) {
-            const speaker = button.closest('.voice-card')?.dataset.voice;
+            if (button.disabled) { return; }
+            const card = button.closest('.voice-card');
+            const speaker = card?.dataset.voice;
+            if (!speaker) { return; }
+            const nextStatus = getVoiceCardMetadata(card)[field] === status ? 'unreviewed' : status;
+            button.disabled = true;
             try {
-                await postVoiceTarget(button, `/api/voices/${encodeURIComponent(speaker)}/approval`, {[field]: status});
+                await postVoiceTarget(button, `/api/voices/${encodeURIComponent(speaker)}/approval`, {[field]: nextStatus});
                 await loadVoices();
-                showToast(`${field === 'persona_status' ? 'Persona' : 'Voice'} marked ${status} for ${speaker}.`, 'success');
-            } catch (e) { showActionError('Approval update failed', e, 'Reload Voices to check the current approval before trying again. Your voice assignments remain available.'); }
+                showToast(t('voice.review.saved', 'Review status saved for {speaker}.', {speaker}), 'success');
+            } catch (e) { showActionError(t('voice.review.save-error', 'Approval update failed'), e, t('voice.review.save-recovery', 'Reload Voices to check the current approval before trying again. Your voice assignments remain available.')); }
+            finally { button.disabled = false; }
         };
 
         window.editPersonaVoiceAudit = async function editPersonaVoiceAudit(button) {
@@ -9491,7 +9630,7 @@
                     return { audio, chunks };
                 }, {
                     intervalMs: 2000,
-                    doneCheck: updated => !isRenderingAll || !updated.audio.running,
+                    doneCheck: updated => !isRenderingAll || (!updated.audio.running && !updated.audio.ownership_unconfirmed),
                     onDone: async (updated) => {
                         if (!isRenderingAll) { return; }
                         document.querySelectorAll('tr').forEach(r => r.classList.remove('table-info'));
@@ -9977,7 +10116,7 @@
                     if (myGen !== _pollGen[key]) { return; }
                     consecutiveErrors = 0;
                     if (onTick) { await onTick(data); }
-                    if (doneCheck(data)) {
+                    if (!data?.ownership_unconfirmed && doneCheck(data)) {
                         if (onDone) { onDone(data); }
                         return;
                     }
@@ -10040,8 +10179,18 @@
         // grew says how long. Client-side only (#588).
         const ACTIVITY_MARKER = /Step \d \([a-z]+\): |Retrying\.\.\.|Reviewing batch \d+\/\d+|Progress: \d+\/\d+/;
         const ACTIVITY_QUIET_MS = 10000;
+        function getTaskOwnershipMessage(state) {
+            const logs = Array.isArray(state.logs) ? state.logs.filter(line => typeof line === 'string') : [];
+            const detail = logs.at(-1) || t('core.task.ownership-recovery', 'End the owned processes in Task Manager or restart the app. Locks release automatically after shutdown is confirmed.');
+            return t('core.task.ownership-retained', 'Failed — still holding processes. {detail}', {detail});
+        }
         function renderActivity(el, status, track) {
             if (!el) { return; }
+            if (status.ownership_unconfirmed) {
+                el.hidden = false;
+                el.textContent = getTaskOwnershipMessage(status);
+                return;
+            }
             if (!status.running) { el.hidden = true; return; }
             const logs = status.logs || [];
             const now = Date.now();

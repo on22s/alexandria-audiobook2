@@ -1,4 +1,5 @@
 """Actual staging callers must preserve the human-owned GOALS index/blob."""
+from tests.test_support import get_isolated_git_environment
 from pathlib import Path
 import shutil
 import subprocess
@@ -13,7 +14,7 @@ ROOT = test_derived_metadata.ROOT
 class DerivedProseStagingTests(unittest.TestCase):
     def git(self, root, *args):
         return subprocess.run(["git", "-C", str(root), *args], capture_output=True,
-                              text=True, check=True).stdout.strip()
+                              text=True, check=True, env=get_isolated_git_environment()).stdout.strip()
 
     def fixture(self, root):
         test_derived_metadata.DerivedMetadataTests().fixture(root)
@@ -29,9 +30,7 @@ class DerivedProseStagingTests(unittest.TestCase):
 
     def run_caller(self, root, caller):
         environment = test_derived_metadata.fixture_environment()
-        for key in [key for key in environment
-                    if key.startswith("GIT_") or key == "ALEXANDRIA_REGEN_HOOK"]:
-            environment.pop(key)
+        environment.pop("ALEXANDRIA_REGEN_HOOK", None)
         command = ["bash", str(root / ".githooks/pre-commit")] if caller == "pre-commit" else [
             "bash", str(root / "tools/regen_derived_commit.sh"), caller]
         result = subprocess.run(command, cwd=root, env=environment, capture_output=True,

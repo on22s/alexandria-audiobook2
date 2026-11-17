@@ -261,15 +261,21 @@ class PreparersCancelCleanupTests(unittest.TestCase):
             def json(self):
                 return self._body
 
-        for body in ({}, {"running": None}, {"running": "false"}, {"running": 0}):
+        for body in ({}, {"running": None}, {"running": "false"}, {"running": 0},
+                     {"running": False, "ownership_unconfirmed": True},
+                     {"running": False, "ownership_unconfirmed": None},
+                     {"running": False, "ownership_unconfirmed": "false"},
+                     {"running": False, "ownership_unconfirmed": 0}):
             with self.subTest(body=body):
                 with patch.object(api, "get", return_value=FakeResponse(body)):
                     self.assertFalse(api.wait_for_task(
                         "batch_preparer", timeout=1, poll_interval=0.1),
-                        f"malformed status {body!r} must not pass as idle")
-        with patch.object(api, "get", return_value=FakeResponse({"running": False})):
-            self.assertTrue(api.wait_for_task(
-                "batch_preparer", timeout=5, poll_interval=0.1))
+                        f"malformed or unconfirmed status {body!r} must not pass as idle")
+        for body in ({"running": False},
+                     {"running": False, "ownership_unconfirmed": False}):
+            with self.subTest(body=body), patch.object(api, "get", return_value=FakeResponse(body)):
+                self.assertTrue(api.wait_for_task(
+                    "batch_preparer", timeout=5, poll_interval=0.1))
         with patch.object(api, "get", return_value=FakeResponse({"running": True})):
             self.assertFalse(api.wait_for_task(
                 "batch_preparer", timeout=1, poll_interval=0.1))

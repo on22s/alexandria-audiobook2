@@ -46,6 +46,18 @@ def _adapter_with_recovery(models_dir, adapter_id, operation="promote"):
 
 
 class VoiceLabHealthTests(unittest.TestCase):
+    def test_retained_owner_is_failed_with_recovery_not_running_or_idle(self):
+        diagnostic = 'Win32 error 5; end PIDs 9001, 9002 in Task Manager or restart the app.'
+        with tempfile.TemporaryDirectory() as history, tempfile.TemporaryDirectory() as models:
+            state = {'running': False, 'status': 'cancelled', '_windows_cleanup_failed': True,
+                     'logs': [diagnostic]}
+            out = self._build(state=state, history_dir=history, models_dir=models,
+                              manifest_path=_empty_manifest(models))
+            self.assertEqual('failed', out['status'])
+            self.assertFalse(out['running'])
+            self.assertTrue(out['ownership_unconfirmed'])
+            self.assertEqual(diagnostic, out['next_action'])
+
     def _build(self, state=None, history_dir=None, models_dir=None, manifest_path=None):
         return _build_voicelab_health(
             state=state or {}, history_dir=history_dir, models_dir=models_dir,

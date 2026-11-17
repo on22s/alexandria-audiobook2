@@ -60,13 +60,14 @@ for (const mode of ['running','idle','unavailable']) {
             if (url === '/api/status') {
                 await gate;
                 if (mode === 'unavailable') { throw new Error('registry unavailable'); }
-                return {voicelab:{running:mode==='running'}};
+                return {voicelab:{running:mode==='running',ownership_unconfirmed:false},failed_owner:{running:false,ownership_unconfirmed:true}};
             }
             if (url.startsWith('/api/status/voicelab')) {
                 await gate;
                 if (mode === 'unavailable') { throw new Error('status unavailable'); }
                 return status;
             }
+            if (url === '/api/status/failed_owner') { return {running:false,ownership_unconfirmed:true,logs:['Win32 error 5; end PIDs in Task Manager']}; }
             return {running:false,logs:[]};
         }}, setInterval:(fn,ms)=>{timers.push(ms);return timers.length;},
         _resetPauseBtn:id=>{assert.strictEqual(id,'btn-vl-pause');resets++;},
@@ -97,7 +98,13 @@ for (const mode of ['running','idle','unavailable']) {
     vm.runInContext(core.slice(core.indexOf('function getTaskLogUpdate('),core.indexOf('// --- Setup Tab ---')),context);
     vm.runInContext(voicelab,context);
     context.refreshVoicelabHealth=()=>{health++;};
+    vm.runInContext(core.slice(core.indexOf('function getTaskOwnershipMessage('),core.indexOf('function renderActivity(')),context);
+    const claimStart=core.indexOf('const taskStartButtons =');vm.runInContext(core.slice(claimStart,core.indexOf('// --- API Helpers ---',claimStart)),context);
     release(); await startup;
+    const retainedPoller=pollers.find(poller=>poller.key==='reattach:failed_owner');
+    assert.strictEqual(!!retainedPoller,mode!=='unavailable');
+    if (retainedPoller) { assert.strictEqual(retainedPoller.options.doneCheck(await retainedPoller.fetchFn()),false); }
+    const voicePollers=pollers.filter(poller=>poller.key==='voicelab');
     assert.deepStrictEqual(timers,[10000,10000,30000]);
     if (mode === 'running') {
         assert.strictEqual(elements['btn-vl-start'].disabled,true);
@@ -105,18 +112,17 @@ for (const mode of ['running','idle','unavailable']) {
         assert.strictEqual(elements['btn-vl-cancel'].style.display,'inline-block');
         assert.strictEqual(resets,1);
         assert.strictEqual(health,1);
-        assert.strictEqual(pollers.length,1);
-        assert.strictEqual(pollers[0].key,'voicelab');
-        const fetched = await pollers[0].fetchFn();
-        assert.strictEqual(pollers[0].options.doneCheck(fetched),false);
-        pollers[0].options.onTick(fetched);
+        assert.strictEqual(voicePollers.length,1);
+        const fetched = await voicePollers[0].fetchFn();
+        assert.strictEqual(voicePollers[0].options.doneCheck(fetched),false);
+        voicePollers[0].options.onTick(fetched);
         assert.strictEqual(elements['voicelab-logs'].innerText,status.logs.join('\n'));
         assert.strictEqual(elements['voicelab-logs'].scrollTop,12);
         assert.strictEqual(elements['vl-stage-progress'].style.display,'flex');
         assert.match(elements['vl-stage-progress'].innerHTML,/Train: running/);
         assert.strictEqual(health,1,'poll responses now include health rather than issuing another GET');
     } else {
-        assert.strictEqual(pollers.length,0);
+        assert.strictEqual(voicePollers.length,0);
         assert.strictEqual(resets,0);
         assert.strictEqual(health,0);
         if (mode === 'idle') {

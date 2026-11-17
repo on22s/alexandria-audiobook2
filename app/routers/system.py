@@ -35,6 +35,7 @@ from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_
                                get_saved_llm_profile)
 
 from core import (
+    get_task_lifecycle,
     API_LOG_DIR,
     CONFIG_PATH,
     DATA_DIR,
@@ -524,11 +525,12 @@ async def get_eta_status():
     for key in list(labels) + [key for key in process_state if key not in labels]:
         label = labels.get(key, key.replace("_", " ").title())
         state = process_state.get(key)
-        if state and state.get("running"):
-            eta = _compute_eta(state)
-            eta.update({"running": True, "task": key, "label": label})
+        lifecycle = get_task_lifecycle(key, states=process_state)
+        if state and (lifecycle['running'] or lifecycle['ownership_unconfirmed']):
+            eta = _compute_eta(state) if lifecycle['running'] else {'logs': list(state.get('logs', []))}
+            eta.update({**lifecycle, "task": key, "label": label})
             return eta
-    return {"running": False}
+    return get_task_lifecycle('', states={})
 
 
 class LMStudioOptimizeRequest(BaseModel):

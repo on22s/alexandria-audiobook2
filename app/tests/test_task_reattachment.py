@@ -23,13 +23,18 @@ class TaskDiscoveryTests(unittest.TestCase):
 
     def test_native_http_includes_dynamic_tasks_without_handles_or_logs(self):
         states={'review':{'running':True,'logs':['private log'],'process':object()},
-                'future_task':{'running':True,'processes':[object()]},'idle':{'running':False}}
+                'future_task':{'running':True,'processes':[object()]},'idle':{'running':False},
+                'failed_owner':{'running':False,'status':'failed','_windows_cleanup_failed':True,
+                                'logs':['private failure'],'process':object()}}
         before={name:dict(state) for name,state in states.items()}
         app=FastAPI();app.include_router(script.router)
         with patch.object(script,'process_state',states),TestClient(app) as client:
             res=client.get('/api/status')
             self.assertEqual(200,res.status_code,res.text)
-            self.assertEqual({'review':{'running':True},'future_task':{'running':True},'idle':{'running':False}},res.json())
+            self.assertEqual({'review':{'running':True,'ownership_unconfirmed':False,'status':'running'},
+                              'future_task':{'running':True,'ownership_unconfirmed':False,'status':'running'},
+                              'idle':{'running':False,'ownership_unconfirmed':False,'status':'idle'},
+                              'failed_owner':{'running':False,'ownership_unconfirmed':True,'status':'failed'}},res.json())
             self.assertEqual(before,states)
             self.assertEqual(404,client.get('/api/status/missing').status_code)
 
@@ -57,12 +62,28 @@ const ctx={document:{getElementById:el},console,showToast:(message,type)=>warnin
   t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),
   escapeHtml:value=>String(value),
   _startPolling:(key,fetch,options)=>{ctx.poll={key,fetch,options};calls.push(key);}};
-vm.createContext(ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function showActionError('),coreSource.indexOf('function showConfirm(')),ctx);const claimStart=coreSource.indexOf('const taskStartButtons =');vm.runInContext(coreSource.slice(claimStart,coreSource.indexOf('// --- API Helpers ---',claimStart)),ctx);vm.runInContext(code,ctx);
+vm.createContext(ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function getTaskOwnershipMessage('),coreSource.indexOf('function renderActivity(')),ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function showActionError('),coreSource.indexOf('function showConfirm(')),ctx);const claimStart=coreSource.indexOf('const taskStartButtons =');vm.runInContext(coreSource.slice(claimStart,coreSource.indexOf('// --- API Helpers ---',claimStart)),ctx);vm.runInContext(code,ctx);
 (async()=>{
 """
 
 
 class TaskReattachmentJsTests(unittest.TestCase):
+    def test_failed_owner_restores_diagnostics_and_keeps_controls_claimed_until_recovery(self):
+        self.run_js(r"""
+statuses={persona:{running:false,status:'failed',ownership_unconfirmed:true,logs:['Win32 error 5; end PIDs 9001 and 9002 in Task Manager or restart the app.']}};
+await ctx.reattachRunningPollers();
+assert.deepStrictEqual(calls,['reattach:persona']);
+assert(el('btn-gen-personas').disabled);
+assert(el('voices-logs').textContent.includes('Failed — still holding processes'));
+assert(el('voices-logs').textContent.includes('9001 and 9002'));
+assert(el('voices-logs').textContent.includes('Task Manager'));
+assert(!ctx.poll.options.doneCheck(statuses.persona));
+ctx.poll.options.onTick(statuses.persona);
+assert(el('btn-gen-personas').disabled);
+await ctx.poll.options.onDone({running:false,status:'failed',ownership_unconfirmed:false,logs:statuses.persona.logs});
+assert(!el('btn-gen-personas').disabled);
+""")
+
     def test_outlier_reattachment_fetches_owner_identity_before_attaching(self):
         self.run_js(r"""
 const book='a'.repeat(64);let attached=null;statuses={outlier_check:{running:true,book_token:book}};ctx.attachEditorOutlierCheck=state=>{attached=state;};await ctx.reattachRunningPollers();
@@ -75,8 +96,9 @@ assert.equal(attached.book_token,book);assert(requests.includes('/api/status/out
 
     def test_remote_persona_and_local_voicelab_both_restore(self):
         self.run_js(r"""
-statuses={persona:{running:true},voicelab:{running:true}};await ctx.reattachRunningPollers();
-assert.deepStrictEqual(calls,['persona','voicelab']);assert(el('btn-voicelab-start').disabled);assert.strictEqual(requests[0],'/api/status');
+statuses={persona:{running:true,ownership_unconfirmed:false},voicelab:{running:true,ownership_unconfirmed:false},failed_owner:{running:false,ownership_unconfirmed:true}};await ctx.reattachRunningPollers();
+assert.deepStrictEqual(calls,['persona','voicelab','reattach:failed_owner']);assert(el('btn-voicelab-start').disabled);assert.strictEqual(requests[0],'/api/status');
+assert(requests.includes('/api/status/failed_owner'));assert(!ctx.poll.options.doneCheck(statuses.failed_owner));
 assert(!requests.includes('/api/status/persona'));assert(!requests.includes('/api/status/voicelab'));
 """)
 

@@ -9,6 +9,7 @@ Two other artifacts were emptied by the same replay and are FINE - they carry
 Both cases are fixtures here, because a guard that cannot tell them apart
 would either miss the loss or block the honest report.
 """
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import json
 import os
 import subprocess
@@ -54,6 +55,7 @@ class ScanTest(unittest.TestCase):
     """Drives the real git plumbing against a throwaway repository."""
 
     def setUp(self):
+        isolate_git_environment(self)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.repo = self.tmp.name
@@ -66,7 +68,7 @@ class ScanTest(unittest.TestCase):
 
     def git(self, *args):
         return subprocess.run(["git", "-C", self.repo, *args],
-                              capture_output=True, text=True, check=True)
+                              capture_output=True, text=True, check=True, env=get_isolated_git_environment())
 
     def write(self, name, payload):
         with open(os.path.join(self.experiments, name), "w",
@@ -139,7 +141,7 @@ class ScanTest(unittest.TestCase):
                 self.assertTrue(silent[0]["deleted"])
                 result = subprocess.run([sys.executable,
                     os.path.join(APP, "experiments", "check_artifact_shrinkage.py"),
-                    "--repo", self.repo], capture_output=True, text=True)
+                    "--repo", self.repo], capture_output=True, text=True, env=get_isolated_git_environment())
                 self.assertNotEqual(0, result.returncode)
                 self.assertIn("measured rows.json", result.stdout)
                 self.assertIn("deleted", result.stdout)

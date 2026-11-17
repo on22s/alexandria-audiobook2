@@ -1,3 +1,4 @@
+from tests.test_support import get_isolated_git_environment
 import json
 import os
 from pathlib import Path
@@ -14,11 +15,11 @@ class AuditOutputPathTests(unittest.TestCase):
     def test_actual_cli_writes_and_checks_bare_and_nested_output_names(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "init", "-q", str(root)], check=True, env=get_isolated_git_environment())
             script = root / "tools/audit/audit_experiment_artifacts.py"
             script.parent.mkdir(parents=True)
             shutil.copy2(REPO / "tools/audit/audit_experiment_artifacts.py", script)
-            env = dict(os.environ, PYTHONPATH=str(REPO / "app"))
+            env = dict(get_isolated_git_environment(), PYTHONPATH=str(REPO / "app"))
             for output in ("audit.json", "./explicit.json", "nested/audit.json"):
                 with self.subTest(output=output):
                     result = subprocess.run([sys.executable, str(script), "--out", output],

@@ -2344,6 +2344,30 @@ class NvmlProbeTests(unittest.TestCase):
 
 
 class JsHarnessTests(unittest.TestCase):
+    def test_retained_failure_keeps_controls_and_diagnostic_until_shutdown(self):
+        core_source = (Path(__file__).resolve().parent.parent / 'static/js/app-core.js').read_text(encoding='utf-8')
+        helper = core_source[core_source.index('function getTaskOwnershipMessage('):core_source.index('function renderActivity(')]
+        self._run_js(r"""
+(async function() {
+  _capabilityDeferred.resolve(null); await flush(); await flush();
+  var timers = [], downloads = 0, retained = true;
+  var realTimeout = setTimeout;
+  setTimeout = function(callback, delay) { if (delay >= 1000) { timers.push(callback); return timers.length; } return realTimeout(callback, delay); };
+  for (var id of ['readaloud-status','readaloud-cancel-btn','readaloud-build-btn']) { _els[id] = _mkEl(id); }
+  document.createElement = function(tag) { var element = _mkEl('',tag); element.click = function() { downloads++; }; return element; };
+  window.ensureReadalongIntegrityApproval = function() { return Promise.resolve('a'.repeat(64)); };
+  API.post = function() { return Promise.resolve({status:'started',claim_id:'owned-claim',book_token:'owned-book'}); };
+  API.get = function() { return Promise.resolve({task_claim_id:'owned-claim',readalong_book_token:'owned-book',running:false,ownership_unconfirmed:retained,logs:['Win32 error 5; end PIDs 9001, 9002 in Task Manager'],result:{status:retained ? 'done' : 'failed'}}); };
+  window.buildReadaloudEpub(); await flush(); await flush();
+  ok(_els['readaloud-build-btn'].disabled, 'retained ownership keeps build disabled');
+  ok(_els['readaloud-status'].textContent.includes('Task Manager'), 'retained diagnostic stays visible');
+  ok(downloads === 0 && timers.length === 1, 'retained result cannot download or stop polling');
+  retained = false; timers.shift()(); await flush(); await flush();
+  ok(!_els['readaloud-build-btn'].disabled && downloads === 0, 'verified shutdown releases controls without a download');
+  console.log('retained-readalong-ok');
+})();
+""", 'retained-readalong-ok', prelude=helper)
+
     def test_long_running_build_remains_owned_until_two_hour_terminal(self):
         self._run_js(r"""
 (async function() {

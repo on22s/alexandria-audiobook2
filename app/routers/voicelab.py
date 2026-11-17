@@ -14,8 +14,10 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 from pydantic import field_validator
+from windows_subprocess_owner import WindowsOwnerCleanupError
 
 from core import (
+    get_task_lifecycle,
     API_LOG_DIR,
     CONFIG_PATH,
     DATA_DIR,
@@ -437,7 +439,8 @@ def _build_voicelab_health(state: Optional[dict] = None, history_dir: Optional[s
         logger.exception("Could not scan for pending checkpoint recovery")
         pending_recovery = []
 
-    running = bool(state.get("running"))
+    lifecycle = get_task_lifecycle('voicelab', states={'voicelab': state})
+    running = lifecycle['running']
     paused = bool(state.get("paused"))
     run_id = state.get("run_id")
     active_record = next((r for r in runs if r.get("id") == run_id), None)
@@ -479,7 +482,9 @@ def _build_voicelab_health(state: Optional[dict] = None, history_dir: Optional[s
 
     device = _device(active_record) or (_device(runs[0]) if runs else None)
 
-    if pending_recovery:
+    if lifecycle['ownership_unconfirmed']:
+        status = lifecycle['status']
+    elif pending_recovery:
         status = "recovery_required"
     elif running:
         status = "running"
@@ -489,7 +494,9 @@ def _build_voicelab_health(state: Optional[dict] = None, history_dir: Optional[s
     else:
         status = "idle"
 
-    if pending_recovery:
+    if lifecycle['ownership_unconfirmed']:
+        next_action = '\n'.join(state.get('logs') or [])
+    elif pending_recovery:
         count = len(pending_recovery)
         next_action = (f"Recover {count} interrupted checkpoint operation"
                        f"{'s' if count != 1 else ''} in the LoRA models list "
@@ -504,6 +511,7 @@ def _build_voicelab_health(state: Optional[dict] = None, history_dir: Optional[s
     return {
         "status": status,
         "running": running,
+        "ownership_unconfirmed": lifecycle['ownership_unconfirmed'],
         "paused": paused,
         "active_run": active,
         "device": device,
@@ -920,6 +928,8 @@ async def voicelab_start(request: VoiceLabRequest, background_tasks: BackgroundT
 
             try:
                 rc, _ = _stream_subprocess_to_logs(cmd, cwd, state, log_prefix=f"[{stage}] ", log_file=log_path, env=env)
+            except WindowsOwnerCleanupError:
+                raise
             except Exception as e:
                 state["logs"].append(f"[{stage}] error launching: {e}")
                 state["tasks"][i]["status"] = "failed"

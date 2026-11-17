@@ -1,3 +1,4 @@
+from tests.test_support import get_isolated_git_environment
 import os
 from pathlib import Path
 import shutil
@@ -24,14 +25,14 @@ class QueueSourcePreflightTests(unittest.TestCase):
         self.git('add','.');self.git('commit','-qm','baseline')
 
     def git(self,*args):
-        return subprocess.run(['git','-C',str(self.root),*args],capture_output=True,text=True,check=True)
+        return subprocess.run(['git','-C',str(self.root),*args],capture_output=True,text=True,check=True, env=get_isolated_git_environment())
 
     def compare(self, clean):
-        status = subprocess.run(['bash',str(GATE),'--print-source-state',str(self.root)],capture_output=True,timeout=5)
+        status = subprocess.run(['bash',str(GATE),'--print-source-state',str(self.root)],capture_output=True,timeout=5, env=get_isolated_git_environment())
         self.assertEqual(0,status.returncode,status.stderr)
         state = status.stdout.split(b'\0')[0].decode()
         result = subprocess.run(['bash','-c','set -euo pipefail; source "$1"; refuse_if_dirty "$2"',
-            'fixture',str(LIB),str(self.root)],capture_output=True,text=True,timeout=5)
+            'fixture',str(LIB),str(self.root)],capture_output=True,text=True,timeout=5, env=get_isolated_git_environment())
         self.assertEqual(clean,state=='clean',(state,result.stdout,result.stderr))
         self.assertEqual(clean,result.returncode==0,(state,result.stdout,result.stderr))
         self.assertFalse((self.root/'ab_test_runtime/logs/alexandria_gpu.lock').exists())
@@ -61,6 +62,6 @@ class QueueSourcePreflightTests(unittest.TestCase):
     def test_missing_canonical_policy_refuses_before_inspecting_sources(self):
         helper=self.root/'run_chains/lib/queue.sh';helper.parent.mkdir(parents=True);shutil.copyfile(LIB,helper)
         result=subprocess.run(['bash','-c','source "$1"; refuse_if_dirty "$2"',
-            'fixture',str(helper),str(self.root)],capture_output=True,text=True,timeout=5)
+            'fixture',str(helper),str(self.root)],capture_output=True,text=True,timeout=5, env=get_isolated_git_environment())
         self.assertNotEqual(0,result.returncode)
         self.assertIn('could not inspect',result.stderr)

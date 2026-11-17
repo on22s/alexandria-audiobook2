@@ -1,4 +1,5 @@
 """Protect pinned vendor executable bytes and preserve local bundle ordering."""
+from tests.test_support import get_isolated_git_environment
 import base64
 import hashlib
 from html.parser import HTMLParser
@@ -28,9 +29,7 @@ class FrontendCdnIntegrityTests(unittest.TestCase):
     def test_windows_style_checkout_preserves_vendor_script_integrity(self):
         vendors = [s for s in Scripts(SOURCE.read_text()).scripts
                    if s.get('src', '').startswith('/static/vendor/')]
-        env = dict(os.environ, GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1')
-        for key in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR'):
-            env.pop(key, None)
+        env = get_isolated_git_environment({'GIT_CONFIG_GLOBAL': os.devnull})
         with tempfile.TemporaryDirectory() as tmp:
             checkout = Path(tmp)
 

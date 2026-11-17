@@ -1,4 +1,5 @@
 """CPU providers and complete isolated chains exercise resume decisions."""
+from tests.test_support import get_isolated_git_environment
 from contextlib import ExitStack
 import builtins
 import copy
@@ -163,8 +164,8 @@ class StopGateChainTests(unittest.TestCase):
                 for name in ('verify_adapter_stops.py','ljspeech_generate.py','prosody_fidelity.py','ljspeech_score.py'):
                     (root/'app/experiments'/name).write_text(cpu_source)
                 for args in (('init','-q','-b','main'),('config','user.name','Fixture'),('config','user.email','fixture@example.com'),('config','core.hooksPath',str(root/'no-hooks')),('add','-A'),('commit','-q','-m','fixture baseline')):
-                    subprocess.run(['git','-C',str(root),*args],check=True,capture_output=True)
-                env={**os.environ,'PATH':str(bin_dir)+os.pathsep+os.environ['PATH'],'PYTHON':sys.executable,
+                    subprocess.run(['git','-C',str(root),*args],check=True,capture_output=True, env=get_isolated_git_environment())
+                env={**get_isolated_git_environment(),'PATH':str(bin_dir)+os.pathsep+os.environ['PATH'],'PYTHON':sys.executable,
                     'CONFIG':str(config),'CALLS':str(marker),'FRESH':'malformed' if fresh=='malformed' else str(fresh).lower(),
                     'GATE_RC':str(rc)}
                 result=subprocess.run(['bash',str(root/'run_chains/chain.sh')],env=env,text=True,capture_output=True,timeout=15)

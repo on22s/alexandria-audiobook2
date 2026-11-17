@@ -6,8 +6,9 @@ import os
 import threading
 from functools import lru_cache
 
-from utils import (atomic_json_write, file_lock, get_unique_id, is_path_inside,
-                   safe_load_json, secure_filename)
+import utils
+from utils import (atomic_json_write, file_lock,
+                   get_unique_id, is_path_inside, safe_load_json, secure_filename)
 
 
 def _utc_now():
@@ -141,19 +142,15 @@ def _get_run_sort_cache(history_dir):
 
 
 def _get_run_file_version(path):
-    try:
-        stat = os.stat(path)
-    except OSError:
-        return None
-    return (stat.st_dev, stat.st_ino, stat.st_size,
-            stat.st_mtime_ns, stat.st_ctime_ns)
+    return utils.get_file_cache_token(path)
 
 
 def _get_run_with_version(path):
-    before = _get_run_file_version(path)
-    record = safe_load_json(path, default={})
-    after = _get_run_file_version(path)
-    return record, after if before == after else None
+    try:
+        payload, version = utils.read_file_snapshot(path)
+    except OSError:
+        return {}, None
+    return safe_load_json(path, default={}, content=payload), version
 
 
 def _iter_run_records(history_dir):
@@ -178,7 +175,9 @@ def list_runs(history_dir, limit=100):
     """Return newest complete records, reading only requested rows once indexed.
 
     The first scan (or changed files) loads sorting metadata. Every listing
-    checks directory membership and file versions; JSON payloads are not cached.
+    checks cheap platform change tokens, capturing and hashing changed or
+    recently written files (or when native change-time queries fail). Sorting
+    metadata is parsed from those exact captured bytes; JSON payloads are not cached.
     """
     try:
         limit = int(limit)
@@ -199,18 +198,20 @@ def list_runs(history_dir, limit=100):
         ordered = []
         for name in names:
             path = os.path.join(history_dir, name)
-            version = _get_run_file_version(path)
-            if version is None:
+            try:
+                version = _get_run_file_version(path)
+            except OSError:
                 cache.pop(name, None)
                 continue
             metadata = cache.get(name)
-            if metadata is None or metadata[0] != version:
+            if (metadata is None or version is None or metadata[0][2] != version or
+                    not utils.is_file_cache_token_trusted(version, metadata[0][3])):
                 record, stable_version = _get_run_with_version(path)
-                metadata = (stable_version, record.get("started_at", ""), bool(record))
-                if stable_version is not None:
-                    cache[name] = metadata
-                else:
+                if stable_version is None:
                     cache.pop(name, None)
+                    continue
+                metadata = (stable_version, record.get("started_at", ""), bool(record))
+                cache[name] = metadata
             if metadata[2]:
                 ordered.append((name, metadata[1]))
         ordered.sort(key=lambda item: item[1], reverse=True)

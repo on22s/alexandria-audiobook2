@@ -39,7 +39,8 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from speaker_identity import get_validated_alias_graph
 from diagnostics import redact_text
-from llm_provider import MANUAL_DATA_DIR_ENV, manual_llm_dir, is_manual_request_owner_alive
+from llm_provider import (MANUAL_DATA_DIR_ENV, manual_llm_dir, is_manual_request_owner_alive,
+                          read_manual_pending_locked)
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
 from generation_checkpoint_shards import (get_generation_checkpoint_artifacts,
                                            remove_generation_shard_checkpoint)
@@ -94,6 +95,7 @@ from core import (
     AppError,
     _saved_book_meta_path,
     is_task_running,
+    get_task_lifecycle,
     get_active_book_id,
     BASE_DIR,
     _compute_eta,
@@ -4771,8 +4773,7 @@ def _read_annotated_script_comparison(*, expected_source_sha256=None):
 @router.get("/api/status")
 async def get_task_statuses():
     """Discover registered tasks without serializing logs or live process handles."""
-    return {name: {"running": is_task_running(name, states=process_state)}
-            for name, state in process_state.items()}
+    return {name: get_task_lifecycle(name, states=process_state) for name in process_state}
 
 
 @router.get("/api/status/{task_name}")
@@ -4783,7 +4784,8 @@ async def get_status(task_name: str, include_health: bool = False):
     # Export evidence has its own book-token gate and bounded explicit view.
     for key in ('export_quality_reports', 'export_quality_rejections', 'export_quality_attempt'):
         state.pop(key, None)
-    state["running"] = is_task_running(task_name, states={task_name: state})
+    state.update(get_task_lifecycle(task_name, states={task_name: state}))
+    state.pop('_windows_cleanup_failed', None)
     state.pop("process", None)
     state.pop("processes", None)
     if task_name == "batch_review":
@@ -4823,12 +4825,18 @@ def _stage_hint(logs):
     return " · ".join(reversed(hints))
 
 
+def _read_manual_pending_locked(path):
+    data = read_manual_pending_locked(path)
+    return data if data is not None and is_manual_request_owner_alive(data) else None
+
+
 def read_manual_pending():
     """The request a live manual-transport owner is waiting on, or None."""
     path = os.path.join(manual_llm_dir(DATA_DIR), "pending.json")
-    data = safe_load_json(path, None)
-    return (data if isinstance(data, dict) and data.get("id")
-            and is_manual_request_owner_alive(data) else None)
+    if not os.path.isdir(os.path.dirname(path)):
+        return None
+    with file_lock(path):
+        return _read_manual_pending_locked(path)
 
 
 class ManualReply(BaseModel):
@@ -4853,14 +4861,19 @@ async def manual_llm_response(reply: ManualReply):
     """The user's (or their script's) answer to the pending request. Whether
     the content is acceptable is the pipeline's call - a rejected paste comes
     back as the next pending request, carrying the retry prompt."""
-    pending = await asyncio.to_thread(read_manual_pending)
-    if not pending:
-        raise HTTPException(status_code=409, detail="No request is waiting for a reply.")
-    if reply.id != pending["id"]:
-        raise HTTPException(status_code=409, detail="That request is no longer the one waiting; reload the prompt.")
-    atomic_json_write({"id": reply.id, "content": reply.content, "received": time.time()},
-                      os.path.join(manual_llm_dir(DATA_DIR), "response.json"))
-    return {"accepted": True, "sequence": pending["sequence"]}
+    def save_reply():
+        directory = manual_llm_dir(DATA_DIR)
+        if os.path.isdir(directory):
+            with file_lock(os.path.join(directory, "pending.json")):
+                pending = _read_manual_pending_locked(os.path.join(directory, "pending.json"))
+                if pending:
+                    if reply.id != pending["id"]:
+                        raise HTTPException(status_code=409, detail="That request is no longer the one waiting; reload the prompt.")
+                    atomic_json_write({"id": reply.id, "content": reply.content, "received": time.time()},
+                                      os.path.join(directory, "response.json"))
+                    return {"accepted": True, "sequence": pending["sequence"]}
+        raise AppError(409, "No request is waiting for a reply.", key="error.manual_llm.no_pending_request")
+    return await asyncio.to_thread(save_reply)
 
 
 @router.get("/api/logs/{task_name}")
@@ -5038,6 +5051,7 @@ async def get_delivery_retry_status(claim_id: str):
     import core
     with core._gpu_lock:
         owner = core._task_claims.get("script")
-        running = owner is not None and owner["id"] == claim_id
-        return {"running": running,
-                "logs": list(process_state["script"].get("logs", []))[-20:] if running else []}
+        matches = owner is not None and owner["id"] == claim_id
+        lifecycle = get_task_lifecycle('script', states=process_state) if matches else get_task_lifecycle('', states={})
+        return {**lifecycle,
+                "logs": list(process_state["script"].get("logs", []))[-20:] if matches else []}

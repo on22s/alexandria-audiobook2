@@ -13,7 +13,7 @@ from unittest.mock import patch
 from experiments import manifest
 from experiments.manifest import _git_state
 from tests import test_gpu_job as gpu_job_tests
-from tests.test_support import requires_linux_queue_tools
+from tests.test_support import requires_linux_queue_tools, isolate_git_environment
 
 
 class SourceIdentityTests(unittest.TestCase):
@@ -24,6 +24,7 @@ class SourceIdentityTests(unittest.TestCase):
     _log = gpu_job_tests.DirtyTreeGateTest._log
 
     def prepare(self):
+        isolate_git_environment(self)
         gpu_job_tests.DirtyTreeGateTest._make_repo(self, dirty=False)
 
     def state(self):

@@ -16,6 +16,7 @@ run, which is the same as being false" - and the widening reintroduced it.
 Both the shell gate and manifest.py must exclude ab_test_runtime/ and must
 still see a harness anywhere in the code tree.
 """
+from tests.test_support import get_isolated_git_environment
 import os
 import subprocess
 import tempfile
@@ -30,7 +31,7 @@ def untracked_harness(extra_pathspec=True):
     argv = ["git", "-C", REPO, "ls-files", "--others", "--exclude-standard"]
     if extra_pathspec:
         argv += ["--", ":(exclude)ab_test_runtime/*"]
-    out = subprocess.run(argv, capture_output=True, text=True, timeout=60).stdout
+    out = subprocess.run(argv, capture_output=True, text=True, timeout=60, env=get_isolated_git_environment()).stdout
     return [n for n in out.splitlines()
             if n.endswith((".py", ".sh", ".js", ".html"))]
 
@@ -66,7 +67,7 @@ class DirtyGateIgnoresArtifactsTest(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as root, patch(__name__ + ".REPO", root):
             subprocess.run(["git", "init", "-q", root], check=True,
-                           capture_output=True, timeout=10)
+                           capture_output=True, timeout=10, env=get_isolated_git_environment())
             os.mkdir(os.path.join(root, "ab_test_runtime"))
             probe = os.path.join(root, "ab_test_runtime", "_dirty_gate_probe.py")
             with open(probe, "w", encoding="utf-8") as handle:

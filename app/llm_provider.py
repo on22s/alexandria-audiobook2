@@ -6,6 +6,7 @@ Keep that configuration in one wrapper so every generation path gets the same
 profile settings, while a call's explicit options still take precedence.
 """
 
+import logging
 import os
 from copy import deepcopy
 import random
@@ -481,6 +482,28 @@ def manual_llm_dir(data_dir):
     return os.path.join(data_dir, MANUAL_DIR_NAME)
 
 
+def read_manual_pending_locked(path):
+    """Read an occupied slot strictly while the caller holds its file lock."""
+    import json
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            pending = json.load(handle)
+        if not isinstance(pending, dict) or not isinstance(pending.get("id"), str) or not pending["id"]:
+            raise ValueError("Invalid manual LLM pending request")
+        return pending
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        from core import AppError
+        raise AppError(503, "The pending manual LLM request could not be read. Try again.",
+                       key="error.manual_llm.pending_read_failed") from error
+    except ValueError as error:
+        from core import AppError
+        raise AppError(503, "The manual LLM request file manual_llm/pending.json in the data directory is corrupt. "
+                       "Cancel the manual request (or restart the app), then delete or rename "
+                       "this file before trying again.", key="error.manual_llm.pending_corrupt") from error
+
+
 def get_manual_llm_data_dir():
     """The data directory whose manual_llm/ the page serves: an explicit parent
     directory for isolated children, otherwise this process's data directory.
@@ -603,7 +626,7 @@ class ManualClient:
         import json
         import uuid
         from types import SimpleNamespace
-        from utils import atomic_json_write, file_lock, safe_load_json
+        from utils import atomic_json_write, file_lock
         os.makedirs(self.dir, exist_ok=True)
         self.sequence += 1
         request = {
@@ -620,6 +643,8 @@ class ManualClient:
         }
         with _manual_request_owners_lock:
             _manual_request_owners[request["id"]] = threading.current_thread()
+        claimed = False
+        request_failed = False
         try:
             # The one visible prompt is a queue slot shared by all clients. Hold
             # the short file lock only while claiming it; human replies can take
@@ -628,53 +653,64 @@ class ManualClient:
                 ensure_manual_request_active()
                 with file_lock(self.pending_path):
                     ensure_manual_request_active()
-                    pending = safe_load_json(self.pending_path, None)
-                    if os.path.exists(self.pending_path) and (
-                            not isinstance(pending, dict) or not pending.get("id") or
-                            not is_manual_request_owner_alive(pending)):
-                        os.remove(self.pending_path)
-                    if not os.path.exists(self.pending_path):
+                    pending = read_manual_pending_locked(self.pending_path)
+                    if pending is None or not is_manual_request_owner_alive(pending):
                         try:
                             os.remove(self.response_path)
                         except FileNotFoundError:
                             pass
                         atomic_json_write(request, self.pending_path)
+                        claimed = True
                         break
                 time.sleep(self.POLL_SECONDS)
             while True:
                 ensure_manual_request_active()
-                try:
-                    with open(self.response_path, "r", encoding="utf-8") as handle:
-                        response = json.load(handle)
-                except (FileNotFoundError, ValueError):
-                    time.sleep(self.POLL_SECONDS)
-                    continue
-                if not isinstance(response, dict):
-                    print("Warning: manual LLM response must be a JSON object; waiting for a valid reply.")
-                    os.remove(self.response_path)
-                    continue
-                if response.get("id") != request["id"]:
-                    # a reply to an earlier request that arrived late; not ours
-                    os.remove(self.response_path)
-                    continue
-                break
+                with file_lock(self.pending_path):
+                    try:
+                        with open(self.response_path, "r", encoding="utf-8") as handle:
+                            response = json.load(handle)
+                    except (FileNotFoundError, ValueError):
+                        pass
+                    else:
+                        if not isinstance(response, dict):
+                            print("Warning: manual LLM response must be a JSON object; waiting for a valid reply.")
+                            os.remove(self.response_path)
+                        elif response.get("id") != request["id"]:
+                            os.remove(self.response_path)
+                        else:
+                            break
+                time.sleep(self.POLL_SECONDS)
             content = str(response.get("content") or "")
             return SimpleNamespace(
                 choices=[SimpleNamespace(message=SimpleNamespace(content=content, reasoning_content=None),
                                          finish_reason="stop")],
                 usage=None, model=request["model"])
+        except BaseException:
+            request_failed = True
+            raise
         finally:
             with _manual_request_owners_lock:
                 _manual_request_owners.pop(request["id"], None)
-            with file_lock(self.pending_path):
-                # Only the request owner may release this queue slot.
-                current = safe_load_json(self.pending_path, None)
-                if isinstance(current, dict) and current.get("id") == request["id"]:
+            if claimed:
+                from core import AppError, logger
+                from review_startup import emit_diagnostic_log
+                with file_lock(self.pending_path):
+                    # Only the request owner may release this queue slot.
                     try:
-                        os.remove(self.response_path)
-                    except FileNotFoundError:
-                        pass
-                    os.remove(self.pending_path)
+                        current = read_manual_pending_locked(self.pending_path)
+                    except AppError as error:
+                        emit_diagnostic_log(logger.name, logging.ERROR,
+                                            "Manual LLM request %s could not retire its pending slot (%s).",
+                                            request["id"], error.message_key)
+                        if not request_failed:
+                            raise
+                    else:
+                        if current is not None and current.get("id") == request["id"]:
+                            try:
+                                os.remove(self.response_path)
+                            except FileNotFoundError:
+                                pass
+                            os.remove(self.pending_path)
 
 
 class _ManualChat:

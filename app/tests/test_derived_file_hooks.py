@@ -25,6 +25,7 @@ stale index - the exact failure being fixed. So these tests assert the
 properties that were violated, not that the scripts merely exist. Rule 21: the
 instrument gets checked on cases whose answer is already known.
 """
+from tests.test_support import get_isolated_git_environment
 import os
 import re
 import subprocess
@@ -274,7 +275,7 @@ class SingleSourceTest(unittest.TestCase):
 
     def test_every_path_it_claims_is_derived_exists(self):
         out = subprocess.run([get_bash_executable(), str(REPO / "tools" / "regen_derived.sh"), "--paths"],
-                             cwd=REPO, capture_output=True, text=True)
+                             cwd=REPO, capture_output=True, text=True, env=get_isolated_git_environment())
         for path in out.stdout.split():
             with self.subTest(path=path):
                 self.assertTrue((REPO / path).exists(),
@@ -298,7 +299,7 @@ class InterpreterResolutionTest(unittest.TestCase):
 
     def _git(self, repo, *args):
         result = subprocess.run(["git", "-C", str(repo), *args],
-                                capture_output=True, text=True)
+                                capture_output=True, text=True, env=get_isolated_git_environment())
         self.assertEqual(0, result.returncode, result.stderr)
         return result.stdout
 
@@ -396,7 +397,7 @@ class InterpreterResolutionTest(unittest.TestCase):
             })
             result = subprocess.run(
                 [get_bash_executable(), str(REPO / ".githooks/pre-commit")], cwd=repo,
-                env=environment, capture_output=True, text=True, timeout=20)
+                env=get_isolated_git_environment(environment), capture_output=True, text=True, timeout=20)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertTrue(marker.exists(), result.stdout + result.stderr)
             self.assertEqual(["update_api_contract_snapshots.py --check",
@@ -560,7 +561,7 @@ class InterpreterResolutionTest(unittest.TestCase):
     def run_pre_commit(self, repo, extra_env):
         return subprocess.run(
             [get_bash_executable(), str(REPO / ".githooks/pre-commit")], cwd=repo,
-            env=test_derived_metadata.fixture_environment(extra_env),
+            env=get_isolated_git_environment(test_derived_metadata.fixture_environment(extra_env)),
             capture_output=True, text=True, timeout=20)
 
     def test_invalid_override_blocks_the_commit_instead_of_skipping_the_checks(self):
@@ -730,7 +731,7 @@ class DerivedPathFailureArtifactTests(unittest.TestCase):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
                 repo = Path(tmp)
                 def git(*args):
-                    return subprocess.run(['git',*args],cwd=repo,capture_output=True,text=True,check=True).stdout.strip()
+                    return subprocess.run(['git',*args],cwd=repo,capture_output=True,text=True,check=True, env=get_isolated_git_environment()).stdout.strip()
                 git('init','-q')
                 git('config','user.name','Hook Fixture')
                 git('config','user.email','fixture@example.invalid')
@@ -747,8 +748,8 @@ class DerivedPathFailureArtifactTests(unittest.TestCase):
                 regen=tools/'regen_derived.sh'
                 regen.write_text('#!/bin/bash\nif [ "$1" = "--paths" ]; then\n'+mode+'\nfi\nprintf "new index\\n" > derived.txt\n')
                 regen.chmod(0o755)
-                environment={key:value for key,value in os.environ.items()
-                             if not key.startswith('GIT_') and key!='ALEXANDRIA_REGEN_HOOK'}
+                environment=get_isolated_git_environment()
+                environment.pop('ALEXANDRIA_REGEN_HOOK', None)
                 result=subprocess.run([get_bash_executable(),str(helper),'fixture-hook'],cwd=repo,env=environment,
                                       capture_output=True,text=True,timeout=10)
                 self.assertEqual(0,result.returncode,result.stderr)
@@ -765,7 +766,7 @@ class DerivedPathFailureArtifactTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo=Path(tmp)
             def git(*args):
-                return subprocess.run(['git',*args],cwd=repo,capture_output=True,text=True,check=True).stdout.strip()
+                return subprocess.run(['git',*args],cwd=repo,capture_output=True,text=True,check=True, env=get_isolated_git_environment()).stdout.strip()
             git('init','-q');git('config','user.name','Hook Fixture');git('config','user.email','fixture@example.invalid')
             git('config','core.hooksPath',str(repo/'no-hooks'))
             (repo/'derived.txt').write_text('old index\n');(repo/'unrelated.txt').write_text('original work\n')
@@ -777,8 +778,8 @@ class DerivedPathFailureArtifactTests(unittest.TestCase):
             regen=tools/'regen_derived.sh'
             regen.write_text('#!/bin/bash\nif [ "$1" = "--paths" ]; then echo derived.txt; exit 0; fi\nprintf "new index\\n" > derived.txt\n')
             regen.chmod(0o755)
-            environment={key:value for key,value in os.environ.items()
-                         if not key.startswith('GIT_') and key!='ALEXANDRIA_REGEN_HOOK'}
+            environment=get_isolated_git_environment()
+            environment.pop('ALEXANDRIA_REGEN_HOOK', None)
             result=subprocess.run([get_bash_executable(),str(helper),'fixture-hook'],cwd=repo,env=environment,
                                   capture_output=True,text=True,timeout=10)
             self.assertEqual(0,result.returncode,result.stderr)
@@ -817,7 +818,7 @@ class DerivedCommitFailureTests(unittest.TestCase):
 
     def git(self, root, *args):
         result = subprocess.run(["git", "-C", str(root), *args],
-                                capture_output=True, text=True)
+                                capture_output=True, text=True, env=get_isolated_git_environment())
         self.assertEqual(0, result.returncode, result.stderr)
         return result.stdout.strip()
 
@@ -831,7 +832,7 @@ class DerivedCommitFailureTests(unittest.TestCase):
             (root / "unrelated_RESULTS_INDEX.md").write_text("foreign new\n")
             self.git(root, "add", "unrelated_RESULTS_INDEX.md")
             result = subprocess.run([get_bash_executable(), str(helper), "fixture"], cwd=root,
-                                    capture_output=True, text=True)
+                                    capture_output=True, text=True, env=get_isolated_git_environment())
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(before, self.git(root, "rev-parse", "HEAD"))
             self.assertIn("other changes are staged", result.stderr)
@@ -858,7 +859,7 @@ class DerivedCommitFailureTests(unittest.TestCase):
                 'exec "$HOOK_TEST_GIT" "$@"\n', encoding="utf-8")
             executable.chmod(0o755)
             commands = root / "commands.log"
-            environment = os.environ.copy()
+            environment = get_isolated_git_environment()
             environment.update(HOOK_TEST_GIT=shutil.which("git"), HOOK_TEST_COMMANDS=str(commands))
             result = run_with_fake_git(executable.parent,
                                        "bash %s fixture" % bash_path(helper),
@@ -882,7 +883,7 @@ class DerivedCommitFailureTests(unittest.TestCase):
             self.git(root, "add", "RESULTS_INDEX.md")
             (root / "results_index.csv").write_text("new csv\n")
             result = subprocess.run([get_bash_executable(), str(helper), "fixture"], cwd=root,
-                                    capture_output=True, text=True)
+                                    capture_output=True, text=True, env=get_isolated_git_environment())
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertNotEqual(before, self.git(root, "rev-parse", "HEAD"))
             self.assertEqual(before, self.git(root, "rev-parse", "HEAD^"))
@@ -922,7 +923,7 @@ class DerivedCommitDetectorTests(unittest.TestCase):
                 new.write_text('{"new": true}\n')
                 self.git(root, "add", str(new.relative_to(root)))
                 result = subprocess.run([get_bash_executable(), str(helper), "fixture"], cwd=root,
-                                        capture_output=True, text=True)
+                                        capture_output=True, text=True, env=get_isolated_git_environment())
                 self.assertEqual(0, result.returncode, result.stderr)
                 if foreign:
                     self.assertEqual(before, self.git(root, "rev-parse", "HEAD"))
@@ -946,7 +947,7 @@ class DerivedCommitDetectorTests(unittest.TestCase):
                     self.git(root, "add", str(new.relative_to(root)))
                 self.assertEqual("", self.git(root, "diff", "--name-only"))
                 result = subprocess.run([get_bash_executable(), str(helper), "fixture"], cwd=root,
-                                        capture_output=True, text=True)
+                                        capture_output=True, text=True, env=get_isolated_git_environment())
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertNotEqual(before, self.git(root, "rev-parse", "HEAD"))
                 self.assertEqual(before, self.git(root, "rev-parse", "HEAD^"))
@@ -961,7 +962,7 @@ class DerivedCommitDetectorTests(unittest.TestCase):
             before = self.git(root, "rev-parse", "HEAD")
             (root / "unrelated_RESULTS_INDEX.md").write_text("foreign new\n")
             result = subprocess.run([get_bash_executable(), str(helper), "fixture"], cwd=root,
-                                    capture_output=True, text=True)
+                                    capture_output=True, text=True, env=get_isolated_git_environment())
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(before, self.git(root, "rev-parse", "HEAD"))
             self.assertEqual("", self.git(root, "diff", "--cached", "--name-only"))
@@ -989,7 +990,7 @@ class DerivedCommitDetectorTests(unittest.TestCase):
                     'exec "$HOOK_TEST_GIT" "$@"\n', encoding="utf-8")
                 executable.chmod(0o755)
                 commands = root / "commands.log"
-                environment = os.environ.copy()
+                environment = get_isolated_git_environment()
                 environment.update(HOOK_TEST_GIT=shutil.which("git"), HOOK_TEST_COMMANDS=str(commands),
                                    HOOK_TEST_FAIL=command)
                 result = run_with_fake_git(executable.parent,
@@ -1018,12 +1019,12 @@ class ReadyStagingGateTests(unittest.TestCase):
             (repo / name).write_text(text)
             (repo / name).chmod(0o755)
         (repo / "app/tests/unit_test_inventory.json").write_text('{"old": []}\n')
-        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-        subprocess.run(["git", "config", "user.name", "Ready Fixture"], cwd=repo, check=True)
-        subprocess.run(["git", "config", "user.email", "ready@example.invalid"], cwd=repo, check=True)
-        subprocess.run(["git", "config", "core.hooksPath", "no-hooks"], cwd=repo, check=True)
-        subprocess.run(["git", "add", "."], cwd=repo, check=True)
-        subprocess.run(["git", "commit", "-qm", "Fixture"], cwd=repo, check=True)
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "config", "user.name", "Ready Fixture"], cwd=repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "config", "user.email", "ready@example.invalid"], cwd=repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "config", "core.hooksPath", "no-hooks"], cwd=repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "add", "."], cwd=repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "commit", "-qm", "Fixture"], cwd=repo, check=True, env=get_isolated_git_environment())
 
     def test_untracked_and_unstaged_derived_files_refuse_before_release_verifier(self):
         import tempfile
@@ -1033,21 +1034,21 @@ class ReadyStagingGateTests(unittest.TestCase):
                 self._fixture(repo)
                 inventory = repo / "app/tests/unit_test_inventory.json"
                 if kind == "new_inventory":
-                    subprocess.run(["git", "rm", "--cached", str(inventory)], cwd=repo, check=True, capture_output=True)
+                    subprocess.run(["git", "rm", "--cached", str(inventory)], cwd=repo, check=True, capture_output=True, env=get_isolated_git_environment())
                 elif kind == "new_audit":
                     (repo / "ab_test_runtime/audit/new.json").write_text('{"artifact": "new"}')
                 elif kind == "modified":
                     inventory.write_text('{"new": []}')
                 else:
                     inventory.unlink()
-                before_index = subprocess.check_output(["git", "write-tree"], cwd=repo)
-                before_head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo)
-                result = subprocess.run([get_bash_executable(), str(repo / "ready.sh")], cwd=repo, capture_output=True, text=True)
+                before_index = subprocess.check_output(["git", "write-tree"], cwd=repo, env=get_isolated_git_environment())
+                before_head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, env=get_isolated_git_environment())
+                result = subprocess.run([get_bash_executable(), str(repo / "ready.sh")], cwd=repo, capture_output=True, text=True, env=get_isolated_git_environment())
                 self.assertEqual(2, result.returncode, result.stdout + result.stderr)
                 self.assertIn("NOT READY", result.stdout)
                 self.assertFalse((repo / "verifier-ran").exists())
-                self.assertEqual(before_index, subprocess.check_output(["git", "write-tree"], cwd=repo))
-                self.assertEqual(before_head, subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo))
+                self.assertEqual(before_index, subprocess.check_output(["git", "write-tree"], cwd=repo, env=get_isolated_git_environment()))
+                self.assertEqual(before_head, subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, env=get_isolated_git_environment()))
 
     def test_clean_or_fully_staged_derived_changes_reach_verifier_despite_unrelated_untracked_work(self):
         import tempfile
@@ -1059,13 +1060,13 @@ class ReadyStagingGateTests(unittest.TestCase):
                 if staged:
                     (repo / "app/tests/unit_test_inventory.json").write_text('{"new": []}')
                     (repo / "ab_test_runtime/audit/new.json").write_text('{"artifact": "new"}')
-                    subprocess.run(["git", "add", "app/tests/unit_test_inventory.json", "ab_test_runtime/audit/new.json"], cwd=repo, check=True)
-                before_index = subprocess.check_output(["git", "write-tree"], cwd=repo)
-                result = subprocess.run([get_bash_executable(), str(repo / "ready.sh")], cwd=repo, capture_output=True, text=True)
+                    subprocess.run(["git", "add", "app/tests/unit_test_inventory.json", "ab_test_runtime/audit/new.json"], cwd=repo, check=True, env=get_isolated_git_environment())
+                before_index = subprocess.check_output(["git", "write-tree"], cwd=repo, env=get_isolated_git_environment())
+                result = subprocess.run([get_bash_executable(), str(repo / "ready.sh")], cwd=repo, capture_output=True, text=True, env=get_isolated_git_environment())
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertTrue((repo / "verifier-ran").is_file())
                 self.assertEqual("user work", (repo / "unrelated.py").read_text())
-                self.assertEqual(before_index, subprocess.check_output(["git", "write-tree"], cwd=repo))
+                self.assertEqual(before_index, subprocess.check_output(["git", "write-tree"], cwd=repo, env=get_isolated_git_environment()))
 
     def test_git_status_failure_cannot_report_a_clean_staging_gate(self):
         import tempfile
@@ -1079,7 +1080,7 @@ class ReadyStagingGateTests(unittest.TestCase):
             (bin_dir / "git").write_text('#!/bin/bash\nif [ "${3:-}" = "status" ]; then exit 61; fi\nexec "' + git + '" "$@"\n')
             (bin_dir / "git").chmod(0o755)
             result = run_with_fake_git(bin_dir, "bash %s" % bash_path(repo / "ready.sh"),
-                                       repo, os.environ.copy())
+                                       repo, get_isolated_git_environment())
             self.assertEqual(2, result.returncode, result.stdout + result.stderr)
             self.assertIn("cannot inspect", result.stderr)
             self.assertFalse((repo / "verifier-ran").exists())
@@ -1093,7 +1094,7 @@ class ActualDerivedPathSafetyTests(unittest.TestCase):
             with self.subTest(staged=staged), tempfile.TemporaryDirectory() as tmp:
                 root=Path(tmp)
                 def git(*args):
-                    return subprocess.check_output(['git','-C',str(root),*args],text=True).strip()
+                    return subprocess.check_output(['git','-C',str(root),*args],text=True, env=get_isolated_git_environment()).strip()
                 git('init','-q');git('config','user.name','Fixture')
                 git('config','user.email','fixture@example.invalid');git('config','core.hooksPath','/dev/null')
                 tools=root/'tools';tools.mkdir()

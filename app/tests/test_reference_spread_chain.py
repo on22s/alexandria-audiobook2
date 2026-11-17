@@ -1,4 +1,5 @@
 """Native copied driver/Git/score reader with independent CPU arm producers."""
+from tests.test_support import get_isolated_git_environment
 import json
 import os
 from pathlib import Path
@@ -48,8 +49,8 @@ if '--check-score' not in sys.argv:
 runpy.run_path(os.environ['REAL_COMPARE'],run_name='__main__')
 ''')
         old=self.root/'ab_test_runtime/experiments/reference_spread__en_score_arm1.json';old.write_text('{"summary":{"clone":{"ecapa":0.8,"n":2}}}')
-        for args in (('init','-q','-b','main'),('config','user.name','Fixture'),('config','user.email','fixture@example.com'),('config','core.hooksPath',str(self.root/'no-hooks')),('add','-A'),('commit','-q','-m','fixture base')):subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True)
-        self.env=dict(os.environ,FIXTURE_ROOT=str(self.root),REAL_COMPARE=str(REPO/'app/experiments/reference_spread_compare.py'),PYTHONPATH=str(REPO/'app'),PATH=str(self.root/'bin')+os.pathsep+os.environ['PATH'])
+        for args in (('init','-q','-b','main'),('config','user.name','Fixture'),('config','user.email','fixture@example.com'),('config','core.hooksPath',str(self.root/'no-hooks')),('add','-A'),('commit','-q','-m','fixture base')):subprocess.run(['git','-C',str(self.root),*args],check=True,capture_output=True, env=get_isolated_git_environment())
+        self.env=dict(get_isolated_git_environment(),FIXTURE_ROOT=str(self.root),REAL_COMPARE=str(REPO/'app/experiments/reference_spread_compare.py'),PYTHONPATH=str(REPO/'app'),PATH=str(self.root/'bin')+os.pathsep+os.environ['PATH'])
 
     def run_chain(self,**env):
         for name in ('events','compared','admission'):

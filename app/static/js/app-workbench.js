@@ -111,7 +111,7 @@
             try {
                 const result = await API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`);
                 if (loadSequence !== dsbProjectLoadSequence || !isDatasetProjectSelected(name)) { return; }
-                applyDatasetBatchState(!!result.running);
+                applyDatasetBatchState(!!(result.running || result.ownership_unconfirmed));
                 applyDatasetRowRevisions(name, result.row_revisions, (result.samples || []).length);
                 document.getElementById('dsb-description').value = result.description || '';
                 document.getElementById('dsb-global-seed').value = result.global_seed ?? '';
@@ -129,7 +129,7 @@
                 if (dsbRows.length === 0 && !dsbBatchRunning) { dsbAddRow(); }
                 dsbRenderTable();
                 // Resume polling if batch is running
-                if (result.running) {
+                if (result.running || result.ownership_unconfirmed) {
                     dsbStartPolling(name);
 
                 }
@@ -610,12 +610,12 @@
             const renderLogs = createTaskLogRenderer(logsEl);
             dsbPolling = _startPolling(`dataset_builder:${name}`, () => API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`), {
                 intervalMs: 2000,
-                doneCheck: result => !result.running,
+                doneCheck: result => !result.running && !result.ownership_unconfirmed,
                 onTick: result => {
                     if (!isDatasetProjectSelected(name)) { return; }
                     const wasBusy = dsbBatchRunning;
-                    applyDatasetBatchState(!!result.running);
-                    if (result.running) { admitted = true; }
+                    applyDatasetBatchState(!!(result.running || result.ownership_unconfirmed));
+                    if (result.running || result.ownership_unconfirmed) { admitted = true; }
                     const serverSamples = result.samples || [];
                     applyDatasetRowRevisions(name, result.row_revisions, serverSamples.length);
 
@@ -899,6 +899,10 @@
         let _etaStatusSnapshot = null;
         function renderEtaLocaleChrome() {
             const eta = _etaStatusSnapshot;
+            if (eta?.ownership_unconfirmed) {
+                applySystemStatusText('sys-eta-val', getTaskOwnershipMessage(eta));
+                return;
+            }
             if (!eta?.running) { return; }
             let text = eta.task ? getTaskLabel(eta.task) : eta.label;
             if (eta.progress) { text = t('core.eta.with-progress', '{label} — {progress}', {label: text, progress: eta.progress}); }
@@ -917,7 +921,7 @@
             try {
                 const eta = await API.get('/api/status/eta');
                 _etaStatusSnapshot = eta;
-                if (!eta.running) {
+                if (!eta.running && !eta.ownership_unconfirmed) {
                     if (wrap.style.display !== 'none') { wrap.style.display = 'none'; }
                     return;
                 }
@@ -1010,19 +1014,25 @@
             }
         }
 
-        function reattachTaskActivity(taskName, buttonIds = [], statusId = null, afterDone = null) {
+        function reattachTaskActivity(taskName, buttonIds = [], statusId = null, afterDone = null, initialState = null) {
             claimTaskStart(taskName);
             const buttons = buttonIds.map(id => document.getElementById(id)).filter(Boolean);
             const statusEl = statusId ? document.getElementById(statusId) : null;
             const label = taskName.replaceAll('_', ' ');
             buttons.forEach(button => { button.disabled = true; });
-            if (statusEl) { statusEl.textContent = t('core.task.restored-running', '{task} running...', {task: label}); }
+            if (initialState?.ownership_unconfirmed) {
+                const message = getTaskOwnershipMessage(initialState);
+                if (statusEl) { statusEl.textContent = message; }
+                else { showToast(message, 'warning'); }
+            }
+            else if (statusEl) { statusEl.textContent = t('core.task.restored-running', '{task} running...', {task: label}); }
             else { showToast(t('core.task.still-running', '{task} is still running.', {task: label}), 'info'); }
             _startPolling(`reattach:${taskName}`, () => API.get(`/api/status/${encodeURIComponent(taskName)}`), {
-                doneCheck: state => !state.running,
+                doneCheck: state => !state.running && !state.ownership_unconfirmed,
                 onTick: state => {
                     const last = (state.logs || []).slice(-1)[0];
-                    if (statusEl && last) { statusEl.textContent = last; }
+                    if (statusEl && state.ownership_unconfirmed) { statusEl.textContent = getTaskOwnershipMessage(state); }
+                    else if (statusEl && last) { statusEl.textContent = last; }
                 },
                 onDone: async state => {
                     releaseTaskStart(taskName);
@@ -1046,7 +1056,7 @@
             let latest = null;
             for (const name of taskNames) {
                 const status = statuses[name];
-                if (!status || status.running || !Array.isArray(status.logs) || !status.logs.length) { continue; }
+                if (!status || status.running || status.ownership_unconfirmed || !Array.isArray(status.logs) || !status.logs.length) { continue; }
                 const start = Number.isFinite(status.start_time) ? status.start_time : 0;
                 if (!latest || start > latest.start) { latest = { name, start, logs: status.logs }; }
             }
@@ -1066,7 +1076,7 @@
                 showActionError('Could not restore running task controls', e, 'Check the app connection and reload task status before starting new work; a task may still be running.', 'warning');
                 return;
             }
-            let running = Object.fromEntries(Object.entries(statuses).map(([name, state]) => [name, state.running]));
+            let running = Object.fromEntries(Object.entries(statuses).map(([name, state]) => [name, state.running || state.ownership_unconfirmed]));
 
             const logGroups = [
                 { elementId: 'script-logs', tasks: ['script', 'batch_script', 'review', 'batch_review', 'nicknames', 'cast_list'] },
@@ -1075,8 +1085,10 @@
                 { elementId: 'voicelab-logs', tasks: ['voicelab'] },
             ];
             const pollGenerations = logGroups.map(group => getLogPollGeneration(group.tasks));
-            const fetched = await Promise.all(logGroups.flatMap(group => group.tasks).map(async taskName => {
-                if (running[taskName]) { return null; }
+            const hydrateNames = new Set([...logGroups.flatMap(group => group.tasks),
+                ...Object.keys(statuses).filter(name => statuses[name]?.ownership_unconfirmed)]);
+            const fetched = await Promise.all([...hydrateNames].map(async taskName => {
+                if (statuses[taskName]?.running && !statuses[taskName]?.ownership_unconfirmed) { return null; }
                 try {
                     return [taskName, await API.get(`/api/status/${taskName}`)];
                 } catch (e) {
@@ -1086,7 +1098,8 @@
             }));
             if (generation !== _reattachGeneration) { return; }
             const hydrated = Object.fromEntries(fetched.filter(Boolean));
-            running = Object.fromEntries(Object.entries({ ...statuses, ...hydrated }).map(([name, state]) => [name, state.running]));
+            statuses = { ...statuses, ...hydrated };
+            running = Object.fromEntries(Object.entries(statuses).map(([name, state]) => [name, state.running || state.ownership_unconfirmed]));
             logGroups.forEach((group, index) => {
                 if (group.tasks.some(name => running[name]) || pollGenerations[index] !== getLogPollGeneration(group.tasks)) { return; }
                 const latest = getLatestCompletedLog(group.tasks, hydrated);
@@ -1218,6 +1231,10 @@
             }
             await Promise.allSettled([...attachments.values()].map(async names => {
                 for (const name of names) {
+                    if (statuses[name]?.ownership_unconfirmed) {
+                        reattachTaskActivity(name, [], controlGroups.get(name) || null, null, statuses[name]);
+                        continue;
+                    }
                     const attach = Object.prototype.hasOwnProperty.call(reattachers, name)
                         ? reattachers[name] : () => reattachTaskActivity(name);
                     try {

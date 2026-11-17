@@ -46,6 +46,7 @@ from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
 from task_ownership import (acquire_task_lease, ensure_startup_recovery, get_task_resource_path,
                             ensure_task_resources_available, TaskOwnershipBusy)
 from review_startup import record_failure
+from windows_subprocess_owner import WindowsOwnerCleanupError
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -693,17 +694,46 @@ def gpu_lock_conflicts(new_task_name: str, *, cpu_only=False) -> set:
     return others - LLM_TASKS
 
 
+def _get_retained_windows_controls(state):
+    if not state.get('_windows_cleanup_failed'):
+        return []
+    return [process._alexandria_windows_owner for process in state.get('processes', [])
+            if getattr(process, '_alexandria_windows_owner', None) is not None
+            and process._alexandria_windows_owner.job.handle is not None]
+
+
+def _retain_windows_owner_failure(state, error):
+    process = error.owner.process
+    process._alexandria_windows_owner = error.owner
+    if process not in state.setdefault('processes', []):
+        state['processes'].append(process)
+    state.update(process=process, pid=process.pid, running=False, status='failed',
+                 _windows_cleanup_failed=True)
+    state.setdefault('logs', []).append(f'Error: {error}')
+
+
 def is_task_running(task_name, states=None):
     """Owned pending/started work stays admitted through callback cleanup."""
     owner = _task_claims.get(task_name)
     states = process_state if states is None else states
     return bool(states.get(task_name, {}).get("running")
-                or (owner and owner["phase"] in ("pending", "started")))
+                or _get_retained_windows_controls(states.get(task_name, {}))
+                or (owner and owner["phase"] in ("pending", "started", "cleanup_failed")))
 
 
 def is_task_cpu_only(task_name):
     """Only an owned CPU claim exempts a running task from GPU conflicts."""
     return bool(_task_claims.get(task_name, {}).get("cpu_only"))
+
+
+def get_task_lifecycle(task_name, states=None):
+    """Public execution status is terminal even while failed ownership blocks admission."""
+    states = process_state if states is None else states
+    state = states.get(task_name, {})
+    retained = bool(state.get('_windows_cleanup_failed'))
+    running = is_task_running(task_name, states=states) and not retained
+    return {'running': running, 'ownership_unconfirmed': retained,
+            'status': 'failed' if retained else state.get('status') or ('running' if running else 'idle')}
 
 
 def check_global_gpu_lock(new_task_name: str, *, cpu_only=False):
@@ -787,11 +817,22 @@ def ensure_book_switch_allowed(*, operation="switch books", hold_task_mutex=True
 def _reap_gpu_leases():
     while True:
         with _gpu_lock:
+            failed = [(name, claim['id'], process_state[name])
+                      for name, claim in _task_claims.items() if claim['phase'] == 'cleanup_failed']
+        for name, claim_id, state in failed:
+            try:
+                for control in _get_retained_windows_controls(state):
+                    control.retry_cleanup()
+                release_gpu_task_claim(name, claim_id)
+            except OSError as error:
+                record_failure('windows_owner_recovery_failed', error, task=name, rate_limit_seconds=300)
+        with _gpu_lock:
             for task_name, handle in list(_gpu_leases.items()):
                 if not is_task_running(task_name):
                     release_gpu_lock(handle)
                     del _gpu_leases[task_name]
-            if not _gpu_leases:
+            if not _gpu_leases and not any(claim['phase'] == 'cleanup_failed'
+                                          for claim in _task_claims.values()):
                 return
         time.sleep(0.1)
 
@@ -879,6 +920,17 @@ def release_gpu_task_claim(task_name: str, claim_id=None, pending_only=False):
             return False
         if pending_only and (owner is None or owner["phase"] != "pending"):
             return False
+        state = process_state[task_name]
+        if _get_retained_windows_controls(state):
+            if owner is not None:
+                start_reaper = owner['phase'] != 'cleanup_failed' and task_name not in _gpu_leases
+                owner['phase'] = 'cleanup_failed'
+                if start_reaper:
+                    threading.Thread(target=_reap_gpu_leases, daemon=True).start()
+            state.update(running=False, status='failed')
+            return False
+        if state.pop('_windows_cleanup_failed', False):
+            state.update(process=None, pid=None, processes=[])
         process_state[task_name]["running"] = False
         _task_claims.pop(task_name, None)
         handle = _gpu_leases.pop(task_name, None)
@@ -997,6 +1049,9 @@ def _run_owned_background_task(task_name, claim_id, callback, already_started=Fa
                                   'readalong_sidecar', 'readaloud_epub') else None)
         with ensure_audio_generation_owner(owner):
             return callback()
+    except WindowsOwnerCleanupError as error:
+        _retain_windows_owner_failure(process_state[task_name], error)
+        raise
     finally:
         release_gpu_task_claim(task_name, claim_id)
 
@@ -1053,6 +1108,9 @@ def _init_batch_state(state: dict, logs: list, tasks: list) -> None:
     Common initialization shared by review_script_batch_start,
     generate_script_batch_start, and voicelab_start's background _run().
     """
+    retained = _get_retained_windows_controls(state)
+    if retained:
+        raise retained[0].cleanup_error
     state["running"] = True
     state["paused"] = False
     state["start_time"] = time.time()
@@ -1218,7 +1276,8 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
         return_code, _ = _stream_subprocess_to_logs(
             command, cwd or BASE_DIR, state, log_file=log_path, env=env)
 
-        if task_name == 'script' and state.get('_script_published_cleanup_stop'):
+        if (task_name == 'script' and state.get('_script_published_cleanup_stop')
+                and not state.get('_windows_cleanup_failed')):
             state['logs'].append('The worker was stopped after script publication.')
             state['logs'].append('Task script completed successfully.')
             if 'status' in state: state['status'] = 'done'
@@ -1272,20 +1331,25 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
                 state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
                 if "status" in state: state["status"] = "failed"
 
+    except WindowsOwnerCleanupError as error:
+        _retain_windows_owner_failure(state, error)
+        raise
     except Exception as e:
         # Catch-all so we always clean up the task state even if the exception
         # is unexpected (e.g. AttributeError, KeyError from internal bugs).
         logger.exception(f"Error running {task_name}: {e}")
         state["logs"].append(f"Error: {str(e)}")
-        if task_name == 'script' and state.get('_script_published_cleanup_stop'):
+        if (task_name == 'script' and state.get('_script_published_cleanup_stop')
+                and not state.get('_windows_cleanup_failed')):
             state['logs'].append('The script was published; worker cleanup reported an error.')
             state['logs'].append('Task script completed successfully.')
             if 'status' in state: state['status'] = 'done'
         elif "status" in state:
             state["status"] = "failed"
     finally:
-        if "process"     in state: state["process"]     = None
-        if "pid"         in state: state["pid"]         = None
+        if not state.get('_windows_cleanup_failed'):
+            if "process" in state: state["process"] = None
+            if "pid" in state: state["pid"] = None
         state["running"] = False
         if "return_code" in state: state["return_code"] = return_code
     return return_code
@@ -1411,15 +1475,20 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
         callback()
     except Exception as e:
         error = str(e)
+        if isinstance(e, WindowsOwnerCleanupError):
+            _retain_windows_owner_failure(state, e)
         record_failure('background_task_failed', e, task=task_name, resource=run_id)
         state.setdefault("logs", []).append(f"Error: {e}")
         if "status" in state:
             state["status"] = "failed"
     finally:
-        if "process" in state:
-            state["process"] = None
-        if "pid" in state:
-            state["pid"] = None
+        if state.get('_windows_cleanup_failed'):
+            state['status'] = 'failed'
+        if not state.get('_windows_cleanup_failed'):
+            if "process" in state:
+                state["process"] = None
+            if "pid" in state:
+                state["pid"] = None
         state["running"] = False
         state.pop("run_id", None)
         if run_id:
@@ -1503,6 +1572,9 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
     call's own output regardless of any cap-driven truncation of state['logs'],
     so callers can safely scan them for per-run markers (stats, diffs, aliases).
     """
+    retained = _get_retained_windows_controls(state)
+    if retained:
+        raise retained[0].cleanup_error
     log_fh = None
     log_lines_since_flush = 0
     last_flush_time = time.time()
@@ -1699,26 +1771,41 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
     except BaseException as error:
         from review_startup import event as review_startup_event
         review_startup_event('subprocess_failed', error=error)
+        if isinstance(error, WindowsOwnerCleanupError):
+            error.owner.cancel_directory = cancel_directory
+            cancel_directory = None
+            _retain_windows_owner_failure(state, error)
         if not isinstance(error, (asyncio.CancelledError, KeyboardInterrupt, SystemExit)):
             record_failure('worker_stream_failed', error, task=task_name, resource=log_file)
-        if process is not None:
+        if process is not None and not isinstance(error, WindowsOwnerCleanupError):
             try:
                 ensure_failed_subprocess_stopped(process, state)
+            except WindowsOwnerCleanupError as cleanup_error:
+                _retain_windows_owner_failure(state, cleanup_error)
+                raise
             except BaseException:
                 logger.exception("Failed to stop subprocess after stream failure")
         raise
     finally:
         if process is not None:
+            windows_owner = getattr(process, "_alexandria_windows_owner", None)
+            if windows_owner is not None:
+                try:
+                    windows_owner.close()
+                except WindowsOwnerCleanupError as error:
+                    error.owner.cancel_directory = cancel_directory
+                    cancel_directory = None
+                    _retain_windows_owner_failure(state, error)
+                    if log_fh is not None:
+                        log_fh.close()
+                    raise
+                process.wait()
             if "processes" in state and process in state["processes"]:
                 state["processes"].remove(process)
             if state.get("process") is process:
                 state["process"] = None
             if state.get("pid") == process.pid:
                 state["pid"] = None
-            windows_owner = getattr(process, "_alexandria_windows_owner", None)
-            if windows_owner is not None:
-                windows_owner.close()
-                process.wait()
             if reader is not None and reader.is_alive():
                 reader.join(timeout=1)
             if process.stdout is not None and (reader is None or not reader.is_alive()):

@@ -1,3 +1,4 @@
+from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import base64
 import copy
 import hashlib
@@ -48,28 +49,29 @@ def _temp_root():
 
 class ReproducibleHarnessTests(unittest.TestCase):
     def setUp(self):
+        isolate_git_environment(self)
         self.temp = tempfile.TemporaryDirectory(dir=_temp_root())
         self.repo = Path(self.temp.name)
         self.harness = self.repo / "app" / "experiments"
         self.harness.mkdir(parents=True)
         subprocess.run(["git", "init", "-q", "-b", "main"], cwd=self.repo,
-                       check=True)
+                       check=True, env=get_isolated_git_environment())
         subprocess.run(["git", "config", "user.email", "test@example.com"],
-                       cwd=self.repo, check=True)
+                       cwd=self.repo, check=True, env=get_isolated_git_environment())
         subprocess.run(["git", "config", "user.name", "Test"], cwd=self.repo,
-                       check=True)
+                       check=True, env=get_isolated_git_environment())
 
     def tearDown(self):
         self.temp.cleanup()
 
     def commit(self, text):
-        (self.harness / "probe.py").write_text(text, encoding="utf-8")
+        (self.harness / "probe.py").write_text(text, encoding="utf-8", newline="\n")
         subprocess.run(["git", "add", "app/experiments/probe.py"],
-                       cwd=self.repo, check=True)
+                       cwd=self.repo, check=True, env=get_isolated_git_environment())
         subprocess.run(["git", "commit", "-q", "-m", text], cwd=self.repo,
-                       check=True)
+                       check=True, env=get_isolated_git_environment())
         return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=self.repo, text=True).strip()
+            ["git", "rev-parse", "HEAD"], cwd=self.repo, text=True, env=get_isolated_git_environment()).strip()
 
     def block(self, commit, fingerprint, dirty):
         return {"git": {"commit": commit, "harness_sha256": fingerprint,
@@ -87,10 +89,10 @@ class ReproducibleHarnessTests(unittest.TestCase):
         (self.repo / "inputs.json").write_text(json.dumps({"artifacts": [
             {"artifact": "fixture.json", "classification": "exploratory"}]}), encoding="utf-8")
         (self.repo / "app/core.py").write_bytes(b"VALUE = 1\n")
-        subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=self.repo, check=True)
-        subprocess.run(["git", "add", "."], cwd=self.repo, check=True)
+        subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=self.repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "add", "."], cwd=self.repo, check=True, env=get_isolated_git_environment())
         subprocess.run(["git", "commit", "-q", "-m", "synthetic audit inputs"],
-                       cwd=self.repo, check=True)
+                       cwd=self.repo, check=True, env=get_isolated_git_environment())
         self.run_goal_audit()
         document = json.loads(self.goal_audit_path().read_text(encoding="utf-8"))
         self.assertIs(document["provenance"]["git"]["dirty"], False)
@@ -106,7 +108,7 @@ class ReproducibleHarnessTests(unittest.TestCase):
                    "--out", str(self.goal_audit_path(repo))]
         if check:
             command.append("--check")
-        result = subprocess.run(command, cwd=repo, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(command, cwd=repo, capture_output=True, text=True, timeout=30, env=get_isolated_git_environment())
         if expected == 0:
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         else:
@@ -151,27 +153,27 @@ class ReproducibleHarnessTests(unittest.TestCase):
         # diagnostics describe generation, not the checker's working tree.
         (self.repo / "app/core.py").write_bytes(b"VALUE = 1\r\n")
         self.assertIn("app/core.py", subprocess.check_output(
-            ["git", "status", "--short"], cwd=self.repo, text=True))
+            ["git", "status", "--short"], cwd=self.repo, text=True, env=get_isolated_git_environment()))
         self.run_goal_audit(check=True)
 
     def test_goal_check_accepts_squash_in_main_only_clone(self):
         self.prepare_goal_audit()
-        subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=self.repo, check=True)
+        subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=self.repo, check=True, env=get_isolated_git_environment())
         self.commit("# synthetic branch harness\n")
         self.run_goal_audit()
         document = json.loads(self.goal_audit_path().read_text(encoding="utf-8"))
         recorded = document["provenance"]["git"]["commit"]
-        subprocess.run(["git", "add", "."], cwd=self.repo, check=True)
-        subprocess.run(["git", "commit", "-q", "-m", "branch audit"], cwd=self.repo, check=True)
-        subprocess.run(["git", "checkout", "-q", "main"], cwd=self.repo, check=True)
+        subprocess.run(["git", "add", "."], cwd=self.repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "commit", "-q", "-m", "branch audit"], cwd=self.repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "checkout", "-q", "main"], cwd=self.repo, check=True, env=get_isolated_git_environment())
         subprocess.run(["git", "merge", "--squash", "feature"], cwd=self.repo,
-                       capture_output=True, check=True)
-        subprocess.run(["git", "commit", "-q", "-m", "squashed audit"], cwd=self.repo, check=True)
+                       capture_output=True, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "commit", "-q", "-m", "squashed audit"], cwd=self.repo, check=True, env=get_isolated_git_environment())
         clone = self.repo / "main-only-clone"
         subprocess.run(["git", "clone", "-q", "--no-local", "--single-branch", "--branch", "main",
-                        str(self.repo), str(clone)], check=True)
+                        str(self.repo), str(clone)], check=True, env=get_isolated_git_environment())
         self.assertNotEqual(0, subprocess.run(["git", "cat-file", "-e", recorded + "^{commit}"],
-                                             cwd=clone, capture_output=True).returncode)
+                                             cwd=clone, capture_output=True, env=get_isolated_git_environment()).returncode)
         self.run_goal_audit(clone, check=True)
 
     def test_goal_regeneration_retains_origin_after_unrelated_dirty_and_committed_changes(self):
@@ -180,30 +182,30 @@ class ReproducibleHarnessTests(unittest.TestCase):
         (self.repo / 'app/core.py').write_bytes(b'VALUE = 2\n')
         self.run_goal_audit()
         self.assertEqual(before, self.goal_audit_path().read_bytes())
-        subprocess.run(['git', 'add', '.'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'add', '.'], cwd=self.repo, check=True, env=get_isolated_git_environment())
         subprocess.run(['git', 'commit', '-q', '-m', 'unrelated app change'],
-                       cwd=self.repo, check=True)
+                       cwd=self.repo, check=True, env=get_isolated_git_environment())
         self.run_goal_audit()
         self.assertEqual(before, self.goal_audit_path().read_bytes())
         self.run_goal_audit(check=True)
 
     def test_goal_regeneration_retains_squashed_origin_in_main_only_clone(self):
         self.prepare_goal_audit()
-        subprocess.run(['git', 'checkout', '-q', '-b', 'feature'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'checkout', '-q', '-b', 'feature'], cwd=self.repo, check=True, env=get_isolated_git_environment())
         recorded = self.commit('SYNTHETIC = 2\n')
         self.run_goal_audit()
-        subprocess.run(['git', 'add', '.'], cwd=self.repo, check=True)
-        subprocess.run(['git', 'commit', '-q', '-m', 'branch audit'], cwd=self.repo, check=True)
-        subprocess.run(['git', 'checkout', '-q', 'main'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'add', '.'], cwd=self.repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(['git', 'commit', '-q', '-m', 'branch audit'], cwd=self.repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(['git', 'checkout', '-q', 'main'], cwd=self.repo, check=True, env=get_isolated_git_environment())
         subprocess.run(['git', 'merge', '--squash', 'feature'], cwd=self.repo,
-                       capture_output=True, check=True)
-        subprocess.run(['git', 'commit', '-q', '-m', 'squash'], cwd=self.repo, check=True)
+                       capture_output=True, check=True, env=get_isolated_git_environment())
+        subprocess.run(['git', 'commit', '-q', '-m', 'squash'], cwd=self.repo, check=True, env=get_isolated_git_environment())
         with tempfile.TemporaryDirectory(dir=_temp_root()) as temporary:
             clone = Path(temporary) / 'main-only'
             subprocess.run(['git', 'clone', '-q', '--no-local', '--single-branch', '--branch', 'main',
-                            str(self.repo), str(clone)], check=True)
+                            str(self.repo), str(clone)], check=True, env=get_isolated_git_environment())
             self.assertNotEqual(0, subprocess.run(['git', 'cat-file', '-e', recorded + '^{commit}'],
-                                                 cwd=clone, capture_output=True).returncode)
+                                                 cwd=clone, capture_output=True, env=get_isolated_git_environment()).returncode)
             before = self.goal_audit_path(clone).read_bytes()
             (clone / 'app/core.py').write_bytes(b'VALUE = 3\n')
             self.run_goal_audit(clone)
@@ -212,7 +214,7 @@ class ReproducibleHarnessTests(unittest.TestCase):
 
     def test_dirty_origin_is_upgraded_before_squash_into_main_only_clone(self):
         self.prepare_goal_audit()
-        subprocess.run(['git', 'checkout', '-q', '-b', 'feature'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'checkout', '-q', '-b', 'feature'], cwd=self.repo, check=True, env=get_isolated_git_environment())
         recorded = self.commit('FEATURE = 1\n')
         (self.harness / 'probe.py').write_text('FEATURE = 2\n', encoding='utf-8')
         self.goal_audit_path().unlink()
@@ -221,22 +223,22 @@ class ReproducibleHarnessTests(unittest.TestCase):
         self.assertIs(dirty['provenance']['git']['dirty'], True)
         self.assertEqual(recorded, dirty['provenance']['git']['commit'])
         self.assertNotIn('harness_commit_proof', dirty['provenance']['git'])
-        subprocess.run(['git', 'add', '.'], cwd=self.repo, check=True)
-        subprocess.run(['git', 'commit', '-q', '-m', 'dirty origin'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'add', '.'], cwd=self.repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(['git', 'commit', '-q', '-m', 'dirty origin'], cwd=self.repo, check=True, env=get_isolated_git_environment())
         self.run_goal_audit()
-        subprocess.run(['git', 'add', '.'], cwd=self.repo, check=True)
+        subprocess.run(['git', 'add', '.'], cwd=self.repo, check=True, env=get_isolated_git_environment())
         subprocess.run(['git', 'commit', '-q', '--allow-empty', '-m', 'clean regeneration'],
-                       cwd=self.repo, check=True)
-        subprocess.run(['git', 'checkout', '-q', 'main'], cwd=self.repo, check=True)
+                       cwd=self.repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(['git', 'checkout', '-q', 'main'], cwd=self.repo, check=True, env=get_isolated_git_environment())
         subprocess.run(['git', 'merge', '--squash', 'feature'], cwd=self.repo,
-                       capture_output=True, check=True)
-        subprocess.run(['git', 'commit', '-q', '-m', 'squash'], cwd=self.repo, check=True)
+                       capture_output=True, check=True, env=get_isolated_git_environment())
+        subprocess.run(['git', 'commit', '-q', '-m', 'squash'], cwd=self.repo, check=True, env=get_isolated_git_environment())
         with tempfile.TemporaryDirectory(dir=_temp_root()) as temporary:
             clone = Path(temporary) / 'main-only'
             subprocess.run(['git', 'clone', '-q', '--no-local', '--single-branch', '--branch', 'main',
-                            str(self.repo), str(clone)], check=True)
+                            str(self.repo), str(clone)], check=True, env=get_isolated_git_environment())
             self.assertNotEqual(0, subprocess.run(['git', 'cat-file', '-e', recorded + '^{commit}'],
-                                                 cwd=clone, capture_output=True).returncode)
+                                                 cwd=clone, capture_output=True, env=get_isolated_git_environment()).returncode)
             self.run_goal_audit(clone, check=True)
             clean = json.loads(self.goal_audit_path(clone).read_text(encoding='utf-8'))
             self.assertIs(clean['provenance']['git']['dirty'], False)
@@ -280,7 +282,7 @@ class ReproducibleHarnessTests(unittest.TestCase):
         directory.mkdir()
         for name in ('utils.py', 'update_test_inventory.py'):
             shutil.copyfile(root / 'app' / name, self.repo / 'app' / name)
-        for name in ('__init__.py', 'test_inventory.py'):
+        for name in ('__init__.py', 'test_inventory.py', 'test_support.py'):
             shutil.copyfile(root / 'app/tests' / name, directory / name)
         for name in ('alpha', 'middle', 'zulu'):
             (directory / f'test_{name}.py').write_text(
@@ -297,12 +299,12 @@ class ReproducibleHarnessTests(unittest.TestCase):
 
         def git(*arguments):
             result = subprocess.run(['git', *arguments], cwd=self.repo, capture_output=True,
-                                    text=True, timeout=30)
+                                    text=True, timeout=30, env=get_isolated_git_environment())
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             return result.stdout.strip()
 
         def inventory(check=False):
-            environment = dict(os.environ, PYTHONPATH=os.pathsep.join((str(root), str(root / 'app'))))
+            environment = dict(get_isolated_git_environment(), PYTHONPATH=os.pathsep.join((str(root), str(root / 'app'))))
             result = subprocess.run([sys.executable, '-B', 'update_test_inventory.py',
                                      *(['--check'] if check else [])], cwd=self.repo / 'app',
                                     env=environment, capture_output=True, text=True, timeout=30)
@@ -335,7 +337,7 @@ class ReproducibleHarnessTests(unittest.TestCase):
             git('add', '.')
             git('commit', '-q', '-m', name)
         self.assertNotEqual(0, subprocess.run(['git', 'config', '--get', 'merge.ours.driver'],
-                                             cwd=self.repo, capture_output=True).returncode)
+                                             cwd=self.repo, capture_output=True, env=get_isolated_git_environment()).returncode)
         for squash in (False, True):
             for order in (('alpha', 'zulu'), ('zulu', 'alpha')):
                 with self.subTest(squash=squash, order=order):
@@ -352,48 +354,48 @@ class ReproducibleHarnessTests(unittest.TestCase):
     def commit_proof(self, commit):
         def read(object_type, revision):
             return base64.b64encode(subprocess.check_output(
-                ["git", "cat-file", object_type, revision], cwd=self.repo)).decode("ascii")
+                ["git", "cat-file", object_type, revision], cwd=self.repo, env=get_isolated_git_environment())).decode("ascii")
         return {"scheme": "git-commit-tree-v1", "commit": read("commit", commit),
                 "trees": [read("tree", commit + "^{tree}"),
                           read("tree", commit + ":app")]}
 
     def squash_clone(self):
-        subprocess.run(["git", "config", "core.autocrlf", "true"], cwd=self.repo, check=True)
+        subprocess.run(["git", "config", "core.autocrlf", "true"], cwd=self.repo, check=True, env=get_isolated_git_environment())
         base = self.commit("base\n")
-        subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=self.repo, check=True)
+        subprocess.run(["git", "checkout", "-q", "-b", "feature"], cwd=self.repo, check=True, env=get_isolated_git_environment())
         (self.harness / "probe.py").write_bytes(b"captured\r\n")
-        subprocess.run(["git", "add", "app/experiments/probe.py"], cwd=self.repo, check=True)
-        subprocess.run(["git", "commit", "-q", "-m", "captured"], cwd=self.repo, check=True)
-        captured = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.repo, text=True).strip()
-        self.assertEqual(b"", subprocess.check_output(["git", "status", "--short"], cwd=self.repo))
+        subprocess.run(["git", "add", "app/experiments/probe.py"], cwd=self.repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "commit", "-q", "-m", "captured"], cwd=self.repo, check=True, env=get_isolated_git_environment())
+        captured = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.repo, text=True, env=get_isolated_git_environment()).strip()
+        self.assertEqual(b"", subprocess.check_output(["git", "status", "--short"], cwd=self.repo, env=get_isolated_git_environment()))
         fingerprint = _source_fingerprint(str(self.harness))
         self.assertEqual(fingerprint, get_harness_sha256_at_commit(str(self.repo), captured))
         block = self.block(captured, fingerprint, False)
         block["git"]["harness_commit_proof"] = self.commit_proof(captured)
         (self.repo / "audit.json").write_text(json.dumps(block), encoding="utf-8")
-        subprocess.run(["git", "add", "audit.json"], cwd=self.repo, check=True)
-        subprocess.run(["git", "commit", "-q", "-m", "capture audit"], cwd=self.repo, check=True)
-        subprocess.run(["git", "checkout", "-q", "main"], cwd=self.repo, check=True)
+        subprocess.run(["git", "add", "audit.json"], cwd=self.repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "commit", "-q", "-m", "capture audit"], cwd=self.repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "checkout", "-q", "main"], cwd=self.repo, check=True, env=get_isolated_git_environment())
         subprocess.run(["git", "merge", "--squash", "feature"], cwd=self.repo,
-                       capture_output=True, check=True)
-        subprocess.run(["git", "commit", "-q", "-m", "squashed feature"], cwd=self.repo, check=True)
+                       capture_output=True, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "commit", "-q", "-m", "squashed feature"], cwd=self.repo, check=True, env=get_isolated_git_environment())
         clone = self.repo / "main-only-clone"
         subprocess.run(["git", "clone", "-q", "--no-local", "--single-branch", "--branch", "main",
-                        "--config", "core.autocrlf=false", str(self.repo), str(clone)], check=True)
+                        "--config", "core.autocrlf=false", str(self.repo), str(clone)], check=True, env=get_isolated_git_environment())
         missing = subprocess.run(["git", "cat-file", "-e", captured + "^{commit}"],
-                                 cwd=clone, capture_output=True)
+                                 cwd=clone, capture_output=True, env=get_isolated_git_environment())
         self.assertNotEqual(0, missing.returncode, "clone accidentally retained the PR-only commit")
         return clone, block, base
 
     def test_clean_crlf_audit_verifies_after_squash_without_pr_commit_objects(self):
         clone, block, unused_base = self.squash_clone()
-        expected = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=clone, text=True).strip()
+        expected = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=clone, text=True, env=get_isolated_git_environment()).strip()
         self.assertEqual("verified", check_harness_provenance(block, str(clone))[0])
         self.assertEqual(expected, get_reproducible_harness_source(block, str(clone)))
         self.assertNotEqual(0, subprocess.run(
             ["git", "cat-file", "-e", block["git"]["commit"] + "^{commit}"],
-            cwd=clone, capture_output=True).returncode)
-        self.assertEqual(b"", subprocess.check_output(["git", "status", "--short"], cwd=clone))
+            cwd=clone, capture_output=True, env=get_isolated_git_environment()).returncode)
+        self.assertEqual(b"", subprocess.check_output(["git", "status", "--short"], cwd=clone, env=get_isolated_git_environment()))
 
     def test_squash_proof_cannot_rescue_false_commit_hash_content_or_source_state(self):
         clone, block, base = self.squash_clone()
@@ -434,13 +436,13 @@ class ReproducibleHarnessTests(unittest.TestCase):
 
     def test_squash_proof_recovers_historical_source_but_not_unrelated_objects(self):
         clone, block, base = self.squash_clone()
-        squash = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=clone, text=True).strip()
+        squash = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=clone, text=True, env=get_isolated_git_environment()).strip()
         (clone / "app/experiments/probe.py").write_text("later\n", encoding="utf-8")
-        subprocess.run(["git", "add", "."], cwd=clone, check=True)
+        subprocess.run(["git", "add", "."], cwd=clone, check=True, env=get_isolated_git_environment())
         subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.com",
-                        "commit", "-q", "-m", "later harness"], cwd=clone, check=True)
+                        "commit", "-q", "-m", "later harness"], cwd=clone, check=True, env=get_isolated_git_environment())
         self.assertEqual(squash, get_reproducible_harness_source(block, str(clone)))
-        subprocess.run(["git", "checkout", "-q", "--detach", base], cwd=clone, check=True)
+        subprocess.run(["git", "checkout", "-q", "--detach", base], cwd=clone, check=True, env=get_isolated_git_environment())
         self.assertIsNone(get_reproducible_harness_source(block, str(clone)))
 
     def test_verified_commit_proofs_do_not_churn_an_identical_audit(self):
@@ -450,8 +452,8 @@ class ReproducibleHarnessTests(unittest.TestCase):
         old = self.block(first, fingerprint, False)
         old["git"]["harness_commit_proof"] = self.commit_proof(first)
         subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "new ref only"],
-                       cwd=self.repo, check=True)
-        second = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.repo, text=True).strip()
+                       cwd=self.repo, check=True, env=get_isolated_git_environment())
+        second = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.repo, text=True, env=get_isolated_git_environment()).strip()
         new = self.block(second, fingerprint, False)
         new["git"]["harness_commit_proof"] = self.commit_proof(second)
         verify = check_harness_provenance
@@ -477,7 +479,7 @@ assert 'error' in block['git'], block
         result = subprocess.run(
             [sys.executable, "-I", "-B", "-c", script,
              str(Path(__file__).resolve().parents[1] / "experiments")],
-            cwd=self.repo, capture_output=True, text=True, timeout=10)
+            cwd=self.repo, capture_output=True, text=True, timeout=10, env=get_isolated_git_environment())
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_commit_digest_batches_binary_and_spaced_names_in_two_git_calls(self):
@@ -488,11 +490,11 @@ assert 'error' in block['git'], block
         nested = self.harness / "nested"
         nested.mkdir()
         (nested / "ignored.py").write_bytes(b"not part of the direct harness")
-        subprocess.run(["git", "add", "."], cwd=self.repo, check=True)
+        subprocess.run(["git", "add", "."], cwd=self.repo, check=True, env=get_isolated_git_environment())
         subprocess.run(["git", "commit", "-q", "-m", "binary fixtures"],
-                       cwd=self.repo, check=True)
+                       cwd=self.repo, check=True, env=get_isolated_git_environment())
         commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=self.repo, text=True).strip()
+            ["git", "rev-parse", "HEAD"], cwd=self.repo, text=True, env=get_isolated_git_environment()).strip()
         expected = _source_fingerprint(str(self.harness))
         with patch("experiments.provenance.subprocess.run", wraps=subprocess.run) as run:
             actual = get_harness_sha256_at_commit(str(self.repo), commit)
@@ -515,7 +517,7 @@ assert 'error' in block['git'], block
         for index, mutate in enumerate(mutations):
             with self.subTest(mutation=index):
                 def run(command, **kwargs):
-                    result = real_run(command, **kwargs)
+                    result = real_run(command, **kwargs, env=get_isolated_git_environment())
                     if command[1] == "cat-file":
                         result.stdout = mutate(result.stdout)
                     return result
@@ -529,7 +531,7 @@ assert 'error' in block['git'], block
         def run(command, **kwargs):
             if command[1] == "cat-file":
                 raise subprocess.CalledProcessError(7, command, stderr=b"synthetic refusal")
-            return real_run(command, **kwargs)
+            return real_run(command, **kwargs, env=get_isolated_git_environment())
         with patch("experiments.provenance.subprocess.run", side_effect=run):
             with self.assertRaises(subprocess.CalledProcessError):
                 get_harness_sha256_at_commit(str(self.repo), commit)
@@ -561,11 +563,11 @@ assert 'error' in block['git'], block
     def test_unrelated_branch_does_not_rescue_recorded_run(self):
         recorded = self.commit("one\n")
         subprocess.run(["git", "checkout", "-q", "-b", "sibling"],
-                       cwd=self.repo, check=True)
+                       cwd=self.repo, check=True, env=get_isolated_git_environment())
         sibling = self.commit("sibling\n")
         fingerprint = get_harness_sha256_at_commit(str(self.repo), sibling)
         subprocess.run(["git", "checkout", "-q", "main"], cwd=self.repo,
-                       check=True)
+                       check=True, env=get_isolated_git_environment())
         self.assertIsNone(get_reproducible_harness_source(
             self.block(recorded, fingerprint, True), str(self.repo)))
 
@@ -576,14 +578,14 @@ assert 'error' in block['git'], block
 
     def test_autocrlf_checkout_fingerprint_matches_its_commit(self):
         subprocess.run(["git", "config", "core.autocrlf", "true"],
-                       cwd=self.repo, check=True)
+                       cwd=self.repo, check=True, env=get_isolated_git_environment())
         (self.harness / "probe.py").write_bytes(b"VALUE = 1\r\n")
         subprocess.run(["git", "add", "app/experiments/probe.py"],
-                       cwd=self.repo, check=True)
+                       cwd=self.repo, check=True, env=get_isolated_git_environment())
         subprocess.run(["git", "commit", "-q", "-m", "crlf"],
-                       cwd=self.repo, check=True)
+                       cwd=self.repo, check=True, env=get_isolated_git_environment())
         commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=self.repo, text=True).strip()
+            ["git", "rev-parse", "HEAD"], cwd=self.repo, text=True, env=get_isolated_git_environment()).strip()
         self.assertIn(b"\r\n", (self.harness / "probe.py").read_bytes())
         self.assertEqual(
             get_harness_sha256_at_commit(str(self.repo), commit),
@@ -599,13 +601,13 @@ assert 'error' in block['git'], block
         self.assertEqual("verified", status, detail)
 
     def test_current_check_preserves_legacy_raw_identity_and_historical_lookup(self):
-        subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=self.repo, check=True)
+        subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=self.repo, check=True, env=get_isolated_git_environment())
         self.commit("initial\n")
         (self.harness / "probe.py").write_bytes(b"legacy\r\n")
-        subprocess.run(["git", "add", "."], cwd=self.repo, check=True)
-        subprocess.run(["git", "commit", "-q", "-m", "legacy CRLF"], cwd=self.repo, check=True)
+        subprocess.run(["git", "add", "."], cwd=self.repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "commit", "-q", "-m", "legacy CRLF"], cwd=self.repo, check=True, env=get_isolated_git_environment())
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"],
-                                         cwd=self.repo, text=True).strip()
+                                         cwd=self.repo, text=True, env=get_isolated_git_environment()).strip()
         target = get_harness_sha256_at_commit(str(self.repo), commit, scheme=None)
         block = self.block(commit, target, False)
         block["git"].pop("harness_sha256_scheme")
@@ -660,13 +662,13 @@ assert 'error' in block['git'], block
         self.assertIsNone(get_reproducible_harness_source(block, str(self.repo)))
 
     def test_legacy_clean_crlf_commit_uses_raw_committed_bytes(self):
-        subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=self.repo, check=True)
+        subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=self.repo, check=True, env=get_isolated_git_environment())
         raw = b"committed\r\n"
         (self.harness / "probe.py").write_bytes(raw)
-        subprocess.run(["git", "add", "."], cwd=self.repo, check=True)
-        subprocess.run(["git", "commit", "-q", "-m", "raw CRLF"], cwd=self.repo, check=True)
+        subprocess.run(["git", "add", "."], cwd=self.repo, check=True, env=get_isolated_git_environment())
+        subprocess.run(["git", "commit", "-q", "-m", "raw CRLF"], cwd=self.repo, check=True, env=get_isolated_git_environment())
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"],
-                                         cwd=self.repo, text=True).strip()
+                                         cwd=self.repo, text=True, env=get_isolated_git_environment()).strip()
         target = hashlib.sha256(b"probe.py" + raw).hexdigest()
         block = self.block(commit, target, False)
         block["git"].pop("harness_sha256_scheme")

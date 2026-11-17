@@ -37,7 +37,7 @@ class AdmissionJob:
         self.calls.append('terminate')
         self.active = 0
 
-    def ensure_stopped(self):
+    def ensure_stopped(self, deadline=None):
         if self.active:
             raise AssertionError('released live membership')
         self.calls.append('stopped')
@@ -257,7 +257,7 @@ class WindowsOwnerAdmissionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             job = AdmissionJob()
             job.active = 1
-            reads = [OSError('query temporarily failed'), 1]
+            reads = [OSError(170, 'query temporarily failed'), 1]
             def query():
                 if reads:
                     value = reads.pop(0)

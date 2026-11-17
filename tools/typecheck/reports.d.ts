@@ -12,7 +12,7 @@ interface ReportRow { filename: string; can_explain: boolean; mtime: number; typ
 interface Checkpoint {book:string; total_batches:number; completed_batches:number; failed_batches?: number[]; batches_skipped_vram?:number; entries_done:number; resume_from_batch:number; mtime:number}
 interface Checkpoints {checkpoints:Checkpoint[]; live: null | {bidirectional:boolean; current_pass:string|null; tasks:{name:string|null; status:string|null}[]}}
 interface ExplanationStatus {run_id:string|null; running:boolean; status:'idle'|'pending'|'running'|'done'|'failed'|'cancelled'; error:string|null}
-interface BenchmarkStatus {running:boolean; status:string; tasks?:{status:string}[]; logs?:string[]}
+interface BenchmarkStatus {running:boolean; status:string; ownership_unconfirmed?:boolean; tasks?:{status:string}[]; logs?:string[]}
 interface RunRow {started_at:string|null; finished_at:string|null; task:string; status:RunStatus; error:string|null}
 type Manifest = Record<string, unknown>;
 interface APIContract {
@@ -39,6 +39,7 @@ declare function tSafety(key:string, english:string, values?:Record<string, stri
 declare function renderUiSafety(target:Element, key:string, english:string, values?:Record<string, string|number>):void;
 declare function getIntlUiLocale():string;
 declare function getActionErrorMessage(label:string,error:unknown,help:string):string;
+declare function getTaskOwnershipMessage(state:{logs?:string[]}):string;
 declare function showActionError(label:string,error:unknown,help:string):void;
 declare function confirmIfRemote(label:string):Promise<boolean>;
 declare function showToast(text:string,kind:'warning'|'success'):void;

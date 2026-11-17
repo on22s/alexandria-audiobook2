@@ -1,3 +1,4 @@
+from tests.test_support import get_isolated_git_environment
 import contextlib
 import io
 import subprocess
@@ -11,18 +12,18 @@ import mark_pr_ready as ready
 
 class PrReadinessWorktreeTests(unittest.TestCase):
     def make_repo(self, root):
-        subprocess.run(['git', 'init', '--quiet', str(root)], check=True)
+        subprocess.run(['git', 'init', '--quiet', str(root)], check=True, env=get_isolated_git_environment())
         (root / 'tracked.py').write_text('value = 1\n')
         (root / '.gitignore').write_text('runtime/\n')
-        subprocess.run(['git', 'add', '.'], cwd=root, check=True)
+        subprocess.run(['git', 'add', '.'], cwd=root, check=True, env=get_isolated_git_environment())
         subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'user.name=Fixture',
-                        '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'fixture'], cwd=root, check=True)
+                        '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'fixture'], cwd=root, check=True, env=get_isolated_git_environment())
 
     def invoke(self, root):
         real_run = subprocess.run
         def local_git(command, **kwargs):
             self.assertEqual('git', command[0], 'readiness must refuse before any GitHub call')
-            return real_run(command, cwd=root, capture_output=True, text=True)
+            return real_run(command, cwd=root, capture_output=True, text=True, env=get_isolated_git_environment())
         fake_verifier = subprocess.CompletedProcess([], 1, '', '')
         with patch.object(ready, 'run', side_effect=local_git), \
              patch.object(ready.subprocess, 'run', return_value=fake_verifier) as verifier, \

@@ -176,6 +176,7 @@
             'single-voice-source': {what: 'Speaker whose existing voice to review for book-wide use. Preview lists every affected speaker before anything is applied.'},
 
             // Voices tab
+            'voices-show-reviews': {what: 'Show or hide the persona and voice review buttons on every voice card. This display preference is saved in this browser when storage is available; it does not change saved review statuses.'},
             'voices-state-filter': {what: 'Show all characters, or only those with or without state cards (per-state voices, e.g. a time skip).'},
             'voices-hide-ready': {what: 'Hide characters already marked ready.'},
             'narrator-strategy': {what: 'How the narrator voice is chosen: one global voice, or varied by scene focus, chapter, focus character, or the character’s gender and age.'},
@@ -553,6 +554,7 @@
             'removeStatePersona': 'Remove the saved persona for this state.',
             'editPersonaVoiceAudit': 'Edit the recorded link and reasoning between this persona and its assigned voice.',
             'setVoiceApproval': 'Record the selected review status for this persona or voice. This records your decision; it does not generate audio.',
+            'setVoiceSectionsOpen': 'Expand or collapse all persona review sections. Each voice remembers its last state in this browser.',
             'addVoiceVersion': 'Save a named version of this character’s current voice settings.',
             'openVoiceStates': 'Show voice changes across the character’s states or timeline.',
             'suggestMoreVoices': 'Generate additional voice candidates for this character to compare.',

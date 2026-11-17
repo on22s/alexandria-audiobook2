@@ -186,7 +186,7 @@ class GracefulRefusalTests(unittest.TestCase):
         with patch.object(ownership.sys, 'platform', 'win32'), \
              patch.object(ownership, 'start_owned_subprocess', return_value=process), \
              patch.object(ownership.time, 'sleep'), \
-             patch.object(ownership.time, 'monotonic', side_effect=[0, 0, 2]):
+             patch.object(ownership.time, 'monotonic', side_effect=[0, 0, 2, 2]):
             with self.assertRaises(subprocess.TimeoutExpired) as raised:
                 ownership.run_owned_capture(['fixture'], timeout=.01)
         self.assertIs(original, raised.exception)
