@@ -1528,7 +1528,7 @@
                             remote: {base_url:'', api_key:'local', model_name:''} };
         let currentLlmMode = 'local';
         let savedLlmMode = 'local';   // last-saved llm_mode; drives the "Active:" badge
-        // Server-computed lmstudio_settings.is_remote_llm(llm_mode, base_url)
+        // Server-computed lmstudio_settings.is_active_llm_remote(config)
         // for the ACTIVE (saved) config - reflects llm_mode/base_url drift
         // that a bare `currentLlmMode === 'remote'` check would miss. Updated
         // from /api/config's response on load and after a successful save.

@@ -3801,10 +3801,28 @@
     , "tests.test_config_secret_endpoint_binding.ConfigSecretEndpointBindingTests.test_repeated_get_save_keeps_unused_blank_profiles_and_never_contacts_a_provider"
     , "tests.test_config_secret_endpoint_binding.ConfigSecretEndpointBindingTests.test_save_rejects_url_change_without_overwriting_config_and_allows_explicit_key"
     , "tests.test_config_secret_endpoint_binding.ConfigSecretEndpointBindingTests.test_test_and_models_routes_reject_unmatched_key_before_client_or_claim"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderEndpointTests.test_get_config_response_carries_no_header_value_from_any_profile"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderEndpointTests.test_models_route_sends_the_stored_header_not_the_sentinel"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderEndpointTests.test_save_echoing_sentinels_keeps_stored_values_and_applies_header_edits"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderEndpointTests.test_save_matches_a_renamed_case_header_and_keeps_the_stored_value"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderEndpointTests.test_save_never_restores_a_header_from_a_different_endpoint"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderEndpointTests.test_save_route_does_not_carry_a_header_to_a_changed_endpoint"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderResolutionBindingTests.test_a_saved_url_without_v1_matches_the_posted_normalised_url"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderResolutionBindingTests.test_a_shared_endpoint_between_profiles_refuses_to_guess_and_leaks_nothing"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderResolutionBindingTests.test_headers_resolve_through_a_case_changed_name"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderResolutionBindingTests.test_models_route_does_not_use_another_profile_credentials_on_a_tie"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderResolutionBindingTests.test_the_active_mirror_is_not_a_second_profile"
+    , "tests.test_config_secret_endpoint_binding.ProviderHeaderResolutionBindingTests.test_two_saved_names_differing_only_by_case_resolve_the_same_way_every_time"
   ]
   , "test_config_secret_redaction": [
     "tests.test_config_secret_redaction.ConfigSecretRedactionTests.test_get_shape_masks_credentials_without_mutating_input"
     , "tests.test_config_secret_redaction.ConfigSecretRedactionTests.test_sentinel_round_trip_preserves_saved_secret"
+    , "tests.test_config_secret_redaction.ProviderHeaderRedactionTests.test_echoed_sentinel_keeps_changed_value_is_replaced_and_removed_stays_removed"
+    , "tests.test_config_secret_redaction.ProviderHeaderRedactionTests.test_every_profile_header_value_is_masked_and_every_name_is_kept"
+    , "tests.test_config_secret_redaction.ProviderHeaderRedactionTests.test_redaction_leaves_the_input_config_unchanged"
+    , "tests.test_config_secret_redaction.ProviderHeaderRedactionTests.test_sentinel_with_no_stored_header_is_dropped_not_persisted"
+    , "tests.test_config_secret_redaction.RedactedHeaderResolutionTests.test_sentinels_resolve_from_the_profile_at_the_same_endpoint"
+    , "tests.test_config_secret_redaction.RedactedHeaderResolutionTests.test_unmatched_endpoint_and_unknown_headers_never_send_the_sentinel"
     , "tests.test_config_secret_redaction.RedactedKeyResolutionTests.test_sentinel_resolves_to_the_matching_profile_key"
     , "tests.test_config_secret_redaction.RedactionKeepsNonJsonObjects.test_pydantic_values_survive_redaction"
   ]
@@ -11448,6 +11466,15 @@
     "tests.test_remote_tts_asset_staging.RemoteTTSAssetStagingTests.test_bad_or_missing_remote_directory_output_refuses_before_any_scp"
     , "tests.test_remote_tts_asset_staging.RemoteTTSAssetStagingTests.test_creation_failure_and_no_asset_payload_do_not_transfer"
     , "tests.test_remote_tts_asset_staging.RemoteTTSAssetStagingTests.test_native_mktemp_is_private_unique_and_ignores_a_precreated_fixed_directory_symlink"
+  ]
+  , "test_remote_warning_active_profile": [
+    "tests.test_remote_warning_active_profile.ActiveProfileClassificationTests.test_garbage_config_is_local_rather_than_an_exception"
+    , "tests.test_remote_warning_active_profile.ActiveProfileClassificationTests.test_the_mirror_never_decides_the_classification"
+    , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_a_stale_hosted_mirror_cannot_invent_a_remote_run"
+    , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_a_stale_local_mirror_cannot_hide_a_hosted_active_profile"
+    , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_remote_mode_reports_remote"
+    , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_the_resolver_sees_the_real_config_and_redaction_still_applies"
+    , "tests.test_remote_warning_active_profile.SupportSummaryTests.test_the_voicelab_summary_classifies_the_active_profile"
   ]
   , "test_repair_candidate_reference_text": [
     "tests.test_repair_candidate_reference_text.RepairCandidateReferenceTextTests.test_returns_copy_with_matching_text"
