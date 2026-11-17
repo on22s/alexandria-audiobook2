@@ -7,6 +7,9 @@ from unittest.mock import patch
 
 import export_benchmark
 from tests import test_export_benchmark as fixtures
+from tests.test_support import can_symlink
+
+_SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
 
 class ExportSourceBoundaryTests(unittest.TestCase):
@@ -16,7 +19,10 @@ class ExportSourceBoundaryTests(unittest.TestCase):
                 root = Path(tmp); fixture_root = root / 'fixture'; fixture_root.mkdir()
                 payload = fixtures.ExportBenchmarkSourceHashTests().make_payload(fixture_root)
                 outside = root / 'private.wav'; outside.write_bytes((fixture_root / 'sample-0.wav').read_bytes())
-                (fixture_root / 'outside.wav').symlink_to(outside)
+                if mode == 'external-link':
+                    if not can_symlink():
+                        self.skipTest(_SYMLINK_SKIP_REASON)
+                    (fixture_root / 'outside.wav').symlink_to(outside)
                 (fixture_root / 'folder.wav').mkdir()
                 path = {'parent': '../private.wav', 'absolute': str(outside),
                         'external-link': 'outside.wav', 'directory': 'folder.wav', 'missing': 'missing.wav'}[mode]
@@ -36,7 +42,10 @@ class ExportSourceBoundaryTests(unittest.TestCase):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp); payload = fixtures.ExportBenchmarkSourceHashTests().make_payload(root)
                 source = root / 'sample-0.wav'; original = source.read_bytes()
-                (root / 'inside.wav').symlink_to(source)
+                if mode == 'internal-link':
+                    if not can_symlink():
+                        self.skipTest(_SYMLINK_SKIP_REASON)
+                    (root / 'inside.wav').symlink_to(source)
                 path = str(source) if mode == 'absolute' else 'inside.wav'
                 payload['fixture']['chunks'][0]['audio_path'] = path
                 payload['fixture']['audio_sha256'][path] = hashlib.sha256(original).hexdigest()

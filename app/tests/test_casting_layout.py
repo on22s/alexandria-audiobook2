@@ -44,6 +44,16 @@ class CastingLayoutTests(unittest.TestCase):
             self.assertFalse(any(tag == "aside" for tag, name in parser.elements[identity][2]))
             self.assertIn(("div", "casting-workspace"), parser.elements[identity][2])
 
+    def test_play_all_is_at_the_top_of_the_results_list(self):
+        root = Path(__file__).resolve().parents[1]
+        markup = (root / "static/index.html").read_text(encoding="utf-8")
+        self.assertLess(markup.index('id="casting-play-all"'), markup.index('id="casting-results"'))
+        parser = CastingLayoutParser()
+        parser.feed(markup)
+        self.assertNotIn(("details", "casting-tool-details"), parser.elements["casting-play-all"][2])
+        self.assertFalse(any(tag == "details" for tag, name in parser.elements["casting-play-all"][2]))
+        self.assertIn(("div", "casting-tab"), parser.elements["casting-play-all"][2])
+
     def test_research_assets_load_in_order_and_reuse_host_theme(self):
         root = Path(__file__).resolve().parents[1]
         markup = (root / "static/index.html").read_text(encoding="utf-8")

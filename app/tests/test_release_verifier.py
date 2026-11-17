@@ -13,6 +13,7 @@ from unittest.mock import patch
 import ci_env
 import ci_timeout_probe
 import diagnose_pr_changes
+import local_unit_shards
 import mark_pr_ready
 import verify_release
 
@@ -53,6 +54,45 @@ class CiEnvParityTests(unittest.TestCase):
             if line.strip() and not line.strip().startswith("#")
         }
         self.assertNotIn("torch", declared)
+
+    def test_ci_installs_shared_unit_test_requirements_from_app(self):
+        import yaml
+        workflow = yaml.safe_load(self._workflow())
+        unit = workflow["jobs"]["unit"]
+        command = "python -m pip install -r requirements-test.txt"
+        installs = [step for step in unit["steps"]
+                    if command in step.get("run", "").splitlines()]
+        self.assertEqual(1, len(installs))
+        defaults = unit.get("defaults", workflow.get("defaults", {}))
+        directory = installs[0].get(
+            "working-directory", defaults.get("run", {}).get("working-directory"))
+        self.assertEqual("app", directory)
+
+    def test_workflows_do_not_install_unit_test_dependencies_inline(self):
+        import yaml
+        workflows = Path(__file__).resolve().parents[2] / ".github" / "workflows"
+        requirement = re.compile(r"(?<![\w.-])(?:ebooklib|beautifulsoup4|uv)(?![\w.-])", re.I)
+        for path in sorted(workflows.iterdir()):
+            if path.suffix not in (".yml", ".yaml"):
+                continue
+            workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+            for job in workflow.get("jobs", {}).values():
+                for step in job.get("steps", []):
+                    script = re.sub(r"\\\r?\n", " ", step.get("run", ""))
+                    for command in script.splitlines():
+                        install = re.search(r"\b(?:pip3?|uv(?:\s+pip)?)\s+install\b(.*)", command)
+                        if install:
+                            with self.subTest(workflow=path.name, command=command):
+                                self.assertNotRegex(install.group(1), requirement)
+
+    def test_local_unit_shards_reads_shared_unit_test_requirements(self):
+        expected = Path(__file__).resolve().parent.parent / "requirements-test.txt"
+        self.assertTrue(expected.is_file())
+        with patch.object(Path, "read_text", autospec=True, return_value="") as read_manifest:
+            self.assertEqual([], local_unit_shards.get_unit_test_dependency_errors())
+        read_manifest.assert_called_once()
+        self.assertEqual(expected.resolve(), read_manifest.call_args.args[0].resolve())
+        self.assertEqual({"encoding": "utf-8"}, read_manifest.call_args.kwargs)
 
     def test_ci_runs_the_shared_release_verifier(self):
         workflow = self._workflow()
