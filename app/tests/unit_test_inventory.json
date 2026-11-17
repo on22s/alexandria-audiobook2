@@ -16651,6 +16651,11 @@
     , "tests.test_voice_design_worker.VoiceDesignWorkerTests.test_failure_translation_and_conflict_preserve_claim_lifetime"
     , "tests.test_voice_design_worker.VoiceDesignWorkerTests.test_initialization_and_generation_are_owned_worker_operations"
   ]
+  , "test_voice_disclosure_state": [
+    "tests.test_voice_disclosure_state.VoiceDisclosureStateTests.test_caps_recent_books_and_sections_and_migrates_legacy_keys"
+    , "tests.test_voice_disclosure_state.VoiceDisclosureStateTests.test_failed_writes_warn_without_losing_book_scoped_memory"
+    , "tests.test_voice_disclosure_state.VoiceDisclosureStateTests.test_native_actions_defaults_bulk_and_persistence"
+  ]
   , "test_voice_drafts": [
     "tests.test_voice_drafts.VoiceDraftTests.test_acknowledgement_keeps_newest_draft_and_tabs_keep_separate_records"
     , "tests.test_voice_drafts.VoiceDraftTests.test_process_exit_before_debounce_and_fresh_process_recovery_through_real_http"

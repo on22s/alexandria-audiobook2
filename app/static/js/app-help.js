@@ -553,6 +553,7 @@
             'removeStatePersona': 'Remove the saved persona for this state.',
             'editPersonaVoiceAudit': 'Edit the recorded link and reasoning between this persona and its assigned voice.',
             'setVoiceApproval': 'Record the selected review status for this persona or voice. This records your decision; it does not generate audio.',
+            'setVoiceSectionsOpen': 'Expand or collapse all persona review sections. Each voice remembers its last state in this browser.',
             'addVoiceVersion': 'Save a named version of this character’s current voice settings.',
             'openVoiceStates': 'Show voice changes across the character’s states or timeline.',
             'suggestMoreVoices': 'Generate additional voice candidates for this character to compare.',
