@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from dialogue_spans import mark_entries
+from dialogue_spans import _normalize, mark_entries
 from generate_script import LLMGenParams
 from literal_policy import bind_literal_policy, get_literal_policy
 import review_script as review
@@ -742,3 +742,259 @@ class ReviewSourceBindingTests(unittest.TestCase):
                 self.assertEqual(1, len(calls))
                 self.assertFalse(Path(str(source) + '.review_checkpoint.json').exists())
                 self.assertTrue(Path(str(source) + '.review_completed.json').exists())
+
+
+
+SPLIT_RAW = ('A long opening paragraph belongs here.\n\n'
+             'I had seen that look before.\n\n'
+             '"…"\n\n'
+             'For some reason the silence felt heavier than any answer.\n\n'
+             'The gate opens at dusk.\n\n'
+             'I wondered about that.')
+SPLIT_ANNOTATIONS = {'speaker_gender': 'male', 'speaker_age_group': 'young_adult',
+                     'speaker_ageless': True}
+
+
+def split_batch(punctuation='"…"', **narrator_metadata):
+    """One narrator entry holding a quoted one-character line between two
+    sentences, plus two other named speakers (#2036, synthetic text)."""
+    raw = SPLIT_RAW.replace('"…"', punctuation)
+    text = ('I had seen that look before.\n\n' + punctuation + '\n\n'
+            'For some reason the silence felt heavier than any answer.')
+    return raw, mark_entries([{'speaker': 'NARRATOR', 'instruct': 'Reflective narration.',
+                               'text': text, **narrator_metadata},
+                              {'speaker': 'PROFESSOR VALE', 'instruct': 'Lecture.',
+                               'text': 'The gate opens at dusk.'},
+                              {'speaker': 'MIRA SOL', 'instruct': 'Quiet fear.',
+                               'text': 'I wondered about that.'}], raw)
+
+
+def split_reply(batch, new_speaker='TOMAS', middle='"…"', **annotations):
+    """The reporter's response shape: three entries echoing one source_span."""
+    narrator = {'speaker': 'NARRATOR', 'instruct': batch[0]['instruct'],
+                'source_span': list(batch[0]['source_span'])}
+    reply = [{**narrator, 'text': 'I had seen that look before.'},
+             {**narrator, 'speaker': new_speaker, 'text': middle,
+              'instruct': 'Silent, tense pause.', **annotations},
+             {**narrator, 'text': 'For some reason the silence felt heavier than any answer.'}]
+    return reply + [{key: value for key, value in entry.items() if key != 'source_span'}
+                    for entry in batch[1:]]
+
+
+class ReviewNewSpeakerSplitTests(unittest.TestCase):
+    """A split that introduces a speaker unknown to the batch keeps the
+    reviewer's explicit annotations instead of being reported as unresolved."""
+
+    def run_split(self, reply, batch, raw, retries=0):
+        client, calls = client_for([(reply, 'stop')] * (retries + 1))
+        attempts = []
+        stdout = io.StringIO()
+        before = copy.deepcopy(batch)
+        with patch('generate_script.time.sleep'), redirect_stdout(stdout):
+            output = review.review_batch(client, 'fixture', batch, 5, 5,
+                LLMGenParams(), max_retries=retries,
+                attempt_observer=attempts.append, source_text=raw)
+        self.assertEqual(before, batch)
+        return output, calls, attempts, stdout.getvalue()
+
+    def assert_bound_to(self, output, batch, raw):
+        """Every remapped span stays inside its parent interval and still
+        describes the entry's own text; spans are ordered and disjoint."""
+        parent = batch[0]['source_span']
+        contained = [entry for entry in output if parent[0]
+                     <= entry.get('source_span', [None, None])[0] < parent[1]]
+        self.assertEqual(3, len(contained))
+        for entry in contained:
+            start, stop = entry['source_span']
+            self.assertLessEqual(parent[0], start)
+            self.assertLessEqual(stop, parent[1])
+            self.assertEqual(_normalize(raw[start:stop]), _normalize(entry['text']))
+        for previous, current in zip(contained, contained[1:]):
+            self.assertLessEqual(previous['source_span'][1], current['source_span'][0])
+
+    def test_new_speaker_split_with_explicit_annotations_is_accepted_without_a_warning(self):
+        raw, batch = split_batch()
+        reply = split_reply(batch, **SPLIT_ANNOTATIONS, spoken=True)
+        output, calls, attempts, stdout = self.run_split(reply, batch, raw)
+        self.assertEqual(1, len(calls))
+        self.assertEqual('accepted', attempts[0]['outcome'])
+        self.assertNotIn('review_speaker_metadata_unresolved', stdout)
+        self.assertEqual(['I had seen that look before.', '"…"',
+                          'For some reason the silence felt heavier than any answer.',
+                          'The gate opens at dusk.', 'I wondered about that.'],
+                         [entry['text'] for entry in output])
+        self.assertEqual(['NARRATOR', 'TOMAS', 'NARRATOR', 'PROFESSOR VALE', 'MIRA SOL'],
+                         [entry['speaker'] for entry in output])
+        # The reviewer's evidence for the new speaker survives, including a
+        # spoken flag that replaces the source entry's stale one.
+        self.assertEqual({**SPLIT_ANNOTATIONS, 'spoken': True},
+                         {key: output[1][key] for key in (*SPLIT_ANNOTATIONS, 'spoken')})
+        self.assertEqual('Silent, tense pause.', output[1]['instruct'])
+        # The narrator halves keep narrator semantics and the split entry's
+        # inherited flag rather than the new speaker's instruction.
+        for entry in (output[0], output[2]):
+            self.assertEqual('Reflective narration.', entry['instruct'])
+            self.assertIs(False, entry['spoken'])
+            self.assertEqual(set(), {key for key in SPLIT_ANNOTATIONS if key in entry})
+        self.assert_bound_to(output, batch, raw)
+
+    def test_new_speaker_split_is_accepted_in_index_review_without_a_warning(self):
+        _, batch = split_batch(speaker_gender='female', speaker_ageless=True)
+        labels = [{'n': 0, 'speaker': 'TOMAS', 'instruct': 'Silent, tense pause.',
+                   **SPLIT_ANNOTATIONS},
+                  {'n': 1, 'speaker': 'PROFESSOR VALE', 'instruct': 'Lecture.'},
+                  {'n': 2, 'speaker': 'MIRA SOL', 'instruct': 'Quiet fear.'}]
+        ordered, quality = review.get_review_label_binding(batch, labels)
+        self.assertTrue(quality['passed'], quality)
+        bound, warnings = review.get_review_labelled_entries(batch, ordered)
+        self.assertEqual([], warnings)
+        self.assertEqual('TOMAS', bound[0]['speaker'])
+        self.assertEqual(batch[0]['text'], bound[0]['text'])
+        self.assertEqual(batch[0]['source_span'], bound[0]['source_span'])
+        # Explicit traits replace the previous speaker's; every stale trait,
+        # including the quote-derived spoken flag, is cleared rather than kept.
+        self.assertEqual(SPLIT_ANNOTATIONS,
+                         {key: bound[0][key] for key in SPLIT_ANNOTATIONS})
+        self.assertNotIn('spoken', bound[0])
+        self.assertEqual(batch[1:], bound[1:])
+
+    def test_explicit_annotations_do_not_inherit_the_previous_speakers_traits(self):
+        raw, batch = split_batch(speaker_gender='female', speaker_age_group='adult',
+                                 speaker_ageless=True)
+        output, quality = review.get_review_source_binding(
+            batch, split_reply(batch, speaker_age_group='young_adult'), source_text=raw)
+        self.assertEqual([], quality['warnings'])
+        self.assertEqual({'speaker_age_group': 'young_adult'},
+                         {key: output[1][key] for key in review.REVIEW_SPEAKER_FIELDS
+                          if key in output[1]})
+
+    def test_punctuation_only_split_pieces_are_accepted_only_when_the_text_matches(self):
+        for punctuation in ('"…"', '"—"', '"!?"'):
+            with self.subTest(punctuation=punctuation):
+                raw, batch = split_batch(punctuation)
+                output, _, attempts, stdout = self.run_split(
+                    split_reply(batch, middle=punctuation, **SPLIT_ANNOTATIONS), batch, raw)
+                self.assertEqual('accepted', attempts[0]['outcome'], attempts)
+                self.assertNotIn('review_speaker_metadata_unresolved', stdout)
+                self.assertEqual(punctuation, output[1]['text'])
+                self.assert_bound_to(output, batch, raw)
+        # Punctuation is text: an altered mark is still a text change.
+        for source_mark, reply_mark in (('"…"', '"?"'), ('"—"', '"…"'), ('"…"', '"..."')):
+            with self.subTest(source=source_mark, reply=reply_mark):
+                raw, batch = split_batch(source_mark)
+                output, _, attempts, _ = self.run_split(
+                    split_reply(batch, middle=reply_mark, **SPLIT_ANNOTATIONS), batch, raw)
+                self.assertIsNone(output)
+                self.assertIn('review_text_mismatch', attempts[0]['failure_codes'])
+
+    def test_invented_punctuation_only_entry_without_the_source_mark_is_rejected(self):
+        raw, batch = split_batch()
+        reply = split_reply(batch, **SPLIT_ANNOTATIONS)
+        reply[2]['text'] = '"…" For some reason the silence felt heavier than any answer.'
+        output, _, attempts, _ = self.run_split(reply, batch, raw)
+        self.assertIsNone(output)
+        self.assertIn('review_text_mismatch', attempts[0]['failure_codes'])
+        source = [{**batch[0], 'text': 'I had seen that look before. '
+                                      'For some reason the silence felt heavier than any answer.'}]
+        invented = [row('I had seen that look before.', speaker='NARRATOR'),
+                    row('"…"', speaker='TOMAS', **SPLIT_ANNOTATIONS),
+                    row('For some reason the silence felt heavier than any answer.',
+                        speaker='NARRATOR')]
+        output, quality = review.get_review_source_binding(source, invented)
+        self.assertIsNone(output)
+        self.assertFalse(quality['passed'])
+        self.assertEqual(['review_text_mismatch'],
+                         [finding['code'] for finding in quality['findings']])
+
+    def test_new_speaker_split_still_rejects_changed_dropped_duplicated_and_reordered_text(self):
+        raw, batch = split_batch()
+        good = split_reply(batch, **SPLIT_ANNOTATIONS)
+        variants = {
+            'changed': [good[0], good[1],
+                        {**good[2], 'text': 'For some reason the silence felt heavier than any reply.'}],
+            'dropped': [good[0], good[1],
+                        {**good[2], 'text': 'For some reason the silence felt heavier.'}],
+            'duplicated': [good[0], good[1], good[2], copy.deepcopy(good[2])],
+            'reordered': [good[2], good[1], good[0]],
+        }
+        for name, reply in variants.items():
+            with self.subTest(variant=name):
+                output, _, attempts, _ = self.run_split(reply, batch, raw, retries=1)
+                self.assertIsNone(output)
+                self.assertEqual(['quality_rejected', 'quality_rejected'],
+                                 [attempt['outcome'] for attempt in attempts])
+                self.assertIn('review_text_mismatch', attempts[0]['failure_codes'])
+
+    def test_annotationless_and_clearing_replies_still_report_unresolved_metadata(self):
+        raw, batch = split_batch()
+        for extra in ({}, {'speaker_gender': None}):
+            with self.subTest(reply_annotations=extra):
+                reply = split_reply(batch)
+                reply[1].update(extra)
+                output, quality = review.get_review_source_binding(
+                    batch, reply, source_text=raw)
+                self.assertEqual('review_speaker_metadata_unresolved',
+                                 quality['warnings'][0]['code'])
+                self.assertEqual(2, quality['warnings'][0]['entry_number'])
+                self.assertEqual(set(), {key for key in review.REVIEW_SPEAKER_FIELDS
+                                         if key in output[1]})
+
+    def test_cli_publishes_the_new_speaker_split_with_its_explicit_annotations(self):
+        from tests.test_review_source_spans import create_book
+        raw, batch = split_batch()
+        reply = split_reply(batch, **SPLIT_ANNOTATIONS, spoken=True)
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, _ = create_book(directory, raw=raw, source=batch)
+            client, calls = client_for([(reply, 'stop')])
+            config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
+                      'generation': {'review_batch_size': 9}}
+            stdout = io.StringIO()
+            with ExitStack() as stack:
+                stack.enter_context(redirect_stdout(stdout))
+                stack.enter_context(patch.object(review.sys, 'argv',
+                                                ['review', '--input', str(script)]))
+                for name, value in (('get_runtime_data_dir', directory), ('load_app_config', config),
+                                    ('ensure_ideal_settings', (True, {}, 'fixture')),
+                                    ('get_active_llm_config', config['llm_remote']),
+                                    ('make_run_client', client),
+                                    ('get_cached_or_benchmarked_concurrency', 1),
+                                    ('get_current_status', {'loaded': False})):
+                    stack.enter_context(patch.object(review, name, return_value=value))
+                stack.enter_context(patch.object(review, 'wait_for_vram_headroom',
+                                                side_effect=AssertionError('No GPU calls')))
+                review.main()
+            saved = json.loads(Path(script).read_text(encoding='utf-8'))
+            self.assertEqual(1, len(calls))
+            self.assertNotIn('review_speaker_metadata_unresolved', stdout.getvalue())
+            self.assertEqual(['I had seen that look before.', '"…"',
+                              'For some reason the silence felt heavier than any answer.',
+                              'The gate opens at dusk.', 'I wondered about that.'],
+                             [entry['text'] for entry in saved])
+            self.assertEqual('TOMAS', saved[1]['speaker'])
+            self.assertEqual({**SPLIT_ANNOTATIONS, 'spoken': True},
+                             {key: saved[1][key] for key in (*SPLIT_ANNOTATIONS, 'spoken')})
+            self.assert_bound_to(saved, batch, raw)
+            self.assertFalse(Path(str(script) + '.review_checkpoint.json').exists())
+            self.assertTrue(Path(str(script) + '.review_completed.json').exists())
+
+    def test_invalid_supplied_annotations_are_still_refused(self):
+        raw, batch = split_batch()
+        for bad in ({'speaker_gender': 'Male'}, {'speaker_ageless': 'yes'},
+                    {'spoken': 'true'}, {'type': 'narration'}):
+            with self.subTest(annotation=bad):
+                output, _, attempts, _ = self.run_split(
+                    split_reply(batch, **bad), batch, raw)
+                self.assertIsNone(output)
+                self.assertIn('review_annotation_value', attempts[0]['failure_codes'])
+
+    def test_explicit_values_still_win_over_a_known_speaker_donor(self):
+        batch = [row('First portion.', speaker='NARRATOR', spoken=False),
+                 row('Second portion.', speaker='BOB', spoken=True,
+                     speaker_gender='male', speaker_age_group='adult')]
+        reply = [row('First portion.', speaker='BOB', speaker_gender='female'), batch[1]]
+        output, quality = review.get_review_source_binding(batch, reply)
+        self.assertEqual([], quality['warnings'])
+        self.assertEqual('female', output[0]['speaker_gender'])
+        # Omitted annotations still follow the known source row for BOB.
+        self.assertEqual('adult', output[0]['speaker_age_group'])
+        self.assertIs(True, output[0]['spoken'])

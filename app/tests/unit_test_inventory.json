@@ -12000,7 +12000,17 @@
     , "tests.test_review_partial_retention.TypedMetadataMergeTests.test_matching_bool_spoken_values_merge_and_keep_bool"
   ]
   , "test_review_source_binding": [
-    "tests.test_review_source_binding.ReviewSourceBindingTests.test_adaptive_split_rebinds_annotations_against_original_batch"
+    "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_annotationless_and_clearing_replies_still_report_unresolved_metadata"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_cli_publishes_the_new_speaker_split_with_its_explicit_annotations"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_explicit_annotations_do_not_inherit_the_previous_speakers_traits"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_explicit_values_still_win_over_a_known_speaker_donor"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_invalid_supplied_annotations_are_still_refused"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_invented_punctuation_only_entry_without_the_source_mark_is_rejected"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_new_speaker_split_is_accepted_in_index_review_without_a_warning"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_new_speaker_split_still_rejects_changed_dropped_duplicated_and_reordered_text"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_new_speaker_split_with_explicit_annotations_is_accepted_without_a_warning"
+    , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_punctuation_only_split_pieces_are_accepted_only_when_the_text_matches"
+    , "tests.test_review_source_binding.ReviewSourceBindingTests.test_adaptive_split_rebinds_annotations_against_original_batch"
     , "tests.test_review_source_binding.ReviewSourceBindingTests.test_adaptive_split_recombination_restores_original_pause_boundary"
     , "tests.test_review_source_binding.ReviewSourceBindingTests.test_ambiguous_repeated_word_sequences_reject_punctuation_recovery"
     , "tests.test_review_source_binding.ReviewSourceBindingTests.test_annotationless_correction_does_not_claim_attributes_were_cleared"
@@ -12070,7 +12080,7 @@
     , "tests.test_review_source_spans.ReviewSourceSpanTests.test_shared_parent_spans_capture_exact_partition_for_active_and_saved_books"
     , "tests.test_review_source_spans.ReviewSourceSpanTests.test_shared_parent_spans_do_not_block_unrelated_speaker_reassignment"
     , "tests.test_review_source_spans.ReviewSourceSpanTests.test_single_original_entry_split_also_gets_disjoint_exact_spans"
-    , "tests.test_review_source_spans.ReviewSourceSpanTests.test_span_free_receipts_keep_the_version_11_fingerprint_and_skip_the_model"
+    , "tests.test_review_source_spans.ReviewSourceSpanTests.test_span_free_receipts_follow_the_review_algorithm_version_and_skip_the_model"
     , "tests.test_review_source_spans.ReviewSourceSpanTests.test_span_rejection_identifies_entry_fragment_and_reason_without_content"
   ]
   , "test_review_start_over": [

@@ -34,8 +34,9 @@ the model reproduced all input keys or made semantically correct speaker choices
 
 The response contract also applies to custom and literal classic-review prompts.
 Index-only review keeps its separate `{n, speaker, instruct}` contract. Review
-algorithm identity is 10 for the current review semantics, invalidating older
-completed receipts, checkpoints and benchmark evidence.
+algorithm identity is 12 for the current review semantics (14 for a source-span
+book, whose receipt and checkpoint identity carries the source-span version),
+invalidating older completed receipts, checkpoints and benchmark evidence.
 
 For #1957, a full-text response may move part of an entry between narrator and
 character labels even when the resulting model entry overlaps different source
@@ -59,7 +60,11 @@ uses exact speaker identity after trimming and case folding, without fuzzy guess
 When stale annotations exist, missing, entirely unannotated or conflicting target
 states clear these four fields and emit
 `review_speaker_metadata_unresolved`; they do not alter source provenance, type,
-text or pauses. Model-supplied annotations remain ignored. Index-only,
+text or pauses. For #2036, a corrected speaker with no known source row keeps the
+annotations the reviewer supplied for it: those are the model's evidence, so they
+are neither cleared nor reported, and only an unannotated correction warns.
+Supplied values still win over a known-speaker fallback, and an explicit null is
+a clear rather than evidence. Index-only,
 punctuation-recovery, adaptive recombination and partial-label retention use the
 same policy; partial results remain incomplete and retryable. Annotation warnings
 include entry numbers and are printed to the full task log. Successful CLI receipts
