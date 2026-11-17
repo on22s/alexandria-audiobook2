@@ -18,7 +18,7 @@ const ctx={console:{error(){}},showToast:(text,tone)=>toasts.push({text,tone}),
  showActionError:(text,error,recovery,tone)=>toasts.push({text,reason:error&&error.message,tone}),API:{get:async()=>({pauses:[]})},setTimeout,clearTimeout,document:{
  getElementById(id){assert.strictEqual(id,'btn-play-seq');return button;},
  querySelectorAll(selector){if(selector==='audio'||selector==='.chunk-audio'){return audios;}assert.strictEqual(selector,'tr');return rows;}}};ctx.window=ctx;
-vm.createContext(ctx);
+vm.createContext(ctx);ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.escapeHtml=ctx.escapeHtml||(s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'));
 vm.runInContext(source.slice(source.indexOf('let isPlayingSequence ='),source.indexOf('let isRenderingAll =')),ctx);
 vm.runInContext(source.slice(source.indexOf('window.stopOthers ='),source.indexOf('const pendingChunkEdits =')),ctx);
 vm.runInContext(source.slice(source.indexOf("let currentBookFilename ="),source.indexOf('function enqueueBookSelection')),ctx);

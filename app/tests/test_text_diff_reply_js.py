@@ -9,7 +9,7 @@ function setup(){const panel={style:{display:'none'},innerHTML:'',textContent:''
 const context={currentBookFilename:'A',chunkEditsRevision:0,pendingChunkEdits:new Map(),failedChunkEdits:new Map(),escapeHtml:String,
 document:{getElementById:id=>id==='text-diff-panel'?panel:id==='text-diff-summary'?summary:{}},API:{get:()=>new Promise((resolve,reject)=>reads.push({resolve,reject}))},showActionError:(...args)=>errors.push(args)};
 context.window=context;
-vm.createContext(context);const start=source.indexOf('let editorIntegrityView =');vm.runInContext(source.slice(start,source.indexOf('function scrollToChunkRow(',start)),context);return{context,panel,summary,errors,reads};}
+vm.createContext(context);context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.pluralForm=context.pluralForm||(count=>new Intl.PluralRules('en-US').select(count)==='one'?'one':'many');const start=source.indexOf('let editorIntegrityView =');vm.runInContext(source.slice(start,source.indexOf('function scrollToChunkRow(',start)),context);return{context,panel,summary,errors,reads};}
 const old={status:'verified',totals:{script_words:2,source_words:2,deleted:0,inserted:0,replaced:0},hunks:[]};
 const fresh={status:'differences',totals:{script_words:2,source_words:2,deleted:0,inserted:0,replaced:1},hunks:[{kind:'replace',chunk:0,entry_index:0,source_words:'OLD',script_words:'NEW',source_before:'',source_after:''}]};
 '''

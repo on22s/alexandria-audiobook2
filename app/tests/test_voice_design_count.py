@@ -203,7 +203,7 @@ const s=fs.readFileSync(process.argv[1],'utf8');
 const posts=[],toasts=[];
 const c={window:{},showToast:(m)=>toasts.push(m),flushVoiceSaves:async()=>{},pollPersonaStatus:()=>{},
   showActionError:(t,e)=>{throw e;},API:{post:async(url,body)=>{posts.push(body);}}};
-vm.createContext(c);
+vm.createContext(c);c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));
 vm.runInContext(s.slice(s.indexOf('function getDesignCount('),s.indexOf('window.generateAgeVersion')),c);
 function card(value){const input={value,max:'100'};
   return{dataset:{voice:'ALICE'},querySelector:(q)=>q==='.design-line-select'?{value:'Okay'}:q==='.design-count'?input:null};}

@@ -12,7 +12,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),s=fs.readFileSy
 const buttons=[{disabled:false,innerHTML:'Save'},{disabled:true,innerHTML:'Save'}],status={textContent:''};
 const fields={'config-form':{querySelectorAll:()=>buttons},'config-save-button':buttons[0],'config-save-button-top':buttons[1],'config-save-status':status,'toast-container':{insertAdjacentHTML(){}}};
 let writes=0,rejectPost=false,followups=0;const errors=[];
-const c={window:{},document:{getElementById:id=>fields[id]||{}},console:{debug:(...args)=>errors.push(args)},API:{post:async()=>{if(rejectPost){throw Error('server refused');}writes++;}}};vm.createContext(c);
+const c={window:{},document:{getElementById:id=>fields[id]||{}},console:{debug:(...args)=>errors.push(args)},API:{post:async()=>{if(rejectPost){throw Error('server refused');}writes++;}}};vm.createContext(c);c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));
 vm.runInContext('let configSavePending=false;let toastSequence=0;',c);
 c.t=(key,english,values={})=>String(english).replace(/\{(\w+)\}/g,(m,n)=>Object.hasOwn(values,n)?String(values[n]):m);
 vm.runInContext(s.slice(s.indexOf('function renderReviewLabelsOnlyPointer('),s.indexOf('// The whole payload in one place')),c);
