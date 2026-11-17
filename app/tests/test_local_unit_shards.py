@@ -34,6 +34,24 @@ class LocalAggregationTests(unittest.TestCase):
     def aggregate(self, reports):
         return self.local.aggregate_unit_reports(reports, self.identifiers, 2)
 
+    def test_missing_test_dependencies_are_named_before_shards_start(self):
+        with patch.object(self.local.metadata, 'version',
+                          side_effect=self.local.metadata.PackageNotFoundError), \
+             patch.object(self.local, 'start_owned_subprocess') as start:
+            errors = self.local.get_unit_test_dependency_errors()
+            self.assertIn('EbookLib==0.20 (installed: missing)', errors)
+            self.assertTrue(any('beautifulsoup4==' in error for error in errors))
+            self.assertTrue(any('uv==' in error for error in errors))
+            with self.assertRaisesRegex(RuntimeError, 'Unit test dependencies unavailable:.*EbookLib'):
+                self.local.run_local_unit_tests(APP.parent, workers=2)
+        start.assert_not_called()
+
+    def test_wrong_test_dependency_version_is_refused(self):
+        with patch.object(self.local.metadata, 'version', return_value='0.0.0'):
+            errors = self.local.get_unit_test_dependency_errors()
+        self.assertTrue(errors)
+        self.assertTrue(all('installed: 0.0.0' in error for error in errors))
+
     def test_windows_environment_keeps_hidden_drive_state_and_clears_git_routing(self):
         import windows_subprocess_owner
         environment = {'=C:': r'C:\original', 'Path': 'native-path',
@@ -600,6 +618,34 @@ class LocalWorktreeTests(unittest.TestCase):
             self.repo, workers=options.pop('workers', 2), shard_count=2,
             report_dir=self.root / 'reports', timeout=options.pop('timeout', 60), **options)
 
+    def test_empty_inventory_module_does_not_change_discovery_assignment(self):
+        tests = self.repo / 'app/tests'
+        inventory = json.loads((tests / 'unit_test_inventory.json').read_text(encoding='utf-8'))
+        inventory['test_empty'] = []
+        (tests / 'unit_test_inventory.json').write_text(json.dumps(inventory), encoding='utf-8')
+        (tests / 'test_empty.py').write_text('', encoding='utf-8')
+        (tests / 'module_durations.json').write_text(json.dumps({
+            'test_first': 60, 'test_second': 60, 'test_empty': 120}), encoding='utf-8')
+        result = self.run_units()
+        self.assertEqual('passed', result['status'], result['problems'])
+        self.assertTrue(result['counts_complete'])
+        self.assertEqual(2, result['tests_ran'])
+        self.assertEqual(set(self.identifiers), set(result['test_ids']))
+
+    def test_import_failure_in_empty_inventory_module_is_still_refused(self):
+        tests = self.repo / 'app/tests'
+        inventory = json.loads((tests / 'unit_test_inventory.json').read_text(encoding='utf-8'))
+        inventory['test_broken'] = []
+        (tests / 'unit_test_inventory.json').write_text(json.dumps(inventory), encoding='utf-8')
+        (tests / 'test_broken.py').write_text("raise ImportError('synthetic discovery failure')\n",
+                                            encoding='utf-8')
+        result = self.run_units()
+        self.assertEqual('failed', result['status'])
+        self.assertFalse(result['counts_complete'])
+        self.assertEqual(1, result['errors'])
+        self.assertTrue(any('_FailedTest' in identifier for identifier in result['test_ids']))
+        self.assertTrue(any('executed identities differ' in problem for problem in result['problems']))
+
     def test_dirty_staged_untracked_and_crlf_inputs_are_frozen_without_index_or_ref_changes(self):
         payload = self.repo / 'app/payload.txt'
         payload.write_bytes(b'staged\n')
@@ -610,6 +656,8 @@ class LocalWorktreeTests(unittest.TestCase):
         for name in ('first', 'second'):
             self.write_test(name, "self.assertTrue(all(os.environ.get(key) == '' for key in "
                             "('CUDA_VISIBLE_DEVICES','HIP_VISIBLE_DEVICES','ROCR_VISIBLE_DEVICES'))); "
+                            "self.assertEqual(str(Path(sys.executable).parent), "
+                            "os.environ['PATH'].split(os.pathsep)[0]); "
                             "from needed import VALUE; self.assertEqual('untracked', VALUE); "
                             "self.assertEqual(b'working\\r\\n', Path('payload.txt').read_bytes()); "
                             "self.assertFalse(Path('../private.txt').exists()); "
