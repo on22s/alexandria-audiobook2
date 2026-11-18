@@ -42,10 +42,13 @@ manual visual check, not a rule change.
 - Source: inline theme tokens in `index.html` (`:root` for light; first
   `html[data-theme="…"]` block per theme).
 - Formula: WCAG relative luminance with sRGB linearization,
-  `(L_light + 0.05)/(L_dark + 0.05)`. Shared helper: `contrast()` in
-  `app/tests/test_settings_discovery_js.py`. Tool: Python 3.11.9, stdlib only.
-- Repeat: `PYTHONUTF8=1 python -m unittest tests.test_settings_discovery_js.DarkThemeContrastTests -v`
-  from `app/`. A new test pins every pair for all six themes.
+  `(L_light + 0.05)/(L_dark + 0.05)`. The all-six-themes guard is
+  `UIContractTests.test_theme_text_and_input_border_contrast` in
+  `app/tests/test_ui_contract.py`; `DarkThemeContrastTests` in
+  `test_settings_discovery_js.py` still covers only night/super-night and owns
+  the local `contrast()` helper. Tool: Python 3.11.9, stdlib only.
+- Repeat: `PYTHONUTF8=1 python -m unittest tests.test_ui_contract tests.test_settings_discovery_js -v`
+  from `app/`.
 
 | Theme | primary/card | muted/card | muted/card-header | border-input/input | accent-strong/card |
 | --- | ---: | ---: | ---: | ---: | ---: |
