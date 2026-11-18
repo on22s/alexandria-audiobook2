@@ -25,12 +25,13 @@ theme-specific shadows; Cyberpunk retains its established glow.
   responsive cluster and the existing brand badge instead of disappearing below
   1600 pixels. A collapsed mobile menu still has its existing brand build badge.
   From 1600 pixels up the bar follows the page content width (85%) instead of
-  Bootstrap's 1320px container cap. The returning build badge had been added
-  without any added room, so the navbar wrapped onto a second row: measured in
-  the browser on placeholder readings, the bar needed 1167px of a 1157px
-  collapse at 1600 and became one 60px row at 1183px once the width followed the
-  content. 1280 and 1440 are unchanged (1320px cap, one row at 48px slack), and
-  1920 is one row at the same 1618px as the page content.
+  Bootstrap's 1320px container cap. Above that tier's edge the badges return to
+  their full padding and the pill's 20rem cap is lifted, which adds about 66px,
+  while the capped container adds none: measured in the browser on placeholder
+  readings, the bar needed 1167px of a 1157px collapse at 1600 and became one
+  60px row at 1183px once the width followed the content. 1280 and 1440 are
+  unchanged (1320px cap, one row at 48px slack), and 1920 is one row at the same
+  1618px as the page content.
 - Connection results sit next to the endpoint. Busy state includes a spinner;
   elapsed milliseconds cover the whole HTTP round trip, including queue/network
   time, not model-only latency. Failures offer local troubleshooting guidance.

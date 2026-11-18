@@ -180,6 +180,15 @@ class FrontendTests(unittest.TestCase):
                          "runtime.short_revision", "runtime.packages",
                          "Revision unavailable"):
             self.assertIn(required, frontend)
+        # Above 1600px the badges lose their compaction, which needs room the
+        # 1320px-capped .container never provides, so the bar follows the page
+        # content width instead of wrapping onto a second row. This only pins the
+        # rule's presence; the one-row fit itself is measured in a browser.
+        self.assertRegex(
+            frontend,
+            r"@media\s*\(min-width:\s*1600px\)\s*\{[^}]*"
+            r"\.navbar\s*>\s*\.container\s*\{[^}]*max-width:\s*85%",
+        )
 
     def test_lora_candidate_comparison_is_advisory_and_separate_from_promotion(self):
         frontend = _read_frontend_source()
