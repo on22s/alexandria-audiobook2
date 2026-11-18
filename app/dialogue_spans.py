@@ -168,26 +168,32 @@ def _ambiguous_mark_roles(text):
         return found < len(candidates)
 
     closes, opens = set(), set()
-    pending = 0
+    de_stack = []
     for pos, mark in all_marks:
         if mark == "„":
-            pending += 1
+            de_stack.append(pos)
         elif mark == "“":
             index = bisect_right(positions, pos)
             has_closer = index < len(positions) and mark_at[positions[index]] == "”"
             if not closer_candidate[pos] and has_closer:
                 # Real English content: nested only if a later `“` in this same
-                # German segment can still close the pair.
+                # German segment can still close the pair. With no later `“`,
+                # a real pending `„` (text directly after it) is closed here;
+                # only a whitespace-padded `„` is a stray mark.
                 after = bisect_right(quotes, pos)
-                opens_english = (after == len(quotes)
-                                 or later_closer_in_segment(pos, after))
+                if after == len(quotes) and de_stack:
+                    opener = de_stack[-1] + 1
+                    opens_english = opener >= len(text) or text[opener].isspace()
+                else:
+                    opens_english = (after == len(quotes)
+                                     or later_closer_in_segment(pos, after))
             else:
                 opens_english = False
-            if opens_english or not pending:
+            if opens_english or not de_stack:
                 opens.add(pos)
             else:
                 closes.add(pos)
-                pending -= 1
+                de_stack.pop()
     return closes, opens
 
 

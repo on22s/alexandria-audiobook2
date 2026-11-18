@@ -148,6 +148,20 @@ class SpanTest(unittest.TestCase):
         self.assertEqual(["German.", "Real."],
             [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
 
+    def test_a_stray_closer_after_german_speech_keeps_narration_out(self):
+        # A `”` after narration, with no later `“`, must not flip the real
+        # German closer into an English opener — otherwise the speech is lost
+        # and the narration is marked spoken and voiced by a character.
+        source = "„Ich bin da.“Er ging nach Hause”und schwieg."
+        self.assertEqual(["Ich bin da."],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+        marked = mark_entries([
+            {"speaker": "OTHER", "text": "Ich bin da."},
+            {"speaker": "HER", "text": "Er ging nach Hause"},
+        ], source, "paired_quotes")
+        self.assertTrue(marked[0]["spoken"])
+        self.assertFalse(marked[1]["spoken"])
+
     def test_a_later_german_pair_does_not_merge_an_earlier_speech(self):
         # The close-capable `“` of a SECOND German pair must not make the first
         # pair's closer look like an English opener. Otherwise the two speeches
