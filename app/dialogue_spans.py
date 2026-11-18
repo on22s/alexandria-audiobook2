@@ -58,6 +58,8 @@ OTHER_PAIRED = [
     # anchors the pair on its own; the closer is the next ‘ after it.
     re.compile(r"‚([^‚‘\n]+)‘"),
 ]
+# A mark here can ALSO close a different pair - `“` closes `„…“` - so a caller
+# must skip an occurrence that closes a real pair. get_other_speech_spans does.
 UNCLOSED_OPENERS = {"“": "”", "「": "」", "『": "』", "„": "“"}
 
 # Marks stripped before an entry's text is matched against the source: the
@@ -66,6 +68,16 @@ UNCLOSED_OPENERS = {"“": "”", "「": "」", "『": "』", "„": "“"}
 # breaks every contraction.
 QUOTE_MARKS = '"“”„「」『』＂'
 _QUOTE_MARKS_RE = re.compile(f"[{QUOTE_MARKS}]")
+# Where a quote can START, for the one place that must recognise a mark without
+# pairing it (a printed speaker name sits immediately before one). Derived from
+# PAIRED so a newly paired convention cannot be forgotten here.
+QUOTE_OPENERS = "".join(dict.fromkeys(opener for opener, _closer in PAIRED))
+
+# A blank line however the source spells it: LF, CRLF or CR, with spaces or tabs
+# on the empty line. `"\n\n"` alone was blind to every file whose blank lines
+# carry a trailing space, which left the cross-paragraph refusal below silently
+# optional on exactly those books.
+BLANK_LINE = re.compile(r"(?:\r\n|\r|\n)[ \t]*(?:\r\n|\r|\n)")
 
 
 def _paragraph_breaks(text):
@@ -81,14 +93,20 @@ def _paragraph_breaks(text):
     """
     breaks, search = [], 0
     while True:
-        at = text.find("\n\n", search)
-        if at == -1:
+        found = BLANK_LINE.search(text, search)
+        if found is None:
             return breaks
-        after = at + 2
-        while after < len(text) and text[after] in " \t\n":
+        at, after = found.start(), found.end()
+        while after < len(text) and text[after] in " \t\r\n":
             after += 1
         breaks.append((at, after))
         search = at + 1
+
+
+def _next_blank_line(text, start):
+    """-> offset of the first blank line at or after `start`, or -1."""
+    found = BLANK_LINE.search(text, start)
+    return -1 if found is None else found.start()
 
 
 def _is_unbroken(breaks, position, end):
@@ -99,12 +117,46 @@ def _is_unbroken(breaks, position, end):
 
 def _paired_spans(text):
     spans = []
-    breaks = None
+    breaks = starts = None
+    masks = {}
+
+    def prepare():
+        """-> (breaks, offsets where a paragraph begins), built once per call.
+
+        Lazy on purpose: a text whose openers never close completes no pair and
+        so pays no paragraph scan at all, which the unclosed-opener cost test
+        pins.
+        """
+        nonlocal breaks, starts
+        if breaks is None:
+            breaks = _paragraph_breaks(text)
+            starts = {after for _at, after in breaks}
+        return breaks, starts
+
+    def narration_breaks(opener):
+        """-> offsets of the breaks this opener does NOT re-open."""
+        mask = masks.get(opener)
+        if mask is None:
+            mask = [at for at, after in prepare()[0]
+                    if not text.startswith(opener, after)]
+            masks[opener] = mask
+        return mask
+
     for opener, closer in PAIRED:
         if opener == closer:
-            # Straight quotes cannot be told apart, so pair them in order and
-            # ignore an unmatched trailing one rather than running to the end
-            # of the book.
+            # Straight quotes cannot be told apart, so they can only be paired
+            # by position - and in a book that mixes “ ” with " ", one
+            # unmatched straight mark shifts every pair after it and the
+            # "span" swallows the narration between two unrelated quotes. That
+            # is not hypothetical: it marked `I was taken aback.` as spoken in
+            # mushoku18 and inflated the misattribution rate.
+            #
+            # So a straight pair answers the SAME question a distinct-mark pair
+            # does: does a narration break sit between these two marks? A break
+            # the next paragraph re-opens with this same mark is a continued
+            # speech, not a close. The old blanket "no blank line in any
+            # straight pair" answered a different question, and lost the first
+            # paragraph of every continued speech with it.
             positions = []
             for match in re.finditer(re.escape(opener), text):
                 position = match.start()
@@ -113,22 +165,28 @@ def _paired_spans(text):
                 if len(positions) % 2 == 0 and position and text[position - 1].isdigit():
                     continue
                 positions.append(position)
-            for start, end in zip(positions[0::2], positions[1::2]):
-                if end - start <= 1:
-                    continue
-                # A SPAN MAY NOT CROSS A PARAGRAPH BREAK. Straight quotes are
-                # identical opening and closing, so they can only be paired by
-                # position - and in a book that mixes “ ” with " ", one
-                # unmatched straight mark shifts every pair after it and the
-                # "span" swallows the narration between two unrelated quotes.
-                # That is not hypothetical: it marked `I was taken aback.` as
-                # spoken in mushoku18 and inflated the misattribution rate.
-                #
-                # Dialogue does not span a blank line. Narration between two
-                # quotes always does.
-                if "\n\n" in text[start:end]:
+            index = 0
+            while index + 1 < len(positions):
+                start = positions[index]
+                end = None
+                for candidate_index in range(index + 1, len(positions)):
+                    candidate = positions[candidate_index]
+                    if candidate - start <= 1:
+                        continue
+                    if candidate in prepare()[1]:
+                        # The mark opens the paragraph after a blank line, so it
+                        # re-opens this same quote and the speech continues.
+                        continue
+                    if not _is_unbroken(narration_breaks(opener), start, candidate):
+                        # Every later mark crosses that same break too.
+                        break
+                    end = candidate
+                    break
+                if end is None:
+                    index += 1
                     continue
                 spans.append((start + 1, end))
+                index = bisect_right(positions, end)
         else:
             # One rule for every pair, short or long: a blank line inside it
             # must be followed by the same mark and nothing else. A long speech
@@ -150,13 +208,7 @@ def _paired_spans(text):
                 if end == -1:
                     break
                 if bad_breaks is None:
-                    # Built for the first complete pair only: a text whose
-                    # openers never close pays no paragraph scan at all, which
-                    # is the property the unclosed-opener cost test pins.
-                    if breaks is None:
-                        breaks = _paragraph_breaks(text)
-                    bad_breaks = [at for at, after in breaks
-                                  if not text.startswith(opener, after)]
+                    bad_breaks = narration_breaks(opener)
                 if position + 1 < end and _is_unbroken(bad_breaks, position, end):
                     spans.append((position + 1, end))
                     position = text.find(opener, end + 1)
@@ -237,7 +289,7 @@ def get_other_speech_spans(text, convention):
     if convention is None:
         return []
     spans = [(m.start(1), m.end(1)) for pattern in OTHER_PAIRED for m in pattern.finditer(text)
-             if "\n\n" not in m.group(1)]
+             if BLANK_LINE.search(text, m.start(1), m.end(1)) is None]
     if convention != "dash_lines":
         spans += [(m.start(1), m.end(1)) for m in DASH_LINE.finditer(text)]
     if convention != "paired_quotes":
@@ -246,8 +298,13 @@ def get_other_speech_spans(text, convention):
         # An opening mark with no partner: speech to the end of its paragraph.
         # Membership is one bisect into the merged pairs, not a scan of all of
         # them per opener, which made well-formed books quadratic.
+        pairs = sorted(_paired_spans(text))
+        # The mark that CLOSES a real pair, by offset. `“` closes `„…“`, so without
+        # this every German speech ended in a phantom "unclosed opener"
+        # covering the rest of its paragraph.
+        closed = {stop for _begin, stop in pairs}
         merged = []
-        for begin, stop in sorted(_paired_spans(text)):
+        for begin, stop in pairs:
             if merged and begin <= merged[-1][1]:
                 merged[-1] = (merged[-1][0], max(merged[-1][1], stop))
             else:
@@ -259,13 +316,15 @@ def get_other_speech_spans(text, convention):
                 start = match.start() + 1
                 if text.startswith(closer, start):  # “” is closed, just empty
                     continue
+                if match.start() in closed:
+                    continue
                 index = bisect_right(starts, start) - 1
                 if index >= 0 and merged[index][1] >= start:
                     continue
                 # Openers are ordered: reuse this paragraph's end, including
                 # the absence of another break, as _paired_spans does.
                 if paragraph_break is None or 0 <= paragraph_break < start:
-                    paragraph_break = text.find("\n\n", start)
+                    paragraph_break = _next_blank_line(text, start)
                 spans.append((start, len(text) if paragraph_break == -1 else paragraph_break))
     return spans
 
@@ -540,7 +599,7 @@ def apply_source_narration(entries):
 # needs no model call at all.
 LABEL_BEFORE_QUOTE = re.compile(
     r'(?:^|\n)[ \t]*([^\W\d_][\w.\'’-]{1,20}(?:[ \t]+[^\W\d_][\w.\'’-]{1,20}){0,2})'
-    r'[ \t]+(?=[“"「『])')
+    r'[ \t]+(?=[' + QUOTE_OPENERS + '])')
 
 
 def speaker_labels(text, minimum_repeats=3, speaker_names=()):
