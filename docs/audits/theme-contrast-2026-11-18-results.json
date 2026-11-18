@@ -1,0 +1,28 @@
+{
+  "method": "axe-core 4.14.1 color-contrast, puppeteer-core 25.18.1 on Edge, live app, 6 themes x 13 tab panels at 1600x1200; color transitions finished before measuring",
+  "before": {
+    "commit": "49a37280",
+    "note": "measured on the base commit; independently reproduced with the same method",
+    "total": 11,
+    "themes": {
+      "light": {"violations": 6, "targets": ["span[data-i18n=voices.open-casting]", "span[data-i18n=designer.saved.refresh]", "button[data-i18n=casting.phone.voices]", "button[data-i18n=casting.phone.designer]", "span[data-i18n=casting.refresh]", "span[data-i18n=training.adapters.refresh]"]},
+      "night": {"violations": 1, "targets": ["a[data-i18n=script.review.download-log]"]},
+      "super-night": {"violations": 1, "targets": ["a[data-i18n=script.review.download-log]"]},
+      "cyberpunk": {"violations": 1, "targets": ["a[data-i18n=script.review.download-log]"]},
+      "bread": {"violations": 1, "targets": ["a[data-i18n=script.review.download-log]"]},
+      "leek": {"violations": 1, "targets": ["a[data-i18n=script.review.download-log]"]}
+    }
+  },
+  "after": {
+    "note": "run on this PR head; reproduced by an independent reviewer",
+    "total": 0,
+    "themes": {
+      "light": {"violations": 0, "incomplete": 22},
+      "night": {"violations": 0, "incomplete": 22},
+      "super-night": {"violations": 0, "incomplete": 22},
+      "cyberpunk": {"violations": 0, "incomplete": 26},
+      "bread": {"violations": 0, "incomplete": 22},
+      "leek": {"violations": 0, "incomplete": 22}
+    }
+  }
+}

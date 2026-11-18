@@ -33,7 +33,18 @@ const TABS = ['home', 'setup', 'script', 'voices', 'audio', 'designer', 'casting
   // Theme changes animate color over 0.25s; finish animations and wait before
   // measuring, or axe sees the previous theme's colors.
   const settle = () => page.evaluate(() => new Promise((resolve) => {
-    document.getAnimations().forEach((animation) => animation.finish());
+    // Same filter as the app's own applyTheme(): finishing a CSS transition on
+    // color is safe, but finishing an infinite animation (e.g. an indeterminate
+    // progress bar) throws InvalidStateError and changes what axe sees.
+    if (typeof CSSTransition !== 'undefined') {
+      document.getAnimations().forEach((animation) => {
+        const property = animation.transitionProperty;
+        if (animation instanceof CSSTransition &&
+            (property === 'color' || property.endsWith('-color') || property === 'box-shadow')) {
+          animation.finish();
+        }
+      });
+    }
     setTimeout(resolve, 350);
   }));
   const runAxe = () => page.evaluate(async () =>

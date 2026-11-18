@@ -20,7 +20,7 @@ and a **rendered axe-core run** against the live app.
   violation.
 
 **Before the fix:** light 6 nodes, night 1, super-night 1, cyberpunk 1, bread 1,
-leek 1 (16 total). All were Bootstrap's literal `#0d6efd` leaking through:
+leek 1 (**11 total**). All were Bootstrap's literal `#0d6efd` leaking through:
 `.btn-outline-primary` text on light surfaces (e.g. Refresh buttons, the
 "Open Voices/Designer" buttons) and the plain "Download full log." link.
 

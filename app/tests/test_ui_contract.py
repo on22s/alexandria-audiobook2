@@ -161,6 +161,12 @@ class UIContractTests(unittest.TestCase):
             progress_channels = [int(tokens['--progress-bg'][index:index + 2], 16) for index in (1, 3, 5)]
             stripe = '#' + ''.join(f'{round(channel * .85 + 255 * .15):02x}' for channel in progress_channels)
             self.assertGreaterEqual(contrast(tokens['--progress-text'], stripe), 4.5)
+            if theme == 'cyberpunk':
+                # The neon accents are the tokens a contrast review specifically
+                # flagged; pin them too. Missing tokens fail here, as above.
+                for accent in ('--cyber-cyan', '--cyber-yellow', '--cyber-pink'):
+                    with self.subTest(theme=theme, accent=accent):
+                        self.assertGreaterEqual(contrast(tokens[accent], tokens['--bg-card']), 4.5)
 
     def test_primary_navigation_is_keyboard_addressable(self):
         parser = _NavigationParser()
