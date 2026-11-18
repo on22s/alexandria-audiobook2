@@ -84,10 +84,41 @@ pair and extend the test.
   A static test pins both rules.
 - **After:** 0 findings across all 780 controls.
 
+## 4. Incomplete nodes and dynamic surfaces
+
+- `npm run incomplete` measures every axe `incomplete` color-contrast node and
+  writes a **per-node** artifact: all **136 nodes** measured, minimum 4.5008:1
+  (the `.step-indicator.step-active` solid pair). By axe reason: 96
+  undeterminable background-image, 30 text too short, 6 non-text-only, 4
+  background-gradient. **Method limit:** where axe could not determine a
+  background because of an image or gradient, the script substitutes the nearest
+  non-transparent *ancestor solid* color. That is not the rendered pixels, so
+  this measurement cannot clear those 100 image/gradient nodes; they still need
+  a human visual look. The 4.5008 lower bound applies to the heuristic.
+  Artifact: `docs/audits/theme-contrast-2026-11-18-incomplete-nodes.json`.
+- To write the artifacts directly to this folder, set `AA2_DYNAMIC_OUT` and
+  `AA2_INCOMPLETE_OUT` to the `docs/audits/` paths before `npm run dynamic` /
+  `npm run incomplete` (the default output is gitignored in the tool folder).
+- `npm run dynamic` audits the Advanced dropdown, the Editor drawer with **all
+  seven `<details data-editor-tool>` panels open**, and every `.modal` with its
+  owning tab panel shown. Each surface records the number of axe-evaluated
+  nodes and is flagged if zero, so a hidden surface can never report clean.
+  Results: 42 surfaces, **39–40 nodes** in each drawer pass, 7 in each dropdown,
+  and **3–17 nodes per modal per theme** (5 modals, 44 per theme, 264 total),
+  **0 color-contrast violations**; 546 placeholders measured (min 5.1129:1).
+  Per-surface minimum assertions (drawer ≥30, dropdown ≥5, modal ≥3) fail a
+  silently collapsed surface. `#casting-review-body` is empty in this state, so
+  dynamically populated casting controls are out of scope.
+  Disabled controls are inactive UI and exempt from WCAG 1.4.3; their recorded
+  inputs include the captured opacity. Raw tool output:
+  `docs/audits/theme-contrast-2026-11-18-dynamic-results.json`.
+- The first honest drawer/modal pass exposed four real violations on Bootstrap
+  outline semantic buttons in `#casting-review-modal` (warning yellow 1.63:1 on
+  white; bread success/danger 4.21:1; bread warning 1.51:1). Those are fixed by
+  darker per-theme `--bs-btn-*` colors on light surfaces, including hover/active.
+
 ## Still unverified
 
-- The 136 `incomplete` axe nodes need a manual look.
-- Disabled-control text (Bootstrap opacity blending), placeholders, modals,
-  the Advanced dropdown and the Editor tool drawer are not separately audited;
-  the 13 tab panels were forced visible one at a time, which covers their
-  static markup but not dynamically opened surfaces.
+- Hover/active pseudo-states are not axe-audited (their colors are pinned by the
+  CSS overrides above but not measured), nor is dynamically generated content
+  after a modal or drawer interaction, nor actual screen-reader announcement.

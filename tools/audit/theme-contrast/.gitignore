@@ -1,3 +1,5 @@
 node_modules/
 axe-results.json
 focus-results.json
+dynamic-results.json
+incomplete-results.json
