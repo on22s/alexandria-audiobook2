@@ -1051,7 +1051,29 @@
             { key: 'leek',        icon: 'fa-leaf' },
         ];
 
-        function applyTheme(key) {
+        // One resolution policy for the initial theme: an explicit stored choice
+        // wins, otherwise the OS colour scheme picks the theme (dark -> night),
+        // otherwise light. The anti-flash snippet in index.html mirrors this so
+        // first paint and the runtime listener cannot disagree.
+        function isKnownTheme(stored) {
+            return THEMES.some(theme => theme.key === stored);
+        }
+        function resolveThemeKey(stored, osDark) {
+            if (isKnownTheme(stored)) { return stored; }
+            return osDark ? 'night' : 'light';
+        }
+        function prefersDarkNow() {
+            try { return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }
+            catch (e) { return false; }
+        }
+        function storedThemeKey() {
+            try { return localStorage.getItem('alex-theme'); } catch (e) { return null; }
+        }
+
+        // persist=false applies a theme derived from the OS without turning it
+        // into an explicit user choice. Only cycleTheme() (the theme button)
+        // persists, so a stored choice stops the OS from overriding it.
+        function applyTheme(key, persist = true) {
             const html = document.documentElement;
             if (key === 'light') {
                 html.removeAttribute('data-theme');
@@ -1067,7 +1089,9 @@
                     }
                 }
             }
-            try { localStorage.setItem('alex-theme', key); } catch (e) { /* storage blocked; theme still applies for this page */ }
+            if (persist) {
+                try { localStorage.setItem('alex-theme', key); } catch (e) { /* storage blocked; theme still applies for this page */ }
+            }
         }
 
         function getThemeLabel(key) {
@@ -1098,13 +1122,28 @@
             applyTheme(next.key);
         }
 
-        // Sync button label/icon with whatever the anti-flash snippet already applied
-        (function() {
-            let saved = 'light';
-            try { saved = localStorage.getItem('alex-theme') || 'light'; } catch (e) { /* storage blocked */ }
-            applyTheme(saved);
+        // Sync button label/icon with whatever the anti-flash snippet already
+        // applied, and follow the OS until the user makes an explicit choice.
+        // Kept after this marker so slice-based tests can load the pure theme
+        // helpers without triggering DOM-dependent initialisation.
+        function initTheme() {
+            applyTheme(resolveThemeKey(storedThemeKey(), prefersDarkNow()), false);
+            try {
+                const media = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+                if (media && typeof media.addEventListener === 'function') {
+                    media.addEventListener('change', () => {
+                        // Only a VALID stored key counts as an explicit choice.
+                        // Use the same validator as the resolver: a corrupt or
+                        // legacy value must not freeze the theme against the OS.
+                        if (!isKnownTheme(storedThemeKey())) {
+                            applyTheme(resolveThemeKey(null, media.matches), false);
+                        }
+                    });
+                }
+            } catch (e) { /* matchMedia unsupported: the initial resolution still stands */ }
             restoreVoiceReviewVisibility();
-        })();
+        }
+        initTheme();
 
         function createSerializedSaveQueue({ write, delay = 500, onDirty = () => {}, onSaved = () => {}, onError = () => {}, guardAmbiguous = false }) {
             let pending = null;
