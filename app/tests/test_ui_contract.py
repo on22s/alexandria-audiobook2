@@ -54,9 +54,40 @@ class UIContractTests(unittest.TestCase):
         mains = [attrs for tag, attrs, _ in parser.nodes if tag == 'main']
         self.assertEqual(1, len(mains))
         self.assertEqual('-1', mains[0].get('tabindex'))
+        self.assertEqual('app-main', mains[0].get('id'))
         skip = next(attrs for tag, attrs, _ in parser.nodes if tag == 'a' and attrs.get('href') == '#' + mains[0]['id'])
         self.assertIn('visually-hidden-focusable', skip.get('class', '').split())
         self.assertEqual('shell.skip-content', skip.get('data-i18n'))
+        body_children = [tag for tag, _, parents in parser.nodes if parents and parents[-1] == 'body']
+        self.assertEqual('a', body_children[0])
+
+    def test_tab_panels_are_labelled_regions_matching_nav_links(self):
+        parser = _NavigationParser()
+        parser.feed((STATIC / 'index.html').read_text(encoding='utf-8'))
+        expected_tabs = {
+            'home', 'setup', 'script', 'voices', 'editor', 'audio', 'designer',
+            'preparer', 'dataset-builder', 'training', 'voicelab', 'reports', 'casting',
+        }
+        tab_links = {attrs['data-tab']: attrs for tag, attrs, _ in parser.nodes if tag == 'a' and attrs.get('data-tab')}
+        self.assertEqual(expected_tabs, set(tab_links.keys()))
+
+        tab_panels = {
+            attrs['id'][:-4]: attrs
+            for tag, attrs, _ in parser.nodes
+            if attrs.get('id', '').endswith('-tab') and 'tab-content' in attrs.get('class', '').split()
+        }
+        self.assertEqual(expected_tabs, set(tab_panels.keys()))
+
+        for tab_name, panel in tab_panels.items():
+            with self.subTest(tab=tab_name):
+                self.assertEqual('region', panel.get('role'), f'{tab_name}-tab must have role="region"')
+                self.assertNotEqual('tabpanel', panel.get('role'), f'{tab_name}-tab must not have role="tabpanel"')
+                labelled_by = panel.get('aria-labelledby')
+                self.assertTrue(labelled_by, f'{tab_name}-tab must have aria-labelledby')
+                nav_link = tab_links.get(tab_name)
+                self.assertIsNotNone(nav_link)
+                self.assertEqual(labelled_by, nav_link.get('id'), f'{tab_name}-tab aria-labelledby must match nav link id')
+                self.assertNotEqual('tab', nav_link.get('role'), f'nav link for {tab_name} must not have role="tab"')
 
     def test_logs_are_explicitly_keyboard_focusable_named_regions(self):
         parser = _NavigationParser()

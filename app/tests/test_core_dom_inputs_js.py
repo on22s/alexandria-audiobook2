@@ -58,16 +58,16 @@ for(const tabName of ['editor','voices','setup']){
   const links=['setup','voices','editor'].map(name=>({dataset:{tab:name},classList:{add(){},remove(){}},setAttribute(){},removeAttribute(){},addEventListener(){}}));
   for(const name of ['setup','voices','editor']){tabs[name+'-tab']={style:{display:name==='setup'?'block':'none'}};}
   const window={location:{hash:'#'+tabName},history:{replaceState(_state,_title,hash){window.location.hash=hash;},pushState(){throw Error('Skipping must not push history');}},addEventListener:(event,handler)=>events[event]=handler,matchMedia(query){assert.equal(query,'(prefers-reduced-motion: reduce)');return {matches:reducedMotion};}};
-  const main={id:'main-content',focus(options){assert.equal(options.preventScroll,true);document.activeElement=main;},scrollIntoView:options=>scrolls.push(options)};
+  const main={id:'app-main',focus(options){assert.equal(options.preventScroll,true);document.activeElement=main;},scrollIntoView:options=>scrolls.push(options)};
   const skip={addEventListener:(event,handler)=>skipHandlers[event]=handler};
-  const document={activeElement:skip,querySelectorAll:selector=>selector==='.nav-link'?links:Object.values(tabs),getElementById:id=>id==='skip-main-link'?skip:id==='main-content'?main:id==='navbarNav'?{classList:{contains:()=>false}}:tabs[id]};
+  const document={activeElement:skip,querySelectorAll:selector=>selector==='.nav-link'?links:Object.values(tabs),getElementById:id=>id==='skip-main-link'?skip:(id==='app-main'||id==='main-content')?main:id==='navbarNav'?{classList:{contains:()=>false}}:tabs[id]};
   const context={window,document,localStorage:{getItem:()=>null,setItem(){}},loadChunks:()=>loads.push('editor'),loadVoices:()=>loads.push('voices'),pollLmStudioStatus:()=>loads.push('setup')};
   vm.createContext(context);context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));vm.runInContext(source.slice(source.indexOf('const TAB_STORAGE_KEY ='),source.indexOf('// --- LLM model picker')),context);
   context.restoreTab();const initialLoads=loads.length;
   for(const activation of ['pointer','Enter-generated click']){
    document.activeElement=skip;let prevented=false;
    skipHandlers.click?.({preventDefault(){prevented=true;}});
-   if(!prevented){window.location.hash='#main-content';events.hashchange();document.activeElement=main;}
+   if(!prevented){window.location.hash='#app-main';events.hashchange();document.activeElement=main;}
    assert.equal(window.location.hash,'#'+tabName,tabName+' '+activation+' preserves hash');
    assert.deepEqual(Object.keys(tabs).filter(id=>tabs[id].style.display==='block'),[tabName+'-tab'],'visible tab unchanged');
    assert.strictEqual(document.activeElement,main,'main receives focus');

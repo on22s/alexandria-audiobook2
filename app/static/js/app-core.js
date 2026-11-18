@@ -982,7 +982,7 @@
         window.addEventListener('hashchange', onTabHistoryChange);
         document.getElementById('skip-main-link')?.addEventListener('click', event => {
             event.preventDefault();
-            const main = document.getElementById('main-content');
+            const main = document.getElementById('app-main') || document.getElementById('main-content');
             if (!main) { return; }
             main.focus({ preventScroll: true });
             const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

@@ -16125,6 +16125,7 @@
     , "tests.test_ui_contract.UIContractTests.test_script_links_use_semantic_theme_text_in_every_state"
     , "tests.test_ui_contract.UIContractTests.test_secondary_text_uses_semantic_theme_color"
     , "tests.test_ui_contract.UIContractTests.test_system_status_preserves_navigation_list_semantics"
+    , "tests.test_ui_contract.UIContractTests.test_tab_panels_are_labelled_regions_matching_nav_links"
     , "tests.test_ui_contract.UIContractTests.test_theme_text_and_input_border_contrast"
     , "tests.test_ui_contract.UIContractTests.test_ui_docs_cover_required_review_dimensions"
   ]

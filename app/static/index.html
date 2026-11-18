@@ -1340,7 +1340,7 @@
     <link rel="stylesheet" href="/static/css/advanced-intros.css?v=__APP_BUILD__">
 </head>
 <body>
-    <a id="skip-main-link" class="visually-hidden-focusable position-fixed top-0 start-0 btn btn-primary" style="z-index:1100;" href="#main-content" data-i18n="shell.skip-content">Skip to main content</a>
+    <a id="skip-main-link" class="visually-hidden-focusable position-fixed top-0 start-0 btn btn-primary" style="z-index:1100;" href="#app-main" data-i18n="shell.skip-content">Skip to main content</a>
     <!-- Non-destructive stale-build notice: shown only when the backend build
          differs from the build this tab was served with. Never auto-reloads. -->
     <div id="stale-build-banner" class="alert alert-warning alert-dismissible mb-0 rounded-0 text-center" style="display:none;" role="alert">
@@ -1356,23 +1356,23 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto align-items-center">
                     <li data-i18n="shell.nav.workflow" class="nav-section-label" aria-hidden="true">Workflow</li>
-                    <li class="nav-item"><a data-i18n="shell.nav.workspace" class="nav-link" href="#home" data-tab="home">Workspace</a></li>
-                    <li class="nav-item"><a href="#setup" class="nav-link nav-pipeline active" aria-current="page" data-tab="setup"><span data-i18n="shell.nav.setup">1. Setup</span></a></li>
-                    <li class="nav-item"><a href="#script" class="nav-link nav-pipeline" data-tab="script"><span data-i18n="shell.nav.script">2. Script</span></a></li>
-                    <li class="nav-item"><a href="#voices" class="nav-link nav-pipeline" data-tab="voices"><span data-i18n="shell.nav.voices">3. Voices</span></a></li>
-                    <li class="nav-item"><a href="#editor" class="nav-link nav-pipeline" data-tab="editor"><span data-i18n="shell.nav.editor">4. Editor</span></a></li>
-                    <li class="nav-item"><a href="#audio" class="nav-link nav-pipeline" data-tab="audio"><span data-i18n="shell.nav.result">5. Result</span></a></li>
+                    <li class="nav-item"><a id="nav-link-home" data-i18n="shell.nav.workspace" class="nav-link" href="#home" data-tab="home">Workspace</a></li>
+                    <li class="nav-item"><a id="nav-link-setup" href="#setup" class="nav-link nav-pipeline active" aria-current="page" data-tab="setup"><span data-i18n="shell.nav.setup">1. Setup</span></a></li>
+                    <li class="nav-item"><a id="nav-link-script" href="#script" class="nav-link nav-pipeline" data-tab="script"><span data-i18n="shell.nav.script">2. Script</span></a></li>
+                    <li class="nav-item"><a id="nav-link-voices" href="#voices" class="nav-link nav-pipeline" data-tab="voices"><span data-i18n="shell.nav.voices">3. Voices</span></a></li>
+                    <li class="nav-item"><a id="nav-link-editor" href="#editor" class="nav-link nav-pipeline" data-tab="editor"><span data-i18n="shell.nav.editor">4. Editor</span></a></li>
+                    <li class="nav-item"><a id="nav-link-audio" href="#audio" class="nav-link nav-pipeline" data-tab="audio"><span data-i18n="shell.nav.result">5. Result</span></a></li>
                     <li class="nav-item dropdown ms-lg-2">
                         <a class="nav-link dropdown-toggle nav-advanced" href="#" id="advancedNavDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" data-i18n-attr="title:shell.nav.advanced.title" title="Open advanced tools: Designer, Casting, Preparer, Dataset, Training, Voice Lab, and Reports"><span data-i18n="shell.nav.advanced">Advanced</span></a>
                         <ul class="dropdown-menu shadow" aria-labelledby="advancedNavDropdown">
-                            <li><a data-i18n="shell.nav.designer" href="#designer" class="dropdown-item nav-link nav-advanced" data-tab="designer">Designer</a></li>
-                            <li><a data-i18n="shell.nav.casting" href="#casting" class="dropdown-item nav-link nav-advanced" data-tab="casting">Casting</a></li>
-                            <li><a data-i18n="shell.nav.preparer" href="#preparer" class="dropdown-item nav-link nav-advanced" data-tab="preparer">Preparer</a></li>
-                            <li><a data-i18n="shell.nav.dataset" href="#dataset-builder" class="dropdown-item nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
-                            <li><a data-i18n="shell.nav.training" href="#training" class="dropdown-item nav-link nav-advanced" data-tab="training">Training</a></li>
-                            <li><a data-i18n="shell.nav.voice-lab" href="#voicelab" class="dropdown-item nav-link nav-advanced" data-tab="voicelab">Voice Lab</a></li>
+                            <li><a id="nav-link-designer" data-i18n="shell.nav.designer" href="#designer" class="dropdown-item nav-link nav-advanced" data-tab="designer">Designer</a></li>
+                            <li><a id="nav-link-casting" data-i18n="shell.nav.casting" href="#casting" class="dropdown-item nav-link nav-advanced" data-tab="casting">Casting</a></li>
+                            <li><a id="nav-link-preparer" data-i18n="shell.nav.preparer" href="#preparer" class="dropdown-item nav-link nav-advanced" data-tab="preparer">Preparer</a></li>
+                            <li><a id="nav-link-dataset-builder" data-i18n="shell.nav.dataset" href="#dataset-builder" class="dropdown-item nav-link nav-advanced" data-tab="dataset-builder">Dataset</a></li>
+                            <li><a id="nav-link-training" data-i18n="shell.nav.training" href="#training" class="dropdown-item nav-link nav-advanced" data-tab="training">Training</a></li>
+                            <li><a id="nav-link-voicelab" data-i18n="shell.nav.voice-lab" href="#voicelab" class="dropdown-item nav-link nav-advanced" data-tab="voicelab">Voice Lab</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a data-i18n="shell.nav.reports" href="#reports" class="dropdown-item nav-link nav-advanced" data-tab="reports">Reports</a></li>
+                            <li><a id="nav-link-reports" data-i18n="shell.nav.reports" href="#reports" class="dropdown-item nav-link nav-advanced" data-tab="reports">Reports</a></li>
                         </ul>
                     </li>
                 </ul>
@@ -1397,7 +1397,7 @@
         </div>
     </nav>
 
-    <main id="main-content" class="container-wide" tabindex="-1">
+    <main id="app-main" class="container-wide" tabindex="-1">
 
         <div id="manual-llm-status" class="small mt-2" role="status" aria-live="polite"></div>
         <div data-i18n-attr="aria-label:shell.manual-llm.manual-llm-panel.aria-label" id="manual-llm-panel" class="p-2 border-bottom bg-light" role="region" aria-label="Manual model request" hidden>
@@ -1417,7 +1417,7 @@
         </div>
 
         <!-- Book workspace: viewing and Continue never start a task. -->
-        <div id="home-tab" class="tab-content" style="display:none;">
+        <div id="home-tab" class="tab-content" style="display:none;" role="region" aria-labelledby="nav-link-home">
             <section class="card mb-3" aria-labelledby="task-guides-heading">
                 <div class="card-body">
                     <h4 id="task-guides-heading" data-i18n="home.guides.title">What would you like to finish?</h4>
@@ -1475,7 +1475,7 @@
         </div>
 
         <!-- Setup Tab -->
-        <div id="setup-tab" class="tab-content">
+        <div id="setup-tab" class="tab-content" role="region" aria-labelledby="nav-link-setup">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="m-0"><span class="step-indicator step-active">1</span><span data-i18n="setup.header.title">Configuration</span></h4>
@@ -2373,7 +2373,7 @@
         </div>
 
         <!-- Script Tab -->
-        <div id="script-tab" class="tab-content" style="display:none;">
+        <div id="script-tab" class="tab-content" style="display:none;" role="region" aria-labelledby="nav-link-script">
             <details class="card mb-3" id="source-scope-panel" ontoggle="onSourceScopePanelToggle()">
                 <summary data-i18n="script.scope.title" class="card-header">Keep a later part of this book</summary>
                 <div class="card-body">
@@ -2908,7 +2908,7 @@
         </div>
 
         <!-- Voices Tab -->
-        <div id="voices-tab" class="tab-content" style="display:none;">
+        <div id="voices-tab" class="tab-content" style="display:none;" role="region" aria-labelledby="nav-link-voices">
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h4 class="m-0"><span class="step-indicator step-active">3</span><span data-i18n="voices.header.title">Voice Configuration</span></h4>
@@ -3083,7 +3083,7 @@
         </div>
 
         <!-- Designer Tab -->
-        <div id="designer-tab" class="tab-content" style="display:none;">
+        <div id="designer-tab" class="tab-content" style="display:none;" role="region" aria-labelledby="nav-link-designer">
             <div class="card mb-3">
                 <div class="card-header">
                     <h4 data-i18n="designer.header.title">Designer</h4>
@@ -3157,7 +3157,7 @@
         </div>
 
         <!-- Casting Tab (#1532) -->
-        <div id="casting-tab" class="tab-content" style="display:none;">
+        <div id="casting-tab" class="tab-content" style="display:none;" role="region" aria-labelledby="nav-link-casting">
             <div class="mb-3">
                 <h4 data-i18n="casting.header.title">Casting library</h4>
                 <p class="text-muted mb-0" data-i18n="casting.intro">Listen, organize and shortlist voices across books. Research collections do not change character assignments.</p>
@@ -3294,7 +3294,7 @@
         </div>
 
         <!-- Preparer Tab -->
-        <div id="preparer-tab" class="tab-content" style="display:none;">
+        <div id="preparer-tab" class="tab-content" style="display:none;" role="region" aria-labelledby="nav-link-preparer">
             <div class="card mb-3">
                 <div class="card-header">
                     <h4 data-i18n="preparer.header.title">Preparer</h4>
@@ -3536,7 +3536,7 @@
         </div>
 
         <!-- Voice Lab Tab: audiobook narrator datasets → named LoRA voices -->
-        <div id="voicelab-tab" class="tab-content" style="display:none;">
+        <div id="voicelab-tab" class="tab-content" style="display:none;" role="region" aria-labelledby="nav-link-voicelab">
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="m-0"><i class="fas fa-flask me-2"></i><span data-i18n="voicelab.header.title">Voice Lab</span></h4>
@@ -3687,7 +3687,7 @@
         </div>
 
         <!-- Training Tab -->
-        <div id="training-tab" class="tab-content" style="display:none;">
+        <div id="training-tab" class="tab-content" style="display:none;" role="region" aria-labelledby="nav-link-training">
             <div class="card mb-3">
                 <div class="card-header">
                     <h4 data-i18n="training.header.title">Training</h4>
@@ -3890,7 +3890,7 @@
         </div>
 
         <!-- Dataset Builder Tab -->
-        <div id="dataset-builder-tab" class="tab-content" style="display:none;">
+        <div id="dataset-builder-tab" class="tab-content" style="display:none;" role="region" aria-labelledby="nav-link-dataset-builder">
             <div class="card">
                 <div class="card-header">
                     <h4 data-i18n="dataset.header.title">Dataset</h4>
@@ -3985,7 +3985,7 @@
         </div>
 
         <!-- Editor Tab -->
-        <div id="editor-tab" class="tab-content" style="display:none;">
+        <div id="editor-tab" class="tab-content" style="display:none;" role="region" aria-labelledby="nav-link-editor">
             <div class="card">
                 <div class="card-header editor-toolbar">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -4280,7 +4280,7 @@
         </div>
 
         <!-- Audio Result Tab -->
-        <div id="audio-tab" class="tab-content" style="display:none;">
+        <div id="audio-tab" class="tab-content" style="display:none;" role="region" aria-labelledby="nav-link-audio">
             <div class="card">
                 <div class="card-header">
                     <h4><span class="step-indicator step-active">5</span><span data-i18n="audio.header.title">Final Result</span></h4>
@@ -4587,7 +4587,7 @@
         </div>
 
         <!-- Reports Tab -->
-        <div id="reports-tab" class="tab-content" style="display:none;">
+        <div id="reports-tab" class="tab-content" style="display:none;" role="region" aria-labelledby="nav-link-reports">
             <section data-advanced-intro="reports"></section>
             <div class="row g-3">
                 <div class="col-md-4">
