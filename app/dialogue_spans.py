@@ -149,9 +149,23 @@ def _ambiguous_mark_roles(text):
         return True
 
     closer_candidate = {pos: can_close_german(pos) for pos in quotes}
-    later_closer = [False] * (len(quotes) + 1)
-    for index in range(len(quotes) - 1, -1, -1):
-        later_closer[index] = later_closer[index + 1] or closer_candidate[quotes[index]]
+    # A later close-capable `“` only justifies nesting an English pair if it
+    # belongs to the SAME German segment — an intervening `„` starts a new one.
+    # Without this, `„Red“ narration ”stray „Blue.“` merges two speeches and
+    # labels the narration between them as spoken.
+    from bisect import bisect_left
+    from collections import defaultdict
+    de_openers = [pos for pos, mark in all_marks if mark == "„"]
+    segment = {pos: bisect_right(de_openers, pos) for pos in quotes}
+    closer_indices = defaultdict(list)
+    for index, pos in enumerate(quotes):
+        if closer_candidate[pos]:
+            closer_indices[segment[pos]].append(index)
+
+    def later_closer_in_segment(pos, after_index):
+        candidates = closer_indices.get(bisect_right(de_openers, pos), ())
+        found = bisect_left(candidates, after_index)
+        return found < len(candidates)
 
     closes, opens = set(), set()
     pending = 0
@@ -162,10 +176,11 @@ def _ambiguous_mark_roles(text):
             index = bisect_right(positions, pos)
             has_closer = index < len(positions) and mark_at[positions[index]] == "”"
             if not closer_candidate[pos] and has_closer:
-                # Real English content: nested only if a later `“` can still
-                # close the German pair.
+                # Real English content: nested only if a later `“` in this same
+                # German segment can still close the pair.
                 after = bisect_right(quotes, pos)
-                opens_english = after == len(quotes) or later_closer[after]
+                opens_english = (after == len(quotes)
+                                 or later_closer_in_segment(pos, after))
             else:
                 opens_english = False
             if opens_english or not pending:
@@ -229,28 +244,34 @@ def _paired_spans(text):
                 if len(positions) % 2 == 0 and position and text[position - 1].isdigit():
                     continue
                 positions.append(position)
+            # A mark that begins a paragraph re-opens this quote, so it can
+            # never be a closer. Precompute the next non-reopening mark once;
+            # the old inner scan restarted at every opener and was quadratic
+            # on a straight-quote reprise chain.
+            paragraph_starts = prepare()[1]
+            next_plain = [len(positions)] * len(positions)
+            last = len(positions)
+            for candidate_index in range(len(positions) - 1, -1, -1):
+                next_plain[candidate_index] = last
+                if positions[candidate_index] not in paragraph_starts:
+                    last = candidate_index
+
             index = 0
             while index + 1 < len(positions):
                 start = positions[index]
-                end = None
-                for candidate_index in range(index + 1, len(positions)):
-                    candidate = positions[candidate_index]
-                    if candidate - start <= 1:
-                        continue
-                    if candidate in prepare()[1]:
-                        # The mark opens the paragraph after a blank line, so it
-                        # re-opens this same quote and the speech continues.
-                        continue
-                    if not _is_unbroken(narration_breaks(opener), start, candidate):
-                        # Every later mark crosses that same break too.
-                        break
-                    end = candidate
-                    break
-                if end is None:
+                candidate_index = next_plain[index]
+                while candidate_index < len(positions) and positions[candidate_index] - start <= 1:
+                    candidate_index = next_plain[candidate_index]
+                if candidate_index >= len(positions):
+                    index += 1
+                    continue
+                end = positions[candidate_index]
+                if not _is_unbroken(narration_breaks(opener), start, end):
+                    # Every later mark crosses that same break too.
                     index += 1
                     continue
                 spans.append((start + 1, end))
-                index = bisect_right(positions, end)
+                index = candidate_index + 1
         else:
             # One rule for every pair, short or long: a blank line inside it
             # must be followed by the same mark and nothing else. A long speech

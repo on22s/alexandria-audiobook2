@@ -148,6 +148,31 @@ class SpanTest(unittest.TestCase):
         self.assertEqual(["German.", "Real."],
             [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
 
+    def test_a_later_german_pair_does_not_merge_an_earlier_speech(self):
+        # The close-capable `“` of a SECOND German pair must not make the first
+        # pair's closer look like an English opener. Otherwise the two speeches
+        # merge and the narration between them is labelled as spoken.
+        clean = "\n\n".join("„Clean speech " + str(i) + " here“ said he."
+                            for i in range(6))
+        source = clean + "\n\n„Red“ she muttered ”stray „Blue.“ he replied."
+        rendered = [source[a:b] for a, b in spoken_spans(source)]
+        self.assertIn("Red", rendered)
+        self.assertIn("Blue.", rendered)
+        self.assertFalse(any("she muttered" in span for span in rendered))
+
+    def test_straight_quote_reprise_chain_is_linear(self):
+        # A mark that opens a paragraph re-opens the quote, so the closer search
+        # skips it. Restarting that scan at every opener was quadratic: 8k
+        # marks took ~3.3s. A forward index keeps it linear (~0.02s).
+        import time
+        for mark in ('"', '＂'):
+            with self.subTest(mark=mark):
+                source = "\n\n".join(mark + "line" for _ in range(8000))
+                started = time.monotonic()
+                # Every mark opens a paragraph, so none can close a pair.
+                self.assertEqual([], spoken_spans(source, "paired_quotes"))
+                self.assertLess(time.monotonic() - started, 1.0)
+
     def test_padded_english_speech_nested_in_german_is_not_an_orphan(self):
         # Edge whitespace (including a newline) is not evidence of an orphan
         # `”` — a real English quote inside a German pair keeps the German

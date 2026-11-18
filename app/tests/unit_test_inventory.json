@@ -4770,6 +4770,7 @@
     , "tests.test_dialogue_spans.SpanTest.test_a_broken_detection_raises_before_the_merge_can_hide_it"
     , "tests.test_dialogue_spans.SpanTest.test_a_detected_span_must_be_a_real_range_in_the_source"
     , "tests.test_dialogue_spans.SpanTest.test_a_german_closer_is_not_mistaken_for_an_english_opener"
+    , "tests.test_dialogue_spans.SpanTest.test_a_later_german_pair_does_not_merge_an_earlier_speech"
     , "tests.test_dialogue_spans.SpanTest.test_a_long_one_paragraph_speech_is_spoken"
     , "tests.test_dialogue_spans.SpanTest.test_a_long_speech_whose_paragraphs_reopen_the_quote_is_one_span"
     , "tests.test_dialogue_spans.SpanTest.test_a_multi_paragraph_speech_that_does_not_reopen_the_quote_is_refused"
@@ -4790,6 +4791,7 @@
     , "tests.test_dialogue_spans.SpanTest.test_padded_english_speech_nested_in_german_is_not_an_orphan"
     , "tests.test_dialogue_spans.SpanTest.test_shared_mark_disambiguation_is_linear"
     , "tests.test_dialogue_spans.SpanTest.test_spans_cover_the_words_and_not_the_marks"
+    , "tests.test_dialogue_spans.SpanTest.test_straight_quote_reprise_chain_is_linear"
   ]
   , "test_direct_path_admission": [
     "tests.test_direct_path_admission.AdministratorAliasTests.test_administrator_alias_chain_is_followed"
