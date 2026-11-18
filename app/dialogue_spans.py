@@ -118,82 +118,61 @@ def _is_unbroken(breaks, position, end):
 def _ambiguous_mark_roles(text):
     """-> (closer offsets, opener offsets) for marks shared between pairs.
 
-    `“` closes `„…“` but opens `“…”`. Treating it one way everywhere either
-    makes a German closer pair with a later English closer (phantom span over
-    the narration between them) or, in `„He said “Hi” to me.“`, takes the inner
-    `“` for the German closer and loses both speeches.
+    `“` closes `„…“` but opens `“…”`. The resolution walks the marks once with
+    an explicit count of pending `„` openers, so a padded or newline-containing
+    English quote is treated exactly like an unpadded one: edge whitespace is
+    never evidence of an orphan. A `“` closes German when
 
-    For a `“` that could close a pending German pair, the next quote mark is
-    the first signal: `”` means it opens English speech. But a STRAY `”` must
-    not do that — so it only opens English when a later `“` remains to close
-    the German pair (nested English inside German). All lookups are indexed by
-    position, so this stays linear rather than rescanning the marks per quote.
-    Straight pairs are excluded: their mark is both opener and closer.
+      * no `”` follows it, or only whitespace sits before that `”` (an orphan),
+        and a `„` is still pending; or
+      * it has real English content but a later `“` remains to close the German
+        pair (English nested inside German, e.g. „He said “Hi” to me.“).
+
+    Otherwise it opens English. Every lookup is by position; measured sources
+    see zero copied characters. Straight pairs are excluded: their mark is both
+    opener and closer by definition, so it is never ambiguous.
     """
     all_marks = [(m.start(), m.group()) for m in re.finditer(
         "[" + "".join(re.escape(mark) for mark in QUOTE_MARKS) + "]", text)]
     positions = [pos for pos, _ in all_marks]
     mark_at = dict(all_marks)
-
-    def mark_after(pos):
-        index = bisect_right(positions, pos)
-        return mark_at[positions[index]] if index < len(positions) else None
-
-    # Only `“` is shared: it closes „…“ and opens “…”. Precompute which of its
-    # occurrences look like genuine English openers — the next mark must be a
-    # `”` with real speech between them. An orphan `”` (empty or padded content)
-    # is not a closer, so the `“` before it still closes the pending `„`.
     quotes = [pos for pos, mark in all_marks if mark == "“"]
 
-    def english_like_at(pos):
+    def can_close_german(pos):
+        """A `“` can close a pending `„`: no `”`, or only whitespace to it."""
         index = bisect_right(positions, pos)
         if index >= len(positions) or mark_at[positions[index]] != "”":
-            return False
-        start, stop = pos + 1, positions[index]
-        if start >= stop or text[start].isspace() or text[stop - 1].isspace():
-            return False  # orphan `”`: empty or whitespace-padded content
-        # Index by character, never slice: callers may pass a measured source
-        # that counts copied characters, and the cost pins require zero copies.
-        return any(not text[at].isspace() for at in range(start, stop))
-
-    english_like = {pos: english_like_at(pos) for pos in quotes}
-    # Suffix: can a later `“` still close the German pair? Needed when a real
-    # English pair is nested inside a German one („He said “Hi” to me.“).
-    later_german_closer = [False] * (len(quotes) + 1)
-    for index in range(len(quotes) - 1, -1, -1):
-        later_german_closer[index] = (later_german_closer[index + 1]
-                                      or not english_like[quotes[index]])
-
-    def opens_english(pos):
-        if not english_like[pos]:
-            return False
-        after = bisect_right(quotes, pos)
-        if after == len(quotes):
-            # No later `“` exists to close a German pair — the pending `„` was
-            # a stray mark, so this one really does open English speech.
             return True
-        return later_german_closer[after]
+        for at in range(pos + 1, positions[index]):
+            if not text[at].isspace():
+                return False
+        return True
+
+    closer_candidate = {pos: can_close_german(pos) for pos in quotes}
+    later_closer = [False] * (len(quotes) + 1)
+    for index in range(len(quotes) - 1, -1, -1):
+        later_closer[index] = later_closer[index + 1] or closer_candidate[quotes[index]]
 
     closes, opens = set(), set()
-    for opener, closer in PAIRED:
-        if opener == closer:
-            continue
-        opened_pair_closer = next((c for o, c in PAIRED if o == closer and c != closer), None)
-        if opened_pair_closer is None:
-            continue
-        pattern = re.compile("(?:" + re.escape(opener) + "|" + re.escape(closer) + ")")
-        inside = False
-        for match in pattern.finditer(text):
-            pos, mark = match.start(), match.group()
-            if mark == opener:
-                inside = True
-            elif inside:
-                if mark_after(pos) == opened_pair_closer and opens_english(pos):
-                    # A nested English pair: the German pair is still open.
-                    opens.add(pos)
-                else:
-                    closes.add(pos)
-                    inside = False
+    pending = 0
+    for pos, mark in all_marks:
+        if mark == "„":
+            pending += 1
+        elif mark == "“":
+            index = bisect_right(positions, pos)
+            has_closer = index < len(positions) and mark_at[positions[index]] == "”"
+            if not closer_candidate[pos] and has_closer:
+                # Real English content: nested only if a later `“` can still
+                # close the German pair.
+                after = bisect_right(quotes, pos)
+                opens_english = after == len(quotes) or later_closer[after]
+            else:
+                opens_english = False
+            if opens_english or not pending:
+                opens.add(pos)
+            else:
+                closes.add(pos)
+                pending -= 1
     return closes, opens
 
 

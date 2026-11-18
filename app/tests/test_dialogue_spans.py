@@ -148,6 +148,19 @@ class SpanTest(unittest.TestCase):
         self.assertEqual(["German.", "Real."],
             [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
 
+    def test_padded_english_speech_nested_in_german_is_not_an_orphan(self):
+        # Edge whitespace (including a newline) is not evidence of an orphan
+        # `”` — a real English quote inside a German pair keeps the German
+        # closer at the later `“`, so the whole utterance stays spoken.
+        for source, expected in [
+            ("„He said “ Hi ” to me.“ she said.", "He said “ Hi ” to me."),
+            ("„He said “Hi ” to me.“ she said.", "He said “Hi ” to me."),
+            ("„He said “\nHi” to me.“ she said.", "He said “\nHi” to me."),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual([expected],
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
     def test_an_orphan_closer_after_nesting_keeps_both_speeches(self):
         # An orphan `”` has empty or whitespace-padded content — it is not a
         # real English closer, so it must not turn the preceding German closer
