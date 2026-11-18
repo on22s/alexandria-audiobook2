@@ -48,7 +48,10 @@ class OwnedServerCleanupRaceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             script = Path(tmp) / 'race.sh'
             script.write_text('source "$1/run_chains/lib/server_cleanup.sh"\n'
-                'sleep 60 & pid=$!\n'
+                # A short-lived child: the mocked ownership query below waits on
+                # it, so a 60s sleep made the whole fixture depend on SIGTERM
+                # timing (measured 23s idle, >20s under a loaded shard).
+                'sleep 2 & pid=$!\n'
                 'queries=0\n'
                 'is_owned_server_child() {\n'
                 ' queries=$((queries + 1))\n'
@@ -60,8 +63,11 @@ class OwnedServerCleanupRaceTests(unittest.TestCase):
                 'if kill -0 "$pid" 2>/dev/null; then kill -KILL "$pid"; wait "$pid"; exit 99; fi\n'
                 '[ "$queries" = 2 ] || exit 98\n'
                 'exit "$rc"\n')
+            # Bounded but ample: the fixture now uses a 2s child instead of a
+            # 60s one, so it finishes in well under a second even on a loaded
+            # shard; the timeout only guards a genuinely hung Git Bash.
             result = run_bash_fixture([str(script), str(ROOT)],
-                capture_output=True, text=True, timeout=5)
+                capture_output=True, text=True, timeout=20)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
 

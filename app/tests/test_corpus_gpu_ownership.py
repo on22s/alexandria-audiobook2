@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -63,6 +64,14 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
                     core.process_state['audio']['running'] = False
                     if holder is not None:
                         holder.terminate();holder.wait(timeout=3);holder.stdout.close();holder.stderr.close()
+                        # On Windows the child's descriptor can outlive wait() by a
+                        # moment; rmtree then hits WinError 32 on gpu.lock. Poll the
+                        # kernel lock (not the file's existence) so cleanup starts
+                        # only once the handle is actually gone.
+                        deadline = time.monotonic() + 2
+                        while gpu_is_busy(str(lock)) and time.monotonic() < deadline:
+                            time.sleep(0.01)
+                        time.sleep(0.05)
 
     def test_lease_covers_self_heal_inference_and_artifact_publication(self):
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
