@@ -1,0 +1,1212 @@
+{
+  "tool": "axe-core incomplete nodes + screenshot pixel sampling on Edge, live app, 6 themes",
+  "url": "http://127.0.0.1:8765/",
+  "date": "2026-11-18T16:05:28.081Z",
+  "summary": {
+    "nodes_sampled": 100,
+    "failures": 0,
+    "min_ratio": "7.2643"
+  },
+  "records": [
+    {
+      "theme": "light",
+      "tab": "setup",
+      "target": [
+        "#setup-ui-locale"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "setup",
+      "target": [
+        "#llm-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "script",
+      "target": [
+        "#existing-upload-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "voices",
+      "target": [
+        "#voices-state-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "target": [
+        "#casting-health"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "target": [
+        "#casting-book"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "target": [
+        "#casting-gender"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "target": [
+        "#casting-age"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "target": [
+        "#casting-status"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "target": [
+        "#casting-sort"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "preparer",
+      "target": [
+        "#prep-lang"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "preparer",
+      "target": [
+        "#prep-diarization-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "dataset-builder",
+      "target": [
+        "#dsb-project-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "training",
+      "target": [
+        "#lora-dataset-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "training",
+      "target": [
+        "#lora-language"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "light",
+      "tab": "editor",
+      "target": [
+        "#editor-quality-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(33, 37, 41)",
+      "sampledBg": "rgb(255, 255, 255)",
+      "pixel_ratio": 15.426285095510265,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "setup",
+      "target": [
+        "#setup-ui-locale"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "setup",
+      "target": [
+        "#llm-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "script",
+      "target": [
+        "#existing-upload-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "voices",
+      "target": [
+        "#voices-state-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "target": [
+        "#casting-health"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "target": [
+        "#casting-book"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "target": [
+        "#casting-gender"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "target": [
+        "#casting-age"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "target": [
+        "#casting-status"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "target": [
+        "#casting-sort"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "preparer",
+      "target": [
+        "#prep-lang"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "preparer",
+      "target": [
+        "#prep-diarization-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "dataset-builder",
+      "target": [
+        "#dsb-project-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "training",
+      "target": [
+        "#lora-dataset-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "training",
+      "target": [
+        "#lora-language"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "night",
+      "tab": "editor",
+      "target": [
+        "#editor-quality-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(221, 227, 237)",
+      "sampledBg": "rgb(44, 48, 64)",
+      "pixel_ratio": 10.153290230359781,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "setup",
+      "target": [
+        "#setup-ui-locale"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "setup",
+      "target": [
+        "#llm-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "script",
+      "target": [
+        "#existing-upload-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "voices",
+      "target": [
+        "#voices-state-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "target": [
+        "#casting-health"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "target": [
+        "#casting-book"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "target": [
+        "#casting-gender"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "target": [
+        "#casting-age"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "target": [
+        "#casting-status"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "target": [
+        "#casting-sort"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "preparer",
+      "target": [
+        "#prep-lang"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "preparer",
+      "target": [
+        "#prep-diarization-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "dataset-builder",
+      "target": [
+        "#dsb-project-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "training",
+      "target": [
+        "#lora-dataset-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "training",
+      "target": [
+        "#lora-language"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "editor",
+      "target": [
+        "#editor-quality-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(240, 244, 251)",
+      "sampledBg": "rgb(15, 15, 15)",
+      "pixel_ratio": 17.378050586542756,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "setup",
+      "target": [
+        "#setup-ui-locale"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "setup",
+      "target": [
+        "#llm-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "script",
+      "target": [
+        "#existing-upload-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "voices",
+      "target": [
+        "#voices-state-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "h4[data-i18n=\"casting.header.title\"]"
+      ],
+      "reason": "Element's background color could not be determined due to a background gradient",
+      "textColor": "rgb(245, 251, 255)",
+      "sampledBg": "rgb(9, 11, 18)",
+      "pixel_ratio": 18.840118539851808,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "p[data-i18n=\"casting.intro\"]"
+      ],
+      "reason": "Element's background color could not be determined due to a background gradient",
+      "textColor": "rgb(138, 160, 179)",
+      "sampledBg": "rgb(9, 11, 18)",
+      "pixel_ratio": 7.26434712163402,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "button[data-i18n=\"casting.phone.voices\"]"
+      ],
+      "reason": "Element's background color could not be determined due to a background gradient",
+      "textColor": "rgb(110, 168, 254)",
+      "sampledBg": "rgb(9, 11, 18)",
+      "pixel_ratio": 8.139909182041851,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "button[data-i18n=\"casting.phone.designer\"]"
+      ],
+      "reason": "Element's background color could not be determined due to a background gradient",
+      "textColor": "rgb(110, 168, 254)",
+      "sampledBg": "rgb(9, 11, 18)",
+      "pixel_ratio": 8.139909182041851,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "#casting-health"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "#casting-book"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "#casting-gender"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "#casting-age"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "#casting-status"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "#casting-sort"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "preparer",
+      "target": [
+        "#prep-lang"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "preparer",
+      "target": [
+        "#prep-diarization-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "dataset-builder",
+      "target": [
+        "#dsb-project-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "training",
+      "target": [
+        "#lora-dataset-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "training",
+      "target": [
+        "#lora-language"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "editor",
+      "target": [
+        "#editor-quality-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(229, 247, 255)",
+      "sampledBg": "rgb(13, 17, 28)",
+      "pixel_ratio": 17.12645316147025,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "setup",
+      "target": [
+        "#setup-ui-locale"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "setup",
+      "target": [
+        "#llm-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "script",
+      "target": [
+        "#existing-upload-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "voices",
+      "target": [
+        "#voices-state-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "target": [
+        "#casting-health"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "target": [
+        "#casting-book"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "target": [
+        "#casting-gender"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "target": [
+        "#casting-age"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "target": [
+        "#casting-status"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "target": [
+        "#casting-sort"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "preparer",
+      "target": [
+        "#prep-lang"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "preparer",
+      "target": [
+        "#prep-diarization-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "dataset-builder",
+      "target": [
+        "#dsb-project-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "training",
+      "target": [
+        "#lora-dataset-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "training",
+      "target": [
+        "#lora-language"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "bread",
+      "tab": "editor",
+      "target": [
+        "#editor-quality-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(52, 49, 57)",
+      "sampledBg": "rgb(255, 250, 251)",
+      "pixel_ratio": 12.356487965279447,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "setup",
+      "target": [
+        "#setup-ui-locale"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "setup",
+      "target": [
+        "#llm-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "script",
+      "target": [
+        "#existing-upload-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "voices",
+      "target": [
+        "#voices-state-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "target": [
+        "#casting-health"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "target": [
+        "#casting-book"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "target": [
+        "#casting-gender"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "target": [
+        "#casting-age"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "target": [
+        "#casting-status"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "target": [
+        "#casting-sort"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "preparer",
+      "target": [
+        "#prep-lang"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "preparer",
+      "target": [
+        "#prep-diarization-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "dataset-builder",
+      "target": [
+        "#dsb-project-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "training",
+      "target": [
+        "#lora-dataset-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "training",
+      "target": [
+        "#lora-language"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    },
+    {
+      "theme": "leek",
+      "tab": "editor",
+      "target": [
+        "#editor-quality-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "textColor": "rgb(226, 241, 240)",
+      "sampledBg": "rgb(20, 36, 42)",
+      "pixel_ratio": 13.739058943100538,
+      "pass": true
+    }
+  ]
+}
