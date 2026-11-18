@@ -366,3 +366,49 @@ class DarkThemeContrastTests(unittest.TestCase):
                                           (tokens['--text-primary'],tokens['--bg-card']),(tokens['--text-muted'],tokens['--bg-card-header'])]:
                 with self.subTest(theme=theme,foreground=foreground):self.assertGreaterEqual(contrast(foreground,background),4.5)
             self.assertGreaterEqual(contrast(tokens['--border-input'],tokens['--bg-input']),3)
+
+    def test_all_six_themes_keep_text_and_ui_pairs_at_wcag_aa(self):
+        """Pin the measured token pairs for every theme, not just the dark ones.
+
+        `--badge-muted-bg` is deliberately excluded: it is defined in all six
+        blocks but consumed by no rule in the tree, so its ratio against a card
+        is not a rendered UI surface. If it is ever used, this test must be
+        extended with the badge's actual text/background pair.
+        """
+        html = (STATIC / 'index.html').read_text(encoding='utf-8')
+        root = re.search(r':root \{(.*?)\n        \}', html, re.S).group(1)
+        blocks = {'light': root}
+        for name, body in re.findall(r'html\[data-theme="([^"]+)"\] \{(.*?)\n        \}', html, re.S):
+            blocks.setdefault(name, body)
+        expected_themes = {'light', 'night', 'super-night', 'cyberpunk', 'bread', 'leek'}
+        self.assertEqual(expected_themes, set(blocks))
+
+        text_pairs = [
+            ('--text-primary', '--bg-card'), ('--text-primary', '--bg-page'),
+            ('--text-primary', '--bg-card-header'), ('--text-primary', '--bg-input'),
+            ('--text-primary', '--bg-modal'), ('--text-muted', '--bg-card'),
+            ('--text-muted', '--bg-card-header'), ('--text-muted', '--bg-page'),
+            ('--text-heading', '--bg-card'), ('--step-color', '--step-bg'),
+            ('--accent-strong', '--bg-card'), ('--log-color', '--log-bg'),
+        ]
+        ui_pairs = [('--border-input', '--bg-input')]
+        for theme, body in blocks.items():
+            tokens = dict(re.findall(r'(--[\w-]+):\s*(#[0-9a-fA-F]{6})', body))
+            for foreground, background in text_pairs:
+                if foreground not in tokens or background not in tokens:
+                    continue
+                with self.subTest(theme=theme, pair=(foreground, background)):
+                    self.assertGreaterEqual(
+                        contrast(tokens[foreground], tokens[background]), 4.5)
+            for foreground, background in ui_pairs:
+                if foreground not in tokens or background not in tokens:
+                    continue
+                with self.subTest(theme=theme, pair=(foreground, background)):
+                    self.assertGreaterEqual(
+                        contrast(tokens[foreground], tokens[background]), 3)
+
+        cyberpunk = dict(re.findall(r'(--[\w-]+):\s*(#[0-9a-fA-F]{6})', blocks['cyberpunk']))
+        for accent in ('--cyber-cyan', '--cyber-yellow', '--cyber-pink'):
+            with self.subTest(theme='cyberpunk', accent=accent):
+                self.assertGreaterEqual(
+                    contrast(cyberpunk[accent], cyberpunk['--bg-card']), 4.5)
