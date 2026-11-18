@@ -8065,6 +8065,17 @@
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_worker_hook_installer_cannot_write_its_shared_config_but_fixture_install_still_works"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_worktree_commands_wait_for_the_common_kernel_lock"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_wrong_shard_identities_are_failed_in_the_persistent_shard_artifact"
+    , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_empty_or_missing_prefix_never_authorizes_a_skip"
+    , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_native_windows_fails_and_names_an_unregistered_skip"
+    , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_native_windows_failure_error_or_unexpected_success_still_fails"
+    , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_native_windows_passes_when_every_skip_is_registered"
+    , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_other_platforms_still_fail_on_a_registered_skip"
+    , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_registry_rows_cover_a_whole_class_or_one_whole_name"
+    , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_runtime_prefix_rows_authorize_only_the_pinned_prefix"
+    , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_runtime_rows_authorize_only_their_exact_message"
+    , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_subtest_parameters_keep_the_test_id_registered"
+    , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_worker_receipt_records_each_skipped_test_id"
+    , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_worker_report_carries_skip_reasons_to_the_verdict"
   ]
   , "test_lora_adapter_locations": [
     "tests.test_lora_adapter_locations.LoraAdapterLocationTests.test_list_and_cached_preview_encode_user_and_builtin_adapter_identity"

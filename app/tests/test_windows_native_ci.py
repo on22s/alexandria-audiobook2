@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import skip_registry
 import subprocess
 import sys
 import tempfile
@@ -44,6 +45,13 @@ SKIP_KINDS = {('unittest', 'skip'): 'skip', ('unittest', 'skipIf'): 'skipIf',
 SKIP_TERMINALS = frozenset(('skip', 'skipIf', 'skipUnless', 'skipTest'))
 PLATFORM_LITERALS = {'sys.platform': ('win32', 'win'), 'os.name': ('nt', 'nt'),
                      'platform.system': ('Windows', 'Win')}
+# Runtime skip sites no test id can name, so no registry row may authorize them.
+# Pinned here so adding one is a reviewed change rather than a silent gap.
+RUNTIME_UNOWNED_SITES = frozenset(('test_exit_code_is_not_destroyed.py:tracked_shell_scripts',
+                                   'test_goals_evidence_paths.py:top_level_entries',
+                                   'test_goals_evidence_paths.py:tracked_files',
+                                   'test_support.py:create_test_symlink_or_skip',
+                                   'test_support.py:get_fixture_process_context'))
 
 
 def _scope_nodes(body, top=None):
@@ -1043,6 +1051,200 @@ def _decorators(tree):
     yield from visit(tree.body, '', None, False)
 
 
+def _node_scopes(module):
+    """`{id(node): (class qualname, name of the class-body function around it)}`."""
+    scopes = {}
+
+    def visit(node, klass, method):
+        scopes[id(node)] = (klass, method)
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.ClassDef):
+                visit(child, module.class_names.get(id(child), child.name), None)
+            elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                visit(child, klass, method if method is not None else child.name)
+            else:
+                visit(child, klass, method)
+
+    visit(module.tree, None, None)
+    return scopes
+
+
+def _runtime_qualname(klass, method):
+    """The registry name a runtime skip site belongs to, or None at module scope.
+
+    A site inside a test method belongs to that test; a site in `setUp` or a
+    helper method belongs to its class, because the test id that reports the
+    skip is the one subclass unittest was running.
+    """
+    if klass is None:
+        return None
+    if method is not None and method.startswith('test'):
+        return klass + '.' + method
+    return klass
+
+
+def _raises_skip_test(module, call, sources, scope=None, position=None):
+    """True when `call` raises `unittest.SkipTest` through a resolved name."""
+    canonical = _dotted(call.func) if isinstance(call, ast.Call) else ''
+    if not canonical:
+        return False
+    resolved = _resolve(module, canonical, sources, scope, position)
+    if resolved[0] == 'symbol':
+        return resolved[1] == 'unittest' and resolved[2] == 'SkipTest'
+    return resolved[0] == 'external' and resolved[1].endswith('.SkipTest')
+
+
+def _runtime_reason_argument(call):
+    """The reason expression a skip passes, or None when it passes no single one."""
+    return call.args[0] if isinstance(call, ast.Call) and len(call.args) == 1 else None
+
+
+def _runtime_reason_literal(module, node, sources, scope=None, position=None):
+    """The exact message when the reason is a literal or a literal binding."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    canonical = _dotted(node) if node is not None else ''
+    if not canonical:
+        return None
+    resolved = _resolve(module, canonical, sources, scope, position)
+    if resolved[0] != 'assignment':
+        return None
+    value = _assigned_value(resolved[2][0][1], canonical)
+    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+        return value.value
+    return None
+
+
+def _runtime_reason_prefix(node):
+    """The stable literal prefix of a computed skip reason, or None.
+
+    Covers the two ways these tests embed an unpredictable WinError: `'literal '
+    + str(error)` and `"literal %s" % error`. A plain literal is not a computed
+    reason and returns None, so its row must pin the exact message instead.
+    """
+    if not isinstance(node, ast.BinOp):
+        return None
+    if isinstance(node.op, ast.Add):
+        parts = []
+        left = node
+        while isinstance(left, ast.BinOp) and isinstance(left.op, ast.Add):
+            parts.append(left.right)
+            left = left.left
+        parts.append(left)
+        prefix = ''
+        for part in reversed(parts):
+            if isinstance(part, ast.Constant) and isinstance(part.value, str):
+                prefix = part.value + prefix
+            else:
+                break
+        return prefix or None
+    if isinstance(node.op, ast.Mod) and isinstance(node.left, ast.Constant) \
+            and isinstance(node.left.value, str):
+        template = node.left.value
+        index = template.find('%')
+        return (template if index < 0 else template[:index]) or None
+    return None
+
+
+def _in_repo_function(module, node, sources, scope=None, position=None):
+    """`(module, definition)` when `node` calls one in-repo function, else None."""
+    if not isinstance(node, ast.Call):
+        return None
+    canonical = _dotted(node.func)
+    if not canonical:
+        return None
+    resolved = _resolve(module, canonical, sources, scope, position)
+    if resolved[0] == 'symbol':
+        target = sources.find(resolved[1])
+        if target is None:
+            return None
+        resolved = _resolve_in_module(target, resolved[2], sources)
+    if resolved[0] != 'definition' or len(resolved[2]) != 1:
+        return None
+    definition = resolved[2][0][1]
+    if not isinstance(definition, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return None
+    return resolved[3], definition
+
+
+def _direct_skip_reasons(definition):
+    """Reason expressions of the skip raises written directly in one function.
+
+    Nested definitions are not entered: this is the one level a call site can
+    see, not a call graph.
+    """
+    found = []
+    stack = list(definition.body)
+    while stack:
+        current = stack.pop()
+        if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+                                ast.Lambda)):
+            continue
+        if isinstance(current, ast.Raise) and isinstance(current.exc, ast.Call) \
+                and _dotted(current.exc.func).endswith('SkipTest'):
+            found.append(_runtime_reason_argument(current.exc))
+        elif isinstance(current, ast.Call) and isinstance(current.func, ast.Attribute) \
+                and current.func.attr == 'skipTest':
+            found.append(_runtime_reason_argument(current))
+        stack.extend(ast.iter_child_nodes(current))
+    return found
+
+
+def _runtime_sites(module, sources):
+    """Every runtime skip site in a module, grouped by the registry name it belongs to.
+
+    A site is a `self.skipTest(...)` call, a `raise unittest.SkipTest(...)`, or a
+    call to an in-repo function that itself raises `SkipTest`. The third shape is
+    why a reviewed row can name a test whose skip lives in `test_support`.
+
+    `{qualname: [(site text, literal reason or None, prefix or None), ...]}` and the
+    names of the sites no test id can name (`file:function`), which no row may
+    authorize. The prefix is the stable literal part of a computed reason, which
+    a `runtime-prefix` row pins; sites reached through a helper cannot prove a
+    prefix and so carry None.
+    """
+    scopes = _node_scopes(module)
+    groups, unowned, helper_reasons = {}, [], {}
+    for node in ast.walk(module.tree):
+        klass, method = scopes.get(id(node), (None, None))
+        qualname = _runtime_qualname(klass, method)
+        position = getattr(node, 'lineno', 0)
+        if isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call) \
+                and _raises_skip_test(module, node.exc, sources, klass, position):
+            text = 'raise ' + _canonical(node.exc)
+            argument = _runtime_reason_argument(node.exc)
+            reason = _runtime_reason_literal(module, argument, sources, klass, position)
+            prefix = _runtime_reason_prefix(argument)
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                and node.func.attr == 'skipTest':
+            text = _canonical(node)
+            argument = _runtime_reason_argument(node)
+            reason = _runtime_reason_literal(module, argument, sources, klass, position)
+            prefix = _runtime_reason_prefix(argument)
+        else:
+            found = _in_repo_function(module, node, sources, klass, position)
+            if found is None:
+                continue
+            owner, definition = found
+            key = (owner.relpath, id(definition))
+            if key not in helper_reasons:
+                helper_reasons[key] = tuple(
+                    _runtime_reason_literal(owner, argument, sources, None,
+                                            getattr(argument, 'lineno', definition.lineno))
+                    for argument in _direct_skip_reasons(definition))
+            if not helper_reasons[key]:
+                continue
+            literals = {reason for reason in helper_reasons[key] if reason is not None}
+            text = (_canonical(node) + ' -> ' + owner.relpath + ':' + definition.name)
+            reason = literals.pop() if len(literals) == 1 else None
+            prefix = None
+        if qualname is None:
+            unowned.append(method or '<module>')
+            continue
+        groups.setdefault(qualname, []).append((text, reason, prefix))
+    return groups, unowned
+
+
 def _references(statement, exclude=()):
     excluded = set()
     for node in exclude:
@@ -1408,9 +1610,38 @@ class _Site:
         return _sha256('\n'.join(parts))
 
 
+class _RuntimeSite:
+    """One reviewed runtime skip row: where it may fire, and the exact message.
+
+    `entries` is every runtime skip site written under that registry name, so a
+    source edit to any of them changes the digest. `reason` is the exact message
+    the row's declaration pins, which the wording of the site cannot always
+    prove (`str(error)` reads the production refusal), and which the verdict
+    compares against the message a receipt actually recorded.
+    """
+
+    def __init__(self, relpath, qualname, reason, entries, declaration):
+        self.relpath = relpath
+        self.qualname = qualname
+        self.reason = reason
+        self.entries = entries
+        self.declaration = declaration
+
+    def digest(self, declaration=None):
+        text = declaration if declaration is not None else self.declaration
+        if text is None:
+            raise ValueError('A declaration is required to compute a registry digest')
+        parts = ['runtime=' + self.relpath + '|' + self.qualname, 'reason=' + self.reason]
+        parts.extend('site=' + entry for entry in self.entries)
+        parts.append('declaration=' + text)
+        return _sha256('\n'.join(parts))
+
+
 class _Census:
     def __init__(self):
         self.sites = {}
+        self.runtime = {}
+        self.runtime_unowned = []
         self.unresolved = []
         self.truncated = []
         self.max_depth = 0
@@ -1434,6 +1665,14 @@ class _Census:
         if reason is not None:
             self.refused.append(site.key)
             self.refusal_reasons[site.key] = reason
+
+    def add_runtime(self, relpath, groups, unowned=()):
+        """Record one module's runtime skip sites, keyed by registry name."""
+        module_file = Path(relpath).name
+        self.runtime_unowned.extend(f'{module_file}:{name}' for name in unowned)
+        for qualname, records in sorted(groups.items()):
+            self.runtime[(module_file, qualname)] = tuple(
+                sorted(records, key=lambda record: record[0]))
 
 
 def _census(files, sources, declarations=None):
@@ -1490,6 +1729,7 @@ def _census(files, sources, declarations=None):
             result.add(site)
             if found['ambiguous']:
                 result.ambiguous.append(key)
+        result.add_runtime(relpath, *_runtime_sites(module, sources))
     return result
 
 
@@ -1541,20 +1781,60 @@ def _scan_sources(root):
 
 
 def _parse_registry(text):
-    rows = {}
-    for number, line in enumerate(text.splitlines(), 1):
-        if not line.strip():
+    """The one registry parser, shared with the runtime skip verdict."""
+    try:
+        return skip_registry.parse_skip_registry(text)
+    except ValueError as error:
+        raise AssertionError(str(error)) from error
+
+
+def _decorator_rows(rows):
+    """The rows that census a decorator site; runtime rows are checked separately."""
+    return {key: value for key, value in rows.items()
+            if skip_registry.get_runtime_skip_target(key) is None}
+
+
+def _runtime_row_site(result, location, declaration):
+    """The reviewed runtime site for one row, or None when no source site backs it."""
+    target = skip_registry.get_runtime_skip_target(location)
+    if target is None:
+        return None
+    module_file, qualname, _digest, _match = target
+    records = result.runtime.get((module_file, qualname))
+    declared = skip_registry.get_declared_reason(declaration)
+    if not records or declared is None:
+        return None
+    return _RuntimeSite(module_file, qualname, declared,
+                        tuple(text for text, _reason, _prefix in records), declaration)
+
+
+def _runtime_row_problems(result, rows, *, digests=True):
+    """Runtime rows that name no source site, or pin a reason their sites cannot raise."""
+    problems = []
+    for location in sorted(rows):
+        digest, declaration = rows[location]
+        target = skip_registry.get_runtime_skip_target(location)
+        if target is None:
             continue
-        location, separator, rest = line.partition(' = ')
-        if not separator:
-            raise AssertionError(f'Registry line {number} is not "<location> = <digest>  # <declaration>"')
-        digest, marker, declaration = rest.partition('  # ')
-        if not marker or not declaration.strip():
-            raise AssertionError(f'Registry line {number} lacks a reviewed declaration')
-        if location in rows:
-            raise AssertionError(f'Registry line {number} repeats location {location}')
-        rows[location] = (digest.strip(), declaration.strip())
-    return rows
+        _module_file, _qualname, _reason_digest, match = target
+        site = _runtime_row_site(result, location, declaration)
+        if site is None:
+            problems.append(f'{location}: runtime row without a site')
+            continue
+        records = result.runtime[(site.relpath, site.qualname)]
+        if match == skip_registry.MATCH_PREFIX:
+            prefixes = {prefix for _text, _reason, prefix in records if prefix is not None}
+            if not prefixes or site.reason not in prefixes:
+                problems.append(
+                    f'{location}: declared reason is not the stable prefix its sites raise')
+        else:
+            literals = {reason for _text, reason, _prefix in records if reason is not None}
+            if len(literals) == len(records) and site.reason not in literals:
+                problems.append(f'{location}: declared reason is not a reason its sites raise')
+        expected = site.digest()
+        if digests and expected != digest:
+            problems.append(f'{location}: digest mismatch (registry {digest}, source {expected})')
+    return problems
 
 
 def _verify_registry(result, rows):
@@ -1572,20 +1852,22 @@ def _verify_registry(result, rows):
             problems.append(reason + ': ' + ', '.join(groups[reason]))
     if result.ambiguous:
         problems.append('ambiguous skip kind: ' + ', '.join(result.ambiguous))
-    missing = sorted(set(result.sites) - set(rows))
-    extra = sorted(set(rows) - set(result.sites))
+    decorator_rows = _decorator_rows(rows)
+    missing = sorted(set(result.sites) - set(decorator_rows))
+    extra = sorted(set(decorator_rows) - set(result.sites))
     if missing:
         problems.append('sites without a registry row: ' + ', '.join(missing))
     if extra:
         problems.append('registry rows without a site: ' + ', '.join(extra))
-    for key in sorted(set(result.sites) & set(rows)):
+    for key in sorted(set(result.sites) & set(decorator_rows)):
         site = result.sites[key]
-        digest, declaration = rows[key]
+        digest, declaration = decorator_rows[key]
         if site.declaration is not None and site.declaration != declaration:
             problems.append(f'{key}: declaration differs from census')
         expected = site.digest(declaration)
         if expected != digest:
             problems.append(f'{key}: digest mismatch (registry {digest}, source {expected})')
+    problems.extend(_runtime_row_problems(result, rows))
     return problems
 
 
@@ -1599,15 +1881,16 @@ def _repin_problems(result, rows):
         problems.append('refused sites: ' + ', '.join(result.refused))
     if result.ambiguous:
         problems.append('ambiguous skip kinds: ' + ', '.join(result.ambiguous))
-    missing = sorted(set(result.sites) - set(rows))
-    extra = sorted(set(rows) - set(result.sites))
+    missing = sorted(set(result.sites) - set(_decorator_rows(rows)))
+    extra = sorted(set(_decorator_rows(rows)) - set(result.sites))
     if missing:
         problems.append('sites without a registry row: ' + ', '.join(missing))
     if extra:
         problems.append('registry rows without a site: ' + ', '.join(extra))
-    for key in sorted(set(result.sites) & set(rows)):
-        if result.sites[key].declaration != rows[key][1]:
+    for key in sorted(set(result.sites) & set(_decorator_rows(rows))):
+        if result.sites[key].declaration != _decorator_rows(rows)[key][1]:
             problems.append(f'{key}: declaration differs from census')
+    problems.extend(_runtime_row_problems(result, rows, digests=False))
     return problems
 
 
@@ -1615,6 +1898,8 @@ def _repin_updates(result, rows):
     updates = {}
     for key in sorted(rows):
         site = result.sites.get(key)
+        if site is None:
+            site = _runtime_row_site(result, key, rows[key][1])
         if site is None:
             continue
         expected = site.digest(rows[key][1])
@@ -1624,15 +1909,17 @@ def _repin_updates(result, rows):
 
 
 def _rewrite_registry(text, updates):
-    lines = text.split('\n')
     written = []
-    for line in lines:
-        location, separator, rest = line.partition(' = ')
-        if separator and location in updates:
-            _digest, marker, declaration = rest.partition('  # ')
-            line = location + ' = ' + updates[location]
-            if marker:
-                line += '  # ' + declaration
+    for number, line in enumerate(text.split('\n'), 1):
+        if line.strip():
+            try:
+                location, _digest, declaration = skip_registry.parse_skip_registry_row(
+                    line, number)
+            except ValueError as error:
+                raise AssertionError(str(error)) from error
+            if location in updates:
+                line = skip_registry.format_skip_registry_row(location, updates[location],
+                                                              declaration)
         written.append(line)
     return '\n'.join(written)
 
@@ -2007,12 +2294,216 @@ def _assert_stdlib_imports(case):
     case.assertEqual(['<dynamic>'], _import_roots(_Module('app/tests/x.py', 'exec(source)\n')))
 
 
+def _assert_runtime_rows(case):
+    """A runtime row is reason-pinned, site-backed, and repin-able (Rule 21)."""
+    body = ("import unittest\n"
+            "def require_link():\n"
+            "    raise unittest.SkipTest('synthetic link reason')\n"
+            "class Case(unittest.TestCase):\n"
+            "    def test_direct(self):\n"
+            "        self.skipTest('synthetic direct reason')\n"
+            "    def test_uses_helper(self):\n"
+            "        require_link()\n"
+            "class SetupCase(unittest.TestCase):\n"
+            "    def setUp(self):\n"
+            "        self.skipTest('synthetic setup reason')\n"
+            "    def test_body(self):\n"
+            "        pass\n")
+    result = _fixture_census({'app/tests/test_fixture.py': body})
+    case.assertEqual(['test_fixture.py:require_link'], result.runtime_unowned)
+
+    def site(qualname, reason, declaration, records=None):
+        records = result.runtime[('test_fixture.py', qualname)] if records is None else records
+        return _RuntimeSite('test_fixture.py', qualname, reason,
+                            tuple(text for text, _reason, _prefix in records), declaration)
+
+    def row(qualname, reason, declaration=None):
+        text = declaration or (f"reason={reason!r}; runtime skip; platform=environment-gated; "
+                              "synthetic fixture")
+        location = f'test_fixture.py:{qualname}:runtime:{skip_registry.get_reason_key(reason)}'
+        return location, (site(qualname, reason, text).digest(text), text)
+
+    direct = row('Case.test_direct', 'synthetic direct reason')
+    setup = row('SetupCase', 'synthetic setup reason')
+    helper = row('Case.test_uses_helper', 'synthetic link reason')
+    case.assertEqual([], _verify_registry(result, dict([direct, setup, helper])))
+
+    other = row('Case.test_direct', 'synthetic other reason')
+    problems = _verify_registry(result, dict([other]))
+    case.assertTrue(any('declared reason is not a reason its sites raise' in problem
+                        for problem in problems), problems)
+    orphan_location = ('test_fixture.py:SetupCase.test_body:runtime:'
+                       + skip_registry.get_reason_key('synthetic setup reason'))
+    orphan_row = ('0' * 64, "reason='synthetic setup reason'; runtime skip; orphan row")
+    problems = _verify_registry(result, {orphan_location: orphan_row})
+    case.assertTrue(any('runtime row without a site' in problem for problem in problems),
+                    problems)
+    stale = (direct[0], ('0' * 64, direct[1][1]))
+    problems = _verify_registry(result, dict([stale]))
+    case.assertTrue(any('digest mismatch' in problem for problem in problems), problems)
+    case.assertEqual({direct[0]: direct[1][0]}, _repin_updates(result, dict([stale])))
+
+    # A digest pins the site text as well as the message it authorizes.
+    edited = _fixture_census({'app/tests/test_fixture.py': body.replace(
+        "'synthetic direct reason'", "'synthetic direct reason' + ''")})
+    case.assertNotEqual(site('Case.test_direct', 'synthetic direct reason',
+                             direct[1][1]).digest(direct[1][1]),
+                        _RuntimeSite('test_fixture.py', 'Case.test_direct',
+                                     'synthetic direct reason',
+                                     tuple(text for text, _reason, _prefix in
+                                           edited.runtime[('test_fixture.py', 'Case.test_direct')]),
+                                     direct[1][1]).digest(direct[1][1]))
+
+    # The row grammar refuses a runtime row it cannot pin to an exact message.
+    reason = skip_registry.get_reason_key('synthetic direct reason')
+    with case.assertRaisesRegex(AssertionError, 'runtime row needs a "reason=<repr>;" declaration'):
+        _parse_registry(f'test_fixture.py:Case.test_direct:runtime:{reason} = ' + '0' * 64
+                        + '  # runtime skip; platform=environment-gated')
+    with case.assertRaisesRegex(AssertionError, 'reason digest disagrees with its declaration'):
+        _parse_registry(f'test_fixture.py:Case.test_direct:runtime:{reason} = ' + '0' * 64
+                        + "  # reason='a different message'; runtime skip")
+
+
+def _assert_runtime_prefix_rows(case):
+    """A runtime-prefix row pins the stable prefix of a computed WinError message."""
+    body = ("import unittest\n"
+            "class Case(unittest.TestCase):\n"
+            "    def test_link(self):\n"
+            "        try:\n"
+            "            raise OSError(1314, 'privilege not held')\n"
+            "        except OSError as error:\n"
+            "            self.skipTest('Host cannot create symlink: ' + str(error))\n"
+            "    def test_pref(self):\n"
+            "        try:\n"
+            "            raise OSError(1314, 'privilege not held')\n"
+            "        except OSError as error:\n"
+            "            self.skipTest('native symlink unavailable here: %s' % error)\n")
+    result = _fixture_census({'app/tests/test_computed.py': body})
+    prefix_add = 'Host cannot create symlink: '
+    prefix_mod = 'native symlink unavailable here: '
+    for qualname, prefix in (('Case.test_link', prefix_add), ('Case.test_pref', prefix_mod)):
+        records = result.runtime[('test_computed.py', qualname)]
+        case.assertEqual([(None, prefix)], [(reason, p) for _text, reason, p in records])
+
+    def row(qualname, prefix):
+        text = f"reason={prefix!r}; runtime skip; platform=environment-gated; computed WinError"
+        records = result.runtime[('test_computed.py', qualname)]
+        site = _RuntimeSite('test_computed.py', qualname, prefix,
+                            tuple(item[0] for item in records), text)
+        location = ('test_computed.py:' + qualname + ':runtime-prefix:'
+                    + skip_registry.get_reason_key(prefix))
+        return location, (site.digest(), text)
+
+    good = dict([row('Case.test_link', prefix_add), row('Case.test_pref', prefix_mod)])
+    case.assertEqual([], _verify_registry(result, good))
+    case.assertEqual({}, _repin_updates(result, good))
+
+    wrong_location = ('test_computed.py:Case.test_link:runtime-prefix:'
+                      + skip_registry.get_reason_key('a different prefix: '))
+    wrong_row = {wrong_location: ('0' * 64,
+                                  "reason='a different prefix: '; runtime skip")}
+    problems = _verify_registry(result, wrong_row)
+    case.assertTrue(any('stable prefix' in problem for problem in problems), problems)
+
+    # The row grammar pins a runtime-prefix row to its declaration exactly as a
+    # runtime row, so a missing or mismatched reason is still refused.
+    with case.assertRaisesRegex(AssertionError, 'runtime row needs a "reason=<repr>;" declaration'):
+        _parse_registry('test_computed.py:Case.test_link:runtime-prefix:'
+                        + skip_registry.get_reason_key(prefix_add) + ' = ' + '0' * 64
+                        + '  # runtime skip; platform=environment-gated')
+
+
+def _assert_alias_rows(case):
+    """A re-declared alias row is accepted only at the site that resolves to it.
+
+    The pooled restoration aliases no longer inherit a decorator through a bare
+    method alias; each re-declares the same skipUnless in its own file. The
+    census must pin a row at that site (not at the source method's site) and the
+    verdict must authorize the alias's test id only through a row naming it.
+    """
+    helper = "def capability():\n    return False\n"
+    source = ("import unittest\n"
+              "from helper import capability\n"
+              "class Source(unittest.TestCase):\n"
+              "    @unittest.skipUnless(capability(), 'durable storage')\n"
+              "    def test_original(self):\n"
+              "        pass\n")
+    alias = ("import unittest\n"
+             "from helper import capability\n"
+             "from tests import test_source\n"
+             "class Alias(unittest.TestCase):\n"
+             "    @unittest.skipUnless(capability(), 'durable storage')\n"
+             "    def test_alias(self):\n"
+             "        return test_source.Source.test_original(self)\n")
+    files = {'app/tests/test_source.py': source,
+             'app/tests/test_alias.py': alias,
+             'app/helper.py': helper}
+    result = _fixture_census(files)
+    source_key = 'test_source.py:Source.test_original:0'
+    alias_key = 'test_alias.py:Alias.test_alias:0'
+    case.assertEqual({alias_key, source_key}, set(result.sites))
+    declaration = ("skipUnless; platform=linux-runs-when-capability-present; "
+                   "predicate=capability(); pins=helper.py:capability")
+    digest = result.sites[alias_key].digest(declaration)
+
+    source_digest = result.sites[source_key].digest(declaration)
+    good = {alias_key: (digest, declaration),
+            source_key: (source_digest, declaration)}
+
+    # The alias's own site is the only row the census accepts for its id.
+    case.assertEqual([], _verify_registry(result, good))
+    # A row pinned at the source site alone leaves the alias site unregistered.
+    problems = _verify_registry(result, {source_key: good[source_key]})
+    case.assertTrue(any('sites without a registry row' in p and alias_key in p
+                        for p in problems), problems)
+    # A stale digest at the alias's own site is refused.
+    problems = _verify_registry(result, {**good, alias_key: ('0' * 64, declaration)})
+    case.assertTrue(any('digest mismatch' in p and alias_key in p for p in problems), problems)
+    # Editing the alias's decorator changes the site its row must pin.
+    edited = _fixture_census({**files, 'app/tests/test_alias.py': alias.replace(
+        "'durable storage'", "'a different reason'")})
+    problems = _verify_registry(edited, good)
+    case.assertTrue(any('digest mismatch' in p and alias_key in p for p in problems), problems)
+
+    # The verdict authorizes the alias id only through a row naming its own file.
+    alias_sites = frozenset((skip_registry.get_verdict_site(alias_key, declaration),))
+    source_sites = frozenset((skip_registry.get_verdict_site(source_key, declaration),))
+    alias_id = 'tests.test_alias.Alias.test_alias'
+    source_id = 'tests.test_source.Source.test_original'
+    case.assertTrue(skip_registry.is_registered_skip(alias_id, alias_sites))
+    case.assertFalse(skip_registry.is_registered_skip(alias_id, source_sites))
+    case.assertFalse(skip_registry.is_registered_skip(source_id, alias_sites))
+
+    # The five real pooled aliases carry rows whose digests pin their own sites.
+    real_sources, real_files = _scan_sources(ROOT)
+    real_rows = _parse_registry(SKIP_REGISTRY.read_text(encoding='utf-8'))
+    real_result = _census(real_files, real_sources,
+                          {key: value[1] for key, value in real_rows.items()})
+    for name in ('test_original_bytes_and_full_proof',
+                 'test_failed_selection_keeps_current',
+                 'test_cancelled_and_replaced_owner',
+                 'test_saved_speech_receipt_binding',
+                 'test_changed_dependencies_refuse'):
+        key = 'test_pooled_take_restoration.py:PooledTakeRestorationTests.' + name + ':0'
+        case.assertIn(key, real_result.sites)
+        case.assertIn(key, real_rows)
+        case.assertEqual(real_rows[key][0], real_result.sites[key].digest(real_rows[key][1]))
+        case.assertTrue(skip_registry.is_registered_skip(
+            'tests.test_pooled_take_restoration.PooledTakeRestorationTests.' + name,
+            skip_registry.get_registered_skip_sites()))
+
+
 def _assert_skip_registry(case):
     sources, files = _scan_sources(ROOT)
     rows = _parse_registry(SKIP_REGISTRY.read_text(encoding='utf-8'))
     result = _census(files, sources, {key: value[1] for key, value in rows.items()})
     case.assertEqual([], _verify_registry(result, rows))
-    case.assertEqual(len(result.sites), len(rows))
+    decorator_rows = _decorator_rows(rows)
+    runtime_rows = {key: value for key, value in rows.items()
+                    if skip_registry.get_runtime_skip_target(key) is not None}
+    case.assertEqual(len(result.sites), len(decorator_rows))
+    case.assertEqual(len(rows), len(decorator_rows) + len(runtime_rows))
+    case.assertEqual(sorted(RUNTIME_UNOWNED_SITES), sorted(result.runtime_unowned))
     case.assertEqual([], result.refused)
     case.assertEqual([], result.ambiguous)
     case.assertLessEqual(result.max_depth, CSPR_MAX_DEPTH)
@@ -4354,6 +4845,9 @@ class NativeWindowsCiTests(unittest.TestCase):
         _assert_transaction_contract(self)
         _assert_stdlib_imports(self)
         _assert_skip_registry(self)
+        _assert_runtime_rows(self)
+        _assert_runtime_prefix_rows(self)
+        _assert_alias_rows(self)
         _assert_scan_sources_reuse(self)
         _assert_csp_controls(self)
         _assert_alias_gate_contract(self)

@@ -289,9 +289,10 @@ produce no site or unresolved entry; Linux zero-skip shards remain their runtime
 backstop. An inherited attribute on a statically resolved class is unresolved,
 including when the class root is bound in an enclosing class-decorator scope.
 
-Each row is `<file>:<QualName>:<decorator-index> = <sha256>  # <declaration>`.
-The digest covers the normalized decorator AST, the ordered source closure and
-the reviewed declaration. The closure pins every in-repo definition the
+Each decorator row is `<file>:<QualName>:<decorator-index> = <sha256>  # <declaration>`
+(runtime rows are described at the end of this section). The digest covers the
+normalized decorator AST, the ordered source closure and the reviewed
+declaration. The closure pins every in-repo definition the
 predicate or callee chain reaches, including helper function bodies, together
 with the complete enclosing control statements for conditionally bound names,
 so changing only an `if` predicate changes the digest. Statements reached
@@ -391,8 +392,44 @@ constants are folded; integers, strings, containers and calls such as
 `bool(True)` remain unknown even when a reader can infer their truth value.
 
 Dynamically constructed decorators (`getattr`, `partial`, third-party
-factories) and runtime `self.skipTest`/`raise SkipTest` are outside the static
-census. They are disclosed residuals, not exemptions: the Linux release shards
-fail on every skip they observe, but cannot backstop a runtime skip whose
-condition is true only on Windows or macOS. Coverage of those paths requires
-execution on the corresponding host; a reviewed static row does not prove it.
+factories) are outside the static census. They are disclosed residuals, not
+exemptions: the Linux release shards fail on every skip they observe, but cannot
+backstop a skip whose condition is true only on Windows or macOS. Coverage of
+these paths requires execution on the corresponding host; a reviewed static row
+does not prove it.
+
+Runtime `self.skipTest(...)`/`raise unittest.SkipTest(...)` sites are censused
+separately, because whether they fire depends on the host that runs them. A
+site inside a test method belongs to that test; a site in `setUp` or a helper
+method belongs to its class, because the id that reports the skip is the test
+unittest was running. A call to an in-repo function that raises `SkipTest` (one
+level, not a call graph) is a site of the method that calls it, which is how a
+test whose skip lives in `test_support` can still be named. Sites written at
+module scope belong to no id, can never be authorized, and are pinned by the
+`RUNTIME_UNOWNED_SITES` inventory in `tests/test_windows_native_ci.py`.
+
+Runtime rows are an allow-list, not an exhaustive census: a site with no row is
+simply not authorized, so a shard containing it fails. A row is
+`<file>:<QualName>:runtime:<reason-sha256> = <sha256>  # reason=<repr>; ...`.
+The location's digest is the sha256 of the exact message the row authorizes, and
+`skip_registry.get_shard_verdict` compares it with the message the receipt
+recorded, so a test that starts skipping with a different message becomes
+unregistered again. The declaration begins with `reason=<python repr>;`; the
+parser refuses a runtime row without it and refuses one whose literal does not
+hash to the location's digest. The row digest covers the registry name, that
+exact message, every runtime site written under the name, and the declaration,
+so editing any of them requires a reviewed repin. When every site under the name
+is a literal, the census also refuses a row whose message none of them can
+raise; a `str(error)` site cannot prove its own wording, so its row pins the
+message measured on a native host and the runtime check is what holds it true.
+
+A skip whose message is a stable literal prefix followed by unpredictable text
+(a WinError that embeds a per-run temp path) uses a `runtime-prefix` row:
+`<file>:<QualName>:runtime-prefix:<reason-sha256> = <sha256>  # reason=<repr>; ...`.
+The location digest is still the sha256 of the `reason=` literal, and the parser
+and row digest validate it exactly as for a `runtime` row, but the verdict
+accepts only a recorded message that *starts with* that prefix. The census
+proves the prefix is the literal prefix the site raises (`'literal ' + str(error)`
+or `"literal %s" % error`), so the varying remainder is never pinned and a
+message with any other prefix stays unregistered. Only the four measured
+symlink-privilege skips with temp paths in their messages use this form.

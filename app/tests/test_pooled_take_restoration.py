@@ -48,12 +48,28 @@ class PooledTakeRestorationTests(unittest.TestCase):
             yield fixture
 
     # Reuse the existing behavioral assertions against a different real disk
-    # representation. No provider/model/native qualification is implied.
-    test_original_bytes_and_full_proof = restore_cases.TakeRestorationTests.test_restore_selects_original_bytes_counter_and_complete_proof_in_both_stores
-    test_failed_selection_keeps_current = restore_cases.TakeRestorationTests.test_failed_final_metadata_keeps_displaced_bytes_revision_and_take
-    test_cancelled_and_replaced_owner = restore_cases.TakeRestorationTests.test_cancelled_or_replaced_owner_at_final_capture_cannot_select
-    test_saved_speech_receipt_binding = restore_cases.TakeRestorationTests.test_saved_speech_evidence_rebinds_only_verified_installed_file_version
-    test_changed_dependencies_refuse = restore_cases.TakeRestorationTests.test_changed_dependencies_and_corrupt_saved_bindings_never_replace_selected_audio
+    # representation. No provider/model/native qualification is implied. Each
+    # alias re-declares the source method's skipUnless in this file so the skip
+    # registry can pin a row at the decorator site that actually skips this id.
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_original_bytes_and_full_proof(self):
+        return restore_cases.TakeRestorationTests.test_restore_selects_original_bytes_counter_and_complete_proof_in_both_stores(self)
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_failed_selection_keeps_current(self):
+        return restore_cases.TakeRestorationTests.test_failed_final_metadata_keeps_displaced_bytes_revision_and_take(self)
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_cancelled_and_replaced_owner(self):
+        return restore_cases.TakeRestorationTests.test_cancelled_or_replaced_owner_at_final_capture_cannot_select(self)
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_saved_speech_receipt_binding(self):
+        return restore_cases.TakeRestorationTests.test_saved_speech_evidence_rebinds_only_verified_installed_file_version(self)
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_changed_dependencies_refuse(self):
+        return restore_cases.TakeRestorationTests.test_changed_dependencies_and_corrupt_saved_bindings_never_replace_selected_audio(self)
 
     @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_hard_exits_recover_pooled_proofs_and_actual_archives_in_both_stores(self):
