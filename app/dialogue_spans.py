@@ -115,38 +115,46 @@ def _is_unbroken(breaks, position, end):
     return index == len(breaks) or breaks[index] >= end - 1
 
 
-def _paired_closer_offsets(text):
-    """Offsets where a mark CLOSES a distinct-mark pair.
+def _ambiguous_mark_roles(text):
+    """-> (closer offsets, opener offsets) for marks shared between pairs.
 
-    A mark can close one pair and open another: `“` closes `„…“` but opens
-    `“…”`. Counting every `“` as a curly opener lets a German speech's closer
-    pair with a later English closer, producing a phantom span over the
-    narration between them (and a review warning). Scanning each distinct pair
-    once in order identifies the real closers; the straight-quote pairs are
-    excluded because their mark is both opener and closer by definition.
+    `“` closes `„…“` but opens `“…”`. Treating it one way everywhere either
+    makes a German closer pair with a later English closer (phantom span over
+    the narration between them) or, in `„He said “Hi” to me.“`, takes the inner
+    `“` for the German closer and loses both speeches. The next quote mark
+    decides: `“` followed by `”` opens English speech; otherwise it closes the
+    pending German pair. Straight pairs are excluded — their mark is both
+    opener and closer by definition, so it is never ambiguous.
     """
-    closes = set()
+    all_marks = [(m.start(), m.group()) for m in re.finditer(
+        "[" + "".join(re.escape(mark) for mark in QUOTE_MARKS) + "]", text)]
+    closes, opens = set(), set()
     for opener, closer in PAIRED:
         if opener == closer:
+            continue
+        opened_pair_closer = next((c for o, c in PAIRED if o == closer and c != closer), None)
+        if opened_pair_closer is None:
             continue
         pattern = re.compile("(?:" + re.escape(opener) + "|" + re.escape(closer) + ")")
         inside = False
         for match in pattern.finditer(text):
-            if match.group() == opener:
+            pos, mark = match.start(), match.group()
+            if mark == opener:
                 inside = True
             elif inside:
-                closes.add(match.start())
+                nxt = next((m for p, m in all_marks if p > pos), None)
+                (opens if nxt == opened_pair_closer else closes).add(pos)
                 inside = False
-    return closes
+    return closes, opens
 
 
 def _paired_spans(text):
     spans = []
     breaks = starts = None
     masks = {}
-    # `“` closes „…“ but also opens “…”. A mark that closes a real pair is not
-    # an opener for a different one, so it must be skipped when pairing.
-    closes = _paired_closer_offsets(text)
+    # `“` closes „…“ but also opens “…”. Resolve each occurrence once, then skip
+    # a closer-offset when looking for openers and vice versa.
+    closes, opens = _ambiguous_mark_roles(text)
 
     def prepare():
         """-> (breaks, offsets where a paragraph begins), built once per call.
@@ -231,6 +239,12 @@ def _paired_spans(text):
                     candidate = text.find(opener, candidate + 1)
                 return candidate
 
+            def next_closer(search_from):
+                candidate = text.find(closer, search_from)
+                while candidate != -1 and candidate in opens:
+                    candidate = text.find(closer, candidate + 1)
+                return candidate
+
             position = next_opener(0)
             end, bad_breaks = 0, None
             while position != -1:
@@ -238,7 +252,7 @@ def _paired_spans(text):
                 # forward search and inspect offsets without copying every
                 # remaining interior substring.
                 if end <= position:
-                    end = text.find(closer, position + 1)
+                    end = next_closer(position + 1)
                 if end == -1:
                     break
                 if bad_breaks is None:

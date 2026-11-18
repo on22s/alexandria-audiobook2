@@ -141,6 +141,19 @@ class SpanTest(unittest.TestCase):
                     self.assertEqual(0, measured.copied_characters)
                     self.assertLessEqual(measured.search_extent, 8 * len(value))
 
+    def test_a_blank_line_before_the_closing_mark_is_a_refused_candidate(self):
+        # Deliberate scope of the rule: a blank line inside a pair must be
+        # followed by the SAME mark. Here it is followed by the closer, so the
+        # candidate is refused rather than treated as a continued speech — the
+        # same refusal that bounds a chain of unclosed openers. The text is not
+        # silently lost in every convention: other-speech detection may still
+        # surface it for review, depending on the mark.
+        for opener, closer in [('“', '”'), ('"', '"')]:
+            with self.subTest(opener=opener):
+                source = opener + "Hello\n\n" + closer + " she said."
+                self.assertEqual([], [source[a:b] for a, b in spoken_spans(
+                    source, "paired_quotes")])
+
     def test_a_short_multi_paragraph_speech_is_kept_by_the_reprise_rule(self):
         # Nothing to do with length: a speech whose paragraphs re-open the same
         # mark is one span, and was before the rule applied to every pair.
@@ -179,6 +192,20 @@ class SpanTest(unittest.TestCase):
         self.assertEqual(
             ["Komm her!", "Never mind.", "Geh jetzt!", "Too late."],
             [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_an_english_opener_is_not_taken_for_a_german_closer(self):
+        # The reverse mistake: a `“` followed by `”` opens English speech even
+        # while a German pair is pending. A greedy closer scan either drops it
+        # or cuts the German utterance short; both lose real speech.
+        for source, expected in [
+            ("A stray „ mark here. “Real speech here.” she said.",
+             ["Real speech here."]),
+            ("„He said “Hi” to me.“ she said.",
+             ["He said “Hi” to me."]),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(expected,
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
 
     def test_a_detected_span_must_be_a_real_range_in_the_source(self):
         # The guard runs on raw detection, before the sort and merge, because
