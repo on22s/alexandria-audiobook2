@@ -140,10 +140,25 @@ def _ambiguous_mark_roles(text):
         return mark_at[positions[index]] if index < len(positions) else None
 
     # Only `“` is shared: it closes „…“ and opens “…”. Precompute which of its
-    # occurrences look like English openers, and a suffix telling whether any
-    # later occurrence can still close the German pair.
+    # occurrences look like genuine English openers — the next mark must be a
+    # `”` with real speech between them. An orphan `”` (empty or padded content)
+    # is not a closer, so the `“` before it still closes the pending `„`.
     quotes = [pos for pos, mark in all_marks if mark == "“"]
-    english_like = {pos: mark_after(pos) == "”" for pos in quotes}
+
+    def english_like_at(pos):
+        index = bisect_right(positions, pos)
+        if index >= len(positions) or mark_at[positions[index]] != "”":
+            return False
+        start, stop = pos + 1, positions[index]
+        if start >= stop or text[start].isspace() or text[stop - 1].isspace():
+            return False  # orphan `”`: empty or whitespace-padded content
+        # Index by character, never slice: callers may pass a measured source
+        # that counts copied characters, and the cost pins require zero copies.
+        return any(not text[at].isspace() for at in range(start, stop))
+
+    english_like = {pos: english_like_at(pos) for pos in quotes}
+    # Suffix: can a later `“` still close the German pair? Needed when a real
+    # English pair is nested inside a German one („He said “Hi” to me.“).
     later_german_closer = [False] * (len(quotes) + 1)
     for index in range(len(quotes) - 1, -1, -1):
         later_german_closer[index] = (later_german_closer[index + 1]

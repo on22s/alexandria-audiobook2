@@ -148,6 +148,19 @@ class SpanTest(unittest.TestCase):
         self.assertEqual(["German.", "Real."],
             [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
 
+    def test_an_orphan_closer_after_nesting_keeps_both_speeches(self):
+        # An orphan `”` has empty or whitespace-padded content — it is not a
+        # real English closer, so it must not turn the preceding German closer
+        # into an English opener (which would drop nested speech or swallow a
+        # later German speech into the narration).
+        for source, expected in [
+            ("„He said “Hi” to me.“ ”orphan", ["He said “Hi” to me."]),
+            ("„A “B” C“ ”orphan „D.“", ["A “B” C", "D."]),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(expected,
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
     def test_shared_mark_disambiguation_is_linear(self):
         # The shared-mark roles are resolved with position-indexed lookups. A
         # linear rescan per quote made a 20k-pair text take seconds; this is a
