@@ -154,12 +154,11 @@ pair and extend the test.
   surfaces**. Editor tool panels contribute 15–31 evaluated nodes each and all
   report `open=true` after their click. Artifact:
   `docs/audits/theme-contrast-2026-11-18-interaction-results.json`.
-- The casting-review modal is recorded as not-applicable, not as a clean pass.
-  `#casting-review` has no event listener, `onclick`, or Bootstrap
-  `data-bs-toggle`/`data-bs-target` in this build, and no JS opens
-  `#casting-review-modal`, so the control is dead and the modal is unreachable
-  through real clicks regardless of saved data. Populated casting-review content
-  therefore remains unverified — and more fundamentally than a data gap.
+- In the earlier no-data run the casting-review modal was not-applicable:
+  `openReview()` returns a "No voices match these filters" toast when the
+  library is empty. The trigger is wired (`bind()` wires `#casting-review` to
+  `openReview()` when the casting tab is activated); section 8 now audits it
+  with seeded voices.
 
 ## 7. Pixel check of the image/gradient `incomplete` nodes
 
@@ -172,9 +171,37 @@ pair and extend the test.
   and higher than the heuristic's 4.5008 lower bound. Artifact:
   `docs/audits/theme-contrast-2026-11-18-incomplete-pixel-results.json`.
 
+## 8. Populated casting-review modal
+
+- `npm run casting` seeds three synthetic voices through request interception,
+  navigates to the casting tab, and opens the Review modal with a real click in
+  each theme. It then clicks next, previous, shortlist, callback and reject,
+  auditing the populated modal after each action. Status saves are intercepted
+  with a success response so the actions are real, and each status action is
+  asserted to change the visible review state (position / reviewed count /
+  review-head text). The shortlist/callback status badges themselves live in
+  the cards list and are covered by the main and interaction audits, not the
+  modal-scoped axe run. Voices are synthetic — no copyrighted or private data
+  is used.
+- Result: **36 surfaces, 5 distinct modal states per theme, 0 axe color-contrast
+  violations, 0 zero-node surfaces; all 36 modals opened with content; 18/18
+  status actions changed state**. Artifact:
+  `docs/audits/theme-contrast-2026-11-18-casting-results.json`.
+- Three genuine bugs were found and fixed here:
+  - Dark themes repurpose `.bg-light` as a dark surface, but Bootstrap's
+    `!important` `.text-dark` utility kept taxonomy badges near-black on dark
+    (1.15–1.22:1). Theme rules now override with `!important`.
+  - Bootstrap's `!important` `.text-warning` yellow was 1.51–1.63:1 on light
+    surfaces (the "no preview audio" note). Light/bread now use `#856404`.
+  - That `.text-warning` override initially broke `#sys-status-error` in the
+    dark navbar (2.45–2.95:1). A `.navbar .text-warning` exception keeps the
+    bright yellow there. Confirmed by re-running the full contrast suite:
+    main 0 violations × 6 themes, hover 1,296 controls / 0 failures,
+    interaction 60 surfaces / 0 violations, pixels 100 nodes / min 7.2643,
+    AX tree 78/78 named — all still green.
+  All three are pinned by a static test so a future utility change fails CI.
+
 ## Still unverified
 
-- Dynamically populated casting-review content (its trigger button is unwired
-  in this build, so the modal is unreachable by real clicks) and a real
-  NVDA/VoiceOver run — the AX tree is a proxy.
+- A real NVDA/VoiceOver run — the AX tree is a proxy for screen-reader naming.
 

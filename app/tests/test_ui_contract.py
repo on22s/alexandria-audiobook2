@@ -198,6 +198,17 @@ class UIContractTests(unittest.TestCase):
         self.assertIn('html[data-theme="bread"] .btn-outline-success', source)
         self.assertIn('html[data-theme="bread"] .btn-outline-danger', source)
 
+    def test_casting_review_badges_override_bootstrap_utilities(self):
+        # The populated casting-review audit found Bootstrap's !important text
+        # utilities winning over the theme rules: .text-dark on a dark .bg-light
+        # surface (dark-on-dark) and warning yellow on light surfaces (1.63:1).
+        source = (STATIC / 'index.html').read_text(encoding='utf-8')
+        self.assertIn('.bg-light.text-dark { color: var(--text-primary) !important; }', source)
+        self.assertIn('html:not([data-theme]) .text-warning,\n        html[data-theme="bread"] .text-warning { color: #856404 !important; }', source)
+        # The dark-navbar system-status text uses .text-warning too: without
+        # this exception #sys-status-error drops to ~2.5:1 in light/bread.
+        self.assertIn('html:not([data-theme]) .navbar .text-warning,\n        html[data-theme="bread"] .navbar .text-warning { color: #ffc107 !important; }', source)
+
     def test_hover_fill_colors_and_all_theme_audit_coverage(self):
         source = (STATIC / 'index.html').read_text(encoding='utf-8')
 

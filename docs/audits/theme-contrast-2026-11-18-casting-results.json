@@ -1,0 +1,601 @@
+{
+  "tool": "axe-core 4.14.1 on populated casting-review modal, synthetic voices, 6 themes",
+  "url": "http://127.0.0.1:8765/",
+  "date": "2026-11-18T19:35:11.144Z",
+  "summary": {
+    "surfaces": 36,
+    "violations": 0,
+    "zero_node_surfaces": [],
+    "modals_opened": 36,
+    "status_actions": 18,
+    "status_actions_effective": 18,
+    "distinct_states_per_theme": [
+      {
+        "theme": "light",
+        "distinct": 5
+      },
+      {
+        "theme": "night",
+        "distinct": 5
+      },
+      {
+        "theme": "super-night",
+        "distinct": 5
+      },
+      {
+        "theme": "cyberpunk",
+        "distinct": 5
+      },
+      {
+        "theme": "bread",
+        "distinct": 5
+      },
+      {
+        "theme": "leek",
+        "distinct": 5
+      }
+    ]
+  },
+  "statusAssertions": [
+    {
+      "theme": "light",
+      "step": "shortlist",
+      "before": "1 of 3|0|BOOKUnreviewed",
+      "after": "2 of 3|33|BOOKUnreviewed",
+      "effective": true
+    },
+    {
+      "theme": "light",
+      "step": "callback",
+      "before": "2 of 3|33|BOOKUnreviewed",
+      "after": "3 of 3|67|BOOKUnreviewed",
+      "effective": true
+    },
+    {
+      "theme": "light",
+      "step": "reject",
+      "before": "3 of 3|67|BOOKUnreviewed",
+      "after": "3 of 3|100|BOOKReject",
+      "effective": true
+    },
+    {
+      "theme": "night",
+      "step": "shortlist",
+      "before": "1 of 3|0|BOOKUnreviewed",
+      "after": "2 of 3|33|BOOKUnreviewed",
+      "effective": true
+    },
+    {
+      "theme": "night",
+      "step": "callback",
+      "before": "2 of 3|33|BOOKUnreviewed",
+      "after": "3 of 3|67|BOOKUnreviewed",
+      "effective": true
+    },
+    {
+      "theme": "night",
+      "step": "reject",
+      "before": "3 of 3|67|BOOKUnreviewed",
+      "after": "3 of 3|100|BOOKReject",
+      "effective": true
+    },
+    {
+      "theme": "super-night",
+      "step": "shortlist",
+      "before": "1 of 3|0|BOOKUnreviewed",
+      "after": "2 of 3|33|BOOKUnreviewed",
+      "effective": true
+    },
+    {
+      "theme": "super-night",
+      "step": "callback",
+      "before": "2 of 3|33|BOOKUnreviewed",
+      "after": "3 of 3|67|BOOKUnreviewed",
+      "effective": true
+    },
+    {
+      "theme": "super-night",
+      "step": "reject",
+      "before": "3 of 3|67|BOOKUnreviewed",
+      "after": "3 of 3|100|BOOKReject",
+      "effective": true
+    },
+    {
+      "theme": "cyberpunk",
+      "step": "shortlist",
+      "before": "1 of 3|0|BOOKUnreviewed",
+      "after": "2 of 3|33|BOOKUnreviewed",
+      "effective": true
+    },
+    {
+      "theme": "cyberpunk",
+      "step": "callback",
+      "before": "2 of 3|33|BOOKUnreviewed",
+      "after": "3 of 3|67|BOOKUnreviewed",
+      "effective": true
+    },
+    {
+      "theme": "cyberpunk",
+      "step": "reject",
+      "before": "3 of 3|67|BOOKUnreviewed",
+      "after": "3 of 3|100|BOOKReject",
+      "effective": true
+    },
+    {
+      "theme": "bread",
+      "step": "shortlist",
+      "before": "1 of 3|0|BOOKUnreviewed",
+      "after": "2 of 3|33|BOOKUnreviewed",
+      "effective": true
+    },
+    {
+      "theme": "bread",
+      "step": "callback",
+      "before": "2 of 3|33|BOOKUnreviewed",
+      "after": "3 of 3|67|BOOKUnreviewed",
+      "effective": true
+    },
+    {
+      "theme": "bread",
+      "step": "reject",
+      "before": "3 of 3|67|BOOKUnreviewed",
+      "after": "3 of 3|100|BOOKReject",
+      "effective": true
+    },
+    {
+      "theme": "leek",
+      "step": "shortlist",
+      "before": "1 of 3|0|BOOKUnreviewed",
+      "after": "2 of 3|33|BOOKUnreviewed",
+      "effective": true
+    },
+    {
+      "theme": "leek",
+      "step": "callback",
+      "before": "2 of 3|33|BOOKUnreviewed",
+      "after": "3 of 3|67|BOOKUnreviewed",
+      "effective": true
+    },
+    {
+      "theme": "leek",
+      "step": "reject",
+      "before": "3 of 3|67|BOOKUnreviewed",
+      "after": "3 of 3|100|BOOKReject",
+      "effective": true
+    }
+  ],
+  "results": [
+    {
+      "theme": "light",
+      "step": "open",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 111,
+      "position": "1 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "step": "next",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 112,
+      "position": "2 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 23,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "step": "prev",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 111,
+      "position": "1 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "step": "shortlist",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 112,
+      "position": "2 of 3",
+      "reviewed": "33",
+      "head": "BOOKUnreviewed",
+      "nodes": 23,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "step": "callback",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 136,
+      "position": "3 of 3",
+      "reviewed": "67",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "step": "reject",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 132,
+      "position": "3 of 3",
+      "reviewed": "100",
+      "head": "BOOKReject",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "night",
+      "step": "open",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 111,
+      "position": "1 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "night",
+      "step": "next",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 112,
+      "position": "2 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 23,
+      "violations": []
+    },
+    {
+      "theme": "night",
+      "step": "prev",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 111,
+      "position": "1 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "night",
+      "step": "shortlist",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 112,
+      "position": "2 of 3",
+      "reviewed": "33",
+      "head": "BOOKUnreviewed",
+      "nodes": 23,
+      "violations": []
+    },
+    {
+      "theme": "night",
+      "step": "callback",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 136,
+      "position": "3 of 3",
+      "reviewed": "67",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "night",
+      "step": "reject",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 132,
+      "position": "3 of 3",
+      "reviewed": "100",
+      "head": "BOOKReject",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "super-night",
+      "step": "open",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 111,
+      "position": "1 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "super-night",
+      "step": "next",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 112,
+      "position": "2 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 23,
+      "violations": []
+    },
+    {
+      "theme": "super-night",
+      "step": "prev",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 111,
+      "position": "1 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "super-night",
+      "step": "shortlist",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 112,
+      "position": "2 of 3",
+      "reviewed": "33",
+      "head": "BOOKUnreviewed",
+      "nodes": 23,
+      "violations": []
+    },
+    {
+      "theme": "super-night",
+      "step": "callback",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 136,
+      "position": "3 of 3",
+      "reviewed": "67",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "super-night",
+      "step": "reject",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 132,
+      "position": "3 of 3",
+      "reviewed": "100",
+      "head": "BOOKReject",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "cyberpunk",
+      "step": "open",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 111,
+      "position": "1 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "cyberpunk",
+      "step": "next",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 112,
+      "position": "2 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 23,
+      "violations": []
+    },
+    {
+      "theme": "cyberpunk",
+      "step": "prev",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 111,
+      "position": "1 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "cyberpunk",
+      "step": "shortlist",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 112,
+      "position": "2 of 3",
+      "reviewed": "33",
+      "head": "BOOKUnreviewed",
+      "nodes": 23,
+      "violations": []
+    },
+    {
+      "theme": "cyberpunk",
+      "step": "callback",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 136,
+      "position": "3 of 3",
+      "reviewed": "67",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "cyberpunk",
+      "step": "reject",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 132,
+      "position": "3 of 3",
+      "reviewed": "100",
+      "head": "BOOKReject",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "bread",
+      "step": "open",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 111,
+      "position": "1 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "bread",
+      "step": "next",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 112,
+      "position": "2 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 23,
+      "violations": []
+    },
+    {
+      "theme": "bread",
+      "step": "prev",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 111,
+      "position": "1 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "bread",
+      "step": "shortlist",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 112,
+      "position": "2 of 3",
+      "reviewed": "33",
+      "head": "BOOKUnreviewed",
+      "nodes": 23,
+      "violations": []
+    },
+    {
+      "theme": "bread",
+      "step": "callback",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 136,
+      "position": "3 of 3",
+      "reviewed": "67",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "bread",
+      "step": "reject",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 132,
+      "position": "3 of 3",
+      "reviewed": "100",
+      "head": "BOOKReject",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "leek",
+      "step": "open",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 111,
+      "position": "1 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "leek",
+      "step": "next",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 112,
+      "position": "2 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 23,
+      "violations": []
+    },
+    {
+      "theme": "leek",
+      "step": "prev",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 111,
+      "position": "1 of 3",
+      "reviewed": "0",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "leek",
+      "step": "shortlist",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 112,
+      "position": "2 of 3",
+      "reviewed": "33",
+      "head": "BOOKUnreviewed",
+      "nodes": 23,
+      "violations": []
+    },
+    {
+      "theme": "leek",
+      "step": "callback",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 136,
+      "position": "3 of 3",
+      "reviewed": "67",
+      "head": "BOOKUnreviewed",
+      "nodes": 21,
+      "violations": []
+    },
+    {
+      "theme": "leek",
+      "step": "reject",
+      "cards": 3,
+      "shown": true,
+      "bodyText": 132,
+      "position": "3 of 3",
+      "reviewed": "100",
+      "head": "BOOKReject",
+      "nodes": 21,
+      "violations": []
+    }
+  ]
+}
