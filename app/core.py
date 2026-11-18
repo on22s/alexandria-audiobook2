@@ -1617,7 +1617,8 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
     reader = None
     cancel_directory = None
     try:
-        from review_startup import worker_environment, event as review_startup_event
+        from review_startup import (worker_environment, WORKER_STDIO_ENCODING,
+                                    event as review_startup_event)
         subprocess_env = get_gpu_task_environment(state, worker_environment(env))
         if sys.platform == 'win32' and task_name in ('review', 'batch_review'):
             cancel_directory = tempfile.TemporaryDirectory(prefix='alexandria-review-cancel-')
@@ -1628,6 +1629,13 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            # Decode exactly what worker_environment told the child to write;
+            # the two are one constant so a Windows child's cp1252 stdout
+            # cannot make every non-ANSI line fail or turn into mojibake (#2062).
+            encoding=WORKER_STDIO_ENCODING,
+            # Only for bytes a UTF-8 writer cannot produce (e.g. a tool that
+            # writes binary to stdout); the *_JSON markers are printed
+            # ASCII-safe, so this can never corrupt what the parsers read.
             errors="replace",
             cwd=cwd,
             env=subprocess_env,
