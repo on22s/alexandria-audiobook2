@@ -16117,6 +16117,7 @@
     "tests.test_ui_contract.UIContractTests.test_bread_navigation_label_uses_palette_color"
     , "tests.test_ui_contract.UIContractTests.test_dark_navbar_focus_rings_use_a_light_outline"
     , "tests.test_ui_contract.UIContractTests.test_error_toasts_are_assertive_but_other_toasts_are_polite"
+    , "tests.test_ui_contract.UIContractTests.test_hover_fill_colors_and_all_theme_audit_coverage"
     , "tests.test_ui_contract.UIContractTests.test_keyboard_skip_link_targets_single_focusable_main"
     , "tests.test_ui_contract.UIContractTests.test_light_surface_outline_buttons_use_aa_colors"
     , "tests.test_ui_contract.UIContractTests.test_logs_are_explicitly_keyboard_focusable_named_regions"

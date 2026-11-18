@@ -6,7 +6,9 @@
     "audit": "node audit.js",
     "focus": "node focus-audit.js",
     "dynamic": "node dynamic-audit.js",
-    "incomplete": "node incomplete-audit.js"
+    "incomplete": "node incomplete-audit.js",
+    "hover": "node hover-audit.js",
+    "axtree": "node a11y-tree-audit.js"
   },
   "dependencies": {
     "axe-core": "4.14.1",

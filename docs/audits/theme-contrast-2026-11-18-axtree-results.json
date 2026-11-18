@@ -1,0 +1,714 @@
+{
+  "tool": "Chrome accessibility tree via CDP on Edge, live app; 6 themes x 13 panels",
+  "url": "http://127.0.0.1:8765/",
+  "date": "2026-11-18T15:34:19.946Z",
+  "summary": {
+    "checked": 78,
+    "failed": 0,
+    "regions_named_correctly": 78
+  },
+  "results": [
+    {
+      "theme": "light",
+      "tab": "home",
+      "panelRole": "region",
+      "panelName": "Workspace",
+      "linkName": "Workspace",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "tab": "setup",
+      "panelRole": "region",
+      "panelName": "1. Setup",
+      "linkName": "1. Setup",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "tab": "script",
+      "panelRole": "region",
+      "panelName": "2. Script",
+      "linkName": "2. Script",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "tab": "voices",
+      "panelRole": "region",
+      "panelName": "3. Voices",
+      "linkName": "3. Voices",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "tab": "audio",
+      "panelRole": "region",
+      "panelName": "5. Result",
+      "linkName": "5. Result",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "tab": "designer",
+      "panelRole": "region",
+      "panelName": "Designer",
+      "linkName": "Designer",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "panelRole": "region",
+      "panelName": "Casting",
+      "linkName": "Casting",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "tab": "preparer",
+      "panelRole": "region",
+      "panelName": "Preparer",
+      "linkName": "Preparer",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "tab": "dataset-builder",
+      "panelRole": "region",
+      "panelName": "Dataset",
+      "linkName": "Dataset",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "tab": "training",
+      "panelRole": "region",
+      "panelName": "Training",
+      "linkName": "Training",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "tab": "voicelab",
+      "panelRole": "region",
+      "panelName": "Voice Lab",
+      "linkName": "Voice Lab",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "tab": "editor",
+      "panelRole": "region",
+      "panelName": "4. Editor",
+      "linkName": "4. Editor",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "light",
+      "tab": "reports",
+      "panelRole": "region",
+      "panelName": "Reports",
+      "linkName": "Reports",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "home",
+      "panelRole": "region",
+      "panelName": "Workspace",
+      "linkName": "Workspace",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "setup",
+      "panelRole": "region",
+      "panelName": "1. Setup",
+      "linkName": "1. Setup",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "script",
+      "panelRole": "region",
+      "panelName": "2. Script",
+      "linkName": "2. Script",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "voices",
+      "panelRole": "region",
+      "panelName": "3. Voices",
+      "linkName": "3. Voices",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "audio",
+      "panelRole": "region",
+      "panelName": "5. Result",
+      "linkName": "5. Result",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "designer",
+      "panelRole": "region",
+      "panelName": "Designer",
+      "linkName": "Designer",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "panelRole": "region",
+      "panelName": "Casting",
+      "linkName": "Casting",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "preparer",
+      "panelRole": "region",
+      "panelName": "Preparer",
+      "linkName": "Preparer",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "dataset-builder",
+      "panelRole": "region",
+      "panelName": "Dataset",
+      "linkName": "Dataset",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "training",
+      "panelRole": "region",
+      "panelName": "Training",
+      "linkName": "Training",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "voicelab",
+      "panelRole": "region",
+      "panelName": "Voice Lab",
+      "linkName": "Voice Lab",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "editor",
+      "panelRole": "region",
+      "panelName": "4. Editor",
+      "linkName": "4. Editor",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "night",
+      "tab": "reports",
+      "panelRole": "region",
+      "panelName": "Reports",
+      "linkName": "Reports",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "home",
+      "panelRole": "region",
+      "panelName": "Workspace",
+      "linkName": "Workspace",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "setup",
+      "panelRole": "region",
+      "panelName": "1. Setup",
+      "linkName": "1. Setup",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "script",
+      "panelRole": "region",
+      "panelName": "2. Script",
+      "linkName": "2. Script",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "voices",
+      "panelRole": "region",
+      "panelName": "3. Voices",
+      "linkName": "3. Voices",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "audio",
+      "panelRole": "region",
+      "panelName": "5. Result",
+      "linkName": "5. Result",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "designer",
+      "panelRole": "region",
+      "panelName": "Designer",
+      "linkName": "Designer",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "panelRole": "region",
+      "panelName": "Casting",
+      "linkName": "Casting",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "preparer",
+      "panelRole": "region",
+      "panelName": "Preparer",
+      "linkName": "Preparer",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "dataset-builder",
+      "panelRole": "region",
+      "panelName": "Dataset",
+      "linkName": "Dataset",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "training",
+      "panelRole": "region",
+      "panelName": "Training",
+      "linkName": "Training",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "voicelab",
+      "panelRole": "region",
+      "panelName": "Voice Lab",
+      "linkName": "Voice Lab",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "editor",
+      "panelRole": "region",
+      "panelName": "4. Editor",
+      "linkName": "4. Editor",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "super-night",
+      "tab": "reports",
+      "panelRole": "region",
+      "panelName": "Reports",
+      "linkName": "Reports",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "home",
+      "panelRole": "region",
+      "panelName": "Workspace",
+      "linkName": "Workspace",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "setup",
+      "panelRole": "region",
+      "panelName": "1. Setup",
+      "linkName": "1. Setup",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "script",
+      "panelRole": "region",
+      "panelName": "2. Script",
+      "linkName": "2. Script",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "voices",
+      "panelRole": "region",
+      "panelName": "3. Voices",
+      "linkName": "3. Voices",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "audio",
+      "panelRole": "region",
+      "panelName": "5. Result",
+      "linkName": "5. Result",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "designer",
+      "panelRole": "region",
+      "panelName": "Designer",
+      "linkName": "Designer",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "panelRole": "region",
+      "panelName": "Casting",
+      "linkName": "Casting",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "preparer",
+      "panelRole": "region",
+      "panelName": "Preparer",
+      "linkName": "Preparer",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "dataset-builder",
+      "panelRole": "region",
+      "panelName": "Dataset",
+      "linkName": "Dataset",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "training",
+      "panelRole": "region",
+      "panelName": "Training",
+      "linkName": "Training",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "voicelab",
+      "panelRole": "region",
+      "panelName": "Voice Lab",
+      "linkName": "Voice Lab",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "editor",
+      "panelRole": "region",
+      "panelName": "4. Editor",
+      "linkName": "4. Editor",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "reports",
+      "panelRole": "region",
+      "panelName": "Reports",
+      "linkName": "Reports",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "home",
+      "panelRole": "region",
+      "panelName": "Workspace",
+      "linkName": "Workspace",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "setup",
+      "panelRole": "region",
+      "panelName": "1. Setup",
+      "linkName": "1. Setup",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "script",
+      "panelRole": "region",
+      "panelName": "2. Script",
+      "linkName": "2. Script",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "voices",
+      "panelRole": "region",
+      "panelName": "3. Voices",
+      "linkName": "3. Voices",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "audio",
+      "panelRole": "region",
+      "panelName": "5. Result",
+      "linkName": "5. Result",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "designer",
+      "panelRole": "region",
+      "panelName": "Designer",
+      "linkName": "Designer",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "panelRole": "region",
+      "panelName": "Casting",
+      "linkName": "Casting",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "preparer",
+      "panelRole": "region",
+      "panelName": "Preparer",
+      "linkName": "Preparer",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "dataset-builder",
+      "panelRole": "region",
+      "panelName": "Dataset",
+      "linkName": "Dataset",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "training",
+      "panelRole": "region",
+      "panelName": "Training",
+      "linkName": "Training",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "voicelab",
+      "panelRole": "region",
+      "panelName": "Voice Lab",
+      "linkName": "Voice Lab",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "editor",
+      "panelRole": "region",
+      "panelName": "4. Editor",
+      "linkName": "4. Editor",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "bread",
+      "tab": "reports",
+      "panelRole": "region",
+      "panelName": "Reports",
+      "linkName": "Reports",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "home",
+      "panelRole": "region",
+      "panelName": "Workspace",
+      "linkName": "Workspace",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "setup",
+      "panelRole": "region",
+      "panelName": "1. Setup",
+      "linkName": "1. Setup",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "script",
+      "panelRole": "region",
+      "panelName": "2. Script",
+      "linkName": "2. Script",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "voices",
+      "panelRole": "region",
+      "panelName": "3. Voices",
+      "linkName": "3. Voices",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "audio",
+      "panelRole": "region",
+      "panelName": "5. Result",
+      "linkName": "5. Result",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "designer",
+      "panelRole": "region",
+      "panelName": "Designer",
+      "linkName": "Designer",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "panelRole": "region",
+      "panelName": "Casting",
+      "linkName": "Casting",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "preparer",
+      "panelRole": "region",
+      "panelName": "Preparer",
+      "linkName": "Preparer",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "dataset-builder",
+      "panelRole": "region",
+      "panelName": "Dataset",
+      "linkName": "Dataset",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "training",
+      "panelRole": "region",
+      "panelName": "Training",
+      "linkName": "Training",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "voicelab",
+      "panelRole": "region",
+      "panelName": "Voice Lab",
+      "linkName": "Voice Lab",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "editor",
+      "panelRole": "region",
+      "panelName": "4. Editor",
+      "linkName": "4. Editor",
+      "mains": 1,
+      "ok": true
+    },
+    {
+      "theme": "leek",
+      "tab": "reports",
+      "panelRole": "region",
+      "panelName": "Reports",
+      "linkName": "Reports",
+      "mains": 1,
+      "ok": true
+    }
+  ]
+}

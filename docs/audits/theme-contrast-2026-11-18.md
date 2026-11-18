@@ -117,8 +117,33 @@ pair and extend the test.
   white; bread success/danger 4.21:1; bread warning 1.51:1). Those are fixed by
   darker per-theme `--bs-btn-*` colors on light surfaces, including hover/active.
 
+## 5. Hover/active and screen-reader naming
+
+- `npm run hover` forces `:hover` and `:active` via CDP on all visible text
+  controls of each panel and computes the WCAG ratio from the **rendered
+  computed styles** (with alpha-composited backgrounds and the actual nested
+  text-node colors, not the control's own color). It deliberately does not use
+  axe here: axe mixes the resting foreground with the forced hover fill and
+  reported 38 false positives in a cross-check. Native inputs, disabled
+  controls (including `fieldset[disabled]` descendants), closed-`<details>`
+  content and icon-only controls are excluded. There is no per-panel cap, and
+  the run fails if any eligible control is not measured.
+- Result: 6 themes × 13 panels × 2 states, **over 1,100 controls measured, 0
+  failures, minimum 4.50:1** (the committed artifact records the exact figure,
+  about 216 per theme). The exact count varies with asynchronous content, so it
+  is not a contract. The one genuine issue found was cyberpunk
+  `.btn-primary:hover` / `.btn-info:hover` (white on `#00a6b8` = 2.94:1); the
+  shared hover fill was darkened to `#0a7183` (5.67:1). Artifact:
+  `docs/audits/theme-contrast-2026-11-18-hover-results.json`.
+- `npm run axtree` reads Chrome's accessibility tree and checks that each of the
+  78 theme/panel combinations exposes exactly one `main` landmark and a `region`
+  whose computed name equals its nav link's text (the proxy for a screen reader
+  announcing "3. Voices, region"). Result: **78/78 pass**. The Advanced links
+  are in a closed dropdown with ignored AX nodes, so the expected name is read
+  from the link's DOM text, which is what `aria-labelledby` actually resolves.
+  Artifact: `docs/audits/theme-contrast-2026-11-18-axtree-results.json`.
+
 ## Still unverified
 
-- Hover/active pseudo-states are not axe-audited (their colors are pinned by the
-  CSS overrides above but not measured), nor is dynamically generated content
-  after a modal or drawer interaction, nor actual screen-reader announcement.
+- Dynamically generated content after a modal or drawer interaction, and actual
+  screen-reader announcement (the AX tree is a proxy, not a real SR run).
