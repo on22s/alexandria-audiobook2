@@ -14287,7 +14287,8 @@
     , "tests.test_stage6_checkpoint_runner.Stage6ShapeTests.test_real_checkpoint_identity_audio_and_nested_shapes"
   ]
   , "test_stage6_run_ownership": [
-    "tests.test_stage6_run_ownership.Stage6RunOwnershipTests.test_native_owner_death_releases_lock_but_unfinished_status_still_requires_inspection"
+    "tests.test_stage6_run_ownership.Stage6RunOwnershipTests.test_closing_owner_stdin_cannot_finish_the_run_before_the_owner_is_dead"
+    , "tests.test_stage6_run_ownership.Stage6RunOwnershipTests.test_native_owner_death_releases_lock_but_unfinished_status_still_requires_inspection"
     , "tests.test_stage6_run_ownership.Stage6RunOwnershipTests.test_native_owner_excludes_second_start_even_after_status_becomes_human_pending"
   ]
   , "test_stage7_pitch_runner": [
@@ -17569,6 +17570,14 @@
   , "test_workbench_status_js": [
     "tests.test_workbench_status_js.WorkbenchStatusJsTests.test_page_initialization_restores_existing_voicelab_run_and_controls"
     , "tests.test_workbench_status_js.WorkbenchStatusJsTests.test_remote_optimize_toggle_tracks_actual_status_after_endpoint_switch"
+  ]
+  , "test_worker_stdio_encoding": [
+    "tests.test_worker_stdio_encoding.ChildStdoutTests.test_a_child_printing_non_ansi_text_finishes_and_the_parent_reads_it_back"
+    , "tests.test_worker_stdio_encoding.ChildStdoutTests.test_a_legacy_stdio_child_dies_before_its_marker_line"
+    , "tests.test_worker_stdio_encoding.ChildStdoutTests.test_child_environment_agrees_with_the_parent_decode"
+    , "tests.test_worker_stdio_encoding.ReviewMarkerTests.test_review_script_prints_every_marker_through_the_helper"
+    , "tests.test_worker_stdio_encoding.ReviewMarkerTests.test_the_diff_preview_marker_round_trips_non_ansi_text"
+    , "tests.test_worker_stdio_encoding.ReviewMarkerTests.test_the_failed_sections_marker_round_trips_non_ansi_text"
   ]
   , "test_workflow_disclosures": [
     "tests.test_workflow_disclosures.WorkflowDisclosureTests.test_cast_and_recovery_keep_native_disclosures_and_live_targets"
