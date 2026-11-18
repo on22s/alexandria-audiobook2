@@ -148,6 +148,21 @@ class SpanTest(unittest.TestCase):
         self.assertEqual(["German.", "Real."],
             [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
 
+    def test_a_straight_quote_inside_english_does_not_close_german(self):
+        # Straight marks pair among themselves; they must not decide what the
+        # next mark after a `“` is, or the utterance fragments at the `"` in
+        # `5" wide`.
+        source = "„He said “it's \"5\" wide” to me.“ end"
+        self.assertEqual(["He said “it's \"5\" wide” to me."],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_a_reprise_closer_after_a_digit_is_not_an_inch_mark(self):
+        # The inch-mark rule only applies to a mark opening an inline expression
+        # (5" wide). At the end of a paragraph it still closes the speech.
+        source = '"Part one.\n\n"Part two ends 5"'
+        self.assertEqual(['Part one.\n\n"Part two ends 5'],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
     def test_a_stray_closer_after_german_speech_keeps_narration_out(self):
         # A `”` after narration, with no later `“`, must not flip the real
         # German closer into an English opener — otherwise the speech is lost

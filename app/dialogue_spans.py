@@ -138,12 +138,24 @@ def _ambiguous_mark_roles(text):
     mark_at = dict(all_marks)
     quotes = [pos for pos, mark in all_marks if mark == "“"]
 
+    def next_english_mark(pos):
+        """Next mark that can pair with `“`, skipping self-paired straight ones.
+
+        In `„He said “it's "5" wide” to me.“` the `"` marks pair among
+        themselves; letting them decide the next mark misreads the following
+        `“` as a German closer and fragments the utterance.
+        """
+        index = bisect_right(positions, pos)
+        while index < len(positions) and mark_at[positions[index]] in ('"', '＂'):
+            index += 1
+        return positions[index] if index < len(positions) else None
+
     def can_close_german(pos):
         """A `“` can close a pending `„`: no `”`, or only whitespace to it."""
-        index = bisect_right(positions, pos)
-        if index >= len(positions) or mark_at[positions[index]] != "”":
+        closer = next_english_mark(pos)
+        if closer is None or mark_at[closer] != "”":
             return True
-        for at in range(pos + 1, positions[index]):
+        for at in range(pos + 1, closer):
             if not text[at].isspace():
                 return False
         return True
@@ -173,8 +185,8 @@ def _ambiguous_mark_roles(text):
         if mark == "„":
             de_stack.append(pos)
         elif mark == "“":
-            index = bisect_right(positions, pos)
-            has_closer = index < len(positions) and mark_at[positions[index]] == "”"
+            closer = next_english_mark(pos)
+            has_closer = closer is not None and mark_at[closer] == "”"
             if not closer_candidate[pos] and has_closer:
                 # Real English content: nested only if a later `“` in this same
                 # German segment can still close the pair. With no later `“`,
@@ -246,9 +258,12 @@ def _paired_spans(text):
             for match in re.finditer(re.escape(opener), text):
                 position = match.start()
                 # Outside a quoted span, a mark immediately after a number is
-                # an inch mark. Inside speech, numeric endings still close it.
+                # an inch mark (5" wide). A mark at the end of a line/paragraph
+                # still closes speech — a reprise closer can follow a digit.
                 if len(positions) % 2 == 0 and position and text[position - 1].isdigit():
-                    continue
+                    if (position + 1 < len(text)
+                            and text[position + 1] not in "\r\n"):
+                        continue
                 positions.append(position)
             # A mark that begins a paragraph re-opens this quote, so it can
             # never be a closer. Precompute the next non-reopening mark once;
