@@ -115,10 +115,38 @@ def _is_unbroken(breaks, position, end):
     return index == len(breaks) or breaks[index] >= end - 1
 
 
+def _paired_closer_offsets(text):
+    """Offsets where a mark CLOSES a distinct-mark pair.
+
+    A mark can close one pair and open another: `“` closes `„…“` but opens
+    `“…”`. Counting every `“` as a curly opener lets a German speech's closer
+    pair with a later English closer, producing a phantom span over the
+    narration between them (and a review warning). Scanning each distinct pair
+    once in order identifies the real closers; the straight-quote pairs are
+    excluded because their mark is both opener and closer by definition.
+    """
+    closes = set()
+    for opener, closer in PAIRED:
+        if opener == closer:
+            continue
+        pattern = re.compile("(?:" + re.escape(opener) + "|" + re.escape(closer) + ")")
+        inside = False
+        for match in pattern.finditer(text):
+            if match.group() == opener:
+                inside = True
+            elif inside:
+                closes.add(match.start())
+                inside = False
+    return closes
+
+
 def _paired_spans(text):
     spans = []
     breaks = starts = None
     masks = {}
+    # `“` closes „…“ but also opens “…”. A mark that closes a real pair is not
+    # an opener for a different one, so it must be skipped when pairing.
+    closes = _paired_closer_offsets(text)
 
     def prepare():
         """-> (breaks, offsets where a paragraph begins), built once per call.
@@ -197,7 +225,13 @@ def _paired_spans(text):
             # says nothing about that, which is why no pair is exempt. A
             # rejected pair advances to the next opener, as the old bounded
             # regex did.
-            position = text.find(opener)
+            def next_opener(search_from):
+                candidate = text.find(opener, search_from)
+                while candidate != -1 and candidate in closes:
+                    candidate = text.find(opener, candidate + 1)
+                return candidate
+
+            position = next_opener(0)
             end, bad_breaks = 0, None
             while position != -1:
                 # Rejected openers can share one distant closer. Cache that
@@ -211,9 +245,9 @@ def _paired_spans(text):
                     bad_breaks = narration_breaks(opener)
                 if position + 1 < end and _is_unbroken(bad_breaks, position, end):
                     spans.append((position + 1, end))
-                    position = text.find(opener, end + 1)
+                    position = next_opener(end + 1)
                 else:
-                    position = text.find(opener, position + 1)
+                    position = next_opener(position + 1)
     return spans
 
 

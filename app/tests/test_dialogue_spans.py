@@ -170,6 +170,16 @@ class SpanTest(unittest.TestCase):
         self.assertTrue(marked[0]["spoken"])
         self.assertEqual("Komm sofort her!", source[slice(*marked[0]["source_span"])])
 
+    def test_a_german_closer_is_not_mistaken_for_an_english_opener(self):
+        # In a book mixing the two, `“` closes „…“ but also opens “…”. Treating
+        # the German closer as an English opener paired it with the next English
+        # closer and produced a phantom span over the narration between them.
+        source = ("Er sagte „Komm her!“ und dann “Never mind.”\n\n"
+                  "Er sagte „Geh jetzt!“ und dann “Too late.”")
+        self.assertEqual(
+            ["Komm her!", "Never mind.", "Geh jetzt!", "Too late."],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
     def test_a_detected_span_must_be_a_real_range_in_the_source(self):
         # The guard runs on raw detection, before the sort and merge, because
         # after the merge nothing can be wrong and a check there never fires.
