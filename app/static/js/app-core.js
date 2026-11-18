@@ -981,9 +981,9 @@
         window.addEventListener('popstate', onTabHistoryChange);
         window.addEventListener('hashchange', onTabHistoryChange);
         document.getElementById('skip-main-link')?.addEventListener('click', event => {
-            event.preventDefault();
-            const main = document.getElementById('main-content');
+            const main = document.getElementById('app-main');
             if (!main) { return; }
+            event.preventDefault();
             main.focus({ preventScroll: true });
             const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             main.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'start' });
