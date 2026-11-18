@@ -63,10 +63,26 @@ yellow 15.16, pink 5.69 — the concerns that prompted #2057 are not reproduced.
 rule or JS. If a badge ever uses it, measure the badge's real text/background
 pair and extend the test.
 
+## 3. Focus-indicator audit
+
+- Tool: CDP `CSS.forcePseudoState` on Edge via `tools/audit/theme-contrast/focus-audit.js`
+  (`npm run focus`), against the live app. Repeat with `AA2_URL` set as for the
+  contrast audit.
+- Scope: 6 themes × 13 tab panels × up to 10 visible interactive controls each
+  = **780 controls**. For each, require a non-`none` outline or box-shadow, and
+  compute the outline's ratio against the adjacent (possibly inherited)
+  background; translucent outlines are reported as undeterminable.
+- **Before:** 52 findings, four recurring controls: `#theme-toggle` in light
+  (2.40 on the dark navbar) and bread (1.39), and `#nav-link-setup` when active
+  in night (1.88) and super-night (2.15) against the green active background.
+- **Fix:** a light ring on those dark surfaces —
+  `#theme-toggle:focus-visible` and `#navbarNav .nav-link.nav-pipeline.active:focus-visible`
+  use `outline-color: #fff` (≥4.5:1 on every navbar and on the active green).
+  A static test pins both rules.
+- **After:** 0 findings across all 780 controls.
+
 ## Still unverified
 
-- Focus indicators: `:focus-visible` rules exist globally and in the workflow
-  tabs, but "visible in every theme" needs a browser check per control.
 - The 136 `incomplete` axe nodes need a manual look.
 - Disabled-control text (Bootstrap opacity blending), placeholders, modals,
   the Advanced dropdown and the Editor tool drawer are not separately audited;

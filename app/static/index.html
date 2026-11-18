@@ -636,6 +636,11 @@
         .nav-link.nav-advanced.active:not(.dropdown-item) { color: #fff; background-color: var(--accent-fill); border-radius: 4px; }
         .navbar .nav-link { border-radius: var(--radius-sm); margin: 2px 1px; transition: background-color var(--motion-fast), color var(--motion-fast); }
         .navbar .nav-link:focus-visible { outline-color: var(--focus-ring); }
+        /* The accent tokens are dark in some themes; against the dark navbar or
+           the green active-tab background they fall under 3:1. A light ring is
+           high-contrast on every theme's navbar and on the active tab. */
+        #theme-toggle:focus-visible { outline-color: #fff; }
+        #navbarNav .nav-link.nav-pipeline.active:focus-visible { outline-color: #fff; }
         .navbar .nav-link:not(.active):hover { background-color: var(--accent-soft); }
         .nav-section-label {
             align-self: center;
