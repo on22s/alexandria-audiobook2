@@ -147,23 +147,122 @@ class RegisteredWindowsSkipTests(unittest.TestCase):
         self.identifiers = ['tests.test_first.Example.test_value',
                             'tests.test_second.Example.test_value']
 
+    def sites(self, locations=()):
+        """The verdict's view of these rows, through the registry's own reader.
+
+        A decorator row authorizes its location; a `...:runtime:<digest>` row
+        pins the exact message it may skip with; a `...:runtime-prefix:<digest>`
+        row pins only the stable prefix that message must start with.
+        """
+        parsed = []
+        for entry in locations:
+            location, declaration = entry if isinstance(entry, tuple) else (entry, None)
+            parsed.append(self.registry.get_verdict_site(location, declaration))
+        return frozenset(parsed)
+
+    def runtime_row(self, module_file, qualname, message):
+        return (f'{module_file}:{qualname}:runtime:'
+                + self.registry.get_reason_key(message))
+
+    def runtime_prefix_row(self, module_file, qualname, prefix):
+        return (f'{module_file}:{qualname}:runtime-prefix:'
+                + self.registry.get_reason_key(prefix))
+
     def aggregate(self, reports, platform='win32', locations=()):
         return self.local.aggregate_unit_reports(
             reports, self.identifiers, 2, platform=platform,
-            registered_locations=set(locations))
+            registered_sites=self.sites(locations))
 
     def test_registry_rows_cover_a_whole_class_or_one_whole_name(self):
         """A class row covers its methods; a name matches only at a dot boundary."""
-        locations = {'test_first.py:Example:0', 'test_second.py:Example.test_value:0'}
-        self.assertTrue(self.registry.is_registered_skip(self.identifiers[0], locations))
-        self.assertTrue(self.registry.is_registered_skip(self.identifiers[1], locations))
-        method_only = {'test_second.py:Example.test_value:0'}
+        sites = self.sites({'test_first.py:Example:0', 'test_second.py:Example.test_value:0'})
+        self.assertTrue(self.registry.is_registered_skip(self.identifiers[0], sites))
+        self.assertTrue(self.registry.is_registered_skip(self.identifiers[1], sites))
+        method_only = self.sites({'test_second.py:Example.test_value:0'})
         self.assertFalse(self.registry.is_registered_skip(
             'tests.test_second.Example.test_value_other', method_only))
         self.assertFalse(self.registry.is_registered_skip(
             'tests.test_second.ExampleOther.test_value', method_only))
         self.assertFalse(self.registry.is_registered_skip(
-            'tests.test_third.Example.test_value', locations))
+            'tests.test_third.Example.test_value', sites))
+
+    def test_subtest_parameters_keep_the_test_id_registered(self):
+        """A subTest id is still its test, whatever the parameters look like."""
+        sites = self.sites({'test_first.py:Example.test_value:0'})
+        for identifier in ("tests.test_first.Example.test_value (kind='link')",
+                           'tests.test_first.Example.test_value [symlink escape]',
+                           "tests.test_first.Example.test_value (name='../adapter/linked')"):
+            self.assertTrue(self.registry.is_registered_skip(identifier, sites), identifier)
+        self.assertFalse(self.registry.is_registered_skip(
+            'tests.test_first.Example.test_value_other (kind=1)', sites))
+        self.assertFalse(self.registry.is_registered_skip('synthetic id', sites))
+
+    def test_runtime_rows_authorize_only_their_exact_message(self):
+        """A runtime row covers one reviewed message, not whatever a host reports."""
+        message = 'symlink creation not permitted (synthetic WinError 1314)'
+        row = self.runtime_row('test_first.py', 'Example', message)
+        skipped = receipt('1/2', self.identifiers[:1], skips=1,
+                          skip_ids=self.identifiers[:1],
+                          skip_reasons={self.identifiers[0]: message})
+        result = self.aggregate([skipped, receipt('2/2', self.identifiers[1:])], locations={row})
+        self.assertEqual('passed', result['status'], result['problems'])
+        self.assertEqual((1, 0), (result['registered_skips'], result['unregistered_skips']))
+        other = receipt('1/2', self.identifiers[:1], skips=1, skip_ids=self.identifiers[:1],
+                        skip_reasons={self.identifiers[0]: message + ' (another host)'},
+                        status='failed')
+        result = self.aggregate([other, receipt('2/2', self.identifiers[1:])], locations={row})
+        self.assertEqual('failed', result['status'])
+        self.assertEqual((0, 1), (result['registered_skips'], result['unregistered_skips']))
+        unrecorded = receipt('1/2', self.identifiers[:1], skips=1,
+                             skip_ids=self.identifiers[:1], status='failed')
+        result = self.aggregate([unrecorded, receipt('2/2', self.identifiers[1:])],
+                                locations={row})
+        self.assertEqual('failed', result['status'])
+        self.assertEqual(1, result['unregistered_skips'],
+                         'a receipt with no recorded message cannot authorize a runtime row')
+
+    def test_runtime_prefix_rows_authorize_only_the_pinned_prefix(self):
+        """A measured WinError reason with a temp path matches on its stable prefix."""
+        prefix = 'native symlink unavailable here: '
+        measured = prefix + '[WinError 1314] privilege: '
+        measured += "'C:\\Temp\\tmpXXXX\\real.json' -> 'C:\\Temp\\tmpXXXX\\timing.json'"
+        row = self.runtime_prefix_row('test_first.py', 'Example', prefix)
+        declaration = f"reason={prefix!r}; runtime skip; synthetic prefix row"
+        locations = {(row, declaration)}
+        skipped = receipt('1/2', self.identifiers[:1], skips=1,
+                          skip_ids=self.identifiers[:1],
+                          skip_reasons={self.identifiers[0]: measured})
+        result = self.aggregate([skipped, receipt('2/2', self.identifiers[1:])], locations=locations)
+        self.assertEqual('passed', result['status'], result['problems'])
+        self.assertEqual((1, 0), (result['registered_skips'], result['unregistered_skips']))
+        # A message with a different prefix is still unregistered even though
+        # the row does not pin the varying temp-path suffix.
+        wrong = receipt('1/2', self.identifiers[:1], skips=1, skip_ids=self.identifiers[:1],
+                        skip_reasons={self.identifiers[0]: 'a different message ' + measured},
+                        status='failed')
+        result = self.aggregate([wrong, receipt('2/2', self.identifiers[1:])], locations=locations)
+        self.assertEqual('failed', result['status'])
+        self.assertEqual((0, 1), (result['registered_skips'], result['unregistered_skips']))
+        # A receipt that records no message cannot authorize a prefix row either.
+        unrecorded = receipt('1/2', self.identifiers[:1], skips=1,
+                             skip_ids=self.identifiers[:1], status='failed')
+        result = self.aggregate([unrecorded, receipt('2/2', self.identifiers[1:])],
+                                locations=locations)
+        self.assertEqual('failed', result['status'])
+        self.assertEqual(1, result['unregistered_skips'])
+
+    def test_worker_report_carries_skip_reasons_to_the_verdict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            payload = receipt('1/2', self.identifiers[:1], skips=1,
+                              skip_ids=self.identifiers[:1],
+                              skip_reasons={self.identifiers[0]: 'synthetic message'})
+            path = directory / 'tests.json'
+            path.write_text(json.dumps(payload), encoding='utf-8')
+            report = self.local.get_worker_report(dict(
+                receipt=path, directory=directory, spec='1/2', worktree=directory / 'worktree',
+                log_path=directory / 'output.log', process=SimpleNamespace(returncode=0)))
+        self.assertEqual({self.identifiers[0]: 'synthetic message'}, report['skip_reasons'])
 
     def test_native_windows_passes_when_every_skip_is_registered(self):
         """A class row and a method row both authorize a skip; counts stay intact."""

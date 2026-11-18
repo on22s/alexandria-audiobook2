@@ -575,12 +575,13 @@ def cleanup_stale_runs(repo):
 
 
 def aggregate_unit_reports(reports, expected_ids, shard_count, *, platform=None,
-                          registered_locations=None):
+                          registered_sites=None):
     """Aggregate shard reports; `platform` defaults to this host's `sys.platform`.
 
     The pass rule for each shard is `skip_registry.get_shard_verdict`, shared
-    with the worker that wrote the receipt. `registered_locations` is input
-    only: the reviewed registry the Windows rule checks skips against.
+    with the worker that wrote the receipt. `registered_sites` is input only:
+    the reviewed registry the Windows rule checks skip locations and their
+    recorded messages against.
     """
     totals = {key: 0 for key in COUNT_FIELDS}
     skips_by_registration = dict(registered_skips=0, unregistered_skips=0)
@@ -613,7 +614,8 @@ def aggregate_unit_reports(reports, expected_ids, shard_count, *, platform=None,
                                     failures=report.get('failures'), errors=report.get('errors'),
                                     unexpected_successes=report.get('unexpected_successes'),
                                     skips=report.get('skips'), skip_ids=report.get('skip_ids'),
-                                    locations=registered_locations)
+                                    skip_reasons=report.get('skip_reasons'),
+                                    sites=registered_sites)
         skips_by_registration['registered_skips'] += verdict['registered_skips']
         skips_by_registration['unregistered_skips'] += verdict['unregistered_skips']
         passed = done and report.get('status') == 'passed' and verdict['passed']
@@ -650,7 +652,8 @@ def get_worker_report(job):
                   worktree=str(job['worktree']) if job['worktree'] else None,
                   active_test=receipt.get('active_test'),
                   failure_ids=receipt.get('failure_ids', []), error_ids=receipt.get('error_ids', []),
-                  skip_ids=receipt.get('skip_ids'))
+                  skip_ids=receipt.get('skip_ids'),
+                  skip_reasons=receipt.get('skip_reasons'))
     report['owner_exit_code'] = job['process'].returncode
     if job['process'].returncode != 0 and report['exit_code'] == 0:
         report['status'] = 'crashed'

@@ -97,6 +97,7 @@ def main(argv=None):
         successful = result is not None and result.wasSuccessful()
         skipped = list(result.skipped) if result else []
         skip_ids = [test.id() for test, _reason in skipped]
+        skip_reasons = {test.id(): str(reason) for test, reason in skipped}
         if status is None:
             status = 'running'
             if complete:
@@ -107,7 +108,7 @@ def main(argv=None):
                     failures=len(result.failures) if result else 0,
                     errors=len(result.errors) if result else 0,
                     unexpected_successes=len(result.unexpectedSuccesses) if result else 0,
-                    skips=len(skipped), skip_ids=skip_ids)
+                    skips=len(skipped), skip_ids=skip_ids, skip_reasons=skip_reasons)
                 status = 'passed' if verdict['passed'] else 'failed'
         payload = {
             'schema_version': 1,
@@ -125,7 +126,7 @@ def main(argv=None):
             'failure_ids': [test.id() for test, _ in result.failures] if result else [],
             'error_ids': [test.id() for test, _ in result.errors] if result else [],
             'skip_ids': skip_ids,
-            'skip_reasons': {test.id(): str(reason) for test, reason in skipped},
+            'skip_reasons': skip_reasons,
             'active_test': active_test,
             'duration_seconds': round(clock() - started, 3),
         }
