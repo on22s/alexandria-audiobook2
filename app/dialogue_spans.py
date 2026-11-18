@@ -23,7 +23,7 @@ is how a book with 6,925 quote marks in its source was recorded here as "a book
 that does not mark dialogue".
 """
 from bisect import bisect_left, bisect_right
-from collections import Counter, deque
+from collections import Counter, defaultdict, deque
 import logging
 import re
 
@@ -131,6 +131,12 @@ def _ambiguous_mark_roles(text):
     Otherwise it opens English. Every lookup is by position; measured sources
     see zero copied characters. Straight pairs are excluded: their mark is both
     opener and closer by definition, so it is never ambiguous.
+
+    Known limit: a stray `„` followed by narrative text is indistinguishable
+    from a genuine German opener, so a following `“` may close the stray mark
+    and the first real English quote in that segment is missed. Fixing this
+    would require semantic knowledge of which text is speech; base behaves no
+    better.
     """
     all_marks = [(m.start(), m.group()) for m in re.finditer(
         "[" + "".join(re.escape(mark) for mark in QUOTE_MARKS) + "]", text)]
@@ -165,8 +171,6 @@ def _ambiguous_mark_roles(text):
     # belongs to the SAME German segment — an intervening `„` starts a new one.
     # Without this, `„Red“ narration ”stray „Blue.“` merges two speeches and
     # labels the narration between them as spoken.
-    from bisect import bisect_left
-    from collections import defaultdict
     de_openers = [pos for pos, mark in all_marks if mark == "„"]
     segment = {pos: bisect_right(de_openers, pos) for pos in quotes}
     closer_indices = defaultdict(list)

@@ -398,10 +398,12 @@ class SpanTest(unittest.TestCase):
 
     def test_a_multi_paragraph_speech_that_does_not_reopen_the_quote_is_refused(self):
         # The cost of the rule, stated rather than discovered later: typography
-        # that opens a speech once and closes it paragraphs later is refused,
-        # and that speech is then voiced by the narrator. It was kept below the
-        # old 2,000-character cap; nothing here claims that was wrong, only
-        # that this rule stops doing it.
+        # that opens a speech once and closes it paragraphs later is refused.
+        # End to end the first paragraph is flagged `other_convention` with no
+        # spoken verdict (it keeps its character voice, pending review), while
+        # later paragraphs go to NARRATOR; a book whose refusals drop it below
+        # the detection threshold gets no speech map at all. Kept below the old
+        # 2,000-character cap; nothing here claims that was wrong.
         text = '“This speech runs on.\n\nAnd on, in a second paragraph,\n\nand closes here.” he said.'
         self.assertEqual([], spoken_spans(text, "paired_quotes"))
 
