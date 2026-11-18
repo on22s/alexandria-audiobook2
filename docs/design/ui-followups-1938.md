@@ -30,8 +30,10 @@ theme-specific shadows; Cyberpunk retains its established glow.
   while the capped container adds none: measured in the browser on placeholder
   readings, the bar needed 1167px of a 1157px collapse at 1600 and became one
   60px row at 1183px once the width followed the content. 1280 and 1440 are
-  unchanged (1320px cap, one row at 48px slack), and 1920 is one row at the same
-  1618px as the page content.
+  unchanged under the 1320px cap — 1280 used 947/977px of it, 1440 had 48px
+  slack — and 1920 is one row at the same 1618px as the page content. These are
+  live-reading fits: the documented stale-reading failure state still wraps at
+  1440 and 1600, exactly as it did before this change.
 - Connection results sit next to the endpoint. Busy state includes a spinner;
   elapsed milliseconds cover the whole HTTP round trip, including queue/network
   time, not model-only latency. Failures offer local troubleshooting guidance.
