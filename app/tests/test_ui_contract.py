@@ -198,6 +198,45 @@ class UIContractTests(unittest.TestCase):
         self.assertIn('html[data-theme="bread"] .btn-outline-success', source)
         self.assertIn('html[data-theme="bread"] .btn-outline-danger', source)
 
+    def test_hover_fill_colors_and_all_theme_audit_coverage(self):
+        source = (STATIC / 'index.html').read_text(encoding='utf-8')
+
+        def luminance(color):
+            if len(color) == 4:
+                color = '#' + ''.join(component * 2 for component in color[1:])
+            ch = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+            linear = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4 for c in ch]
+            return sum(c * w for c, w in zip(linear, (.2126, .7152, .0722)))
+
+        def contrast(first, second):
+            light, dark = sorted((luminance(first), luminance(second)), reverse=True)
+            return (light + .05) / (dark + .05)
+
+        # Every literal hover fill paired with a literal hover text color must
+        # clear AA. This covers cyberpunk primary/info and the light-surface
+        # warning/success/danger outline buttons.
+        for match in re.finditer(
+                r'--bs-btn-hover-bg:\s*(#[0-9a-fA-F]{6})', source):
+            block_start = source.rfind('{', 0, match.start())
+            block_end = source.find('}', match.start())
+            block = source[block_start:block_end]
+            text = re.search(r'--bs-btn-hover-color:\s*(#[0-9a-fA-F]{3,6}|#fff)\b', block)
+            fill = match.group(1)
+            with self.subTest(fill=fill):
+                self.assertGreaterEqual(
+                    contrast(text.group(1) if text else '#fff', fill), 4.5)
+
+        # The rendered hover/active audit must not silently drop a theme: all
+        # six token blocks are checked against the same control set.
+        audit = (STATIC.parent.parent / 'tools/audit/theme-contrast/hover-audit.js').read_text(encoding='utf-8')
+        theme_list = re.search(r'const THEMES = \[(.*?)\];', audit, re.S)
+        self.assertIsNotNone(theme_list)
+        self.assertEqual(
+            {'light', 'night', 'super-night', 'cyberpunk', 'bread', 'leek'},
+            set(re.findall(r"'([^']+)'", theme_list[1])))
+        # A truncation cap silently drops controls in dense panels.
+        self.assertNotRegex(audit, r'out\.length\s*>=\s*\d+')
+
     def test_dark_navbar_focus_rings_use_a_light_outline(self):
         # The accent tokens are dark in some themes; the measured focus audit
         # found their rings under 3:1 on the dark navbar and green active tab.
