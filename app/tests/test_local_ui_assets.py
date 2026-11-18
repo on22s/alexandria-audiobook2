@@ -64,6 +64,7 @@ class LocalUiAssetTests(unittest.TestCase):
                           '/static/js/app-casting.js?v=__APP_BUILD__',
                           '/static/js/app-casting-research.js?v=__APP_BUILD__',
                           '/static/css/casting.css?v=__APP_BUILD__',
+                          '/static/css/navbar-theme.css?v=__APP_BUILD__',
                           '/static/css/phone-layout.css?v=__APP_BUILD__',
                           '/static/js/app-phone-layout.js?v=__APP_BUILD__',
                           '/static/js/app-publication.js?v=__APP_BUILD__',
