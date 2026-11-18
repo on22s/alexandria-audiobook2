@@ -263,12 +263,16 @@ class LlmProfileAdmissionTests(unittest.TestCase):
         self.assertEqual(before, dict(os.environ))
 
     def test_manual_native_review_and_nickname_queues_only_request_book_work(self):
-        code = ('import faulthandler; faulthandler.dump_traceback_later(10, exit=True); '
+        # Four real native workflows with 5ms manual polling share one process.
+        # Under a loaded native shard they can take well over 10s without hanging;
+        # a 10s faulthandler deadline fired as a false failure. Keep the hang
+        # guard, but bound it far enough above the measured worst case.
+        code = ('import faulthandler; faulthandler.dump_traceback_later(45, exit=True); '
                 'from tests.test_llm_profile_admission import LlmProfileAdmissionTests; '
                 'LlmProfileAdmissionTests()._run_manual_workflows()')
         env = get_workflow_environment(sys.path)
         result = subprocess.run([sys.executable, '-c', code], env=env,
-                                capture_output=True, text=True, timeout=12, stdin=subprocess.DEVNULL)
+                                capture_output=True, text=True, timeout=50, stdin=subprocess.DEVNULL)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def _run_manual_workflows(self):
