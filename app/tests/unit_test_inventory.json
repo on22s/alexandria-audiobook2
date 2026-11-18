@@ -8065,6 +8065,7 @@
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_worker_hook_installer_cannot_write_its_shared_config_but_fixture_install_still_works"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_worktree_commands_wait_for_the_common_kernel_lock"
     , "tests.test_local_unit_shards.LocalWorktreeTests.test_wrong_shard_identities_are_failed_in_the_persistent_shard_artifact"
+    , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_empty_or_missing_prefix_never_authorizes_a_skip"
     , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_native_windows_fails_and_names_an_unregistered_skip"
     , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_native_windows_failure_error_or_unexpected_success_still_fails"
     , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_native_windows_passes_when_every_skip_is_registered"

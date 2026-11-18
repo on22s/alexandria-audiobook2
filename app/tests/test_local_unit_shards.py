@@ -251,6 +251,20 @@ class RegisteredWindowsSkipTests(unittest.TestCase):
         self.assertEqual('failed', result['status'])
         self.assertEqual(1, result['unregistered_skips'])
 
+    def test_empty_or_missing_prefix_never_authorizes_a_skip(self):
+        """An empty prefix would match every message, so it is refused at parse and at verdict."""
+        row = self.runtime_prefix_row('test_first.py', 'Example', '')
+        with self.assertRaisesRegex(ValueError, 'empty prefix'):
+            self.registry.parse_skip_registry_row(f"{row} = {'0' * 64}  # reason=''; synthetic")
+        self.assertIsNone(self.registry.get_declared_reason(None))
+        test_id = self.identifiers[0]
+        for value in ('', None):
+            site = ('test_first.py', 'Example', self.registry.MATCH_PREFIX, value)
+            self.assertFalse(self.registry.is_registered_skip(test_id, (site,), 'any message'))
+        # A prefix row with no declaration recovers no prefix and fails closed.
+        site = self.registry.get_verdict_site(row)
+        self.assertFalse(self.registry.is_registered_skip(test_id, (site,), 'any message'))
+
     def test_worker_report_carries_skip_reasons_to_the_verdict(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)

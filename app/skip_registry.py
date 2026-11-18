@@ -69,7 +69,7 @@ def get_declared_reason(declaration):
     The literal is read back with `ast.literal_eval`, so a semicolon inside the
     message is part of the message, not the field separator.
     """
-    if not declaration.startswith(DECLARED_REASON_PREFIX):
+    if not isinstance(declaration, str) or not declaration.startswith(DECLARED_REASON_PREFIX):
         return None
     body = declaration[len(DECLARED_REASON_PREFIX):]
     for index, character in enumerate(body):
@@ -112,6 +112,9 @@ def parse_skip_registry_row(line, number=1):
     if declared is None:
         raise ValueError(
             f'Registry line {number} runtime row needs a "reason=<repr>;" declaration')
+    if fields[2] == RUNTIME_PREFIX_SITE_FIELD and not declared:
+        raise ValueError(
+            f'Registry line {number} runtime-prefix row pins an empty prefix: {location!r}')
     if get_reason_key(declared) != fields[3]:
         raise ValueError(
             f'Registry line {number} reason digest disagrees with its declaration: {location!r}')
@@ -229,7 +232,7 @@ def is_registered_skip(test_id, sites, reason=None):
             continue
         if match == MATCH_EXACT and get_reason_key(reason) == value:
             return True
-        if match == MATCH_PREFIX and str(reason).startswith(value):
+        if match == MATCH_PREFIX and value and str(reason).startswith(value):
             return True
     return False
 
