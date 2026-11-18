@@ -8,10 +8,13 @@
     "dynamic": "node dynamic-audit.js",
     "incomplete": "node incomplete-audit.js",
     "hover": "node hover-audit.js",
-    "axtree": "node a11y-tree-audit.js"
+    "axtree": "node a11y-tree-audit.js",
+    "interaction": "node interaction-audit.js",
+    "pixels": "node incomplete-pixel-audit.js"
   },
   "dependencies": {
     "axe-core": "4.14.1",
+    "pngjs": "7.0.0",
     "puppeteer-core": "25.18.1"
   }
 }

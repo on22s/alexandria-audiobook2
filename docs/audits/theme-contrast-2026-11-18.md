@@ -143,7 +143,38 @@ pair and extend the test.
   from the link's DOM text, which is what `aria-labelledby` actually resolves.
   Artifact: `docs/audits/theme-contrast-2026-11-18-axtree-results.json`.
 
+## 6. Real UI interactions (dynamic surfaces)
+
+- The earlier dynamic audit forced surfaces open via CSS, which can miss
+  state that only a real click produces. `npm run interaction` drives the page
+  with actual clicks in each theme: the Advanced dropdown, the Editor drawer
+  opened by its toggle, **all seven tool panels selected through their own
+  buttons**, the Expert-settings switch, and the casting-review button.
+- Result: **60 surfaces, 0 axe color-contrast violations, 0 zero-node
+  surfaces**. Editor tool panels contribute 15–31 evaluated nodes each and all
+  report `open=true` after their click. Artifact:
+  `docs/audits/theme-contrast-2026-11-18-interaction-results.json`.
+- The casting-review modal is recorded as not-applicable, not as a clean pass.
+  `#casting-review` has no event listener, `onclick`, or Bootstrap
+  `data-bs-toggle`/`data-bs-target` in this build, and no JS opens
+  `#casting-review-modal`, so the control is dead and the modal is unreachable
+  through real clicks regardless of saved data. Populated casting-review content
+  therefore remains unverified — and more fundamentally than a data gap.
+
+## 7. Pixel check of the image/gradient `incomplete` nodes
+
+- The earlier per-node measurement substituted the nearest non-transparent
+  ancestor solid color, which is not the rendered pixels for backgrounds built
+  from images or gradients (100 of the 136 incomplete nodes). `npm run pixels`
+  now takes clipped screenshots of each such node, samples the dominant
+  non-text pixel color, and computes the ratio against the rendered text color.
+- Result: **100 nodes sampled, 0 failures, minimum 7.2643:1** — well above AA
+  and higher than the heuristic's 4.5008 lower bound. Artifact:
+  `docs/audits/theme-contrast-2026-11-18-incomplete-pixel-results.json`.
+
 ## Still unverified
 
-- Dynamically generated content after a modal or drawer interaction, and actual
-  screen-reader announcement (the AX tree is a proxy, not a real SR run).
+- Dynamically populated casting-review content (its trigger button is unwired
+  in this build, so the modal is unreachable by real clicks) and a real
+  NVDA/VoiceOver run — the AX tree is a proxy.
+

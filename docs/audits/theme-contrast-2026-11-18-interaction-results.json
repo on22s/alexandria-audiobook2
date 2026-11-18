@@ -1,0 +1,480 @@
+{
+  "tool": "axe-core 4.14.1 on live app after real UI clicks, 6 themes",
+  "url": "http://127.0.0.1:8765/",
+  "date": "2026-11-18T16:24:31.349Z",
+  "summary": {
+    "surfaces": 60,
+    "violations": 0,
+    "zero_node_surfaces": []
+  },
+  "results": [
+    {
+      "theme": "light",
+      "surface": "advanced-dropdown-click",
+      "nodes": 7,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "surface": "editor-tool:sound-assets",
+      "nodes": 19,
+      "violations": [],
+      "open": true,
+      "visibleText": 513
+    },
+    {
+      "theme": "light",
+      "surface": "editor-tool:sound-cues",
+      "nodes": 16,
+      "violations": [],
+      "open": true,
+      "visibleText": 345
+    },
+    {
+      "theme": "light",
+      "surface": "editor-tool:renditions",
+      "nodes": 16,
+      "violations": [],
+      "open": true,
+      "visibleText": 423
+    },
+    {
+      "theme": "light",
+      "surface": "editor-tool:mixes",
+      "nodes": 15,
+      "violations": [],
+      "open": true,
+      "visibleText": 109
+    },
+    {
+      "theme": "light",
+      "surface": "editor-tool:pronunciation",
+      "nodes": 31,
+      "violations": [],
+      "open": true,
+      "visibleText": 2402
+    },
+    {
+      "theme": "light",
+      "surface": "editor-tool:chapters",
+      "nodes": 21,
+      "violations": [],
+      "open": true,
+      "visibleText": 658
+    },
+    {
+      "theme": "light",
+      "surface": "editor-tool:repair",
+      "nodes": 20,
+      "violations": [],
+      "open": true,
+      "visibleText": 542
+    },
+    {
+      "theme": "light",
+      "surface": "casting-review-modal-click",
+      "missing": true,
+      "nodes": 0,
+      "violations": [],
+      "shown": false,
+      "bodyText": 0,
+      "skipped": "casting-review button is not wired to the modal in this build"
+    },
+    {
+      "theme": "light",
+      "surface": "setup-expert-open",
+      "nodes": 182,
+      "violations": []
+    },
+    {
+      "theme": "night",
+      "surface": "advanced-dropdown-click",
+      "nodes": 7,
+      "violations": []
+    },
+    {
+      "theme": "night",
+      "surface": "editor-tool:sound-assets",
+      "nodes": 20,
+      "violations": [],
+      "open": true,
+      "visibleText": 513
+    },
+    {
+      "theme": "night",
+      "surface": "editor-tool:sound-cues",
+      "nodes": 17,
+      "violations": [],
+      "open": true,
+      "visibleText": 345
+    },
+    {
+      "theme": "night",
+      "surface": "editor-tool:renditions",
+      "nodes": 17,
+      "violations": [],
+      "open": true,
+      "visibleText": 423
+    },
+    {
+      "theme": "night",
+      "surface": "editor-tool:mixes",
+      "nodes": 16,
+      "violations": [],
+      "open": true,
+      "visibleText": 178
+    },
+    {
+      "theme": "night",
+      "surface": "editor-tool:pronunciation",
+      "nodes": 31,
+      "violations": [],
+      "open": true,
+      "visibleText": 2402
+    },
+    {
+      "theme": "night",
+      "surface": "editor-tool:chapters",
+      "nodes": 21,
+      "violations": [],
+      "open": true,
+      "visibleText": 658
+    },
+    {
+      "theme": "night",
+      "surface": "editor-tool:repair",
+      "nodes": 20,
+      "violations": [],
+      "open": true,
+      "visibleText": 542
+    },
+    {
+      "theme": "night",
+      "surface": "casting-review-modal-click",
+      "missing": true,
+      "nodes": 0,
+      "violations": [],
+      "shown": false,
+      "bodyText": 0,
+      "skipped": "casting-review button is not wired to the modal in this build"
+    },
+    {
+      "theme": "night",
+      "surface": "setup-expert-open",
+      "nodes": 182,
+      "violations": []
+    },
+    {
+      "theme": "super-night",
+      "surface": "advanced-dropdown-click",
+      "nodes": 7,
+      "violations": []
+    },
+    {
+      "theme": "super-night",
+      "surface": "editor-tool:sound-assets",
+      "nodes": 20,
+      "violations": [],
+      "open": true,
+      "visibleText": 513
+    },
+    {
+      "theme": "super-night",
+      "surface": "editor-tool:sound-cues",
+      "nodes": 17,
+      "violations": [],
+      "open": true,
+      "visibleText": 345
+    },
+    {
+      "theme": "super-night",
+      "surface": "editor-tool:renditions",
+      "nodes": 17,
+      "violations": [],
+      "open": true,
+      "visibleText": 423
+    },
+    {
+      "theme": "super-night",
+      "surface": "editor-tool:mixes",
+      "nodes": 16,
+      "violations": [],
+      "open": true,
+      "visibleText": 178
+    },
+    {
+      "theme": "super-night",
+      "surface": "editor-tool:pronunciation",
+      "nodes": 31,
+      "violations": [],
+      "open": true,
+      "visibleText": 2402
+    },
+    {
+      "theme": "super-night",
+      "surface": "editor-tool:chapters",
+      "nodes": 21,
+      "violations": [],
+      "open": true,
+      "visibleText": 658
+    },
+    {
+      "theme": "super-night",
+      "surface": "editor-tool:repair",
+      "nodes": 20,
+      "violations": [],
+      "open": true,
+      "visibleText": 542
+    },
+    {
+      "theme": "super-night",
+      "surface": "casting-review-modal-click",
+      "missing": true,
+      "nodes": 0,
+      "violations": [],
+      "shown": false,
+      "bodyText": 0,
+      "skipped": "casting-review button is not wired to the modal in this build"
+    },
+    {
+      "theme": "super-night",
+      "surface": "setup-expert-open",
+      "nodes": 182,
+      "violations": []
+    },
+    {
+      "theme": "cyberpunk",
+      "surface": "advanced-dropdown-click",
+      "nodes": 7,
+      "violations": []
+    },
+    {
+      "theme": "cyberpunk",
+      "surface": "editor-tool:sound-assets",
+      "nodes": 20,
+      "violations": [],
+      "open": true,
+      "visibleText": 513
+    },
+    {
+      "theme": "cyberpunk",
+      "surface": "editor-tool:sound-cues",
+      "nodes": 17,
+      "violations": [],
+      "open": true,
+      "visibleText": 345
+    },
+    {
+      "theme": "cyberpunk",
+      "surface": "editor-tool:renditions",
+      "nodes": 17,
+      "violations": [],
+      "open": true,
+      "visibleText": 423
+    },
+    {
+      "theme": "cyberpunk",
+      "surface": "editor-tool:mixes",
+      "nodes": 16,
+      "violations": [],
+      "open": true,
+      "visibleText": 178
+    },
+    {
+      "theme": "cyberpunk",
+      "surface": "editor-tool:pronunciation",
+      "nodes": 31,
+      "violations": [],
+      "open": true,
+      "visibleText": 2402
+    },
+    {
+      "theme": "cyberpunk",
+      "surface": "editor-tool:chapters",
+      "nodes": 21,
+      "violations": [],
+      "open": true,
+      "visibleText": 658
+    },
+    {
+      "theme": "cyberpunk",
+      "surface": "editor-tool:repair",
+      "nodes": 20,
+      "violations": [],
+      "open": true,
+      "visibleText": 542
+    },
+    {
+      "theme": "cyberpunk",
+      "surface": "casting-review-modal-click",
+      "missing": true,
+      "nodes": 0,
+      "violations": [],
+      "shown": false,
+      "bodyText": 0,
+      "skipped": "casting-review button is not wired to the modal in this build"
+    },
+    {
+      "theme": "cyberpunk",
+      "surface": "setup-expert-open",
+      "nodes": 182,
+      "violations": []
+    },
+    {
+      "theme": "bread",
+      "surface": "advanced-dropdown-click",
+      "nodes": 7,
+      "violations": []
+    },
+    {
+      "theme": "bread",
+      "surface": "editor-tool:sound-assets",
+      "nodes": 20,
+      "violations": [],
+      "open": true,
+      "visibleText": 513
+    },
+    {
+      "theme": "bread",
+      "surface": "editor-tool:sound-cues",
+      "nodes": 17,
+      "violations": [],
+      "open": true,
+      "visibleText": 345
+    },
+    {
+      "theme": "bread",
+      "surface": "editor-tool:renditions",
+      "nodes": 17,
+      "violations": [],
+      "open": true,
+      "visibleText": 423
+    },
+    {
+      "theme": "bread",
+      "surface": "editor-tool:mixes",
+      "nodes": 16,
+      "violations": [],
+      "open": true,
+      "visibleText": 178
+    },
+    {
+      "theme": "bread",
+      "surface": "editor-tool:pronunciation",
+      "nodes": 31,
+      "violations": [],
+      "open": true,
+      "visibleText": 2402
+    },
+    {
+      "theme": "bread",
+      "surface": "editor-tool:chapters",
+      "nodes": 21,
+      "violations": [],
+      "open": true,
+      "visibleText": 658
+    },
+    {
+      "theme": "bread",
+      "surface": "editor-tool:repair",
+      "nodes": 20,
+      "violations": [],
+      "open": true,
+      "visibleText": 542
+    },
+    {
+      "theme": "bread",
+      "surface": "casting-review-modal-click",
+      "missing": true,
+      "nodes": 0,
+      "violations": [],
+      "shown": false,
+      "bodyText": 0,
+      "skipped": "casting-review button is not wired to the modal in this build"
+    },
+    {
+      "theme": "bread",
+      "surface": "setup-expert-open",
+      "nodes": 182,
+      "violations": []
+    },
+    {
+      "theme": "leek",
+      "surface": "advanced-dropdown-click",
+      "nodes": 7,
+      "violations": []
+    },
+    {
+      "theme": "leek",
+      "surface": "editor-tool:sound-assets",
+      "nodes": 20,
+      "violations": [],
+      "open": true,
+      "visibleText": 513
+    },
+    {
+      "theme": "leek",
+      "surface": "editor-tool:sound-cues",
+      "nodes": 17,
+      "violations": [],
+      "open": true,
+      "visibleText": 345
+    },
+    {
+      "theme": "leek",
+      "surface": "editor-tool:renditions",
+      "nodes": 17,
+      "violations": [],
+      "open": true,
+      "visibleText": 423
+    },
+    {
+      "theme": "leek",
+      "surface": "editor-tool:mixes",
+      "nodes": 16,
+      "violations": [],
+      "open": true,
+      "visibleText": 178
+    },
+    {
+      "theme": "leek",
+      "surface": "editor-tool:pronunciation",
+      "nodes": 31,
+      "violations": [],
+      "open": true,
+      "visibleText": 2402
+    },
+    {
+      "theme": "leek",
+      "surface": "editor-tool:chapters",
+      "nodes": 21,
+      "violations": [],
+      "open": true,
+      "visibleText": 658
+    },
+    {
+      "theme": "leek",
+      "surface": "editor-tool:repair",
+      "nodes": 20,
+      "violations": [],
+      "open": true,
+      "visibleText": 542
+    },
+    {
+      "theme": "leek",
+      "surface": "casting-review-modal-click",
+      "missing": true,
+      "nodes": 0,
+      "violations": [],
+      "shown": false,
+      "bodyText": 0,
+      "skipped": "casting-review button is not wired to the modal in this build"
+    },
+    {
+      "theme": "leek",
+      "surface": "setup-expert-open",
+      "nodes": 182,
+      "violations": []
+    }
+  ]
+}
