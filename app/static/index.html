@@ -816,6 +816,21 @@
         html[data-theme="night"] .bg-light,
         html[data-theme="leek"] .bg-light,
         html[data-theme="super-night"] .bg-light { background-color: var(--bg-card-header) !important; }
+        /* Several themes repurpose .bg-light as a dark surface, but Bootstrap's
+           .text-dark badges keep near-black text: dark-on-dark in the casting
+           review taxonomy. Match the badge text to the theme. */
+        html[data-theme="night"] .bg-light.text-dark,
+        html[data-theme="leek"] .bg-light.text-dark,
+        html[data-theme="super-night"] .bg-light.text-dark,
+        html[data-theme="bread"] .bg-light.text-dark,
+        html[data-theme="cyberpunk"] .bg-light.text-dark { color: var(--text-primary) !important; }
+        /* Bootstrap's warning yellow fails AA on light surfaces (1.63:1), but
+           the navbar is dark in light/bread themes: keep the bright warning
+           there or #sys-status-error would drop to ~2.5:1. */
+        html:not([data-theme]) .text-warning,
+        html[data-theme="bread"] .text-warning { color: #856404 !important; }
+        html:not([data-theme]) .navbar .text-warning,
+        html[data-theme="bread"] .navbar .text-warning { color: #ffc107 !important; }
         html[data-theme="night"] .bg-body,
         html[data-theme="leek"] .bg-body,
         html[data-theme="super-night"] .bg-body { background-color: var(--bg-page) !important; }
