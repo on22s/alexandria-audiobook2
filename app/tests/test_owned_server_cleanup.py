@@ -60,8 +60,11 @@ class OwnedServerCleanupRaceTests(unittest.TestCase):
                 'if kill -0 "$pid" 2>/dev/null; then kill -KILL "$pid"; wait "$pid"; exit 99; fi\n'
                 '[ "$queries" = 2 ] || exit 98\n'
                 'exit "$rc"\n')
+            # Generous bound: under a loaded native shard, spawning Git Bash and
+            # reaping the background child can take longer than 5s without any
+            # ownership failure.
             result = run_bash_fixture([str(script), str(ROOT)],
-                capture_output=True, text=True, timeout=5)
+                capture_output=True, text=True, timeout=20)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
 
