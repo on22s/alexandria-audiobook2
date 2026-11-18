@@ -11,19 +11,30 @@ import unittest
 from unittest.mock import patch
 
 from dialogue_spans import (apply_dialogue_map, apply_source_narration, apply_source_speakers,
-                            detect_convention, mark_entries,
-                            speaker_labels, spoken_spans, uses_speaker_labels)
+                            detect_convention, get_other_speech_spans, mark_entries,
+                            speaker_labels, spoken_spans, uses_speaker_labels,
+                            validate_spoken_spans)
 
 
 class ConventionTest(unittest.TestCase):
     def test_one_character_utterances_are_counted_and_located_for_each_quote_style(self):
-        for opener, closer in [('"', '"'), ('“', '”'), ('「', '」'), ('『', '』')]:
+        for opener, closer in [('"', '"'), ('“', '”'), ('「', '」'), ('『', '』'),
+                               ('„', '“'), ('＂', '＂')]:
             with self.subTest(opener=opener):
                 words = list('AIえあ!?')
                 text = '\n'.join(opener + word + closer for word in words)
                 self.assertEqual('paired_quotes', detect_convention(text))
                 self.assertEqual(words, [text[a:b] for a, b in spoken_spans(text)])
                 self.assertEqual([], spoken_spans(opener + closer, 'paired_quotes'))
+
+        # Low-high single marks are secondary speech, like «»: recognised so
+        # the line is not called narration, without being the convention that
+        # carries the book's dialogue. That is the same line this module draws
+        # for every single mark, whose closer is also an apostrophe.
+        source = "Er zögerte. ‚Komm her!‘ sagte er."
+        self.assertEqual([], [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+        self.assertEqual(["Komm her!"], [source[a:b] for a, b in
+                                         get_other_speech_spans(source, "paired_quotes")])
 
     def test_curly_quotes_are_recognised(self):
         text = "\n".join(f"He paused. “Line number {i}, spoken aloud.”" for i in range(6))
@@ -88,10 +99,11 @@ class SpanTest(unittest.TestCase):
                     text = f"He said, {opener}{speech}{closer} and left."
                     self.assertEqual([speech], [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
 
-    def test_a_long_pair_across_a_blank_line_is_still_refused(self):
-        # The old cap's job: an unclosed opener must not pair with a closer
-        # paragraphs later and swallow the narration between. The real pair
-        # after it is still found.
+    def test_a_pair_across_narration_is_refused_whatever_its_length(self):
+        # A break the next paragraph does not re-open is narration, so a pair
+        # reaching across it is refused and the real pair after it is found.
+        # A chain that re-opens the mark at every paragraph is a speech, not a
+        # swallow - and costs one indexed pass, not a walk per opener.
         narration = "The narrator went on at great length. " * 60
         text = f"“Never closed.\n\n{narration}\n\n“Real line.” she said."
         self.assertEqual(["Real line."], [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
@@ -120,17 +132,74 @@ class SpanTest(unittest.TestCase):
                 with self.subTest(mark=opener, shape=shape):
                     measured = MeasuredSource(value)
                     spans = spoken_spans(measured, 'paired_quotes')
-                    expected = ([(value.find(opener, len(value) - 2002) + 1, len(value) - 1)]
-                                if shape == 'many_breaks' else [])
+                    # The trailing 'x' paragraph is narration, so every
+                    # candidate crosses it - including the short pair the old
+                    # 2,000-character exemption used to let through. Nothing
+                    # here is spoken.
+                    expected = []
                     self.assertEqual(expected, spans)
                     self.assertEqual(0, measured.copied_characters)
                     self.assertLessEqual(measured.search_extent, 8 * len(value))
 
-    def test_a_short_multi_paragraph_speech_keeps_its_old_span(self):
-        # Within the limit a blank line was allowed before and still is, so a
-        # speech whose paragraphs reopen without closing is not newly lost.
+    def test_a_short_multi_paragraph_speech_is_kept_by_the_reprise_rule(self):
+        # Nothing to do with length: a speech whose paragraphs re-open the same
+        # mark is one span, and was before the rule applied to every pair.
         text = "“First paragraph of the speech.\n\n“Second paragraph.” he said."
         self.assertEqual(["First paragraph of the speech.\n\n“Second paragraph."],
+                         [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
+
+    def test_a_long_speech_whose_paragraphs_reopen_the_quote_is_one_span(self):
+        # The former length cap dropped the first paragraph of a long speech
+        # and kept only the last; the reprise rule keeps the whole utterance.
+        first, second = ("filler " * 200)[:1400], ("filler " * 200)[:1200]
+        text = f"“{first}\n\n“{second}” he said."
+        self.assertGreater(len(first) + len(second), 2000)
+        self.assertEqual([text[1:text.index("”")]],
+                         [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
+
+    def test_german_and_full_width_marks_are_paired_and_stripped_for_matching(self):
+        # German/Polish/Czech „…“ prints outside the marks this module paired
+        # before, so the line was neither located nor stripped - it read as
+        # narration with no error. Both halves are asserted here because
+        # pairing without stripping still leaves every entry unlocated.
+        source = "Er zögerte. „Komm sofort her!“ sagte er."
+        (start, end), = spoken_spans(source, "paired_quotes")
+        self.assertEqual("Komm sofort her!", source[start:end])
+        marked = mark_entries([{"speaker": "A", "text": "Komm sofort her!"}],
+                              source, "paired_quotes")
+        self.assertTrue(marked[0]["spoken"])
+        self.assertEqual("Komm sofort her!", source[slice(*marked[0]["source_span"])])
+
+    def test_a_detected_span_must_be_a_real_range_in_the_source(self):
+        # The guard runs on raw detection, before the sort and merge, because
+        # after the merge nothing can be wrong and a check there never fires.
+        for spans in ([(4, 2)], [(2, 2)], [(-1, 2)], [(0, 11)], [(1.0, 2)],
+                      [(1, True)]):
+            with self.subTest(spans=spans):
+                with self.assertRaises(ValueError):
+                    validate_spoken_spans(spans, "0123456789")
+        self.assertTrue(validate_spoken_spans([], "0123456789"))
+        # Overlap and order are the merge's business: two conventions may mark
+        # the same line, and only the merged map has to be ordered.
+        self.assertTrue(validate_spoken_spans([(2, 5), (4, 6)], "0123456789"))
+        self.assertTrue(validate_spoken_spans([(0, 5), (5, 10)], "0123456789"))
+
+    def test_a_broken_detection_raises_before_the_merge_can_hide_it(self):
+        # Not just the function: the guard sits on the path `spoken_spans`
+        # takes, so a detection returning garbage raises instead of being
+        # tidied into a plausible map.
+        text = 'She waited. “Get down!” he shouted.'
+        for broken in ([(5, 0)], [(-1, 3)], [(0, 500)], [(1.5, 3)]):
+            with self.subTest(broken=broken):
+                with patch("dialogue_spans._paired_spans", return_value=broken):
+                    with self.assertRaises(ValueError):
+                        spoken_spans(text, "paired_quotes")
+
+    def test_a_short_pair_across_narration_is_refused_too(self):
+        # The length cap exempted this: a short pair could swallow a narration
+        # paragraph sitting between two speeches. Length is not evidence.
+        text = '“Hello.\n\nShe left without answering.\n\n“Goodbye.”'
+        self.assertEqual(["Goodbye."],
                          [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
 
 

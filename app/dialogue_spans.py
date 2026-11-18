@@ -30,8 +30,10 @@ import re
 PAIRED = [
     ('"', '"'),
     ("“", "”"),      # curly “ ”
+    ("„", "“"),      # German/Polish/Czech low-high „ “
     ("「", "」"),      # 「 」
     ("『", "』"),      # 『 』
+    ("＂", "＂"),      # full-width straight
 ]
 # An em or en dash opening a line, the Continental convention.
 DASH_LINE = re.compile(r"^[ \t]*[—–][ \t]*(\S.*)$", re.M)
@@ -43,9 +45,6 @@ INTERIOR_DASH_TURN = re.compile(
 LABEL_LINE = re.compile(r"^[ \t]*([A-Z][A-Z .'’-]{1,30}):[ \t]+(\S.*)$", re.M)
 
 
-# The longest distinct-mark pair allowed to cross a blank line.
-MAX_CROSSING_CHARS = 2000
-
 # Speech marked in a way the book does not mainly use. A line found inside one
 # lies outside the detected quotes without being narration: ‘single’ quotes in
 # a “double”-quote book, a dash-opened line, «guillemets», or an opening mark
@@ -55,12 +54,52 @@ OTHER_PAIRED = [
     re.compile(r"‘((?:[^‘’\n]|’(?=\w))+)’(?!\w)"),
     re.compile(r"«([^«»]+)»"),
     re.compile(r"‹([^‹›\n]+)›"),
+    # Low-high single marks (‚…‘). The opener is never an apostrophe, so it
+    # anchors the pair on its own; the closer is the next ‘ after it.
+    re.compile(r"‚([^‚‘\n]+)‘"),
 ]
-UNCLOSED_OPENERS = {"“": "”", "「": "」", "『": "』"}
+UNCLOSED_OPENERS = {"“": "”", "「": "」", "『": "』", "„": "“"}
+
+# Marks stripped before an entry's text is matched against the source: the
+# delimiters this module pairs, so a line whose quotes the model dropped still
+# locates. ‘ and ’ are absent on purpose - ’ is the apostrophe, and removing it
+# breaks every contraction.
+QUOTE_MARKS = '"“”„「」『』＂'
+_QUOTE_MARKS_RE = re.compile(f"[{QUOTE_MARKS}]")
+
+
+def _paragraph_breaks(text):
+    """-> [(blank-line offset, offset of the first non-space character after)].
+
+    A paired quote legitimately runs across a paragraph break when the next
+    paragraph re-opens it with the same mark - that is how a multi-paragraph
+    speech prints. Anything else after the break is narration. Indexed once for
+    the whole text and tested by bisect, because scanning every break inside
+    every rejected candidate is what makes a chain of unclosed openers
+    quadratic. Offsets only: a one-character slice per break copied the entire
+    break list on a pathological text, which is a measured property here.
+    """
+    breaks, search = [], 0
+    while True:
+        at = text.find("\n\n", search)
+        if at == -1:
+            return breaks
+        after = at + 2
+        while after < len(text) and text[after] in " \t\n":
+            after += 1
+        breaks.append((at, after))
+        search = at + 1
+
+
+def _is_unbroken(breaks, position, end):
+    """Does no narration break sit strictly inside this candidate pair?"""
+    index = bisect_right(breaks, position)
+    return index == len(breaks) or breaks[index] >= end - 1
 
 
 def _paired_spans(text):
     spans = []
+    breaks = None
     for opener, closer in PAIRED:
         if opener == closer:
             # Straight quotes cannot be told apart, so pair them in order and
@@ -91,31 +130,34 @@ def _paired_spans(text):
                     continue
                 spans.append((start + 1, end))
         else:
-            # Pair each opener with the next closer. A pair longer than
-            # MAX_CROSSING_CHARS is kept only inside one paragraph: a long
-            # speech is fine (#1533, 9 of Dorian Gray's speeches run past
-            # 2,000 characters), a long span across a blank line is a
-            # mis-pair swallowing narration. Shorter pairs keep the old rule,
-            # so a multi-paragraph speech closed within the limit still counts.
-            # A rejected pair advances to the next opener, as the old bounded
+            # One rule for every pair, short or long: a blank line inside it
+            # must be followed by the same mark and nothing else. A long speech
+            # is fine (#1533, 9 of Dorian Gray's speeches run past 2,000
+            # characters), and so is a speech whose paragraphs each re-open the
+            # quotation. A break followed by narration is a separate speech, so
+            # a pair reaching across it has swallowed narration - and its length
+            # says nothing about that, which is why no pair is exempt. A
+            # rejected pair advances to the next opener, as the old bounded
             # regex did.
             position = text.find(opener)
-            end, paragraph_break = 0, None
+            end, bad_breaks = 0, None
             while position != -1:
-                # Rejected openers can share one distant closer/paragraph break.
-                # Cache both forward searches and inspect offsets without copying
-                # every remaining interior substring.
+                # Rejected openers can share one distant closer. Cache that
+                # forward search and inspect offsets without copying every
+                # remaining interior substring.
                 if end <= position:
                     end = text.find(closer, position + 1)
                 if end == -1:
                     break
-                length = end - position - 1
-                crosses_paragraph = False
-                if length > MAX_CROSSING_CHARS:
-                    if paragraph_break is None or 0 <= paragraph_break < position + 1:
-                        paragraph_break = text.find("\n\n", position + 1)
-                    crosses_paragraph = 0 <= paragraph_break < end - 1
-                if length and not crosses_paragraph:
+                if bad_breaks is None:
+                    # Built for the first complete pair only: a text whose
+                    # openers never close pays no paragraph scan at all, which
+                    # is the property the unclosed-opener cost test pins.
+                    if breaks is None:
+                        breaks = _paragraph_breaks(text)
+                    bad_breaks = [at for at, after in breaks
+                                  if not text.startswith(opener, after)]
+                if position + 1 < end and _is_unbroken(bad_breaks, position, end):
                     spans.append((position + 1, end))
                     position = text.find(opener, end + 1)
                 else:
@@ -142,6 +184,24 @@ def detect_convention(text):
     return best
 
 
+def validate_spoken_spans(spans, text):
+    """Raise unless every detected span is a real, non-empty source range.
+
+    Called on the spans as each convention found them, BEFORE `spoken_spans`
+    sorts and merges. The merge repairs order and overlap by construction, so a
+    check placed after it could never fail - it would only describe the merge.
+    Overlap is legal here, because a book may mark one line with two
+    conventions at once; only the range itself is refused. Pure read.
+    """
+    for start, end in spans:
+        if type(start) is not int or type(end) is not int:
+            raise ValueError("Speech span offsets must be integers")
+        if not 0 <= start < end <= len(text):
+            raise ValueError(
+                f"Invalid speech span {start}:{end} in {len(text)} characters")
+    return True
+
+
 def spoken_spans(text, convention=None):
     """-> sorted, non-overlapping (start, end) offsets of spoken text."""
     if convention is None:
@@ -156,6 +216,7 @@ def spoken_spans(text, convention=None):
         spans = [(m.start(2), m.end(2)) for m in LABEL_LINE.finditer(text)]
     else:
         raise ValueError(f"Unknown dialogue convention: {convention!r}")
+    validate_spoken_spans(spans, text)
     spans.sort()
     merged = []
     for start, end in spans:
@@ -218,8 +279,7 @@ def get_interior_dash_ambiguities(text, convention):
 
 
 def _normalize(value):
-    return re.sub(r"\s+", " ", re.sub(r'["“”「」『』]',
-                                      "", value or "")).strip()
+    return re.sub(r"\s+", " ", _QUOTE_MARKS_RE.sub("", value or "")).strip()
 
 
 def _normalize_with_offsets(value):
@@ -227,7 +287,7 @@ def _normalize_with_offsets(value):
     characters, offsets = [], []
     pending_space = None
     for index, character in enumerate(value or ""):
-        if character in '"“”「」『』':
+        if character in QUOTE_MARKS:
             continue
         if character.isspace():
             if characters and pending_space is None:
