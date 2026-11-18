@@ -1,0 +1,1780 @@
+{
+  "tool": "axe-core 4.14.1 + CDP on Edge, live app",
+  "url": "http://127.0.0.1:8765/",
+  "date": "2026-11-18T14:43:19.612Z",
+  "summary": {
+    "total": 136,
+    "measured": 136,
+    "min_ratio": 4.500782787406787
+  },
+  "nodes": [
+    {
+      "theme": "light",
+      "tab": "setup",
+      "target": [
+        "#setup-tab > .card > .card-header.justify-content-between.align-items-center > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(13, 110, 253)",
+      "image": null,
+      "text": "1",
+      "ratio": 4.500782787406787
+    },
+    {
+      "theme": "light",
+      "tab": "setup",
+      "target": [
+        "#setup-ui-locale"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English简体中文 (draft)日本語 (draft)Español (L",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "setup",
+      "target": [
+        "#llm-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Local\n                                Re",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "script",
+      "target": [
+        ".card:nth-child(3) > .card-header.justify-content-between.align-items-center > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(13, 110, 253)",
+      "image": null,
+      "text": "2",
+      "ratio": 4.500782787406787
+    },
+    {
+      "theme": "light",
+      "tab": "script",
+      "target": [
+        "#existing-upload-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Choose an existing TXT/MD file…",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "script",
+      "target": [
+        "label[for=\"review-dedupe-speakers\"]"
+      ],
+      "reason": "Element content contains only non-text characters",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": null,
+      "text": "Merge duplicate character names — unify ",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "voices",
+      "target": [
+        ".card-header.justify-content-between.flex-wrap > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(13, 110, 253)",
+      "image": null,
+      "text": "3",
+      "ratio": 4.500782787406787
+    },
+    {
+      "theme": "light",
+      "tab": "voices",
+      "target": [
+        "#voices-state-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Show allCharacters with state cardsChara",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "audio",
+      "target": [
+        "#audio-tab > .card:nth-child(1) > .card-header > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(13, 110, 253)",
+      "image": null,
+      "text": "5",
+      "ratio": 4.500782787406787
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "target": [
+        "#casting-health"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All data health",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "target": [
+        "#casting-book"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All books",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "target": [
+        "#casting-gender"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "target": [
+        "#casting-age"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "target": [
+        "#casting-status"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "casting",
+      "target": [
+        "#casting-sort"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Name A-ZBookReview statusPriority",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "preparer",
+      "target": [
+        "#prep-lang"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English\n                                ",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "preparer",
+      "target": [
+        "#prep-diarization-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Off\n                                Auto",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "dataset-builder",
+      "target": [
+        "#dsb-project-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "-- Select project --",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "training",
+      "target": [
+        "#lora-dataset-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "-- Select dataset --",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "training",
+      "target": [
+        "#lora-language"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English\n                                ",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "light",
+      "tab": "editor",
+      "target": [
+        ".justify-content-between.flex-wrap.align-items-center > .align-items-center.gap-2.d-flex:nth-child(1) > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(13, 110, 253)",
+      "image": null,
+      "text": "4",
+      "ratio": 4.500782787406787
+    },
+    {
+      "theme": "light",
+      "tab": "editor",
+      "target": [
+        "#editor-quality-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(33, 37, 41)",
+      "bg": "rgb(255, 255, 255)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All findingsUnknown speakersFailed rende",
+      "ratio": 15.426285095510265
+    },
+    {
+      "theme": "night",
+      "tab": "setup",
+      "target": [
+        "#setup-tab > .card > .card-header.justify-content-between.align-items-center > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(36, 92, 166)",
+      "image": null,
+      "text": "1",
+      "ratio": 6.65292401511411
+    },
+    {
+      "theme": "night",
+      "tab": "setup",
+      "target": [
+        "#setup-ui-locale"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English简体中文 (draft)日本語 (draft)Español (L",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "setup",
+      "target": [
+        "#llm-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Local\n                                Re",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "script",
+      "target": [
+        ".card:nth-child(3) > .card-header.justify-content-between.align-items-center > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(36, 92, 166)",
+      "image": null,
+      "text": "2",
+      "ratio": 6.65292401511411
+    },
+    {
+      "theme": "night",
+      "tab": "script",
+      "target": [
+        "#existing-upload-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Choose an existing TXT/MD file…",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "script",
+      "target": [
+        "label[for=\"review-dedupe-speakers\"]"
+      ],
+      "reason": "Element content contains only non-text characters",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(37, 42, 53)",
+      "image": null,
+      "text": "Merge duplicate character names — unify ",
+      "ratio": 11.144480086459492
+    },
+    {
+      "theme": "night",
+      "tab": "voices",
+      "target": [
+        ".card-header.justify-content-between.flex-wrap > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(36, 92, 166)",
+      "image": null,
+      "text": "3",
+      "ratio": 6.65292401511411
+    },
+    {
+      "theme": "night",
+      "tab": "voices",
+      "target": [
+        "#voices-state-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Show allCharacters with state cardsChara",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "audio",
+      "target": [
+        "#audio-tab > .card:nth-child(1) > .card-header > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(36, 92, 166)",
+      "image": null,
+      "text": "5",
+      "ratio": 6.65292401511411
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "target": [
+        "#casting-health"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All data health",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "target": [
+        "#casting-book"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All books",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "target": [
+        "#casting-gender"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "target": [
+        "#casting-age"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "target": [
+        "#casting-status"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "casting",
+      "target": [
+        "#casting-sort"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Name A-ZBookReview statusPriority",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "preparer",
+      "target": [
+        "#prep-lang"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English\n                                ",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "preparer",
+      "target": [
+        "#prep-diarization-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Off\n                                Auto",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "dataset-builder",
+      "target": [
+        "#dsb-project-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "-- Select project --",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "training",
+      "target": [
+        "#lora-dataset-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "-- Select dataset --",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "training",
+      "target": [
+        "#lora-language"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English\n                                ",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "night",
+      "tab": "editor",
+      "target": [
+        ".justify-content-between.flex-wrap.align-items-center > .align-items-center.gap-2.d-flex:nth-child(1) > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(36, 92, 166)",
+      "image": null,
+      "text": "4",
+      "ratio": 6.65292401511411
+    },
+    {
+      "theme": "night",
+      "tab": "editor",
+      "target": [
+        "#editor-quality-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(221, 227, 237)",
+      "bg": "rgb(44, 48, 64)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All findingsUnknown speakersFailed rende",
+      "ratio": 10.153290230359781
+    },
+    {
+      "theme": "super-night",
+      "tab": "setup",
+      "target": [
+        "#setup-tab > .card > .card-header.justify-content-between.align-items-center > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(36, 92, 166)",
+      "image": null,
+      "text": "1",
+      "ratio": 6.65292401511411
+    },
+    {
+      "theme": "super-night",
+      "tab": "setup",
+      "target": [
+        "#setup-ui-locale"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English简体中文 (draft)日本語 (draft)Español (L",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "setup",
+      "target": [
+        "#llm-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Local\n                                Re",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "script",
+      "target": [
+        ".card:nth-child(3) > .card-header.justify-content-between.align-items-center > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(36, 92, 166)",
+      "image": null,
+      "text": "2",
+      "ratio": 6.65292401511411
+    },
+    {
+      "theme": "super-night",
+      "tab": "script",
+      "target": [
+        "#existing-upload-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Choose an existing TXT/MD file…",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "script",
+      "target": [
+        "label[for=\"review-dedupe-speakers\"]"
+      ],
+      "reason": "Element content contains only non-text characters",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(17, 17, 17)",
+      "image": null,
+      "text": "Merge duplicate character names — unify ",
+      "ratio": 17.11914331972558
+    },
+    {
+      "theme": "super-night",
+      "tab": "voices",
+      "target": [
+        ".card-header.justify-content-between.flex-wrap > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(36, 92, 166)",
+      "image": null,
+      "text": "3",
+      "ratio": 6.65292401511411
+    },
+    {
+      "theme": "super-night",
+      "tab": "voices",
+      "target": [
+        "#voices-state-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Show allCharacters with state cardsChara",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "audio",
+      "target": [
+        "#audio-tab > .card:nth-child(1) > .card-header > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(36, 92, 166)",
+      "image": null,
+      "text": "5",
+      "ratio": 6.65292401511411
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "target": [
+        "#casting-health"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All data health",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "target": [
+        "#casting-book"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All books",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "target": [
+        "#casting-gender"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "target": [
+        "#casting-age"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "target": [
+        "#casting-status"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "casting",
+      "target": [
+        "#casting-sort"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Name A-ZBookReview statusPriority",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "preparer",
+      "target": [
+        "#prep-lang"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English\n                                ",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "preparer",
+      "target": [
+        "#prep-diarization-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Off\n                                Auto",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "dataset-builder",
+      "target": [
+        "#dsb-project-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "-- Select project --",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "training",
+      "target": [
+        "#lora-dataset-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "-- Select dataset --",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "training",
+      "target": [
+        "#lora-language"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English\n                                ",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "super-night",
+      "tab": "editor",
+      "target": [
+        ".justify-content-between.flex-wrap.align-items-center > .align-items-center.gap-2.d-flex:nth-child(1) > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(36, 92, 166)",
+      "image": null,
+      "text": "4",
+      "ratio": 6.65292401511411
+    },
+    {
+      "theme": "super-night",
+      "tab": "editor",
+      "target": [
+        "#editor-quality-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(240, 244, 251)",
+      "bg": "rgb(15, 15, 15)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All findingsUnknown speakersFailed rende",
+      "ratio": 17.378050586542756
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "setup",
+      "target": [
+        "#setup-tab > .card > .card-header.justify-content-between.align-items-center > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(9, 11, 18)",
+      "bg": "rgb(252, 238, 84)",
+      "image": null,
+      "text": "1",
+      "ratio": 16.379531426009336
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "setup",
+      "target": [
+        "#setup-ui-locale"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English简体中文 (draft)日本語 (draft)Español (L",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "setup",
+      "target": [
+        "#llm-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Local\n                                Re",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "script",
+      "target": [
+        ".card:nth-child(3) > .card-header.justify-content-between.align-items-center > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(9, 11, 18)",
+      "bg": "rgb(252, 238, 84)",
+      "image": null,
+      "text": "2",
+      "ratio": 16.379531426009336
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "script",
+      "target": [
+        "#existing-upload-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Choose an existing TXT/MD file…",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "script",
+      "target": [
+        "label[for=\"review-dedupe-speakers\"]"
+      ],
+      "reason": "Element content contains only non-text characters",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(17, 21, 34)",
+      "image": null,
+      "text": "Merge duplicate character names — unify ",
+      "ratio": 16.53086652475741
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "voices",
+      "target": [
+        ".card-header.justify-content-between.flex-wrap > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(9, 11, 18)",
+      "bg": "rgb(252, 238, 84)",
+      "image": null,
+      "text": "3",
+      "ratio": 16.379531426009336
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "voices",
+      "target": [
+        "#voices-state-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Show allCharacters with state cardsChara",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "audio",
+      "target": [
+        "#audio-tab > .card:nth-child(1) > .card-header > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(9, 11, 18)",
+      "bg": "rgb(252, 238, 84)",
+      "image": null,
+      "text": "5",
+      "ratio": 16.379531426009336
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "h4[data-i18n=\"casting.header.title\"]"
+      ],
+      "reason": "Element's background color could not be determined due to a background gradient",
+      "color": "rgb(245, 251, 255)",
+      "bg": "rgb(9, 11, 18)",
+      "image": "linear-gradient(rgba(0, 240, 255, 0.035) 1px, rgba(0, 0, 0, 0) 1px), linear-gradient(90deg, rgba(0, ",
+      "text": "Casting library",
+      "ratio": 18.840118539851808
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "p[data-i18n=\"casting.intro\"]"
+      ],
+      "reason": "Element's background color could not be determined due to a background gradient",
+      "color": "rgb(138, 160, 179)",
+      "bg": "rgb(9, 11, 18)",
+      "image": "linear-gradient(rgba(0, 240, 255, 0.035) 1px, rgba(0, 0, 0, 0) 1px), linear-gradient(90deg, rgba(0, ",
+      "text": "Listen, organize and shortlist voices ac",
+      "ratio": 7.26434712163402
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "button[data-i18n=\"casting.phone.voices\"]"
+      ],
+      "reason": "Element's background color could not be determined due to a background gradient",
+      "color": "rgb(110, 168, 254)",
+      "bg": "rgb(9, 11, 18)",
+      "image": "linear-gradient(rgba(0, 240, 255, 0.035) 1px, rgba(0, 0, 0, 0) 1px), linear-gradient(90deg, rgba(0, ",
+      "text": "Open Voices",
+      "ratio": 8.139909182041851
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "button[data-i18n=\"casting.phone.designer\"]"
+      ],
+      "reason": "Element's background color could not be determined due to a background gradient",
+      "color": "rgb(110, 168, 254)",
+      "bg": "rgb(9, 11, 18)",
+      "image": "linear-gradient(rgba(0, 240, 255, 0.035) 1px, rgba(0, 0, 0, 0) 1px), linear-gradient(90deg, rgba(0, ",
+      "text": "Open Designer",
+      "ratio": 8.139909182041851
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "#casting-health"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All data health",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "#casting-book"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All books",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "#casting-gender"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "#casting-age"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "#casting-status"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "casting",
+      "target": [
+        "#casting-sort"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Name A-ZBookReview statusPriority",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "preparer",
+      "target": [
+        "#prep-lang"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English\n                                ",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "preparer",
+      "target": [
+        "#prep-diarization-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Off\n                                Auto",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "dataset-builder",
+      "target": [
+        "#dsb-project-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "-- Select project --",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "training",
+      "target": [
+        "#lora-dataset-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "-- Select dataset --",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "training",
+      "target": [
+        "#lora-language"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English\n                                ",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "editor",
+      "target": [
+        ".justify-content-between.flex-wrap.align-items-center > .align-items-center.gap-2.d-flex:nth-child(1) > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(9, 11, 18)",
+      "bg": "rgb(252, 238, 84)",
+      "image": null,
+      "text": "4",
+      "ratio": 16.379531426009336
+    },
+    {
+      "theme": "cyberpunk",
+      "tab": "editor",
+      "target": [
+        "#editor-quality-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(229, 247, 255)",
+      "bg": "rgb(13, 17, 28)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All findingsUnknown speakersFailed rende",
+      "ratio": 17.12645316147025
+    },
+    {
+      "theme": "bread",
+      "tab": "setup",
+      "target": [
+        "#setup-tab > .card > .card-header.justify-content-between.align-items-center > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(170, 41, 77)",
+      "image": null,
+      "text": "1",
+      "ratio": 6.701666041676581
+    },
+    {
+      "theme": "bread",
+      "tab": "setup",
+      "target": [
+        "#setup-ui-locale"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English简体中文 (draft)日本語 (draft)Español (L",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "setup",
+      "target": [
+        "#llm-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Local\n                                Re",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "script",
+      "target": [
+        ".card:nth-child(3) > .card-header.justify-content-between.align-items-center > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(170, 41, 77)",
+      "image": null,
+      "text": "2",
+      "ratio": 6.701666041676581
+    },
+    {
+      "theme": "bread",
+      "tab": "script",
+      "target": [
+        "#existing-upload-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Choose an existing TXT/MD file…",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "script",
+      "target": [
+        "label[for=\"review-dedupe-speakers\"]"
+      ],
+      "reason": "Element content contains only non-text characters",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(249, 246, 247)",
+      "image": null,
+      "text": "Merge duplicate character names — unify ",
+      "ratio": 11.890721510908906
+    },
+    {
+      "theme": "bread",
+      "tab": "voices",
+      "target": [
+        ".card-header.justify-content-between.flex-wrap > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(170, 41, 77)",
+      "image": null,
+      "text": "3",
+      "ratio": 6.701666041676581
+    },
+    {
+      "theme": "bread",
+      "tab": "voices",
+      "target": [
+        "#voices-state-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Show allCharacters with state cardsChara",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "audio",
+      "target": [
+        "#audio-tab > .card:nth-child(1) > .card-header > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(170, 41, 77)",
+      "image": null,
+      "text": "5",
+      "ratio": 6.701666041676581
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "target": [
+        "#casting-health"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All data health",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "target": [
+        "#casting-book"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All books",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "target": [
+        "#casting-gender"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "target": [
+        "#casting-age"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "target": [
+        "#casting-status"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "casting",
+      "target": [
+        "#casting-sort"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Name A-ZBookReview statusPriority",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "preparer",
+      "target": [
+        "#prep-lang"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English\n                                ",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "preparer",
+      "target": [
+        "#prep-diarization-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Off\n                                Auto",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "dataset-builder",
+      "target": [
+        "#dsb-project-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "-- Select project --",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "training",
+      "target": [
+        "#lora-dataset-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "-- Select dataset --",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "training",
+      "target": [
+        "#lora-language"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English\n                                ",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "bread",
+      "tab": "editor",
+      "target": [
+        ".justify-content-between.flex-wrap.align-items-center > .align-items-center.gap-2.d-flex:nth-child(1) > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(255, 255, 255)",
+      "bg": "rgb(170, 41, 77)",
+      "image": null,
+      "text": "4",
+      "ratio": 6.701666041676581
+    },
+    {
+      "theme": "bread",
+      "tab": "editor",
+      "target": [
+        "#editor-quality-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(52, 49, 57)",
+      "bg": "rgb(255, 250, 251)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All findingsUnknown speakersFailed rende",
+      "ratio": 12.356487965279447
+    },
+    {
+      "theme": "leek",
+      "tab": "setup",
+      "target": [
+        "#setup-tab > .card > .card-header.justify-content-between.align-items-center > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(16, 43, 44)",
+      "bg": "rgb(57, 197, 187)",
+      "image": null,
+      "text": "1",
+      "ratio": 7.035882080532575
+    },
+    {
+      "theme": "leek",
+      "tab": "setup",
+      "target": [
+        "#setup-ui-locale"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English简体中文 (draft)日本語 (draft)Español (L",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "setup",
+      "target": [
+        "#llm-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Local\n                                Re",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "script",
+      "target": [
+        ".card:nth-child(3) > .card-header.justify-content-between.align-items-center > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(16, 43, 44)",
+      "bg": "rgb(57, 197, 187)",
+      "image": null,
+      "text": "2",
+      "ratio": 7.035882080532575
+    },
+    {
+      "theme": "leek",
+      "tab": "script",
+      "target": [
+        "#existing-upload-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Choose an existing TXT/MD file…",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "script",
+      "target": [
+        "label[for=\"review-dedupe-speakers\"]"
+      ],
+      "reason": "Element content contains only non-text characters",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(27, 42, 48)",
+      "image": null,
+      "text": "Merge duplicate character names — unify ",
+      "ratio": 12.724060885123816
+    },
+    {
+      "theme": "leek",
+      "tab": "voices",
+      "target": [
+        ".card-header.justify-content-between.flex-wrap > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(16, 43, 44)",
+      "bg": "rgb(57, 197, 187)",
+      "image": null,
+      "text": "3",
+      "ratio": 7.035882080532575
+    },
+    {
+      "theme": "leek",
+      "tab": "voices",
+      "target": [
+        "#voices-state-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Show allCharacters with state cardsChara",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "audio",
+      "target": [
+        "#audio-tab > .card:nth-child(1) > .card-header > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(16, 43, 44)",
+      "bg": "rgb(57, 197, 187)",
+      "image": null,
+      "text": "5",
+      "ratio": 7.035882080532575
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "target": [
+        "#casting-health"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All data health",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "target": [
+        "#casting-book"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All books",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "target": [
+        "#casting-gender"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "target": [
+        "#casting-age"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "target": [
+        "#casting-status"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Any",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "casting",
+      "target": [
+        "#casting-sort"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Name A-ZBookReview statusPriority",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "preparer",
+      "target": [
+        "#prep-lang"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English\n                                ",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "preparer",
+      "target": [
+        "#prep-diarization-mode"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "Off\n                                Auto",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "dataset-builder",
+      "target": [
+        "#dsb-project-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "-- Select project --",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "training",
+      "target": [
+        "#lora-dataset-select"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "-- Select dataset --",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "training",
+      "target": [
+        "#lora-language"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "English\n                                ",
+      "ratio": 13.739058943100538
+    },
+    {
+      "theme": "leek",
+      "tab": "editor",
+      "target": [
+        ".justify-content-between.flex-wrap.align-items-center > .align-items-center.gap-2.d-flex:nth-child(1) > h4 > .step-indicator.step-active"
+      ],
+      "reason": "Element content is too short to determine if it is actual text content",
+      "color": "rgb(16, 43, 44)",
+      "bg": "rgb(57, 197, 187)",
+      "image": null,
+      "text": "4",
+      "ratio": 7.035882080532575
+    },
+    {
+      "theme": "leek",
+      "tab": "editor",
+      "target": [
+        "#editor-quality-filter"
+      ],
+      "reason": "Element's background color could not be determined due to a background image",
+      "color": "rgb(226, 241, 240)",
+      "bg": "rgb(20, 36, 42)",
+      "image": "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill",
+      "text": "All findingsUnknown speakersFailed rende",
+      "ratio": 13.739058943100538
+    }
+  ]
+}

@@ -168,6 +168,36 @@ class UIContractTests(unittest.TestCase):
                     with self.subTest(theme=theme, accent=accent):
                         self.assertGreaterEqual(contrast(tokens[accent], tokens['--bg-card']), 4.5)
 
+    def test_light_surface_outline_buttons_use_aa_colors(self):
+        # A real axe pass found these Bootstrap semantic outline colors failing
+        # on light surfaces (warning yellow was 1.63:1 on white). Compute the
+        # ratio from the declared colors so a future token change fails here.
+        source = (STATIC / 'index.html').read_text(encoding='utf-8')
+
+        def luminance(color):
+            ch = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+            linear = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4 for c in ch]
+            return sum(c * w for c, w in zip(linear, (.2126, .7152, .0722)))
+
+        def contrast(a, b):
+            light, dark = sorted((luminance(a), luminance(b)), reverse=True)
+            return (light + .05) / (dark + .05)
+
+        for color in ('#856404', '#146c43', '#b02a37'):
+            self.assertIn('--bs-btn-color: ' + color, source)
+            for background in ('#ffffff', '#f9f6f7'):
+                with self.subTest(color=color, background=background):
+                    self.assertGreaterEqual(contrast(color, background), 4.5)
+        for color in ('#856404', '#146c43', '#b02a37'):
+            # Hover/active fills use white text, also under the global 1.06 filter.
+            with self.subTest(hover_fill=color):
+                self.assertGreaterEqual(contrast('#ffffff', color), 4.5)
+                self.assertIn('--bs-btn-hover-bg: ' + color, source)
+                self.assertIn('--bs-btn-active-bg: ' + color, source)
+        self.assertIn('html:not([data-theme]) .btn-outline-warning', source)
+        self.assertIn('html[data-theme="bread"] .btn-outline-success', source)
+        self.assertIn('html[data-theme="bread"] .btn-outline-danger', source)
+
     def test_dark_navbar_focus_rings_use_a_light_outline(self):
         # The accent tokens are dark in some themes; the measured focus audit
         # found their rings under 3:1 on the dark navbar and green active tab.

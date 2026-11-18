@@ -286,6 +286,23 @@
         .btn { border-radius: var(--radius-sm); transition: filter var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast); }
         .btn-outline-secondary { --bs-btn-color: var(--text-muted); --bs-btn-border-color: var(--border-input); --bs-btn-hover-color: #ffffff; --bs-btn-hover-bg: var(--text-muted); --bs-btn-hover-border-color: var(--text-muted); --bs-btn-active-color: #ffffff; --bs-btn-active-bg: var(--text-muted); --bs-btn-active-border-color: var(--text-muted); }
         .btn-outline-info { --bs-btn-color: var(--accent-strong); --bs-btn-border-color: var(--accent-strong); }
+        /* Bootstrap's literal semantic colors fail AA on light surfaces (warning
+           yellow is 1.6:1 on white). Darken them where the surface is light. */
+        html:not([data-theme]) .btn-outline-warning, html[data-theme="bread"] .btn-outline-warning {
+            --bs-btn-color: #856404; --bs-btn-border-color: #856404;
+            --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #856404; --bs-btn-hover-border-color: #856404;
+            --bs-btn-active-color: #fff; --bs-btn-active-bg: #856404; --bs-btn-active-border-color: #856404;
+        }
+        html[data-theme="bread"] .btn-outline-success {
+            --bs-btn-color: #146c43; --bs-btn-border-color: #146c43;
+            --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #146c43; --bs-btn-hover-border-color: #146c43;
+            --bs-btn-active-color: #fff; --bs-btn-active-bg: #146c43; --bs-btn-active-border-color: #146c43;
+        }
+        html[data-theme="bread"] .btn-outline-danger {
+            --bs-btn-color: #b02a37; --bs-btn-border-color: #b02a37;
+            --bs-btn-hover-color: #fff; --bs-btn-hover-bg: #b02a37; --bs-btn-hover-border-color: #b02a37;
+            --bs-btn-active-color: #fff; --bs-btn-active-bg: #b02a37; --bs-btn-active-border-color: #b02a37;
+        }
         /* Bootstrap's literal #0d6efd link/button blue fails AA on several
            surfaces. Route plain links and outline-primary controls through the
            per-theme accent, whose ratio is pinned by the contrast tests. */
