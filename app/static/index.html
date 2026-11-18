@@ -684,6 +684,14 @@
             .navbar-nav.me-auto { flex-basis: auto; flex-wrap: wrap; }
             .navbar-nav.ms-auto { flex-wrap: wrap; }
         }
+        @media (min-width: 1600px) {
+            /* Above this width the metric badges return to their full padding
+               and the status pill's 20rem cap is lifted (both compact below
+               1600px), but Bootstrap's .container still stops at 1320px: the
+               bar gained facts and no room, so it wrapped onto a second row.
+               It follows the page content width instead. */
+            .navbar > .container { max-width: 85%; }
+        }
         @media (max-width: 1299.98px) {
             /* Decorative caption only (`aria-hidden`); dropping it is what buys
                the row back at 1280, where the links plus the cluster do not fit.

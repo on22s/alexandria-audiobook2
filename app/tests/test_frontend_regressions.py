@@ -32,6 +32,11 @@ def _read_frontend_source():
     return html + js
 
 
+def _strip_css_comments(source):
+    """Drop /* ... */ blocks so a commented-out rule cannot pass a presence check."""
+    return re.sub(r"/\*.*?\*/", "", source, flags=re.DOTALL)
+
+
 class FrontendJsSplitTests(unittest.TestCase):
     def test_split_js_files_exist_are_referenced_in_order_and_non_empty(self):
         # The split files must exist, be non-empty, and be referenced by
@@ -180,6 +185,16 @@ class FrontendTests(unittest.TestCase):
                          "runtime.short_revision", "runtime.packages",
                          "Revision unavailable"):
             self.assertIn(required, frontend)
+        # Above 1600px the badges lose their compaction, which needs room the
+        # 1320px-capped .container never provides, so the bar follows the page
+        # content width instead of wrapping onto a second row. Comments are
+        # stripped so a commented-out rule cannot satisfy this; it still pins
+        # active-CSS presence only — the one-row fit is a browser measurement.
+        self.assertRegex(
+            _strip_css_comments(frontend),
+            r"@media\s*\(min-width:\s*1600px\)\s*\{[^}]*"
+            r"\.navbar\s*>\s*\.container\s*\{[^}]*max-width:\s*85%",
+        )
 
     def test_lora_candidate_comparison_is_advisory_and_separate_from_promotion(self):
         frontend = _read_frontend_source()
