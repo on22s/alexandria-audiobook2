@@ -141,6 +141,23 @@ class SpanTest(unittest.TestCase):
                     self.assertEqual(0, measured.copied_characters)
                     self.assertLessEqual(measured.search_extent, 8 * len(value))
 
+    def test_an_orphan_closing_mark_does_not_swallow_narration(self):
+        # A stray `”` after a German closer must not make that closer look like
+        # an English opener — otherwise the German pair runs on over narration.
+        source = "„German.“ narration ”orphan closer. “Real.”"
+        self.assertEqual(["German.", "Real."],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_shared_mark_disambiguation_is_linear(self):
+        # The shared-mark roles are resolved with position-indexed lookups. A
+        # linear rescan per quote made a 20k-pair text take seconds; this is a
+        # coarse wall-clock guard with a wide margin (measured ~0.05s).
+        import time
+        source = "\n\n".join("„Speech " + str(i) + " here“ said he." for i in range(20000))
+        started = time.monotonic()
+        self.assertEqual(20000, len(spoken_spans(source, "paired_quotes")))
+        self.assertLess(time.monotonic() - started, 2.0)
+
     def test_a_blank_line_before_the_closing_mark_is_a_refused_candidate(self):
         # Deliberate scope of the rule: a blank line inside a pair must be
         # followed by the SAME mark. Here it is followed by the closer, so the

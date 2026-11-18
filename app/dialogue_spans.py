@@ -121,13 +121,44 @@ def _ambiguous_mark_roles(text):
     `“` closes `„…“` but opens `“…”`. Treating it one way everywhere either
     makes a German closer pair with a later English closer (phantom span over
     the narration between them) or, in `„He said “Hi” to me.“`, takes the inner
-    `“` for the German closer and loses both speeches. The next quote mark
-    decides: `“` followed by `”` opens English speech; otherwise it closes the
-    pending German pair. Straight pairs are excluded — their mark is both
-    opener and closer by definition, so it is never ambiguous.
+    `“` for the German closer and loses both speeches.
+
+    For a `“` that could close a pending German pair, the next quote mark is
+    the first signal: `”` means it opens English speech. But a STRAY `”` must
+    not do that — so it only opens English when a later `“` remains to close
+    the German pair (nested English inside German). All lookups are indexed by
+    position, so this stays linear rather than rescanning the marks per quote.
+    Straight pairs are excluded: their mark is both opener and closer.
     """
     all_marks = [(m.start(), m.group()) for m in re.finditer(
         "[" + "".join(re.escape(mark) for mark in QUOTE_MARKS) + "]", text)]
+    positions = [pos for pos, _ in all_marks]
+    mark_at = dict(all_marks)
+
+    def mark_after(pos):
+        index = bisect_right(positions, pos)
+        return mark_at[positions[index]] if index < len(positions) else None
+
+    # Only `“` is shared: it closes „…“ and opens “…”. Precompute which of its
+    # occurrences look like English openers, and a suffix telling whether any
+    # later occurrence can still close the German pair.
+    quotes = [pos for pos, mark in all_marks if mark == "“"]
+    english_like = {pos: mark_after(pos) == "”" for pos in quotes}
+    later_german_closer = [False] * (len(quotes) + 1)
+    for index in range(len(quotes) - 1, -1, -1):
+        later_german_closer[index] = (later_german_closer[index + 1]
+                                      or not english_like[quotes[index]])
+
+    def opens_english(pos):
+        if not english_like[pos]:
+            return False
+        after = bisect_right(quotes, pos)
+        if after == len(quotes):
+            # No later `“` exists to close a German pair — the pending `„` was
+            # a stray mark, so this one really does open English speech.
+            return True
+        return later_german_closer[after]
+
     closes, opens = set(), set()
     for opener, closer in PAIRED:
         if opener == closer:
@@ -142,9 +173,12 @@ def _ambiguous_mark_roles(text):
             if mark == opener:
                 inside = True
             elif inside:
-                nxt = next((m for p, m in all_marks if p > pos), None)
-                (opens if nxt == opened_pair_closer else closes).add(pos)
-                inside = False
+                if mark_after(pos) == opened_pair_closer and opens_english(pos):
+                    # A nested English pair: the German pair is still open.
+                    opens.add(pos)
+                else:
+                    closes.add(pos)
+                    inside = False
     return closes, opens
 
 
