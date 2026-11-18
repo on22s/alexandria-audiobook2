@@ -161,6 +161,19 @@ class UIContractTests(unittest.TestCase):
             progress_channels = [int(tokens['--progress-bg'][index:index + 2], 16) for index in (1, 3, 5)]
             stripe = '#' + ''.join(f'{round(channel * .85 + 255 * .15):02x}' for channel in progress_channels)
             self.assertGreaterEqual(contrast(tokens['--progress-text'], stripe), 4.5)
+            if theme == 'cyberpunk':
+                # The neon accents are the tokens a contrast review specifically
+                # flagged; pin them too. Missing tokens fail here, as above.
+                for accent in ('--cyber-cyan', '--cyber-yellow', '--cyber-pink'):
+                    with self.subTest(theme=theme, accent=accent):
+                        self.assertGreaterEqual(contrast(tokens[accent], tokens['--bg-card']), 4.5)
+
+    def test_dark_navbar_focus_rings_use_a_light_outline(self):
+        # The accent tokens are dark in some themes; the measured focus audit
+        # found their rings under 3:1 on the dark navbar and green active tab.
+        source = (STATIC / 'index.html').read_text(encoding='utf-8')
+        self.assertIn('#theme-toggle:focus-visible { outline-color: #fff; }', source)
+        self.assertIn('#navbarNav .nav-link.nav-pipeline.active:focus-visible { outline-color: #fff; }', source)
 
     def test_primary_navigation_is_keyboard_addressable(self):
         parser = _NavigationParser()

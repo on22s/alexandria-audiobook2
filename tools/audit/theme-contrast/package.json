@@ -1,0 +1,13 @@
+{
+  "name": "aa2-theme-contrast-audit",
+  "private": true,
+  "description": "axe-core color-contrast audit of the Alexandria app across all themes and tab panels",
+  "scripts": {
+    "audit": "node audit.js",
+    "focus": "node focus-audit.js"
+  },
+  "dependencies": {
+    "axe-core": "4.14.1",
+    "puppeteer-core": "25.18.1"
+  }
+}

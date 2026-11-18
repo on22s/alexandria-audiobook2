@@ -1,0 +1,20 @@
+{
+  "method": "CDP forced :focus-visible on Edge via tools/audit/theme-contrast/focus-audit.js, live app, 6 themes x 13 panels, up to 10 visible interactive controls per panel; indicator must be a non-none outline or box-shadow, outline ratio >=3:1 against the adjacent background",
+  "before": {
+    "commit": "49a37280",
+    "checked": 780,
+    "findings": 52,
+    "controls": {
+      "light #theme-toggle": {"ratio": 2.4, "background": "rgb(33, 37, 41)"},
+      "bread #theme-toggle": {"ratio": 1.39, "background": "rgb(41, 54, 64)"},
+      "night .nav-pipeline.active": {"ratio": 1.88, "background": "rgb(25, 135, 84)"},
+      "super-night .nav-pipeline.active": {"ratio": 2.15, "background": "rgb(25, 135, 84)"}
+    }
+  },
+  "after": {
+    "note": "head 2d942486; white outline on those surfaces computes to 15.43, 12.38 and 4.53 against the same backgrounds",
+    "checked": 780,
+    "findings": 0
+  },
+  "coverage_note": "sampled: at most 10 visible controls per panel; box-shadows are checked for presence but not contrast-scored; modals, dropdown, drawer and dynamic states are not covered"
+}

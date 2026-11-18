@@ -286,6 +286,15 @@
         .btn { border-radius: var(--radius-sm); transition: filter var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast); }
         .btn-outline-secondary { --bs-btn-color: var(--text-muted); --bs-btn-border-color: var(--border-input); --bs-btn-hover-color: #ffffff; --bs-btn-hover-bg: var(--text-muted); --bs-btn-hover-border-color: var(--text-muted); --bs-btn-active-color: #ffffff; --bs-btn-active-bg: var(--text-muted); --bs-btn-active-border-color: var(--text-muted); }
         .btn-outline-info { --bs-btn-color: var(--accent-strong); --bs-btn-border-color: var(--accent-strong); }
+        /* Bootstrap's literal #0d6efd link/button blue fails AA on several
+           surfaces. Route plain links and outline-primary controls through the
+           per-theme accent, whose ratio is pinned by the contrast tests. */
+        a, a:hover { color: var(--accent-strong); }
+        .btn-outline-primary {
+            --bs-btn-color: var(--accent-strong); --bs-btn-border-color: var(--accent-strong);
+            --bs-btn-hover-color: var(--bg-card); --bs-btn-hover-bg: var(--accent-strong); --bs-btn-hover-border-color: var(--accent-strong);
+            --bs-btn-active-color: var(--bg-card); --bs-btn-active-bg: var(--accent-strong); --bs-btn-active-border-color: var(--accent-strong);
+        }
         .btn:not(:disabled):hover { filter: brightness(1.06); }
         .btn:not(:disabled):active { transform: translateY(1px); }
         .btn:disabled, .btn.disabled { cursor: not-allowed; opacity: 0.62; }
@@ -627,6 +636,11 @@
         .nav-link.nav-advanced.active:not(.dropdown-item) { color: #fff; background-color: var(--accent-fill); border-radius: 4px; }
         .navbar .nav-link { border-radius: var(--radius-sm); margin: 2px 1px; transition: background-color var(--motion-fast), color var(--motion-fast); }
         .navbar .nav-link:focus-visible { outline-color: var(--focus-ring); }
+        /* The accent tokens are dark in some themes; against the dark navbar or
+           the green active-tab background they fall under 3:1. A light ring is
+           high-contrast on every theme's navbar and on the active tab. */
+        #theme-toggle:focus-visible { outline-color: #fff; }
+        #navbarNav .nav-link.nav-pipeline.active:focus-visible { outline-color: #fff; }
         .navbar .nav-link:not(.active):hover { background-color: var(--accent-soft); }
         .nav-section-label {
             align-self: center;
