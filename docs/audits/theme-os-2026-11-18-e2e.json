@@ -1,0 +1,92 @@
+{
+  "tool": "Puppeteer CDP prefers-color-scheme emulation on the live app; 6 themes",
+  "url": "http://127.0.0.1:8766/",
+  "date": "2026-11-18T21:10:08.355Z",
+  "summary": {
+    "checks": 18,
+    "distinct_link_colors": 6,
+    "failures": 0
+  },
+  "results": {
+    "fresh_light": {
+      "theme": "light",
+      "stored": null,
+      "prefersDark": false
+    },
+    "fresh_dark": {
+      "theme": "night",
+      "stored": null,
+      "prefersDark": true
+    },
+    "before_os_switch": {
+      "theme": "night",
+      "stored": null,
+      "prefersDark": true
+    },
+    "after_os_switch_no_choice": {
+      "theme": "light",
+      "stored": null,
+      "prefersDark": false
+    },
+    "after_explicit_click": {
+      "theme": "night",
+      "stored": "night",
+      "prefersDark": false
+    },
+    "after_os_switch_with_choice_dark": {
+      "theme": "night",
+      "stored": "night",
+      "prefersDark": true
+    },
+    "after_os_switch_with_choice_light": {
+      "theme": "night",
+      "stored": "night",
+      "prefersDark": false
+    }
+  },
+  "palette": {
+    "light": {
+      "link": "rgb(196, 220, 255)",
+      "toggle": "rgb(237, 244, 255)",
+      "toggleBorder": "rgb(165, 180, 200)",
+      "navbar": "rgb(33, 37, 41)",
+      "contrastViolations": []
+    },
+    "night": {
+      "link": "rgb(158, 197, 254)",
+      "toggle": "rgb(150, 190, 255)",
+      "toggleBorder": "rgba(100, 160, 255, 0.4)",
+      "navbar": "rgb(17, 20, 25)",
+      "contrastViolations": []
+    },
+    "super-night": {
+      "link": "rgb(174, 203, 250)",
+      "toggle": "rgb(163, 175, 194)",
+      "toggleBorder": "rgba(120, 120, 120, 0.6)",
+      "navbar": "rgb(0, 0, 0)",
+      "contrastViolations": []
+    },
+    "cyberpunk": {
+      "link": "rgb(0, 240, 255)",
+      "toggle": "rgb(252, 238, 84)",
+      "toggleBorder": "rgba(252, 238, 84, 0.65)",
+      "navbar": "rgb(8, 10, 16)",
+      "contrastViolations": []
+    },
+    "bread": {
+      "link": "rgb(255, 169, 189)",
+      "toggle": "rgb(255, 169, 189)",
+      "toggleBorder": "rgb(255, 169, 189)",
+      "navbar": "rgb(41, 54, 64)",
+      "contrastViolations": []
+    },
+    "leek": {
+      "link": "rgb(120, 227, 216)",
+      "toggle": "rgb(120, 227, 216)",
+      "toggleBorder": "rgb(120, 227, 216)",
+      "navbar": "rgb(11, 21, 26)",
+      "contrastViolations": []
+    }
+  },
+  "failures": []
+}

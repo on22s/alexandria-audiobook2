@@ -15106,6 +15106,15 @@
     , "tests.test_textured_progress_js.TexturedProgressTests.test_fractions_outside_the_unit_range_are_clamped"
     , "tests.test_textured_progress_js.TexturedProgressTests.test_going_back_to_a_fraction_clears_the_indeterminate_state"
   ]
+  , "test_theme_os_resolution": [
+    "tests.test_theme_os_resolution.ThemeResolutionTests.test_anti_flash_snippet_mirrors_the_resolver"
+    , "tests.test_theme_os_resolution.ThemeResolutionTests.test_apply_theme_persists_only_explicit_choices"
+    , "tests.test_theme_os_resolution.ThemeResolutionTests.test_init_follows_os_until_user_picks_a_theme"
+    , "tests.test_theme_os_resolution.ThemeResolutionTests.test_invalid_stored_value_does_not_block_os_following"
+    , "tests.test_theme_os_resolution.ThemeResolutionTests.test_legacy_colors_removed_and_tokens_used"
+    , "tests.test_theme_os_resolution.ThemeResolutionTests.test_prefers_dark_falls_back_safely"
+    , "tests.test_theme_os_resolution.ThemeResolutionTests.test_resolution_order_stored_then_os_then_light"
+  ]
   , "test_third_party_findings": [
     "tests.test_third_party_findings.TestBlendSpec.test_capacity_counts_asymmetric_both_ways"
     , "tests.test_third_party_findings.TestBlendSpec.test_capacity_counts_even_split_once"

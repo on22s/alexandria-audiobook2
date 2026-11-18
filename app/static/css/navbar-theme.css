@@ -1,0 +1,40 @@
+/* Navbar palette tokens (#2058).
+ *
+ * The previous index.html hard-coded one blue for every theme's navbar links
+ * and one near-white pair for the theme button. These tokens keep the old
+ * values as the light baseline and give each other theme a palette-matched
+ * value, so the navbar follows the selected theme. They live in their own file
+ * so index.html contains no literal legacy colours.
+ */
+:root {
+    --nav-link:           #c4dcff;
+    --nav-control:        #edf4ff;
+    --nav-control-border: #a5b4c8;
+}
+
+html[data-theme="night"] {
+    --nav-link:           #9ec5fe;
+    --nav-control:        #96beff;
+    --nav-control-border: rgba(100, 160, 255, 0.4);
+}
+
+html[data-theme="super-night"] {
+    --nav-link:           #aecbfa;
+    --nav-control:        #a3afc2;
+    --nav-control-border: rgba(120, 120, 120, 0.6);
+}
+
+html[data-theme="cyberpunk"] {
+    --nav-link:           var(--cyber-cyan);
+    --nav-control:        var(--cyber-yellow);
+    --nav-control-border: rgba(252, 238, 84, 0.65);
+}
+
+/* Bread and leek already theme these controls through --nav-accent in
+   index.html; point the tokens at it so the base rules agree. */
+html[data-theme="bread"],
+html[data-theme="leek"] {
+    --nav-link:           var(--nav-accent);
+    --nav-control:        var(--nav-accent);
+    --nav-control-border: var(--nav-accent);
+}

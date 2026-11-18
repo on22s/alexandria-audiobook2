@@ -10,6 +10,7 @@
     <link href="/static/vendor/bootstrap-5.3.0/bootstrap.min.css" rel="stylesheet">
     <link href="/static/vendor/font-awesome-6.0.0/css/all.min.css" rel="stylesheet">
     <link href="/static/css/casting.css?v=__APP_BUILD__" rel="stylesheet">
+    <link href="/static/css/navbar-theme.css?v=__APP_BUILD__" rel="stylesheet">
     <style>
         /* CJK text is shorter but taller than the Latin source. The lang
            attribute applyUiLocale() sets drives a platform font stack and a
@@ -40,8 +41,9 @@
         .workflow-disclosure :is(label.form-label, .form-text, p) { color: var(--text-primary); }
         #series-cast-card { padding: 0; }
         #series-cast-card > summary::after { content: 'Show / hide'; font-size: .8rem; font-weight: 400; margin-left: auto; }
-        .navbar .nav-link:not(.active):not(.dropdown-item) { color: #c4dcff; }
-        html #theme-toggle, html[data-theme] body #theme-toggle { color: #edf4ff; border-color: #a5b4c8; }
+        /* Navbar palette tokens live in css/navbar-theme.css (#2058). */
+        .navbar .nav-link:not(.active):not(.dropdown-item) { color: var(--nav-link); }
+        html #theme-toggle, html[data-theme] body #theme-toggle { color: var(--nav-control); border-color: var(--nav-control-border); }
         @media (max-width: 575px) {
             :is(#voices-tab, #editor-tab, #training-tab, #voicelab-tab, #casting-tab) .card-header > .d-flex { flex-basis: 100%; }
             :is(#voices-tab, #training-tab, #voicelab-tab) .input-group { flex-wrap: wrap; }
@@ -1375,10 +1377,17 @@
         @media (max-width:575px) { .settings-preview-values { grid-template-columns: minmax(0,1fr); gap: .4rem; } }
     </style>
     <script>
-        /* Anti-flash: apply saved theme before first paint */
+        /* Anti-flash: apply the resolved theme before first paint. Mirrors
+           resolveThemeKey() in app-core.js: stored choice > OS > light. */
         (function() {
+            const KEYS = ['light', 'night', 'super-night', 'cyberpunk', 'bread', 'leek'];
             let t = null;
             try { t = localStorage.getItem('alex-theme'); } catch (e) { /* storage blocked (private mode, policy) */ }
+            if (KEYS.indexOf(t) < 0) {
+                let dark = false;
+                try { dark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); } catch (e) {}
+                t = dark ? 'night' : 'light';
+            }
             if (t && t !== 'light') { document.documentElement.setAttribute('data-theme', t); }
         })();
     </script>
