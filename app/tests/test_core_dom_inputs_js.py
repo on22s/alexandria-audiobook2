@@ -60,13 +60,14 @@ for(const tabName of ['editor','voices','setup']){
   const window={location:{hash:'#'+tabName},history:{replaceState(_state,_title,hash){window.location.hash=hash;},pushState(){throw Error('Skipping must not push history');}},addEventListener:(event,handler)=>events[event]=handler,matchMedia(query){assert.equal(query,'(prefers-reduced-motion: reduce)');return {matches:reducedMotion};}};
   const main={id:'app-main',focus(options){assert.equal(options.preventScroll,true);document.activeElement=main;},scrollIntoView:options=>scrolls.push(options)};
   const skip={addEventListener:(event,handler)=>skipHandlers[event]=handler};
-  const document={activeElement:skip,querySelectorAll:selector=>selector==='.nav-link'?links:Object.values(tabs),getElementById:id=>id==='skip-main-link'?skip:(id==='app-main'||id==='main-content')?main:id==='navbarNav'?{classList:{contains:()=>false}}:tabs[id]};
+  const document={activeElement:skip,querySelectorAll:selector=>selector==='.nav-link'?links:Object.values(tabs),getElementById:id=>id==='skip-main-link'?skip:id==='app-main'?main:id==='navbarNav'?{classList:{contains:()=>false}}:tabs[id]};
   const context={window,document,localStorage:{getItem:()=>null,setItem(){}},loadChunks:()=>loads.push('editor'),loadVoices:()=>loads.push('voices'),pollLmStudioStatus:()=>loads.push('setup')};
   vm.createContext(context);context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));vm.runInContext(source.slice(source.indexOf('const TAB_STORAGE_KEY ='),source.indexOf('// --- LLM model picker')),context);
   context.restoreTab();const initialLoads=loads.length;
   for(const activation of ['pointer','Enter-generated click']){
    document.activeElement=skip;let prevented=false;
    skipHandlers.click?.({preventDefault(){prevented=true;}});
+   assert.strictEqual(prevented,true,'skip activation must prevent default when app-main is present');
    if(!prevented){window.location.hash='#app-main';events.hashchange();document.activeElement=main;}
    assert.equal(window.location.hash,'#'+tabName,tabName+' '+activation+' preserves hash');
    assert.deepEqual(Object.keys(tabs).filter(id=>tabs[id].style.display==='block'),[tabName+'-tab'],'visible tab unchanged');
@@ -75,6 +76,11 @@ for(const tabName of ['editor','voices','setup']){
    assert.equal(scrolls.at(-1).block,'start');
    assert.equal(scrolls.at(-1).behavior,reducedMotion?'instant':'smooth');
   }
+  let unhandledPrevented=false;const origGet=document.getElementById;
+  document.getElementById=id=>id==='app-main'?null:origGet(id);
+  skipHandlers.click?.({preventDefault(){unhandledPrevented=true;}});
+  assert.strictEqual(unhandledPrevented,false,'clicking skip link when app-main is absent must not prevent default');
+  document.getElementById=origGet;
  }
 }
 ''')

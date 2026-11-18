@@ -57,9 +57,11 @@ class UIContractTests(unittest.TestCase):
         self.assertEqual('app-main', mains[0].get('id'))
         skip = next(attrs for tag, attrs, _ in parser.nodes if tag == 'a' and attrs.get('href') == '#' + mains[0]['id'])
         self.assertIn('visually-hidden-focusable', skip.get('class', '').split())
-        self.assertEqual('shell.skip-content', skip.get('data-i18n'))
-        body_children = [tag for tag, _, parents in parser.nodes if parents and parents[-1] == 'body']
-        self.assertEqual('a', body_children[0])
+        body_children = [(tag, attrs) for tag, attrs, parents in parser.nodes if parents and parents[-1] == 'body']
+        first_tag, first_attrs = body_children[0]
+        self.assertEqual('a', first_tag)
+        self.assertEqual('skip-main-link', first_attrs.get('id'))
+        self.assertEqual('#' + mains[0]['id'], first_attrs.get('href'))
 
     def test_tab_panels_are_labelled_regions_matching_nav_links(self):
         parser = _NavigationParser()
