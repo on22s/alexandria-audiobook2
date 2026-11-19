@@ -6705,6 +6705,7 @@
   ]
   , "test_gold_set_merge_evidence": [
     "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_build_and_rejudge_preserve_prior_output_on_partial_serialization"
+    , "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_cross_device_fallback_records_a_diagnostic"
     , "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_cross_device_merge_refusal_preserves_fixture_without_copy_fallback"
     , "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_custom_build_run_is_inferred_at_merge_and_root_provides_book_evidence"
     , "tests.test_gold_set_merge_evidence.GoldMergeEvidenceTests.test_explicit_source_accepts_whole_book_name_and_preserves_custom_run"

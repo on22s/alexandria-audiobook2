@@ -397,6 +397,10 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
     succeeds rather than raising an unhandled OSError.
     Set allow_nonatomic_fallback=False when publication must refuse a
     cross-device rename instead of risking partial replacement by copying.
+    When the fallback is used it records a `nonatomic_json_fallback` storage
+    diagnostic and logs a warning: the copy is not atomic, so a crash during it
+    can leave a truncated destination that a later safe_load_json sees as a
+    default value.
     newline is passed to the text stream: None (the default) keeps each
     platform's native line ending; newline="\\n" writes the LF bytes a
     byte-pinned artifact was committed with regardless of platform.
@@ -456,6 +460,20 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
                         raise OSError(
                             f"Refusing cross-device fallback write through a symlink at {target_path}"
                         ) from e
+                    # The fallback is safe against a pre-existing symlink but is
+                    # NOT atomic: a crash/OOM during shutil.move's copy can leave
+                    # a truncated destination while this call has not returned.
+                    # Record that publication lost atomicity — callers that
+                    # reread the file would otherwise see safe_load_json fall
+                    # back to a believable empty/default state with no trace.
+                    logger.warning(
+                        'Non-atomic JSON fallback: cross-device rename for %s; '
+                        'publishing by copy (a crash during the copy may truncate it)',
+                        target_path)
+                    from review_startup import record_failure
+                    record_failure('nonatomic_json_fallback', e, task='storage',
+                                   resource=target_path, level=logging.WARNING,
+                                   strategy='shutil.move')
                     try:
                         shutil.move(tmp_path, target_path)
                         return written_bytes

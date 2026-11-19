@@ -51,6 +51,24 @@ class GoldMergeEvidenceTests(unittest.TestCase):
         move.assert_called_once()
         self.assertEqual({'control': True}, json.loads(self.output.read_text()))
 
+    def test_cross_device_fallback_records_a_diagnostic(self):
+        # A copy-based publication is not atomic. It stays allowed for
+        # cross-device data dirs, but the lost atomicity must not be silent:
+        # a reader of a truncated file would otherwise see a default value.
+        import errno
+        import utils
+        with patch.object(utils.os, 'replace', side_effect=OSError(errno.EXDEV, 'synthetic cross-device rename')), \
+             patch.object(utils.shutil, 'move', wraps=utils.shutil.move) as move, \
+             patch('review_startup.record_failure') as diagnostic:
+            utils.atomic_json_write({'control': True}, str(self.output))
+        move.assert_called_once()
+        diagnostic.assert_called_once()
+        args, kwargs = diagnostic.call_args
+        self.assertEqual('nonatomic_json_fallback', args[0])
+        self.assertEqual('storage', kwargs['task'])
+        self.assertEqual(str(self.output), kwargs['resource'])
+        self.assertEqual('shutil.move', kwargs['strategy'])
+
     def test_cross_device_merge_refusal_preserves_fixture_without_copy_fallback(self):
         import errno
         import gold_set_builder as gold
