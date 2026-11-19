@@ -14505,6 +14505,24 @@
     , "tests.test_start_server_identity.StartServerIdentityTests.test_native_reuse_requires_matching_model_adapter_context_kv_and_gpu_flags"
     , "tests.test_start_server_identity.StartServerIdentityTests.test_new_launch_preserves_previous_failure_diagnostics"
   ]
+  , "test_startup_prune_resilience": [
+    "tests.test_startup_prune_resilience.StartupPruneResilienceTests.test_direct_journal_check_still_refuses_invalid_journal"
+    , "tests.test_startup_prune_resilience.StartupPruneResilienceTests.test_lifespan_starts_with_corrupt_pending_decision_journal"
+    , "tests.test_startup_prune_resilience.StartupPruneResilienceTests.test_malformed_journal_is_preserved_and_other_session_is_still_pruned"
+    , "tests.test_startup_prune_resilience.StartupPruneResilienceTests.test_unprovable_session_variants_are_preserved_not_fatal"
+  ]
+  , "test_startup_recovery_guards": [
+    "tests.test_startup_recovery_guards.StartupRecoveryGuardTests.test_admission_lock_timeout_skips_all_recovery_and_starts"
+    , "tests.test_startup_recovery_guards.StartupRecoveryGuardTests.test_book_lock_timeout_skips_book_recovery_and_starts"
+    , "tests.test_startup_recovery_guards.StartupRecoveryGuardTests.test_placeholder_value_error_preserves_chunks_and_starts"
+    , "tests.test_startup_recovery_guards.StartupRecoveryGuardTests.test_run_history_failure_preserves_records_and_starts"
+    , "tests.test_startup_recovery_guards.StartupRecoveryGuardTests.test_unrelated_value_error_still_propagates"
+  ]
+  , "test_startup_review_fence": [
+    "tests.test_startup_review_fence.StartupReviewFenceTests.test_corrupt_session_is_preserved_while_valid_one_is_pruned_in_fence"
+    , "tests.test_startup_review_fence.StartupReviewFenceTests.test_other_worker_owns_recovery_preserves_old_session"
+    , "tests.test_startup_review_fence.StartupReviewFenceTests.test_pruning_runs_only_while_fence_is_held"
+  ]
   , "test_startup_task_ownership": [
     "tests.test_startup_task_ownership.StartupTaskOwnershipTests.test_cancelled_suggestion_and_checkpoint_requests_keep_lease_until_thread_exits"
     , "tests.test_startup_task_ownership.StartupTaskOwnershipTests.test_cpu_export_claim_is_shared_but_other_cpu_exports_remain_independent"

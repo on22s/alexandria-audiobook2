@@ -18,6 +18,7 @@ Design guarantees (Phase 6 success criteria):
 
 import datetime
 import json
+import logging
 from contextlib import nullcontext
 import os
 import random
@@ -440,7 +441,11 @@ def cleanup(reviews_dir, adapter_id):
 
 
 def prune_sessions(reviews_dir, max_age_seconds=SESSION_MAX_AGE_SECONDS):
-    """Delete abandoned pending sessions older than the age budget."""
+    """Delete abandoned pending sessions older than the age budget.
+
+    A session whose journal, identity or path cannot be proven is preserved
+    untouched and diagnosed; one such leftover must not stop the others.
+    """
     sessions = _sessions_dir(reviews_dir)
     if not os.path.isdir(sessions):
         return []
@@ -450,24 +455,31 @@ def prune_sessions(reviews_dir, max_age_seconds=SESSION_MAX_AGE_SECONDS):
         if name.startswith(".") or not name.endswith(".json"):
             continue
         session_id = name[:-5]
-        path = _session_path(reviews_dir, session_id)
-        with file_lock(path):
-            record = safe_load_json(path, default=None)
-            if not os.path.exists(path) or not _is_session_expired(record, max_age_seconds, now):
-                continue
-            journal_path = _decision_path(reviews_dir, session_id)
-            adapter_id = record.get("adapter_id") if isinstance(record, dict) else None
-            lock = file_lock(_store_path(reviews_dir, adapter_id)) if adapter_id else nullcontext()
-            with lock:
-                journal = _get_decision_journal(journal_path)
-                if journal is not None and journal["session"] != record:
-                    raise ReviewError("Pending review decision session identity changed")
-                if journal is not None:
-                    _remove_decision_journal(journal_path)
-                try:
-                    os.unlink(path)
-                    _sync_directory(path)
-                    removed.append(name)
-                except OSError:
-                    pass
+        try:
+            path = _session_path(reviews_dir, session_id)
+            with file_lock(path):
+                record = safe_load_json(path, default=None)
+                if not os.path.exists(path) or not _is_session_expired(record, max_age_seconds, now):
+                    continue
+                journal_path = _decision_path(reviews_dir, session_id)
+                adapter_id = record.get("adapter_id") if isinstance(record, dict) else None
+                lock = file_lock(_store_path(reviews_dir, adapter_id)) if adapter_id else nullcontext()
+                with lock:
+                    journal = _get_decision_journal(journal_path)
+                    if journal is not None and journal["session"] != record:
+                        raise ReviewError("Pending review decision session identity changed")
+                    if journal is not None:
+                        _remove_decision_journal(journal_path)
+                    try:
+                        os.unlink(path)
+                        _sync_directory(path)
+                        removed.append(name)
+                    except OSError:
+                        pass
+        except (ReviewError, OSError) as error:
+            # Never delete what cannot be proven, and never let one corrupt
+            # leftover abort recovery of the other expired sessions.
+            from review_startup import record_failure
+            record_failure('review_session_prune_failed', error, task='review',
+                           operation='prune_session', resource=name, level=logging.WARNING)
     return removed
