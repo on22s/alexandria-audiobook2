@@ -452,11 +452,15 @@ class ReviewSessionAgeTests(unittest.TestCase):
                 if Path(path) == journal:
                     raise PermissionError("cannot abort preparation")
                 return unlink(path, *args, **kwargs)
-            with self._clock(future), patch.object(er.os, "unlink", side_effect=fail_abort):
-                with self.assertRaisesRegex(er.ReviewError, "finish pending"):
-                    er.prune_sessions(directory)
+            with self._clock(future), patch.object(er.os, "unlink", side_effect=fail_abort), \
+                 patch('review_startup.record_failure') as diagnostic:
+                # A failed preparation abort is preserved and diagnosed, not
+                # raised out of startup (#2100).
+                self.assertEqual([], er.prune_sessions(directory))
             self.assertEqual(original, session.read_bytes())
             self.assertEqual(pending, journal.read_bytes())
+            self.assertTrue(any(call.args and call.args[0] == 'review_session_prune_failed'
+                                for call in diagnostic.call_args_list))
             with self._clock(future):
                 self.assertEqual([session.name], er.prune_sessions(directory))
             self.assertEqual([], er.list_reviews(directory, "voice_x"))

@@ -85,29 +85,59 @@ def apply_connection_reset_filter(loop):
     loop.set_exception_handler(handler)
 
 
+def _skip_startup_recovery(operation, error):
+    """Warn and record a bounded diagnostic for a step that cannot prove state."""
+    record_failure('startup_recovery_skipped', error, task='startup',
+                   operation=operation, resource=DATA_DIR, level=logging.WARNING)
+    logger.warning('Preserving state; startup step %s was skipped: %s', operation, error)
+
+
+def _recover_startup_state():
+    """Best-effort cleanup while this process owns the startup recovery fence.
+
+    Each step preserves what it cannot prove. A step that cannot get its lock or
+    read its state is skipped and diagnosed; independent later steps still run.
+    """
+    try:
+        with ensure_book_state(DATA_DIR):
+            from synthesis_workspace import apply_abandoned_synthesis_workspace_cleanup
+            apply_abandoned_synthesis_workspace_cleanup(DATA_DIR)
+            recovery = reclaim_export_staging((DATA_DIR, os.path.join(DATA_DIR, 'chapter_exports'),
+                                               os.path.join(DATA_DIR, 'voicelines')))
+            for error in recovery['errors']:
+                logger.warning('Export staging recovery: %s', error)
+            reset_stuck_chunks()
+    except (TimeoutError, ValueError, OSError) as error:
+        _skip_startup_recovery('book_recovery', error)
+    try:
+        interrupted = mark_interrupted_runs(RUN_HISTORY_DIR)
+    except (TimeoutError, OSError, ValueError) as error:
+        _skip_startup_recovery('run_history_recovery', error)
+    else:
+        if interrupted:
+            logger.warning("Marked %d unfinished run(s) interrupted", len(interrupted))
+    # Blind-review sessions carry no task lease, so pruning belongs inside the
+    # ownership fence: another worker may still be serving a long-open session.
+    try:
+        pruned = evaluation_reviews.prune_sessions(EVALUATION_REVIEWS_DIR)
+    except (evaluation_reviews.ReviewError, OSError) as error:
+        _skip_startup_recovery('review_session_prune', error)
+    else:
+        if pruned:
+            logger.info("Pruned %d abandoned review session(s)", len(pruned))
+
+
 @asynccontextmanager
 async def lifespan(_app):
     apply_connection_reset_filter(asyncio.get_running_loop())
-    with ensure_startup_recovery(DATA_DIR) as recovery_allowed:
-        if recovery_allowed:
-            with ensure_book_state(DATA_DIR):
-                from synthesis_workspace import apply_abandoned_synthesis_workspace_cleanup
-                apply_abandoned_synthesis_workspace_cleanup(DATA_DIR)
-                recovery = reclaim_export_staging((DATA_DIR, os.path.join(DATA_DIR, 'chapter_exports'),
-                                                   os.path.join(DATA_DIR, 'voicelines')))
-                for error in recovery['errors']:
-                    logger.warning('Export staging recovery: %s', error)
-                reset_stuck_chunks()
-            interrupted = mark_interrupted_runs(RUN_HISTORY_DIR)
-            if interrupted:
-                logger.warning("Marked %d unfinished run(s) interrupted", len(interrupted))
-        else:
-            logger.info("Preserving active chunks and histories owned by another worker")
-    # Clear blind-review sessions abandoned by a prior process; otherwise they
-    # only get pruned when the next session is opened.
-    pruned = evaluation_reviews.prune_sessions(EVALUATION_REVIEWS_DIR)
-    if pruned:
-        logger.info("Pruned %d abandoned review session(s)", len(pruned))
+    try:
+        with ensure_startup_recovery(DATA_DIR) as recovery_allowed:
+            if recovery_allowed:
+                _recover_startup_state()
+            else:
+                logger.info("Preserving active chunks, histories and review sessions owned by another worker")
+    except (TimeoutError, OSError) as error:
+        _skip_startup_recovery('startup_admission_lock', error)
     try:
         yield
     finally:
