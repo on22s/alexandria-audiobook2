@@ -63,7 +63,11 @@ def main():
             failed += len(res["failed"])
             # Generation resets Torch counters for each sub-batch; its result
             # retains the maximum across those resets, unlike the final counter.
-            allocated_peak_gb = max(allocated_peak_gb, res["peak_vram_gb"])
+            # A backend with no local VRAM reading reports None — skip it rather
+            # than treating an unmeasured batch as a zero-GB measurement.
+            peak_vram = res.get("peak_vram_gb")
+            if peak_vram is not None:
+                allocated_peak_gb = max(allocated_peak_gb, peak_vram)
         wall = time.time() - t0; stop.set(); t.join()
         wavs[w] = {}
         for idx in range(len(chunks)):
