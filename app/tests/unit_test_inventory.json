@@ -5169,6 +5169,13 @@
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_voice_change_label_counts_transitions_and_preserves_type_values"
     , "tests.test_editor_safety_js.EditorSafetyJsTests.test_voice_change_refreshes_actual_card_timeline_and_handles_missing_cached_config"
   ]
+  , "test_editor_shortcuts_help": [
+    "tests.test_editor_shortcuts_help.ShortcutSourceTests.test_every_help_row_carries_translated_action_and_detail"
+    , "tests.test_editor_shortcuts_help.ShortcutSourceTests.test_the_dialog_renders_from_the_shared_list"
+    , "tests.test_editor_shortcuts_help.ShortcutSourceTests.test_the_dialog_rows_follow_a_locale_change"
+    , "tests.test_editor_shortcuts_help.ShortcutSourceTests.test_the_documented_keys_are_exactly_the_keys_the_handler_consumes"
+    , "tests.test_editor_shortcuts_help.ShortcutSourceTests.test_the_help_dialog_is_reachable_from_the_editor_toolbar"
+  ]
   , "test_editor_speech_verification": [
     "tests.test_editor_speech_verification.EditorSpeechVerificationTests.test_changed_ctime_metadata_recheck_verifies_unchanged_bytes_and_upgrades"
     , "tests.test_editor_speech_verification.EditorSpeechVerificationTests.test_changed_source_take_book_and_bytes_never_accept_a_late_report"
