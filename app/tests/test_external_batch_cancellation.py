@@ -43,7 +43,7 @@ class ExternalBatchCancellationTests(unittest.TestCase):
                     self.assertTrue(is_audio_generation_cancelled())
                     result = engine._external_batch([{'index': 0, 'speaker': 'A', 'text': 'synthetic'}],
                         {'A': {'voice': 'Ryan'}}, temporary, 'custom')
-                self.assertEqual({'completed': [], 'failed': []}, result)
+                self.assertEqual({'completed': [], 'failed': [], 'peak_vram_gb': None}, result)
                 provider.assert_not_called()
                 self.assertIsNone(getattr(engine, '_external_executor', None))
             finally:
@@ -124,7 +124,8 @@ class ExternalBatchCancellationTests(unittest.TestCase):
                             self.assertTrue(is_audio_generation_cancelled())
                         self.assertTrue(finished.wait(1.5), 'Collector ignored owner cancellation')
                         self.assertEqual([], errors)
-                        self.assertEqual([{'completed': [0] if retain_completed else [], 'failed': []}], outcomes)
+                        self.assertEqual([{'completed': [0] if retain_completed else [], 'failed': [],
+                                           'peak_vram_gb': None}], outcomes)
                         self.assertTrue(all(event.is_set() for _, event in requests))
                         queued = requests[2:] if retain_completed else requests[1:]
                         self.assertTrue(all(future.cancelled() for future, _ in queued))
@@ -185,7 +186,7 @@ class ExternalBatchCancellationTests(unittest.TestCase):
                     outcome = engine._external_batch(
                         [{'index': 0, 'speaker': 'A', 'text': 'synthetic'}],
                         {'A': {'voice': 'Ryan'}}, temporary, 'custom')
-                self.assertEqual({'completed': [0], 'failed': []}, outcome)
+                self.assertEqual({'completed': [0], 'failed': [], 'peak_vram_gb': None}, outcome)
                 self.assertEqual(2, len(waits))
                 self.assertTrue(all(0 <= timeout <= .1 for timeout in waits))
                 self.assertEqual([], list(Path(temporary).glob('*.pending.*')))
@@ -221,7 +222,7 @@ class ExternalBatchCancellationTests(unittest.TestCase):
                     outcome = engine._external_batch(
                         [{'index': 0, 'speaker': 'A', 'text': 'synthetic'}],
                         {'A': {'voice': 'Ryan'}}, temporary, 'custom')
-                self.assertEqual({'completed': [], 'failed': [(0, 'synthetic provider failure')]},
-                                 outcome)
+                self.assertEqual({'completed': [], 'failed': [(0, 'synthetic provider failure')],
+                                  'peak_vram_gb': None}, outcome)
             finally:
                 engine.close_external()

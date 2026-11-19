@@ -137,7 +137,9 @@ def run_sweep(engine, voice_config, batch_sizes, output_dir, n_chunks_per_run=32
             batch_results = engine.run_benchmark_batch(
                 chunks, voice_config, output_dir, batch_seed=42)
         elapsed = time.time() - t0
-        peak_gb = batch_results.get("peak_vram_gb", 0.0)
+        # A backend with no local VRAM reading returns None; it must stay None
+        # all the way to the artifact instead of becoming a measured 0.0 GB.
+        peak_gb = batch_results.get("peak_vram_gb")
 
         n_done = len(batch_results["completed"])
         n_fail = len(batch_results["failed"])
@@ -164,13 +166,14 @@ def run_sweep(engine, voice_config, batch_sizes, output_dir, n_chunks_per_run=32
             "elapsed_s": round(elapsed, 1),
             "total_audio_s": round(total_audio, 1),
             "rtf": round(rtf, 2) if rtf else None,
-            "peak_vram_gb": round(peak_gb, 2),
+            "peak_vram_gb": round(peak_gb, 2) if peak_gb is not None else None,
             "vram_state_after": vram_state(),
         }
         results.append(entry)
         rtf_str = f"{rtf:.2f}" if rtf else "N/A"
+        peak_str = f"{peak_gb:.2f}GB" if peak_gb is not None else "N/A"
         print(f"  → done={n_done} fail={n_fail} elapsed={elapsed:.1f}s "
-              f"audio={total_audio:.1f}s RTF={rtf_str} peak_VRAM={peak_gb:.2f}GB")
+              f"audio={total_audio:.1f}s RTF={rtf_str} peak_VRAM={peak_str}")
 
         # Clean up output files between runs
         for idx in batch_results["completed"] + [f for f, _ in batch_results["failed"]]:
@@ -207,14 +210,14 @@ def print_summary(pre_results, post_results, model_vram_gb, total_gb):
     for i, r in enumerate(pre_results):
         row = [
             str(r["sub_batch_max_items"]),
-            f"{r['peak_vram_gb']:.2f}",
+            f"{r['peak_vram_gb']:.2f}" if r["peak_vram_gb"] is not None else "N/A",
             f"{r['rtf']:.2f}" if r["rtf"] else "N/A",
             str(r["failed"]),
         ]
         if post_results:
             pr = post_results[i] if i < len(post_results) else {}
             row += [
-                f"{pr.get('peak_vram_gb', 0):.2f}" if pr else "N/A",
+                f"{pr['peak_vram_gb']:.2f}" if pr and pr.get("peak_vram_gb") is not None else "N/A",
                 f"{pr['rtf']:.2f}" if pr and pr.get("rtf") else "N/A",
             ]
         print("  ".join(f"{v:>18}" for v in row))
@@ -229,11 +232,18 @@ def print_summary(pre_results, post_results, model_vram_gb, total_gb):
     for mode, measurements in modes:
         print(f"  {mode}:")
         for r in measurements:
-            fits = r["peak_vram_gb"] <= model_vram_gb + headroom * 0.85
-            status = "OK " if fits else "OOM-RISK"
+            peak = r["peak_vram_gb"]
+            if peak is None:
+                # No local VRAM reading: never render it as 0 GB or claim it fits.
+                status = "NOT-MEASURED"
+                peak_str = "N/A"
+            else:
+                fits = peak <= model_vram_gb + headroom * 0.85
+                status = "OK " if fits else "OOM-RISK"
+                peak_str = f"{peak:.2f}GB"
             rtf_str = f"{r['rtf']:.2f}x RT" if r["rtf"] else "   N/A  "
             print(f"  max_items={r['sub_batch_max_items']:>3}  "
-                  f"peak={r['peak_vram_gb']:.2f}GB  RTF={rtf_str}  [{status}]")
+                  f"peak={peak_str}  RTF={rtf_str}  [{status}]")
 
 
 def save_benchmark_results(output, out_path):

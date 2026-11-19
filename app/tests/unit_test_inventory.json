@@ -1252,6 +1252,16 @@
     , "tests.test_batch_registration_recovery.BatchRegistrationRecoveryTests.test_retry_registers_completed_adapter_without_retraining_and_preserves_concurrent_row"
     , "tests.test_batch_registration_recovery.BatchRegistrationRecoveryTests.test_structurally_valid_changed_weights_and_matching_metadata_still_refuse_frozen_receipt"
   ]
+  , "test_batch_result_shape": [
+    "tests.test_batch_result_shape.BatchQualityNoneTests.test_experiment_skips_none_peak_without_raising"
+    , "tests.test_batch_result_shape.BatchResultShapeTests.test_all_four_batch_backends_report_peak_vram_gb_key"
+    , "tests.test_batch_result_shape.BatchResultShapeTests.test_lora_batch_measures_peak_across_sub_batches"
+    , "tests.test_batch_result_shape.ExternalBatchOutputPathTests.test_external_batch_resolves_output_through_recovery_helper"
+    , "tests.test_batch_result_shape.VramNoneRenderingTests.test_compiled_none_peak_renders_na_in_summary_table"
+    , "tests.test_batch_result_shape.VramNoneRenderingTests.test_measured_peak_still_renders_and_fits_as_before"
+    , "tests.test_batch_result_shape.VramNoneRenderingTests.test_none_peak_renders_na_and_is_never_judged_to_fit"
+    , "tests.test_batch_result_shape.VramNoneRenderingTests.test_run_sweep_keeps_none_as_null_in_artifact_and_prints_na"
+  ]
   , "test_batch_review_pass_status": [
     "tests.test_batch_review_pass_status.BatchReviewPassStatusTests.test_actual_batch_route_and_report_keep_both_passes_completion_requirements"
   ]

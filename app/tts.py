@@ -3520,6 +3520,7 @@ class TTSEngine:
         import time
 
         results = {"completed": [], "failed": []}
+        batch_peak_vram_gb = 0.0
 
         # Group chunks by adapter_path (resolved to absolute). Two different
         # speakers can share the same adapter (e.g. aliases, or one trained
@@ -3579,6 +3580,7 @@ class TTSEngine:
             model = prompt = None
             try:
                 model, prompt = self._ensure_local_lora_generation(adapter_path, expected_generation)
+                measure_gpu_peak = torch.cuda.is_available() and self.get_memory_device(model) is not None
             except Exception as e:
                 print(f"  Error loading LoRA adapter {os.path.basename(adapter_path)}: {e}")
                 for chunk in group:
@@ -3639,6 +3641,8 @@ class TTSEngine:
                     if any(iid is not None for iid in instruct_ids):
                         gen_extra["instruct_ids"] = instruct_ids
 
+                    if measure_gpu_peak:
+                        torch.cuda.reset_peak_memory_stats(self.get_memory_device(model))
                     t_start = time.time()
                     with measure_tts_stage_time("inference_decode"):
                         wavs_list, sr = model.generate_voice_clone(
@@ -3650,6 +3654,10 @@ class TTSEngine:
                             **gen_extra,
                         )
                     gen_time = time.time() - t_start
+                    if measure_gpu_peak:
+                        peak_gb = torch.cuda.max_memory_allocated(self.get_memory_device(model)) / 1e9
+                        batch_peak_vram_gb = max(batch_peak_vram_gb, peak_gb)
+                        print(f"  Peak VRAM lora sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
 
                     if wavs_list is None:
                         for idx in sb_indices:
@@ -3675,6 +3683,8 @@ class TTSEngine:
         total_time = time.time() - t_total_start
         rtf = total_audio_duration / total_time if total_time > 0 else 0
         print(f"Batch [lora] total: {total_time:.1f}s -> {total_audio_duration:.1f}s audio ({rtf:.2f}x real-time)")
+
+        results["peak_vram_gb"] = round(batch_peak_vram_gb, 2)
 
 
 
@@ -3875,14 +3885,16 @@ class TTSEngine:
     def _external_batch(self, chunks, voice_config, output_dir, kind, batch_seed=-1):
         """External-mode batch submits up to `parallel_workers` lines per
         pool endpoint. Each worker serializes requests through its client
-        lock, with deadlines measured from submission. Same result shape as local batches.
+        lock, with deadlines measured from submission. Same keys as local
+        batches, except peak_vram_gb is None: external synthesis has no local
+        VRAM reading to report.
 
         One engine pool serves all calls. SDK I/O runs in cached owned clients
         and is stopped at the request deadline; queued cancellation removes work
         without adding application threads or publishing late audio."""
         from concurrent.futures import TimeoutError as FutureTimeout
         import time
-        results = {"completed": [], "failed": []}
+        results = {"completed": [], "failed": [], "peak_vram_gb": None}
         if not chunks or is_audio_generation_cancelled():
             return results
         generate = {
@@ -3924,7 +3936,7 @@ class TTSEngine:
                     cancel_pending()
                     return results
                 idx = chunk["index"]
-                output_path = os.path.join(output_dir, f"temp_batch_{idx}.wav")
+                output_path = get_synthesis_batch_output_path(output_dir, idx)
                 staging_path = f"{output_path}.pending.{uuid.uuid4().hex}"
                 cancelled = threading.Event()
                 deadline = time.monotonic() + self._external_timeout

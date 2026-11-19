@@ -118,6 +118,9 @@ class PackageBatchAdapterTests(unittest.TestCase):
                     engine._ensure_lora_prompt = lambda *args, **kwargs: [SimpleNamespace(ref_code=None, ref_text="reference")]
                     hub = SimpleNamespace(hf_hub_download=lambda **kw: str(cache / Path(kw["filename"]).name))
                     torch = ModuleType("torch")
+                    # LoRA batches sample peak VRAM on CUDA when available; this
+                    # fixture is CPU-only, so expose the minimal cuda probe.
+                    torch.cuda = SimpleNamespace(is_available=lambda: False)
                     chunks = [{"speaker": "ANN", "text": "longer first", "index": 7},
                               {"speaker": "ANN", "text": "short", "index": 3}]
                     config = {"ANN": {"type": "lora", "adapter_path": str(adapter)}}
