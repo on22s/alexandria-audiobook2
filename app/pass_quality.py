@@ -161,7 +161,12 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                 saw_quote = True
                 continue
             if depth == 0:
-                pending_source_label = _pop_source_label(current)
+                # Printed-label attribution is a convention of “ ” / 「 」 /
+                # 『 』 (and straight quotes). For low-high, full-width and
+                # guillemets a preceding capital word is a reporting verb
+                # ("Powiedział", "Nein"), not a speaker name.
+                if char in ('"', '“', '「', '『'):
+                    pending_source_label = _pop_source_label(current)
                 flush()
                 depth = 1
                 saw_quote = True

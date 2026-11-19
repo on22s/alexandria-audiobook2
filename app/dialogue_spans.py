@@ -407,7 +407,7 @@ def _paired_spans(text):
     if german_ranges and len(spans) >= MIN_CONVENTION_PAIRS:
         count = sum(end - start for start, end in german_ranges)
         others = len(spans) - count
-        if count and count < MIN_CONVENTION_PAIRS and count < others:
+        if count and (count < MIN_CONVENTION_PAIRS or count < others):
             # A lone low-high quote in a book whose dialogue uses another mark
             # is usually a sign, foreign term or title — not speech. Surface it
             # as other speech instead of giving it a character voice.

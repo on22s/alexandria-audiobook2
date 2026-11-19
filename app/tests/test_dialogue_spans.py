@@ -202,6 +202,16 @@ class SpanTest(unittest.TestCase):
                 self.assertEqual([], spoken_spans(source, "paired_quotes"))
                 self.assertLess(time.monotonic() - started, 1.0)
 
+    def test_a_foreign_quote_density_stays_secondary_in_an_english_book(self):
+        # Even at the detection threshold, low-high pairs fewer than the book's
+        # English pairs stay other speech rather than getting character voices.
+        english = "\n\n".join("“English " + str(i) + ".” said he." for i in range(6))
+        german = "\n\n".join("„Wort" + str(i) + "“" for i in range(5))
+        source = english + "\n\n" + german
+        rendered = [source[a:b] for a, b in spoken_spans(source, "paired_quotes")]
+        self.assertEqual(6, len(rendered))
+        self.assertFalse(any("Wort" in span for span in rendered))
+
     def test_a_stray_german_opener_before_one_english_quote(self):
         # With a single English quote there is no later “ to disambiguate, so
         # the space before it identifies the stray `„`. Base gets this right.

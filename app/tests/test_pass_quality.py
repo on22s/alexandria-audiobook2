@@ -64,6 +64,15 @@ class SegmentQualityTests(unittest.TestCase):
                      ("NARRATOR", source.split(expected)[1].strip().strip('"“”„«» ').strip())],
                     [(row["type"], row["text"]) for row in regions])
 
+    def test_low_high_reporting_word_is_not_a_speaker_label(self):
+        # A single capitalised word before „ is a reporting verb (Polish
+        # "Powiedział", German "Nein"), not a printed speaker name.
+        for source in ['Powiedział „Cześć!“ i wyszedł.',
+                       'Nein „Hallo!“ sagte er.']:
+            with self.subTest(source=source):
+                regions = analyze_outer_quote_regions(source)["regions"]
+                self.assertFalse(any("source_label" in row for row in regions))
+
     def test_nested_english_inside_german_keeps_german_as_speech(self):
         source = "Er sagte „He said “Hi” to me.“ und ging."
         regions = analyze_outer_quote_regions(source)["regions"]
