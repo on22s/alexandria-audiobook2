@@ -14,6 +14,7 @@ import unittest
 from unittest.mock import patch
 
 import app as app_module
+from book_placeholder import BookSwitchPlaceholderError
 from project import ProjectManager
 from run_history import start_run
 
@@ -88,13 +89,21 @@ class StartupRecoveryGuardTests(unittest.TestCase):
             before = chunks_path.read_bytes()
 
             with patch.object(app_module, 'reset_stuck_chunks',
-                              side_effect=ValueError('A book switch is in progress; chunks are not available yet')):
+                              side_effect=BookSwitchPlaceholderError(
+                                  'A book switch is in progress; chunks are not available yet')):
                 record = self._drive(root)
 
             self.assertEqual(before, chunks_path.read_bytes())
             found = _failures(record, 'book_recovery')
             self.assertEqual(1, len(found))
             self._assert_bounded(found[0], 'book_recovery')
+
+    def test_unrelated_value_error_still_propagates(self):
+        with tempfile.TemporaryDirectory() as root:
+            with patch.object(app_module, 'reset_stuck_chunks',
+                              side_effect=ValueError('unrelated cleanup bug')):
+                with self.assertRaisesRegex(ValueError, 'unrelated cleanup bug'):
+                    self._drive(root)
 
     def test_run_history_failure_preserves_records_and_starts(self):
         for error in (TimeoutError('run lock held'), OSError('cannot read run history')):

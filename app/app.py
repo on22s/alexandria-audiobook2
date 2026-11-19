@@ -11,6 +11,7 @@ from fastapi.exception_handlers import http_exception_handler
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import PlainTextResponse
 from review_startup import record_failure
+from book_placeholder import BookSwitchPlaceholderError
 from adapter_static import AdapterStaticFiles
 
 from core import (
@@ -107,7 +108,7 @@ def _recover_startup_state():
             for error in recovery['errors']:
                 logger.warning('Export staging recovery: %s', error)
             reset_stuck_chunks()
-    except (TimeoutError, ValueError, OSError) as error:
+    except (TimeoutError, BookSwitchPlaceholderError, OSError) as error:
         _skip_startup_recovery('book_recovery', error)
     try:
         interrupted = mark_interrupted_runs(RUN_HISTORY_DIR)

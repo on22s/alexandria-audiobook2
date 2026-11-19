@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import app as app_module
 import evaluation_reviews as er
-from tests.test_review_decision_recovery import ReviewDecisionRecoveryTests
+from tests import test_review_decision_recovery as recovery_tests
 
 DIAGNOSTIC_STAGE = 'review_session_prune_failed'
 
@@ -67,7 +67,7 @@ class StartupPruneResilienceTests(unittest.TestCase):
             asyncio.run(start())
 
     def test_malformed_journal_is_preserved_and_other_session_is_still_pruned(self):
-        helper = ReviewDecisionRecoveryTests()
+        helper = recovery_tests.ReviewDecisionRecoveryTests()
         with tempfile.TemporaryDirectory() as directory:
             bad_session, _, bad_journal = helper._interrupt(directory, 'prepared')
             good_session, _, good_journal = helper._interrupt(directory, 'prepared')
@@ -89,7 +89,7 @@ class StartupPruneResilienceTests(unittest.TestCase):
             self.assertEqual('prune_session', failures[0].kwargs['operation'])
 
     def test_lifespan_starts_with_corrupt_pending_decision_journal(self):
-        helper = ReviewDecisionRecoveryTests()
+        helper = recovery_tests.ReviewDecisionRecoveryTests()
         with tempfile.TemporaryDirectory() as root:
             reviews = Path(root) / 'reviews'
             session, _, journal = helper._interrupt(str(reviews), 'prepared')
@@ -104,7 +104,7 @@ class StartupPruneResilienceTests(unittest.TestCase):
             self.assertEqual(preserved_journal, journal.read_bytes())
 
     def test_unprovable_session_variants_are_preserved_not_fatal(self):
-        helper = ReviewDecisionRecoveryTests()
+        helper = recovery_tests.ReviewDecisionRecoveryTests()
         for variant in ('identity_mismatch', 'invalid_adapter_id', 'insecure_filename'):
             with self.subTest(variant=variant), tempfile.TemporaryDirectory() as root:
                 reviews = Path(root) / 'reviews'

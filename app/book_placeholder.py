@@ -17,6 +17,14 @@ PLACEHOLDER_SIZE = 64
 _PLACEHOLDER = re.compile(re.escape(PLACEHOLDER_PREFIX) + rb'[0-9a-f]{32}\n')
 
 
+class BookSwitchPlaceholderError(ValueError):
+    """A reader met a placeholder left by an in-progress book switch (#1660).
+
+    A ValueError subclass so existing callers that catch ValueError keep working;
+    startup recovery catches this exact type and lets other ValueErrors propagate.
+    """
+
+
 def get_book_placeholder_bytes(nonce):
     """-> the exact placeholder bytes for a 32-lowercase-hex nonce."""
     if not isinstance(nonce, str) or re.fullmatch('[0-9a-f]{32}', nonce) is None:

@@ -1323,11 +1323,12 @@ class ProjectManager:
         either name (#1660) is refused rather than parsed, renamed aside as
         corrupt, or regenerated over: the switch owns that name.
         """
-        from book_placeholder import is_book_placeholder, is_book_placeholder_bytes
+        from book_placeholder import (BookSwitchPlaceholderError, is_book_placeholder,
+                                      is_book_placeholder_bytes)
         switching = "A book switch is in progress; chunks are not available yet"
         journal_path = get_chunk_status_journal_path(self.chunks_path)
         if is_book_placeholder(journal_path):
-            raise ValueError(switching)
+            raise BookSwitchPlaceholderError(switching)
         if os.path.exists(journal_path):
             # A placeholder landing after the check fails to parse: an error,
             # never a write.
@@ -1335,7 +1336,7 @@ class ProjectManager:
         file_version = self._get_chunks_file_version()
         raw, read_identity = self._read_chunks_snapshot()
         if raw is not None and is_book_placeholder_bytes(raw):
-            raise ValueError(switching)
+            raise BookSwitchPlaceholderError(switching)
         content_sha256 = hashlib.sha256(raw).digest() if raw is not None and sys.platform == 'win32' else None
         chunks = self._parse_chunks_snapshot(raw)
         if not isinstance(chunks, list) or not all(isinstance(c, dict) for c in chunks):
@@ -1373,7 +1374,7 @@ class ProjectManager:
             except OSError:
                 now = None
             if is_book_placeholder(self.chunks_path):
-                raise ValueError(switching)
+                raise BookSwitchPlaceholderError(switching)
             if now is None or (now.st_dev, now.st_ino) != read_identity:
                 # Identity alone can be fooled by a reused inode number; the
                 # placeholder check above does not depend on it.

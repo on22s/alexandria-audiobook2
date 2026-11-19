@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import app as app_module
 import evaluation_reviews as er
-from tests.test_review_decision_recovery import ReviewDecisionRecoveryTests
+from tests import test_review_decision_recovery as recovery_tests
 
 
 def _clock(now):
@@ -42,7 +42,7 @@ class StartupReviewFenceTests(unittest.TestCase):
             asyncio.run(start())
 
     def test_other_worker_owns_recovery_preserves_old_session(self):
-        helper = ReviewDecisionRecoveryTests()
+        helper = recovery_tests.ReviewDecisionRecoveryTests()
         with tempfile.TemporaryDirectory() as root:
             reviews = Path(root) / 'reviews'
             session, _, _ = helper._interrupt(str(reviews), 'prepared')
@@ -61,7 +61,7 @@ class StartupReviewFenceTests(unittest.TestCase):
             self.assertEqual(preserved, Path(session).read_bytes())
 
     def test_pruning_runs_only_while_fence_is_held(self):
-        helper = ReviewDecisionRecoveryTests()
+        helper = recovery_tests.ReviewDecisionRecoveryTests()
         with tempfile.TemporaryDirectory() as root:
             reviews = Path(root) / 'reviews'
             session, _, _ = helper._interrupt(str(reviews), 'prepared')
@@ -91,7 +91,7 @@ class StartupReviewFenceTests(unittest.TestCase):
             self.assertFalse(session.exists())
 
     def test_corrupt_session_is_preserved_while_valid_one_is_pruned_in_fence(self):
-        helper = ReviewDecisionRecoveryTests()
+        helper = recovery_tests.ReviewDecisionRecoveryTests()
         with tempfile.TemporaryDirectory() as root:
             reviews = Path(root) / 'reviews'
             bad, _, bad_journal = helper._interrupt(str(reviews), 'prepared')
