@@ -40,7 +40,8 @@ from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SP
     get_review_progress_paths, get_review_receipt_path, save_completed_review_receipt,
     remove_completed_review_receipt)
 from llm_bench import get_cached_or_benchmarked_concurrency
-from review_prompts import REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT
+from review_prompts import (REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT,
+                            validate_active_review_user_prompt)
 from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_object
 from literal_policy import (get_literal_policy, ensure_literal_narration,
                             retain_literal_policy, get_word_identity, SCRIPT_POLICY_KEY)
@@ -2215,6 +2216,19 @@ def main():
         from literal_prompts import REVIEW_SYSTEM, REVIEW_USER
         review_sys, review_usr = REVIEW_SYSTEM, REVIEW_USER
 
+    # Fail before any LLM work on a hand-edited or pre-fix config whose active
+    # prompt lost a payload. Labels-only review ignores custom prompts
+    # entirely, so it has nothing to validate here.
+    labels_only = args.labels_only or get_review_labels_only(config)
+    if not labels_only:
+        try:
+            validate_active_review_user_prompt(review_usr)
+        except ValueError as exc:
+            print(f"Error: {exc}")
+            print("Fix: in Setup > Review prompts, restore both {context} and {batch} in the "
+                  "active user prompt, or clear the field to use the checked-in default.")
+            sys.exit(1)
+
     generation_config = config.get("generation") or {}
     batch_size, target_chars = get_review_batching(generation_config)
     max_tokens = generation_config.get("max_tokens", 8000)
@@ -2227,7 +2241,7 @@ def main():
 
     # Constant across every batch in both review modes - build once.
     gen_params = LLMGenParams(
-        review_labels_only=args.labels_only or get_review_labels_only(config),
+        review_labels_only=labels_only,
         literal_source_preserving=literal_policy is not None,
         system_prompt=review_sys,
         user_prompt_template=review_usr,

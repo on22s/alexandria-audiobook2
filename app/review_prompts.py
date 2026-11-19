@@ -20,6 +20,18 @@ def validate_review_template(template):
     return template
 
 
+def validate_active_review_user_prompt(template):
+    """Check the active prompt; None/empty keep meaning "use the default".
+
+    The config Save boundary and review start share this one policy so they
+    cannot disagree about what counts as a usable active prompt (#2093). The
+    template rules themselves still live only in validate_review_template.
+    """
+    if template is None or template == "":
+        return template
+    return validate_review_template(template)
+
+
 def load_review_prompts():
     """Read review_prompts.txt from disk and return (system_prompt, user_prompt).
 

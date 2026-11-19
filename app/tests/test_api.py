@@ -408,14 +408,15 @@ def test_pause_config_defaults():
 
 def test_save_review_prompts_roundtrip():
     with ensure_config_roundtrip() as test_config:
+        review_user = f'{TEST_PREFIX}review_usr {{context}} {{batch}}'
         test_config['prompts'] = {**(test_config.get('prompts') or {}),
                                  'review_system_prompt': f'{TEST_PREFIX}review_sys',
-                                 'review_user_prompt': f'{TEST_PREFIX}review_usr'}
+                                 'review_user_prompt': review_user}
         assert_status(post('/api/config', json=test_config), 200)
         response = get('/api/config'); assert_status(response, 200)
         prompts = response.json().get('prompts', {})
         for name, value in (('review_system_prompt', f'{TEST_PREFIX}review_sys'),
-                            ('review_user_prompt', f'{TEST_PREFIX}review_usr')):
+                            ('review_user_prompt', review_user)):
             if prompts.get(name) != value:
                 raise TestFailure(f'{name} not persisted: {prompts.get(name)}')
 

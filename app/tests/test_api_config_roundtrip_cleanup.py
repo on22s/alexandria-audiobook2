@@ -27,7 +27,7 @@ class APIConfigRoundtripCleanupTests(unittest.TestCase):
                              llm_mode=mode, llm_remote_ssh='fixture-ssh', llm_failover=True,
                              tts=TTSConfig(synthesis_windows={'enabled': True, 'budgets': {'local.custom': {'max_chars': 60, 'max_words': None}}}),
                              prompts=PromptConfig(system_prompt='custom system', user_prompt='custom user',
-                                 review_system_prompt='custom review system', review_user_prompt='custom review user',
+                                 review_system_prompt='custom review system', review_user_prompt='custom review user {context} {batch}',
                                  persona_system_prompt='custom persona system', persona_user_prompt='custom persona user',
                                  persona_advanced_prompt='custom persona advanced'),
                              generation=GenerationConfig(temperature=.37, chunk_size=1234)).model_dump()

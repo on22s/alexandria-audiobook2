@@ -57,7 +57,7 @@ class ConfigChangePreviewTests(unittest.TestCase):
         proposed['llm_local']['provider_extra_body'] = {'token': 'NEW_BODY_SECRET'}
         proposed['tts']['url'] = 'http://user:URL_SECRET@127.0.0.1:7860/path?token=QUERY_SECRET'
         proposed['tts']['external_urls'] = ['http://EXTERNAL_SECRET.invalid']
-        proposed['prompts'] = {'review_user_prompt': 'PROMPT_SECRET'}
+        proposed['prompts'] = {'review_user_prompt': '{context} PROMPT_SECRET {batch}'}
         response = self.preview(proposed); self.assertEqual(200, response.status_code, response.text)
         for secret in ['SYNTHETIC_API_KEY', 'HEADER_SECRET', 'BODY_SECRET', 'URL_SECRET', 'QUERY_SECRET', 'EXTERNAL_SECRET', 'PROMPT_SECRET', 'SECRET_UNKNOWN_KEY', 'UNMANAGED_VALUE_SECRET', '[REDACTED]']:
             self.assertNotIn(secret, response.text)
