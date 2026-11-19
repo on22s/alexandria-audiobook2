@@ -132,11 +132,10 @@ def _ambiguous_mark_roles(text):
     see zero copied characters. Straight pairs are excluded: their mark is both
     opener and closer by definition, so it is never ambiguous.
 
-    Known limit: a stray `„` followed by narrative text is indistinguishable
-    from a genuine German opener, so a following `“` may close the stray mark
-    and the first real English quote in that segment is missed. Fixing this
-    would require semantic knowledge of which text is speech; base behaves no
-    better.
+    A stray `„` is recognised when its candidate `“` has real English content
+    but no later German close-capable mark in the segment: an unpadded gap
+    means the `“` opens English, while a padded one means an orphan `”` after
+    narration and the `“` closes German.
     """
     all_marks = [(m.start(), m.group()) for m in re.finditer(
         "[" + "".join(re.escape(mark) for mark in QUOTE_MARKS) + "]", text)]
@@ -197,16 +196,32 @@ def _ambiguous_mark_roles(text):
                 # a real pending `„` (text directly after it) is closed here;
                 # only a whitespace-padded `„` is a stray mark.
                 after = bisect_right(quotes, pos)
-                if after == len(quotes) and de_stack:
-                    opener = de_stack[-1] + 1
-                    opens_english = opener >= len(text) or text[opener].isspace()
+                stray = False
+                if after == len(quotes):
+                    if de_stack:
+                        opener = de_stack[-1] + 1
+                        stray = opener >= len(text) or text[opener].isspace()
+                        opens_english = stray
+                    else:
+                        opens_english = True
+                elif later_closer_in_segment(pos, after):
+                    opens_english = True
                 else:
-                    opens_english = (after == len(quotes)
-                                     or later_closer_in_segment(pos, after))
+                    # No later German closer in this segment. A padded gap
+                    # (`” narration ”`) means this `“` closes German; an
+                    # unpadded one is real English speech after a stray `„`.
+                    stray = not (closer == pos + 1
+                                 or text[pos + 1].isspace()
+                                 or text[closer - 1].isspace())
+                    opens_english = stray
             else:
                 opens_english = False
+                stray = False
             if opens_english or not de_stack:
                 opens.add(pos)
+                if stray and de_stack:
+                    # The pending `„` was a stray mark, not a real opener.
+                    de_stack.pop()
             else:
                 closes.add(pos)
                 de_stack.pop()

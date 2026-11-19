@@ -202,6 +202,22 @@ class SpanTest(unittest.TestCase):
                 self.assertEqual([], spoken_spans(source, "paired_quotes"))
                 self.assertLess(time.monotonic() - started, 1.0)
 
+    def test_a_stray_german_opener_does_not_swallow_english_speech(self):
+        # `„` is a stray mark here; both following “English” pairs are real
+        # speech. Treating the first `“` as the German closer drops it and
+        # marks the narration spoken — base gets both right.
+        source = "„orphan stray “English one” and “English two” end"
+        self.assertEqual(["English one", "English two"],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+        marked = mark_entries([
+            {"speaker": "A", "text": "English one"},
+            {"speaker": "B", "text": "English two"},
+            {"speaker": "N", "text": "orphan stray"},
+        ], source, "paired_quotes")
+        self.assertTrue(marked[0].get("spoken"))
+        self.assertTrue(marked[1].get("spoken"))
+        self.assertNotEqual(True, marked[2].get("spoken"))
+
     def test_padded_english_speech_nested_in_german_is_not_an_orphan(self):
         # Edge whitespace (including a newline) is not evidence of an orphan
         # `”` — a real English quote inside a German pair keeps the German
