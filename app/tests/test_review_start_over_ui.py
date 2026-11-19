@@ -32,6 +32,8 @@ const _showReviewControls = () => {};
 const _isReviewDedupeChecked = () => false;
 const _isReviewForceChecked = () => false;
 const applyReviewContextWindow = () => 4;
+const getReviewContextMode = () => 'entries';
+const getReviewContextValue = () => 4;
 const document = {getElementById: () => ({value: 4})};
 const API = {post: async () => { throw refusal; }};
 '''

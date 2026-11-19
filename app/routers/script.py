@@ -144,7 +144,9 @@ from core import (
     process_state,
     run_process,
 )
-from review_script import clear_checkpoint, get_review_batching, get_review_entry_windows
+from review_script import (clear_checkpoint, get_review_batching, get_review_entry_windows,
+                           get_validated_context_setting, CONTEXT_MODE_CHARS, CONTEXT_MODE_ENTRIES,
+                           DEFAULT_CONTEXT_ENTRIES)
 from utils import atomic_json_write, backup_file_with_timestamp, safe_load_json, secure_filename
 
 
@@ -179,6 +181,7 @@ class ReviewRequest(BaseModel):
 
 class ContextualReviewRequest(ReviewRequest):
     window_size: int = 4
+    context_mode: Literal['entries', 'chars'] = 'entries'
     dedupe_speakers: bool = True
     force_review: bool = False
 
@@ -3582,7 +3585,8 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
 
 def _start_contextual_review(request, background_tasks, claim_id):
 
-    window_size = max(1, min(int(request.window_size or 4), 12))
+    context_mode, window_size = get_validated_context_setting(
+        request.context_mode, request.window_size, DEFAULT_CONTEXT_ENTRIES)
     entries = []
     total_entries = 0
     try:
@@ -3605,7 +3609,11 @@ def _start_contextual_review(request, background_tasks, claim_id):
             estimated_calls = len(get_review_entry_windows(entries, generation))
     except (ValueError, TypeError) as e:
         _warn_corrupted_json("config", CONFIG_PATH, "using default review batching", e)
-    cmd = [sys.executable, "-u", "review_script.py", "--context-window", str(window_size)]
+    cmd = [sys.executable, "-u", "review_script.py"]
+    if context_mode == CONTEXT_MODE_CHARS:
+        cmd += ["--context-chars", str(window_size)]
+    else:
+        cmd += ["--context-window", str(window_size)]
     cmd += get_review_force_args(request.force_review or request.start_over)
     if request.dedupe_speakers:
         cmd += ["--dedupe-speakers", "--remap-voice-config", VOICE_CONFIG_PATH,
@@ -3615,6 +3623,7 @@ def _start_contextual_review(request, background_tasks, claim_id):
         "status": "started",
         "mode": "contextual",
         "window_size": window_size,
+        "context_mode": context_mode,
         "batch_size": review_batch_size,
         "total_entries": total_entries,
         "estimated_calls": estimated_calls,
@@ -3819,7 +3828,8 @@ def _start_batch_review(request, background_tasks):
     if not request.script_names:
         raise HTTPException(status_code=400, detail="No scripts selected.")
 
-    window = max(0, min(int(request.context_window or 0), 12))
+    _, window = get_validated_context_setting(
+        CONTEXT_MODE_ENTRIES, request.context_window, 0, minimum=0)
     dedupe = bool(request.dedupe_speakers)
     discover = bool(request.find_nicknames) and dedupe
     # A backward pass only adds value when discovery is on (it re-scans early books with the

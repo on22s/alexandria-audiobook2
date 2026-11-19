@@ -2791,13 +2791,14 @@
                             <small data-i18n="script.review.start.help" class="text-muted">Runs a second LLM pass to fix speaker misattributions or formatting issues. Only needed if the generated script has problems.</small>
                             <div class="input-group mt-1">
                                 <label data-i18n="script.review.context-window.label" class="input-group-text" for="review-context-window">Context Window</label>
-                                <input type="number" class="form-control" id="review-context-window" aria-describedby="review-context-help" value="4" min="1" max="12">
+                                <input type="number" class="form-control" id="review-context-window" aria-describedby="review-context-help" value="4" min="1" max="100">
+                                <button type="button" class="btn btn-outline-secondary" id="btn-review-context-mode" data-i18n="script.review.context-mode.entries" aria-pressed="false" aria-label="Context measured in entries. Activate to switch to characters." style="min-height:44px;min-width:44px;">Entries</button>
                                 <button class="btn btn-outline-primary" id="btn-review-script-contextual" type="button">
                                     <i class="fas fa-crosshairs me-2"></i><span data-i18n="script.review.contextual">Contextual Review (+/- N)</span>
                                 </button>
                                 <button type="button" class="btn btn-outline-secondary" id="btn-review-contextual-fresh" style="display:none;min-height:44px;min-width:44px;"><span data-i18n="script.review.start-over">Start over</span></button>
                             </div>
-                            <small data-i18n="script.review.contextual.help" class="text-muted d-block" id="review-context-help">Contextual Review uses N script entries before and after each entry (1–12; default 4). Standard Review does not use this setting.</small>
+                            <small data-i18n="script.review.contextual.help" class="text-muted d-block" id="review-context-help">Contextual review adds context on each side of every entry: in Entries mode, 1–100 whole entries (default 4); in Characters mode, whole entries up to 1,000,000 characters of entry text (default 2,000). No entry is split. Standard Review does not use this setting.</small>
                             <small data-i18n="script.review.contextual.estimate" class="text-muted" id="review-context-estimate">Contextual review runs in batched LLM calls and will show an estimate after you start it.</small>
                             <small data-i18n="script.review.contextual.intro" class="text-muted">Reviews each dialog with N entries before and after to fix missed segmentation and wrong speaker labels in difficult author styles.</small>
 
@@ -2831,9 +2832,9 @@
                             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                                 <div class="input-group input-group-sm" style="width:auto;">
                                     <label data-i18n="script.review.context-window.label" class="input-group-text" for="review-batch-context-window">Context Window</label>
-                                    <input type="number" class="form-control" id="review-batch-context-window" data-i18n-attr="title:script.review.batch.context-window.title" aria-describedby="review-batch-context-help" value="0" min="0" max="12" style="width:70px;" title="0 = standard review, greater than 0 = contextual (+/- N neighbors)">
+                                    <input type="number" class="form-control" id="review-batch-context-window" data-i18n-attr="title:script.review.batch.context-window.title" aria-describedby="review-batch-context-help" value="0" min="0" max="100" style="width:70px;" title="0 = standard review, greater than 0 = contextual (+/- N neighbors)">
                                 </div>
-                                <small data-i18n="script.review.batch.context.help" class="text-muted d-block" id="review-batch-context-help">0 = standard review (the batch default). 1–12 = contextual review using N script entries before and after each entry.</small>
+                                <small data-i18n="script.review.batch.context.help" class="text-muted d-block" id="review-batch-context-help">0 = standard review (the batch default). 1–100 = contextual review using N script entries before and after each entry.</small>
                                 <button data-i18n="script.review.batch.select-all" class="btn btn-sm btn-outline-secondary" type="button" onclick="reviewBatchSelectAll(true)">Select all</button>
                                 <button data-i18n="script.review.batch.clear" class="btn btn-sm btn-outline-secondary" type="button" onclick="reviewBatchSelectAll(false)">Clear</button>
                                 <button class="btn btn-sm btn-outline-primary" type="button" onclick="loadReviewBatchScripts()"><i class="fas fa-sync me-1"></i><span data-i18n="script.review.batch.refresh">Refresh</span></button>

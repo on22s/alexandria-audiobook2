@@ -10,7 +10,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readF
 const turn=()=>new Promise(setImmediate);
 function client(activeRemote=false,failoverRemote=true){
  const elements={},handlers={},posts=[],gets=[],prompts=[],toasts=[],polls=[];let decision=false,keepCalls=0;
- const el=id=>elements[id]||(elements[id]={value:id==='review-context-window'?'5':'',files:[],style:{},checked:false,disabled:false,innerHTML:'',classList:{add(){},remove(){}},addEventListener:(_event,callback)=>handlers[id]=callback});
+ const el=id=>elements[id]||(elements[id]={value:id==='review-context-window'?'5':'',files:[],style:{},checked:false,disabled:false,innerHTML:'',classList:{add(){},remove(){}},setAttribute(){},getAttribute(){return null;},addEventListener:(_event,callback)=>handlers[id]=callback});
  const ctx={window:null,document:{getElementById:el,querySelectorAll:()=>[]},currentIsRemote:activeRemote,failoverIsRemote:failoverRemote,currentBookFilename:'book.txt',showPresetEditor:async()=>({name:'teen'}),console,
  showConfirm:async message=>{prompts.push(message);return typeof decision==='function'?await decision():decision;},showToast:(...args)=>toasts.push(args),prompt:()=> 'teen',escapeHtml:String,
  API:{post:async(url,payload)=>{posts.push({url,payload});return {suggestions:{}};},get:async url=>{gets.push(url);return[];}},
@@ -26,6 +26,7 @@ function client(activeRemote=false,failoverRemote=true){
  load('async function startReview(', 'const _reviewPauseResume =');
  load('async function findNicknames()', 'let characterAliasesLoaded =');load('async function generatePersonas()', 'async function cancelPersonas()');
  load('window.regeneratePersona =', 'window.selectVoiceCandidate =');load('function getLoraModelsById(', 'function renderVoiceSuggestions()');
+ el('review-context-window').value='5';
  const button={disabled:false,closest:()=>({dataset:{voice:'Alice'}})};
  const actions=[['contextual',()=>handlers['btn-review-script-contextual'](),'/api/review_script_contextual'],['nicknames',()=>ctx.findNicknames(),'/api/find_nicknames'],['persona',()=>ctx.generatePersonas(),'/api/generate_personas'],['regenerate',()=>ctx.regeneratePersona(button),'/api/generate_personas'],['age',()=>ctx.generateAgeVersion(button),'/api/generate_personas'],['suggest',()=>ctx.suggestVoices(),'/api/suggest_voices'],['suggestMore',()=>ctx.suggestMoreVoices(button),'/api/suggest_voices'],['review',()=>handlers['btn-review-script'](),'/api/review_script'],['script',()=>handlers['btn-gen-script'](),'/api/generate_script']];
  return {ctx,el,posts,gets,prompts,toasts,polls,actions,setDecision:value=>decision=value,getKeepCalls:()=>keepCalls};
