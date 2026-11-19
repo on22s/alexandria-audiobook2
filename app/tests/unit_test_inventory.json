@@ -12936,6 +12936,20 @@
     , "tests.test_secure_filename_portability.PortableFilenameTests.test_reserved_devices_and_trailing_dots_spaces_are_normalized"
     , "tests.test_secure_filename_portability.PortableFilenameTests.test_utf8_byte_cap_preserves_complete_codepoints_and_actual_staging_file"
   ]
+  , "test_security_headers": [
+    "tests.test_security_headers.SecurityHeadersTests.test_404_has_baseline_headers"
+    , "tests.test_security_headers.SecurityHeadersTests.test_csp_covers_the_resources_the_spa_actually_loads"
+    , "tests.test_security_headers.SecurityHeadersTests.test_editor_error_response_keeps_nosniff_through_the_middleware"
+    , "tests.test_security_headers.SecurityHeadersTests.test_editor_success_response_keeps_nosniff_through_the_middleware"
+    , "tests.test_security_headers.SecurityHeadersTests.test_host_refusal_gate_response_has_baseline_headers"
+    , "tests.test_security_headers.SecurityHeadersTests.test_json_api_route_has_baseline_headers"
+    , "tests.test_security_headers.SecurityHeadersTests.test_no_framing_restriction_and_no_report_endpoint"
+    , "tests.test_security_headers.SecurityHeadersTests.test_origin_refusal_gate_response_has_baseline_headers"
+    , "tests.test_security_headers.SecurityHeadersTests.test_route_set_header_value_is_not_clobbered"
+    , "tests.test_security_headers.SecurityHeadersTests.test_spa_shell_has_baseline_headers_and_keeps_its_cache_control"
+    , "tests.test_security_headers.SecurityHeadersTests.test_static_asset_has_baseline_headers"
+    , "tests.test_security_headers.SecurityHeadersTests.test_unhandled_error_500_has_baseline_headers"
+  ]
   , "test_seed_instruction_controls": [
     "tests.test_seed_instruction_controls.TestSeedInstructionControls.test_provenance_import_resolves_from_documented_app_working_directory"
     , "tests.test_seed_instruction_controls.TestSeedInstructionControls.test_wav_info_hashes_bytes_and_reports_duration"

@@ -9,7 +9,9 @@ from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.middleware.base import BaseHTTPMiddleware
 import httpx
+import app as application
 from routers import editor
 from epub_publication import get_epub_publication_candidate
 from publication_source import (get_publication_source_path, get_upload_publication_update,
@@ -32,6 +34,9 @@ class PublicationPreviewAPITests(unittest.TestCase):
                     'version': 1, 'binding': {'kind': 'text', 'sha256': hashlib.sha256(TEXT).hexdigest()},
                     'candidates': [candidate]}))
             api = FastAPI(); api.include_router(editor.router)
+            # These assertions cover the editor responses' nosniff contract,
+            # which production supplies through app.py's baseline middleware.
+            api.add_middleware(BaseHTTPMiddleware, dispatch=application._security_headers_middleware)
             @api.get('/ping')
             async def ping():
                 return {'ok': True}
