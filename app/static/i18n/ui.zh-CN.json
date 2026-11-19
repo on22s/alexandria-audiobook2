@@ -1970,7 +1970,7 @@
   "help.field.review-batch-context-window.what": "0 表示运行标准审阅。大于 0 时，每行会带上该数量的相邻行一起审阅（1–100 条）。",
   "help.field.review-batch-find-nicknames.what": "合并名称之前，先发现每本书的昵称，并在整个系列中共享。",
   "help.field.review-batch-mode.what": "一次运行审阅多本已保存的书，而不是当前这本。",
-  "help.field.review-context-window.what": "每侧上下文：完整条目数（1–100，默认 4）或字符数（最多 1,000,000）。用“条目/字符”按钮切换，条目不会被拆分。过大的相邻条目会单独发送。上下文越多，耗时和费用越高；更改模式或数值即视为不同的审阅，因此已完成或暂停的审阅不会被复用（默认 4 不变）。",
+  "help.field.review-context-window.what": "每个被审阅条目两侧额外发送的条目，按完整条目数（1–100，默认 4）或其正文字符数（最多 1,000,000）计算。条目不会被拆分；字符模式下，超过上限的相邻条目仍会单独发送。上下文越多，速度越慢，费用越高。",
   "help.field.review-dedupe-speakers.what": "将同一角色的不同名称（例如 名和全名）合并为一个说话人和一个声音。",
   "help.field.review-force-rerun.what": "即使自上次完成的审阅以来没有任何变化，也重新审阅。",
   "help.action.reviewlabelsonlypointer": "显示“仅标注审阅”当前是否开启，并打开设置 → 提示词工作室中保存该设置的开关。不会更改或保存设置。",
@@ -3623,7 +3623,7 @@
   "script.review.contextual-recovery": "在开始另一次审阅前，请查看审阅任务状态、上下文窗口和设置中的测试连接。",
   "script.review.contextual-started": "上下文审阅已开始。",
   "script.review.contextual.estimate": "上下文审阅以批量 LLM 调用运行，开始后会显示预估。",
-  "script.review.contextual.help": "上下文审阅会在每个条目两侧添加上下文：1–100 个完整条目（默认 4），或字符模式下最多 1,000,000 字符的条目（默认 2,000）。条目不会被拆分；过大的相邻条目单独发送，更多上下文会更慢、更贵。标准审阅不使用此设置。",
+  "script.review.contextual.help": "上下文审阅会在每个条目两侧添加完整条目：1–100 个条目（默认 4），或字符模式下最多 1,000,000 字符的正文（默认 2,000）。条目不会被拆分，但超过上限的相邻条目仍会单独发送。上下文越多，速度越慢，费用越高。标准审阅不使用此设置。",
   "script.review.contextual.intro": "对每段对话，结合前后各 N 条条目进行审阅，以修正难以处理的作者风格中遗漏的切分和错误的说话人标签。",
   "script.review.dedupe.after-examples": "一个声音）。在批处理模式下，名称会在整个系列中保持一致。",
   "script.review.dedupe.before-examples": "合并重复的角色名——统一同一角色的别名（例如",
@@ -6496,5 +6496,5 @@
   "script.review.context-mode.aria.entries": "当前按条目数计量上下文。激活可切换为按字符数。",
   "script.review.context-mode.chars": "字符",
   "script.review.context-mode.entries": "条目",
-  "help.item.btn-review-context-mode": "在完整条目数与条目正文字符数之间切换上下文审阅的窗口；每种模式各自保留其设置值。"
+  "help.item.btn-review-context-mode": "在“条目”与“字符”之间切换，两种模式各自保留数值。更改模式或数值会视为新的审阅：已完成的审阅不会被复用，暂停的审阅也不会按新设置继续。默认值（4 个条目）与旧版审阅一致，因此不会重做那些审阅。"
 }

@@ -1970,7 +1970,7 @@
   "help.field.review-batch-context-window.what": "0 ejecuta la revisión estándar. Por encima de 0, cada línea se revisa con esa cantidad de líneas vecinas a cada lado (1–100 entradas).",
   "help.field.review-batch-find-nicknames.what": "Antes de combinar nombres, descubre los apodos de cada libro y los comparte en toda la serie.",
   "help.field.review-batch-mode.what": "Revisa varios libros guardados en una sola ejecución en lugar del actual.",
-  "help.field.review-context-window.what": "Contexto por lado: entradas (1–100, valor predeterminado 4) o caracteres (hasta 1,000,000). Use Entradas/Caracteres para cambiar; ninguna entrada se divide. Una entrada vecina demasiado larga se envía sola. Más contexto cuesta tiempo y dinero; cambiar el modo o el valor crea una revisión distinta, así que las revisiones terminadas o pausadas no se reutilizan (el valor predeterminado 4 se mantiene).",
+  "help.field.review-context-window.what": "Entradas adicionales a cada lado de cada entrada revisada, en entradas completas (1–100, valor predeterminado 4) o caracteres de su texto (hasta 1,000,000). Ninguna entrada se divide; en modo Caracteres, una vecina mayor que el límite se envía sola. Más contexto es más lento y cuesta más.",
   "help.field.review-dedupe-speakers.what": "Combina nombres distintos del mismo personaje (p. ej. un nombre de pila y un nombre completo) en un solo hablante y una sola voz.",
   "help.field.review-force-rerun.what": "Revisa de nuevo aunque nada haya cambiado desde la última revisión completada.",
   "help.action.reviewlabelsonlypointer": "Muestra si la revisión solo de etiquetas está activada y abre su interruptor guardado en Configuración → Estudio de prompts. No cambia ni guarda el ajuste.",
@@ -3623,7 +3623,7 @@
   "script.review.contextual-recovery": "Revisa el estado de la tarea de revisión, la ventana de contexto y la prueba de conexión en Configuración antes de iniciar otra revisión.",
   "script.review.contextual-started": "La revisión con contexto ha comenzado.",
   "script.review.contextual.estimate": "La revisión con contexto se ejecuta en llamadas por lotes al LLM y mostrará una estimación después de que la inicies.",
-  "script.review.contextual.help": "La revisión con contexto añade contexto a cada lado: 1–100 entradas completas (valor predeterminado 4) o, en modo Caracteres, entradas de hasta 1,000,000 caracteres (predeterminado 2,000). Ninguna entrada se divide; un vecino demasiado largo se envía solo, y más contexto cuesta tiempo y dinero. La revisión estándar no usa este ajuste.",
+  "script.review.contextual.help": "La revisión con contexto añade entradas completas a cada lado de cada entrada: 1–100 entradas (valor predeterminado 4) o, en modo Caracteres, hasta 1,000,000 caracteres de texto (predeterminado 2,000). Las entradas nunca se dividen, pero una vecina más larga que el límite se envía sola. Más contexto es más lento y cuesta más. La revisión estándar no usa este ajuste.",
   "script.review.contextual.intro": "Revisa cada diálogo con N entradas antes y después para corregir la segmentación omitida y las etiquetas de hablante erróneas en estilos de autor difíciles.",
   "script.review.dedupe.after-examples": "una sola voz). En el modo por lotes, los nombres se mantienen consistentes en toda la serie.",
   "script.review.dedupe.before-examples": "Fusiona los nombres de personajes duplicados: unifica los alias del mismo personaje (p. ej.",
@@ -6496,5 +6496,5 @@
   "script.review.context-mode.aria.entries": "Contexto medido en entradas. Actívelo para cambiar a caracteres.",
   "script.review.context-mode.chars": "Caracteres",
   "script.review.context-mode.entries": "Entradas",
-  "help.item.btn-review-context-mode": "Cambia la ventana de contexto de la revisión entre entradas completas y caracteres de texto; cada modo conserva su propio valor."
+  "help.item.btn-review-context-mode": "Cambia entre Entradas y Caracteres; cada modo conserva su valor. Cambiar el modo o el valor cuenta como una revisión nueva: no se reutiliza una revisión terminada ni se reanuda una pausada con el nuevo ajuste. El valor predeterminado (4 entradas) coincide con revisiones anteriores, así que ésas no se repiten."
 }
