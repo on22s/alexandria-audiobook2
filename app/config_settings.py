@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 from typing import Annotated, Dict, List, Literal, Optional, Union, get_args, get_origin
 from types import UnionType
 
-from pydantic import AfterValidator, BaseModel, Field, JsonValue, TypeAdapter, ValidationError, field_validator
+from pydantic import (AfterValidator, BaseModel, Field, JsonValue, TypeAdapter, ValidationError,
+                      field_validator, model_validator)
 from export_limits import MAX_PAUSE_MS
 from lora_evidence import TTS_MODEL_DEFAULTS
 from synthesis_settings import get_synthesis_window_settings, get_synthesis_recovery_settings
@@ -292,6 +293,19 @@ class PromptConfig(BaseModel):
     pass3_gaps_prompt_presets: List[DirectedPromptPreset] = Field(default_factory=list, max_length=50)
     pass3_directed_preset: str = Field(default="default", min_length=1, max_length=80)
     pass3_directed_prompt_presets: List[DirectedPromptPreset] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode="after")
+    def validate_review_user_prompt(self):
+        """Refuse an active review template that lost a payload (#2093).
+
+        Deliberately a model validator, not a field validator: the Save/POST
+        boundary validates the whole PromptConfig, while load_app_config's
+        per-field adapters do not. An existing config.json holding a bad
+        template therefore still loads and Setup still opens.
+        """
+        from review_prompts import validate_active_review_user_prompt
+        validate_active_review_user_prompt(self.review_user_prompt)
+        return self
 
 
 class PromptPreset(BaseModel):
