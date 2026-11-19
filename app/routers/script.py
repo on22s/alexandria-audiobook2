@@ -198,8 +198,11 @@ class BatchReviewRequest(ReviewRequest):
 
 
 def get_review_force_args(force_review, backward=False):
-    """Intentional backward passes always rerun a completed review."""
-    return ["--force-review"] if force_review or backward else []
+    """Build the review-child flags; a backward pass always reruns with its own direction identity."""
+    args = ["--force-review"] if force_review or backward else []
+    if backward:
+        args += ["--review-pass", "backward"]
+    return args
 
 
 def get_batch_review_highlights(pool: dict) -> dict:
@@ -3931,19 +3934,19 @@ def _start_batch_review(request, background_tasks):
                         ", ".join(f"'{a['variant']}' -> '{a['canonical']}'" for a in new_aliases)
                     )
 
-            # Only clear checkpoint at the start of the first pass (forward).
-            # For bidirectional reviews, preserve the forward pass checkpoint
-            # so if the backward pass crashes, we can resume from where forward left off.
+            # Clear stale progress at the start of every pass. In a bidirectional
+            # run the forward pass's clean checkpoint is preserved so a crash in
+            # the backward pass can resume from where forward left off; see below.
             should_clear = True
             if state.get("bidirectional") and state.get("current_pass") == "bwd":
-                # Don't clear checkpoint during backward pass - preserve forward progress
-                should_clear = False
-                if orig_status == "incomplete":
-                    # The forward pass on this book was VRAM-aborted and left behind
-                    # its own partial checkpoint (forward-pass progress/aliases). That
-                    # checkpoint isn't valid for the backward pass - reusing it would
-                    # silently splice forward-pass output into the backward result.
-                    should_clear = True
+                # Preserve the forward pass's checkpoint only when that pass
+                # finished cleanly. Any other status means the forward pass did
+                # not complete: "failed" (subprocess/validation error),
+                # "incomplete" (VRAM abort, failed batches, or missing summary),
+                # "pending"/None (never ran), "cancelled", or "running". In every
+                # one of those cases the on-disk checkpoint is stale forward-pass
+                # progress and must not seed the hindsight (backward) result.
+                should_clear = orig_status != "done"
 
             if should_clear:
                 if request.start_over:

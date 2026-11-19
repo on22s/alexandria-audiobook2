@@ -12178,6 +12178,14 @@
     , "tests.test_review_partial_retention.TypedMetadataMergeTests.test_int_and_bool_spoken_values_do_not_merge"
     , "tests.test_review_partial_retention.TypedMetadataMergeTests.test_matching_bool_spoken_values_merge_and_keep_bool"
   ]
+  , "test_review_pass_direction": [
+    "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_clean_forward_keeps_checkpoint_but_still_marks_backward_child"
+    , "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_failed_forward_clears_checkpoint_and_marks_backward_child"
+    , "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_single_direction_review_keeps_default_behaviour"
+    , "tests.test_review_pass_direction.ReviewPassIdentityTests.test_backward_fingerprint_is_distinct_from_forward"
+    , "tests.test_review_pass_direction.ReviewPassIdentityTests.test_forward_and_default_fingerprint_match_main"
+    , "tests.test_review_pass_direction.ReviewPassIdentityTests.test_forward_checkpoint_is_refused_by_backward_run"
+  ]
   , "test_review_preset_js": [
     "tests.test_review_preset_js.ReviewPresetJsTests.test_failed_write_keeps_review_cache_and_editor_text"
     , "tests.test_review_preset_js.ReviewPresetJsTests.test_render_switch_to_default_and_edit_detection"
@@ -17002,6 +17010,13 @@
     , "tests.test_voice_clustering.VoiceClusteringTests.test_conflicting_and_unknown_overrides_fail_loud"
     , "tests.test_voice_clustering.VoiceClusteringTests.test_manual_merge_and_split_are_persistent_constraints"
     , "tests.test_voice_clustering.VoiceClusteringTests.test_override_file_is_narrator_scoped_and_versioned"
+  ]
+  , "test_voice_config_remap": [
+    "tests.test_voice_config_remap.VoiceConfigRemapTests.test_cycles_raise_value_error_naming_the_cycle"
+    , "tests.test_voice_config_remap.VoiceConfigRemapTests.test_flattened_map_matches_main_byte_for_byte"
+    , "tests.test_voice_config_remap.VoiceConfigRemapTests.test_four_chain_all_permutations_converge"
+    , "tests.test_voice_config_remap.VoiceConfigRemapTests.test_merge_precedence_when_root_exists"
+    , "tests.test_voice_config_remap.VoiceConfigRemapTests.test_three_chain_all_permutations_converge"
   ]
   , "test_voice_config_revision": [
     "tests.test_voice_config_revision.VoiceConfigRevisionTests.test_book_switch_reload_source_change_and_input_selection_reject_old_book"
