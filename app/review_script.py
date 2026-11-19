@@ -229,6 +229,86 @@ def _checkpoint_path(output_path):
 _entries_fingerprint = get_review_entries_fingerprint
 
 
+# Contextual review's extra context is measured either in whole entries or in
+# characters of entry text. These are the one limit/definition shared by the
+# HTTP routes and the CLI; see get_validated_context_setting and
+# get_review_context_neighbors below.
+CONTEXT_MODE_ENTRIES = 'entries'
+CONTEXT_MODE_CHARS = 'chars'
+CONTEXT_ENTRY_MAX = 100
+CONTEXT_CHAR_MAX = 1000000
+DEFAULT_CONTEXT_ENTRIES = 4
+DEFAULT_CONTEXT_CHARS = 2000
+
+
+def get_validated_context_setting(mode, value, default, minimum=1):
+    """Return (mode, value) after validating a contextual-review context setting.
+
+    One authority for both the single-book and batch-review routes so their
+    limits cannot drift. Integers outside the mode's range are clamped, matching
+    the old window_size behaviour; non-integers are rejected by Pydantic at the
+    route boundary (422) before this is reached. Characters mode is used only
+    when explicitly requested; every other value means entries mode.
+    """
+    if mode == CONTEXT_MODE_CHARS:
+        limit = CONTEXT_CHAR_MAX
+    else:
+        mode = CONTEXT_MODE_ENTRIES
+        limit = CONTEXT_ENTRY_MAX
+    if value is None:
+        value = default
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("context value must be an integer")
+    return mode, max(minimum, min(value, limit))
+
+
+def get_review_context_from_args(args):
+    """Return (mode, value) for a review run, from its parsed CLI arguments.
+
+    --context-chars takes precedence; --context-window keeps its old entries
+    meaning. getattr keeps fake args in older tests working unchanged.
+    """
+    chars = getattr(args, 'context_chars', 0) or 0
+    if chars > 0:
+        return CONTEXT_MODE_CHARS, chars
+    return CONTEXT_MODE_ENTRIES, args.context_window
+
+
+def get_review_context_neighbors(entries, start, end, mode, value):
+    """Return (before, after) whole-entry context neighbours for a batch.
+
+    Entries mode is exactly the old +/- N slice. Characters mode accumulates
+    whole neighbouring entries nearest-first until the next one would exceed
+    the limit, counting only entry text (the same measure review_target_chars
+    uses in iter_entry_windows). An entry larger than the limit on its own is
+    still included as the single neighbour on that side, then accumulation
+    stops - the same "an entry larger than the target goes alone" rule Step 2
+    uses, rather than silently dropping the only available context. Sides are
+    independent, so a big entry on one side cannot shrink the other.
+    """
+    if mode != CONTEXT_MODE_CHARS:
+        window = max(1, int(value))
+        return (entries[max(0, start - window):start],
+                entries[end:min(len(entries), end + window)])
+    limit = int(value)
+
+    def pack(candidates):
+        picked, used = [], 0
+        for entry in candidates:
+            length = len(str(entry.get("text") or "")) if isinstance(entry, dict) else 0
+            if picked and used + length > limit:
+                break
+            picked.append(entry)
+            used += length
+            if used >= limit:
+                break
+        return picked
+
+    before = pack(reversed(entries[:start]))
+    before.reverse()
+    return before, pack(entries[end:])
+
+
 def get_review_batching(generation_config):
     """Return (batch_size, target_chars): the one authority for review batching.
 
@@ -304,6 +384,12 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
     # same receipt identity as before this setting existed.
     if target_chars:
         identity['review_target_chars'] = target_chars
+    # The default (entries mode) already varies context_window in the identity
+    # above. Characters mode is new, so its keys are added only when selected.
+    context_mode, context_value = get_review_context_from_args(args)
+    if context_mode == CONTEXT_MODE_CHARS:
+        identity['context_mode'] = context_mode
+        identity['context_chars'] = context_value
     if source_text is not None or is_review_source_span_script(entries):
         identity['algorithm'] = REVIEW_SOURCE_SPAN_ALGORITHM_VERSION
         identity['review_source_sha256'] = (get_review_entries_fingerprint(source_text)
@@ -1956,6 +2042,8 @@ def main():
     parser = argparse.ArgumentParser(description="Review and fix annotated audiobook script")
     parser.add_argument("--context-window", type=int, default=0,
                         help="If > 0, review each entry with +/- N neighboring entries for better segmentation and speaker fixes")
+    parser.add_argument("--context-chars", type=int, default=0,
+                        help="If > 0, use whole neighbouring entries up to this many characters of entry text on each side (never splits an entry); overrides --context-window")
     parser.add_argument("--labels-only", action="store_true",
                         help="Experimental index-keyed review; preserve source text and boundaries")
     parser.add_argument("--force-review", action="store_true", help="Rerun an unchanged completed review")
@@ -1968,7 +2056,9 @@ def main():
     parser.add_argument("--remap-voice-config",
                         help="Path to a voice_config.json whose keys should follow renamed speakers")
     args = parser.parse_args()
-    startup_event('arguments_parsed', context_window=args.context_window, dedupe=args.dedupe_speakers, force=args.force_review)
+    context_mode, context_value = get_review_context_from_args(args)
+    startup_event('arguments_parsed', context_window=args.context_window, context_mode=context_mode,
+                  context_chars=context_value, dedupe=args.dedupe_speakers, force=args.force_review)
 
     # Locate the script to review (default: working annotated_script.json)
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2248,9 +2338,14 @@ def main():
     failed_sections = []
     vram_aborted = False
 
-    if args.context_window and args.context_window > 0:
-        window = max(1, args.context_window)
-        print(f"Contextual review mode enabled: batching ~{batch_size} entries per LLM call with +/-{window} neighbors")
+    contextual = (context_mode == CONTEXT_MODE_CHARS or
+                  (args.context_window and args.context_window > 0))
+    if contextual:
+        if context_mode == CONTEXT_MODE_CHARS:
+            print(f"Contextual review mode enabled: batching ~{batch_size} entries per LLM call with up to "
+                  f"{context_value} characters of neighbouring entry text on each side")
+        else:
+            print(f"Contextual review mode enabled: batching ~{batch_size} entries per LLM call with +/-{args.context_window} neighbors")
 
         num_remaining_batches = len(remaining_windows)
         total_batches = max(1, completed_batches + num_remaining_batches)
@@ -2263,8 +2358,8 @@ def main():
             batch_index = completed_batches + 1 + offset_idx
 
             batch = entries[start:end]
-            before = entries[max(0, start - window):start]
-            after = entries[end:min(len(entries), end + window)]
+            before, after = get_review_context_neighbors(
+                entries, start, end, context_mode, context_value)
 
             # Only this run's first check fails fast (#1114); later ones wait.
             if is_active_llm_on_this_gpu() and not wait_for_vram_headroom(fail_fast=offset_idx == 0):

@@ -4097,12 +4097,79 @@
         document.getElementById('btn-review-script').addEventListener('click', () => startReview());
         document.getElementById('btn-review-fresh').addEventListener('click', () => startReview(true));
 
-        function applyReviewContextWindow(field, minimum, defaultValue) {
+        // The toggle and the per-mode values persist the way this SPA remembers
+        // other review controls: in localStorage, behind try so a storage-blocked
+        // browser still gets a working toggle (test_ui_review_fixes enforces this).
+        const REVIEW_CONTEXT_STORAGE_KEY = 'alexandria.review-context';
+        function getReviewContextPreference() {
+            let stored = null;
+            try { stored = JSON.parse(localStorage.getItem(REVIEW_CONTEXT_STORAGE_KEY) || '{}'); } catch (error) { /* storage blocked or corrupt */ }
+            if (stored && typeof stored === 'object') { return stored; }
+            return {};
+        }
+        function saveReviewContextPreference(preference) {
+            try { localStorage.setItem(REVIEW_CONTEXT_STORAGE_KEY, JSON.stringify(preference)); } catch (error) { /* storage blocked */ }
+        }
+        function getReviewContextMode() {
+            const mode = getReviewContextPreference().mode;
+            return mode === 'chars' ? 'chars' : 'entries';
+        }
+        function getReviewContextValue(mode) {
+            const stored = getReviewContextPreference();
+            const fallback = mode === 'chars' ? 2000 : 4;
+            const raw = mode === 'chars' ? stored.chars : stored.entries;
+            const parsed = parseInt(raw, 10);
+            return Number.isFinite(parsed) ? parsed : fallback;
+        }
+        function renderReviewContextModeButton() {
+            const button = document.getElementById('btn-review-context-mode');
+            const field = document.getElementById('review-context-window');
+            const mode = getReviewContextMode();
+            const limit = mode === 'chars' ? 1000000 : 100;
+            if (field) {
+                field.max = String(limit);
+                field.value = String(getReviewContextValue(mode));
+            }
+            if (!button) { return; }
+            button.setAttribute('aria-pressed', mode === 'chars' ? 'true' : 'false');
+            if (mode === 'chars') {
+                button.textContent = t('script.review.context-mode.chars', 'Characters');
+                button.setAttribute('aria-label', t('script.review.context-mode.aria.chars',
+                    'Context measured in characters. Activate to switch to entries.'));
+            } else {
+                button.textContent = t('script.review.context-mode.entries', 'Entries');
+                button.setAttribute('aria-label', t('script.review.context-mode.aria.entries',
+                    'Context measured in entries. Activate to switch to characters.'));
+            }
+        }
+        function toggleReviewContextMode() {
+            const mode = getReviewContextMode();
+            const next = mode === 'chars' ? 'entries' : 'chars';
+            const preference = getReviewContextPreference();
+            const field = document.getElementById('review-context-window');
+            if (field) {
+                const parsed = parseInt(field.value, 10);
+                if (Number.isFinite(parsed)) { preference[mode] = parsed; }
+            }
+            preference.mode = next;
+            saveReviewContextPreference(preference);
+            renderReviewContextModeButton();
+        }
+
+        function applyReviewContextWindow(field, minimum, defaultValue, mode) {
+            const singleBook = mode === undefined;
+            const contextMode = mode || getReviewContextMode();
+            const limit = contextMode === 'chars' ? 1000000 : 100;
             const rawWindow = parseInt(field.value, 10);
-            const windowSize = Number.isFinite(rawWindow) ? Math.max(minimum, Math.min(rawWindow, 12)) : defaultValue;
+            const windowSize = Number.isFinite(rawWindow) ? Math.max(minimum, Math.min(rawWindow, limit)) : defaultValue;
             const corrected = !Number.isFinite(rawWindow) || Number(field.value) !== windowSize;
             field.value = String(windowSize);
-            if (corrected) { showToast(t('script.review.context-corrected', 'Context Window must be {minimum}–12; using {size}', {minimum, size: windowSize}), 'warning'); }
+            if (singleBook) {
+                const preference = getReviewContextPreference();
+                if (contextMode === 'chars') { preference.chars = windowSize; } else { preference.entries = windowSize; }
+                saveReviewContextPreference(preference);
+            }
+            if (corrected) { showToast(t('script.review.context-corrected', 'Context Window must be {minimum}–{maximum}; using {size}', {minimum, maximum: limit, size: windowSize}), 'warning'); }
             return windowSize;
         }
 
@@ -4111,10 +4178,12 @@
                 const restart = startOver ? await confirmReviewRestart() : {};
                 if (!restart) { return; }
                 if (!(await confirmIfRemote(t('core.remote.task.contextual-review', 'this contextual review'), true))) { return; }
-                const windowSize = applyReviewContextWindow(document.getElementById('review-context-window'), 1, 4);
+                const contextField = document.getElementById('review-context-window');
+                const windowSize = applyReviewContextWindow(contextField, 1, getReviewContextValue(getReviewContextMode()));
+                const contextMode = getReviewContextMode();
                 _disableReviewButtons(true);
                 _showReviewControls(true);
-                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked(), ...restart });
+                const result = await API.post('/api/review_script_contextual', { window_size: windowSize, context_mode: contextMode, dedupe_speakers: _isReviewDedupeChecked(), force_review: _isReviewForceChecked(), ...restart });
                 const estimateEl = document.getElementById('review-context-estimate');
                 if (estimateEl) {
                     estimateEl.innerText = result.estimated_calls
@@ -4129,6 +4198,8 @@
         }
         document.getElementById('btn-review-script-contextual').addEventListener('click', () => startContextualReview());
         document.getElementById('btn-review-contextual-fresh').addEventListener('click', () => startContextualReview(true));
+        document.getElementById('btn-review-context-mode').addEventListener('click', toggleReviewContextMode);
+        renderReviewContextModeButton();
 
         const _reviewPauseResume = _makePauseResumeHandler(
             '/api/review_script/pause', '/api/review_script/resume', 'btn-pause-review');
@@ -4283,7 +4354,7 @@
             }
             if (!(await confirmIfRemote(t('core.remote.task.batch-review', 'this batch review')))) { return; }
             reviewBatchSelected = names;
-            const contextWindow = applyReviewContextWindow(document.getElementById('review-batch-context-window'), 0, 0);
+            const contextWindow = applyReviewContextWindow(document.getElementById('review-batch-context-window'), 0, 0, 'entries');
 
             const startBtn = document.getElementById('btn-review-batch-start');
             const pauseBtn = document.getElementById('btn-pause-batch-review');
