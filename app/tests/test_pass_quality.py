@@ -58,8 +58,20 @@ class SegmentQualityTests(unittest.TestCase):
         ]:
             with self.subTest(source=source):
                 regions = analyze_outer_quote_regions(source)["regions"]
-                spoken = [row["text"] for row in regions if row["type"] == "SPOKEN"]
-                self.assertTrue(any(expected in row for row in spoken), regions)
+                self.assertEqual(
+                    [("NARRATOR", source.split(expected)[0].strip().strip('"“”„«» ').strip()),
+                     ("SPOKEN", expected),
+                     ("NARRATOR", source.split(expected)[1].strip().strip('"“”„«» ').strip())],
+                    [(row["type"], row["text"]) for row in regions])
+
+    def test_nested_english_inside_german_keeps_german_as_speech(self):
+        source = "Er sagte „He said “Hi” to me.“ und ging."
+        regions = analyze_outer_quote_regions(source)["regions"]
+        self.assertEqual(
+            [("NARRATOR", "Er sagte"),
+             ("SPOKEN", "He said Hi to me."),
+             ("NARRATOR", "und ging.")],
+            [(row["type"], row["text"]) for row in regions])
 
     def test_line_dash_dialogue_is_segmented_as_speech(self):
         source = "— Primera línea.\n\n— Segunda línea."

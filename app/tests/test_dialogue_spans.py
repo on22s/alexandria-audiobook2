@@ -254,6 +254,15 @@ class SpanTest(unittest.TestCase):
         self.assertEqual(20000, len(spoken_spans(source, "paired_quotes")))
         self.assertLess(time.monotonic() - started, 2.0)
 
+    def test_guillemet_closers_do_not_pair_as_openers(self):
+        # Both «…» and »…« are in PAIRED, but a text uses one direction. With
+        # single newlines the narration between speeches must stay narration.
+        for opener, closer in [('«', '»'), ('»', '«')]:
+            with self.subTest(opener=opener):
+                source = opener + "Bonjour" + closer + " then he left."
+                self.assertEqual(["Bonjour"],
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
     def test_guillemets_polish_and_danish_are_first_class_conventions(self):
         # French/Russian guillemets, Polish low-high and Danish reversed marks
         # must be detected and give every speech a spoken fact, not a narrator.
@@ -264,15 +273,19 @@ class SpanTest(unittest.TestCase):
                 self.assertEqual("paired_quotes", detect_convention(source))
                 self.assertEqual(6, len(spoken_spans(source, "paired_quotes")))
 
-    def test_a_book_that_only_reopens_nowhere_keeps_its_speech_map(self):
-        # A source that opens each speech once and closes it paragraphs later
-        # must not lose the whole map: the strict rule finds no pairs, so the
-        # detection safety valve falls back to the old bounded rule.
+    def test_a_book_that_only_reopens_nowhere_is_deliberately_refused(self):
+        # Documented trade-off: typography that opens a speech once and closes
+        # it paragraphs later, without re-opening the mark, cannot be told from
+        # a mis-pair swallowing narration. The strict rule refuses it; a bounded
+        # fallback was tried and reinstated exactly the swallow this rule bans,
+        # so the loss is accepted rather than repaired silently. The text is
+        # still surfaced by get_other_speech_spans for review.
         source = "\n\n".join(
             "“" + ("word " * 120) + "\n\n" + ("word " * 120) + ".” she said."
             for _ in range(6))
-        self.assertEqual(6, len(spoken_spans(source, "paired_quotes")))
-        self.assertEqual("paired_quotes", detect_convention(source))
+        self.assertEqual([], spoken_spans(source, "paired_quotes"))
+        self.assertIsNone(detect_convention(source))
+        self.assertTrue(get_other_speech_spans(source, "paired_quotes"))
 
     def test_a_german_quote_in_an_english_book_is_not_given_a_voice(self):
         # A sign or foreign term is secondary speech, not dialogue. German only

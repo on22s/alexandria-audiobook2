@@ -241,82 +241,22 @@ def _ambiguous_mark_roles(text):
 
 
 MIN_CONVENTION_PAIRS = 5
-# Only the legacy safety valve uses the old cap: a long pair may cross a break,
-# a short one may not. The strict rule asks a better question for normal books.
-MAX_CROSSING_CHARS = 2000
 
 
 def _paired_spans(text):
-    """Strict spans, with a safety valve for books the strict rule empties.
-
-    A source that opens each speech once and closes it paragraphs later has no
-    re-opened marks, so the strict rule finds nothing and detect_convention
-    returns None — the whole source map silently disappears. When strict
-    detection would find fewer than MIN_CONVENTION_PAIRS pairs, fall back to
-    the old bounded rule for that text and keep whichever finds more pairs.
-    """
-    strict = _paired_spans_strict(text)
-    if len(strict) >= MIN_CONVENTION_PAIRS:
-        return strict
-    # Only fall back when the marks are balanced: a chain of unclosed openers
-    # (the mushoku18 class) is unbalanced and must stay refused, even though
-    # the old bounded rule would pair it sequentially.
-    balanced = any(
-        (text.count(opener) == text.count(closer)
-         if opener != closer else text.count(opener) % 2 == 0)
-        and text.count(opener) > 0
-        for opener, closer in PAIRED)
-    total_marks = sum(text.count(mark) for pair in PAIRED for mark in pair)
-    # A real book has sparse dialogue marks; a chain of unclosed openers is
-    # dense and must stay refused even though it is numerically "balanced".
-    if not balanced or total_marks * 100 > len(text):
-        return strict
-    legacy = _legacy_paired_spans(text)
-    # Only rescue a book whose strict map is genuinely decimated — a couple
-    # of refused pairs in a short sample are the documented trade-off.
-    if len(legacy) >= MIN_CONVENTION_PAIRS and len(legacy) > len(strict) + 2:
-        return legacy
-    return strict
-
-
-def _legacy_paired_spans(text):
-    """The former bounded rule, kept only as the detection safety valve."""
-    spans = []
-    for opener, closer in PAIRED:
-        if opener == closer:
-            positions = [m.start() for m in re.finditer(re.escape(opener), text)]
-            pairs = zip(positions[0::2], positions[1::2])
-        else:
-            pairs = []
-            position = text.find(opener)
-            while position != -1:
-                end = text.find(closer, position + 1)
-                if end == -1:
-                    break
-                length = end - position - 1
-                crosses = 0 <= _next_blank_line(text, position + 1) < end - 1 \
-                    if length > MAX_CROSSING_CHARS else False
-                if length and not crosses:
-                    pairs.append((position, end))
-                    position = text.find(opener, end + 1)
-                else:
-                    position = text.find(opener, position + 1)
-        for start, end in pairs:
-            if end - start <= 1:
-                continue
-            if opener == closer:
-                # Straight quotes: the old rule refused any pair with a blank
-                # line, because marks are paired only by position.
-                if BLANK_LINE.search(text, start + 1, end - 1):
-                    continue
-            spans.append((start + 1, end))
-    return spans
-
-
-def _paired_spans_strict(text):
     spans = []
     german_ranges = []
     used_de = set()  # a `„` consumed by one closer convention is not reused
+    # A text uses one guillemet direction: `«…»` (French, Russian, ...) or
+    # `»…«` (Danish). Pairing both directions independently makes every closer
+    # an opener too and labels the narration between speeches as spoken.
+    first_open, first_close = text.find("«"), text.find("»")
+    if first_open != -1 and (first_close == -1 or first_open < first_close):
+        guillemet_opener = "«"
+    elif first_close != -1:
+        guillemet_opener = "»"
+    else:
+        guillemet_opener = None
     breaks = starts = None
     masks = {}
     # `“` closes „…“ but also opens “…”. Resolve each occurrence once, then skip
@@ -346,6 +286,8 @@ def _paired_spans_strict(text):
         return mask
 
     for opener, closer in PAIRED:
+        if opener in ("«", "»") and opener != guillemet_opener:
+            continue
         before = len(spans)
         if opener == closer:
             # Straight quotes cannot be told apart, so they can only be paired

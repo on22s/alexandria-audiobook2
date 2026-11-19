@@ -28,11 +28,11 @@ _QUOTE_CHARS = set(_DS_QUOTE_MARKS) | {'”'}
 # The marks analyze_outer_quote_regions opens a spoken region on; "does this
 # chunk contain any" is the question the quotes-only refusal asks.
 QUOTE_MARKS = tuple(dict.fromkeys(opener for opener, _closer in _PAIRED))
-_CURLY_AND_JAPANESE_OPEN = set(QUOTE_MARKS) - {'"', '＂'}
+_CURLY_AND_JAPANESE_OPEN = set(QUOTE_MARKS) - {'"', '＂', '«', '»'}
 # A finished sentence before a second opening quote marks a run-on quote (#624).
 _SENTENCE_END = set('.!?…。！？')
-_CURLY_AND_JAPANESE_CLOSE = {closer for _opener, closer in _PAIRED
-                             if closer not in ('"', '＂')} | {'”'}
+_CURLY_AND_JAPANESE_CLOSE = ({closer for _opener, closer in _PAIRED
+                              if closer not in ('"', '＂', '«', '»')} | {'”'})
 _SELF_PAIRED = {'"', '＂'}
 
 
@@ -79,8 +79,34 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     """
     regions, current, pending_source_label = [], [], None
     depth, saw_quote, repairs = initial_depth, bool(initial_depth), []
-    german_open = False  # `“` closes a German „…“ pair instead of opening English
+    open_stack = []  # `“` closes „…“ but opens “…”; track which mark is open
+    german_inner = False  # inside an English quote nested in a German speech
     skip_until = -1  # consumed by a line-dash dialogue region
+
+    # One guillemet direction per text: an opposite-direction closer must not
+    # be parsed as an opener (HIGH in the app-wide review).
+    first_open, first_close = text.find("«"), text.find("»")
+    if first_open != -1 and (first_close == -1 or first_open < first_close):
+        guillemet_open, guillemet_close = "«", "»"
+    elif first_close != -1:
+        guillemet_open, guillemet_close = "»", "«"
+    else:
+        guillemet_open = guillemet_close = None
+    openers = set(_CURLY_AND_JAPANESE_OPEN)
+    closers = set(_CURLY_AND_JAPANESE_CLOSE)
+    if guillemet_open:
+        openers.add(guillemet_open)
+        closers.add(guillemet_close)
+    # A dash-only book uses line dashes for dialogue; a book with any quote
+    # marks uses those and treats a stray dash as narration punctuation.
+    dash_is_dialogue = not any(mark in text for mark in QUOTE_MARKS)
+    quote_positions = [i for i, c in enumerate(text) if c in _QUOTE_CHARS]
+    quote_at = {i: c for i, c in enumerate(text) if c in _QUOTE_CHARS}
+
+    def next_quote_after(index):
+        from bisect import bisect_right
+        at = bisect_right(quote_positions, index)
+        return quote_at[quote_positions[at]] if at < len(quote_positions) else None
 
     def flush():
         nonlocal pending_source_label
@@ -96,7 +122,7 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     for index, char in enumerate(text):
         if index < skip_until:
             continue
-        if char in "—–" and (index == 0 or text[index - 1] == "\n"):
+        if dash_is_dialogue and char in "—–" and (index == 0 or text[index - 1] == "\n"):
             # Continental line-dash dialogue: the rest of this line is speech.
             flush()
             line_end = text.find("\n", index)
@@ -112,18 +138,23 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             flush()
             current.append(char)
             continue
-        if char == "“" and german_open:
-            # German low-high closes with `“`, the same mark English uses to
-            # open — without this the German speech is read backwards.
+        if char == "“" and open_stack and open_stack[-1] == "„":
+            # `“` closes German, but also opens English. If a `”` follows it
+            # next, this is an English quote nested inside the German speech.
+            if next_quote_after(index) == "”":
+                # An English quote nested in a German speech is decoration:
+                # neither mark changes the region depth.
+                german_inner = True
+                continue
             if depth == 1:
                 flush()
             depth -= 1
-            german_open = False
+            open_stack.pop()
             continue
-        if char in _CURLY_AND_JAPANESE_OPEN or char in _SELF_PAIRED:
+        if char in openers or char in _SELF_PAIRED:
             paragraph_start = text.rfind("\n\n", 0, index)
             paragraph_start = paragraph_start + 2 if paragraph_start >= 0 else 0
-        if char in _CURLY_AND_JAPANESE_OPEN:
+        if char in openers:
             # Source credits sometimes quote a chapter title. It is metadata,
             # not unattributed dialogue, and must remain narrator material.
             if depth == 0 and _is_metadata_paragraph(current):
@@ -157,11 +188,14 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                     depth += 1
             else:
                 depth += 1
-            if char == "„":
-                german_open = True
+            if char in ("„", "“") or char == guillemet_open:
+                open_stack.append(char)
             continue
-        if char in _CURLY_AND_JAPANESE_CLOSE and depth:
-            if char == '”' and depth == 1:
+        if german_inner and char == '”':
+            german_inner = False
+            continue
+        if char in closers and depth:
+            if char == '”' and depth == 1 and not german_inner:
                 paragraph_tail = text[index + 1:].split("\n\n", 1)[0]
                 next_close = paragraph_tail.find('”')
                 next_open = paragraph_tail.find('“')
@@ -169,6 +203,19 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                     # Stylized cries may use one opening mark and decorative
                     # closers between fragments: “Ha!”Haha!”Hahaha!”
                     continue
+            if char == '”' and open_stack and open_stack[-1] == '“':
+                # Close the nested English pair before continuing.
+                if depth == 1:
+                    flush()
+                depth -= 1
+                open_stack.pop()
+                continue
+            if char == guillemet_close and open_stack and open_stack[-1] == guillemet_open:
+                if depth == 1:
+                    flush()
+                depth -= 1
+                open_stack.pop()
+                continue
             if depth == 1:
                 flush()
             depth -= 1
