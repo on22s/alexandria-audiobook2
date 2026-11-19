@@ -202,6 +202,18 @@ class SpanTest(unittest.TestCase):
                 self.assertEqual([], spoken_spans(source, "paired_quotes"))
                 self.assertLess(time.monotonic() - started, 1.0)
 
+    def test_a_stray_german_opener_before_one_english_quote(self):
+        # With a single English quote there is no later “ to disambiguate, so
+        # the space before it identifies the stray `„`. Base gets this right.
+        for source, expected in [
+            ("„narrative words here “Real English.” end", "Real English."),
+            ("He paused. „what now. “Actual speech here.” she said.",
+             "Actual speech here."),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual([expected],
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
     def test_a_stray_german_opener_does_not_swallow_english_speech(self):
         # `„` is a stray mark here; both following “English” pairs are real
         # speech. Treating the first `“` as the German closer drops it and

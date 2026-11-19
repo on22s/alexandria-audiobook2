@@ -4785,6 +4785,7 @@
     , "tests.test_dialogue_spans.SpanTest.test_a_straight_pair_across_narration_is_still_refused"
     , "tests.test_dialogue_spans.SpanTest.test_a_straight_quote_inside_english_does_not_close_german"
     , "tests.test_dialogue_spans.SpanTest.test_a_stray_closer_after_german_speech_keeps_narration_out"
+    , "tests.test_dialogue_spans.SpanTest.test_a_stray_german_opener_before_one_english_quote"
     , "tests.test_dialogue_spans.SpanTest.test_a_stray_german_opener_does_not_swallow_english_speech"
     , "tests.test_dialogue_spans.SpanTest.test_an_english_opener_is_not_taken_for_a_german_closer"
     , "tests.test_dialogue_spans.SpanTest.test_an_inch_mark_before_a_dialogue_paragraph_does_not_start_the_span"

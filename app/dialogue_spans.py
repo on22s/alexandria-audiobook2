@@ -211,8 +211,13 @@ def _ambiguous_mark_roles(text):
                 stray = False
                 if after == len(quotes):
                     if de_stack:
-                        opener = de_stack[-1] + 1
-                        stray = opener >= len(text) or text[opener].isspace()
+                        # A space before `“` means the pending `„` was a stray
+                        # mark („ narration “Real speech.”); a real German
+                        # closer follows the speech text directly (da.“).
+                        stray = pos > 0 and text[pos - 1].isspace()
+                        if not stray:
+                            opener = de_stack[-1] + 1
+                            stray = opener >= len(text) or text[opener].isspace()
                         opens_english = stray
                     else:
                         opens_english = True
