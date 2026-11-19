@@ -254,7 +254,10 @@ class EditorAudioKeyingTests(unittest.TestCase):
         for key in MARKUP_KEYS:
             with self.subTest(key=key):
                 self.assertIn(f'data-i18n="{key}"', self.markup)
-        self.assertIn('data-i18n-attr="title:editor.toolbar.shortcuts.title"', self.markup)
+        # #2061 makes the shortcut hint a real control: the same title key now
+        # also supplies its aria-label. Both attributes stay keyed.
+        self.assertIn('data-i18n-attr="title:editor.toolbar.shortcuts.title,'
+                      'aria-label:editor.toolbar.shortcuts.title"', self.markup)
         self.assertIn(f'data-i18n-attr="placeholder:{PLACEHOLDER_KEY}"', self.markup)
         self.assertIn(f'data-i18n="{SAFETY_MARKUP_KEY}"', self.markup)
 
