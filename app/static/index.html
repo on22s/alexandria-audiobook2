@@ -2377,6 +2377,19 @@
                                 <div data-i18n="setup.prompts.review-target-chars.help" class="form-text">0 keeps the existing 25-entry batching. A positive value groups complete script entries until the next would exceed this limit, counting only entry text (not the prompt or extra context). An entry longer than the limit is sent alone. The model rewrites every entry it is sent, so its reply grows with this value: if the reply would exceed Max tokens / the output limit, that batch fails and keeps its original text. Consider raising Max tokens in Setup when you increase this.</div>
                             </div>
                             <div class="mb-3">
+                                <div class="row g-2 align-items-end mb-2">
+                                    <div class="col-md-6">
+                                        <label data-i18n="setup.prompts.review-prompt-preset-select.label" class="form-label mb-1" for="review-prompt-preset-select">Review prompt preset</label>
+                                        <select class="form-select" id="review-prompt-preset-select" aria-describedby="review-prompt-help"></select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <button data-i18n="setup.prompts.save-preset" data-i18n-attr="title:setup.prompts.title" type="button" class="btn btn-outline-primary btn-sm me-1" data-config-save-action onclick="savePassPromptPreset('review')" title="Also saves all other edited Setup settings">Save preset and Setup</button>
+                                        <button data-i18n="setup.prompts.delete-preset" type="button" class="btn btn-outline-danger btn-sm" data-config-save-action onclick="deletePassPromptPreset('review')">Delete preset and save Setup</button>
+                                    </div>
+                                </div>
+                                <div data-i18n="setup.prompts.review-prompt.help" class="form-text" id="review-prompt-help">Leave the preset at Default to use the checked-in review prompts. Custom user templates must keep {context} and {batch}. Labels-only review ignores these prompts, and switching presets makes an already-reviewed book review again.</div>
+                            </div>
+                            <div class="mb-3">
                                 <label data-i18n="setup.prompts.review-system-prompt.label" class="form-label" for="review-system-prompt">Review System Prompt</label>
                                 <textarea class="form-control font-monospace" id="review-system-prompt" rows="12" style="font-size: 0.85em;"></textarea>
                                 <div data-i18n="setup.prompts.review-system-prompt.help" class="form-text">Instructions for the LLM during the script review pass. Defines what errors to fix and how.</div>

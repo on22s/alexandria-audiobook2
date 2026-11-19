@@ -24,6 +24,7 @@ element('llm-url').value=context.llmProfiles.local.base_url;element('llm-model')
 function seed(){
  run("promptPresets=[{name:'michel2_full',builtin:true,system_prompt:'builtin S',user_prompt:'builtin U'},{name:'mine',system_prompt:'mine S',user_prompt:'mine U'}];renderPromptPresets(promptPresets,'mine');");
  for(const pass of ['pass1','pass3']){run(`passPromptDefaults.${pass}={system_prompt:'default S',user_prompt:'default U'};renderPassPromptPresets('${pass}',[{name:'mine',system_prompt:'mine S',user_prompt:'mine U'}],'mine');`);}
+ run("passPromptDefaults.review={system_prompt:'default S',user_prompt:'default {context} {batch}'};renderPassPromptPresets('review',[{name:'mine',system_prompt:'mine S',user_prompt:'mine {context} {batch}'}],'mine');");
 }
 function snapshot(){return run('JSON.stringify({promptPresets,activePromptPreset,passPromptPresets,activePassPromptPreset})');}
 (async()=>{
@@ -33,7 +34,7 @@ function snapshot(){return run('JSON.stringify({promptPresets,activePromptPreset
 class PromptPresetTransactionTests(unittest.TestCase):
     def test_pass_default_name_is_reserved_and_existing_collision_is_preserved(self):
         self.run_case(r'''
-mode='success';for(const pass of ['pass1','pass3']){
+mode='success';for(const pass of ['pass1','pass3','review']){
  seed();const old=[{name:'default',description:'legacy',system_prompt:'legacy S',user_prompt:'legacy U'},{name:'default (user)',system_prompt:'other S',user_prompt:'other U'}];
  context.old=old;run(`renderPassPromptPresets('${pass}',old,'default')`);
  assert.strictEqual(element(pass+'-system-prompt').value,'legacy S');
@@ -82,7 +83,7 @@ const good=context.window.previewAttributionPrompt();pending.at(-1).resolve(repl
     def test_user_switch_preserves_edits_until_unchanged_approval(self):
         self.run_case(r"""
 let completed=false;process.on('beforeExit',()=>assert(completed,'switch assertions must finish'));
-for(const pass of ['attribution','pass1','pass3']){
+for(const pass of ['attribution','pass1','pass3','review']){
  for(const outcome of ['cancel','approve','editor','cache','defaults','error']){
   if(pass==='attribution'&&outcome==='defaults'){continue;}
   seed();const attribution=pass==='attribution',select=element(attribution?'prompt-preset-select':pass+'-prompt-preset-select'),field=element(attribution?'system-prompt':pass+'-system-prompt');
@@ -107,8 +108,8 @@ assert.strictEqual(posts.length,0);completed=true;
 
     def test_save_dialog_cancel_or_changed_prompt_cannot_write(self):
         self.run_case(r'''
-mode='success';for(const pass of ['attribution','pass1','pass3']){for(const change of ['cancel','editor','selection','cache']){
-seed();let answer,options;context.showPresetEditor=value=>{options=value;return new Promise(resolve=>answer=resolve);};const count=posts.length;const save=pass==='attribution'?context.window.savePromptPreset():context.window.savePassPromptPreset(pass);assert(options.title.includes(pass==='attribution'?'attribution':pass==='pass1'?'Step 1':'Step 3'));assert.strictEqual(options.name,'mine');
+mode='success';for(const pass of ['attribution','pass1','pass3','review']){for(const change of ['cancel','editor','selection','cache']){
+seed();let answer,options;context.showPresetEditor=value=>{options=value;return new Promise(resolve=>answer=resolve);};const count=posts.length;const save=pass==='attribution'?context.window.savePromptPreset():context.window.savePassPromptPreset(pass);assert(options.title.includes(pass==='attribution'?'attribution':pass==='pass1'?'Step 1':pass==='review'?'review':'Step 3'));assert.strictEqual(options.name,'mine');
 if(change==='editor'){element(pass==='attribution'?'system-prompt':pass+'-system-prompt').value='later edit';}else if(change==='selection'){if(pass==='attribution'){element('prompt-preset-select').value='0';run('applyPromptPreset(0)');}else{run(`applyPassPromptPreset('${pass}',-1)`);}}else if(change==='cache'){run(pass==='attribution'?'promptPresets.push({name:"added"})':`passPromptPresets.${pass}.push({name:'added'})`);}
 const after=snapshot();answer(change==='cancel'?null:{name:'new',description:'description'});await save;assert.strictEqual(posts.length,count);assert.strictEqual(snapshot(),after);if(change==='editor'){assert.strictEqual(element(pass==='attribution'?'system-prompt':pass+'-system-prompt').value,'later edit');}
 }}
@@ -117,7 +118,7 @@ seed();context.showPresetEditor=async options=>{assert(options.validateName('mic
 
     def test_delete_confirmation_cancellation_and_stale_editor_do_not_write(self):
         self.run_case(r'''
-mode='success';for(const pass of ['attribution','pass1','pass3']){for(const change of ['cancel','editor','selection','cache']){
+mode='success';for(const pass of ['attribution','pass1','pass3','review']){for(const change of ['cancel','editor','selection','cache']){
 seed();let answer;const messages=[];context.showConfirm=message=>{messages.push(message);return new Promise(resolve=>answer=resolve);};const remove=()=>pass==='attribution'?context.window.deletePromptPreset():context.window.deletePassPromptPreset(pass);const count=posts.length;const pending=remove();await remove();assert.strictEqual(messages.length,1);assert(messages[0].includes('mine'));assert(messages[0].includes(pass==='attribution'?'michel2_full':'checked-in default'));
 if(change==='editor'){element(pass==='attribution'?'system-prompt':pass+'-system-prompt').value='later edit';}else if(change==='selection'){if(pass==='attribution'){element('prompt-preset-select').value='0';run('applyPromptPreset(0)');}else{run(`applyPassPromptPreset('${pass}',-1)`);}}else if(change==='cache'){run(pass==='attribution'?'promptPresets.push({name:"added"})':`passPromptPresets.${pass}.push({name:'added'})`);}
 const after=snapshot();answer(change!=='cancel');await pending;assert.strictEqual(posts.length,count);assert.strictEqual(snapshot(),after);if(change==='editor'){assert.strictEqual(element(pass==='attribution'?'system-prompt':pass+'-system-prompt').value,'later edit');}
@@ -132,11 +133,11 @@ context.showConfirm=async()=>true;seed();await context.window.deletePassPromptPr
 
     def test_all_saves_and_deletes_retain_cache_and_editor_text_on_failure(self):
         self.run_case(r'''
-for(const [action,pass] of [['save','attribution'],['delete','attribution'],['save','pass1'],['delete','pass1'],['save','pass3'],['delete','pass3']]){
+for(const [action,pass] of [['save','attribution'],['delete','attribution'],['save','pass1'],['delete','pass1'],['save','pass3'],['delete','pass3'],['save','review'],['delete','review']]){
  seed();const id=pass==='attribution'?'system-prompt':pass+'-system-prompt';element(id).value='unsaved editor text';const before=snapshot(),errors=toasts.length;
  if(pass==='attribution'){await context.window[action==='save'?'savePromptPreset':'deletePromptPreset']();}else{await context.window[action==='save'?'savePassPromptPreset':'deletePassPromptPreset'](pass);}
  assert.strictEqual(snapshot(),before,action+' '+pass+' cannot publish rejected cache mutation');assert.strictEqual(element(id).value,'unsaved editor text');assert.strictEqual(toasts.length,errors+1);assert.strictEqual(toasts.at(-1)[1],'error');assert.strictEqual(persisted,null);
- const next=context.buildConfigPayload(2);assert(!next.prompt_presets.some(p=>p.name==='new'));assert(!next.prompts.pass1_prompt_presets.some(p=>p.name==='new'));assert(!next.prompts.pass3_prompt_presets.some(p=>p.name==='new'));
+ const next=context.buildConfigPayload(2);assert(!next.prompt_presets.some(p=>p.name==='new'));assert(!next.prompts.pass1_prompt_presets.some(p=>p.name==='new'));assert(!next.prompts.pass3_prompt_presets.some(p=>p.name==='new'));assert(!next.prompts.review_prompt_presets.some(p=>p.name==='new'));
 }
 ''')
 

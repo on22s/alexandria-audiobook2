@@ -4152,6 +4152,21 @@
             "title": "Review Labels Only",
             "type": "boolean"
           },
+          "review_preset": {
+            "default": "default",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Review Preset",
+            "type": "string"
+          },
+          "review_prompt_presets": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewPromptPreset"
+            },
+            "maxItems": 50,
+            "title": "Review Prompt Presets",
+            "type": "array"
+          },
           "review_system_prompt": {
             "anyOf": [
               {
@@ -4888,6 +4903,40 @@
           "run_id"
         ],
         "title": "ReportExplanationCancelRequest",
+        "type": "object"
+      },
+      "ReviewPromptPreset": {
+        "description": "Review pass texts; the user template must fill context and batch.",
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "system_prompt": {
+            "default": "",
+            "maxLength": 100000,
+            "title": "System Prompt",
+            "type": "string"
+          },
+          "user_prompt": {
+            "default": "",
+            "maxLength": 100000,
+            "title": "User Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ReviewPromptPreset",
         "type": "object"
       },
       "ReviewRequest": {

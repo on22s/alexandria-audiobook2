@@ -1,9 +1,23 @@
 import os
 
+from experimental_prompts import get_template_fields
 from prompt_loader import load_prompts_file
 
 _PROMPTS_FILE = os.path.join(os.path.dirname(__file__), "..", "review_prompts.txt")
 _prompt_cache = {"prompts": None}
+REVIEW_TEMPLATE_FIELDS = ("context", "batch")
+
+
+def validate_review_template(template):
+    """Require both payloads the review pass fills in a saved user prompt."""
+    fields = get_template_fields(template, "Review")
+    for name in fields:
+        if name not in REVIEW_TEMPLATE_FIELDS:
+            raise ValueError("Review user prompt allows only {context} and {batch}, without formatting")
+    for field in REVIEW_TEMPLATE_FIELDS:
+        if field not in fields:
+            raise ValueError(f"Review user prompt needs the {{{field}}} payload")
+    return template
 
 
 def load_review_prompts():

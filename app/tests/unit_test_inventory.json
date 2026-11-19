@@ -12147,6 +12147,25 @@
     , "tests.test_review_partial_retention.TypedMetadataMergeTests.test_int_and_bool_spoken_values_do_not_merge"
     , "tests.test_review_partial_retention.TypedMetadataMergeTests.test_matching_bool_spoken_values_merge_and_keep_bool"
   ]
+  , "test_review_preset_js": [
+    "tests.test_review_preset_js.ReviewPresetJsTests.test_failed_write_keeps_review_cache_and_editor_text"
+    , "tests.test_review_preset_js.ReviewPresetJsTests.test_render_switch_to_default_and_edit_detection"
+    , "tests.test_review_preset_js.ReviewPresetJsTests.test_save_and_delete_write_the_config_fields_review_script_reads"
+  ]
+  , "test_review_preset_upgrade_js": [
+    "tests.test_review_preset_upgrade_js.ReviewPresetUpgradeJsTests.test_absent_or_null_review_text_uses_checked_in_without_false_edited"
+    , "tests.test_review_preset_upgrade_js.ReviewPresetUpgradeJsTests.test_absent_text_when_defaults_were_loaded_before_render"
+    , "tests.test_review_preset_upgrade_js.ReviewPresetUpgradeJsTests.test_custom_review_text_survives_load_and_default_restores_checked_in"
+    , "tests.test_review_preset_upgrade_js.ReviewPresetUpgradeJsTests.test_custom_text_when_defaults_were_loaded_before_render"
+  ]
+  , "test_review_prompt_presets": [
+    "tests.test_review_prompt_presets.ReviewPresetApiTests.test_default_review_prompts_are_the_checked_in_ones"
+    , "tests.test_review_prompt_presets.ReviewPresetApiTests.test_get_config_returns_review_presets_alongside_other_passes"
+    , "tests.test_review_prompt_presets.ReviewPresetApiTests.test_save_persists_review_presets_and_refuses_missing_placeholders"
+    , "tests.test_review_prompt_presets.ReviewPresetModelTests.test_config_accepts_and_round_trips_review_presets"
+    , "tests.test_review_prompt_presets.ReviewPresetModelTests.test_missing_or_unknown_placeholders_are_refused_with_a_clear_message"
+    , "tests.test_review_prompt_presets.ReviewPresetModelTests.test_old_configs_load_unchanged_and_default_to_default"
+  ]
   , "test_review_source_binding": [
     "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_annotationless_and_clearing_replies_still_report_unresolved_metadata"
     , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_cli_publishes_the_new_speaker_split_with_its_explicit_annotations"

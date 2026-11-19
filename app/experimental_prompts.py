@@ -6,16 +6,28 @@ EXPERIMENTAL_PROMPT_FIELDS = {
 }
 
 
-def validate_experimental_template(template, field):
-    """Require one complete payload, with no field traversal or format conversion."""
+def get_template_fields(template, label):
+    """List the plain format fields in a prompt template.
+
+    Shared by every strict preset validator so passes disagree only on which
+    placeholders they allow, not on how a template is parsed (Rule 15).
+    """
     if not isinstance(template, str) or not template.strip() or len(template) > 100_000:
-        raise ValueError("Experimental user prompt must contain 1 to 100000 characters")
+        raise ValueError(f"{label} user prompt must contain 1 to 100000 characters")
     fields = []
     for _, name, spec, conversion in Formatter().parse(template):
         if name is not None:
-            if name != field or spec or conversion:
-                raise ValueError(f"Experimental user prompt allows only {{{field}}}, without formatting")
+            if spec or conversion:
+                raise ValueError(f"{label} user prompt allows only plain placeholders, without formatting")
             fields.append(name)
+    return fields
+
+
+def validate_experimental_template(template, field):
+    """Require one complete payload, with no field traversal or format conversion."""
+    fields = get_template_fields(template, "Experimental")
+    if any(name != field for name in fields):
+        raise ValueError(f"Experimental user prompt allows only {{{field}}}, without formatting")
     if fields != [field]:
         raise ValueError(f"Experimental user prompt needs exactly one {{{field}}} payload")
     return template
