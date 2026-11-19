@@ -697,6 +697,7 @@
             'btn-review-contextual-fresh': 'Discards saved review progress and starts contextual review at batch 1 after confirmation. Keeps the current script, source, accepted corrections and user edits.',
             'btn-review-batch-fresh': 'Discards saved review progress for selected books and starts at batch 1 after confirmation. Keeps each current script, source, accepted corrections and user edits.',
             'btn-review-script-contextual': 'Review script entries with surrounding context using the selected context-window setting.',
+            'btn-review-context-mode': 'Switch the contextual-review window between whole entries and characters of entry text; each mode keeps its own value.',
             'speaker-review-load': 'Refresh available label-review sources and saved references.',
             'speaker-review-preview': 'Preview speaker-label disagreements and the excerpts that a review would send to the model.',
             'speaker-review-start': 'Start the previewed speaker-label review after the required source/reference consent.',

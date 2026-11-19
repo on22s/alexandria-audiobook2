@@ -6495,5 +6495,6 @@
   "script.review.context-mode.aria.chars": "Contexto medido en caracteres. Actívelo para cambiar a entradas.",
   "script.review.context-mode.aria.entries": "Contexto medido en entradas. Actívelo para cambiar a caracteres.",
   "script.review.context-mode.chars": "Caracteres",
-  "script.review.context-mode.entries": "Entradas"
+  "script.review.context-mode.entries": "Entradas",
+  "help.item.btn-review-context-mode": "Cambia la ventana de contexto de la revisión entre entradas completas y caracteres de texto; cada modo conserva su propio valor."
 }

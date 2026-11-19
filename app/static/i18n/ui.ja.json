@@ -6495,5 +6495,6 @@
   "script.review.context-mode.aria.chars": "コンテキストは文字数で測定中。有効化するとエントリ数に切り替わります。",
   "script.review.context-mode.aria.entries": "コンテキストはエントリ数で測定中。有効化すると文字数に切り替わります。",
   "script.review.context-mode.chars": "文字",
-  "script.review.context-mode.entries": "エントリ"
+  "script.review.context-mode.entries": "エントリ",
+  "help.item.btn-review-context-mode": "コンテキスト付き確認の幅を、完全なエントリ数と本文の文字数の間で切り替えます。各モードは独自の値を保持します。"
 }

@@ -2494,6 +2494,7 @@
   "help.item.btn-gen-script-fresh": "Discard saved generation progress for this text and start again from its first chunk.",
   "help.item.btn-merge": "Merge generated chunk audio into the combined output using the configured pauses.",
   "help.item.btn-review-batch-fresh": "Discards saved review progress for selected books and starts at batch 1 after confirmation. Keeps each current script, source, accepted corrections and user edits.",
+  "help.item.btn-review-context-mode": "Switch the contextual-review window between whole entries and characters of entry text; each mode keeps its own value.",
   "help.item.btn-review-contextual-fresh": "Discards saved review progress and starts contextual review at batch 1 after confirmation. Keeps the current script, source, accepted corrections and user edits.",
   "help.item.btn-review-fresh": "Discards saved review progress and starts at batch 1 after confirmation. Keeps the current script, source, accepted corrections and user edits.",
   "help.item.btn-review-script": "Review the current annotated script with the configured model and review settings.",

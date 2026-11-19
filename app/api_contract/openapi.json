@@ -1887,6 +1887,15 @@
             ],
             "title": "Book Token"
           },
+          "context_mode": {
+            "default": "entries",
+            "enum": [
+              "entries",
+              "chars"
+            ],
+            "title": "Context Mode",
+            "type": "string"
+          },
           "dedupe_speakers": {
             "default": true,
             "title": "Dedupe Speakers",

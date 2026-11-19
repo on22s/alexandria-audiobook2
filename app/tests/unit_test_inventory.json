@@ -3908,6 +3908,23 @@
     , "tests.test_content_selection_numbers.ContentSelectionNumberTests.test_invalid_indices_raise_value_error_before_set_arithmetic_or_input_mutation"
     , "tests.test_content_selection_numbers.ContentSelectionNumberTests.test_valid_json_integers_preserve_selected_repair_and_exact_original_backup"
   ]
+  , "test_contextual_review_chars": [
+    "tests.test_contextual_review_chars.ContextIdentityTests.test_default_identity_and_fingerprint_are_unchanged"
+    , "tests.test_contextual_review_chars.ContextIdentityTests.test_mode_and_value_change_the_fingerprint"
+    , "tests.test_contextual_review_chars.ContextIdentityTests.test_resume_with_a_different_context_setting_is_refused"
+    , "tests.test_contextual_review_chars.ContextNeighborTests.test_characters_mode_packs_whole_entries_nearest_first_per_side"
+    , "tests.test_contextual_review_chars.ContextNeighborTests.test_each_side_is_independent_and_book_edges_are_safe"
+    , "tests.test_contextual_review_chars.ContextNeighborTests.test_entries_mode_reproduces_the_old_slices_exactly"
+    , "tests.test_contextual_review_chars.ContextNeighborTests.test_single_oversize_neighbour_is_included_then_accumulation_stops"
+    , "tests.test_contextual_review_chars.ContextNeighborTests.test_text_only_and_non_dict_entries_do_not_crash"
+    , "tests.test_contextual_review_chars.ContextRouteTests.test_batch_route_uses_the_same_entry_cap"
+    , "tests.test_contextual_review_chars.ContextRouteTests.test_characters_mode_reaches_the_cli_with_context_chars"
+    , "tests.test_contextual_review_chars.ContextRouteTests.test_default_and_out_of_range_values_use_the_one_validator"
+    , "tests.test_contextual_review_chars.ContextValidatorTests.test_batch_minimum_zero_is_preserved_and_non_integers_are_refused"
+    , "tests.test_contextual_review_chars.ContextValidatorTests.test_characters_mode_clamps_to_one_million"
+    , "tests.test_contextual_review_chars.ContextValidatorTests.test_cli_args_default_to_entries_and_honour_characters"
+    , "tests.test_contextual_review_chars.ContextValidatorTests.test_entries_mode_keeps_old_default_and_clamps_to_one_hundred"
+  ]
   , "test_contextual_review_estimate": [
     "tests.test_contextual_review_estimate.ContextualReviewEstimateTests.test_window_is_neighbor_context_and_does_not_partition_the_target_batch"
   ]
@@ -12001,7 +12018,7 @@
     , "tests.test_review_checkpoint_summary.ReviewCheckpointWriteLockTests.test_publication_failure_preserves_old_checkpoint_and_releases_lock"
   ]
   , "test_review_context_correction_js": [
-    "tests.test_review_context_correction_js.ReviewContextCorrectionJsTests.test_native_requests_use_visible_correction"
+    "tests.test_review_context_correction_js.ReviewContextCorrectionJsTests.test_native_requests_use_visible_correction_and_toggle"
   ]
   , "test_review_decision_recovery": [
     "tests.test_review_decision_recovery.ReviewDecisionRecoveryTests.test_changed_or_null_original_session_is_never_treated_as_consumed"

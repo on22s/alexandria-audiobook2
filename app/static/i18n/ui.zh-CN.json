@@ -6495,5 +6495,6 @@
   "script.review.context-mode.aria.chars": "当前按字符数计量上下文。激活可切换为按条目数。",
   "script.review.context-mode.aria.entries": "当前按条目数计量上下文。激活可切换为按字符数。",
   "script.review.context-mode.chars": "字符",
-  "script.review.context-mode.entries": "条目"
+  "script.review.context-mode.entries": "条目",
+  "help.item.btn-review-context-mode": "在完整条目数与条目正文字符数之间切换上下文审阅的窗口；每种模式各自保留其设置值。"
 }

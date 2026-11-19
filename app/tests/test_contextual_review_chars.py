@@ -152,8 +152,9 @@ class ContextIdentityTests(unittest.TestCase):
     def test_mode_and_value_change_the_fingerprint(self):
         baseline = fingerprint_for(args_for())
         self.assertNotEqual(baseline, fingerprint_for(args_for(7)), 'entry count is identity')
-        self.assertNotEqual(baseline, fingerprint_for(args_for(0, 2000)), 'characters mode is identity')
-        self.assertNotEqual(fingerprint_for(args_for(0, 2000)), fingerprint_for(args_for(0, 2001)))
+        # Same window value, only the mode differs: main ignored context_chars.
+        self.assertNotEqual(baseline, fingerprint_for(args_for(4, 2000)), 'characters mode is identity')
+        self.assertNotEqual(fingerprint_for(args_for(4, 2000)), fingerprint_for(args_for(4, 2001)))
 
     def test_resume_with_a_different_context_setting_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -167,7 +168,7 @@ class ContextIdentityTests(unittest.TestCase):
             self.assertIsNotNone(review_script.load_checkpoint(output, 2, 25, 4,
                 entries, execution_sha256=baseline))
             resumed = review_script.load_checkpoint(output, 2, 25, 4, entries,
-                execution_sha256=fingerprint_for(args_for(0, 2000)))
+                execution_sha256=fingerprint_for(args_for(4, 2000)))
             self.assertIsNone(resumed, 'switching mode must refuse the old checkpoint')
 
 

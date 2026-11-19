@@ -4102,10 +4102,9 @@
         // browser still gets a working toggle (test_ui_review_fixes enforces this).
         const REVIEW_CONTEXT_STORAGE_KEY = 'alexandria.review-context';
         function getReviewContextPreference() {
-            try {
-                const stored = JSON.parse(localStorage.getItem(REVIEW_CONTEXT_STORAGE_KEY) || '{}');
-                if (stored && typeof stored === 'object') { return stored; }
-            } catch (error) { /* storage blocked or corrupt */ }
+            let stored = null;
+            try { stored = JSON.parse(localStorage.getItem(REVIEW_CONTEXT_STORAGE_KEY) || '{}'); } catch (error) { /* storage blocked or corrupt */ }
+            if (stored && typeof stored === 'object') { return stored; }
             return {};
         }
         function saveReviewContextPreference(preference) {
