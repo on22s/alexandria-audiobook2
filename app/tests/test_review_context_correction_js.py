@@ -47,6 +47,8 @@ const run=async()=>{await handler();};
  }
  assert.strictEqual(el('btn-review-context-mode').getAttribute('aria-pressed'),'false');
  assert.strictEqual(el('btn-review-context-mode').textContent,'Entries');
+ assert.strictEqual(el('review-contextual-label').textContent,'Contextual Review (+/- N entries)');
+ assert.strictEqual(el('review-context-window').max,'100','the field max comes from the entries table');
 
  // An empty field falls back to this mode's remembered value, not a hard-coded 4.
  el('review-context-window').value='7';await run();
@@ -56,6 +58,7 @@ const run=async()=>{await handler();};
  // Toggle to characters: button state, field value/limit, and sent mode.
  handlers['btn-review-context-mode']();
  assert.strictEqual(el('btn-review-context-mode').textContent,'Characters');
+ assert.strictEqual(el('review-contextual-label').textContent,'Contextual Review (+/- N characters)');
  assert.strictEqual(el('btn-review-context-mode').getAttribute('aria-pressed'),'true');
  assert.strictEqual(el('review-context-window').value,'2000','characters mode starts at its own default');
  assert.strictEqual(el('review-context-window').max,'1000000');

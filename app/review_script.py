@@ -342,6 +342,14 @@ def get_review_entry_windows(entries, generation_config):
             for window in iter_entry_windows(entries, batch_size, target_chars)]
 
 
+class ReviewResumeMisaligned(ValueError):
+    """A saved review offset is not a batch boundary for the current settings.
+
+    The status UI needs a machine-readable reason to offer Start over; deriving
+    it from the exception message would drift as soon as the wording changes.
+    """
+
+
 def get_review_remaining_windows(review_windows, entries, resume_offset):
     """Return the windows a resumed review still owes, never losing entries.
 
@@ -354,7 +362,7 @@ def get_review_remaining_windows(review_windows, entries, resume_offset):
     """
     if (0 < resume_offset < len(entries)
             and resume_offset not in {start for start, _ in review_windows}):
-        raise ValueError(
+        raise ReviewResumeMisaligned(
             f"Review checkpoint resumes at entry {resume_offset + 1}, which is not a "
             f"batch boundary for the current review settings. Entries cannot be mapped "
             f"safely to requests; start the review over instead of resuming it.")
@@ -2063,6 +2071,30 @@ def _emit_json_marker(marker, payload):
     print(f"{marker}: {json.dumps(payload)}")
 
 
+REVIEW_FAILURE_MARKER = 'REVIEW_FAILURE_JSON'
+RESUME_MISALIGNED_KIND = 'resume_misaligned'
+
+
+def get_review_failure_message(error):
+    """Return the first line of a fatal error as plain, user-facing text."""
+    return (str(error).strip().splitlines() or [''])[0]
+
+
+def emit_review_failure(error):
+    """Emit the first line of any fatal review error for the runner to surface.
+
+    The marker is ASCII-only through _emit_json_marker, so it survives a Windows
+    ANSI stdout pipe, and it is parsed by core.run_process for every review task
+    (single, contextual and per-book batch). Only the misaligned-resume refusal
+    carries a kind; every other failure stays kindless, so the UI never has to
+    guess remediation from the wording of a message.
+    """
+    payload = {'message': get_review_failure_message(error)}
+    if isinstance(error, ReviewResumeMisaligned):
+        payload['kind'] = RESUME_MISALIGNED_KIND
+    _emit_json_marker(REVIEW_FAILURE_MARKER, payload)
+
+
 def main():
     ensure_review_not_cancelled()
     parser = argparse.ArgumentParser(description="Review and fix annotated audiobook script")
@@ -2836,5 +2868,10 @@ if __name__ == "__main__":
         main()
     except SystemExit as error:
         startup_event('cli_finished' if error.code in (0, None) else 'cli_failed', exit_code=error.code)
+        if error.code not in (0, None):
+            emit_review_failure(f"Review stopped with exit code {error.code}.")
+        raise
+    except BaseException as error:
+        emit_review_failure(error)
         raise
     startup_event('cli_finished')

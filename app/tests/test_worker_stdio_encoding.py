@@ -138,6 +138,13 @@ class ReviewMarkerTests(unittest.TestCase):
         self.assertFalse(parsed["checkpoint_retained"])
         self.assertEqual(2, parsed["retry_from_batch"])
 
+    def test_review_failure_marker_round_trips_non_ansi_text(self):
+        """A fatal review message is ASCII on the wire and exact in the parser."""
+        message = f"Checkpoint write failed {JAPANESE} {ANSI_BULLET}; start the review over"
+        line = self._emit("REVIEW_FAILURE_JSON", {"message": message})
+        line.encode("ascii")
+        self.assertEqual(message, core._extract_review_failure([line])['message'])
+
     def test_review_script_prints_every_marker_through_the_helper(self):
         """The call sites, not just the helper: a marker printed with
         ensure_ascii=False would be unsafe again on a cp1252 stdout, and a new
@@ -146,6 +153,8 @@ class ReviewMarkerTests(unittest.TestCase):
             encoding="utf-8")
         self.assertIn("_emit_json_marker('FAILED_SECTIONS_JSON', failure_details)", source)
         self.assertIn("_emit_json_marker('DIFF_PREVIEW_JSON', diff_highlights)", source)
+        self.assertIn("REVIEW_FAILURE_MARKER = 'REVIEW_FAILURE_JSON'", source)
+        self.assertIn("_emit_json_marker(REVIEW_FAILURE_MARKER,", source)
         self.assertNotIn("json.dumps(failure_details, ensure_ascii=False)", source)
         self.assertNotIn("json.dumps(diff_highlights, ensure_ascii=False)", source)
 

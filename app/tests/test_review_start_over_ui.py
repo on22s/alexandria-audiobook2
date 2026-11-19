@@ -127,6 +127,91 @@ const showActionError = () => {};
                                 capture_output=True, text=True, timeout=30)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
+    def test_failure_message_reaches_the_panel_and_only_resume_refusal_offers_start_over(self):
+        """A fatal review's first-line message must be the panel text; only the
+        resume refusal may reveal the existing Start over control."""
+        source = (STATIC / 'js' / 'app-core.js').read_text(encoding='utf-8')
+        failed = source[source.index('        function isTaskFailed(status) {'):
+                        source.index('        // --- Desktop notifications ---')]
+        done = source[source.index('        function _onReviewDone(status) {'):
+                      source.index('        async function startReview(')]
+        harness = r'''
+const assert = require('assert');
+const nodes = new Map();
+const document = {getElementById(id) {
+  if (!nodes.has(id)) { nodes.set(id, {style: {}, innerHTML: '', textContent: '', title: ''}); }
+  return nodes.get(id);
+}};
+const escapeHtml = String;
+const t = (key, fallback, values = {}) => Object.entries(values).reduce(
+  (text, [name, value]) => text.replaceAll('{' + name + '}', value), fallback);
+const refreshReviewRestart = () => {};
+const _showReviewControls = () => {};
+const _disableReviewButtons = () => {};
+'''
+        checks = r'''
+const resume = 'Saved checkpoint no longer matches this batching.';
+const panel = document.getElementById('review-recovery-panel');
+const fresh = document.getElementById('btn-review-contextual-fresh');
+const plainFresh = document.getElementById('btn-review-fresh');
+_onReviewDone({status: 'failed', logs: ['Task review failed with return code 1.'],
+  failure_message: resume, failure_kind: 'resume_misaligned'});
+assert.equal(panel.style.display, '');
+assert(panel.innerHTML.includes(resume), 'the failure message, not the generic last log, is shown');
+assert.equal(fresh.style.display, '', 'the kind offers Start over even with unrelated wording');
+assert.equal(plainFresh.style.display, '', 'the plain review Start over is offered too');
+
+panel.innerHTML = ''; fresh.style.display = 'none'; plainFresh.style.display = 'none';
+_onReviewDone({status: 'failed', logs: ['Task review failed with return code 1.'],
+  failure_message: 'Please start the review over: checkpoint write failed'});
+assert(panel.innerHTML.includes('checkpoint write failed'));
+assert.equal(fresh.style.display, 'none', 'old English wording alone must not offer Start over');
+assert.equal(plainFresh.style.display, 'none');
+
+panel.innerHTML = '';
+_onReviewDone({status: 'failed', logs: ['Task review failed with return code 1.'],
+  failure_message: 'disk full', failure_kind: 'write_failed'});
+assert.equal(fresh.style.display, 'none', 'an unrelated kind must not offer Start over');
+panel.innerHTML = '';
+_onReviewDone({status: 'failed', logs: ['Task review failed with return code 1.']});
+assert(panel.innerHTML.includes('Task review failed with return code 1.'), 'the last log remains the fallback');
+'''
+        result = subprocess.run(['node', '-e', harness + failed + '\n' + done + '\n' + checks],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_batch_status_row_shows_each_book_failure_message(self):
+        """Per-book fatal messages are plain text in that book's status row."""
+        source = (STATIC / 'js' / 'app-core.js').read_text(encoding='utf-8')
+        body = source[source.index('        function pollReviewBatch() {'):
+                      source.index('        // --- Persona Generation ---')]
+        harness = r'''
+const assert = require('assert');
+let tick;
+const statusCell = {innerHTML: '', title: '', insertAdjacentText(position, text) { this.innerHTML += text; }};
+const document = {getElementById: id => id === 'rb-status-book' ? statusCell : {style: {}}, querySelector: () => ({id: 'rb-check-book'})};
+const CSS = {escape: value => value};
+const createTaskLogRenderer = () => () => {};
+const _startPolling = (task, fetch, options) => { tick = options.onTick; };
+const syncPauseButton = () => {};
+const _formatBookStats = () => 'stats';
+const _updateReviewBatchTotals = () => {};
+const _showTaskRecoveryPanel = () => {};
+const notifyJobDone = () => {};
+const taskStatusLabel = status => status;
+const escapeHtml = String;
+const t = (key, fallback) => fallback;
+'''
+        checks = r'''
+pollReviewBatch();
+tick({running: false, tasks: [{name: 'book', status: 'failed', failure_message: 'Start over: checkpoint mismatch'}]});
+assert(statusCell.innerHTML.includes('Start over: checkpoint mismatch'), 'the book failure message is visible in its row');
+assert(statusCell.title.includes('Start over: checkpoint mismatch'), 'and in the row tooltip');
+'''
+        result = subprocess.run(['node', '-e', harness + body + '\n' + checks],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
     def test_restart_translations_survive_utf8_round_trip(self):
         for locale, expected in [('en', 'Start over'), ('zh-CN', '\u91cd\u65b0\u5f00\u59cb'),
                                  ('ja', '\u6700\u521d\u304b\u3089\u3084\u308a\u76f4\u3059'),

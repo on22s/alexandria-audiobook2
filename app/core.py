@@ -35,6 +35,7 @@ from audio_generation_owner import (AUDIO_GENERATION_CANCELLED, AudioGenerationC
                                     ensure_audio_generation_owner)
 from project import ProjectManager
 from config_settings import load_app_config
+from diagnostics import redact_text
 from utils import (atomic_json_write, get_app_config_path, get_app_storage_path, get_runtime_data_dir,
                    is_generic_speaker, is_path_inside, safe_load_json,
                    secure_filename)
@@ -1284,6 +1285,8 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
     # abort every GPU task, deadlocking the queue.
     state["running"] = True
     state["logs"] = []
+    state.pop("failure_message", None)
+    state.pop("failure_kind", None)
     if "paused"      in state: state["paused"]      = False
     if "status"      in state: state["status"]      = "running"
     if "return_code" in state: state["return_code"] = None
@@ -1303,6 +1306,13 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
             env["ALEXANDRIA_RUN_ID"] = state["run_id"]
         return_code, _ = _stream_subprocess_to_logs(
             command, cwd or BASE_DIR, state, log_file=log_path, env=env)
+
+        if task_name == "review":
+            failure = _extract_review_failure(state["logs"])
+            if failure:
+                state["failure_message"] = failure["message"]
+                if failure["kind"]:
+                    state["failure_kind"] = failure["kind"]
 
         if (task_name == 'script' and state.get('_script_published_cleanup_stop')
                 and not state.get('_windows_cleanup_failed')):
@@ -1875,6 +1885,8 @@ _ALIAS_HEADER_RE = re.compile(r'Found \d+ nickname/alias mapping')
 _ALIAS_LINE_RE = re.compile(r"'(.+?)'\s*->\s*'(.+?)'(?:\s*\((.*)\))?\s*$")
 _DIFF_PREVIEW_RE = re.compile(r'DIFF_PREVIEW_JSON:\s*(\{.*\})\s*$')
 _FAILED_SECTIONS_RE = re.compile(r'FAILED_SECTIONS_JSON:\s*(\{.*\})\s*$')
+_REVIEW_FAILURE_RE = re.compile(r'REVIEW_FAILURE_JSON:\s*(\{.*\})\s*$')
+_MAX_REVIEW_FAILURE_MESSAGE_CHARS = 500
 
 
 def _new_review_totals() -> dict:
@@ -2010,6 +2022,35 @@ def _extract_failed_sections(lines: List[str]) -> dict:
                 logger.warning(f"Malformed FAILED_SECTIONS_JSON line: {e}")
                 break
     return {"sections": []}
+
+
+def _extract_review_failure(lines: List[str]) -> Optional[dict]:
+    """Parse the fatal-error line emitted by review_script.py for the status UI.
+
+    Any fatal review error gets a REVIEW_FAILURE_JSON line with its first line of
+    plain text and, only for the misaligned-resume refusal, a machine-readable
+    kind. This is the one place that redacts and bounds the message before it is
+    stored on the task state; malformed lines are logged and ignored.
+    """
+    for line in reversed(lines):
+        match = _REVIEW_FAILURE_RE.search(line)
+        if match:
+            try:
+                data = json.loads(match.group(1))
+                message = data.get("message")
+                if not isinstance(message, str) or not message.strip():
+                    break
+                message = redact_text(message.strip())
+                if len(message) > _MAX_REVIEW_FAILURE_MESSAGE_CHARS:
+                    message = message[:_MAX_REVIEW_FAILURE_MESSAGE_CHARS - 1] + '\u2026'
+                kind = data.get("kind")
+                if not isinstance(kind, str) or not kind:
+                    kind = None
+                return {"message": message, "kind": kind}
+            except (json.JSONDecodeError, AttributeError) as e:
+                logger.warning(f"Malformed REVIEW_FAILURE_JSON line: {e}")
+                break
+    return None
 
 
 def _has_partial_review_labels(failures: Optional[dict]) -> bool:
