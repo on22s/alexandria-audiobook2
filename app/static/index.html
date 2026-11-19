@@ -4046,7 +4046,7 @@
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                         <div class="d-flex align-items-center gap-2">
                             <h4 class="m-0"><span class="step-indicator step-active">4</span><span data-i18n="editor.header.title">Audio Editor</span></h4>
-                            <span class="badge bg-secondary-subtle text-dark small d-none d-md-inline ms-2" data-i18n-attr="title:editor.toolbar.shortcuts.title" title="Editor Keyboard Shortcuts"><i class="fas fa-keyboard me-1"></i><span data-i18n="editor.toolbar.shortcuts">Space: Play | &uarr;&darr;: Navigate | R: Re-render | E: Edit text</span></span>
+                            <button class="badge bg-secondary-subtle text-dark small border-0 ms-2" id="btn-editor-shortcuts" type="button" data-bs-toggle="modal" data-bs-target="#editorShortcutsModal" data-i18n-attr="title:editor.toolbar.shortcuts.title,aria-label:editor.toolbar.shortcuts.title" title="Editor Keyboard Shortcuts" aria-label="Editor Keyboard Shortcuts"><i class="fas fa-keyboard me-1" aria-hidden="true"></i><span class="d-none d-md-inline" data-i18n="editor.toolbar.shortcuts">Space: Play | &uarr;&darr;: Navigate | R: Re-render | E: Edit text</span></button>
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-2" role="group" data-i18n-attr="aria-label:editor.header.actions-aria" aria-label="Audio Editor actions">
                             <div class="btn-group btn-group-sm" role="group">
@@ -4808,6 +4808,21 @@
                         <button data-i18n="shell.preset-editor.submit" type="submit" class="btn btn-primary" id="preset-editor-submit">Save preset</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editorShortcutsModal" tabindex="-1" aria-labelledby="editorShortcutsTitle" aria-describedby="editorShortcutsContext">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h5 class="modal-title" id="editorShortcutsTitle" data-i18n="editor.toolbar.shortcuts.title">Editor Keyboard Shortcuts</h5>
+                    <button data-i18n-attr="aria-label:shell.confirm.aria-label" type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body fs-6">
+                    <p class="small text-body-secondary" id="editorShortcutsContext" data-i18n="editor.shortcuts.context">These keys work in Editor when a line is selected, no dialog or tool drawer is open, and focus is not in a text field, button, link or player. Holding Ctrl, Alt, Shift or Meta, or holding a key down, leaves the key to the page.</p>
+                    <ul class="list-unstyled mb-0" id="editor-shortcuts-list" data-i18n-attr="aria-label:editor.shortcuts.list-aria" aria-label="Editor keyboard shortcuts"></ul>
+                </div>
             </div>
         </div>
     </div>
