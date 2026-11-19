@@ -18,7 +18,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import benchmark_core
 import core
 import generation_checkpoint_deltas
 import utils
@@ -88,16 +87,54 @@ class AtomicWriteCallerAuditTests(unittest.TestCase):
             move.assert_not_called()
             self.assertEqual(original, path.read_bytes())
 
-    def test_benchmark_cache_keeps_fallback_and_writes(self):
+    def test_llm_bench_concurrency_cache_refuses_exdev_and_preserves_config_bytes(self):
+        # The cache data is disposable, but the target is the user's whole
+        # config.json. llm_bench swallows OSError as best-effort, so the
+        # observable contract is "config bytes unchanged, no copy fallback".
+        import llm_bench
+
+        def valid_find(_client, _model, _max, server_parallel_limit=None, on_measurement=None):
+            if on_measurement is not None:
+                on_measurement(1, 10.0, 0.01)
+            return 2
+
         with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "benchmark_report.json"
-            path.write_text(json.dumps({"status": "stale"}), encoding="utf-8")
-            report = {"status": "complete", "cases": [{"id": "case"}]}
+            path = Path(tmp) / "config.json"
+            original = b'{"llm_local": {"model_name": "keep"}, "review": {"mode": "keep"}}'
+            path.write_bytes(original)
             replace_patch, move_patch = self._exdev()
-            with replace_patch, move_patch as move:
-                benchmark_core.save_benchmark_report(str(path), report)
+            with patch.object(llm_bench, "find_optimal_concurrency", side_effect=valid_find), \
+                    patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
+                                 return_value=("fixture", "fixture")), \
+                    replace_patch, move_patch as move:
+                result = llm_bench.get_cached_or_benchmarked_concurrency(
+                    str(path), "local", "http://localhost:1234/v1", "model", object(),
+                    max_concurrency=2,
+                    status={"available": True, "parallel": 8, "context_length": 8192})
+            self.assertEqual(2, result)
+            move.assert_not_called()
+            self.assertEqual(original, path.read_bytes())
+
+    def test_chapter_timing_cache_keeps_fallback_and_writes(self):
+        import chapter_timing_cache as timing
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / timing.CACHE_FILENAME
+            original = b'{"stale": true}'
+            path.write_bytes(original)
+            replace_patch, move_patch = self._exdev()
+            with patch.object(timing, "_policy", return_value={"schema": 1}), \
+                    patch.object(timing, "read_source_identity", return_value=None), \
+                    patch.object(timing.tts, "ensure_audio_export_active"), \
+                    replace_patch, move_patch as move:
+                result = timing.ensure_chapter_timing_facts(
+                    tmp, [{"audio_path": "clip.wav"}], lambda name: str(root / name),
+                    None, None, None, ())
             move.assert_called_once()
-            self.assertEqual(report, json.loads(path.read_text(encoding="utf-8")))
+            self.assertEqual(1, result.skipped)
+            document = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual({"schema": 1}, document["body"]["policy"])
 
 
 if __name__ == "__main__":

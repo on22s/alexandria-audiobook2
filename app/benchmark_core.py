@@ -182,7 +182,7 @@ def build_benchmark_report(manifest, environment):
 
 
 def save_benchmark_report(path, report):
-    atomic_json_write(report, path)
+    atomic_json_write(report, path, allow_nonatomic_fallback=False)
 
 
 def load_resumable_benchmark_report(path, manifest, environment):

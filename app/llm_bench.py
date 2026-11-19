@@ -211,7 +211,7 @@ def _invalidate_concurrency_cache(config_path, profile_key, cache_key, observed_
                 profile.pop("concurrency_environment", None)
             profile["concurrency_revision"] = uuid.uuid4().hex
             config[profile_key] = profile
-            atomic_json_write(config, config_path)
+            atomic_json_write(config, config_path, allow_nonatomic_fallback=False)
     except (OSError, TimeoutError, TypeError, ValueError):
         pass
 
@@ -351,7 +351,7 @@ def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model
             profile["concurrency_environment"] = environment
             profile["concurrency_revision"] = uuid.uuid4().hex
             config[profile_key] = profile
-            atomic_json_write(config, config_path)
+            atomic_json_write(config, config_path, allow_nonatomic_fallback=False)
     except (OSError, TimeoutError, TypeError, ValueError):
         # Best-effort really means best-effort. This used to catch only OSError
         # and TimeoutError, so a config the sanitizer had validated into
