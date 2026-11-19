@@ -14,6 +14,7 @@ if __name__ == '__main__':
     _startup_sys.excepthook = _startup_exception
 
 from chunk_status_journal import remove_chunk_snapshot
+import errno
 import os
 import stat
 from core import (llm_timeout_seconds, is_llm_on_this_gpu, get_review_accounting_warning,
@@ -705,6 +706,19 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
             with file_lock(path):
                 atomic_json_write(data, path, allow_nonatomic_fallback=False)
     except OSError as e:
+        if e.errno == errno.EXDEV:
+            # The strict writer refused a cross-device publish; copying instead
+            # would make publication non-atomic. Stop here, before any output is
+            # published, rather than continue with a checkpoint that may not
+            # exist. Every individual atomic write here publishes or leaves its
+            # target untouched, so the last good checkpoint stays resumable.
+            record_failure('review_checkpoint_write_exdev', e, task='review',
+                           resource=path, operation='save_checkpoint')
+            raise OSError(errno.EXDEV,
+                f"Review stopped: the checkpoint could not be written atomically at {path} "
+                f"(errno {errno.EXDEV}, EXDEV cross-device link). Keep the data directory "
+                "on one filesystem, then retry. No output was published; the last good "
+                "checkpoint is retained for resume.") from e
         # If checkpoint save fails (e.g., disk full, permission denied),
         # log the error but don't crash the review process
         print(f"WARNING: Failed to save checkpoint: {e}. Review will continue but resume may not work.")
@@ -1046,6 +1060,18 @@ def _remap_voice_config(voice_config_path, mapping):
                 try:
                     atomic_json_write(cfg, voice_config_path, allow_nonatomic_fallback=False)
                 except OSError as e:
+                    if e.errno == errno.EXDEV:
+                        # The strict writer refused a cross-device publish. Stop
+                        # before the review publishes its output: the in-memory
+                        # remap has not reached disk, so the voice config is still
+                        # the last good version.
+                        record_failure('voice_config_remap_write_exdev', e, task='review',
+                                       resource=voice_config_path, operation='remap_voice_config')
+                        raise OSError(errno.EXDEV,
+                            f"Review stopped: the voice config could not be written atomically "
+                            f"at {voice_config_path} (errno {errno.EXDEV}, EXDEV cross-device "
+                            "link). Keep the data directory on one filesystem, then retry. "
+                            "The voice config on disk is unchanged.") from e
                     print(f"  Warning: failed to write {voice_config_path}: {e}")
                     moved = 0
     except TimeoutError as e:

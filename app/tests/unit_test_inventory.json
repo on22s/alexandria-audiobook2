@@ -12289,6 +12289,14 @@
     , "tests.test_review_startup_diagnostics.ReviewStartupReadTests.test_import_failure_is_traced_before_application_imports_finish"
     , "tests.test_review_startup_diagnostics.ReviewStartupReadTests.test_trace_read_lock_failure_is_visible_without_leaking_error_message"
   ]
+  , "test_review_strict_write_failures": [
+    "tests.test_review_strict_write_failures.ReviewStrictCheckpointWriteTests.test_direct_writer_exdev_records_raises_and_preserves_prior_bytes"
+    , "tests.test_review_strict_write_failures.ReviewStrictCheckpointWriteTests.test_non_exdev_checkpoint_error_keeps_warning_contract"
+    , "tests.test_review_strict_write_failures.ReviewStrictCheckpointWriteTests.test_shard_writer_exdev_records_raises_and_preserves_prior_bytes"
+    , "tests.test_review_strict_write_failures.ReviewStrictVoiceConfigRemapTests.test_non_exdev_remap_error_keeps_zero_and_warning_contract"
+    , "tests.test_review_strict_write_failures.ReviewStrictVoiceConfigRemapTests.test_remap_exdev_records_raises_and_preserves_prior_bytes"
+    , "tests.test_review_strict_write_failures.ReviewStrictWriteMainStopTests.test_checkpoint_exdev_stops_before_next_batch"
+  ]
   , "test_review_surfacing": [
     "tests.test_review_surfacing.ReviewCharactersReachTheCallerTest.test_a_mapped_glyph_is_not_flagged"
     , "tests.test_review_surfacing.ReviewCharactersReachTheCallerTest.test_an_unmapped_symbol_is_collected"
