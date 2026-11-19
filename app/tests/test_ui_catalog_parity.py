@@ -52,7 +52,10 @@ KEEP_ENGLISH = frozenset({'GPU', 'LoRA', 'M4B', 'WAV', 'MP3', 'API', 'Alexandria
                           '{label} ({count})', '{speaker}{uid}: {text}',
                           '{name}: {voice}{style}', '{uid}: {assignments}',
                           '{speaker} · {type}', '{verdict}: {reason}',
-                          '{label}: {reason}'})
+                          '{label}: {reason}',
+                          # #2061 keyboard glyphs name the same physical keys in
+                          # every locale, so they are format, not untranslated copy.
+                          '↑ ↓', 'R', 'E'})
 STATIC = Path(__file__).resolve().parent.parent / 'static'
 TAG = re.compile(r'</?([a-z]+)[^>]*>')
 

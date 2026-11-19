@@ -20,8 +20,9 @@ function changeUiLocale(locale) {
 }
 
 // JS-built chrome does not carry data-i18n attributes, so the locale change
-// repaints it here: the finder status and the Home task-guide cards. Guide
-// text is rebuilt through translateUiMessage on every render.
+// repaints it here: the finder status, the Home task-guide cards and the
+// Editor shortcut list. Guide and shortcut text is rebuilt from its keys on
+// every render.
 function renderUiLocaleChrome() {
     renderSetupSearchStatus();
     if (typeof renderThemeControl === 'function') { renderThemeControl(); }
@@ -30,6 +31,7 @@ function renderUiLocaleChrome() {
     if (typeof renderVoiceLocaleChrome === 'function') { renderVoiceLocaleChrome(); }
     if (typeof applyTtsCapabilityGuidance === 'function') { applyTtsCapabilityGuidance(); }
     if (typeof renderTaskGuides === 'function') { renderTaskGuides(); }
+    if (typeof renderEditorShortcutHelp === 'function') { renderEditorShortcutHelp(); }
     if (typeof renderFollowupLocaleChrome === 'function') { renderFollowupLocaleChrome(); }
     if (typeof renderDeleteUndo === 'function') { renderDeleteUndo(); }
     if (typeof renderReviewLabelsOnlyPointer === 'function') { renderReviewLabelsOnlyPointer(); }

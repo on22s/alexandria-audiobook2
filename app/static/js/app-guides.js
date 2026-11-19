@@ -220,6 +220,51 @@ function buildTaskGuides() {
   ];
 }
 
+/* The Editor's keyboard shortcuts, in the one place the help dialog reads.
+   app-editor-review.js owns the key handler; tests/test_editor_shortcuts_help.py
+   fails if this list and that handler disagree. Codes are lowercase event.code
+   names so the untranslated-literal ratchet does not read a key name as copy. */
+function buildEditorShortcutHelp() {
+  return [
+    {
+      codes: ["space"],
+      key: t('editor.shortcuts.key.space', "Space"),
+      action: t('editor.shortcuts.space.action', "Audition the selected line"),
+      detail: t('editor.shortcuts.space.detail', "Plays the selected line's saved audio and pauses it on a second press. With nothing to play, Space keeps its normal page-scroll meaning."),
+    },
+    {
+      codes: ["arrowdown", "arrowup"],
+      key: t('editor.shortcuts.key.arrows', "↑ ↓"),
+      action: t('editor.shortcuts.arrows.action', "Move the line selection"),
+      detail: t('editor.shortcuts.arrows.detail', "Moves one line down or up. At the first or last line the arrow still scrolls the page."),
+    },
+    {
+      codes: ["keyr"],
+      key: t('editor.shortcuts.key.regenerate', "R"),
+      action: t('editor.shortcuts.regenerate.action', "Regenerate the selected line"),
+      detail: t('editor.shortcuts.regenerate.detail', "Runs the same action as the row's Generate button. It does nothing while that line is already generating."),
+    },
+    {
+      codes: ["keye"],
+      key: t('editor.shortcuts.key.edit', "E"),
+      action: t('editor.shortcuts.edit.action', "Expand the row and edit its text"),
+      detail: t('editor.shortcuts.edit.detail', "Opens a collapsed row and puts the cursor at the end of its text field."),
+    },
+  ];
+}
+function renderEditorShortcutHelp() {
+    const list = document.getElementById('editor-shortcuts-list');
+    if (!list) { return; }
+    list.replaceChildren();
+    for (const shortcut of buildEditorShortcutHelp()) {
+        const item = document.createElement('li'); item.className = 'mb-2';
+        const keys = document.createElement('kbd'); keys.className = 'me-2'; keys.textContent = shortcut.key;
+        const action = document.createElement('strong'); action.className = 'd-block'; action.textContent = shortcut.action;
+        const detail = document.createElement('span'); detail.className = 'small'; detail.textContent = shortcut.detail;
+        item.append(keys, action, detail); list.append(item);
+    }
+}
+
 let TASK_GUIDES = [];
 let activeTaskGuide = null;
 let taskGuideStep = 0;
@@ -308,3 +353,4 @@ function openTaskGuideTarget() {
     openConfigField(target);
 }
 renderTaskGuides();
+renderEditorShortcutHelp();
