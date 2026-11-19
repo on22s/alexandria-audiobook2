@@ -11973,6 +11973,15 @@
     , "tests.test_retrofit_matcher.SourceSelectionTest.test_the_right_source_wins_and_is_reported"
     , "tests.test_retrofit_matcher.SourceSelectionTest.test_two_equally_good_sources_are_refused"
   ]
+  , "test_review_active_prompt_validation": [
+    "tests.test_review_active_prompt_validation.ActiveReviewPromptApiTests.test_existing_invalid_prompt_still_loads"
+    , "tests.test_review_active_prompt_validation.ActiveReviewPromptApiTests.test_missing_placeholders_are_refused_and_nothing_is_written"
+    , "tests.test_review_active_prompt_validation.ActiveReviewPromptApiTests.test_none_empty_and_valid_prompts_are_accepted"
+    , "tests.test_review_active_prompt_validation.ActiveReviewPromptApiTests.test_omitted_active_prompt_is_still_valid"
+    , "tests.test_review_active_prompt_validation.ActiveReviewPromptStartTests.test_default_and_valid_prompts_reach_client_creation"
+    , "tests.test_review_active_prompt_validation.ActiveReviewPromptStartTests.test_invalid_active_prompt_stops_before_client_creation"
+    , "tests.test_review_active_prompt_validation.ActiveReviewPromptStartTests.test_labels_only_ignores_the_active_prompt"
+  ]
   , "test_review_change_accounting": [
     "tests.test_review_change_accounting.ReviewAccountingTests.test_actual_frontend_displays_supplied_warning_and_escapes_live_totals"
     , "tests.test_review_change_accounting.ReviewAccountingTests.test_actual_separate_input_repeated_rewind_counts_one_edit_once_in_both_modes"
