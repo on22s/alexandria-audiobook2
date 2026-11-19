@@ -33,6 +33,86 @@ class SegmentQualityTests(unittest.TestCase):
                 self.assertEqual(['NARRATOR'], [row['type'] for row in title])
                 self.assertEqual(['SPOKEN'], [row['type'] for row in speech])
 
+    def test_german_low_high_quotes_label_speech_and_narration_in_order(self):
+        # `“` closes „…“ but opens “…”. The segmenter must not read a German
+        # speech backwards (narration as SPOKEN, speech as NARRATOR).
+        source = "Er sagte „Komm her!“ und ging."
+        regions = analyze_outer_quote_regions(source)["regions"]
+        self.assertEqual(
+            [("NARRATOR", "Er sagte"), ("SPOKEN", "Komm her!"), ("NARRATOR", "und ging.")],
+            [(row["type"], row["text"]) for row in regions])
+        # English behaviour is unchanged by the shared-mark support.
+        english = analyze_outer_quote_regions("He said “Go.” then left.")["regions"]
+        self.assertEqual(
+            [("NARRATOR", "He said"), ("SPOKEN", "Go."), ("NARRATOR", "then left.")],
+            [(row["type"], row["text"]) for row in english])
+
+    def test_generation_segments_every_supported_convention_as_speech(self):
+        # The map and the pass that creates entries must agree on which marks
+        # carry dialogue; the German inversion was the urgent case.
+        for source, expected in [
+            ('He said "Hello." then left.', 'Hello.'),
+            ('Er sagte „Hallo!“ und ging.', 'Hallo!'),
+            ('Il a dit « Bonjour » puis parti.', 'Bonjour'),
+            ('Han sagde »Hej« og gik.', 'Hej'),
+        ]:
+            with self.subTest(source=source):
+                regions = analyze_outer_quote_regions(source)["regions"]
+                self.assertEqual(
+                    [("NARRATOR", source.split(expected)[0].strip().strip('"“”„«» ').strip()),
+                     ("SPOKEN", expected),
+                     ("NARRATOR", source.split(expected)[1].strip().strip('"“”„«» ').strip())],
+                    [(row["type"], row["text"]) for row in regions])
+
+    def test_low_high_reporting_word_is_not_a_speaker_label(self):
+        # A single capitalised word before „ is a reporting verb (Polish
+        # "Powiedział", German "Nein"), not a printed speaker name.
+        for source in ['Powiedział „Cześć!“ i wyszedł.',
+                       'Nein „Hallo!“ sagte er.']:
+            with self.subTest(source=source):
+                regions = analyze_outer_quote_regions(source)["regions"]
+                self.assertFalse(any("source_label" in row for row in regions))
+
+    def test_polish_close_leaves_no_stale_opener_for_a_later_english_quote(self):
+        # `”` closing `„…”` once left `„` on the open stack, so the next `“`
+        # was read as English nested in German: its speech went to NARRATOR,
+        # or (unclosed) the narration before it went to SPOKEN.
+        cases = [
+            ('„Dzień dobry” – powiedział.\n\nPotem: “Hello there,” said Bob.',
+             "Hello there,", "– powiedział."),
+            ('„Tak” – rzekł. On czytał “Hamlet. Koniec.',
+             "Hamlet. Koniec.", "– rzekł. On czytał"),
+        ]
+        for source, spoken, narration in cases:
+            with self.subTest(source=source):
+                regions = analyze_outer_quote_regions(source)["regions"]
+                kinds = {row["text"]: row["type"] for row in regions}
+                self.assertEqual("SPOKEN", kinds.get(spoken), regions)
+                self.assertEqual("NARRATOR", kinds.get(narration), regions)
+
+    def test_stray_guillemet_before_first_speech_keeps_speech_spoken(self):
+        source = "Menu » Chapitre. «Bonjour», dit-il. Il partit."
+        regions = analyze_outer_quote_regions(source)["regions"]
+        self.assertEqual(
+            [("NARRATOR", "Menu » Chapitre."), ("SPOKEN", "Bonjour"),
+             ("NARRATOR", ", dit-il. Il partit.")],
+            [(row["type"], row["text"]) for row in regions])
+
+    def test_nested_english_inside_german_keeps_german_as_speech(self):
+        source = "Er sagte „He said “Hi” to me.“ und ging."
+        regions = analyze_outer_quote_regions(source)["regions"]
+        self.assertEqual(
+            [("NARRATOR", "Er sagte"),
+             ("SPOKEN", "He said Hi to me."),
+             ("NARRATOR", "und ging.")],
+            [(row["type"], row["text"]) for row in regions])
+
+    def test_line_dash_dialogue_is_segmented_as_speech(self):
+        source = "— Primera línea.\n\n— Segunda línea."
+        regions = analyze_outer_quote_regions(source)["regions"]
+        self.assertEqual(2, len(regions))
+        self.assertEqual(["SPOKEN", "SPOKEN"], [row["type"] for row in regions])
+
     def test_one_word_dialogue_split_passes_but_wrong_region_and_crossing_fail(self):
         source = '“No. Not at all.”'
         report = validate_segment_quality(source, [{'type': 'SPOKEN', 'text': text} for text in ('No.', 'Not at all.')])

@@ -23,15 +23,20 @@ is how a book with 6,925 quote marks in its source was recorded here as "a book
 that does not mark dialogue".
 """
 from bisect import bisect_left, bisect_right
-from collections import Counter, deque
+from collections import Counter, defaultdict, deque
 import logging
 import re
 
 PAIRED = [
     ('"', '"'),
-    ("“", "”"),      # curly “ ”
+    ("“", "”"),      # curly “ ” (English, Dutch, Turkish, ...)
+    ("„", "“"),      # low-high „ “ (German, Czech, Slovak)
+    ("„", "”"),      # low-high „ ” (Polish, Hungarian, Croatian, Baltics)
     ("「", "」"),      # 「 」
     ("『", "』"),      # 『 』
+    ("＂", "＂"),      # full-width straight
+    ("«", "»"),      # guillemets (French, Russian, Italian, ...)
+    ("»", "«"),      # reversed guillemets (Danish)
 ]
 # An em or en dash opening a line, the Continental convention.
 DASH_LINE = re.compile(r"^[ \t]*[—–][ \t]*(\S.*)$", re.M)
@@ -43,9 +48,6 @@ INTERIOR_DASH_TURN = re.compile(
 LABEL_LINE = re.compile(r"^[ \t]*([A-Z][A-Z .'’-]{1,30}):[ \t]+(\S.*)$", re.M)
 
 
-# The longest distinct-mark pair allowed to cross a blank line.
-MAX_CROSSING_CHARS = 2000
-
 # Speech marked in a way the book does not mainly use. A line found inside one
 # lies outside the detected quotes without being narration: ‘single’ quotes in
 # a “double”-quote book, a dash-opened line, «guillemets», or an opening mark
@@ -55,71 +57,417 @@ OTHER_PAIRED = [
     re.compile(r"‘((?:[^‘’\n]|’(?=\w))+)’(?!\w)"),
     re.compile(r"«([^«»]+)»"),
     re.compile(r"‹([^‹›\n]+)›"),
+    # Low-high single marks (‚…‘). The opener is never an apostrophe, so it
+    # anchors the pair on its own; the closer is the next ‘ after it.
+    re.compile(r"‚([^‚‘\n]+)‘"),
+    # German low-high is secondary speech in an otherwise non-German book; it
+    # is included in PAIRED only when dense enough to be that book's convention.
+    # get_other_speech_spans skips pairs already found by _paired_spans.
+    re.compile(r"„([^„“\n]+)“"),
+    re.compile(r"„([^„”\n]+)”"),
 ]
-UNCLOSED_OPENERS = {"“": "”", "「": "」", "『": "』"}
+# A mark here can ALSO close a different pair - `“` closes `„…“` - so a caller
+# must skip an occurrence that closes a real pair. get_other_speech_spans does.
+UNCLOSED_OPENERS = {"“": "”", "「": "」", "『": "』", "„": "“"}
+
+# Marks stripped before an entry's text is matched against the source: the
+# delimiters this module pairs, so a line whose quotes the model dropped still
+# locates. ‘ and ’ are absent on purpose - ’ is the apostrophe, and removing it
+# breaks every contraction.
+QUOTE_MARKS = '"“”„「」『』＂'
+_QUOTE_MARKS_RE = re.compile(f"[{QUOTE_MARKS}]")
+# Where a quote can START, for the one place that must recognise a mark without
+# pairing it (a printed speaker name sits immediately before one). Derived from
+# PAIRED so a newly paired convention cannot be forgotten here.
+QUOTE_OPENERS = "".join(dict.fromkeys(opener for opener, _closer in PAIRED))
+
+# A blank line however the source spells it: LF, CRLF or CR, with spaces or tabs
+# on the empty line. `"\n\n"` alone was blind to every file whose blank lines
+# carry a trailing space, which left the cross-paragraph refusal below silently
+# optional on exactly those books.
+BLANK_LINE = re.compile(r"(?:\r\n|\r|\n)[ \t]*(?:\r\n|\r|\n)")
+
+
+def _paragraph_breaks(text):
+    """-> [(blank-line offset, offset of the first non-space character after)].
+
+    A paired quote legitimately runs across a paragraph break when the next
+    paragraph re-opens it with the same mark - that is how a multi-paragraph
+    speech prints. Anything else after the break is narration. Indexed once for
+    the whole text and tested by bisect, because scanning every break inside
+    every rejected candidate is what makes a chain of unclosed openers
+    quadratic. Offsets only: a one-character slice per break copied the entire
+    break list on a pathological text, which is a measured property here.
+    """
+    breaks, search = [], 0
+    while True:
+        found = BLANK_LINE.search(text, search)
+        if found is None:
+            return breaks
+        at, after = found.start(), found.end()
+        while after < len(text) and text[after] in " \t\r\n":
+            after += 1
+        breaks.append((at, after))
+        search = at + 1
+
+
+def _next_blank_line(text, start):
+    """-> offset of the first blank line at or after `start`, or -1."""
+    found = BLANK_LINE.search(text, start)
+    return -1 if found is None else found.start()
+
+
+def _is_unbroken(breaks, position, end):
+    """Does no narration break sit strictly inside this candidate pair?"""
+    index = bisect_right(breaks, position)
+    return index == len(breaks) or breaks[index] >= end - 1
+
+
+def _ambiguous_mark_roles(text):
+    """-> (closer offsets, opener offsets) for marks shared between pairs.
+
+    `“` closes `„…“` but opens `“…”`. The resolution walks the marks once with
+    an explicit count of pending `„` openers, so a padded or newline-containing
+    English quote is treated exactly like an unpadded one: edge whitespace is
+    never evidence of an orphan. A `“` closes German when
+
+      * no `”` follows it, or only whitespace sits before that `”` (an orphan),
+        and a `„` is still pending; or
+      * it has real English content but a later `“` remains to close the German
+        pair (English nested inside German, e.g. „He said “Hi” to me.“).
+
+    Otherwise it opens English. Every lookup is by position; measured sources
+    see zero copied characters. Straight pairs are excluded: their mark is both
+    opener and closer by definition, so it is never ambiguous.
+
+    A stray `„` is recognised when its candidate `“` has real English content
+    but no later German close-capable mark in the segment: an unpadded gap
+    means the `“` opens English, while a padded one means an orphan `”` after
+    narration and the `“` closes German.
+    """
+    if "„" not in text:
+        # No shared mark: every `“` is unambiguously an English opener, and
+        # this scan would otherwise cost ~41 ms on a 1.4 MB English book.
+        return set(), set()
+    all_marks = [(m.start(), m.group()) for m in re.finditer(
+        "[" + "".join(re.escape(mark) for mark in QUOTE_MARKS) + "]", text)]
+    positions = [pos for pos, _ in all_marks]
+    mark_at = dict(all_marks)
+    quotes = [pos for pos, mark in all_marks if mark == "“"]
+
+    def next_english_mark(pos):
+        """Next mark that can pair with `“`, skipping self-paired straight ones.
+
+        In `„He said “it's "5" wide” to me.“` the `"` marks pair among
+        themselves; letting them decide the next mark misreads the following
+        `“` as a German closer and fragments the utterance.
+        """
+        index = bisect_right(positions, pos)
+        while index < len(positions) and mark_at[positions[index]] in ('"', '＂'):
+            index += 1
+        return positions[index] if index < len(positions) else None
+
+    def can_close_german(pos):
+        """A `“` can close a pending `„`: no `”`, or only whitespace to it."""
+        closer = next_english_mark(pos)
+        if closer is None or mark_at[closer] != "”":
+            return True
+        for at in range(pos + 1, closer):
+            if not text[at].isspace():
+                return False
+        return True
+
+    closer_candidate = {pos: can_close_german(pos) for pos in quotes}
+    # A later close-capable `“` only justifies nesting an English pair if it
+    # belongs to the SAME German segment — an intervening `„` starts a new one.
+    # Without this, `„Red“ narration ”stray „Blue.“` merges two speeches and
+    # labels the narration between them as spoken.
+    de_openers = [pos for pos, mark in all_marks if mark == "„"]
+    segment = {pos: bisect_right(de_openers, pos) for pos in quotes}
+    closer_indices = defaultdict(list)
+    for index, pos in enumerate(quotes):
+        if closer_candidate[pos]:
+            closer_indices[segment[pos]].append(index)
+
+    def later_closer_in_segment(pos, after_index):
+        candidates = closer_indices.get(bisect_right(de_openers, pos), ())
+        found = bisect_left(candidates, after_index)
+        return found < len(candidates)
+
+    closes, opens = set(), set()
+    de_stack = []
+    for pos, mark in all_marks:
+        if mark == "„":
+            de_stack.append(pos)
+        elif mark == "“":
+            closer = next_english_mark(pos)
+            has_closer = closer is not None and mark_at[closer] == "”"
+            if not closer_candidate[pos] and has_closer:
+                # Real English content: nested only if a later `“` in this same
+                # German segment can still close the pair. With no later `“`,
+                # a real pending `„` (text directly after it) is closed here;
+                # only a whitespace-padded `„` is a stray mark.
+                after = bisect_right(quotes, pos)
+                stray = False
+                if after == len(quotes):
+                    if de_stack:
+                        # A space before `“` means the pending `„` was a stray
+                        # mark („ narration “Real speech.”); a real German
+                        # closer follows the speech text directly (da.“).
+                        stray = pos > 0 and text[pos - 1].isspace()
+                        if not stray:
+                            opener = de_stack[-1] + 1
+                            stray = opener >= len(text) or text[opener].isspace()
+                        opens_english = stray
+                    else:
+                        opens_english = True
+                elif later_closer_in_segment(pos, after):
+                    opens_english = True
+                else:
+                    # No later German closer in this segment. A padded gap
+                    # (`” narration ”`) means this `“` closes German; an
+                    # unpadded one is real English speech after a stray `„`.
+                    stray = not (closer == pos + 1
+                                 or text[pos + 1].isspace()
+                                 or text[closer - 1].isspace())
+                    opens_english = stray
+            else:
+                opens_english = False
+                stray = False
+            if opens_english or not de_stack:
+                opens.add(pos)
+                if stray and de_stack:
+                    # The pending `„` was a stray mark, not a real opener.
+                    de_stack.pop()
+            else:
+                closes.add(pos)
+                de_stack.pop()
+    return closes, opens
+
+
+MIN_CONVENTION_PAIRS = 5
+
+_CLOSE_FOLLOW = r"[\s,.;:!?…]"
+
+
+def _count_guillemet_shapes(text, opener, closer):
+    """-> how many marks are shaped like this direction's opener or closer.
+
+    An opener begins a line or sits after whitespace with text right after it;
+    a closer sits right after text, or ends its line, with only punctuation or
+    whitespace after it. A mark padded on both sides mid-line (`Menu » Next`)
+    is neither, so it casts no vote.
+    """
+    opened = re.findall(
+        rf"(?m)^[ \t]*{opener}|(?<!\S){opener}(?=\S)", text)
+    closed = re.findall(
+        rf"(?m)(?<=\S){closer}(?={_CLOSE_FOLLOW}|$)|{closer}[ \t,.;:!?…]*$", text)
+    return len(opened) + len(closed)
+
+
+def get_guillemet_direction(text):
+    """-> (opener, closer) for the text's guillemets, or (None, None).
+
+    A text uses one direction: `«…»` (French, Russian, ...) or `»…«` (Danish,
+    German chevrons). Pairing both directions independently makes every closer
+    an opener too and labels the narration between speeches as spoken.
+
+    Decided by how the marks sit against the text, not by which comes first:
+    one stray mark before the first speech (a breadcrumb `Menu » Chapitre`)
+    otherwise flipped the direction for the whole book and inverted every
+    speech into narration. The first mark decides only a tie, which keeps the
+    old behaviour where the shapes say nothing (`« Bonjour »` padded on both
+    sides mid-line). Pure read; the one place both modules ask this question.
+    """
+    first_open, first_close = text.find("«"), text.find("»")
+    if first_open == -1 and first_close == -1:
+        return None, None
+    forward = _count_guillemet_shapes(text, "«", "»")
+    reverse = _count_guillemet_shapes(text, "»", "«")
+    if forward == reverse:
+        forward_first = first_open != -1 and (
+            first_close == -1 or first_open < first_close)
+        return ("«", "»") if forward_first else ("»", "«")
+    return ("«", "»") if forward > reverse else ("»", "«")
+
+
+def _is_opener_shaped(text, position):
+    """Is the mark at `position` followed by text and preceded by whitespace?
+
+    A straight mark cannot say whether it opens or closes. One padded on both
+    sides (`a " thing`) or glued to a word on its left is not where a speech
+    begins.
+    """
+    before = text[position - 1] if position else "\n"
+    after = text[position + 1] if position + 1 < len(text) else "\n"
+    return before.isspace() and not after.isspace()
 
 
 def _paired_spans(text):
     spans = []
+    german_ranges = []
+    used_de = set()  # a `„` consumed by one closer convention is not reused
+    guillemet_opener = get_guillemet_direction(text)[0]
+    breaks = starts = None
+    masks = {}
+    # `“` closes „…“ but also opens “…”. Resolve each occurrence once, then skip
+    # a closer-offset when looking for openers and vice versa.
+    closes, opens = _ambiguous_mark_roles(text)
+
+    def prepare():
+        """-> (breaks, offsets where a paragraph begins), built once per call.
+
+        Lazy on purpose: a text whose openers never close completes no pair and
+        so pays no paragraph scan at all, which the unclosed-opener cost test
+        pins.
+        """
+        nonlocal breaks, starts
+        if breaks is None:
+            breaks = _paragraph_breaks(text)
+            starts = {after for _at, after in breaks}
+        return breaks, starts
+
+    def narration_breaks(opener):
+        """-> offsets of the breaks this opener does NOT re-open."""
+        mask = masks.get(opener)
+        if mask is None:
+            mask = [at for at, after in prepare()[0]
+                    if not text.startswith(opener, after)]
+            masks[opener] = mask
+        return mask
+
     for opener, closer in PAIRED:
+        if opener in ("«", "»") and opener != guillemet_opener:
+            continue
+        before = len(spans)
         if opener == closer:
-            # Straight quotes cannot be told apart, so pair them in order and
-            # ignore an unmatched trailing one rather than running to the end
-            # of the book.
+            # Straight quotes cannot be told apart, so they can only be paired
+            # by position - and in a book that mixes “ ” with " ", one
+            # unmatched straight mark shifts every pair after it and the
+            # "span" swallows the narration between two unrelated quotes. That
+            # is not hypothetical: it marked `I was taken aback.` as spoken in
+            # mushoku18 and inflated the misattribution rate.
+            #
+            # So a straight pair answers the SAME question a distinct-mark pair
+            # does: does a narration break sit between these two marks? A break
+            # the next paragraph re-opens with this same mark is a continued
+            # speech, not a close. The old blanket "no blank line in any
+            # straight pair" answered a different question, and lost the first
+            # paragraph of every continued speech with it.
             positions = []
             for match in re.finditer(re.escape(opener), text):
                 position = match.start()
                 # Outside a quoted span, a mark immediately after a number is
-                # an inch mark. Inside speech, numeric endings still close it.
+                # an inch mark (5" wide). A mark at the end of a line/paragraph
+                # still closes speech — a reprise closer can follow a digit.
                 if len(positions) % 2 == 0 and position and text[position - 1].isdigit():
-                    continue
+                    after = position + 1
+                    while after < len(text) and text[after].isspace():
+                        after += 1
+                    # `5" wide` and `12"` followed by a new quote are inch
+                    # marks; `ends 5"` at the close of a paragraph is a real
+                    # closer and must not be skipped.
+                    if after < len(text) and text[after] == opener:
+                        continue
+                    if (position + 1 < len(text)
+                            and text[position + 1] not in "\r\n"):
+                        continue
                 positions.append(position)
-            for start, end in zip(positions[0::2], positions[1::2]):
-                if end - start <= 1:
+            # A mark that begins a paragraph re-opens this quote, so it can
+            # never be a closer. Precompute the next non-reopening mark once;
+            # the old inner scan restarted at every opener and was quadratic
+            # on a straight-quote reprise chain.
+            paragraph_starts = prepare()[1]
+            all_breaks = [at for at, _after in prepare()[0]]
+            next_plain = [len(positions)] * len(positions)
+            last = len(positions)
+            for candidate_index in range(len(positions) - 1, -1, -1):
+                next_plain[candidate_index] = last
+                if positions[candidate_index] not in paragraph_starts:
+                    last = candidate_index
+
+            index = 0
+            while index + 1 < len(positions):
+                start = positions[index]
+                candidate_index = next_plain[index]
+                while candidate_index < len(positions) and positions[candidate_index] - start <= 1:
+                    candidate_index = next_plain[candidate_index]
+                if candidate_index >= len(positions):
+                    index += 1
                     continue
-                # A SPAN MAY NOT CROSS A PARAGRAPH BREAK. Straight quotes are
-                # identical opening and closing, so they can only be paired by
-                # position - and in a book that mixes “ ” with " ", one
-                # unmatched straight mark shifts every pair after it and the
-                # "span" swallows the narration between two unrelated quotes.
-                # That is not hypothetical: it marked `I was taken aback.` as
-                # spoken in mushoku18 and inflated the misattribution rate.
-                #
-                # Dialogue does not span a blank line. Narration between two
-                # quotes always does.
-                if "\n\n" in text[start:end]:
+                end = positions[candidate_index]
+                if not _is_unbroken(narration_breaks(opener), start, end):
+                    # Every later mark crosses that same break too.
+                    index += 1
+                    continue
+                if (not _is_opener_shaped(text, start)
+                        and not _is_unbroken(all_breaks, start, end)):
+                    # A reprise break looks the same after a real opener and
+                    # after a stray mark in narration (`a " thing.\n\n"Go,"`).
+                    # Only an opener-shaped mark may carry a pair across one;
+                    # otherwise the narration up to the next speech is spoken.
+                    index += 1
                     continue
                 spans.append((start + 1, end))
+                index = candidate_index + 1
         else:
-            # Pair each opener with the next closer. A pair longer than
-            # MAX_CROSSING_CHARS is kept only inside one paragraph: a long
-            # speech is fine (#1533, 9 of Dorian Gray's speeches run past
-            # 2,000 characters), a long span across a blank line is a
-            # mis-pair swallowing narration. Shorter pairs keep the old rule,
-            # so a multi-paragraph speech closed within the limit still counts.
-            # A rejected pair advances to the next opener, as the old bounded
+            # One rule for every pair, short or long: a blank line inside it
+            # must be followed by the same mark and nothing else. A long speech
+            # is fine (#1533, 9 of Dorian Gray's speeches run past 2,000
+            # characters), and so is a speech whose paragraphs each re-open the
+            # quotation. A break followed by narration is a separate speech, so
+            # a pair reaching across it has swallowed narration - and its length
+            # says nothing about that, which is why no pair is exempt. A
+            # rejected pair advances to the next opener, as the old bounded
             # regex did.
-            position = text.find(opener)
-            end, paragraph_break = 0, None
+            def next_opener(search_from):
+                candidate = text.find(opener, search_from)
+                while candidate != -1 and (candidate in closes or candidate in used_de):
+                    candidate = text.find(opener, candidate + 1)
+                return candidate
+
+            def next_closer(search_from):
+                candidate = text.find(closer, search_from)
+                while candidate != -1 and candidate in opens:
+                    candidate = text.find(closer, candidate + 1)
+                return candidate
+
+            position = next_opener(0)
+            end, bad_breaks = 0, None
             while position != -1:
-                # Rejected openers can share one distant closer/paragraph break.
-                # Cache both forward searches and inspect offsets without copying
-                # every remaining interior substring.
+                # Rejected openers can share one distant closer. Cache that
+                # forward search and inspect offsets without copying every
+                # remaining interior substring.
                 if end <= position:
-                    end = text.find(closer, position + 1)
+                    end = next_closer(position + 1)
                 if end == -1:
                     break
-                length = end - position - 1
-                crosses_paragraph = False
-                if length > MAX_CROSSING_CHARS:
-                    if paragraph_break is None or 0 <= paragraph_break < position + 1:
-                        paragraph_break = text.find("\n\n", position + 1)
-                    crosses_paragraph = 0 <= paragraph_break < end - 1
-                if length and not crosses_paragraph:
+                if (opener == "„" and closer == "”"
+                        and text.find("“", position + 1, end) != -1):
+                    # An English “ opener before this ” means the mark belongs
+                    # to English speech, not to a Polish low-high pair.
+                    position = next_opener(position + 1)
+                    continue
+                if bad_breaks is None:
+                    bad_breaks = narration_breaks(opener)
+                if position + 1 < end and _is_unbroken(bad_breaks, position, end):
                     spans.append((position + 1, end))
-                    position = text.find(opener, end + 1)
+                    if opener == "„":
+                        used_de.add(position)
+                    position = next_opener(end + 1)
                 else:
-                    position = text.find(opener, position + 1)
+                    position = next_opener(position + 1)
+        if opener == "„":
+            german_ranges.append((before, len(spans)))
+    if german_ranges and len(spans) >= MIN_CONVENTION_PAIRS:
+        count = sum(end - start for start, end in german_ranges)
+        others = len(spans) - count
+        if count and (count < MIN_CONVENTION_PAIRS or count < others):
+            # A lone low-high quote in a book whose dialogue uses another mark
+            # is usually a sign, foreign term or title — not speech. Surface it
+            # as other speech instead of giving it a character voice.
+            for start, end in reversed(german_ranges):
+                del spans[start:end]
     return spans
 
 
@@ -137,9 +485,27 @@ def detect_convention(text):
         "label_lines": len(LABEL_LINE.findall(text)),
     }
     best = max(counts, key=counts.get)
-    if counts[best] < 5:
+    if counts[best] < MIN_CONVENTION_PAIRS:
         return None
     return best
+
+
+def validate_spoken_spans(spans, text):
+    """Raise unless every detected span is a real, non-empty source range.
+
+    Called on the spans as each convention found them, BEFORE `spoken_spans`
+    sorts and merges. The merge repairs order and overlap by construction, so a
+    check placed after it could never fail - it would only describe the merge.
+    Overlap is legal here, because a book may mark one line with two
+    conventions at once; only the range itself is refused. Pure read.
+    """
+    for start, end in spans:
+        if type(start) is not int or type(end) is not int:
+            raise ValueError("Speech span offsets must be integers")
+        if not 0 <= start < end <= len(text):
+            raise ValueError(
+                f"Invalid speech span {start}:{end} in {len(text)} characters")
+    return True
 
 
 def spoken_spans(text, convention=None):
@@ -156,6 +522,7 @@ def spoken_spans(text, convention=None):
         spans = [(m.start(2), m.end(2)) for m in LABEL_LINE.finditer(text)]
     else:
         raise ValueError(f"Unknown dialogue convention: {convention!r}")
+    validate_spoken_spans(spans, text)
     spans.sort()
     merged = []
     for start, end in spans:
@@ -175,28 +542,40 @@ def get_other_speech_spans(text, convention):
     """
     if convention is None:
         return []
+    pairs = sorted(_paired_spans(text))
+    closed = {stop for _begin, stop in pairs}
+    merged = []
+    for begin, stop in pairs:
+        if merged and begin <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], stop))
+        else:
+            merged.append((begin, stop))
+    starts = [begin for begin, _stop in merged]
+
+    def inside_primary(start, end):
+        index = bisect_right(starts, start) - 1
+        return index >= 0 and merged[index][1] >= end
+
     spans = [(m.start(1), m.end(1)) for pattern in OTHER_PAIRED for m in pattern.finditer(text)
-             if "\n\n" not in m.group(1)]
+             if BLANK_LINE.search(text, m.start(1), m.end(1)) is None
+             and not inside_primary(m.start(1), m.end(1))]
     if convention != "dash_lines":
         spans += [(m.start(1), m.end(1)) for m in DASH_LINE.finditer(text)]
     if convention != "paired_quotes":
-        spans += _paired_spans(text)
+        spans += pairs
     else:
         # An opening mark with no partner: speech to the end of its paragraph.
         # Membership is one bisect into the merged pairs, not a scan of all of
-        # them per opener, which made well-formed books quadratic.
-        merged = []
-        for begin, stop in sorted(_paired_spans(text)):
-            if merged and begin <= merged[-1][1]:
-                merged[-1] = (merged[-1][0], max(merged[-1][1], stop))
-            else:
-                merged.append((begin, stop))
-        starts = [begin for begin, _stop in merged]
+        # them per opener, which made well-formed books quadratic. The mark that
+        # CLOSES a real pair is skipped: `“` closes `„…“`, so without this every
+        # German speech ended in a phantom "unclosed opener".
         for opener, closer in UNCLOSED_OPENERS.items():
             paragraph_break = None
             for match in re.finditer(re.escape(opener), text):
                 start = match.start() + 1
                 if text.startswith(closer, start):  # “” is closed, just empty
+                    continue
+                if match.start() in closed:
                     continue
                 index = bisect_right(starts, start) - 1
                 if index >= 0 and merged[index][1] >= start:
@@ -204,7 +583,7 @@ def get_other_speech_spans(text, convention):
                 # Openers are ordered: reuse this paragraph's end, including
                 # the absence of another break, as _paired_spans does.
                 if paragraph_break is None or 0 <= paragraph_break < start:
-                    paragraph_break = text.find("\n\n", start)
+                    paragraph_break = _next_blank_line(text, start)
                 spans.append((start, len(text) if paragraph_break == -1 else paragraph_break))
     return spans
 
@@ -218,8 +597,7 @@ def get_interior_dash_ambiguities(text, convention):
 
 
 def _normalize(value):
-    return re.sub(r"\s+", " ", re.sub(r'["“”「」『』]',
-                                      "", value or "")).strip()
+    return re.sub(r"\s+", " ", _QUOTE_MARKS_RE.sub("", value or "")).strip()
 
 
 def _normalize_with_offsets(value):
@@ -227,7 +605,7 @@ def _normalize_with_offsets(value):
     characters, offsets = [], []
     pending_space = None
     for index, character in enumerate(value or ""):
-        if character in '"“”「」『』':
+        if character in QUOTE_MARKS:
             continue
         if character.isspace():
             if characters and pending_space is None:
@@ -480,7 +858,7 @@ def apply_source_narration(entries):
 # needs no model call at all.
 LABEL_BEFORE_QUOTE = re.compile(
     r'(?:^|\n)[ \t]*([^\W\d_][\w.\'’-]{1,20}(?:[ \t]+[^\W\d_][\w.\'’-]{1,20}){0,2})'
-    r'[ \t]+(?=[“"「『])')
+    r'[ \t]+(?=[' + QUOTE_OPENERS + '])')
 
 
 def speaker_labels(text, minimum_repeats=3, speaker_names=()):

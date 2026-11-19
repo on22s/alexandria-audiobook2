@@ -10,20 +10,32 @@ while its generated entries kept 16.
 import unittest
 from unittest.mock import patch
 
+import dialogue_spans
 from dialogue_spans import (apply_dialogue_map, apply_source_narration, apply_source_speakers,
-                            detect_convention, mark_entries,
-                            speaker_labels, spoken_spans, uses_speaker_labels)
+                            detect_convention, get_other_speech_spans, mark_entries,
+                            speaker_labels, spoken_spans, uses_speaker_labels,
+                            validate_spoken_spans)
 
 
 class ConventionTest(unittest.TestCase):
     def test_one_character_utterances_are_counted_and_located_for_each_quote_style(self):
-        for opener, closer in [('"', '"'), ('“', '”'), ('「', '」'), ('『', '』')]:
+        for opener, closer in [('"', '"'), ('“', '”'), ('「', '」'), ('『', '』'),
+                               ('„', '“'), ('＂', '＂')]:
             with self.subTest(opener=opener):
                 words = list('AIえあ!?')
                 text = '\n'.join(opener + word + closer for word in words)
                 self.assertEqual('paired_quotes', detect_convention(text))
                 self.assertEqual(words, [text[a:b] for a, b in spoken_spans(text)])
                 self.assertEqual([], spoken_spans(opener + closer, 'paired_quotes'))
+
+        # Low-high single marks are secondary speech, like «»: recognised so
+        # the line is not called narration, without being the convention that
+        # carries the book's dialogue. That is the same line this module draws
+        # for every single mark, whose closer is also an apostrophe.
+        source = "Er zögerte. ‚Komm her!‘ sagte er."
+        self.assertEqual([], [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+        self.assertEqual(["Komm her!"], [source[a:b] for a, b in
+                                         get_other_speech_spans(source, "paired_quotes")])
 
     def test_curly_quotes_are_recognised(self):
         text = "\n".join(f"He paused. “Line number {i}, spoken aloud.”" for i in range(6))
@@ -88,10 +100,11 @@ class SpanTest(unittest.TestCase):
                     text = f"He said, {opener}{speech}{closer} and left."
                     self.assertEqual([speech], [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
 
-    def test_a_long_pair_across_a_blank_line_is_still_refused(self):
-        # The old cap's job: an unclosed opener must not pair with a closer
-        # paragraphs later and swallow the narration between. The real pair
-        # after it is still found.
+    def test_a_pair_across_narration_is_refused_whatever_its_length(self):
+        # A break the next paragraph does not re-open is narration, so a pair
+        # reaching across it is refused and the real pair after it is found.
+        # A chain that re-opens the mark at every paragraph is a speech, not a
+        # swallow - and costs one indexed pass, not a walk per opener.
         narration = "The narrator went on at great length. " * 60
         text = f"“Never closed.\n\n{narration}\n\n“Real line.” she said."
         self.assertEqual(["Real line."], [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
@@ -120,18 +133,407 @@ class SpanTest(unittest.TestCase):
                 with self.subTest(mark=opener, shape=shape):
                     measured = MeasuredSource(value)
                     spans = spoken_spans(measured, 'paired_quotes')
-                    expected = ([(value.find(opener, len(value) - 2002) + 1, len(value) - 1)]
-                                if shape == 'many_breaks' else [])
+                    # The trailing 'x' paragraph is narration, so every
+                    # candidate crosses it - including the short pair the old
+                    # 2,000-character exemption used to let through. Nothing
+                    # here is spoken.
+                    expected = []
                     self.assertEqual(expected, spans)
                     self.assertEqual(0, measured.copied_characters)
                     self.assertLessEqual(measured.search_extent, 8 * len(value))
 
-    def test_a_short_multi_paragraph_speech_keeps_its_old_span(self):
-        # Within the limit a blank line was allowed before and still is, so a
-        # speech whose paragraphs reopen without closing is not newly lost.
+    def test_an_orphan_closing_mark_does_not_swallow_narration(self):
+        # A stray `”` after a German closer must not make that closer look like
+        # an English opener — otherwise the German pair runs on over narration.
+        source = "„German.“ narration ”orphan closer. “Real.”"
+        self.assertEqual(["German.", "Real."],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_a_straight_quote_inside_english_does_not_close_german(self):
+        # Straight marks pair among themselves; they must not decide what the
+        # next mark after a `“` is, or the utterance fragments at the `"` in
+        # `5" wide`.
+        source = "„He said “it's \"5\" wide” to me.“ end"
+        self.assertEqual(["He said “it's \"5\" wide” to me."],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_a_reprise_closer_after_a_digit_is_not_an_inch_mark(self):
+        # The inch-mark rule only applies to a mark opening an inline expression
+        # (5" wide). At the end of a paragraph it still closes the speech.
+        source = '"Part one.\n\n"Part two ends 5"'
+        self.assertEqual(['Part one.\n\n"Part two ends 5'],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_a_stray_closer_after_german_speech_keeps_narration_out(self):
+        # A `”` after narration, with no later `“`, must not flip the real
+        # German closer into an English opener — otherwise the speech is lost
+        # and the narration is marked spoken and voiced by a character.
+        source = "„Ich bin da.“Er ging nach Hause”und schwieg."
+        self.assertEqual(["Ich bin da."],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+        marked = mark_entries([
+            {"speaker": "OTHER", "text": "Ich bin da."},
+            {"speaker": "HER", "text": "Er ging nach Hause"},
+        ], source, "paired_quotes")
+        self.assertTrue(marked[0]["spoken"])
+        self.assertNotEqual(True, marked[1].get("spoken"))
+
+    def test_a_later_german_pair_does_not_merge_an_earlier_speech(self):
+        # The close-capable `“` of a SECOND German pair must not make the first
+        # pair's closer look like an English opener. Otherwise the two speeches
+        # merge and the narration between them is labelled as spoken.
+        clean = "\n\n".join("„Clean speech " + str(i) + " here“ said he."
+                            for i in range(6))
+        source = clean + "\n\n„Red“ she muttered ”stray „Blue.“ he replied."
+        rendered = [source[a:b] for a, b in spoken_spans(source)]
+        self.assertIn("Red", rendered)
+        self.assertIn("Blue.", rendered)
+        self.assertFalse(any("she muttered" in span for span in rendered))
+
+    def test_straight_quote_reprise_chain_is_linear(self):
+        # A mark that opens a paragraph re-opens the quote, so the closer search
+        # skips it. Restarting that scan at every opener was quadratic: 8k
+        # marks took ~3.3s. A forward index keeps it linear (~0.02s).
+        import time
+        for mark in ('"', '＂'):
+            with self.subTest(mark=mark):
+                source = "\n\n".join(mark + "line" for _ in range(8000))
+                started = time.monotonic()
+                # Every mark opens a paragraph, so none can close a pair.
+                self.assertEqual([], spoken_spans(source, "paired_quotes"))
+                self.assertLess(time.monotonic() - started, 1.0)
+
+    def test_a_foreign_quote_density_stays_secondary_in_an_english_book(self):
+        # Even at the detection threshold, low-high pairs fewer than the book's
+        # English pairs stay other speech rather than getting character voices.
+        english = "\n\n".join("“English " + str(i) + ".” said he." for i in range(6))
+        german = "\n\n".join("„Wort" + str(i) + "“" for i in range(5))
+        source = english + "\n\n" + german
+        rendered = [source[a:b] for a, b in spoken_spans(source, "paired_quotes")]
+        self.assertEqual(6, len(rendered))
+        self.assertFalse(any("Wort" in span for span in rendered))
+
+    def test_a_stray_german_opener_before_one_english_quote(self):
+        # With a single English quote there is no later “ to disambiguate, so
+        # the space before it identifies the stray `„`. Base gets this right.
+        for source, expected in [
+            ("„narrative words here “Real English.” end", "Real English."),
+            ("He paused. „what now. “Actual speech here.” she said.",
+             "Actual speech here."),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual([expected],
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_a_stray_german_opener_does_not_swallow_english_speech(self):
+        # `„` is a stray mark here; both following “English” pairs are real
+        # speech. Treating the first `“` as the German closer drops it and
+        # marks the narration spoken — base gets both right.
+        source = "„orphan stray “English one” and “English two” end"
+        self.assertEqual(["English one", "English two"],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+        marked = mark_entries([
+            {"speaker": "A", "text": "English one"},
+            {"speaker": "B", "text": "English two"},
+            {"speaker": "N", "text": "orphan stray"},
+        ], source, "paired_quotes")
+        self.assertTrue(marked[0].get("spoken"))
+        self.assertTrue(marked[1].get("spoken"))
+        self.assertNotEqual(True, marked[2].get("spoken"))
+
+    def test_padded_english_speech_nested_in_german_is_not_an_orphan(self):
+        # Edge whitespace (including a newline) is not evidence of an orphan
+        # `”` — a real English quote inside a German pair keeps the German
+        # closer at the later `“`, so the whole utterance stays spoken.
+        for source, expected in [
+            ("„He said “ Hi ” to me.“ she said.", "He said “ Hi ” to me."),
+            ("„He said “Hi ” to me.“ she said.", "He said “Hi ” to me."),
+            ("„He said “\nHi” to me.“ she said.", "He said “\nHi” to me."),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual([expected],
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_an_orphan_closer_after_nesting_keeps_both_speeches(self):
+        # An orphan `”` has empty or whitespace-padded content — it is not a
+        # real English closer, so it must not turn the preceding German closer
+        # into an English opener (which would drop nested speech or swallow a
+        # later German speech into the narration).
+        for source, expected in [
+            ("„He said “Hi” to me.“ ”orphan", ["He said “Hi” to me."]),
+            ("„A “B” C“ ”orphan „D.“", ["A “B” C", "D."]),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(expected,
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_shared_mark_disambiguation_is_linear(self):
+        # The shared-mark roles are resolved with position-indexed lookups. A
+        # linear rescan per quote made a 20k-pair text take seconds; this is a
+        # coarse wall-clock guard with a wide margin (measured ~0.05s).
+        import time
+        source = "\n\n".join("„Speech " + str(i) + " here“ said he." for i in range(20000))
+        started = time.monotonic()
+        self.assertEqual(20000, len(spoken_spans(source, "paired_quotes")))
+        self.assertLess(time.monotonic() - started, 2.0)
+
+    def test_guillemet_closers_do_not_pair_as_openers(self):
+        # Both «…» and »…« are in PAIRED, but a text uses one direction. With
+        # single newlines the narration between speeches must stay narration.
+        for opener, closer in [('«', '»'), ('»', '«')]:
+            with self.subTest(opener=opener):
+                source = opener + "Bonjour" + closer + " then he left."
+                self.assertEqual(["Bonjour"],
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_a_stray_guillemet_before_the_first_speech_does_not_flip_direction(self):
+        # A breadcrumb `»` ahead of the first `«` once chose `»…«` for the
+        # whole text: every speech became narration and every gap between two
+        # speeches became spoken. The marks' shape decides, not their order.
+        speeches = ["Bonjour", "Ça va?", "Oui.", "Non.", "Peut-être."]
+        for stray, opener, closer in [("Menu » Chapitre. ", "«", "»"),
+                                      ("Menu « Kapitel. ", "»", "«")]:
+            with self.subTest(opener=opener):
+                source = stray + " ".join(opener + s + closer + ", dit-il."
+                                          for s in speeches)
+                self.assertEqual("paired_quotes", detect_convention(source))
+                self.assertEqual(
+                    speeches,
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_guillemet_direction_falls_back_to_first_mark_on_a_tie(self):
+        # Padded `« x »` mid-line casts no shape vote either way; the old
+        # first-mark rule still decides it, so such books behave as before.
+        self.assertEqual(("«", "»"), dialogue_spans.get_guillemet_direction("a « b » c"))
+        self.assertEqual(("»", "«"), dialogue_spans.get_guillemet_direction("a » b « c"))
+        self.assertEqual((None, None), dialogue_spans.get_guillemet_direction("no marks"))
+
+    def test_a_stray_straight_mark_does_not_carry_a_pair_across_a_paragraph(self):
+        # A reprise break (next paragraph opens with `"`) looks identical
+        # after a stray mark in narration. Only an opener-shaped mark may
+        # carry a pair across it; a padded stray must not swallow narration.
+        source = 'He held a " thing up.\n\n"Go home," she said. "Now," she said.'
+        self.assertEqual(
+            ["Go home,", "Now,"],
+            [source[a:b] for a, b in dialogue_spans._paired_spans(source)])
+        # The real reprise is still one continued speech.
+        reprise = '"First para of speech.\n\n"Second para," he said.'
+        self.assertEqual(
+            ['First para of speech.\n\n"Second para,'],
+            [reprise[a:b] for a, b in dialogue_spans._paired_spans(reprise)])
+
+    def test_guillemets_polish_and_danish_are_first_class_conventions(self):
+        # French/Russian guillemets, Polish low-high and Danish reversed marks
+        # must be detected and give every speech a spoken fact, not a narrator.
+        for opener, closer in [('«', '»'), ('»', '«'), ('„', '”')]:
+            with self.subTest(opener=opener):
+                source = "\n\n".join(opener + "Speech " + str(i) + "." + closer
+                                     for i in range(6))
+                self.assertEqual("paired_quotes", detect_convention(source))
+                self.assertEqual(6, len(spoken_spans(source, "paired_quotes")))
+
+    def test_a_book_that_only_reopens_nowhere_is_deliberately_refused(self):
+        # Documented trade-off: typography that opens a speech once and closes
+        # it paragraphs later, without re-opening the mark, cannot be told from
+        # a mis-pair swallowing narration. The strict rule refuses it; a bounded
+        # fallback was tried and reinstated exactly the swallow this rule bans,
+        # so the loss is accepted rather than repaired silently. The text is
+        # still surfaced by get_other_speech_spans for review.
+        source = "\n\n".join(
+            "“" + ("word " * 120) + "\n\n" + ("word " * 120) + ".” she said."
+            for _ in range(6))
+        self.assertEqual([], spoken_spans(source, "paired_quotes"))
+        self.assertIsNone(detect_convention(source))
+        self.assertTrue(get_other_speech_spans(source, "paired_quotes"))
+
+    def test_a_german_quote_in_an_english_book_is_not_given_a_voice(self):
+        # A sign or foreign term is secondary speech, not dialogue. German only
+        # carries the convention when it is dense enough to be the book's mark.
+        english = "\n\n".join("“Line " + str(i) + ", ” he said." for i in range(6))
+        source = english + "\n\nThe sign read „Ausgang“ and he left."
+        rendered = [source[a:b] for a, b in spoken_spans(source, "paired_quotes")]
+        self.assertEqual(6, len(rendered))
+        self.assertFalse(any("Ausgang" in span for span in rendered))
+        self.assertTrue(any("Ausgang" in source[a:b] for a, b in
+                            get_other_speech_spans(source, "paired_quotes")))
+        german = "\n\n".join("Er sagte „Zeile " + str(i) + " hier!“ und ging."
+                             for i in range(6))
+        self.assertEqual(6, len(spoken_spans(german, "paired_quotes")))
+        self.assertEqual("paired_quotes", detect_convention(german))
+
+    def test_an_inch_mark_before_a_dialogue_paragraph_does_not_start_the_span(self):
+        source = 'The blade was 12"\n\n"Run now, he said."'
+        self.assertEqual(["Run now, he said."],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_a_blank_line_before_the_closing_mark_is_a_refused_candidate(self):
+        # Deliberate scope of the rule: a blank line inside a pair must be
+        # followed by the SAME mark. Here it is followed by the closer, so the
+        # candidate is refused rather than treated as a continued speech — the
+        # same refusal that bounds a chain of unclosed openers. The text is not
+        # silently lost in every convention: other-speech detection may still
+        # surface it for review, depending on the mark.
+        for opener, closer in [('“', '”'), ('"', '"')]:
+            with self.subTest(opener=opener):
+                source = opener + "Hello\n\n" + closer + " she said."
+                self.assertEqual([], [source[a:b] for a, b in spoken_spans(
+                    source, "paired_quotes")])
+
+    def test_a_short_multi_paragraph_speech_is_kept_by_the_reprise_rule(self):
+        # Nothing to do with length: a speech whose paragraphs re-open the same
+        # mark is one span, and was before the rule applied to every pair.
         text = "“First paragraph of the speech.\n\n“Second paragraph.” he said."
         self.assertEqual(["First paragraph of the speech.\n\n“Second paragraph."],
                          [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
+
+    def test_a_long_speech_whose_paragraphs_reopen_the_quote_is_one_span(self):
+        # The former length cap dropped the first paragraph of a long speech
+        # and kept only the last; the reprise rule keeps the whole utterance.
+        first, second = ("filler " * 200)[:1400], ("filler " * 200)[:1200]
+        text = f"“{first}\n\n“{second}” he said."
+        self.assertGreater(len(first) + len(second), 2000)
+        self.assertEqual([text[1:text.index("”")]],
+                         [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
+
+    def test_german_and_full_width_marks_are_paired_and_stripped_for_matching(self):
+        # German/Polish/Czech „…“ prints outside the marks this module paired
+        # before, so the line was neither located nor stripped - it read as
+        # narration with no error. Both halves are asserted here because
+        # pairing without stripping still leaves every entry unlocated.
+        source = "Er zögerte. „Komm sofort her!“ sagte er."
+        (start, end), = spoken_spans(source, "paired_quotes")
+        self.assertEqual("Komm sofort her!", source[start:end])
+        marked = mark_entries([{"speaker": "A", "text": "Komm sofort her!"}],
+                              source, "paired_quotes")
+        self.assertTrue(marked[0]["spoken"])
+        self.assertEqual("Komm sofort her!", source[slice(*marked[0]["source_span"])])
+
+    def test_a_german_closer_is_not_mistaken_for_an_english_opener(self):
+        # In a book mixing the two, `“` closes „…“ but also opens “…”. Treating
+        # the German closer as an English opener paired it with the next English
+        # closer and produced a phantom span over the narration between them.
+        source = ("Er sagte „Komm her!“ und dann “Never mind.”\n\n"
+                  "Er sagte „Geh jetzt!“ und dann “Too late.”")
+        self.assertEqual(
+            ["Komm her!", "Never mind.", "Geh jetzt!", "Too late."],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_an_english_opener_is_not_taken_for_a_german_closer(self):
+        # The reverse mistake: a `“` followed by `”` opens English speech even
+        # while a German pair is pending. A greedy closer scan either drops it
+        # or cuts the German utterance short; both lose real speech.
+        for source, expected in [
+            ("A stray „ mark here. “Real speech here.” she said.",
+             ["Real speech here."]),
+            ("„He said “Hi” to me.“ she said.",
+             ["He said “Hi” to me."]),
+        ]:
+            with self.subTest(source=source):
+                self.assertEqual(expected,
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_a_detected_span_must_be_a_real_range_in_the_source(self):
+        # The guard runs on raw detection, before the sort and merge, because
+        # after the merge nothing can be wrong and a check there never fires.
+        for spans in ([(4, 2)], [(2, 2)], [(-1, 2)], [(0, 11)], [(1.0, 2)],
+                      [(1, True)]):
+            with self.subTest(spans=spans):
+                with self.assertRaises(ValueError):
+                    validate_spoken_spans(spans, "0123456789")
+        self.assertTrue(validate_spoken_spans([], "0123456789"))
+        # Overlap and order are the merge's business: two conventions may mark
+        # the same line, and only the merged map has to be ordered.
+        self.assertTrue(validate_spoken_spans([(2, 5), (4, 6)], "0123456789"))
+        self.assertTrue(validate_spoken_spans([(0, 5), (5, 10)], "0123456789"))
+
+    def test_a_broken_detection_raises_before_the_merge_can_hide_it(self):
+        # Not just the function: the guard sits on the path `spoken_spans`
+        # takes, so a detection returning garbage raises instead of being
+        # tidied into a plausible map.
+        text = 'She waited. “Get down!” he shouted.'
+        for broken in ([(5, 0)], [(-1, 3)], [(0, 500)], [(1.5, 3)]):
+            with self.subTest(broken=broken):
+                with patch("dialogue_spans._paired_spans", return_value=broken):
+                    with self.assertRaises(ValueError):
+                        spoken_spans(text, "paired_quotes")
+
+    def test_a_short_pair_across_narration_is_refused_too(self):
+        # The length cap exempted this: a short pair could swallow a narration
+        # paragraph sitting between two speeches. Length is not evidence.
+        text = '“Hello.\n\nShe left without answering.\n\n“Goodbye.”'
+        self.assertEqual(["Goodbye."],
+                         [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
+
+    def test_a_blank_line_is_a_break_however_the_source_spells_it(self):
+        # `"\n\n"` alone was blind to a blank line carrying a space or tab,
+        # and to CRLF, so on those sources the refusal below was silently
+        # optional while every fixture here wrote "\n\n".
+        for gap in ("\n\n", "\n \n", "\n\t\n", "\r\n\r\n", "\r\r"):
+            with self.subTest(gap=gap):
+                text = f"“One.{gap}Narration here.{gap}“Two.”"
+                self.assertEqual(["Two."],
+                                 [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
+            with self.subTest(reopened=gap):
+                text = f"“One.{gap}“Two.” he said."
+                self.assertEqual([f"One.{gap}“Two."],
+                                 [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
+
+    def test_a_straight_or_full_width_speech_that_reopens_its_mark_is_one_span(self):
+        # Straight quotes can only be paired by position, and the old rule
+        # banned every blank line in a straight pair instead of asking who
+        # re-opened it - so the first paragraph of every continued speech in
+        # such a book was read as narration. A distinct-mark pair answers the
+        # same question, and the full-width pair added here inherits it.
+        for mark in ('"', "＂"):
+            with self.subTest(mark=mark):
+                text = f"{mark}One.\n\n{mark}Two.{mark} he said."
+                self.assertEqual([f"One.\n\n{mark}Two."],
+                                 [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
+
+    def test_a_straight_pair_across_narration_is_still_refused(self):
+        # The mushoku18 failure the old blanket rule existed for: a shifted
+        # pair must not swallow narration. The break it crosses is not
+        # re-opened, so the check that keeps a continued speech refuses it, and
+        # the real pair after it survives.
+        text = '"Never closed.\n\nNarration here.\n\n"Real line." she said.'
+        self.assertEqual(["Real line."],
+                         [text[a:b] for a, b in spoken_spans(text, "paired_quotes")])
+
+    def test_narration_after_a_german_speech_is_narration_not_other_speech(self):
+        # German puts the closing mark where English puts the opening one.
+        # Reading every “ as an unclosed opener marked the rest of its
+        # paragraph as speech-by-another-convention: neither spoken nor
+        # narration, so apply_source_narration had nothing to correct and every
+        # speech logged a phantom review.
+        source = "Er zögerte. „Komm sofort her!“ sagte er leise.\n\nDann ging er weg.\n"
+        self.assertEqual(["Komm sofort her!"],
+                         [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+        self.assertEqual([], [source[a:b] for a, b in
+                              get_other_speech_spans(source, "paired_quotes")])
+        marked = mark_entries([{"speaker": "ALICE", "text": "sagte er leise."}],
+                              source, "paired_quotes")
+        self.assertIs(False, marked[0]["spoken"])
+        self.assertNotIn("dialogue_ambiguity", marked[0])
+
+    def test_a_printed_name_before_every_opening_mark_is_found(self):
+        # The label lookahead listed only the marks paired when it was written,
+        # so a German transcript's own `Name „line“` got no label at all -
+        # the one exact attribution signal those files print.
+        for mark in ("“", "„", "＂", "「"):
+            with self.subTest(mark=mark):
+                source = "\n".join(f"Alice {mark}Line {i}.{mark}" for i in range(6))
+                self.assertEqual(6, len(speaker_labels(source, speaker_names=["ALICE"])))
+
+    def test_a_multi_paragraph_speech_that_does_not_reopen_the_quote_is_refused(self):
+        # The cost of the rule, stated rather than discovered later: typography
+        # that opens a speech once and closes it paragraphs later is refused.
+        # End to end the first paragraph is flagged `other_convention` with no
+        # spoken verdict (it keeps its character voice, pending review), while
+        # later paragraphs go to NARRATOR; a book whose refusals drop it below
+        # the detection threshold gets no speech map at all. Kept below the old
+        # 2,000-character cap; nothing here claims that was wrong.
+        text = '“This speech runs on.\n\nAnd on, in a second paragraph,\n\nand closes here.” he said.'
+        self.assertEqual([], spoken_spans(text, "paired_quotes"))
 
 
 class MarkEntriesTest(unittest.TestCase):
@@ -426,26 +828,30 @@ class SourceNarrationTest(unittest.TestCase):
                 visits.clear()
                 dialogue_spans.get_other_speech_spans("“A.”\n\n" * repeats, "paired_quotes")
                 self.assertLessEqual(len(visits), repeats, repeats)
-        # Unclosed marks in one paragraph also share one forward search.
+        # Unclosed marks in one paragraph also share one forward search. The
+        # search is the module's single blank-line lookup, so it is counted
+        # there rather than at one string method: the property is one search
+        # per paragraph, not one particular `find` call.
         paragraph_searches = []
+        original_blank_line = dialogue_spans._next_blank_line
 
-        class CountedText(str):
-            def find(self, marker, *args):
-                if marker == "\n\n":
-                    paragraph_searches.append(args)
-                return super().find(marker, *args)
+        def counted_blank_line(search_text, start):
+            paragraph_searches.append(start)
+            return original_blank_line(search_text, start)
 
         for opener in ("“", "「", "『"):
             for repeats in (500, 2000):
                 paragraph_searches.clear()
-                text = CountedText((opener + "Wait ") * repeats)
-                spans = dialogue_spans.get_other_speech_spans(text, "paired_quotes")
+                text = (opener + "Wait ") * repeats
+                with patch.object(dialogue_spans, "_next_blank_line", counted_blank_line):
+                    spans = dialogue_spans.get_other_speech_spans(text, "paired_quotes")
                 self.assertEqual(repeats, len(spans))
                 self.assertTrue(all(stop == len(text) for _start, stop in spans))
                 self.assertEqual(1, len(paragraph_searches))
             paragraph_searches.clear()
-            text = CountedText(f"{opener}Wait {opener}stay\n\n{opener}Go {opener}now")
-            spans = dialogue_spans.get_other_speech_spans(text, "paired_quotes")
+            text = f"{opener}Wait {opener}stay\n\n{opener}Go {opener}now"
+            with patch.object(dialogue_spans, "_next_blank_line", counted_blank_line):
+                spans = dialogue_spans.get_other_speech_spans(text, "paired_quotes")
             boundary = text.index("\n\n")
             self.assertEqual([boundary, boundary, len(text), len(text)], [end for _start, end in spans])
             self.assertEqual(2, len(paragraph_searches))
