@@ -33,6 +33,20 @@ class SegmentQualityTests(unittest.TestCase):
                 self.assertEqual(['NARRATOR'], [row['type'] for row in title])
                 self.assertEqual(['SPOKEN'], [row['type'] for row in speech])
 
+    def test_german_low_high_quotes_label_speech_and_narration_in_order(self):
+        # `“` closes „…“ but opens “…”. The segmenter must not read a German
+        # speech backwards (narration as SPOKEN, speech as NARRATOR).
+        source = "Er sagte „Komm her!“ und ging."
+        regions = analyze_outer_quote_regions(source)["regions"]
+        self.assertEqual(
+            [("NARRATOR", "Er sagte"), ("SPOKEN", "Komm her!"), ("NARRATOR", "und ging.")],
+            [(row["type"], row["text"]) for row in regions])
+        # English behaviour is unchanged by the shared-mark support.
+        english = analyze_outer_quote_regions("He said “Go.” then left.")["regions"]
+        self.assertEqual(
+            [("NARRATOR", "He said"), ("SPOKEN", "Go."), ("NARRATOR", "then left.")],
+            [(row["type"], row["text"]) for row in english])
+
     def test_one_word_dialogue_split_passes_but_wrong_region_and_crossing_fail(self):
         source = '“No. Not at all.”'
         report = validate_segment_quality(source, [{'type': 'SPOKEN', 'text': text} for text in ('No.', 'Not at all.')])

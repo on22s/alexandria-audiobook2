@@ -20,14 +20,20 @@ from chunk_quality import (MIN_SOURCE_TOKEN_RECALL, MIN_ORDERED_TRIGRAM_RECALL,
 from script_preflight import find_adjacent_duplicate_blocks
 
 _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
-_QUOTE_CHARS = {'"', '“', '”', '「', '」', '『', '』'}
+# Derive every quote-mark set from dialogue_spans' single PAIRED table so the
+# source-map and the generator's segmenter cannot drift apart.
+from dialogue_spans import PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS
+
+_QUOTE_CHARS = set(_DS_QUOTE_MARKS) | {'”'}
 # The marks analyze_outer_quote_regions opens a spoken region on; "does this
 # chunk contain any" is the question the quotes-only refusal asks.
-QUOTE_MARKS = ('"', '“', '「', '『')
-_CURLY_AND_JAPANESE_OPEN = {'“', '「', '『'}
+QUOTE_MARKS = tuple(dict.fromkeys(opener for opener, _closer in _PAIRED))
+_CURLY_AND_JAPANESE_OPEN = set(QUOTE_MARKS) - {'"', '＂'}
 # A finished sentence before a second opening quote marks a run-on quote (#624).
 _SENTENCE_END = set('.!?…。！？')
-_CURLY_AND_JAPANESE_CLOSE = {'”', '」', '』'}
+_CURLY_AND_JAPANESE_CLOSE = {closer for _opener, closer in _PAIRED
+                             if closer not in ('"', '＂')} | {'”'}
+_SELF_PAIRED = {'"', '＂'}
 
 
 _REPORTING_VERBS = (
@@ -73,6 +79,7 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     """
     regions, current, pending_source_label = [], [], None
     depth, saw_quote, repairs = initial_depth, bool(initial_depth), []
+    german_open = False  # `“` closes a German „…“ pair instead of opening English
 
     def flush():
         nonlocal pending_source_label
@@ -90,7 +97,15 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             flush()
             current.append(char)
             continue
-        if char in _CURLY_AND_JAPANESE_OPEN or char == '"':
+        if char == "“" and german_open:
+            # German low-high closes with `“`, the same mark English uses to
+            # open — without this the German speech is read backwards.
+            if depth == 1:
+                flush()
+            depth -= 1
+            german_open = False
+            continue
+        if char in _CURLY_AND_JAPANESE_OPEN or char in _SELF_PAIRED:
             paragraph_start = text.rfind("\n\n", 0, index)
             paragraph_start = paragraph_start + 2 if paragraph_start >= 0 else 0
         if char in _CURLY_AND_JAPANESE_OPEN:
@@ -127,6 +142,8 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                     depth += 1
             else:
                 depth += 1
+            if char == "„":
+                german_open = True
             continue
         if char in _CURLY_AND_JAPANESE_CLOSE and depth:
             if char == '”' and depth == 1:
@@ -161,7 +178,7 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                             "offset": index})
             saw_quote = True
             continue
-        if char == '"':
+        if char in _SELF_PAIRED:
             if depth == 0 and _is_metadata_paragraph(current):
                 saw_quote = True
                 continue

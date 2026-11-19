@@ -57,6 +57,10 @@ OTHER_PAIRED = [
     # Low-high single marks (‚…‘). The opener is never an apostrophe, so it
     # anchors the pair on its own; the closer is the next ‘ after it.
     re.compile(r"‚([^‚‘\n]+)‘"),
+    # German low-high is secondary speech in an otherwise non-German book; it
+    # is included in PAIRED only when dense enough to be that book's convention.
+    # get_other_speech_spans skips pairs already found by _paired_spans.
+    re.compile(r"„([^„“\n]+)“"),
 ]
 # A mark here can ALSO close a different pair - `“` closes `„…“` - so a caller
 # must skip an occurrence that closes a real pair. get_other_speech_spans does.
@@ -137,6 +141,10 @@ def _ambiguous_mark_roles(text):
     means the `“` opens English, while a padded one means an orphan `”` after
     narration and the `“` closes German.
     """
+    if "„" not in text:
+        # No shared mark: every `“` is unambiguously an English opener, and
+        # this scan would otherwise cost ~41 ms on a 1.4 MB English book.
+        return set(), set()
     all_marks = [(m.start(), m.group()) for m in re.finditer(
         "[" + "".join(re.escape(mark) for mark in QUOTE_MARKS) + "]", text)]
     positions = [pos for pos, _ in all_marks]
@@ -228,8 +236,82 @@ def _ambiguous_mark_roles(text):
     return closes, opens
 
 
+MIN_CONVENTION_PAIRS = 5
+# Only the legacy safety valve uses the old cap: a long pair may cross a break,
+# a short one may not. The strict rule asks a better question for normal books.
+MAX_CROSSING_CHARS = 2000
+
+
 def _paired_spans(text):
+    """Strict spans, with a safety valve for books the strict rule empties.
+
+    A source that opens each speech once and closes it paragraphs later has no
+    re-opened marks, so the strict rule finds nothing and detect_convention
+    returns None — the whole source map silently disappears. When strict
+    detection would find fewer than MIN_CONVENTION_PAIRS pairs, fall back to
+    the old bounded rule for that text and keep whichever finds more pairs.
+    """
+    strict = _paired_spans_strict(text)
+    if len(strict) >= MIN_CONVENTION_PAIRS:
+        return strict
+    # Only fall back when the marks are balanced: a chain of unclosed openers
+    # (the mushoku18 class) is unbalanced and must stay refused, even though
+    # the old bounded rule would pair it sequentially.
+    balanced = any(
+        (text.count(opener) == text.count(closer)
+         if opener != closer else text.count(opener) % 2 == 0)
+        and text.count(opener) > 0
+        for opener, closer in PAIRED)
+    total_marks = sum(text.count(mark) for pair in PAIRED for mark in pair)
+    # A real book has sparse dialogue marks; a chain of unclosed openers is
+    # dense and must stay refused even though it is numerically "balanced".
+    if not balanced or total_marks * 100 > len(text):
+        return strict
+    legacy = _legacy_paired_spans(text)
+    # Only rescue a book whose strict map is genuinely decimated — a couple
+    # of refused pairs in a short sample are the documented trade-off.
+    if len(legacy) >= MIN_CONVENTION_PAIRS and len(legacy) > len(strict) + 2:
+        return legacy
+    return strict
+
+
+def _legacy_paired_spans(text):
+    """The former bounded rule, kept only as the detection safety valve."""
     spans = []
+    for opener, closer in PAIRED:
+        if opener == closer:
+            positions = [m.start() for m in re.finditer(re.escape(opener), text)]
+            pairs = zip(positions[0::2], positions[1::2])
+        else:
+            pairs = []
+            position = text.find(opener)
+            while position != -1:
+                end = text.find(closer, position + 1)
+                if end == -1:
+                    break
+                length = end - position - 1
+                crosses = 0 <= _next_blank_line(text, position + 1) < end - 1 \
+                    if length > MAX_CROSSING_CHARS else False
+                if length and not crosses:
+                    pairs.append((position, end))
+                    position = text.find(opener, end + 1)
+                else:
+                    position = text.find(opener, position + 1)
+        for start, end in pairs:
+            if end - start <= 1:
+                continue
+            if opener == closer:
+                # Straight quotes: the old rule refused any pair with a blank
+                # line, because marks are paired only by position.
+                if BLANK_LINE.search(text, start + 1, end - 1):
+                    continue
+            spans.append((start + 1, end))
+    return spans
+
+
+def _paired_spans_strict(text):
+    spans = []
+    german_range = None
     breaks = starts = None
     masks = {}
     # `“` closes „…“ but also opens “…”. Resolve each occurrence once, then skip
@@ -259,6 +341,7 @@ def _paired_spans(text):
         return mask
 
     for opener, closer in PAIRED:
+        before = len(spans)
         if opener == closer:
             # Straight quotes cannot be told apart, so they can only be paired
             # by position - and in a book that mixes “ ” with " ", one
@@ -280,6 +363,14 @@ def _paired_spans(text):
                 # an inch mark (5" wide). A mark at the end of a line/paragraph
                 # still closes speech — a reprise closer can follow a digit.
                 if len(positions) % 2 == 0 and position and text[position - 1].isdigit():
+                    after = position + 1
+                    while after < len(text) and text[after].isspace():
+                        after += 1
+                    # `5" wide` and `12"` followed by a new quote are inch
+                    # marks; `ends 5"` at the close of a paragraph is a real
+                    # closer and must not be skipped.
+                    if after < len(text) and text[after] == opener:
+                        continue
                     if (position + 1 < len(text)
                             and text[position + 1] not in "\r\n"):
                         continue
@@ -351,6 +442,16 @@ def _paired_spans(text):
                     position = next_opener(end + 1)
                 else:
                     position = next_opener(position + 1)
+        if opener == "„":
+            german_range = (before, len(spans))
+    if german_range and len(spans) >= MIN_CONVENTION_PAIRS:
+        count = german_range[1] - german_range[0]
+        others = len(spans) - count
+        if count and count < MIN_CONVENTION_PAIRS and count < others:
+            # A lone German quote in a book whose dialogue uses another mark
+            # is usually a sign, foreign term or title — not speech. Surface
+            # it as other speech instead of giving it a character voice.
+            del spans[german_range[0]:german_range[1]]
     return spans
 
 
@@ -368,7 +469,7 @@ def detect_convention(text):
         "label_lines": len(LABEL_LINE.findall(text)),
     }
     best = max(counts, key=counts.get)
-    if counts[best] < 5:
+    if counts[best] < MIN_CONVENTION_PAIRS:
         return None
     return best
 
@@ -425,28 +526,33 @@ def get_other_speech_spans(text, convention):
     """
     if convention is None:
         return []
+    pairs = sorted(_paired_spans(text))
+    closed = {stop for _begin, stop in pairs}
+    merged = []
+    for begin, stop in pairs:
+        if merged and begin <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], stop))
+        else:
+            merged.append((begin, stop))
+    starts = [begin for begin, _stop in merged]
+
+    def inside_primary(start, end):
+        index = bisect_right(starts, start) - 1
+        return index >= 0 and merged[index][1] >= end
+
     spans = [(m.start(1), m.end(1)) for pattern in OTHER_PAIRED for m in pattern.finditer(text)
-             if BLANK_LINE.search(text, m.start(1), m.end(1)) is None]
+             if BLANK_LINE.search(text, m.start(1), m.end(1)) is None
+             and not inside_primary(m.start(1), m.end(1))]
     if convention != "dash_lines":
         spans += [(m.start(1), m.end(1)) for m in DASH_LINE.finditer(text)]
     if convention != "paired_quotes":
-        spans += _paired_spans(text)
+        spans += pairs
     else:
         # An opening mark with no partner: speech to the end of its paragraph.
         # Membership is one bisect into the merged pairs, not a scan of all of
-        # them per opener, which made well-formed books quadratic.
-        pairs = sorted(_paired_spans(text))
-        # The mark that CLOSES a real pair, by offset. `“` closes `„…“`, so without
-        # this every German speech ended in a phantom "unclosed opener"
-        # covering the rest of its paragraph.
-        closed = {stop for _begin, stop in pairs}
-        merged = []
-        for begin, stop in pairs:
-            if merged and begin <= merged[-1][1]:
-                merged[-1] = (merged[-1][0], max(merged[-1][1], stop))
-            else:
-                merged.append((begin, stop))
-        starts = [begin for begin, _stop in merged]
+        # them per opener, which made well-formed books quadratic. The mark that
+        # CLOSES a real pair is skipped: `“` closes `„…“`, so without this every
+        # German speech ended in a phantom "unclosed opener".
         for opener, closer in UNCLOSED_OPENERS.items():
             paragraph_break = None
             for match in re.finditer(re.escape(opener), text):

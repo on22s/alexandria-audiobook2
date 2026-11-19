@@ -254,6 +254,36 @@ class SpanTest(unittest.TestCase):
         self.assertEqual(20000, len(spoken_spans(source, "paired_quotes")))
         self.assertLess(time.monotonic() - started, 2.0)
 
+    def test_a_book_that_only_reopens_nowhere_keeps_its_speech_map(self):
+        # A source that opens each speech once and closes it paragraphs later
+        # must not lose the whole map: the strict rule finds no pairs, so the
+        # detection safety valve falls back to the old bounded rule.
+        source = "\n\n".join(
+            "“" + ("word " * 120) + "\n\n" + ("word " * 120) + ".” she said."
+            for _ in range(6))
+        self.assertEqual(6, len(spoken_spans(source, "paired_quotes")))
+        self.assertEqual("paired_quotes", detect_convention(source))
+
+    def test_a_german_quote_in_an_english_book_is_not_given_a_voice(self):
+        # A sign or foreign term is secondary speech, not dialogue. German only
+        # carries the convention when it is dense enough to be the book's mark.
+        english = "\n\n".join("“Line " + str(i) + ", ” he said." for i in range(6))
+        source = english + "\n\nThe sign read „Ausgang“ and he left."
+        rendered = [source[a:b] for a, b in spoken_spans(source, "paired_quotes")]
+        self.assertEqual(6, len(rendered))
+        self.assertFalse(any("Ausgang" in span for span in rendered))
+        self.assertTrue(any("Ausgang" in source[a:b] for a, b in
+                            get_other_speech_spans(source, "paired_quotes")))
+        german = "\n\n".join("Er sagte „Zeile " + str(i) + " hier!“ und ging."
+                             for i in range(6))
+        self.assertEqual(6, len(spoken_spans(german, "paired_quotes")))
+        self.assertEqual("paired_quotes", detect_convention(german))
+
+    def test_an_inch_mark_before_a_dialogue_paragraph_does_not_start_the_span(self):
+        source = 'The blade was 12"\n\n"Run now, he said."'
+        self.assertEqual(["Run now, he said."],
+            [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
     def test_a_blank_line_before_the_closing_mark_is_a_refused_candidate(self):
         # Deliberate scope of the rule: a blank line inside a pair must be
         # followed by the SAME mark. Here it is followed by the closer, so the
