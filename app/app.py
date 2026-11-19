@@ -115,6 +115,41 @@ async def lifespan(_app):
 
 
 app = FastAPI(title="Alexandria Audiobook", lifespan=lifespan)
+
+# Baseline headers for every HTTP response. The CSP is report-only so it cannot
+# break the vanilla-JS SPA: the inline anti-flash block, inline event handlers
+# and inline <style> are all still in normal use, and every fetch() targets
+# /api/... on this origin. No X-Frame-Options / frame-ancestors by owner
+# decision — Pinokio embeds this app in a frame, and a framing restriction would
+# blank it.
+_REPORT_ONLY_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob:; "
+    "media-src 'self' blob: data:; "
+    "font-src 'self'; "
+    "connect-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'"
+)
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy-Report-Only": _REPORT_ONLY_CSP,
+}
+
+
+def apply_security_headers(response):
+    """Add the baseline headers without overwriting a header a route already set."""
+    for name, value in SECURITY_HEADERS.items():
+        if name not in response.headers:
+            response.headers[name] = value
+    return response
+
+
 async def handle_http_failure(request, error):
     record_failure('http_request_refused', error, task='http', resource=request.url.path,
                    operation=getattr(request.scope.get('route'), 'name', 'unmatched'),
@@ -127,7 +162,9 @@ async def handle_http_failure(request, error):
 async def handle_request_failure(request, error):
     record_failure('http_request_failed', error, task='http', resource=request.url.path,
                    operation=getattr(request.scope.get('route'), 'name', 'unmatched'), status_code=500)
-    return PlainTextResponse('Internal Server Error', status_code=500)
+    # This handler is also Starlette's outer ServerErrorMiddleware handler, so
+    # 500s produced there never pass through the user-middleware stack.
+    return apply_security_headers(PlainTextResponse('Internal Server Error', status_code=500))
 
 
 app.add_exception_handler(AppError, handle_http_failure)
@@ -212,6 +249,14 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["WWW-Authenticate"],
 )
+
+
+@app.middleware("http")
+async def _security_headers_middleware(request, call_next):
+    # Registered last, so it is the outermost user middleware and also labels
+    # responses short-circuited by the origin/auth gates above.
+    return apply_security_headers(await call_next(request))
+
 
 from routers.system import router as system_router
 

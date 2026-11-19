@@ -1619,7 +1619,7 @@ def _get_uploaded_cover_preview_sync(data_dir, expected_book_token, sha256):
     except (OSError, ValueError, RecursionError) as error:
         raise HTTPException(status_code=409,
             detail='Selected cover is unavailable or changed. Refresh cover options.',
-            headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'}) from error
+            headers={'Cache-Control': 'no-store'}) from error
 
 
 @router.get('/api/m4b_cover/preview')
@@ -1630,7 +1630,7 @@ async def preview_uploaded_m4b_cover(
     raw, media_type = await asyncio.to_thread(_get_uploaded_cover_preview_sync,
         data_dir, expected_book_token, sha256)
     return Response(raw, media_type=media_type,
-        headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
+        headers={'Cache-Control': 'no-store'})
 
 
 @router.post('/api/m4b_publication/resolve')
