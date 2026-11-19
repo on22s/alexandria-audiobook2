@@ -73,6 +73,31 @@ class SegmentQualityTests(unittest.TestCase):
                 regions = analyze_outer_quote_regions(source)["regions"]
                 self.assertFalse(any("source_label" in row for row in regions))
 
+    def test_polish_close_leaves_no_stale_opener_for_a_later_english_quote(self):
+        # `”` closing `„…”` once left `„` on the open stack, so the next `“`
+        # was read as English nested in German: its speech went to NARRATOR,
+        # or (unclosed) the narration before it went to SPOKEN.
+        cases = [
+            ('„Dzień dobry” – powiedział.\n\nPotem: “Hello there,” said Bob.',
+             "Hello there,", "– powiedział."),
+            ('„Tak” – rzekł. On czytał “Hamlet. Koniec.',
+             "Hamlet. Koniec.", "– rzekł. On czytał"),
+        ]
+        for source, spoken, narration in cases:
+            with self.subTest(source=source):
+                regions = analyze_outer_quote_regions(source)["regions"]
+                kinds = {row["text"]: row["type"] for row in regions}
+                self.assertEqual("SPOKEN", kinds.get(spoken), regions)
+                self.assertEqual("NARRATOR", kinds.get(narration), regions)
+
+    def test_stray_guillemet_before_first_speech_keeps_speech_spoken(self):
+        source = "Menu » Chapitre. «Bonjour», dit-il. Il partit."
+        regions = analyze_outer_quote_regions(source)["regions"]
+        self.assertEqual(
+            [("NARRATOR", "Menu » Chapitre."), ("SPOKEN", "Bonjour"),
+             ("NARRATOR", ", dit-il. Il partit.")],
+            [(row["type"], row["text"]) for row in regions])
+
     def test_nested_english_inside_german_keeps_german_as_speech(self):
         source = "Er sagte „He said “Hi” to me.“ und ging."
         regions = analyze_outer_quote_regions(source)["regions"]

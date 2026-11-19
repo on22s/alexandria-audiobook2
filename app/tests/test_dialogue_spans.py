@@ -10,6 +10,7 @@ while its generated entries kept 16.
 import unittest
 from unittest.mock import patch
 
+import dialogue_spans
 from dialogue_spans import (apply_dialogue_map, apply_source_narration, apply_source_speakers,
                             detect_convention, get_other_speech_spans, mark_entries,
                             speaker_labels, spoken_spans, uses_speaker_labels,
@@ -284,6 +285,42 @@ class SpanTest(unittest.TestCase):
                 source = opener + "Bonjour" + closer + " then he left."
                 self.assertEqual(["Bonjour"],
                     [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_a_stray_guillemet_before_the_first_speech_does_not_flip_direction(self):
+        # A breadcrumb `»` ahead of the first `«` once chose `»…«` for the
+        # whole text: every speech became narration and every gap between two
+        # speeches became spoken. The marks' shape decides, not their order.
+        speeches = ["Bonjour", "Ça va?", "Oui.", "Non.", "Peut-être."]
+        for stray, opener, closer in [("Menu » Chapitre. ", "«", "»"),
+                                      ("Menu « Kapitel. ", "»", "«")]:
+            with self.subTest(opener=opener):
+                source = stray + " ".join(opener + s + closer + ", dit-il."
+                                          for s in speeches)
+                self.assertEqual("paired_quotes", detect_convention(source))
+                self.assertEqual(
+                    speeches,
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_guillemet_direction_falls_back_to_first_mark_on_a_tie(self):
+        # Padded `« x »` mid-line casts no shape vote either way; the old
+        # first-mark rule still decides it, so such books behave as before.
+        self.assertEqual(("«", "»"), dialogue_spans.get_guillemet_direction("a « b » c"))
+        self.assertEqual(("»", "«"), dialogue_spans.get_guillemet_direction("a » b « c"))
+        self.assertEqual((None, None), dialogue_spans.get_guillemet_direction("no marks"))
+
+    def test_a_stray_straight_mark_does_not_carry_a_pair_across_a_paragraph(self):
+        # A reprise break (next paragraph opens with `"`) looks identical
+        # after a stray mark in narration. Only an opener-shaped mark may
+        # carry a pair across it; a padded stray must not swallow narration.
+        source = 'He held a " thing up.\n\n"Go home," she said. "Now," she said.'
+        self.assertEqual(
+            ["Go home,", "Now,"],
+            [source[a:b] for a, b in dialogue_spans._paired_spans(source)])
+        # The real reprise is still one continued speech.
+        reprise = '"First para of speech.\n\n"Second para," he said.'
+        self.assertEqual(
+            ['First para of speech.\n\n"Second para,'],
+            [reprise[a:b] for a, b in dialogue_spans._paired_spans(reprise)])
 
     def test_guillemets_polish_and_danish_are_first_class_conventions(self):
         # French/Russian guillemets, Polish low-high and Danish reversed marks

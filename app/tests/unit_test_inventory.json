@@ -4788,6 +4788,8 @@
     , "tests.test_dialogue_spans.SpanTest.test_a_stray_closer_after_german_speech_keeps_narration_out"
     , "tests.test_dialogue_spans.SpanTest.test_a_stray_german_opener_before_one_english_quote"
     , "tests.test_dialogue_spans.SpanTest.test_a_stray_german_opener_does_not_swallow_english_speech"
+    , "tests.test_dialogue_spans.SpanTest.test_a_stray_guillemet_before_the_first_speech_does_not_flip_direction"
+    , "tests.test_dialogue_spans.SpanTest.test_a_stray_straight_mark_does_not_carry_a_pair_across_a_paragraph"
     , "tests.test_dialogue_spans.SpanTest.test_an_english_opener_is_not_taken_for_a_german_closer"
     , "tests.test_dialogue_spans.SpanTest.test_an_inch_mark_before_a_dialogue_paragraph_does_not_start_the_span"
     , "tests.test_dialogue_spans.SpanTest.test_an_orphan_closer_after_nesting_keeps_both_speeches"
@@ -4795,6 +4797,7 @@
     , "tests.test_dialogue_spans.SpanTest.test_an_unmatched_straight_quote_does_not_swallow_the_book"
     , "tests.test_dialogue_spans.SpanTest.test_german_and_full_width_marks_are_paired_and_stripped_for_matching"
     , "tests.test_dialogue_spans.SpanTest.test_guillemet_closers_do_not_pair_as_openers"
+    , "tests.test_dialogue_spans.SpanTest.test_guillemet_direction_falls_back_to_first_mark_on_a_tie"
     , "tests.test_dialogue_spans.SpanTest.test_guillemets_polish_and_danish_are_first_class_conventions"
     , "tests.test_dialogue_spans.SpanTest.test_inches_before_dialogue_do_not_shift_speech_into_narration"
     , "tests.test_dialogue_spans.SpanTest.test_narration_after_a_german_speech_is_narration_not_other_speech"
@@ -9372,6 +9375,7 @@
     , "tests.test_pass_quality.SegmentQualityTests.test_missing_type_field_fails"
     , "tests.test_pass_quality.SegmentQualityTests.test_nested_english_inside_german_keeps_german_as_speech"
     , "tests.test_pass_quality.SegmentQualityTests.test_one_word_dialogue_split_passes_but_wrong_region_and_crossing_fail"
+    , "tests.test_pass_quality.SegmentQualityTests.test_polish_close_leaves_no_stale_opener_for_a_later_english_quote"
     , "tests.test_pass_quality.SegmentQualityTests.test_quote_continuation_checks_the_first_paragraph_character"
     , "tests.test_pass_quality.SegmentQualityTests.test_quote_free_analysis_does_not_create_nonexistent_boundaries"
     , "tests.test_pass_quality.SegmentQualityTests.test_quote_free_continuation_keeps_supplied_spoken_regions"
@@ -9382,6 +9386,7 @@
     , "tests.test_pass_quality.SegmentQualityTests.test_severe_truncation_fails_recall"
     , "tests.test_pass_quality.SegmentQualityTests.test_source_credit_quotes_stay_narration_for_supported_styles"
     , "tests.test_pass_quality.SegmentQualityTests.test_source_label_cannot_hide_missing_spoken_words"
+    , "tests.test_pass_quality.SegmentQualityTests.test_stray_guillemet_before_first_speech_keeps_speech_spoken"
     , "tests.test_pass_quality.ValidationExpectedValueTests.test_falsey_expected_values_remain_in_diagnostic_context"
   ]
   , "test_pause_scoring": [

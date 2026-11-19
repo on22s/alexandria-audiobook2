@@ -22,7 +22,8 @@ from script_preflight import find_adjacent_duplicate_blocks
 _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 # Derive every quote-mark set from dialogue_spans' single PAIRED table so the
 # source-map and the generator's segmenter cannot drift apart.
-from dialogue_spans import PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS
+from dialogue_spans import (PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
+                            get_guillemet_direction as _get_guillemet_direction)
 
 _QUOTE_CHARS = set(_DS_QUOTE_MARKS) | {'”'}
 # The marks analyze_outer_quote_regions opens a spoken region on; "does this
@@ -84,14 +85,9 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     skip_until = -1  # consumed by a line-dash dialogue region
 
     # One guillemet direction per text: an opposite-direction closer must not
-    # be parsed as an opener (HIGH in the app-wide review).
-    first_open, first_close = text.find("«"), text.find("»")
-    if first_open != -1 and (first_close == -1 or first_open < first_close):
-        guillemet_open, guillemet_close = "«", "»"
-    elif first_close != -1:
-        guillemet_open, guillemet_close = "»", "«"
-    else:
-        guillemet_open = guillemet_close = None
+    # be parsed as an opener (HIGH in the app-wide review). Decided by the
+    # same function the source map uses, so the two cannot disagree.
+    guillemet_open, guillemet_close = _get_guillemet_direction(text)
     openers = set(_CURLY_AND_JAPANESE_OPEN)
     closers = set(_CURLY_AND_JAPANESE_CLOSE)
     if guillemet_open:
@@ -138,6 +134,12 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             flush()
             current.append(char)
             continue
+        if not depth and open_stack:
+            # Nothing is open outside speech. A generic close (`”` ending a
+            # Polish `„…”`) leaves its opener here, and a stale `„` made the
+            # next English “…” read as a nested German quote: its speech went
+            # to NARRATOR, or the narration before it to SPOKEN.
+            open_stack.clear()
         if char == "“" and open_stack and open_stack[-1] == "„":
             # `“` closes German, but also opens English. If a `”` follows it
             # next, this is an English quote nested inside the German speech.

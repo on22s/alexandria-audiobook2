@@ -247,21 +247,67 @@ def _ambiguous_mark_roles(text):
 
 MIN_CONVENTION_PAIRS = 5
 
+_CLOSE_FOLLOW = r"[\s,.;:!?…]"
+
+
+def _count_guillemet_shapes(text, opener, closer):
+    """-> how many marks are shaped like this direction's opener or closer.
+
+    An opener begins a line or sits after whitespace with text right after it;
+    a closer sits right after text, or ends its line, with only punctuation or
+    whitespace after it. A mark padded on both sides mid-line (`Menu » Next`)
+    is neither, so it casts no vote.
+    """
+    opened = re.findall(
+        rf"(?m)^[ \t]*{opener}|(?<!\S){opener}(?=\S)", text)
+    closed = re.findall(
+        rf"(?m)(?<=\S){closer}(?={_CLOSE_FOLLOW}|$)|{closer}[ \t,.;:!?…]*$", text)
+    return len(opened) + len(closed)
+
+
+def get_guillemet_direction(text):
+    """-> (opener, closer) for the text's guillemets, or (None, None).
+
+    A text uses one direction: `«…»` (French, Russian, ...) or `»…«` (Danish,
+    German chevrons). Pairing both directions independently makes every closer
+    an opener too and labels the narration between speeches as spoken.
+
+    Decided by how the marks sit against the text, not by which comes first:
+    one stray mark before the first speech (a breadcrumb `Menu » Chapitre`)
+    otherwise flipped the direction for the whole book and inverted every
+    speech into narration. The first mark decides only a tie, which keeps the
+    old behaviour where the shapes say nothing (`« Bonjour »` padded on both
+    sides mid-line). Pure read; the one place both modules ask this question.
+    """
+    first_open, first_close = text.find("«"), text.find("»")
+    if first_open == -1 and first_close == -1:
+        return None, None
+    forward = _count_guillemet_shapes(text, "«", "»")
+    reverse = _count_guillemet_shapes(text, "»", "«")
+    if forward == reverse:
+        forward_first = first_open != -1 and (
+            first_close == -1 or first_open < first_close)
+        return ("«", "»") if forward_first else ("»", "«")
+    return ("«", "»") if forward > reverse else ("»", "«")
+
+
+def _is_opener_shaped(text, position):
+    """Is the mark at `position` followed by text and preceded by whitespace?
+
+    A straight mark cannot say whether it opens or closes. One padded on both
+    sides (`a " thing`) or glued to a word on its left is not where a speech
+    begins.
+    """
+    before = text[position - 1] if position else "\n"
+    after = text[position + 1] if position + 1 < len(text) else "\n"
+    return before.isspace() and not after.isspace()
+
 
 def _paired_spans(text):
     spans = []
     german_ranges = []
     used_de = set()  # a `„` consumed by one closer convention is not reused
-    # A text uses one guillemet direction: `«…»` (French, Russian, ...) or
-    # `»…«` (Danish). Pairing both directions independently makes every closer
-    # an opener too and labels the narration between speeches as spoken.
-    first_open, first_close = text.find("«"), text.find("»")
-    if first_open != -1 and (first_close == -1 or first_open < first_close):
-        guillemet_opener = "«"
-    elif first_close != -1:
-        guillemet_opener = "»"
-    else:
-        guillemet_opener = None
+    guillemet_opener = get_guillemet_direction(text)[0]
     breaks = starts = None
     masks = {}
     # `“` closes „…“ but also opens “…”. Resolve each occurrence once, then skip
@@ -332,6 +378,7 @@ def _paired_spans(text):
             # the old inner scan restarted at every opener and was quadratic
             # on a straight-quote reprise chain.
             paragraph_starts = prepare()[1]
+            all_breaks = [at for at, _after in prepare()[0]]
             next_plain = [len(positions)] * len(positions)
             last = len(positions)
             for candidate_index in range(len(positions) - 1, -1, -1):
@@ -351,6 +398,14 @@ def _paired_spans(text):
                 end = positions[candidate_index]
                 if not _is_unbroken(narration_breaks(opener), start, end):
                     # Every later mark crosses that same break too.
+                    index += 1
+                    continue
+                if (not _is_opener_shaped(text, start)
+                        and not _is_unbroken(all_breaks, start, end)):
+                    # A reprise break looks the same after a real opener and
+                    # after a stray mark in narration (`a " thing.\n\n"Go,"`).
+                    # Only an opener-shaped mark may carry a pair across one;
+                    # otherwise the narration up to the next speech is spoken.
                     index += 1
                     continue
                 spans.append((start + 1, end))
