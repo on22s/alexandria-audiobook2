@@ -2608,6 +2608,13 @@
             "title": "Presence Penalty",
             "type": "number"
           },
+          "review_target_chars": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Review Target Chars",
+            "type": "integer"
+          },
           "temperature": {
             "default": 0.6,
             "maximum": 2.0,

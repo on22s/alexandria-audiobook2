@@ -229,8 +229,61 @@ def _checkpoint_path(output_path):
 _entries_fingerprint = get_review_entries_fingerprint
 
 
+def get_review_batching(generation_config):
+    """Return (batch_size, target_chars): the one authority for review batching.
+
+    Every reader of review batching (the checkpoint identity, both request
+    loops and the call-count estimate in the review route) goes through here,
+    so they cannot disagree about how a config chunks entries. The packing
+    itself is delegated to three_pass_generate.iter_entry_windows.
+    """
+    batch_size = generation_config.get("review_batch_size", 25)
+    if not isinstance(batch_size, int) or isinstance(batch_size, bool) or batch_size < 1:
+        raise ValueError("generation.review_batch_size must be a positive integer")
+    target_chars = generation_config.get("review_target_chars", 0)
+    if (isinstance(target_chars, bool) or not isinstance(target_chars, int)
+            or not 0 <= target_chars <= 1000000):
+        raise ValueError("generation.review_target_chars must be an integer between 0 and 1000000")
+    return batch_size, target_chars
+
+
+def get_review_entry_windows(entries, generation_config):
+    """Return (start, end) pairs for each review request, in source-index space.
+
+    Reuses the Step 2 windowing so review cannot develop a second accumulator:
+    whole entries only, the next entry that would exceed the target starts a
+    new window, and an entry larger than the target goes alone. The import is
+    local because three_pass_generate imports normalize_text from this module.
+    """
+    from three_pass_generate import iter_entry_windows
+    batch_size, target_chars = get_review_batching(generation_config)
+    return [(window[0][0], window[-1][0] + 1)
+            for window in iter_entry_windows(entries, batch_size, target_chars)]
+
+
+def get_review_remaining_windows(review_windows, entries, resume_offset):
+    """Return the windows a resumed review still owes, never losing entries.
+
+    A checkpoint only records how many source entries were consumed, not which
+    request boundaries they belonged to. If that offset is not a window start,
+    the saved progress cannot be mapped onto this run's batching: filtering by
+    ``start >= resume_offset`` would drop the window containing the offset and
+    those entries would be neither reviewed nor reported. Refuse instead, with
+    an instruction to start over.
+    """
+    if (0 < resume_offset < len(entries)
+            and resume_offset not in {start for start, _ in review_windows}):
+        raise ValueError(
+            f"Review checkpoint resumes at entry {resume_offset + 1}, which is not a "
+            f"batch boundary for the current review settings. Entries cannot be mapped "
+            f"safely to requests; start the review over instead of resuming it.")
+    return [bounds for bounds in review_windows if bounds[0] >= resume_offset]
+
+
 def get_completed_review_fingerprint(config, llm_config, params, args, client, model_name, source_text=None,
                                      *, entries=()):
+    generation_config = config.get('generation') or {}
+    batch_size, target_chars = get_review_batching(generation_config)
     profiles = []
     for profile in (llm_config, get_failover_llm_config(config)):
         profiles.append({key: value for key, value in profile.items()
@@ -243,10 +296,14 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
                    and (field.name != 'literal_source_preserving' or params.literal_source_preserving)
                    and (field.name != 'review_labels_only' or params.review_labels_only)},
         'context_window': args.context_window, 'dedupe_speakers': args.dedupe_speakers,
-        'merge_narrators': (config.get('generation') or {}).get('merge_narrators', False),
-        'batch_size': (config.get('generation') or {}).get('review_batch_size', 25),
+        'merge_narrators': generation_config.get('merge_narrators', False),
+        'batch_size': batch_size,
         'aliases': get_review_sidecar_identity(args.alias_registry),
         'voice_config': get_review_sidecar_identity(args.remap_voice_config)}
+    # Add the key only when opted in, so default (0) configs keep the exact
+    # same receipt identity as before this setting existed.
+    if target_chars:
+        identity['review_target_chars'] = target_chars
     if source_text is not None or is_review_source_span_script(entries):
         identity['algorithm'] = REVIEW_SOURCE_SPAN_ALGORITHM_VERSION
         identity['review_source_sha256'] = (get_review_entries_fingerprint(source_text)
@@ -2043,9 +2100,7 @@ def main():
         review_sys, review_usr = REVIEW_SYSTEM, REVIEW_USER
 
     generation_config = config.get("generation") or {}
-    batch_size = generation_config.get("review_batch_size", 25)
-    if not isinstance(batch_size, int) or isinstance(batch_size, bool) or batch_size < 1:
-        raise ValueError("generation.review_batch_size must be a positive integer")
+    batch_size, target_chars = get_review_batching(generation_config)
     max_tokens = generation_config.get("max_tokens", 8000)
     temperature = generation_config.get("temperature", 0.4)
     top_p = generation_config.get("top_p", 0.8)
@@ -2080,6 +2135,8 @@ def main():
     print(f"Connecting to: {base_url}")
     print(f"Using model: {model_name}")
     print(f"Batch size: {batch_size} entries, Max tokens: {max_tokens}")
+    if target_chars:
+        print(f"Review text per request: {target_chars} characters of entry text")
     if banned_tokens:
         print(f"Banned tokens: {banned_tokens}")
 
@@ -2143,7 +2200,8 @@ def main():
         "batches_failed": 0,
         "batches_skipped_vram": 0,
     }
-    total_batches_estimate = (len(entries) + batch_size - 1) // batch_size
+    review_windows = get_review_entry_windows(entries, generation_config)
+    total_batches_estimate = len(review_windows)
     try:
         (all_corrected, total_stats, previous_tail, completed_batches, batch_lengths,
          failed_batches, resume_offset, checkpoint) = _load_resume_state(
@@ -2152,6 +2210,7 @@ def main():
         source_offsets = get_review_resume_source_offsets(checkpoint, entries, batch_size)
         accounting = get_review_runtime_accounting(checkpoint, source_sha256, len(entries),
             total_stats, source_offsets, batch_lengths, len(all_corrected))
+        remaining_windows = get_review_remaining_windows(review_windows, entries, resume_offset)
     except ValueError:
         close = getattr(client, 'close', None)
         if close:
@@ -2193,17 +2252,16 @@ def main():
         window = max(1, args.context_window)
         print(f"Contextual review mode enabled: batching ~{batch_size} entries per LLM call with +/-{window} neighbors")
 
-        num_remaining_batches = len(range(resume_offset, len(entries), batch_size))
+        num_remaining_batches = len(remaining_windows)
         total_batches = max(1, completed_batches + num_remaining_batches)
         if checkpoint:
             print(f"Resuming from checkpoint: {completed_batches}/{total_batches} batches already reviewed.")
 
         unreviewed_remainder = []
-        for offset_idx, start in enumerate(range(resume_offset, len(entries), batch_size)):
+        for offset_idx, (start, end) in enumerate(remaining_windows):
             ensure_review_not_cancelled()
             batch_index = completed_batches + 1 + offset_idx
 
-            end = min(len(entries), start + batch_size)
             batch = entries[start:end]
             before = entries[max(0, start - window):start]
             after = entries[end:min(len(entries), end + window)]
@@ -2314,8 +2372,7 @@ def main():
     else:
         print(f"Split into {total_batches_estimate} batches of ~{batch_size} entries")
 
-        remaining_entries = entries[resume_offset:]
-        remaining_batches = [remaining_entries[i:i + batch_size] for i in range(0, len(remaining_entries), batch_size)]
+        remaining_batches = [entries[start:end] for start, end in remaining_windows]
         total_batches = completed_batches + len(remaining_batches)
         if checkpoint:
             print(f"Resuming from checkpoint: {completed_batches}/{total_batches} batches already reviewed.")
@@ -2336,6 +2393,7 @@ def main():
         for wave_start in range(0, len(remaining_batches), wave_size):
             ensure_review_not_cancelled()
             wave_batches = remaining_batches[wave_start:wave_start + wave_size]
+            wave_windows = remaining_windows[wave_start:wave_start + wave_size]
             wave_indices = [completed_batches + 1 + wave_start + j for j in range(len(wave_batches))]
             # Every batch in this wave gets the SAME previous_tail (from the end of
             # the last wave) - they can't see each other's corrections yet, only
@@ -2373,9 +2431,8 @@ def main():
             with ThreadPoolExecutor(max_workers=len(wave_batches)) as executor:
                 wave_results = list(executor.map(bind_startup_trace(_run_one), zip(wave_indices, wave_batches)))
 
-            for i, batch, result in zip(wave_indices, wave_batches, wave_results):
-                source_offsets.append(min(len(entries), resume_offset +
-                                          (i - completed_batches - 1) * batch_size + len(batch)))
+            for i, (start, end), batch, result in zip(wave_indices, wave_windows, wave_batches, wave_results):
+                source_offsets.append(end)
                 if result == "VRAM_SKIP":
                     # Keep the skipped batch at its original position even if
                     # concurrent workers acquired the VRAM lock out of order.
@@ -2396,7 +2453,7 @@ def main():
                     previous_tail = batch[-2:] if len(batch) >= 2 else batch
                     batch_lengths.append(len(batch))
                     failed_batches.append(i)
-                    entry_start = resume_offset + (i - completed_batches - 1) * batch_size + 1
+                    entry_start = start + 1
                     failed_sections.append(get_failed_section(
                         i, entry_start - 1, len(batch), "review_failed"))
                     accounting = save_checkpoint(output_path, i, total_batches, batch_size,
@@ -2415,7 +2472,7 @@ def main():
                     previous_tail = batch[-2:] if len(batch) >= 2 else batch
                     batch_lengths.append(len(batch))
                     failed_batches.append(i)
-                    entry_start = resume_offset + (i - completed_batches - 1) * batch_size + 1
+                    entry_start = start + 1
                     failed_sections.append(get_failed_section(
                         i, entry_start - 1, len(batch), "text_length_mismatch", ratio))
                     accounting = save_checkpoint(output_path, i, total_batches, batch_size,
@@ -2430,7 +2487,7 @@ def main():
                     previous_tail = corrected[-2:] if len(corrected) >= 2 else corrected
                     batch_lengths.append(len(corrected))
                     failed_batches.append(i)
-                    entry_start = resume_offset + (i - completed_batches - 1) * batch_size
+                    entry_start = start
                     failed_sections.append(get_failed_section(
                         i, entry_start, len(batch), REVIEW_PARTIAL_EVENT))
                     accounting = save_checkpoint(output_path, i, total_batches, batch_size,
@@ -2439,7 +2496,7 @@ def main():
                     continue
 
                 # Diff stats
-                batch_start = resume_offset + (i - completed_batches - 1) * batch_size
+                batch_start = start
                 stats = diff_entries(batch, corrected, highlight_pool, entry_offset=batch_start)
 
                 total_stats["entries_added"] += stats["entries_added"]
