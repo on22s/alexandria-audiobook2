@@ -144,7 +144,7 @@ from core import (
     process_state,
     run_process,
 )
-from review_script import clear_checkpoint
+from review_script import clear_checkpoint, get_review_batching, get_review_entry_windows
 from utils import atomic_json_write, backup_file_with_timestamp, safe_load_json, secure_filename
 
 
@@ -3583,23 +3583,28 @@ async def review_script_contextual(request: ContextualReviewRequest, background_
 def _start_contextual_review(request, background_tasks, claim_id):
 
     window_size = max(1, min(int(request.window_size or 4), 12))
+    entries = []
     total_entries = 0
     try:
         with open(SCRIPT_PATH, "r", encoding="utf-8") as f:
-            total_entries = len(json.load(f))
+            loaded_entries = json.load(f)
+        if isinstance(loaded_entries, list):
+            entries = loaded_entries
+        total_entries = len(loaded_entries)
     except (json.JSONDecodeError, ValueError, OSError) as e:
         _warn_corrupted_json("script", SCRIPT_PATH, "estimated_calls will read 0", e)
         total_entries = 0
 
     review_batch_size = 25
+    estimated_calls = ceil(total_entries / review_batch_size) if total_entries else 0
     try:
         cfg = load_app_config(CONFIG_PATH)
         generation = cfg.get("generation") or {}
-        review_batch_size = max(1, int(generation.get("review_batch_size", 25)))
+        review_batch_size, _ = get_review_batching(generation)
+        if entries:
+            estimated_calls = len(get_review_entry_windows(entries, generation))
     except (ValueError, TypeError) as e:
-        _warn_corrupted_json("config", CONFIG_PATH, "using default review_batch_size", e)
-
-    estimated_calls = ceil(total_entries / review_batch_size) if total_entries else 0
+        _warn_corrupted_json("config", CONFIG_PATH, "using default review batching", e)
     cmd = [sys.executable, "-u", "review_script.py", "--context-window", str(window_size)]
     cmd += get_review_force_args(request.force_review or request.start_over)
     if request.dedupe_speakers:
