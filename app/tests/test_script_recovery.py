@@ -4,9 +4,11 @@ nothing-lost skip."""
 import asyncio
 import copy
 import core
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
+import io
 import json
 import os
+from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -76,6 +78,37 @@ def _write_relaxed_quote_run(tmp):
     checkpoint["failed"]["unquoted_must_be_narrator"] = True
     atomic_json_write(checkpoint, checkpoint_path)
     return script_path
+
+
+def _write_failed_instruct_run(tmp, direction=None):
+    """All text here is synthetic. `direction=None` writes an old checkpoint."""
+    script_path = os.path.join(tmp, "annotated_script.json")
+    atomic_json_write({"fingerprint": "fp", "status": "failed", "failed_pass": "instruct",
+                       "chunks": [], "counts": {}, "passes": {}, "diagnostic_failures": []},
+                      three_pass_manifest_path(script_path))
+    entries = [{"speaker": "HOLMES", "text": "Where is he?"},
+               {"speaker": "WATSON", "text": "Gone,"}]
+    failed = {"pass": "instruct", "indices": [1, 2], "entries": entries,
+              "reason": "instruct LLM unavailable; refusing fallback output",
+              "attempts": [{"attempt": 1, "outcome": "api_error", "error_category": "connection_error",
+                            "http_status": None, "error": "Connection error."}]}
+    if direction is not None:
+        failed["delivery_direction"] = direction
+    atomic_json_write({
+        "fingerprint": "fp", "stage": "instruct_failed", "chunks_done": 1,
+        "segmented": [{"type": "NARRATOR", "text": "Chapter one."}],
+        "named": [{"speaker": "NARRATOR", "text": "Chapter one."}] + entries,
+        "annotated": [], "resolutions": ["clean"], "elapsed_s": {}, "diagnostic_failures": [],
+        "failed": failed}, three_pass_checkpoint_path(script_path))
+    atomic_json_write({"input_file_path": "book.txt", "script_generation_input_file": "book.txt"},
+                      os.path.join(tmp, "state.json"))
+    return script_path
+
+
+def _instruct_writer(direction):
+    def write(tmp):
+        return _write_failed_instruct_run(tmp, direction)
+    return write
 
 
 class RecoveryTests(unittest.TestCase):
@@ -249,6 +282,126 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual("narrated_as_is", result["resolution"])
         self.assertEqual(["NARRATOR", "UNKNOWN", "NARRATOR", "UNKNOWN"],
                          [e["speaker"] for e in checkpoint["named"]])
+
+    def test_old_instruct_checkpoint_inject_keeps_direction_less_rows(self):
+        request = script_module.InjectSegmentationRequest(entries=[
+            {"n": 0, "instruct": "Calm, measured."},
+            {"n": 1, "instruct": "Soft, resigned."}])
+        result, checkpoint = self._run(script_module.generate_script_inject, request,
+                                       writer=_instruct_writer(None))
+        self.assertTrue(result["accepted"])
+        self.assertEqual("instruct", checkpoint["stage"])
+        rows = checkpoint["annotated"][1:3]
+        self.assertEqual(["Calm, measured.", "Soft, resigned."], [e["instruct"] for e in rows])
+        self.assertTrue(all("direction" not in e for e in rows))
+
+    def test_gaps_inject_requires_gap_and_feeds_gap_pauses(self):
+        from three_pass_generate import apply_gap_pauses
+        no_gap = script_module.InjectSegmentationRequest(entries=[
+            {"n": 0, "instruct": "Calm, measured."},
+            {"n": 1, "instruct": "Soft, resigned."}])
+        exc, checkpoint = self._run(script_module.generate_script_inject, no_gap,
+                                    writer=_instruct_writer("gaps"))
+        self.assertEqual(422, exc.status_code)
+        self.assertEqual(["invalid_gap", "invalid_gap"],
+                         [f["code"] for f in exc.detail["findings"]])
+        self.assertEqual("instruct_failed", checkpoint["stage"])
+        with_gap = script_module.InjectSegmentationRequest(entries=[
+            {"n": 0, "instruct": "Calm, measured.", "gap": "normal"},
+            {"n": 1, "instruct": "Soft, resigned.", "gap": "beat"}])
+        result, checkpoint = self._run(script_module.generate_script_inject, with_gap,
+                                       writer=_instruct_writer("gaps"))
+        self.assertTrue(result["accepted"])
+        rows = checkpoint["annotated"][1:3]
+        self.assertEqual({"gap": "normal"}, rows[0]["direction"])
+        self.assertEqual({"gap": "beat"}, rows[1]["direction"])
+        paused = apply_gap_pauses(checkpoint["annotated"])
+        self.assertEqual(900, paused[1]["pause_after"])
+        self.assertNotIn("pause_after", paused[2])
+
+    def test_directed_inject_requires_action_and_delivery_and_stores_composed_row(self):
+        bare = script_module.InjectSegmentationRequest(entries=[
+            {"n": 0, "instruct": "Calm, measured.", "gap": "normal", "answers": None},
+            {"n": 1, "instruct": "Soft, resigned.", "gap": "normal", "answers": None}])
+        exc, checkpoint = self._run(script_module.generate_script_inject, bare,
+                                    writer=_instruct_writer("directed"))
+        self.assertEqual(422, exc.status_code)
+        self.assertEqual(["missing_action", "missing_delivery"] * 2,
+                         [f["code"] for f in exc.detail["findings"]])
+        self.assertEqual("instruct_failed", checkpoint["stage"])
+        partial = script_module.InjectSegmentationRequest(entries=[
+            {"n": 0, "gap": "normal", "action": "reassure", "answers": None},
+            {"n": 1, "gap": "beat", "action": "answer", "answers": 0}])
+        exc, _ = self._run(script_module.generate_script_inject, partial,
+                           writer=_instruct_writer("directed"))
+        self.assertEqual(422, exc.status_code)
+        self.assertEqual(["missing_delivery", "missing_delivery"],
+                         [f["code"] for f in exc.detail["findings"]])
+        complete = script_module.InjectSegmentationRequest(entries=[
+            {"n": 0, "gap": "normal", "action": "reassure", "delivery": "soft, warm", "answers": None},
+            {"n": 1, "gap": "beat", "action": "answer", "delivery": "quiet, certain", "answers": 0}])
+        result, checkpoint = self._run(script_module.generate_script_inject, complete,
+                                       writer=_instruct_writer("directed"))
+        self.assertTrue(result["accepted"])
+        rows = checkpoint["annotated"][1:3]
+        self.assertEqual(["Reassure: soft, warm.", "Answer: quiet, certain."],
+                         [e["instruct"] for e in rows])
+        self.assertEqual([{"answers": None, "action": "reassure", "delivery": "soft, warm",
+                           "gap": "normal"},
+                          {"answers": 0, "action": "answer", "delivery": "quiet, certain",
+                           "gap": "beat"}], [e["direction"] for e in rows])
+
+    def test_skip_on_a_gaps_checkpoint_still_stores_fallback_rows(self):
+        result, checkpoint = self._run(script_module.generate_script_skip,
+                                       script_module.SkipChunkRequest(),
+                                       writer=_instruct_writer("gaps"))
+        self.assertEqual("narrated_as_is", result["resolution"])
+        rows = checkpoint["annotated"][1:3]
+        self.assertEqual([script_module.default_instruct({"speaker": "HOLMES"}),
+                          script_module.default_instruct({"speaker": "WATSON"})],
+                         [e["instruct"] for e in rows])
+        self.assertTrue(all("direction" not in e for e in rows))
+
+    def test_instruct_detail_uses_the_failed_runs_delivery_direction(self):
+        from default_prompts import load_instruct_prompts
+        detail, _ = self._run(script_module.generate_script_recovery_detail,
+                              writer=_instruct_writer("gaps"))
+        self.assertEqual("instruct", detail["failed_pass"])
+        self.assertEqual(load_instruct_prompts("gaps")[0], detail["prompt"]["system"])
+        self.assertNotEqual(load_instruct_prompts("off")[0], detail["prompt"]["system"])
+
+    def test_failed_instruct_checkpoint_persists_the_runs_delivery_direction(self):
+        from tests.test_three_pass_generate import (_client_returning,
+                                                    _load_orchestration_fixture_cast)
+        import three_pass_generate as three_pass
+        segmented = [{"type": "SPOKEN", "text": "Are you leaving already?"},
+                     {"type": "SPOKEN", "text": "Then go."}]
+        named = [{"n": 0, "speaker": "ANNA"}, {"n": 1, "speaker": "ANNA"}]
+        source = '"Are you leaving already?" "Then go."'
+
+        def unavailable(client, model_name, batch, params, **kwargs):
+            kwargs["exhaustion_sink"].append(True)
+            kwargs["attempt_observer"]({"pass": "instruct", "attempt": 1,
+                                        "outcome": "api_error", "error_category": "connection_error",
+                                        "http_status": None, "error": "synthetic offline",
+                                        "finish_reason": None})
+            return []
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = os.path.join(tmp, "annotated_script.json")
+            client = _client_returning([segmented, named])
+            with redirect_stdout(io.StringIO()), \
+                    patch.object(three_pass, "instruct_batch", side_effect=unavailable):
+                with self.assertRaisesRegex(RuntimeError, "instruct LLM unavailable"):
+                    three_pass.run_three_pass(
+                        client, "m", source,
+                        script_module.LLMGenParams(max_tokens=500, delivery_direction="gaps"),
+                        chunk_size=6000,
+                        cast=_load_orchestration_fixture_cast(("ANNA",)),
+                        output_path=output)
+            checkpoint = json.loads(Path(three_pass.three_pass_checkpoint_path(output)).read_text())
+        self.assertEqual("instruct_failed", checkpoint["stage"])
+        self.assertEqual("gaps", checkpoint["failed"]["delivery_direction"])
 
     def test_wrong_chunk_and_running_generation_are_refused(self):
         exc, _ = self._run(script_module.generate_script_skip, script_module.SkipChunkRequest(chunk=1))
