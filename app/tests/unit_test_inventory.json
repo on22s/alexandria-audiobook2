@@ -10521,6 +10521,14 @@
     , "tests.test_publisher_matter.StripPublisherMatterTest.test_story_mentioning_copyright_mid_book_is_kept"
     , "tests.test_publisher_matter.StripPublisherMatterTest.test_story_mentions_at_both_ends_preserve_exact_preprocessed_source"
   ]
+  , "test_pyflakes_baseline": [
+    "tests.test_pyflakes_baseline.PyflakesBaselineTests.test_current_tree_matches_the_checked_in_baseline"
+    , "tests.test_pyflakes_baseline.PyflakesBaselineTests.test_embedded_line_numbers_are_normalised"
+    , "tests.test_pyflakes_baseline.PyflakesBaselineTests.test_moving_a_finding_above_it_does_not_fail"
+    , "tests.test_pyflakes_baseline.PyflakesBaselineTests.test_new_finding_fails_and_names_it"
+    , "tests.test_pyflakes_baseline.PyflakesBaselineTests.test_removed_finding_is_stale_and_does_not_fail"
+    , "tests.test_pyflakes_baseline.PyflakesBaselineTests.test_second_copy_of_a_baselined_finding_fails"
+  ]
   , "test_question_punctuation_ab": [
     "tests.test_question_punctuation_ab.QuestionExperimentTests.test_adapter_generation_is_frozen_and_changed_declared_generation_refuses"
     , "tests.test_question_punctuation_ab.QuestionExperimentTests.test_cancellation_after_last_partial_record_cannot_publish_complete_metadata"
