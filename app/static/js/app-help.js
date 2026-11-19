@@ -164,7 +164,7 @@
             'script-strip-front-matter': {what: 'Removes known non-story boilerplate (translator’s notes, tables of contents) before the text is sent to the LLM.'},
             'script-literal-source-preserving': {what: 'Keeps the book’s exact words through annotation and review. Numbers and symbols may still be expanded later for speech.'},
             'review-force-rerun': {what: 'Review again even if nothing changed since the last completed review.'},
-            'review-context-window': {what: 'Extra context on each side of every reviewed entry, in whole entries (1–100, default 4) or characters of entry text (up to 1,000,000, default 2,000). Use the Entries/Characters button to switch; no entry is split.'},
+            'review-context-window': {what: 'Context per side: entries (1–100, default 4) or characters (up to 1,000,000). Use Entries/Characters to switch; no entry is split. An oversize nearest entry goes alone. More context costs time and money; changing mode or value means a different review, so reviews are not reused (default 4 stays).'},
             'review-batch-find-nicknames': {what: 'Before merging names, discovers each book’s nicknames and shares them across the series.'},
             'review-batch-bidirectional': {what: 'Runs nickname discovery forward and then backward, so early books pick up names that are explained later. Needs nickname discovery; about twice the time.'},
             'review-batch-context-window': {what: '0 runs the standard review. Above 0, each line is reviewed with that many neighbouring lines on each side (1–100 entries).'},
