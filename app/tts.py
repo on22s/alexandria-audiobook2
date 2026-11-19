@@ -74,6 +74,27 @@ def create_external_client(url, timeout):
     return ExternalTTSClient(url, timeout)
 
 
+class _PeakVramAccumulator:
+    """Fold local GPU peak samples into one result, or None when none were taken.
+
+    A batch can finish with no GPU reading at all: a CPU-only runtime, or a
+    LoRA batch whose every adapter group failed to load. In those cases no
+    sample reaches ``record`` and ``get_result`` is None — never a measured-looking
+    0.0 GB that a benchmark would score as a successful fit. Sampling stays at
+    the caller's existing reset/max-memory sites; this helper only folds values.
+    """
+
+    def __init__(self):
+        self._peak = None
+
+    def record(self, peak_gb):
+        if self._peak is None or peak_gb > self._peak:
+            self._peak = peak_gb
+
+    def get_result(self):
+        return None if self._peak is None else round(self._peak, 2)
+
+
 def _close_external_runtime(lock, calls, clients, executor):
     with lock:
         cancelled = list(calls)
@@ -3264,7 +3285,7 @@ class TTSEngine:
         import time
 
         results = {"completed": [], "failed": []}
-        batch_peak_vram_gb = 0.0
+        peak_vram = _PeakVramAccumulator()
 
         texts = []
         speakers = []
@@ -3351,7 +3372,7 @@ class TTSEngine:
                 gen_time = time.time() - t_start
                 if measure_gpu_peak:
                     peak_gb = torch.cuda.max_memory_allocated(self.get_memory_device(model)) / 1e9
-                    batch_peak_vram_gb = max(batch_peak_vram_gb, peak_gb)
+                    peak_vram.record(peak_gb)
                     print(f"  Peak VRAM sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
 
                 if wavs_list is None:
@@ -3382,7 +3403,7 @@ class TTSEngine:
 
 
 
-        results["peak_vram_gb"] = round(batch_peak_vram_gb, 2)
+        results["peak_vram_gb"] = peak_vram.get_result()
         return results
 
     @ensure_local_tts_serialized
@@ -3397,7 +3418,7 @@ class TTSEngine:
         import time
 
         results = {"completed": [], "failed": []}
-        batch_peak_vram_gb = 0.0
+        peak_vram = _PeakVramAccumulator()
 
         # Group only chunks that resolve to the same speaker and clone reference.
         speaker_groups = {}
@@ -3475,7 +3496,7 @@ class TTSEngine:
                     gen_time = time.time() - t_start
                     if measure_gpu_peak:
                         peak_gb = torch.cuda.max_memory_allocated(self.get_memory_device(model)) / 1e9
-                        batch_peak_vram_gb = max(batch_peak_vram_gb, peak_gb)
+                        peak_vram.record(peak_gb)
                         print(f"  Peak VRAM clone sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
 
                     if wavs_list is None:
@@ -3505,7 +3526,7 @@ class TTSEngine:
 
 
 
-        results["peak_vram_gb"] = round(batch_peak_vram_gb, 2)
+        results["peak_vram_gb"] = peak_vram.get_result()
         return results
 
     @ensure_local_tts_serialized
@@ -3520,7 +3541,7 @@ class TTSEngine:
         import time
 
         results = {"completed": [], "failed": []}
-        batch_peak_vram_gb = 0.0
+        peak_vram = _PeakVramAccumulator()
 
         # Group chunks by adapter_path (resolved to absolute). Two different
         # speakers can share the same adapter (e.g. aliases, or one trained
@@ -3656,7 +3677,7 @@ class TTSEngine:
                     gen_time = time.time() - t_start
                     if measure_gpu_peak:
                         peak_gb = torch.cuda.max_memory_allocated(self.get_memory_device(model)) / 1e9
-                        batch_peak_vram_gb = max(batch_peak_vram_gb, peak_gb)
+                        peak_vram.record(peak_gb)
                         print(f"  Peak VRAM lora sub-batch {sb_idx+1}: {peak_gb:.2f} GB")
 
                     if wavs_list is None:
@@ -3684,7 +3705,7 @@ class TTSEngine:
         rtf = total_audio_duration / total_time if total_time > 0 else 0
         print(f"Batch [lora] total: {total_time:.1f}s -> {total_audio_duration:.1f}s audio ({rtf:.2f}x real-time)")
 
-        results["peak_vram_gb"] = round(batch_peak_vram_gb, 2)
+        results["peak_vram_gb"] = peak_vram.get_result()
 
 
 

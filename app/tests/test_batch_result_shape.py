@@ -153,7 +153,7 @@ class BatchResultShapeTests(unittest.TestCase):
                   {"speaker": "A", "text": "bb", "index": 1},
                   {"speaker": "A", "text": "ccc", "index": 2}]
         config = {"A": {"type": "lora", "adapter_path": "builtin_fixture"}}
-        for available, expected, expected_reset in ((True, 3.1, 3), (False, 0, 0)):
+        for available, expected, expected_reset in ((True, 3.1, 3), (False, None, 0)):
             with self.subTest(available=available), tempfile.TemporaryDirectory() as tmp:
                 engine, fake_torch = _local_engine([1, 3.1, 2], available)
                 engine._build_sub_batches = Mock(return_value=[(0, 1), (1, 2), (2, 3)])
@@ -168,6 +168,122 @@ class BatchResultShapeTests(unittest.TestCase):
                 self.assertEqual(expected_reset, fake_torch.cuda.reset_peak_memory_stats.call_count)
                 self.assertEqual(expected_reset, fake_torch.cuda.max_memory_allocated.call_count)
                 self.assertEqual(available, "Peak VRAM lora" in logs.getvalue())
+
+    def test_no_gpu_reading_reports_none_for_all_three_local_backends(self):
+        chunks = [{"speaker": "A", "text": "line", "instruct": "", "index": 0}]
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = Path(tmp) / "adapter"
+            adapter.mkdir()
+            configs = {
+                "custom": {"A": {"type": "custom", "voice": "Ryan"}},
+                "clone": {"A": {"type": "clone", "ref_audio": str(adapter),
+                                "ref_text": "reference line"}},
+                "lora": {"A": {"type": "lora", "adapter_path": str(adapter)}},
+            }
+            engine, fake_torch = _local_engine([1, 1, 1], available=False)
+            engine._build_sub_batches = Mock(return_value=[(0, 1)])
+            for name in ("custom", "clone", "lora"):
+                method = getattr(engine, "_local_batch_" + name)
+                with self.subTest(backend=name), \
+                        patch.dict(sys.modules, {"torch": fake_torch}), \
+                        patch.object(tts, "get_resolved_adapter_path", side_effect=lambda p: p), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    result = method(chunks, configs[name], tmp)
+                self.assertIsNone(result["peak_vram_gb"], name)
+                self.assertEqual([0], result["completed"], name)
+            self.assertEqual(0, fake_torch.cuda.reset_peak_memory_stats.call_count)
+            self.assertEqual(0, fake_torch.cuda.max_memory_allocated.call_count)
+
+    def test_gpu_available_reports_measured_max_for_all_three_local_backends(self):
+        chunks = [{"speaker": "A", "text": "line", "instruct": "", "index": 0}]
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = Path(tmp) / "adapter"
+            adapter.mkdir()
+            configs = {
+                "custom": {"A": {"type": "custom", "voice": "Ryan"}},
+                "clone": {"A": {"type": "clone", "ref_audio": str(adapter),
+                                "ref_text": "reference line"}},
+                "lora": {"A": {"type": "lora", "adapter_path": str(adapter)}},
+            }
+            for name in ("custom", "clone", "lora"):
+                engine, fake_torch = _local_engine([1.0, 4.25, 2.0], available=True)
+                engine._build_sub_batches = Mock(return_value=[(0, 1), (0, 1), (0, 1)])
+                method = getattr(engine, "_local_batch_" + name)
+                with self.subTest(backend=name), \
+                        patch.dict(sys.modules, {"torch": fake_torch}), \
+                        patch.object(tts, "get_resolved_adapter_path", side_effect=lambda p: p), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    result = method(chunks, configs[name], tmp)
+                self.assertEqual(4.25, result["peak_vram_gb"], name)
+                self.assertEqual(3, fake_torch.cuda.reset_peak_memory_stats.call_count, name)
+                self.assertEqual(3, fake_torch.cuda.max_memory_allocated.call_count, name)
+
+    def test_lora_all_adapters_fail_to_load_reports_none(self):
+        chunks = [{"speaker": "A", "text": "a", "instruct": "", "index": 0},
+                  {"speaker": "B", "text": "b", "instruct": "", "index": 1}]
+        config = {"A": {"type": "lora", "adapter_path": "/fake/lora_a"},
+                  "B": {"type": "lora", "adapter_path": "/fake/lora_b"}}
+        engine, fake_torch = _local_engine([5.0, 5.0], available=True)
+        engine._ensure_local_lora_generation = Mock(side_effect=RuntimeError("adapter load failed"))
+        engine._build_sub_batches = Mock(return_value=[(0, 1)])
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.dict(sys.modules, {"torch": fake_torch}), \
+                patch.object(tts, "get_resolved_adapter_path", side_effect=lambda p: p), \
+                contextlib.redirect_stdout(io.StringIO()):
+            result = engine._local_batch_lora(chunks, config, tmp)
+        self.assertIsNone(result["peak_vram_gb"])
+        self.assertEqual([], result["completed"])
+        self.assertEqual([0, 1], sorted(i for i, _ in result["failed"]))
+        self.assertEqual(0, fake_torch.cuda.max_memory_allocated.call_count)
+
+    def test_lora_partial_adapter_failure_uses_max_of_measured_groups(self):
+        model = _FakeModel()
+        reference = SimpleNamespace(ref_code=np.zeros((4,)), ref_text="reference line")
+
+        def load(adapter_path, expected_generation):
+            if adapter_path.endswith("lora_b"):
+                raise RuntimeError("adapter load failed")
+            return model, [reference]
+
+        chunks = [{"speaker": "A", "text": "a", "instruct": "", "index": 0},
+                  {"speaker": "B", "text": "b", "instruct": "", "index": 1}]
+        config = {"A": {"type": "lora", "adapter_path": "/fake/lora_a"},
+                  "B": {"type": "lora", "adapter_path": "/fake/lora_b"}}
+        engine, fake_torch = _local_engine([3.0, 7.75], available=True)
+        engine._ensure_local_lora_generation = Mock(side_effect=load)
+        engine._build_sub_batches = Mock(return_value=[(0, 1), (0, 1)])
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.dict(sys.modules, {"torch": fake_torch}), \
+                patch.object(tts, "get_resolved_adapter_path", side_effect=lambda p: p), \
+                contextlib.redirect_stdout(io.StringIO()):
+            result = engine._local_batch_lora(chunks, config, tmp)
+        self.assertEqual(7.75, result["peak_vram_gb"])
+        self.assertEqual(2, fake_torch.cuda.max_memory_allocated.call_count)
+        self.assertEqual([1], [i for i, _ in result["failed"]])
+
+    def test_local_cpu_batch_flows_through_benchmark_as_not_measured(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            engine, fake_torch = _local_engine([], available=False)
+            engine._build_sub_batches = Mock(return_value=[(0, 1)])
+            engine.set_sub_batch_size = Mock()
+            engine.run_benchmark_batch = engine._local_batch_custom
+            voice_config = {"NARRATOR": {"type": "custom", "voice": "Ryan"}}
+            chunks = [{"index": 0, "text": "line", "instruct": "", "speaker": "NARRATOR"}]
+            with patch.dict(sys.modules, {"torch": fake_torch}), \
+                    patch.object(benchmark, "make_chunks", return_value=chunks), \
+                    patch.object(benchmark, "vram_state", return_value=None), \
+                    contextlib.redirect_stdout(io.StringIO()) as sweep_logs:
+                results = benchmark.run_sweep(engine, voice_config, [4], tmp)
+            self.assertIsNone(results[0]["peak_vram_gb"])
+            self.assertIn("peak_VRAM=N/A", sweep_logs.getvalue())
+            self.assertNotIn("peak_VRAM=0.00GB", sweep_logs.getvalue())
+            with patch.object(benchmark, "gpu_name", return_value="CPU fixture"), \
+                    contextlib.redirect_stdout(io.StringIO()) as summary:
+                benchmark.print_summary(results, [], 8, 16)
+            text = summary.getvalue()
+            self.assertIn("peak=N/A", text)
+            self.assertIn("[NOT-MEASURED]", text)
+            self.assertNotIn("[OK", text)
 
 
 class ExternalBatchOutputPathTests(unittest.TestCase):

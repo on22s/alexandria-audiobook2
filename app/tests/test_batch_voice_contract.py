@@ -169,7 +169,7 @@ class CpuBatchPeakTelemetryTests(unittest.TestCase):
                         result=method(chunks,config,tmp,batch_seed=41)
                     self.assertEqual([],result['failed'],logs.getvalue())
                     self.assertEqual([7,9,2],result['completed'])
-                    self.assertEqual(3.1 if available else 0,result['peak_vram_gb'])
+                    self.assertEqual(3.1 if available else None,result['peak_vram_gb'])
                     availability.assert_called_once_with()
                     for chunk in chunks:
                         decoded,rate=sf.read(root/f"temp_batch_{chunk['index']}.wav")
