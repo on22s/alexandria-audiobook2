@@ -117,6 +117,7 @@ from core import (
     _extract_diff_highlights,
     _extract_failed_sections,
     _extract_new_aliases,
+    _extract_review_failure,
     _extract_review_stats,
     _format_book_summary,
     _format_pass_summary,
@@ -3866,6 +3867,8 @@ def _start_batch_review(request, background_tasks):
             state["current_task_idx"] = i
             orig_status = state["tasks"][i].get("status")
             state["tasks"][i]["status"] = "running"
+            state["tasks"][i].pop("failure_message", None)
+            state["tasks"][i].pop("failure_kind", None)
 
             safe_name = secure_filename(name)
             if not safe_name:
@@ -4019,6 +4022,11 @@ def _start_batch_review(request, background_tasks):
                     })
             else:
                 state["tasks"][i]["status"] = "failed"
+                failure = _extract_review_failure(own_lines)
+                if failure:
+                    state["tasks"][i]["failure_message"] = failure["message"]
+                    if failure["kind"]:
+                        state["tasks"][i]["failure_kind"] = failure["kind"]
                 state["logs"].append(f"[{i+1}]{tag} Failed (exit {rc}): {name}")
             return True
 

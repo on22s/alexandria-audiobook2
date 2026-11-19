@@ -21,6 +21,10 @@ class BatchReviewPassStatusTests(unittest.TestCase):
             ('forward_failed_batches', True, 0, CLEAN + ['Batches failed: 1'], 0, CLEAN, False, 'incomplete'),
             ('forward_vram_abort', True, 0, CLEAN + ['Batches skipped (low GPU VRAM): 1'], 0, CLEAN, False, 'incomplete'),
             ('forward_process_failed', True, 1, ['fixture reviewer crashed'], 0, CLEAN, False, 'failed'),
+            ('forward_fatal_marker', False, 1,
+             ['REVIEW_FAILURE_JSON: {"message": "Checkpoint write failed: disk full", '
+              '"kind": "resume_misaligned"}'],
+             0, CLEAN, False, 'failed'),
             ('forward_missing_stats', True, 0, ['fixture no summary'], 0, CLEAN, False, 'incomplete'),
             ('forward_nicknames_failed', True, 0, CLEAN, 0, CLEAN, True, 'failed'),
             ('backward_failed', True, 0, CLEAN, 1, ['fixture hindsight crashed'], False, 'failed'),
@@ -80,6 +84,11 @@ class BatchReviewPassStatusTests(unittest.TestCase):
                 current = state['batch_review']
                 self.assertFalse(current['running'])
                 self.assertEqual(expected,current['tasks'][0]['status'])
+                if label == 'forward_fatal_marker':
+                    self.assertEqual('Checkpoint write failed: disk full',
+                                     current['tasks'][0]['failure_message'])
+                    self.assertEqual('resume_misaligned',
+                                     current['tasks'][0]['failure_kind'])
                 self.assertEqual([expected != 'done'],summary_flags)
                 self.assertEqual(original,book.read_text())
                 self.assertEqual(1,len(current['artifacts']))

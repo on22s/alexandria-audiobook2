@@ -4089,10 +4089,17 @@
             const panel = document.getElementById('review-recovery-panel');
             const logs = status?.logs || [];
             const failed = isTaskFailed(status);
+            const failureMessage = (typeof status?.failure_message === 'string' ? status.failure_message : '').trim();
+            if (failed && status?.failure_kind === 'resume_misaligned') {
+                for (const id of ['btn-review-fresh', 'btn-review-contextual-fresh']) {
+                    const fresh = document.getElementById(id);
+                    if (fresh) { fresh.style.display = ''; }
+                }
+            }
             if (panel) {
                 panel.style.display = failed ? '' : 'none';
                 if (failed) {
-                    const last = logs.filter(Boolean).slice(-1)[0] || t('script.review.unknown-error', 'Unknown review error');
+                    const last = failureMessage || logs.filter(Boolean).slice(-1)[0] || t('script.review.unknown-error', 'Unknown review error');
                     panel.innerHTML = `${escapeHtml(t('script.review.stopped', 'Review stopped with an error: {log}.', {log: last}))} ` +
                         `<a href="/api/logs/review?download=true" target="_blank" rel="noopener">${t('script.review.download-log', 'Download full log.')}</a> ` +
                         t('script.review.inspect-log', 'Inspect the log, correct the source or profile, and retry.');
@@ -4120,6 +4127,12 @@
         // other review controls: in localStorage, behind try so a storage-blocked
         // browser still gets a working toggle (test_ui_review_fixes enforces this).
         const REVIEW_CONTEXT_STORAGE_KEY = 'alexandria.review-context';
+        // One authority for each mode's limit/default; the single-book field,
+        // the correction toast and the Python routes must all agree on these.
+        const REVIEW_CONTEXT_MODES = {
+            entries: {limit: 100, default: 4},
+            chars: {limit: 1000000, default: 2000}
+        };
         function getReviewContextPreference() {
             let stored = null;
             try { stored = JSON.parse(localStorage.getItem(REVIEW_CONTEXT_STORAGE_KEY) || '{}'); } catch (error) { /* storage blocked or corrupt */ }
@@ -4135,7 +4148,7 @@
         }
         function getReviewContextValue(mode) {
             const stored = getReviewContextPreference();
-            const fallback = mode === 'chars' ? 2000 : 4;
+            const fallback = REVIEW_CONTEXT_MODES[mode].default;
             const raw = mode === 'chars' ? stored.chars : stored.entries;
             const parsed = parseInt(raw, 10);
             return Number.isFinite(parsed) ? parsed : fallback;
@@ -4144,10 +4157,18 @@
             const button = document.getElementById('btn-review-context-mode');
             const field = document.getElementById('review-context-window');
             const mode = getReviewContextMode();
-            const limit = mode === 'chars' ? 1000000 : 100;
+            const limit = REVIEW_CONTEXT_MODES[mode].limit;
             if (field) {
                 field.max = String(limit);
                 field.value = String(getReviewContextValue(mode));
+            }
+            const label = document.getElementById('review-contextual-label');
+            if (label) {
+                if (mode === 'chars') {
+                    label.textContent = t('script.review.contextual.chars', 'Contextual Review (+/- N characters)');
+                } else {
+                    label.textContent = t('script.review.contextual.entries', 'Contextual Review (+/- N entries)');
+                }
             }
             if (!button) { return; }
             button.setAttribute('aria-pressed', mode === 'chars' ? 'true' : 'false');
@@ -4178,7 +4199,7 @@
         function applyReviewContextWindow(field, minimum, defaultValue, mode) {
             const singleBook = mode === undefined;
             const contextMode = mode || getReviewContextMode();
-            const limit = contextMode === 'chars' ? 1000000 : 100;
+            const limit = REVIEW_CONTEXT_MODES[contextMode].limit;
             const rawWindow = parseInt(field.value, 10);
             const windowSize = Number.isFinite(rawWindow) ? Math.max(minimum, Math.min(rawWindow, limit)) : defaultValue;
             const corrected = !Number.isFinite(rawWindow) || Number(field.value) !== windowSize;
@@ -4834,6 +4855,10 @@
                         if (el) {
                             el.innerHTML = `<span class="badge bg-${colours[taskStatus.status] || 'secondary'}">${escapeHtml(taskStatusLabel(taskStatus.status))}</span>`;
                             el.title = taskStatus.stats ? _formatBookStats(taskStatus.stats) : '';
+                            if (taskStatus.failure_message && typeof el.insertAdjacentText === 'function') {
+                                el.title = (el.title ? el.title + ' — ' : '') + taskStatus.failure_message;
+                                el.insertAdjacentText('beforeend', ' ' + taskStatus.failure_message);
+                            }
                         }
                     });
                     _updateReviewBatchTotals(state);
