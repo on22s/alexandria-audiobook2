@@ -12249,6 +12249,9 @@
     , "tests.test_review_text_per_request.ReviewPackingTests.test_reuses_step2_windowing"
     , "tests.test_review_text_per_request.ReviewPackingTests.test_stops_before_entry_that_would_exceed_target"
     , "tests.test_review_text_per_request.ReviewPackingTests.test_zero_reproduces_entry_count_batching_exactly"
+    , "tests.test_review_text_per_request.ReviewResumeAndFailureTests.test_aligned_resume_reviews_exactly_remaining_entries"
+    , "tests.test_review_text_per_request.ReviewResumeAndFailureTests.test_misaligned_resume_offset_is_refused"
+    , "tests.test_review_text_per_request.ReviewResumeAndFailureTests.test_truncated_reply_fails_the_batch_and_keeps_original_text"
     , "tests.test_review_text_per_request.ReviewTargetCharsConfigTests.test_bounds_are_enforced"
     , "tests.test_review_text_per_request.ReviewTargetCharsConfigTests.test_default_is_zero"
   ]

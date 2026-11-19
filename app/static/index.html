@@ -2374,7 +2374,7 @@
                             <div class="mb-3">
                                 <label data-i18n="setup.prompts.review-target-chars.label" class="form-label small mb-1" for="review-target-chars">Review: text per request (characters)</label>
                                 <input type="number" class="form-control form-control-sm" id="review-target-chars" min="0" max="1000000" step="500" value="0">
-                                <div data-i18n="setup.prompts.review-target-chars.help" class="form-text">0 keeps the existing 25-entry batching. A positive value groups complete script entries until the next would exceed this limit, counting only entry text (not the prompt or extra context). An entry longer than the limit is sent alone. Requests may be smaller to fit the model; larger values do not change the loaded model context.</div>
+                                <div data-i18n="setup.prompts.review-target-chars.help" class="form-text">0 keeps the existing 25-entry batching. A positive value groups complete script entries until the next would exceed this limit, counting only entry text (not the prompt or extra context). An entry longer than the limit is sent alone. The model rewrites every entry it is sent, so its reply grows with this value: if the reply would exceed Max tokens / the output limit, that batch fails and keeps its original text. Consider raising Max tokens in Setup when you increase this.</div>
                             </div>
                             <div class="mb-3">
                                 <label data-i18n="setup.prompts.review-system-prompt.label" class="form-label" for="review-system-prompt">Review System Prompt</label>

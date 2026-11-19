@@ -214,3 +214,92 @@ class ReviewEstimateParityTests(unittest.TestCase):
             self.assertEqual(len(windows), estimate["estimated_calls"])
             self.assertEqual(len(windows), len(calls))
             self.assertEqual(entries, [entry for batch in calls for entry in batch])
+
+
+class ReviewResumeAndFailureTests(unittest.TestCase):
+    """Resume must never lose entries; a truncated reply must keep the original."""
+
+    def _run(self, entries, generation, *, resume_offset=None, fake_review=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, output = root / "annotated_script.json", root / "reviewed.json"
+            config_path = root / "config.json"
+            source.write_text(json.dumps(entries))
+            config_path.write_text(json.dumps({
+                "llm_mode": "local",
+                "llm_local": {"base_url": "http://cpu-fixture/v1", "model_name": "fixture",
+                              "api_key": "local", "on_this_gpu": True},
+                "generation": generation,
+            }))
+            calls, sections = [], []
+            original_section = review_script.get_failed_section
+
+            def record_section(*args, **kwargs):
+                section = original_section(*args, **kwargs)
+                sections.append(section)
+                return section
+
+            def review(client, model, batch, index, total, params, **kwargs):
+                calls.append(list(batch))
+                return fake_review(batch) if fake_review else [dict(entry) for entry in batch]
+
+            with ExitStack() as stack:
+                stack.enter_context(redirect_stdout(io.StringIO()))
+                stack.enter_context(patch.object(review_script, "get_runtime_data_dir", return_value=tmp))
+                stack.enter_context(patch.object(review_script, "get_app_config_path", return_value=str(config_path)))
+                stack.enter_context(patch.object(review_script, "ensure_ideal_settings",
+                                                 return_value=(False, {}, "CPU fixture settings")))
+                stack.enter_context(patch.object(review_script, "get_current_status", return_value={"loaded": False}))
+                stack.enter_context(patch.object(review_script, "make_run_client", return_value=object()))
+                stack.enter_context(patch.object(review_script, "get_cached_or_benchmarked_concurrency", return_value=1))
+                stack.enter_context(patch.object(review_script, "wait_for_vram_headroom", return_value=True))
+                stack.enter_context(patch.object(review_script, "review_batch", side_effect=review))
+                stack.enter_context(patch.object(review_script, "get_failed_section", side_effect=record_section))
+                if resume_offset is not None:
+                    def forced_resume(output_path, total_batches, batch_size, context_window,
+                                      active_entries, active_corrected, active_stats, **kwargs):
+                        stats = {**{key: 0 for key in review_script.REVIEW_EDIT_COUNTERS},
+                                 "batches_failed": 0, "batches_skipped_vram": 0}
+                        return (list(active_entries[:resume_offset]), stats, None, 1,
+                                [resume_offset], [], resume_offset, None)
+                    stack.enter_context(patch.object(review_script, "_load_resume_state",
+                                                     side_effect=forced_resume))
+                with patch.object(review_script.sys, "argv",
+                                  ["review_script.py", "--input", str(source),
+                                   "--output", str(output), "--force-review"]):
+                    review_script.main()
+            return {"calls": calls, "sections": sections,
+                    "output": json.loads(output.read_text(encoding="utf-8"))}
+
+    def test_misaligned_resume_offset_is_refused(self):
+        entries = [_entry(i, 7) for i in range(8)]
+        generation = {"review_batch_size": 25, "review_target_chars": 30}
+        windows = review_script.get_review_entry_windows(entries, generation)
+        self.assertTrue(any(start < 3 < end for start, end in windows), "offset 3 must be inside a window")
+        with self.assertRaisesRegex(ValueError, "start the review over"):
+            self._run(entries, generation, resume_offset=3)
+
+    def test_aligned_resume_reviews_exactly_remaining_entries(self):
+        entries = [_entry(i, 7) for i in range(8)]
+        generation = {"review_batch_size": 25, "review_target_chars": 30}
+        windows = review_script.get_review_entry_windows(entries, generation)
+        resume_offset = windows[1][0]
+        result = self._run(entries, generation, resume_offset=resume_offset)
+        remaining = [entries[start:end] for start, end in windows if start >= resume_offset]
+        self.assertEqual(remaining, result["calls"])
+        self.assertEqual(sum(len(batch) for batch in remaining),
+                         sum(len(batch) for batch in result["calls"]))
+        self.assertEqual(len(entries), len(result["output"]))
+
+    def test_truncated_reply_fails_the_batch_and_keeps_original_text(self):
+        # A reply cut short by the output ceiling leaves fewer/shorter entries.
+        entries = [_entry(i, 12) for i in range(4)]
+        generation = {"review_batch_size": 25, "review_target_chars": 200}
+        self.assertEqual(1, len(review_script.get_review_entry_windows(entries, generation)))
+
+        def truncated(batch):
+            return [dict(batch[0])]  # only the first entry made it back
+
+        result = self._run(entries, generation, fake_review=truncated)
+        self.assertEqual(entries, result["output"], "original text must be kept")
+        self.assertEqual(["text_length_mismatch"], [section["category"] for section in result["sections"]])

@@ -261,6 +261,25 @@ def get_review_entry_windows(entries, generation_config):
             for window in iter_entry_windows(entries, batch_size, target_chars)]
 
 
+def get_review_remaining_windows(review_windows, entries, resume_offset):
+    """Return the windows a resumed review still owes, never losing entries.
+
+    A checkpoint only records how many source entries were consumed, not which
+    request boundaries they belonged to. If that offset is not a window start,
+    the saved progress cannot be mapped onto this run's batching: filtering by
+    ``start >= resume_offset`` would drop the window containing the offset and
+    those entries would be neither reviewed nor reported. Refuse instead, with
+    an instruction to start over.
+    """
+    if (0 < resume_offset < len(entries)
+            and resume_offset not in {start for start, _ in review_windows}):
+        raise ValueError(
+            f"Review checkpoint resumes at entry {resume_offset + 1}, which is not a "
+            f"batch boundary for the current review settings. Entries cannot be mapped "
+            f"safely to requests; start the review over instead of resuming it.")
+    return [bounds for bounds in review_windows if bounds[0] >= resume_offset]
+
+
 def get_completed_review_fingerprint(config, llm_config, params, args, client, model_name, source_text=None,
                                      *, entries=()):
     generation_config = config.get('generation') or {}
@@ -2191,6 +2210,7 @@ def main():
         source_offsets = get_review_resume_source_offsets(checkpoint, entries, batch_size)
         accounting = get_review_runtime_accounting(checkpoint, source_sha256, len(entries),
             total_stats, source_offsets, batch_lengths, len(all_corrected))
+        remaining_windows = get_review_remaining_windows(review_windows, entries, resume_offset)
     except ValueError:
         close = getattr(client, 'close', None)
         if close:
@@ -2227,7 +2247,6 @@ def main():
     highlight_pool = {"text": [], "speaker": []}
     failed_sections = []
     vram_aborted = False
-    remaining_windows = [bounds for bounds in review_windows if bounds[0] >= resume_offset]
 
     if args.context_window and args.context_window > 0:
         window = max(1, args.context_window)

@@ -88,7 +88,7 @@
             'presence-penalty': {what: 'Discourages repeating tokens that already appeared. 0 disables it.'},
             'banned-tokens': {what: 'Comma-separated tokens the model may not produce. To turn reasoning off, use Reasoning effort rather than banning the think tag.'},
             'merge-narrators': {what: 'During review, joins neighbouring NARRATOR lines that share a delivery note into one longer line. Leave off for finer per-line voice control.'},
-            'review-target-chars': {what: 'Size review requests by characters instead of entry count, counting only entry text. 0 keeps the current 25-entry batching.'},
+            'review-target-chars': {what: 'Size review requests by characters instead of entry count, counting only entry text. 0 keeps the current 25-entry batching. The model rewrites every entry you send it, so its reply grows with this value; if the reply exceeds Max tokens, that batch fails and keeps its original text.'},
 
             // Setup: three-pass annotation
             'tp-chunk-size': {what: 'How much book text Step 1 sends per request when splitting it into lines. Bigger pieces mean fewer requests, but a longer reply that is redone whole if one word comes back wrong.'},
