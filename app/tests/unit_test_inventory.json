@@ -1262,7 +1262,12 @@
   , "test_batch_result_shape": [
     "tests.test_batch_result_shape.BatchQualityNoneTests.test_experiment_skips_none_peak_without_raising"
     , "tests.test_batch_result_shape.BatchResultShapeTests.test_all_four_batch_backends_report_peak_vram_gb_key"
+    , "tests.test_batch_result_shape.BatchResultShapeTests.test_gpu_available_reports_measured_max_for_all_three_local_backends"
+    , "tests.test_batch_result_shape.BatchResultShapeTests.test_local_cpu_batch_flows_through_benchmark_as_not_measured"
+    , "tests.test_batch_result_shape.BatchResultShapeTests.test_lora_all_adapters_fail_to_load_reports_none"
     , "tests.test_batch_result_shape.BatchResultShapeTests.test_lora_batch_measures_peak_across_sub_batches"
+    , "tests.test_batch_result_shape.BatchResultShapeTests.test_lora_partial_adapter_failure_uses_max_of_measured_groups"
+    , "tests.test_batch_result_shape.BatchResultShapeTests.test_no_gpu_reading_reports_none_for_all_three_local_backends"
     , "tests.test_batch_result_shape.ExternalBatchOutputPathTests.test_external_batch_resolves_output_through_recovery_helper"
     , "tests.test_batch_result_shape.VramNoneRenderingTests.test_compiled_none_peak_renders_na_in_summary_table"
     , "tests.test_batch_result_shape.VramNoneRenderingTests.test_measured_peak_still_renders_and_fits_as_before"
