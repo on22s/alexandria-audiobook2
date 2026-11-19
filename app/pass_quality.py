@@ -80,6 +80,7 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     regions, current, pending_source_label = [], [], None
     depth, saw_quote, repairs = initial_depth, bool(initial_depth), []
     german_open = False  # `“` closes a German „…“ pair instead of opening English
+    skip_until = -1  # consumed by a line-dash dialogue region
 
     def flush():
         nonlocal pending_source_label
@@ -93,6 +94,20 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
         current.clear()
 
     for index, char in enumerate(text):
+        if index < skip_until:
+            continue
+        if char in "—–" and (index == 0 or text[index - 1] == "\n"):
+            # Continental line-dash dialogue: the rest of this line is speech.
+            flush()
+            line_end = text.find("\n", index)
+            if line_end == -1:
+                line_end = len(text)
+            spoken = text[index + 1:line_end].strip()
+            if spoken:
+                regions.append({"type": "SPOKEN", "text": spoken})
+                saw_quote = True
+            skip_until = line_end
+            continue
         if char == "\n" and text[index:index + 2] == "\n\n" and depth:
             flush()
             current.append(char)

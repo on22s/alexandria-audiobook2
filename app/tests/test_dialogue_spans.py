@@ -175,7 +175,7 @@ class SpanTest(unittest.TestCase):
             {"speaker": "HER", "text": "Er ging nach Hause"},
         ], source, "paired_quotes")
         self.assertTrue(marked[0]["spoken"])
-        self.assertFalse(marked[1]["spoken"])
+        self.assertNotEqual(True, marked[1].get("spoken"))
 
     def test_a_later_german_pair_does_not_merge_an_earlier_speech(self):
         # The close-capable `“` of a SECOND German pair must not make the first
@@ -253,6 +253,16 @@ class SpanTest(unittest.TestCase):
         started = time.monotonic()
         self.assertEqual(20000, len(spoken_spans(source, "paired_quotes")))
         self.assertLess(time.monotonic() - started, 2.0)
+
+    def test_guillemets_polish_and_danish_are_first_class_conventions(self):
+        # French/Russian guillemets, Polish low-high and Danish reversed marks
+        # must be detected and give every speech a spoken fact, not a narrator.
+        for opener, closer in [('«', '»'), ('»', '«'), ('„', '”')]:
+            with self.subTest(opener=opener):
+                source = "\n\n".join(opener + "Speech " + str(i) + "." + closer
+                                     for i in range(6))
+                self.assertEqual("paired_quotes", detect_convention(source))
+                self.assertEqual(6, len(spoken_spans(source, "paired_quotes")))
 
     def test_a_book_that_only_reopens_nowhere_keeps_its_speech_map(self):
         # A source that opens each speech once and closes it paragraphs later

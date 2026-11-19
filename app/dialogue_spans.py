@@ -29,11 +29,14 @@ import re
 
 PAIRED = [
     ('"', '"'),
-    ("“", "”"),      # curly “ ”
-    ("„", "“"),      # German/Polish/Czech low-high „ “
+    ("“", "”"),      # curly “ ” (English, Dutch, Turkish, ...)
+    ("„", "“"),      # low-high „ “ (German, Czech, Slovak)
+    ("„", "”"),      # low-high „ ” (Polish, Hungarian, Croatian, Baltics)
     ("「", "」"),      # 「 」
     ("『", "』"),      # 『 』
     ("＂", "＂"),      # full-width straight
+    ("«", "»"),      # guillemets (French, Russian, Italian, ...)
+    ("»", "«"),      # reversed guillemets (Danish)
 ]
 # An em or en dash opening a line, the Continental convention.
 DASH_LINE = re.compile(r"^[ \t]*[—–][ \t]*(\S.*)$", re.M)
@@ -61,6 +64,7 @@ OTHER_PAIRED = [
     # is included in PAIRED only when dense enough to be that book's convention.
     # get_other_speech_spans skips pairs already found by _paired_spans.
     re.compile(r"„([^„“\n]+)“"),
+    re.compile(r"„([^„”\n]+)”"),
 ]
 # A mark here can ALSO close a different pair - `“` closes `„…“` - so a caller
 # must skip an occurrence that closes a real pair. get_other_speech_spans does.
@@ -311,7 +315,8 @@ def _legacy_paired_spans(text):
 
 def _paired_spans_strict(text):
     spans = []
-    german_range = None
+    german_ranges = []
+    used_de = set()  # a `„` consumed by one closer convention is not reused
     breaks = starts = None
     masks = {}
     # `“` closes „…“ but also opens “…”. Resolve each occurrence once, then skip
@@ -415,7 +420,7 @@ def _paired_spans_strict(text):
             # regex did.
             def next_opener(search_from):
                 candidate = text.find(opener, search_from)
-                while candidate != -1 and candidate in closes:
+                while candidate != -1 and (candidate in closes or candidate in used_de):
                     candidate = text.find(opener, candidate + 1)
                 return candidate
 
@@ -435,23 +440,32 @@ def _paired_spans_strict(text):
                     end = next_closer(position + 1)
                 if end == -1:
                     break
+                if (opener == "„" and closer == "”"
+                        and text.find("“", position + 1, end) != -1):
+                    # An English “ opener before this ” means the mark belongs
+                    # to English speech, not to a Polish low-high pair.
+                    position = next_opener(position + 1)
+                    continue
                 if bad_breaks is None:
                     bad_breaks = narration_breaks(opener)
                 if position + 1 < end and _is_unbroken(bad_breaks, position, end):
                     spans.append((position + 1, end))
+                    if opener == "„":
+                        used_de.add(position)
                     position = next_opener(end + 1)
                 else:
                     position = next_opener(position + 1)
         if opener == "„":
-            german_range = (before, len(spans))
-    if german_range and len(spans) >= MIN_CONVENTION_PAIRS:
-        count = german_range[1] - german_range[0]
+            german_ranges.append((before, len(spans)))
+    if german_ranges and len(spans) >= MIN_CONVENTION_PAIRS:
+        count = sum(end - start for start, end in german_ranges)
         others = len(spans) - count
         if count and count < MIN_CONVENTION_PAIRS and count < others:
-            # A lone German quote in a book whose dialogue uses another mark
-            # is usually a sign, foreign term or title — not speech. Surface
-            # it as other speech instead of giving it a character voice.
-            del spans[german_range[0]:german_range[1]]
+            # A lone low-high quote in a book whose dialogue uses another mark
+            # is usually a sign, foreign term or title — not speech. Surface it
+            # as other speech instead of giving it a character voice.
+            for start, end in reversed(german_ranges):
+                del spans[start:end]
     return spans
 
 

@@ -47,6 +47,26 @@ class SegmentQualityTests(unittest.TestCase):
             [("NARRATOR", "He said"), ("SPOKEN", "Go."), ("NARRATOR", "then left.")],
             [(row["type"], row["text"]) for row in english])
 
+    def test_generation_segments_every_supported_convention_as_speech(self):
+        # The map and the pass that creates entries must agree on which marks
+        # carry dialogue; the German inversion was the urgent case.
+        for source, expected in [
+            ('He said "Hello." then left.', 'Hello.'),
+            ('Er sagte „Hallo!“ und ging.', 'Hallo!'),
+            ('Il a dit « Bonjour » puis parti.', 'Bonjour'),
+            ('Han sagde »Hej« og gik.', 'Hej'),
+        ]:
+            with self.subTest(source=source):
+                regions = analyze_outer_quote_regions(source)["regions"]
+                spoken = [row["text"] for row in regions if row["type"] == "SPOKEN"]
+                self.assertTrue(any(expected in row for row in spoken), regions)
+
+    def test_line_dash_dialogue_is_segmented_as_speech(self):
+        source = "— Primera línea.\n\n— Segunda línea."
+        regions = analyze_outer_quote_regions(source)["regions"]
+        self.assertEqual(2, len(regions))
+        self.assertEqual(["SPOKEN", "SPOKEN"], [row["type"] for row in regions])
+
     def test_one_word_dialogue_split_passes_but_wrong_region_and_crossing_fail(self):
         source = '“No. Not at all.”'
         report = validate_segment_quality(source, [{'type': 'SPOKEN', 'text': text} for text in ('No.', 'Not at all.')])
