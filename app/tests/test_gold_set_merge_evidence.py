@@ -51,6 +51,63 @@ class GoldMergeEvidenceTests(unittest.TestCase):
         move.assert_called_once()
         self.assertEqual({'control': True}, json.loads(self.output.read_text()))
 
+    def test_cross_device_fallback_records_a_diagnostic(self):
+        # A copy-based publication is not atomic. It stays allowed for
+        # cross-device data dirs, but the lost atomicity must not be silent:
+        # a reader of a truncated file would otherwise see a default value.
+        # Read the PERSISTED line, not the call arguments: the trace keeps only
+        # allow-listed fields, so a keyword can be passed and silently dropped.
+        # The record must precede the copy (a crash mid-copy must find it), and
+        # the copied file must be fsynced before success is reported.
+        import errno
+        import review_startup
+        import utils
+        log = self.root / 'diagnostics.log'
+        order = []
+        real_move, real_fsync = utils.shutil.move, utils._fsync_copied_file
+        real_record = review_startup.record_failure
+
+        def record(*args, **kwargs):
+            order.append('record')
+            return real_record(*args, **kwargs)
+
+        def move(*args, **kwargs):
+            order.append('move')
+            return real_move(*args, **kwargs)
+
+        def fsync(path):
+            order.append(('fsync', path))
+            return real_fsync(path)
+
+        with patch.object(utils.os, 'replace', side_effect=OSError(errno.EXDEV, 'synthetic cross-device rename')), \
+             patch.object(utils.shutil, 'move', side_effect=move), \
+             patch.object(utils, '_fsync_copied_file', side_effect=fsync), \
+             patch.object(review_startup, 'record_failure', side_effect=record), \
+             patch.object(review_startup, 'get_failure_log_path', return_value=log):
+            utils.atomic_json_write({'control': True}, str(self.output))
+            # A second write inside the rate window copies but adds no record.
+            utils.atomic_json_write({'control': False}, str(self.output))
+        self.assertEqual(['record', 'move', ('fsync', str(self.output))] * 2, order)
+        self.assertEqual({'control': False}, json.loads(self.output.read_text()))
+        lines = [json.loads(line) for line in log.read_text().splitlines()]
+        self.assertEqual(1, len(lines), lines)
+        self.assertEqual('nonatomic_json_fallback', lines[0]['stage'])
+        self.assertEqual('storage', lines[0]['task'])
+        self.assertEqual('copy_fallback', lines[0]['operation'])
+        self.assertEqual(errno.EXDEV, lines[0]['errno'])
+        self.assertIn('resource_id', lines[0])
+
+    def test_cross_device_fallback_fsync_failure_is_not_success(self):
+        # A copy that cannot be flushed is not durable; reporting success would
+        # be the silent loss the fallback diagnostic exists to prevent.
+        import errno
+        import utils
+        with patch.object(utils.os, 'replace', side_effect=OSError(errno.EXDEV, 'synthetic cross-device rename')), \
+             patch.object(utils, '_fsync_copied_file', side_effect=OSError(errno.EIO, 'synthetic fsync failure')), \
+             patch('review_startup.record_failure'):
+            with self.assertRaisesRegex(OSError, 'synthetic fsync failure'):
+                utils.atomic_json_write({'control': True}, str(self.output))
+
     def test_cross_device_merge_refusal_preserves_fixture_without_copy_fallback(self):
         import errno
         import gold_set_builder as gold

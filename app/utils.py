@@ -385,6 +385,28 @@ def safe_load_json(path, default=None, *, content=None):
     return data
 
 
+def _fsync_copied_file(path):
+    """Flush a file published by copy, then (best-effort) its directory entry.
+
+    O_RDWR because Windows refuses fsync on a read-only descriptor; it opens
+    without truncating. The file fsync raises on failure; the directory fsync
+    is best-effort, as on the os.replace path.
+    """
+    fd = os.open(path, os.O_RDWR)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    try:
+        dir_fd = os.open(os.path.dirname(path) or ".", os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    except (OSError, AttributeError):
+        pass
+
+
 def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trailing_newline=False,
                       newline=None, allow_nonatomic_fallback=True, return_written_bytes=False,
                       encoder=None):
@@ -397,6 +419,11 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
     succeeds rather than raising an unhandled OSError.
     Set allow_nonatomic_fallback=False when publication must refuse a
     cross-device rename instead of risking partial replacement by copying.
+    When the fallback is used it records a `nonatomic_json_fallback` storage
+    diagnostic (at most once a minute per file) BEFORE copying, logs a warning,
+    and fsyncs the copied file before returning: the copy is not atomic, so a
+    crash during it can leave a truncated destination that a later
+    safe_load_json sees as a default value.
     newline is passed to the text stream: None (the default) keeps each
     platform's native line ending; newline="\\n" writes the LF bytes a
     byte-pinned artifact was committed with regardless of platform.
@@ -456,9 +483,27 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
                         raise OSError(
                             f"Refusing cross-device fallback write through a symlink at {target_path}"
                         ) from e
+                    # The fallback is safe against a pre-existing symlink but is
+                    # NOT atomic: a crash/OOM during shutil.move's copy can leave
+                    # a truncated destination while this call has not returned.
+                    # Record that publication lost atomicity — callers that
+                    # reread the file would otherwise see safe_load_json fall
+                    # back to a believable empty/default state with no trace.
+                    logger.warning(
+                        'Non-atomic JSON fallback: cross-device rename for %s; '
+                        'publishing by copy (a crash during the copy may truncate it)',
+                        target_path)
+                    # `operation` is on the trace's field allow-list; any other
+                    # keyword is dropped silently and never reaches the log.
+                    # Rate-limited per file: on a mount where every write lands
+                    # here, an unthrottled record per write fills the 256 KB
+                    # diagnostics log and rotates real failures out of it.
+                    from review_startup import record_failure
+                    record_failure('nonatomic_json_fallback', e, task='storage',
+                                   resource=target_path, level=logging.WARNING,
+                                   operation='copy_fallback', rate_limit_seconds=60)
                     try:
                         shutil.move(tmp_path, target_path)
-                        return written_bytes
                     except OSError as move_err:
                         # Let the same retry/backoff check below apply to a
                         # transient failure during the fallback copy too
@@ -466,6 +511,14 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
                         # is untouched unless copy_function fully succeeded,
                         # so retrying shutil.move again is safe.
                         e = move_err
+                    else:
+                        # shutil.move's copy does not fsync. Returning success
+                        # with the bytes still in the page cache let a power
+                        # loss AFTER this call leave an empty or truncated
+                        # file. Flush it before reporting success; a failure
+                        # here propagates, because the write is not durable.
+                        _fsync_copied_file(target_path)
+                        return written_bytes
                 # ERROR_ACCESS_DENIED (5) / ERROR_SHARING_VIOLATION (32) are raw
                 # Windows error codes, which only ever show up on e.winerror -
                 # e.errno holds the CRT's translated POSIX-equivalent (EACCES=13
