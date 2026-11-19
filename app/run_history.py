@@ -28,7 +28,7 @@ def start_run(history_dir, task_name):
         "error": None,
         "artifacts": [],
     }
-    atomic_json_write(record, os.path.join(history_dir, f"{run_id}.json"))
+    atomic_json_write(record, os.path.join(history_dir, f"{run_id}.json"), allow_nonatomic_fallback=False)
     return run_id
 
 
@@ -53,7 +53,7 @@ def _apply_run_update(history_dir, run_id, get_updates):
         if updates is None:
             return None
         updated = {**record, **updates}
-        atomic_json_write(updated, path)
+        atomic_json_write(updated, path, allow_nonatomic_fallback=False)
         return updated
 
 

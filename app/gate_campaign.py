@@ -46,7 +46,7 @@ def save_campaign_start(queue_path, journal_path):
     document = {"schema_version": 1, "campaign_id": uuid.uuid4().hex,
                 "status": "running", "members": members}
     with file_lock(journal_path):
-        atomic_json_write(document, str(journal_path))
+        atomic_json_write(document, str(journal_path), allow_nonatomic_fallback=False)
 
 
 def get_measured_campaign_member(journal_path, name, row, lines):
@@ -75,7 +75,7 @@ def save_campaign_result(journal_path, name, rc, lines=6):
                 raise ValueError("worker status disagrees with measured verdict")
             row["sha256"] = digest
         document["members"][name] = row
-        atomic_json_write(document, str(journal_path))
+        atomic_json_write(document, str(journal_path), allow_nonatomic_fallback=False)
 
 
 def save_campaign_completion(journal_path, lines=6):
@@ -87,7 +87,7 @@ def save_campaign_completion(journal_path, lines=6):
             gate, digest = get_measured_campaign_member(journal_path, name, row, lines)
             if row.get("sha256") != digest or row["rc"] != (0 if gate["passed"] else 3):
                 raise ValueError(f"campaign member {name} changed")
-        atomic_json_write(dict(document, status="complete"), str(journal_path))
+        atomic_json_write(dict(document, status="complete"), str(journal_path), allow_nonatomic_fallback=False)
 
 
 def get_campaign_gate_evidence_snapshot(path):

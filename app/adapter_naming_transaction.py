@@ -178,7 +178,7 @@ def recover_adapter_naming_locked(models_dir, manifest_path):
                 if not os.path.exists(staged):
                     _move_bundle(_get_change_path(models_dir, pair, "new"), staged, pair["sha256"])
             journal["phase"] = "restore"
-            atomic_json_write(journal, path)
+            atomic_json_write(journal, path, allow_nonatomic_fallback=False)
         for index, pair in enumerate(pairs):
             staged = os.path.join(bundle_dir, str(index))
             if os.path.isdir(staged):
@@ -191,7 +191,7 @@ def recover_adapter_naming_locked(models_dir, manifest_path):
             os.remove(history)
             sync_adapter_directory(os.path.dirname(history))
         journal["phase"] = "recovered"
-        atomic_json_write(journal, path)
+        atomic_json_write(journal, path, allow_nonatomic_fallback=False)
     if os.path.exists(workspace):
         shutil.rmtree(workspace)
     sync_adapter_directory(models_dir)
@@ -287,7 +287,7 @@ def _apply_adapter_changes_locked(models_dir, manifest_path, new_manifest, chang
             sync_adapter_tree(_get_change_path(models_dir, pair, "old"))
         sync_adapter_directory(workspace)
         sync_adapter_directory(models_dir)
-        atomic_json_write(journal, journal_path)
+        atomic_json_write(journal, journal_path, allow_nonatomic_fallback=False)
         try:
             if journal["backup"]["present"]:
                 save_adapter_publication_bytes(history, snapshots["backup"], mode=journal["backup"]["mode"])
@@ -295,7 +295,7 @@ def _apply_adapter_changes_locked(models_dir, manifest_path, new_manifest, chang
             for index, pair in enumerate(pairs):
                 _move_bundle(_get_change_path(models_dir, pair, "old"), os.path.join(workspace, "adapters", str(index)), pair["sha256"])
             journal["phase"] = "publish"
-            atomic_json_write(journal, journal_path)
+            atomic_json_write(journal, journal_path, allow_nonatomic_fallback=False)
             for index, pair in enumerate(pairs):
                 if not pair.get("delete", False):
                     _move_bundle(os.path.join(workspace, "adapters", str(index)), _get_change_path(models_dir, pair, "new"), pair["sha256"])
@@ -305,7 +305,7 @@ def _apply_adapter_changes_locked(models_dir, manifest_path, new_manifest, chang
                 mode = journal['aliases']['mode'] if journal['aliases']['present'] else None
                 save_adapter_publication_bytes(alias_path, json.dumps(alias_registry, indent=2, ensure_ascii=False).encode('utf-8'), mode=mode)
             journal["phase"] = "committed"
-            atomic_json_write(journal, journal_path)
+            atomic_json_write(journal, journal_path, allow_nonatomic_fallback=False)
         except BaseException:
             recover_adapter_naming_locked(models_dir, manifest_path)
             raise

@@ -617,7 +617,7 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
             writer.save_checkpoint(data, compact=output_sha256 is not None)
         else:
             with file_lock(path):
-                atomic_json_write(data, path)
+                atomic_json_write(data, path, allow_nonatomic_fallback=False)
     except OSError as e:
         # If checkpoint save fails (e.g., disk full, permission denied),
         # log the error but don't crash the review process
@@ -895,7 +895,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
                     after=(json.dumps(updated_registry, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
                            if updated_registry != current_registry else None))
             elif updated_registry != current_registry:
-                atomic_json_write(updated_registry, registry_path)
+                atomic_json_write(updated_registry, registry_path, allow_nonatomic_fallback=False)
     else:
         _, clean_map = get_updated_registry({})
 
@@ -958,7 +958,7 @@ def _remap_voice_config(voice_config_path, mapping):
             moved = _remapped_voice_config(cfg, mapping)
             if moved:
                 try:
-                    atomic_json_write(cfg, voice_config_path)
+                    atomic_json_write(cfg, voice_config_path, allow_nonatomic_fallback=False)
                 except OSError as e:
                     print(f"  Warning: failed to write {voice_config_path}: {e}")
                     moved = 0
@@ -2618,7 +2618,7 @@ def main():
             print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
     else:
         ensure_review_not_cancelled()
-        atomic_json_write(output_entries, output_path)
+        atomic_json_write(output_entries, output_path, allow_nonatomic_fallback=False)
 
     # Checkpoint is only needed while a run is incomplete; clear it once the
     # full review (and any post-processing) has finished successfully.

@@ -348,7 +348,7 @@ def _load_cleanup_session(token):
 
 def _save_cleanup_session(directory, session):
     from utils import atomic_json_write
-    atomic_json_write(session, str(Path(directory) / "session.json"))
+    atomic_json_write(session, str(Path(directory) / "session.json"), allow_nonatomic_fallback=False)
 
 
 def _remove_cleanup_session(token):

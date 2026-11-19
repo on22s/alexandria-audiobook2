@@ -350,7 +350,7 @@ class ReviewCleanupSerializationTests(unittest.TestCase):
             publishing, release, cleanup_started, cleanup_done = (threading.Event() for _ in range(4))
             results, errors = [], []
             original_write = er.atomic_json_write
-            def paused_write(document, path):
+            def paused_write(document, path, **kwargs):
                 if Path(path) == store:
                     publishing.set()
                     if not release.wait(5):

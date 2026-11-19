@@ -240,7 +240,7 @@ class ExternalTTSClient:
                     raise ValueError("External TTS request exceeds its byte limit")
                 with resources.lock:
                     self._check_active(deadline, cancelled)
-                    atomic_json_write(request, str(root / "request.json"))
+                    atomic_json_write(request, str(root / "request.json"), allow_nonatomic_fallback=False)
                 response_path = directory / "response.json"
                 while not response_path.exists():
                     self._check_active(deadline, cancelled)
@@ -344,7 +344,7 @@ def run_client_worker(directory):
                 response.update(error=redact_text(str(error)), type=type(error).__name__)
         if operation == 'capabilities' and len(json.dumps(response).encode('utf-8')) > MAX_RESPONSE_BYTES:
             response['capabilities'] = external_tts_capabilities.make_unknown_capability_report(request['url'], external_tts_capabilities.MALFORMED_ERROR)
-        atomic_json_write(response, str(workspace / "response.json"))
+        atomic_json_write(response, str(workspace / "response.json"), allow_nonatomic_fallback=False)
 
 
 if __name__ == "__main__":

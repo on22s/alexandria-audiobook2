@@ -417,7 +417,7 @@ def save_discovered_aliases(path, aliases, roster=()):
         merged = dict(current)
         merged.update(safe)
         if safe or not os.path.exists(path):
-            atomic_json_write(merged, path)
+            atomic_json_write(merged, path, allow_nonatomic_fallback=False)
     return merged
 
 

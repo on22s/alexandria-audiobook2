@@ -96,7 +96,7 @@ def main(argv=None):
         parser.error("--max-books must be >= 1 and --target-chars must be >= 200")
     manifest = build_manifest(args.books_dir, args.max_books, args.target_chars)
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
-    atomic_json_write(manifest, args.output)
+    atomic_json_write(manifest, args.output, allow_nonatomic_fallback=False)
     print(f"Wrote {len(manifest['books'])} book(s) and {len(manifest['errors'])} error(s) to {args.output}")
     return 0 if manifest["books"] else 1
 

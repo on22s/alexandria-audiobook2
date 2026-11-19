@@ -196,7 +196,7 @@ def build_generation_quality_manifest(status, fingerprint, accepted_chunks,
 
 
 def save_generation_quality_manifest(output_path, manifest):
-    atomic_json_write(manifest, get_generation_quality_path(output_path))
+    atomic_json_write(manifest, get_generation_quality_path(output_path), allow_nonatomic_fallback=False)
 
 
 def validate_generation_output_path(input_path, output_path):
@@ -224,7 +224,7 @@ def publish_completed_generation(output_path, entries, manifest, input_path, inp
     from script_selection_binding import _source_digest
     if _source_digest(input_path) != input_sha256:
         raise ValueError('Source input changed during generation; preserving prior output')
-    atomic_json_write(entries, output_path)
+    atomic_json_write(entries, output_path, allow_nonatomic_fallback=False)
     save_generation_quality_manifest(output_path, {
         **manifest, 'status': 'complete',
         'completion_artifact': {'version': 1, 'input_sha256': input_sha256,

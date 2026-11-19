@@ -65,7 +65,7 @@ def write_inventory(path=INVENTORY_PATH, *, module_names=None):
             raise ValueError('Existing inventory is not a module-to-test-ID mapping')
         inventory.update(get_unit_test_inventory(module_names=module_names))
     if not path.exists() or path.read_bytes() != format_inventory(inventory).encode("utf-8"):
-        atomic_json_write(inventory, str(path), newline="\n", encoder=InventoryEncoder)
+        atomic_json_write(inventory, str(path), newline="\n", encoder=InventoryEncoder, allow_nonatomic_fallback=False)
     return path
 
 

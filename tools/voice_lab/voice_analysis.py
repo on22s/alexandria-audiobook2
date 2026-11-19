@@ -251,7 +251,7 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
     cache_file = output_dir / "embeddings_cache.pkl"
     cache = _load_pickle_cache(cache_file, {})
     state_file = output_dir / "phase_state.json"
-    atomic_json_write({"status": "running", "narrators": {}}, str(state_file))
+    atomic_json_write({"status": "running", "narrators": {}}, str(state_file), allow_nonatomic_fallback=False)
     narrator_records = {}
     incomplete = False
 
@@ -269,7 +269,7 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
     if not narrator_dirs:
         print(f"No narrator folders found under {zips2_root}")
         atomic_json_write({"status": "failed", "narrators": {},
-                           "error": "No narrator folders found"}, str(state_file))
+                           "error": "No narrator folders found"}, str(state_file), allow_nonatomic_fallback=False)
         return
 
     results = {}
@@ -486,8 +486,8 @@ def run_dedup(model, device, zips2_root, output_dir, seed=42):
         },
     }
     compact_voice_analysis_checkpoints(cache_file)
-    atomic_json_write(cluster_report, str(output_dir / "dedup_clusters.json"))
-    atomic_json_write({"status": "partial" if incomplete else "complete", "narrators": narrator_records}, str(state_file))
+    atomic_json_write(cluster_report, str(output_dir / "dedup_clusters.json"), allow_nonatomic_fallback=False)
+    atomic_json_write({"status": "partial" if incomplete else "complete", "narrators": narrator_records}, str(state_file), allow_nonatomic_fallback=False)
 
     print(f"\n{'='*60}")
     print("DEDUP SUMMARY")
@@ -560,13 +560,13 @@ def run_analyze(model, device, deduped_root, output_dir, seed=42):
     from utils import atomic_json_write
     output_dir.mkdir(exist_ok=True)
     state_file = output_dir / "phase_state.json"
-    atomic_json_write({"status": "running", "groups": {}}, str(state_file))
+    atomic_json_write({"status": "running", "groups": {}}, str(state_file), allow_nonatomic_fallback=False)
     incomplete = False
     cache_file = output_dir / "embeddings_cache.pkl"
 
     if not deduped_root.is_dir():
         error = f"{deduped_root} not found — run the dedup phase first (--phase dedup, or --phase both)."
-        atomic_json_write({"status": "failed", "groups": {}, "error": error}, str(state_file))
+        atomic_json_write({"status": "failed", "groups": {}, "error": error}, str(state_file), allow_nonatomic_fallback=False)
         print(f"WARNING: {error}")
         return
 
@@ -580,7 +580,7 @@ def run_analyze(model, device, deduped_root, output_dir, seed=42):
 
     if not zip_groups:
         error = f"No ZIPs found in {deduped_root}"
-        atomic_json_write({"status": "failed", "groups": {}, "error": error}, str(state_file))
+        atomic_json_write({"status": "failed", "groups": {}, "error": error}, str(state_file), allow_nonatomic_fallback=False)
         print(error)
         return
 
@@ -809,7 +809,7 @@ def run_analyze(model, device, deduped_root, output_dir, seed=42):
         groups[group_name] = {"inputs": get_analysis_file_hashes(zip_groups[group_name]),
                               "samples": len(all_embs[group_name])}
     complete = not incomplete and set(group_names) == set(zip_groups)
-    atomic_json_write({"status": "complete" if complete else "partial", "groups": groups}, str(state_file))
+    atomic_json_write({"status": "complete" if complete else "partial", "groups": groups}, str(state_file), allow_nonatomic_fallback=False)
     print("\nDone!" if complete else "\nAnalysis incomplete: failed groups or samples remain.")
 
 

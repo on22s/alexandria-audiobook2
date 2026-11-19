@@ -1273,7 +1273,7 @@ class ProjectManager:
         def save_snapshot(rows):
             nonlocal written_bytes
             options = {'return_written_bytes': True} if uids_backfilled and sys.platform == 'win32' else {}
-            written_bytes = atomic_json_write(rows, self.chunks_path, **options)
+            written_bytes = atomic_json_write(rows, self.chunks_path, **options, allow_nonatomic_fallback=False)
         if os.path.exists(get_chunk_status_journal_path(self.chunks_path)):
             self._get_status_journal_locked().save_compacted(chunks, save_snapshot=save_snapshot)
             self._status_journal = None
@@ -3501,7 +3501,7 @@ class ProjectManager:
         if len(filenames) != len(set(filenames)):
             return False, "Chapter filenames collide with retained exports; export all chapters or choose a different filename template"
         atomic_json_write({**options, "chapters": rows},
-                          os.path.join(staging_dir, "manifest.json"))
+                          os.path.join(staging_dir, "manifest.json"), allow_nonatomic_fallback=False)
         note = f"{written} chapter file(s) written"
         if reused:
             note += f", {reused} unchanged and kept"

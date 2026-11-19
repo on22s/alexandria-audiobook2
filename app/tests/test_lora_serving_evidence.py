@@ -267,8 +267,8 @@ class ServingEvidenceTests(unittest.TestCase):
             write_test_serving_adapter(adapter);write_test_serving_adapter(candidate, 2)
             (root / 'manifest.json').write_text('[{"id":"voice"}]');(root / 'config.json').write_text('{}')
             native_write = evaluation.atomic_json_write
-            def changed(value, path):
-                native_write(value, path)
+            def changed(value, path, **kwargs):
+                native_write(value, path, **kwargs)
                 if Path(path) == candidate / 'evaluation.json':
                     data = json.loads((candidate / 'adapter_config.json').read_text());data['lora_alpha'] = 8
                     (candidate / 'adapter_config.json').write_text(json.dumps(data))

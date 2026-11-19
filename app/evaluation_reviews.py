@@ -146,7 +146,7 @@ def _remove_decision_journal(path):
         except OSError:
             # A failed deletion sync must retain the replay barrier: a later
             # append/cleanup cannot age out its ID while deletion is uncertain.
-            atomic_json_write(journal, path)
+            atomic_json_write(journal, path, allow_nonatomic_fallback=False)
             raise
     except OSError as error:
         raise ReviewError("Could not finish pending review decision recovery") from error
@@ -168,7 +168,7 @@ def _publish_consumed_decision(store, record, session_path, store_path, journal_
     updated = _get_store_with_review(store, record)
     _sync_directory(session_path)
     if updated is not store:
-        atomic_json_write(updated, store_path)
+        atomic_json_write(updated, store_path, allow_nonatomic_fallback=False)
     _sync_directory(store_path)
     _remove_decision_journal(journal_path)
     return updated
@@ -265,7 +265,7 @@ def create_session(reviews_dir, adapter_id, candidate_id, fingerprint, pairs,
         "build": build or {},
         "automated": {"recommended_candidate": automated_recommended},
     }
-    atomic_json_write(session, _session_path(reviews_dir, session_id))
+    atomic_json_write(session, _session_path(reviews_dir, session_id), allow_nonatomic_fallback=False)
 
     # Client-safe: only probe id + text. No labels, roles, paths, or fingerprint.
     client_pairs = [{"id": pair.get("id"), "text": pair.get("text", "")}
@@ -358,7 +358,7 @@ def submit(reviews_dir, adapter_id, session_id, choice, current_fingerprint,
             os.makedirs(os.path.dirname(journal_path), exist_ok=True)
             try:
                 atomic_json_write({"version": STORE_VERSION, "session": session,
-                                   "record": record}, journal_path)
+                                   "record": record}, journal_path, allow_nonatomic_fallback=False)
                 _sync_directory(journal_path)
                 _sync_directory(os.path.dirname(journal_path))
             except OSError as error:

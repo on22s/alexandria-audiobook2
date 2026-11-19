@@ -30,8 +30,8 @@ write, unlink = er.atomic_json_write, er.os.unlink
 journal = er._decision_path(root, sid)
 store = er._store_path(root, "voice_x")
 session = er._session_path(root, sid)
-def interrupted_write(document, path):
-    write(document, path)
+def interrupted_write(document, path, **kwargs):
+    write(document, path, **kwargs)
     if (boundary == "prepared" and path == journal) or (boundary == "published" and path == store):
         os._exit(93)
 def interrupted_unlink(path, *args, **kwargs):
@@ -120,10 +120,10 @@ raise RuntimeError("fixture did not hit its interruption boundary")
             session = _mk(directory, blind=False)
             store = Path(er._store_path(directory, "voice_x"))
             write = er.atomic_json_write
-            def fail_store(document, path):
+            def fail_store(document, path, **kwargs):
                 if Path(path) == store:
                     raise OSError(5, "publication error")
-                return write(document, path)
+                return write(document, path, **kwargs)
             with patch.object(er, "atomic_json_write", side_effect=fail_store):
                 with self.assertRaisesRegex(er.ReviewError, "pending recovery"):
                     er.submit(directory, "voice_x", session["session_id"], "B", _fp(), notes="saved vote")

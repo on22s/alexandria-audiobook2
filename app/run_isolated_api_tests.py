@@ -26,7 +26,7 @@ def run_isolated_server():
     config = uvicorn.Config(app, host="127.0.0.1", port=0, access_log=False)
     with config.bind_socket() as listener:
         atomic_json_write({"port": listener.getsockname()[1]},
-                          Path(os.environ["ALEXANDRIA_DATA_DIR"]) / "server_port.json")
+                          Path(os.environ["ALEXANDRIA_DATA_DIR"]) / "server_port.json", allow_nonatomic_fallback=False)
         uvicorn.Server(config).run(sockets=[listener])
 
 

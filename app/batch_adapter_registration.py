@@ -63,7 +63,7 @@ def apply_batch_registration_intent(models_dir, dataset_id, adapter_id, source, 
         record['ownership'] = ownership
     path = get_batch_registration_path(models_dir, dataset_id)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    atomic_json_write(record, path)
+    atomic_json_write(record, path, allow_nonatomic_fallback=False)
     return record
 
 
@@ -123,7 +123,7 @@ def save_batch_registration_entry(models_dir, dataset_id, entry):
         raise ValueError('Training result checkpoint hash changed before registration')
     updated = {**record, 'checkpoint_sha256': digest,
                'entry': {**entry, 'zip_source': record['zip_source'], 'checkpoint_sha256': digest}}
-    atomic_json_write(updated, get_batch_registration_path(models_dir, dataset_id))
+    atomic_json_write(updated, get_batch_registration_path(models_dir, dataset_id), allow_nonatomic_fallback=False)
     return dict(updated['entry'])
 
 
@@ -185,10 +185,10 @@ def restart_incomplete_batch_registration(models_dir, dataset_id, source, adapte
             if json.load(handle) != record:
                 raise ValueError('Batch intent history conflicts with recovery evidence')
     else:
-        atomic_json_write(record, prior)
+        atomic_json_write(record, prior, allow_nonatomic_fallback=False)
     replacement = {**record, 'adapter_id': adapter_id, 'settings': dict(settings),
                    'created': time.time(), 'entry': None}
-    atomic_json_write(replacement, path)
+    atomic_json_write(replacement, path, allow_nonatomic_fallback=False)
     return replacement
 
 

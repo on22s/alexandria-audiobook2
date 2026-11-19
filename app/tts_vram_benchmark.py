@@ -249,7 +249,7 @@ def print_summary(pre_results, post_results, model_vram_gb, total_gb):
 def save_benchmark_results(output, out_path):
     """Atomically save results, including to a new nested directory."""
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    atomic_json_write(output, out_path)
+    atomic_json_write(output, out_path, allow_nonatomic_fallback=False)
 
 # ---------------------------------------------------------------------------
 # Main

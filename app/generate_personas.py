@@ -676,7 +676,7 @@ def _append_character_ref(ref_dir, speaker, batch_number, character_data):
     }
     ref.setdefault("observations", []).append(observation)
     ref["updated_at"] = int(time.time())
-    _atomic_json_write(ref, _character_ref_path(ref_dir, speaker))
+    _atomic_json_write(ref, _character_ref_path(ref_dir, speaker), allow_nonatomic_fallback=False)
     return ref
 
 
@@ -826,7 +826,7 @@ def _save_generated_preview(root, engine, voice_config, speaker, description, re
         relative_path = os.path.relpath(dest_path, root).replace('\\', '/')
         _atomic_json_write({"book_id": book_id, "speaker": speaker,
                             "description": description, "ref_text": ref_text,
-                            "preview": relative_path}, os.path.join(preview_dir, "meta.json"))
+                            "preview": relative_path}, os.path.join(preview_dir, "meta.json"), allow_nonatomic_fallback=False)
         voice_entry = copy.deepcopy(voice_config.get(speaker, {}))
         # The casting library builds the same entry for a persona voice (#1532).
         voice_entry.update(get_persona_clone_entry(relative_path, ref_text, description, speaker))
@@ -1044,7 +1044,7 @@ def _compile_persona(client, model_name, engine, voice_config, root, ref_dir, sp
     if not ref.get("sample_lines"):
         sample_limit = get_persona_context_limit(context_lines)
         ref["sample_lines"] = [line for line in samples.get(speaker, [])[:sample_limit] if line]
-        _atomic_json_write(ref, _character_ref_path(ref_dir, speaker))
+        _atomic_json_write(ref, _character_ref_path(ref_dir, speaker), allow_nonatomic_fallback=False)
 
     print(f"Compiling persona for: {speaker}")
     description = ""
@@ -1484,7 +1484,7 @@ def save_generated_voice_config(path, generated, initial, roster, alias_proposal
             voice.setdefault("seed", generated.get(speaker, {}).get("seed", -1))
         get_validated_voice_alias_map(merged)
         if merged != current or not os.path.exists(path):
-            _atomic_json_write(merged, path)
+            _atomic_json_write(merged, path, allow_nonatomic_fallback=False)
     return merged
 
 

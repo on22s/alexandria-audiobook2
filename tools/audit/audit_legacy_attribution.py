@@ -522,7 +522,7 @@ def main():
         print(f"legacy attribution audit is current ({len(audit['artifacts'])} artifacts)")
         return
     from utils import atomic_json_write
-    atomic_json_write(audit, args.json, newline="\n")
+    atomic_json_write(audit, args.json, newline="\n", allow_nonatomic_fallback=False)
     tmp = args.markdown + ".tmp"
     with open(tmp, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(markdown)

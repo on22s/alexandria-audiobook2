@@ -185,7 +185,7 @@ def main():
     atomic_json_write({"book": args.book_tag, "models": sorted(runs),
                        "entries_per_model": {m: len(e) for m, e in runs.items()},
                        "sampled": len(rows), "disputed": len(disputed),
-                       "rows": rows}, args.output)
+                       "rows": rows}, args.output, allow_nonatomic_fallback=False)
     print(f"models: {', '.join(sorted(runs))}")
     print(f"entries per model: {[len(e) for e in runs.values()]}")
     print(f"sampled {len(rows)} shared lines; {len(disputed)} disputed "

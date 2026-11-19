@@ -1275,7 +1275,7 @@ def apply_config_save(existing, normalized_config):
         except OSError as exc:
             raise HTTPException(status_code=500,
                                 detail=f"Could not preserve damaged config before saving: {exc}") from exc
-    atomic_json_write(normalized_config.model_dump(), CONFIG_PATH)
+    atomic_json_write(normalized_config.model_dump(), CONFIG_PATH, allow_nonatomic_fallback=False)
 
 
 def is_pronunciation_config_change(before, after):

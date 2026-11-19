@@ -2479,7 +2479,7 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
         manifest["failed_pass"] = failed_pass
     if failed_chunk is not None:
         manifest["failed_chunk"] = failed_chunk
-    atomic_json_write(manifest, three_pass_manifest_path(output_path))
+    atomic_json_write(manifest, three_pass_manifest_path(output_path), allow_nonatomic_fallback=False)
 
 
 def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
@@ -2724,7 +2724,7 @@ def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
                        "diagnostic_segment_resume": diagnostic_segment_resume}
     path = three_pass_checkpoint_path(output_path)
     if checkpoint_writer is None:
-        atomic_json_write(data, path)
+        atomic_json_write(data, path, allow_nonatomic_fallback=False)
     else:
         if checkpoint_writer.path.absolute() != Path(path).absolute():
             raise ValueError("Checkpoint writer belongs to a different output")
@@ -4142,7 +4142,7 @@ def main():
                     client, model_name, sample, params, chunk_size,
                     output_path=sample_out,
                     planned_calls=sample_plan, **run_options)
-                atomic_json_write(sample_entries, sample_out)
+                atomic_json_write(sample_entries, sample_out, allow_nonatomic_fallback=False)
                 info = get_preflight_sample_info(label, index, sample_out,
                                                  sample_plan, entries=sample_entries)
             except (RuntimeError, PassExhausted) as exc:
@@ -4152,7 +4152,7 @@ def main():
             if info["status"] != "complete":
                 summary["status"] = "failed"
                 break
-        atomic_json_write(summary, output_path + ".preflight_manifest.json")
+        atomic_json_write(summary, output_path + ".preflight_manifest.json", allow_nonatomic_fallback=False)
         sys.exit(0 if summary["status"] == "complete" else 1)
     try:
         entries = run_three_pass(client, model_name, book, params, chunk_size,
@@ -4170,7 +4170,7 @@ def main():
     manifest = safe_load_json(three_pass_manifest_path(output_path), {})
     if manifest.get("status") == "incomplete":
         partial_path = output_path + ".partial.json"
-        atomic_json_write(entries, partial_path)
+        atomic_json_write(entries, partial_path, allow_nonatomic_fallback=False)
         print(f"Diagnostic run found {len(manifest.get('diagnostic_failures', []))} "
               f"failure(s); wrote {len(entries)} successful entries to {partial_path}")
         sys.exit(1)
@@ -4191,7 +4191,7 @@ def main():
                                  args.active_source_sha256, script_bytes, expected_run_id=args.active_run_id,
                                  complete_manifest=True)
     else:
-        atomic_json_write(entries, output_path)
+        atomic_json_write(entries, output_path, allow_nonatomic_fallback=False)
     print(f"Wrote {len(entries)} entries to {output_path}")
     if args.active_book_token is None and chunks_path is not None and remove_chunk_snapshot(chunks_path):
         print("Cleared old chunks.json")

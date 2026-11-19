@@ -45,7 +45,7 @@ class VoicelabConfigTransactionTests(unittest.TestCase):
                 with file_lock(target):
                     yield
 
-            def publish(data,target):
+            def publish(data, target, **kwargs):
                 if data['zips_dir'] == 'new datasets' and data['epub_dirs'] == ['old books']:
                     paused.set()
                     if not release.wait(4):

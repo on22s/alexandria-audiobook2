@@ -300,7 +300,7 @@ def save_environment_baseline(target, environment, path):
     with file_lock(str(path)):
         baselines = safe_load_json(path, default={}) or {}
         baselines[target] = {"environment": environment, "collected_at": time.time()}
-        atomic_json_write(baselines, path)
+        atomic_json_write(baselines, path, allow_nonatomic_fallback=False)
 
 
 def load_environment_baseline(target, path):

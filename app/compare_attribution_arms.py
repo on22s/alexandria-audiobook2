@@ -127,7 +127,7 @@ def main():
         {"entries_arm_a": len(entries_a), "entries_arm_b": len(entries_b),
          "aligned": len(pairs), "alignment_coverage": round(coverage, 4),
          "comparison_eligible": eligible,
-         "disagreement_count": len(rows), "sample": sample}, args.output)
+         "disagreement_count": len(rows), "sample": sample}, args.output, allow_nonatomic_fallback=False)
     print(f"aligned {len(pairs)} of {len(entries_a)}/{len(entries_b)} entries "
           f"({coverage:.1%} coverage)")
     print(f"{len(rows)} disagreements among aligned entries "

@@ -118,7 +118,7 @@ def _load_builtin_lora_manifest():
 
 def _save_manifest(path, manifest):
     """Write a JSON manifest file."""
-    atomic_json_write(manifest, path)
+    atomic_json_write(manifest, path, allow_nonatomic_fallback=False)
 
 
 def _safe_subpath(base_dir: str, name: str) -> str:

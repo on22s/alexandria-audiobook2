@@ -40,8 +40,8 @@ class ConfigEngineResetTests(unittest.IsolatedAsyncioTestCase):
         self.second_write = threading.Event()
         writes = []
 
-        def write_config(data, path):
-            atomic_json_write(data, path)
+        def write_config(data, path, **kwargs):
+            atomic_json_write(data, path, **kwargs)
             writes.append(data["tts"]["mode"])
             if len(writes) == 2:
                 self.second_write.set()

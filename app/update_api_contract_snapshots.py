@@ -31,7 +31,7 @@ def get_route_manifest(application):
 def write_json_snapshot(path, data):
     """Write deterministic, reviewable JSON to a contract snapshot."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_json_write(data, path, sort_keys=True, trailing_newline=True, newline="\n")
+    atomic_json_write(data, path, sort_keys=True, trailing_newline=True, newline="\n", allow_nonatomic_fallback=False)
 
 
 def write_snapshots(application, contract_dir=CONTRACT_DIR):

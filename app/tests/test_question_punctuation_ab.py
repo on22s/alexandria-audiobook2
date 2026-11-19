@@ -144,8 +144,8 @@ class QuestionExperimentTests(unittest.TestCase):
         from audio_generation_owner import AudioGenerationCancelled
         save = ab.atomic_json_write; events = []
         with isolated_core_ownership(events) as (core, state):
-            def cancel_after_last(document, path):
-                result = save(document, path)
+            def cancel_after_last(document, path, **kwargs):
+                result = save(document, path, **kwargs)
                 if document['status'] == 'incomplete' and len(document['rows']) == 2:
                     with core._gpu_lock:
                         state['audio']['cancel'] = True

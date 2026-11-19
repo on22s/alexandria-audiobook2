@@ -104,7 +104,7 @@ def _mutate_voice_library(mutator, companion_paths=()):
                 locks.enter_context(file_lock(path))
             lib = _load_voice_library(for_update=True)
             result = mutator(lib)
-            atomic_json_write(lib, VOICE_LIBRARY_PATH)
+            atomic_json_write(lib, VOICE_LIBRARY_PATH, allow_nonatomic_fallback=False)
             return result
     except TimeoutError as e:
         logger.warning(f"Could not acquire lock to update voice library: {e}")
@@ -305,7 +305,7 @@ def _apply_cast_to_config_file(config_path: str, lib: dict, cast_name: str,
                     "Mapped cast members are unavailable for: " + ", ".join(missing)))
 
         if applied:
-            atomic_json_write(current_config, config_path)
+            atomic_json_write(current_config, config_path, allow_nonatomic_fallback=False)
     return applied
 
 

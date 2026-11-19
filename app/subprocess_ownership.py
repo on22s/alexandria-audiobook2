@@ -211,7 +211,7 @@ def run_owned_capture(command, *, timeout, cancel_check=None, **kwargs):
 
 def save_owned_exit_notice(path, result):
     from utils import atomic_json_write
-    atomic_json_write({'exit_code': result}, str(path))
+    atomic_json_write({'exit_code': result}, str(path), allow_nonatomic_fallback=False)
 
 
 def get_owned_exit_result(path):

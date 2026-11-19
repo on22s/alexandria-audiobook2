@@ -588,6 +588,13 @@
   , "test_assume_ample_free_disk": [
     "tests.test_assume_ample_free_disk.AssumeAmpleFreeDiskTests.test_low_host_disk_no_longer_reaches_the_preflight_floor"
   ]
+  , "test_atomic_write_caller_audit": [
+    "tests.test_atomic_write_caller_audit.AtomicWriteCallerAuditTests.test_chapter_timing_cache_keeps_fallback_and_writes"
+    , "tests.test_atomic_write_caller_audit.AtomicWriteCallerAuditTests.test_llm_bench_concurrency_cache_refuses_exdev_and_preserves_config_bytes"
+    , "tests.test_atomic_write_caller_audit.AtomicWriteCallerAuditTests.test_three_pass_checkpoint_writer_refuses_exdev_and_preserves_bytes"
+    , "tests.test_atomic_write_caller_audit.AtomicWriteCallerAuditTests.test_voice_config_writer_refuses_exdev_and_preserves_bytes"
+    , "tests.test_atomic_write_caller_audit.AtomicWriteCallerAuditTests.test_voice_library_writer_refuses_exdev_and_preserves_bytes"
+  ]
   , "test_attestation_gate_fallback": [
     "tests.test_attestation_gate_fallback.AttestationGateFallback.test_an_explicit_block_still_decides"
     , "tests.test_attestation_gate_fallback.AttestationGateFallback.test_every_committed_pdnc_fixture_turns_the_gate_off"

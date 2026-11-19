@@ -173,11 +173,11 @@ class ReviewCheckpointWriteLockTests(unittest.TestCase):
             delete_attempted = threading.Event()
             errors = []
 
-            def publish(data, target):
+            def publish(data, target, **kwargs):
                 writer_paused.set()
                 if not release.wait(3):
                     raise RuntimeError('Test did not release the checkpoint publisher')
-                return atomic_json_write(data, target)
+                return atomic_json_write(data, target, **kwargs)
 
             @contextmanager
             def observed_lock(target, **kwargs):

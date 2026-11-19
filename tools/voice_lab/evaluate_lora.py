@@ -515,19 +515,19 @@ def main() -> int:
                         expected_serving_identity=get_engine_lora_serving_identity(engine),
                         require_current_serving=serving_identity is not None) as current:
                     publication_started = True
-                    atomic_json_write(candidate_result, os.path.join(current, "evaluation.json"))
+                    atomic_json_write(candidate_result, os.path.join(current, "evaluation.json"), allow_nonatomic_fallback=False)
                 evaluations[candidate_id] = candidate_result
             if serving_identity is None:
                 if get_engine_lora_serving_identity(engine) is not None:
                     raise ValueError("LoRA serving identity changed before historical publication")
                 with ensure_evaluation_source(result, adapter_dir, synthesis_settings) as current:
                     publication_started = True
-                    atomic_json_write(result, os.path.join(current, "evaluation.json"))
+                    atomic_json_write(result, os.path.join(current, "evaluation.json"), allow_nonatomic_fallback=False)
                 entry["evaluation"] = {key: result[key] for key in
                                        ("version", "status", "warnings", "evaluated_at")}
                 print("  HISTORICAL — serving mode unobserved; ranking, promotion and cleanup unavailable",
                       flush=True)
-                atomic_json_write(manifest, args.manifest)
+                atomic_json_write(manifest, args.manifest, allow_nonatomic_fallback=False)
                 manifest_needs_save = False
                 continue
             observed_identities = set()
@@ -579,11 +579,11 @@ def main() -> int:
                         raise ValueError("Candidate serving generation changed before evaluation cleanup")
                 current_result_path = os.path.join(current, "evaluation.json")
                 publication_started = True
-                atomic_json_write(result, current_result_path)
+                atomic_json_write(result, current_result_path, allow_nonatomic_fallback=False)
                 recommendation["cleanup"]["removed_candidates"] = cleanup_candidates(
                     current, keep, available_candidates)
                 recommendation["cleanup"]["status"] = "complete"
-                atomic_json_write(result, current_result_path)
+                atomic_json_write(result, current_result_path, allow_nonatomic_fallback=False)
             entry["evaluation"] = {key: result[key] for key in
                                    ("version", "status", "warnings", "evaluated_at")}
             entry["evaluation"]["recommended_candidate"] = recommendation["recommended"]
@@ -617,10 +617,10 @@ def main() -> int:
                 except OSError as cleanup_error:
                     failures += 1
                     print(f"  PROBE CLEANUP FAILED — {checkpoint_dir}: {cleanup_error}", flush=True)
-        atomic_json_write(manifest, args.manifest)
+        atomic_json_write(manifest, args.manifest, allow_nonatomic_fallback=False)
         manifest_needs_save = False
     if manifest_needs_save:
-        atomic_json_write(manifest, args.manifest)
+        atomic_json_write(manifest, args.manifest, allow_nonatomic_fallback=False)
     return 1 if failures else 0
 
 
