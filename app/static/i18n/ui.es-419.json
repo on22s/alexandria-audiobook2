@@ -1205,7 +1205,7 @@
   "editor.toolbar.render-pending-count": "Renderizar pendientes ({count})",
   "editor.toolbar.shortcuts": "Espacio: reproducir | ↑↓: navegar | R: volver a generar | E: editar texto",
   "editor.toolbar.shortcuts.title": "Atajos de teclado del editor",
-  "editor.shortcuts.context": "Estas teclas funcionan en el Editor cuando hay una línea seleccionada, no hay ningún diálogo ni el panel de herramientas abierto y el foco no está en un campo de texto, un botón, un enlace o un reproductor. Con Ctrl, Alt, Mayús o Meta pulsados, o si mantienes una tecla, la página conserva su comportamiento normal.",
+  "editor.shortcuts.context": "Estas teclas funcionan en el Editor cuando hay una línea seleccionada, no hay ningún diálogo ni el panel de herramientas abierto y el foco no está en un control de formulario: un campo de texto, un botón, un enlace, un reproductor, un conmutador de detalles o un control deslizante. Con Ctrl, Alt, Mayús o Meta pulsados, o si mantienes una tecla, la página conserva su comportamiento normal.",
   "editor.shortcuts.list-aria": "Atajos de teclado del editor",
   "editor.shortcuts.key.space": "Espacio",
   "editor.shortcuts.key.arrows": "↑ ↓",

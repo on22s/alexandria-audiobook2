@@ -1520,7 +1520,7 @@
   "editor.sequence.stop": "Stop",
   "editor.shortcuts.arrows.action": "Move the line selection",
   "editor.shortcuts.arrows.detail": "Moves one line down or up. At the first or last line the arrow still scrolls the page.",
-  "editor.shortcuts.context": "These keys work in Editor when a line is selected, no dialog or tool drawer is open, and focus is not in a text field, button, link or player. Holding Ctrl, Alt, Shift or Meta, or holding a key down, leaves the key to the page.",
+  "editor.shortcuts.context": "These keys work in Editor when a line is selected, no dialog or tool drawer is open, and focus is not in a form control: a text field, button, link, player, summary toggle or slider. Holding Ctrl, Alt, Shift or Meta, or holding a key down, leaves the key to the page.",
   "editor.shortcuts.edit.action": "Expand the row and edit its text",
   "editor.shortcuts.edit.detail": "Opens a collapsed row and puts the cursor at the end of its text field.",
   "editor.shortcuts.key.arrows": "↑ ↓",

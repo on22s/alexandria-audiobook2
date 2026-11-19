@@ -19,6 +19,8 @@ STATIC = Path(__file__).resolve().parent.parent / 'static'
 I18N = STATIC / 'i18n'
 GUIDES = STATIC / 'js' / 'app-guides.js'
 EDITOR = STATIC / 'js' / 'app-editor-review.js'
+I18N_JS = STATIC / 'js' / 'app-i18n.js'
+SETTINGS = STATIC / 'js' / 'app-settings.js'
 INDEX = STATIC / 'index.html'
 LOCALES = ('zh-CN', 'ja', 'es-419')
 
@@ -46,6 +48,41 @@ assert(first[2].textContent.includes('saved audio'));
 assert.strictEqual(items[1].children[0].textContent,'↑ ↓');
 assert.strictEqual(items[2].children[1].textContent,'Regenerate the selected line');
 assert.strictEqual(items[3].children[1].textContent,'Expand the row and edit its text');
+'''
+
+
+LOCALE_RENDER = r'''
+(async()=>{
+Element.prototype.append=function(...children){for(const child of children){this.appendChild(child);}};
+Element.prototype.replaceChildren=function(...children){for(const child of [...this.children]){child.remove();}this.textContent='';this.append(...children);};
+for(const [tag,id] of [['div','task-guide-cards'],['ul','editor-shortcuts-list'],['div','setup-settings-search-status']]){body.appendChild(new Element(tag,{id}));}
+context.currentTabName='home';context.activateTab=()=>{};context.isEditorEditPending=()=>false;context.showToast=()=>{};
+vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),context);
+vm.runInContext('uiCatalogs.set("ja", {messages:' + JSON.stringify({
+  'editor.shortcuts.key.space': 'スペース',
+  'editor.shortcuts.key.arrows': '↑ ↓',
+  'editor.shortcuts.space.action': '選択した行を試聴',
+  'editor.shortcuts.regenerate.action': '選択した行を再生成',
+  'editor.shortcuts.edit.action': '行を展開してテキストを編集',
+}) + '})',context);
+vm.runInContext(fs.readFileSync(process.argv[2],'utf8'),context);
+let rows=document.getElementById('editor-shortcuts-list').children;
+assert.strictEqual(rows.length,4);
+assert.strictEqual(rows[0].children[0].textContent,'Space','English is the first paint');
+assert.strictEqual(rows[2].children[1].textContent,'Regenerate the selected line');
+// Slice the real locale-change entry point out of app-settings.js. Its own
+// renderer list is what must repaint the JS-built rows; a data-i18n pass does
+// not see them.
+context.renderSetupSearchStatus=()=>{};
+const settings=fs.readFileSync(process.argv[3],'utf8');
+vm.runInContext(settings.slice(settings.indexOf('function renderUiLocaleChrome()'),settings.indexOf('function renderSetupSearchStatus()')),context);
+await context.applyUiLocaleAndSearchStatus('ja');
+rows=document.getElementById('editor-shortcuts-list').children;
+assert.strictEqual(rows.length,4);
+assert.strictEqual(rows[0].children[0].textContent,'スペース','the key label follows the UI language');
+assert.strictEqual(rows[2].children[1].textContent,'選択した行を再生成','the action follows the UI language');
+assert.strictEqual(rows[3].children[1].textContent,'行を展開してテキストを編集');
+})().catch(error=>{console.error(error);process.exitCode=1;});
 '''
 
 
@@ -107,6 +144,13 @@ class ShortcutSourceTests(unittest.TestCase):
     def test_the_dialog_renders_from_the_shared_list(self):
         result = subprocess.run(
             ['node', '-e', DOM_FIXTURE + RENDER + '\n', str(GUIDES)],
+            capture_output=True, text=True, timeout=20)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_the_dialog_rows_follow_a_locale_change(self):
+        result = subprocess.run(
+            ['node', '-e', DOM_FIXTURE + LOCALE_RENDER + '\n',
+             str(I18N_JS), str(GUIDES), str(SETTINGS)],
             capture_output=True, text=True, timeout=20)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 

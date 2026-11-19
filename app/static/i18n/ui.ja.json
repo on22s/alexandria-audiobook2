@@ -1205,7 +1205,7 @@
   "editor.toolbar.render-pending-count": "未完了をレンダリング（{count}）",
   "editor.toolbar.shortcuts": "スペース：再生 | ↑↓：移動 | R：再レンダー | E：テキスト編集",
   "editor.toolbar.shortcuts.title": "エディターのキーボードショートカット",
-  "editor.shortcuts.context": "これらのキーは、行が選択されていて、ダイアログやツール引き出しが開いておらず、フォーカスがテキスト欄・ボタン・リンク・プレーヤーにないときにエディターで機能します。Ctrl、Alt、Shift、Meta を押している間や、キーを押し続けている間は、ページの通常の動作になります。",
+  "editor.shortcuts.context": "これらのキーは、行が選択されていて、ダイアログやツール引き出しが開いておらず、フォーカスがフォーム部品（テキスト欄、ボタン、リンク、プレーヤー、詳細の開閉、スライダー）にないときにエディターで機能します。Ctrl、Alt、Shift、Meta を押している間や、キーを押し続けている間は、ページの通常の動作になります。",
   "editor.shortcuts.list-aria": "エディターのキーボードショートカット",
   "editor.shortcuts.key.space": "スペース",
   "editor.shortcuts.key.arrows": "↑ ↓",
