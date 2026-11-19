@@ -33,11 +33,11 @@ run('renderPromptPresets('+JSON.stringify(builtins)+',"michel2_full");');const c
 for(const [id,value] of Object.entries({'tts-mode':'local','tts-device':'auto','tts-language':'English'})){element(id).value=value;}
 element('persona-reference-chars').value='1000000';
 element('persona-unknown-network-context').checked=true;
-await context.window.resetPrompts();assert.strictEqual(run('JSON.stringify(passPromptPresets)'),cacheBefore);assert.strictEqual(run('activePassPromptPreset.pass1'),'default');assert.strictEqual(run('activePassPromptPreset.pass3'),'default');assert.strictEqual(run('activePassPromptPreset.cast'),'default');
+await context.window.resetPrompts();assert.strictEqual(run('JSON.stringify(passPromptPresets)'),cacheBefore);assert.strictEqual(run('activePassPromptPreset.pass1'),'default');assert.strictEqual(run('activePassPromptPreset.pass3'),'default');assert.strictEqual(run('activePassPromptPreset.cast'),'default');assert.strictEqual(run('activePassPromptPreset.review'),'default');
 assert.strictEqual(element('cast-whole-book-prompt').value,defaults.cast_whole_book_prompt);assert.strictEqual(element('cast-incremental-prompt').value,defaults.cast_incremental_prompt);
 assert.strictEqual(Number(element('persona-reference-chars').value),defaults.persona_reference_chars);
 assert.strictEqual(element('persona-unknown-network-context').checked,false);
-assert.strictEqual(element('pass1-system-prompt').value,defaults.pass1_system_prompt);assert.strictEqual(element('pass3-user-prompt').value,defaults.pass3_user_prompt);
+assert.strictEqual(element('pass1-system-prompt').value,defaults.pass1_system_prompt);assert.strictEqual(element('pass3-user-prompt').value,defaults.pass3_user_prompt);assert.strictEqual(element('review-system-prompt').value,defaults.review_system_prompt);assert.strictEqual(element('review-user-prompt').value,defaults.review_user_prompt);
 console.log(JSON.stringify(context.buildConfigPayload(2)));
 '''
         payload=actions.PromptPresetTransactionTests().run_case(code);expected=GenerationConfig().model_dump()

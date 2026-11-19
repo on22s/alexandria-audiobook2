@@ -1597,15 +1597,16 @@
         let promptPresets = [];
         let activePromptPreset = 'michel2_full';
         let configSavePending = false;
-        const passPromptPresets = {pass1: [], pass3: [], cast: [], pass1_compact: [], pass3_gaps: [], pass3_directed: []};
-        const activePassPromptPreset = {pass1: 'default', pass3: 'default', cast: 'default', pass1_compact: 'default', pass3_gaps: 'default', pass3_directed: 'default'};
+        const passPromptPresets = {pass1: [], pass3: [], cast: [], pass1_compact: [], pass3_gaps: [], pass3_directed: [], review: []};
+        const activePassPromptPreset = {pass1: 'default', pass3: 'default', cast: 'default', pass1_compact: 'default', pass3_gaps: 'default', pass3_directed: 'default', review: 'default'};
         const passPromptDefaults = {
             pass1: {system_prompt: '', user_prompt: ''},
             pass3: {system_prompt: '', user_prompt: ''},
             cast: {whole_book_prompt: '', incremental_prompt: ''},
             pass1_compact: {system_prompt: '', user_prompt: ''},
             pass3_gaps: {system_prompt: '', user_prompt: ''},
-            pass3_directed: {system_prompt: '', user_prompt: ''}
+            pass3_directed: {system_prompt: '', user_prompt: ''},
+            review: {system_prompt: '', user_prompt: ''}
         };
 
         function promptBoxes() {
@@ -1746,6 +1747,7 @@
                     ? t('setup.prompts.save-cast-title', 'Save cast prompt preset') : pass === 'pass1'
                     ? t('setup.prompts.save-pass1-title', 'Save Step 1 prompt preset')
                     : pass === 'pass3' ? t('setup.prompts.save-pass3-title', 'Save Step 3 prompt preset')
+                    : pass === 'review' ? t('setup.prompts.save-review-title', 'Save review prompt preset')
                     : t('setup.prompts.save-experimental-title', 'Save experimental prompt preset'),
                 name: activePassPromptPreset[pass] === 'default' ? '' : activePassPromptPreset[pass],
                 validateName: getPassPromptPresetNameError});
@@ -1768,6 +1770,7 @@
                 showToast(pass === 'cast' ? t('setup.prompts.saved-cast', 'Cast prompt preset saved.') : pass === 'pass1'
                     ? t('setup.prompts.saved-pass1', 'Step 1 prompt preset saved.')
                     : pass === 'pass3' ? t('setup.prompts.saved-pass3', 'Step 3 prompt preset saved.')
+                    : pass === 'review' ? t('setup.prompts.saved-review', 'Review prompt preset saved.')
                     : t('setup.prompts.saved-experimental', 'Experimental prompt preset saved.'), 'success');
             } catch (e) { showActionError(t('setup.prompts.save-error', 'Could not save prompt preset'), e, t('setup.prompts.save-error-recovery', 'Review the preset name and saved preset list before trying Save preset again. Your prompt fields remain available.')); }
         };
@@ -2565,8 +2568,24 @@
                 }
                 activePromptPreset = (config.prompts && config.prompts.attribution_preset) || 'michel2_full';
                 renderPromptPresets(config.prompt_presets || [], activePromptPreset);
+                // Review text is persisted in prompts.review_* (unlike the numbered
+                // passes, which store it only in presets). Applying the Default
+                // review preset on load would replace a saved custom text with the
+                // default, so keep the saved text and restore it after rendering.
+                // passPromptDefaults.review is deliberately left alone: Default must
+                // always restore the checked-in prompt, whether or not the defaults
+                // have been fetched yet (e.g. a later Setup load or after Retry).
+                const savedReviewText = {
+                    system_prompt: document.getElementById('review-system-prompt').value,
+                    user_prompt: document.getElementById('review-user-prompt').value
+                };
+                const reviewDefaultActive = (config.prompts?.review_preset || 'default') === 'default';
                 for (const pass of Object.keys(passPromptDefaults)) {
                     renderPassPromptPresets(pass, config.prompts?.[`${pass}_prompt_presets`] || [], config.prompts?.[`${pass}_preset`] || 'default');
+                }
+                if (reviewDefaultActive) {
+                    document.getElementById('review-system-prompt').value = savedReviewText.system_prompt;
+                    document.getElementById('review-user-prompt').value = savedReviewText.user_prompt;
                 }
 
                 // Apply saved generation values before yielding to the defaults request.

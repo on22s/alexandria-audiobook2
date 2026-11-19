@@ -245,6 +245,16 @@ class DirectedPromptPreset(CompactPromptPreset):
         return validate_experimental_template(value, "batch")
 
 
+class ReviewPromptPreset(TextPromptPreset):
+    """Review pass texts; the user template must fill context and batch."""
+
+    @field_validator("user_prompt")
+    @classmethod
+    def validate_user_prompt(cls, value):
+        from review_prompts import validate_review_template
+        return validate_review_template(value)
+
+
 class CastPromptPreset(BaseModel):
     """Instructions only; the builder appends source and validated roster evidence."""
     name: str = Field(min_length=1, max_length=80)
@@ -263,6 +273,8 @@ class PromptConfig(BaseModel):
     review_system_prompt: Optional[str] = None
     review_user_prompt: Optional[str] = None
     review_labels_only: bool = False
+    review_preset: str = Field(default="default", min_length=1, max_length=80)
+    review_prompt_presets: List[ReviewPromptPreset] = Field(default_factory=list, max_length=50)
     persona_system_prompt: Optional[str] = None
     persona_user_prompt: Optional[str] = None
     persona_advanced_prompt: Optional[str] = None

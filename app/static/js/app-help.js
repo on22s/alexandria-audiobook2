@@ -139,6 +139,7 @@
             'pass3-prompt-preset-select': {what: 'Prompt preset for Step 3 (delivery notes). Default uses the checked-in prompt.'},
             'pass3-system-prompt': {what: 'Step 3 system prompt for writing delivery notes.'},
             'pass3-user-prompt': {what: 'Step 3 user prompt template. It must keep {batch}.'},
+            'review-prompt-preset-select': {what: 'Saved review prompts. Default uses the checked-in prompts; a custom user template must keep {context} and {batch}. Labels-only review ignores these prompts. Switching presets changes the prompts saved in Setup, so an already-reviewed book is reviewed again.'},
             'review-system-prompt': {what: 'Instructions for the review pass: which mistakes to fix and how.'},
             'review-user-prompt': {what: 'Template for each review batch. It must keep {context} and {batch}.'},
             'review-labels-only': {what: "Only correct each line's speaker and delivery labels; the script text is never rewritten, and a custom Review System or User prompt is ignored in favour of its own label prompt. Part of a completed review's identity, so changing it reviews the book again."},
