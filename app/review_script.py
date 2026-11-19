@@ -41,7 +41,7 @@ from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SP
     remove_completed_review_receipt)
 from llm_bench import get_cached_or_benchmarked_concurrency
 from review_prompts import (REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT,
-                            validate_active_review_user_prompt)
+                            REVIEW_TEMPLATE_FIELDS, validate_active_review_user_prompt)
 from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_object
 from literal_policy import (get_literal_policy, ensure_literal_narration,
                             retain_literal_policy, get_word_identity, SCRIPT_POLICY_KEY)
@@ -2224,10 +2224,16 @@ def main():
         try:
             validate_active_review_user_prompt(review_usr)
         except ValueError as exc:
-            print(f"Error: {exc}")
-            print("Fix: in Setup > Review prompts, restore both {context} and {batch} in the "
-                  "active user prompt, or clear the field to use the checked-in default.")
-            sys.exit(1)
+            detail = str(exc)
+            missing = next((name for name in REVIEW_TEMPLATE_FIELDS
+                            if "{" + name + "}" in detail), None)
+            reason = f"missing {{{missing}}}" if missing else detail
+            # A ValueError, not sys.exit: the UI's failure marker carries the
+            # first line of an exception, so the remediation must be there.
+            raise ValueError(
+                f"Review prompt is {reason}: in Setup > Review prompts, restore both "
+                "{context} and {batch} in the active user prompt, or clear it to use the "
+                f"checked-in default. {detail}") from exc
 
     generation_config = config.get("generation") or {}
     batch_size, target_chars = get_review_batching(generation_config)

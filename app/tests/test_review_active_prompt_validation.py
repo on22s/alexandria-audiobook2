@@ -132,11 +132,13 @@ class ActiveReviewPromptStartTests(unittest.TestCase):
                                 ("No payloads at all", "{context}")):
             with self.subTest(prompt=prompt):
                 output, failure, client = self.run_main(prompt)
-                self.assertIsInstance(failure, SystemExit)
-                self.assertEqual(1, failure.code)
-                self.assertIn("Review user prompt", output)
-                self.assertIn(missing, output)
-                self.assertIn("Setup", output)
+                self.assertIsInstance(failure, ValueError, output)
+                first_line = str(failure).splitlines()[0]
+                self.assertIn(f"missing {missing}", first_line)
+                self.assertIn("Setup > Review prompts", first_line)
+                self.assertIn("restore both {context} and {batch}", first_line)
+                self.assertIn("clear it to use the checked-in default", first_line)
+                self.assertIn("Review user prompt", str(failure))
                 client.assert_not_called()
 
     def test_default_and_valid_prompts_reach_client_creation(self):
