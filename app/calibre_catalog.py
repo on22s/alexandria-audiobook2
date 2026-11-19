@@ -349,7 +349,7 @@ class CalibreCatalogService:
             revision = self._config["revision"] + 1
             config = {"root_url": root, "username": user, "revision": revision}
             try:
-                atomic_json_write(config, self._config_path())
+                atomic_json_write(config, self._config_path(), allow_nonatomic_fallback=False)
             except Exception:
                 rollback_ok = True
                 if keyring is not None:

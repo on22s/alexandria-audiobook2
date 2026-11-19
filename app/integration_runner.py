@@ -95,7 +95,7 @@ def run_manifest(manifest, output_path, limit=None):
                   "summary": summarize_cases([])}
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         if not cases:
-            atomic_json_write(report, output_path)
+            atomic_json_write(report, output_path, allow_nonatomic_fallback=False)
         for index, (book, passage) in enumerate(cases, 1):
             attempts = []
             started = time.monotonic()
@@ -112,7 +112,7 @@ def run_manifest(manifest, output_path, limit=None):
                 "entry_count": len(entries),
             })
             report["summary"] = summarize_cases(report["cases"])
-            atomic_json_write(report, output_path)
+            atomic_json_write(report, output_path, allow_nonatomic_fallback=False)
         return report
 
     finally:

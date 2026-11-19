@@ -439,11 +439,11 @@ root, advanced, fail = sys.argv[1:]
 sys.argv = ['generate_personas.py'] + (['--advanced'] if advanced == 'yes' else [])
 original_write = personas._atomic_json_write
 
-def write(data, path):
+def write(data, path, **kwargs):
     assert personas.os.path.normpath(path) == personas.os.path.join(root, 'voice_config.json')
     if fail == 'yes':
         raise PermissionError('injected cast write failure')
-    original_write(data, path)
+    original_write(data, path, **kwargs)
 
 def preview(_root, _engine, config, speaker, description, ref_text, **kwargs):
     config[speaker] = {'description':description,'ref_text':ref_text,'type':'design'}
@@ -526,7 +526,7 @@ class PersonaPreviewPublicationTests(unittest.TestCase):
                     {"id": "old", "name": "ALICE", "filename": "old_preview.wav"}, other]))
                 originals = {p: p.read_bytes() for p in (old_audio, old_meta, manifest, source, other_audio)}
                 writes = []
-                def publish(data, path):
+                def publish(data, path, **kwargs):
                     if Path(path) == manifest:
                         self.assertEqual(originals[old_audio], old_audio.read_bytes())
                         self.assertEqual(originals[old_meta], old_meta.read_bytes())
@@ -712,7 +712,7 @@ class PersonaCastMergeTests(unittest.TestCase):
             with patch.object(personas,'_atomic_json_write',side_effect=AssertionError('no-op must not write')):
                 personas.save_generated_voice_config(str(path),initial,initial,['A'],{})
             self.assertEqual(raw,path.read_bytes())
-            def failed_write(value,target):
+            def failed_write(value,target,**kwargs):
                 self.assertTrue(Path(str(path)+'.lock').exists())
                 raise PermissionError('fixture write failure')
             with patch.object(personas,'_atomic_json_write',side_effect=failed_write):
@@ -917,7 +917,7 @@ class PersonaPreviewIsolationTests(unittest.TestCase):
                 config = {"ALICE": {"type":"clone", "ref_audio":"designed_voices/old.wav", "ref_text":"old", "keep":13}}
                 before = copy.deepcopy(config)
                 engine = SimpleNamespace(generate_voice_design=lambda **kwargs: (str(source), None))
-                def write(data, path):
+                def write(data, path, **kwargs):
                     if phase == "metadata":
                         raise OSError("fixture metadata disk full")
                     atomic_json_write(data, path)

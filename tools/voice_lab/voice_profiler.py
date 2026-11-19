@@ -804,7 +804,7 @@ def main() -> int:
                 entry['voice_profile'] = description
             # Checkpoint manifest after each narrator
             try:
-                atomic_json_write(manifest, args.manifest)
+                atomic_json_write(manifest, args.manifest, allow_nonatomic_fallback=False)
             except OSError as e:
                 print(f"ERROR: unable to checkpoint profiler manifest: {e}", flush=True)
                 return 1

@@ -275,7 +275,7 @@ def save_server_config(data_dir, base_url, library_id=None, folder_id=None):
         config['library_id'] = str(library_id)
     if folder_id:
         config['folder_id'] = str(folder_id)
-    atomic_json_write(config, _config_path(data_dir))
+    atomic_json_write(config, _config_path(data_dir), allow_nonatomic_fallback=False)
     with _preview_lock:
         _previews.clear()
         _cancel_events.clear()
@@ -346,7 +346,7 @@ def _trim_ledger(ledger):
 
 def _write_ledger(data_dir, ledger):
     from utils import atomic_json_write
-    atomic_json_write(list(ledger), _ledger_path(data_dir))
+    atomic_json_write(list(ledger), _ledger_path(data_dir), allow_nonatomic_fallback=False)
 
 
 def save_ledger(data_dir, ledger):

@@ -659,7 +659,7 @@ class ManualClient:
                             os.remove(self.response_path)
                         except FileNotFoundError:
                             pass
-                        atomic_json_write(request, self.pending_path)
+                        atomic_json_write(request, self.pending_path, allow_nonatomic_fallback=False)
                         claimed = True
                         break
                 time.sleep(self.POLL_SECONDS)

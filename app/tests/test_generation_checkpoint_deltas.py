@@ -121,7 +121,7 @@ class CheckpointDeltaTests(unittest.TestCase):
             path = Path(root) / 'checkpoint.json'
             writer = GenerationCheckpointDeltas(path)
             writer.save_checkpoint({'named': [None]})
-            def publish_then_fail(value, target):
+            def publish_then_fail(value, target, **kwargs):
                 atomic_json_write(value, target)
                 raise OSError('directory sync failed after publication')
             with patch('generation_checkpoint_deltas.atomic_json_write', side_effect=publish_then_fail):

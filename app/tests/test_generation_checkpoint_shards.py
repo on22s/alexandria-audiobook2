@@ -28,7 +28,7 @@ class GenerationCheckpointShardTests(unittest.TestCase):
         writer = shards.GenerationCheckpointShards(self.path, self.fingerprint)
         written = []
         original = shards.atomic_json_write
-        def measure(data, path):
+        def measure(data, path, **kwargs):
             written.append(len(json.dumps(data, indent=2, ensure_ascii=False).encode()))
             original(data, path)
         original_chunks = copy.deepcopy(self.chunks)
@@ -64,7 +64,7 @@ class GenerationCheckpointShardTests(unittest.TestCase):
         self.path.write_text(json.dumps(legacy))
         previous = self.path.read_bytes()
         original = shards.atomic_json_write
-        def fail_header(data, path):
+        def fail_header(data, path, **kwargs):
             if Path(path) == self.path:
                 raise OSError("header publication denied")
             return original(data, path)

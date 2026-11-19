@@ -87,7 +87,7 @@ def backfill(meta_path, digest, today):
         meta = json.load(handle)
     meta["checkpoint_sha256"] = digest
     meta["checkpoint_sha256_backfilled"] = today
-    atomic_json_write(meta, meta_path)
+    atomic_json_write(meta, meta_path, allow_nonatomic_fallback=False)
 
 
 def main():

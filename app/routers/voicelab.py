@@ -666,7 +666,7 @@ async def voicelab_save_config(request: VoiceLabConfig):
 
             cfg = {**cfg, **updates}
             _validate_voicelab_config_paths(cfg)
-            atomic_json_write(cfg, VOICELAB_CONFIG_PATH)
+            atomic_json_write(cfg, VOICELAB_CONFIG_PATH, allow_nonatomic_fallback=False)
             return {"status": "saved", "config": cfg}
 
     return await asyncio.to_thread(_save)

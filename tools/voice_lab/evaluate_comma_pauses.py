@@ -202,7 +202,7 @@ def main(argv=None) -> int:
     work = out.parent / (out.stem + "_wavs")
     work.mkdir(parents=True, exist_ok=True)
     result = render_lines(args, get_comma_lines(), work)
-    atomic_json_write(result, str(out))
+    atomic_json_write(result, str(out), allow_nonatomic_fallback=False)
     print(json.dumps(result["summary"]), flush=True)
     return 0
 

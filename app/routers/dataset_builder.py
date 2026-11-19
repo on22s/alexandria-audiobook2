@@ -239,7 +239,7 @@ def _save_builder_state(name, state):
     """Save per-sample state to dataset builder working directory atomically."""
     work_dir = os.path.join(DATASET_BUILDER_DIR, name)
     os.makedirs(work_dir, exist_ok=True)
-    atomic_json_write(state, os.path.join(work_dir, "state.json"))
+    atomic_json_write(state, os.path.join(work_dir, "state.json"), allow_nonatomic_fallback=False)
 
 @router.get("/api/dataset_builder/list")
 async def dataset_builder_list():

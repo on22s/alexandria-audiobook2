@@ -2485,7 +2485,7 @@ def start_book_preflight(background_tasks, request):
             source_copy = os.path.join(private.name, "source" + Path(source_path).suffix)
             Path(source_copy).write_bytes(source_bytes)
             config = load_app_config(CONFIG_PATH)
-            atomic_json_write(config, os.path.join(private.name, "config.json"))
+            atomic_json_write(config, os.path.join(private.name, "config.json"), allow_nonatomic_fallback=False)
             source_book = get_active_book_id()
         output = os.path.join(private.name, "sample.json")
         command = build_generate_script_command(
@@ -2526,14 +2526,14 @@ def start_book_preflight(background_tasks, request):
             finally:
                 state["status"] = result["status"]
                 try:
-                    atomic_json_write(result, receipt_path)
+                    atomic_json_write(result, receipt_path, allow_nonatomic_fallback=False)
                 finally:
                     private.cleanup()
 
         claim = schedule_claimed_background_task(background_tasks, "script",
                                                  _run_claimed_background_task, "script", run)
         receipt["claim_id"] = claim
-        atomic_json_write(receipt, receipt_path)
+        atomic_json_write(receipt, receipt_path, allow_nonatomic_fallback=False)
         return {key: value for key, value in receipt.items() if not key.startswith("_")}
     except BaseException:
         if claim is not None:
@@ -2958,7 +2958,7 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                     state.pop('script_generation_cancel_requested_run_id', None)
                     state['script_generation_run_id'] = claim_id
                     state['script_generation_base_sha256'] = base['sha256']
-                atomic_json_write(state, state_path)
+                atomic_json_write(state, state_path, allow_nonatomic_fallback=False)
             register_claimed_background_task(background_tasks, "script", claim_id, run_process, command, "script")
     except BaseException:
         if claim_id is not None:
@@ -3694,7 +3694,7 @@ async def save_character_aliases(aliases: Dict[str, str]):
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     with file_lock(CHARACTER_ALIASES_PATH):
-        atomic_json_write(cleaned, CHARACTER_ALIASES_PATH)
+        atomic_json_write(cleaned, CHARACTER_ALIASES_PATH, allow_nonatomic_fallback=False)
     return {"status": "saved", "count": len(cleaned)}
 
 
@@ -4898,7 +4898,7 @@ async def manual_llm_response(reply: ManualReply):
                     if reply.id != pending["id"]:
                         raise HTTPException(status_code=409, detail="That request is no longer the one waiting; reload the prompt.")
                     atomic_json_write({"id": reply.id, "content": reply.content, "received": time.time()},
-                                      os.path.join(directory, "response.json"))
+                                      os.path.join(directory, "response.json"), allow_nonatomic_fallback=False)
                     return {"accepted": True, "sequence": pending["sequence"]}
         raise AppError(409, "No request is waiting for a reply.", key="error.manual_llm.no_pending_request")
     return await asyncio.to_thread(save_reply)

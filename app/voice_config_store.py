@@ -44,7 +44,7 @@ def apply_voice_config_update(path, transform, expected=None, backup_path=None, 
                 raise FileExistsError(f"Voice config backup already exists: {backup_path}")
             shutil.copy2(path, backup_path)
         if publish is None:
-            atomic_json_write(updated, path)
+            atomic_json_write(updated, path, allow_nonatomic_fallback=False)
         else:
             publish(updated, path)
         return updated

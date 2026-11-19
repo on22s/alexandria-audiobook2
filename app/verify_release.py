@@ -450,7 +450,7 @@ def main(argv=None):
         report["duration_seconds"] = round(time.monotonic() - started, 3)
         if args.json_report:
             try:
-                atomic_json_write(report, args.json_report)
+                atomic_json_write(report, args.json_report, allow_nonatomic_fallback=False)
             except OSError as exc:
                 failure = exc
                 print(f"\nRELEASE VERIFICATION FAILED: could not write JSON report: {exc}",

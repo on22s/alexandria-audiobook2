@@ -68,7 +68,7 @@ def get_completed_review_match(input_path, output_path, input_sha256, fingerprin
 def save_completed_review_receipt(input_path, output_path, input_sha256, output_sha256, fingerprint):
     atomic_json_write({'version': VERSION, 'input_path': os.path.abspath(input_path),
         'output_path': os.path.abspath(output_path), 'input_sha256': input_sha256,
-        'output_sha256': output_sha256, 'fingerprint': fingerprint}, get_review_receipt_path(output_path))
+        'output_sha256': output_sha256, 'fingerprint': fingerprint}, get_review_receipt_path(output_path), allow_nonatomic_fallback=False)
 
 
 def remove_completed_review_receipt(output_path):

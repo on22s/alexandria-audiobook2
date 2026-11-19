@@ -43,7 +43,7 @@ class GateCampaignTests(unittest.TestCase):
                         entered.set()
                     return read(*args)
 
-                def observed_write(*args):
+                def observed_write(*args, **kwargs):
                     if threading.current_thread().name == 'campaign-second':
                         entered.set()
                     return write(*args)

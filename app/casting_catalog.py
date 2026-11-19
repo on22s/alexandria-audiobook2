@@ -345,7 +345,7 @@ def save_casting_mark(marks_path, voice_id, patch, expected_lifecycle='active'):
             raise CastingMarkConflict(f'{voice_id} lifecycle changed since it was read; reload the library')
         mark = _merge_casting_mark(document.get(voice_id), clean)
         document[voice_id] = mark
-        atomic_json_write(document, marks_path)
+        atomic_json_write(document, marks_path, allow_nonatomic_fallback=False)
     return mark
 
 
@@ -410,7 +410,7 @@ def save_casting_mark_batch(marks_path, changes, action, known_voice_ids):
                  'action': action, 'count': len(planned)}
         document[METADATA_KEY] = {**(document.get(METADATA_KEY) or {}),
                                  'events': (events + [event])[-MAX_ACTIVITY:]}
-        atomic_json_write(document, marks_path)
+        atomic_json_write(document, marks_path, allow_nonatomic_fallback=False)
         activity = list(document[METADATA_KEY]['events'])
     return planned, activity
 
@@ -462,6 +462,6 @@ def save_casting_lifecycle_batch(marks_path, changes, action, known_voice_ids):
                   'action': action, 'count': len(planned)}
         document[METADATA_KEY] = {**(document.get(METADATA_KEY) or {}),
                                   'events': (events + [event])[-MAX_ACTIVITY:]}
-        atomic_json_write(document, marks_path)
+        atomic_json_write(document, marks_path, allow_nonatomic_fallback=False)
         activity = list(document[METADATA_KEY]['events'])
     return planned, activity

@@ -189,7 +189,7 @@ def main() -> int:
             atomic_json_write(report, str(report_path))
         reports.append(report)
     summary = build_summary(reports)
-    atomic_json_write(summary, str(output / "summary.json"))
+    atomic_json_write(summary, str(output / "summary.json"), allow_nonatomic_fallback=False)
     print(f"Quality audit: {summary['clip_count']} clips, "
           f"{summary['warning_clip_count']} warning clips, "
           f"{len(summary['exact_duplicate_groups'])} duplicate groups", flush=True)

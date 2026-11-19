@@ -112,7 +112,7 @@ class ConcurrentAliasPublicationTests(unittest.TestCase):
             errors, responses, outputs = [], [], []
             original_write = script.atomic_json_write
 
-            def pause_manual_publication(value, destination):
+            def pause_manual_publication(value, destination, **kwargs):
                 self.assertEqual(str(path), destination)
                 self.assertTrue(Path(str(path) + '.lock').is_file())
                 manual_publisher_entered.set()

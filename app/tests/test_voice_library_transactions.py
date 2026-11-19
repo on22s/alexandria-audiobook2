@@ -120,7 +120,7 @@ class VoiceLibraryTransactionTests(unittest.TestCase):
     def test_bulk_keeps_library_kernel_lock_through_each_config_publication(self):
         with self.fixture() as (root,api),TestClient(api) as client:
             write=routes.atomic_json_write;seen=[]
-            def checked_write(value,path):
+            def checked_write(value, path, **kwargs):
                 if str(path).endswith('.voice_config.json'):
                     probe=subprocess.run(['flock','-n',str(root/'library.json.lock'),'true'],timeout=3)
                     seen.append(probe.returncode)
@@ -136,7 +136,7 @@ class VoiceLibraryTransactionTests(unittest.TestCase):
     def test_save_keeps_voice_config_kernel_lock_through_library_publication(self):
         with self.fixture() as (root,api), TestClient(api) as client:
             write=routes.atomic_json_write;seen=[]
-            def checked_write(value,path):
+            def checked_write(value, path, **kwargs):
                 if path==str(root/'library.json'):
                     probe=subprocess.run(['flock','-n',str(root/'voices.json.lock'),'true'],timeout=3)
                     seen.append(probe.returncode)

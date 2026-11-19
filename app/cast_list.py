@@ -279,12 +279,12 @@ def save_cast_list(path, cast, provenance=None, *, lock=True, source_guard=None)
     if not lock:
         if source_guard:
             source_guard()
-        atomic_json_write({"cast": cast, "provenance": provenance or {}}, path)
+        atomic_json_write({"cast": cast, "provenance": provenance or {}}, path, allow_nonatomic_fallback=False)
         return
     with file_lock(path):
         if source_guard:
             source_guard()
-        atomic_json_write({"cast": cast, "provenance": provenance or {}}, path)
+        atomic_json_write({"cast": cast, "provenance": provenance or {}}, path, allow_nonatomic_fallback=False)
 
 
 def main(argv=None):

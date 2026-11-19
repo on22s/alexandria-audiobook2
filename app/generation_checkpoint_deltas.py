@@ -154,14 +154,14 @@ class GenerationCheckpointDeltas:
                     self.current, self.directory, self.versions, self.digest = _load_checkpoint(self.path)
             try:
                 if compact:
-                    atomic_json_write(data, str(self.path))
+                    atomic_json_write(data, str(self.path), allow_nonatomic_fallback=False)
                     self.directory, self.versions, self.digest = None, None, None
                 elif self.directory is None:
                     directory = self.path.with_name(self.path.name + ".parts-" + uuid.uuid4().hex)
                     directory.mkdir()
                     digest = _get_digest(data)
                     atomic_json_write({"storage": STORAGE, "base": data,
-                                       "directory": directory.name, "sha256": digest}, str(self.path))
+                                       "directory": directory.name, "sha256": digest}, str(self.path), allow_nonatomic_fallback=False)
                     self.directory, self.digest = directory, digest
                 else:
                     changes = _get_changes(self.current, data)
@@ -169,7 +169,7 @@ class GenerationCheckpointDeltas:
                         record = {"changes": changes, "previous": self.digest}
                         digest = _get_digest(record)
                         atomic_json_write(dict(record, sha256=digest), str(
-                            self.directory / f"{len(self.versions):08d}.json"))
+                            self.directory / f"{len(self.versions):08d}.json"), allow_nonatomic_fallback=False)
                         self.digest = digest
                 self.current = copy.deepcopy(data)
                 self.reset = False

@@ -132,12 +132,12 @@ class GenerationCheckpointShards:
             for index in range(start, len(chunks)):
                 chunk = copy.deepcopy(chunks[index])
                 atomic_json_write({"chunk": chunk, "sha256": _get_chunk_digest(chunk)},
-                                  str(directory / f"{index:08d}.json"))
+                                  str(directory / f"{index:08d}.json"), allow_nonatomic_fallback=False)
             header = {"storage": STORAGE, "fingerprint": self.fingerprint,
                       "directory": directory.name}
             if not append:
                 # A new epoch is invisible until every requested shard is durable.
-                atomic_json_write(header, str(self.path))
+                atomic_json_write(header, str(self.path), allow_nonatomic_fallback=False)
             self.directory = directory
             if append:
                 self.chunks.extend(copy.deepcopy(chunks[start:]))
