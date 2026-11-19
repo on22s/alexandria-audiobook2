@@ -61,6 +61,7 @@ from three_pass_generate import (build_attribute_request,
                                  validate_instruct_context_chars,
                                  apply_segment_gate_controls,
                                  default_instruct,
+                                 get_directed_entry,
                                  read_source_text,
                                  resolve_three_pass_generation_settings,
                                  three_pass_checkpoint_path,
@@ -3067,7 +3068,8 @@ def build_recovery_detail(checkpoint):
                 entries, LLMGenParams(), failed.get("roster") or [])
             label = lambda e: e.get("type")
         else:
-            sys_prompt, user_prompt = build_instruct_request(entries, LLMGenParams())
+            sys_prompt, user_prompt = build_instruct_request(
+                entries, LLMGenParams(delivery_direction=failed.get("delivery_direction", "off")))
             # API-error attempts retain the actual dispatched request, including
             # custom templates, surround and retry feedback. Do not reconstruct
             # that request using today's settings or default prompts.
@@ -3118,12 +3120,15 @@ def build_recovery_detail(checkpoint):
     }
 
 
-def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None):
+def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
+                          *, pass_fallback=False):
     """Accept hand-supplied output for the failed unit through the SAME gate
     the pass uses - pass 1: a [{type, text}] segmentation of the chunk;
     pass 2: [{n, speaker}] for the batch - and advance the checkpoint past it
     so Retry resumes at the next unit. Returns the gate report on refusal
-    (caller -> 422)."""
+    (caller -> 422). `pass_fallback` marks the Skip route's direction-less
+    default-instruct rows, which are validated and stored in off mode even for
+    a directed run; an injected row always uses the failed run's direction."""
     with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
         if is_task_running("script", process_state):
             raise HTTPException(status_code=409, detail="Script generation is running.")
@@ -3155,7 +3160,8 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None):
             unit = {"batch_indices": failed.get("indices") or []}
         elif failed.get("pass") == "instruct":
             frozen = failed.get("entries") or []
-            report = validate_instruct(frozen, entries)
+            direction = "off" if pass_fallback else failed.get("delivery_direction", "off")
+            report = validate_instruct(frozen, entries, delivery_direction=direction)
             if not report.get("passed"):
                 return {"accepted": False, "report": report}
             by_n = {int(e["n"]): e for e in entries}
@@ -3165,7 +3171,7 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None):
                 while len(annotated) <= index:
                     annotated.append(None)
                 base = named[index] if index < len(named) and isinstance(named[index], dict) else frozen[position]
-                annotated[index] = {**base, "instruct": by_n[position]["instruct"]}
+                annotated[index] = get_directed_entry(base, by_n[position], direction)
             checkpoint["annotated"] = annotated
             checkpoint["stage"] = "instruct"
             unit = {"batch_indices": failed.get("indices") or []}
@@ -3252,12 +3258,21 @@ async def generate_script_inject(request: InjectSegmentationRequest):
     failed_pass = checkpoint["failed"].get("pass")
     if failed_pass in ("attribute", "instruct"):
         field = "speaker" if failed_pass == "attribute" else "instruct"
+        direction = (checkpoint["failed"].get("delivery_direction", "off")
+                     if failed_pass == "instruct" else "off")
+        needs_field = direction not in ("directed", "action_only")
         for i, e in enumerate(request.entries):
             value = (str(e.get(field) or "")).strip()
-            if not isinstance(e.get("n"), int) or not value:
+            if not isinstance(e.get("n"), int) or (needs_field and not value):
                 raise HTTPException(status_code=422,
                                     detail=f"Entry {i + 1}: needs an integer n and a non-empty {field}.")
-            entries.append({"n": e["n"], field: value})
+            entry = {"n": e["n"]}
+            if value or needs_field:
+                entry[field] = value
+            if failed_pass == "instruct":
+                entry.update({key: e[key] for key in ("gap", "action", "delivery", "answers")
+                              if key in e})
+            entries.append(entry)
     else:
         for i, e in enumerate(request.entries):
             kind = (str(e.get("type") or "")).strip().upper()
@@ -3299,7 +3314,7 @@ async def generate_script_skip(request: SkipChunkRequest):
                    for r in split_outer_quote_regions(failed["source"])
                    if r.get("text", "").strip()]
     result = await asyncio.to_thread(apply_manual_recovery, entries, "narrated_as_is",
-                                     get_script_recovery_token(checkpoint))
+                                     get_script_recovery_token(checkpoint), pass_fallback=True)
     if not result["accepted"]:
         raise HTTPException(status_code=422, detail={
             "message": "Even the deterministic split does not pass the fidelity gate; "

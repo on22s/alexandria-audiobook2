@@ -12820,12 +12820,18 @@
     , "tests.test_script_recovery.GenerateScriptStateTests.test_missing_state_remains400_and_valid_state_forwards_selected_input_and_options"
     , "tests.test_script_recovery.RecoveryTests.test_attribute_failure_detail_inject_and_skip"
     , "tests.test_script_recovery.RecoveryTests.test_detail_shows_where_why_and_the_exact_prompt"
+    , "tests.test_script_recovery.RecoveryTests.test_directed_inject_requires_action_and_delivery_and_stores_composed_row"
+    , "tests.test_script_recovery.RecoveryTests.test_failed_instruct_checkpoint_persists_the_runs_delivery_direction"
+    , "tests.test_script_recovery.RecoveryTests.test_gaps_inject_requires_gap_and_feeds_gap_pauses"
     , "tests.test_script_recovery.RecoveryTests.test_generation_claim_occurs_under_checkpoint_lock"
     , "tests.test_script_recovery.RecoveryTests.test_inject_accepts_a_faithful_segmentation_and_advances_the_checkpoint"
     , "tests.test_script_recovery.RecoveryTests.test_inject_refuses_a_segmentation_that_drops_text"
+    , "tests.test_script_recovery.RecoveryTests.test_instruct_detail_uses_the_failed_runs_delivery_direction"
     , "tests.test_script_recovery.RecoveryTests.test_manual_recovery_rechecks_running_state_after_checkpoint_lock"
+    , "tests.test_script_recovery.RecoveryTests.test_old_instruct_checkpoint_inject_keeps_direction_less_rows"
     , "tests.test_script_recovery.RecoveryTests.test_recovery_uses_the_quote_controls_from_the_failed_run"
     , "tests.test_script_recovery.RecoveryTests.test_skip_narrates_the_chunk_as_is"
+    , "tests.test_script_recovery.RecoveryTests.test_skip_on_a_gaps_checkpoint_still_stores_fallback_rows"
     , "tests.test_script_recovery.RecoveryTests.test_wrong_chunk_and_running_generation_are_refused"
   ]
   , "test_script_recovery_response": [
