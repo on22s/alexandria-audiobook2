@@ -3421,6 +3421,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                         "entries": [{"speaker": entry.get("speaker"), "text": entry.get("text")}
                                     for _, entry in current],
                         "reason": "instruct LLM unavailable; refusing fallback output",
+                        "delivery_direction": getattr(params, "delivery_direction", "off"),
                         "attempts": batch_attempts[-20:]})
                     emit_manifest("failed", failed_pass="instruct")
                     raise RuntimeError(
