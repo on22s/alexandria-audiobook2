@@ -2372,6 +2372,11 @@
                                 <div data-i18n="setup.prompts.review-labels-only.help" class="form-text" id="review-labels-only-help">The review pass only corrects the speaker and delivery labels of each line and never rewrites the script text. In this mode your custom Review System Prompt and Review User Prompt Template are ignored: review always uses its own label prompt, which asks only for a speaker and delivery instruction per line. This setting is part of a completed review's identity, so turning it on or off makes an already-reviewed book review again. Useful when the model keeps rewriting text, or with the manual LLM to keep replies short.</div>
                             </div>
                             <div class="mb-3">
+                                <label data-i18n="setup.prompts.review-target-chars.label" class="form-label small mb-1" for="review-target-chars">Review: text per request (characters)</label>
+                                <input type="number" class="form-control form-control-sm" id="review-target-chars" min="0" max="1000000" step="500" value="0">
+                                <div data-i18n="setup.prompts.review-target-chars.help" class="form-text">0 keeps the existing 25-entry batching. A positive value groups complete script entries until the next would exceed this limit, counting only entry text (not the prompt or extra context). An entry longer than the limit is sent alone. Requests may be smaller to fit the model; larger values do not change the loaded model context.</div>
+                            </div>
+                            <div class="mb-3">
                                 <label data-i18n="setup.prompts.review-system-prompt.label" class="form-label" for="review-system-prompt">Review System Prompt</label>
                                 <textarea class="form-control font-monospace" id="review-system-prompt" rows="12" style="font-size: 0.85em;"></textarea>
                                 <div data-i18n="setup.prompts.review-system-prompt.help" class="form-text">Instructions for the LLM during the script review pass. Defines what errors to fix and how.</div>

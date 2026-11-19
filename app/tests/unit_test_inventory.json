@@ -12239,6 +12239,19 @@
     , "tests.test_review_surfacing.ReviewIsLoggedTest.test_building_chunks_warns_about_unmapped_glyphs"
     , "tests.test_review_surfacing.ReviewIsLoggedTest.test_nothing_is_logged_when_there_is_nothing_to_review"
   ]
+  , "test_review_text_per_request": [
+    "tests.test_review_text_per_request.ReviewBatchingIdentityTests.test_default_zero_keeps_preexisting_receipt_identity"
+    , "tests.test_review_text_per_request.ReviewBatchingIdentityTests.test_opt_in_changes_receipt_identity"
+    , "tests.test_review_text_per_request.ReviewEstimateParityTests.test_estimate_equals_actual_requests_with_char_target"
+    , "tests.test_review_text_per_request.ReviewPackingTests.test_invalid_batch_settings_fail_loud"
+    , "tests.test_review_text_per_request.ReviewPackingTests.test_only_entry_text_is_counted"
+    , "tests.test_review_text_per_request.ReviewPackingTests.test_oversize_single_entry_goes_alone"
+    , "tests.test_review_text_per_request.ReviewPackingTests.test_reuses_step2_windowing"
+    , "tests.test_review_text_per_request.ReviewPackingTests.test_stops_before_entry_that_would_exceed_target"
+    , "tests.test_review_text_per_request.ReviewPackingTests.test_zero_reproduces_entry_count_batching_exactly"
+    , "tests.test_review_text_per_request.ReviewTargetCharsConfigTests.test_bounds_are_enforced"
+    , "tests.test_review_text_per_request.ReviewTargetCharsConfigTests.test_default_is_zero"
+  ]
   , "test_riqua_fixture": [
     "tests.test_riqua_fixture.BuildTests.test_a_fully_named_row_is_kept_with_both_roles"
     , "tests.test_riqua_fixture.BuildTests.test_a_quote_with_no_addressee_is_dropped"
