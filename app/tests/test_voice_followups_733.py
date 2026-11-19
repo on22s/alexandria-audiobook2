@@ -260,7 +260,7 @@ class VoiceTimelineAudioTests(unittest.TestCase):
             root, manager, client, path, _, rows = self.fixture(directory, stack)
             old_config = path.read_bytes(); audio = (root / rows[2]['audio_path']).read_bytes()
             token = client.get('/api/voice_config/snapshot').json()['book_token']
-            def refuse_save(config, target):
+            def refuse_save(config, target, **kwargs):
                 self.assertFalse(manager._chunks_lock.acquire(blocking=False),
                                  'chunk capture must remain locked through voice publication')
                 self.assertEqual(manager._read_chunks()[2]['status'], 'pending')

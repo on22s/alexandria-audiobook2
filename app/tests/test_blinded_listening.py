@@ -252,12 +252,12 @@ class BlindedListeningTests(unittest.TestCase):
         from utils import atomic_json_write as real_write
         calls = 0
 
-        def fail_second(document, path):
+        def fail_second(document, path, **kwargs):
             nonlocal calls
             calls += 1
             if calls == 2:
                 raise OSError("injected public-manifest failure")
-            return real_write(document, path)
+            return real_write(document, path, **kwargs)
 
         with patch("utils.atomic_json_write", side_effect=fail_second):
             with self.assertRaisesRegex(OSError, "injected"):

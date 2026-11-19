@@ -206,7 +206,7 @@ class ProbeRefusalTests(unittest.TestCase):
                     def fail_seed(seed):
                         raise RuntimeError('seed setup broke')
                     torch.manual_seed = fail_seed
-                def write(value, path):
+                def write(value, path, **kwargs):
                     Path(path).write_text(json.dumps(value))
                 modules = {'torch': torch, 'qwen_tts': SimpleNamespace(Qwen3TTSModel=SimpleNamespace(from_pretrained=load)),
                     'huggingface_hub': SimpleNamespace(snapshot_download=lambda **kwargs: temp),

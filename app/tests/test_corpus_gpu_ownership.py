@@ -91,8 +91,8 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
                 return [{'speaker': 'NARRATOR', 'text': 'one two three four five', 'instruct': 'neutral'}]
             process.side_effect = infer
             real_write = runner.atomic_json_write
-            def publish(report,path):
-                assert_owned();return real_write(report,path)
+            def publish(report, path, **kwargs):
+                assert_owned();return real_write(report, path, **kwargs)
             with patch.object(runner,'atomic_json_write',side_effect=publish):
                 report = runner.run_manifest(manifest,str(output))
             self.assertEqual(1,report['summary']['passed'])
