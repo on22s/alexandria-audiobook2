@@ -17534,6 +17534,14 @@
     , "tests.test_voicelab_status_snapshot.VoicelabStatusSnapshotTests.test_http_health_uses_captured_state_and_eta_during_live_changes"
     , "tests.test_voicelab_status_snapshot.VoicelabStatusSnapshotTests.test_native_history_recovery_and_legacy_status_are_preserved"
   ]
+  , "test_voicelab_vram_preflight_2103_2108": [
+    "tests.test_voicelab_vram_preflight_2103_2108.VoiceLabVramPreflight2103And2108Tests.test_2103_displayed_free_vram_gb_is_still_rounded"
+    , "tests.test_voicelab_vram_preflight_2103_2108.VoiceLabVramPreflight2103And2108Tests.test_2103_vram_floor_uses_unrounded_bytes"
+    , "tests.test_voicelab_vram_preflight_2103_2108.VoiceLabVramPreflight2103And2108Tests.test_2108_cuda_and_auto_keep_current_device_default"
+    , "tests.test_voicelab_vram_preflight_2103_2108.VoiceLabVramPreflight2103And2108Tests.test_2108_cuda_device_index_reaches_mem_get_info_and_name"
+    , "tests.test_voicelab_vram_preflight_2103_2108.VoiceLabVramPreflight2103And2108Tests.test_2108_out_of_range_index_reports_clear_blocker"
+    , "tests.test_voicelab_vram_preflight_2103_2108.VoiceLabVramPreflight2103And2108Tests.test_2108_probe_and_identity_are_device_specific"
+  ]
   , "test_voices_regressions": [
     "tests.test_voices_regressions.DialogueCollectionWorkTests.test_per_character_uniqueness_is_linear_and_keeps_first_seen_order"
     , "tests.test_voices_regressions.LibraryConfigShapeTests.test_unusable_config_is_not_saved_to_cast_or_changed"
