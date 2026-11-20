@@ -12,7 +12,7 @@ from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Request
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from core import (
     CLONE_VOICES_DIR,
@@ -45,12 +45,19 @@ class VoiceDesignPreviewRequest(BaseModel):
     description: str
     sample_text: str
     language: Optional[str] = None
+    # -1 (the default when omitted) leaves the engine's RNG alone and draws a
+    # random voice; >= 0 is a reproducible draw. Anything below -1 cannot be
+    # honoured, so reject it instead of silently treating it as random.
+    seed: int = Field(default=-1, ge=-1)
 
 class VoiceDesignSaveRequest(BaseModel):
     name: str
     description: str
     sample_text: str
     preview_file: str
+    # The seed used for the preview being saved, so the manifest can
+    # reproduce it. -1 means it was an unseeded/random draw.
+    seed: int = Field(default=-1, ge=-1)
     # Set by the Designer's Edit flow: replace this manifest entry (and its
     # audio) instead of appending a duplicate.
     voice_id: Optional[str] = None
@@ -86,6 +93,7 @@ def _generate_voice_design_preview(request):
             description=request.description,
             sample_text=request.sample_text,
             language=request.language,
+            seed=request.seed,
         )
         # Return relative URL for the static mount
         filename = os.path.basename(wav_path)
@@ -130,7 +138,7 @@ def _save_voice_design(request):
                                     f".{dest_filename}.{get_unique_id('stage')}.tmp")
         entry = {"id": voice_id, "name": request.name,
                  "description": request.description, "sample_text": request.sample_text,
-                 "filename": dest_filename}
+                 "filename": dest_filename, "seed": request.seed}
         backup_path = staging_path + ".backup"
         retain_backup = False
         try:

@@ -5769,6 +5769,15 @@ bug.
 
 **Target — 0, with the couple case and the case-variant case both tested.**
 
+**Scope — this metric covers only "two different characters wrongly share one
+voice."** It does not cover one character holding two voices (below), and it does
+not cover the `design` voice type: that type intentionally draws a fresh voice
+per line (seed `-1`, see `docs/wiki/Voice-Types.md`), so a character left on Voice
+Design does *not* have one voice. The README's "one character has one voice"
+claim is qualified to exclude it. `tests/test_character_voice_seed.py` pins both
+the stable seeds for Custom/Clone/LoRA/built-in voices and the design sentinel,
+so the exclusion cannot drift silently.
+
 #### The inverse case is real, and this metric does not cover it
 
 Measuring the rendered chapter on 2026-08-21 (`character_distinctiveness.py`,
@@ -5808,6 +5817,14 @@ questions in the listening package under 6.5.
 **Probe** — waveform SHA-256 comparison.
 **Current** — seeded generation confirmed deterministic; `character_voice_seed`
 now derives a stable per-character seed. **MET for TTS.**
+
+**Scope — "identical seed and inputs" requires that a seed is actually supplied.**
+It holds for seeded Custom/Clone/LoRA/built-in generation and, since #2140, for
+`POST /api/voice_design/preview` and the seed recorded in a saved design's
+manifest. The Designer form does not expose a seed control, and the Voices-tab
+`design` type draws per line, so neither gives a character one reproducible voice
+on its own. Setup → "Reproducible takes" derives a per-line seed from the text,
+which reproduces a take but still changes the voice as the text changes.
 
 **Target — extend to the LLM path: same seed, same model, same script output.**
 
