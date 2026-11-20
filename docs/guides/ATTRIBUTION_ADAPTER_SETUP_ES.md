@@ -84,7 +84,7 @@ comparaciones contaminadas antes de que alguien lo notara de oído.
 libro generado a medias durante la noche no debería morir cuando se reinicia un servidor, pero
 la ejecución debe registrar el hecho.
 
-## Tres límites honestos
+## Cuatro límites honestos
 
 **El endpoint debe ser llama.cpp.** LM Studio y Ollama no implementan
 `/lora-adapters`, así que la comprobación informa "cannot verify" en lugar de fingir
@@ -99,3 +99,12 @@ libros de referencia son novelas ligeras japonesas en traducción al inglés; la
 de dos libros de PDNC (Emma, retenida; The Sun Also Rises, una novela de entrenamiento) están en las
 tarjetas. Los datos de entrenamiento son prosa de dominio público en inglés, así que la mejora
 en novelas ligeras es transferencia, y es pequeña.
+
+**La comprobación no conoce el prompt de entrenamiento del adaptador.** Solo compara la ruta y la
+escala configuradas con lo que informa `/lora-adapters`; no lee ninguna identidad de prompt del
+archivo del adaptador, de su nombre ni de sus metadatos de entrenamiento. Las etiquetas de nombre
+de adaptador de `HF_MODEL_GUIDE.md` son una convención de nomenclatura, no algo que la comprobación
+aplique. Emparejar el adaptador servido con el prompt exacto con el que se entrenó es responsabilidad
+del operador, y una discrepancia no produce ningún aviso ni fallo. No hace falta cambiar nada en el
+entrenamiento: la comprobación no consume metadatos de prompt, así que no se necesitan campos ni
+resúmenes nuevos.

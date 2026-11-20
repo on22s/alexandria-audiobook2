@@ -84,7 +84,7 @@ contaminated comparisons before somebody noticed by ear.
 book half-generated overnight should not die when a server is restarted - but
 the run must carry the fact.
 
-## Three honest limits
+## Four honest limits
 
 **The endpoint must be llama.cpp.** LM Studio and Ollama do not implement
 `/lora-adapters`, so the check reports "cannot verify" rather than pretending
@@ -99,3 +99,12 @@ gold books are Japanese light novels in English translation; the two-book
 PDNC cells (Emma, held out; The Sun Also Rises, a training novel) are on the
 cards. The training data is English public-domain prose, so the light-novel
 gain is transfer, and it is small.
+
+**The check does not know the adapter's training prompt.** It compares the
+configured path and scale against what `/lora-adapters` reports; it reads no
+prompt identity from the adapter file, its filename or its training metadata.
+The adapter-name labels in `HF_MODEL_GUIDE.md` are a naming convention, not
+something the check enforces. Pairing a served adapter with the exact prompt
+it was trained on is the operator's responsibility, and a mismatch is not
+reported as a warning or a failure. Nothing about training needs to change:
+the check consumes no prompt metadata, so no new field or digest is required.
