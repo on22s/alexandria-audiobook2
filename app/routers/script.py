@@ -24,6 +24,7 @@ import zipfile
 import uuid
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
+from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 import xml.etree.ElementTree as ET
@@ -418,6 +419,9 @@ class _HTMLTextExtractor(HTMLParser):
         'li', 'blockquote', 'br', 'hr', 'tr', 'td', 'th', 'section', 'article',
     })
     SKIP_TAGS = frozenset({'style', 'script', 'title'})
+    # In text/html these are RCDATA: their content is literal text, so markup
+    # that looks like a skipped element inside them is not an element at all.
+    RCDATA_TAGS = frozenset({'title', 'textarea'})
 
     # A paragraph ends with a BLANK LINE, not a single newline. `br` is a line
     # break inside one paragraph and stays single.
@@ -435,8 +439,17 @@ class _HTMLTextExtractor(HTMLParser):
         'li', 'blockquote', 'hr', 'tr', 'section', 'article',
     })
 
-    def __init__(self, anchor_ids=None):
+    def __init__(self, anchor_ids=None, *, html_rcdata=False):
         super().__init__()
+        if html_rcdata:
+            # HTMLParser only treats <script>/<style> as raw text by default.
+            # In text/html, <title>/<textarea> are RCDATA too: adding them here
+            # makes the tokenizer keep their contents literal until the
+            # matching end tag, instead of opening skipped elements from
+            # markup-looking text. XHTML keeps the default element semantics;
+            # its structure is already owned by the XML pass above.
+            self.CDATA_CONTENT_ELEMENTS = (HTMLParser.CDATA_CONTENT_ELEMENTS
+                                           + tuple(sorted(self.RCDATA_TAGS)))
         self.parts = []
         self._pending_newline = 0
         # Skipped-element names are kept on a stack only so the EOF
@@ -445,9 +458,6 @@ class _HTMLTextExtractor(HTMLParser):
         # parsers a skipped close is only delivered for the open skipped
         # element, and XHTML structure is owned by the XML parser before
         # this extractor runs, so no name-mismatch policy is needed here.
-        # HTMLParser itself treats <script>/<style> as raw text and
-        # <title> as RCDATA, so markup inside them is data, never a
-        # nested start/end tag here.
         self._skip_stack = []
         self._anchor_ids = frozenset(anchor_ids or ())
         self.anchor_counts = {}
@@ -494,6 +504,12 @@ class _HTMLTextExtractor(HTMLParser):
     def handle_data(self, data):
         if self._skip_stack or self._ruby_fallback_depth:
             return
+        if self.cdata_elem == 'textarea':
+            # RCDATA decodes character references; HTMLParser suppresses its
+            # own unescape in raw-text mode (script/style stay raw), so apply
+            # it here for the one RCDATA element whose text is narration.
+            # Decode before any consuming collector (ruby below) sees it.
+            data = unescape(data)
         if self._ruby is not None:
             self._ruby.add(data)
             return
@@ -504,6 +520,22 @@ class _HTMLTextExtractor(HTMLParser):
             self.parts.append('\n' * self._pending_newline)
         self._pending_newline = 0
         self.parts.append(data)
+
+    def _finalize_pending_rcdata(self):
+        # html.parser buffers RCDATA that is still open at EOF and its close()
+        # intentionally will not flush it while cdata_elem is set. Finalise
+        # ONLY that buffer, through handle_data so entities are decoded once
+        # and the same dispatch applies. Without this, a readable <textarea>
+        # left open at EOF silently loses its whole suffix. Unrelated
+        # incomplete EOF tags (no cdata_elem) and genuinely unclosed skipped
+        # elements (title/script/style) keep their feed-only contracts.
+        if self.cdata_elem != 'textarea':
+            return
+        pending = self.rawdata
+        self.rawdata = ''
+        if pending:
+            self.handle_data(pending)
+        self.cdata_elem = None
 
     def _ensure_skipped_elements_closed(self):
         # Balance is validated here, in the text accessors, rather than by
@@ -518,11 +550,13 @@ class _HTMLTextExtractor(HTMLParser):
                 'skipped content would hide the rest of the resource')
 
     def get_text(self):
+        self._finalize_pending_rcdata()
         self._ensure_skipped_elements_closed()
         return ''.join(part for part in self.parts if isinstance(part, str))
 
     def get_text_with_anchor_positions(self):
         """Return extracted text and character offsets for requested anchors."""
+        self._finalize_pending_rcdata()
         self._ensure_skipped_elements_closed()
         text_parts = []
         positions = {}
@@ -1030,7 +1064,11 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
             html_content = get_epub_xhtml_text(html_bytes)
             targets = toc_by_path.get(href, [])
             anchor_ids = {fragment for fragment, _ in targets if fragment}
-            extractor = _HTMLTextExtractor(anchor_ids)
+            # text/html RCDATA (<title>, <textarea>) keeps literal markup as
+            # text; XHTML stays on the strict XML path with element semantics.
+            extractor = _HTMLTextExtractor(
+                anchor_ids,
+                html_rcdata=media_type != 'application/xhtml+xml')
             try:
                 # XHTML resources are XML: omit true ignored subtrees via
                 # the strict XML path. Ordinary HTML media keeps the
