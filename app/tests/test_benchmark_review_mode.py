@@ -333,7 +333,7 @@ class BenchmarkReviewModeTests(unittest.TestCase):
                                     ('ensure_ideal_settings', (True, {}, 'fixture')),
                                     ('get_active_llm_config', config['llm_remote']),
                                     ('get_current_status', {'loaded': False}), ('make_run_client', object()),
-                                    ('get_cached_or_benchmarked_concurrency', 1)):
+                                    ('ensure_cached_or_benchmarked_concurrency', 1)):
                     stack.enter_context(patch.object(review, name, return_value=value))
                 stack.enter_context(patch.object(review, 'review_batch', side_effect=run_review))
                 stack.enter_context(patch.object(review, 'wait_for_vram_headroom', side_effect=AssertionError('No GPU probes')))

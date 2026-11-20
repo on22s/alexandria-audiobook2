@@ -247,7 +247,7 @@ class PartialReviewSettingsTests(unittest.TestCase):
                                 for name, value in {'get_runtime_data_dir': tmp, 'load_app_config': cfg,
                                     'get_active_llm_config': profile, 'ensure_ideal_settings': (False, {}, 'fixture'),
                                     'get_current_status': {'loaded': False}, 'make_run_client': object(),
-                                    'get_cached_or_benchmarked_concurrency': 1}.items():
+                                    'ensure_cached_or_benchmarked_concurrency': 1}.items():
                                     stack.enter_context(patch.object(review, name, return_value=value))
                                 stack.enter_context(patch.object(review, 'wait_for_vram_headroom', side_effect=[True, False, False] if partial else None, return_value=True))
                                 dispatched = stack.enter_context(patch.object(review, 'review_batch', side_effect=lambda _client, _model, batch, *args, **kwargs: [{**row, 'speaker': label} for row in batch]))

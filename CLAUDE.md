@@ -1,9 +1,13 @@
 # Development Guide for Pinokio Projects
 
-## 8-Rule Architecture
+## Architecture and Development Rules
 
 These rules apply to every task in this project unless explicitly overridden.
 Bias: caution over speed on non-trivial work. Use judgment on trivial tasks.
+The `### Rule N` headings are the canonical set; their numbering is historical
+and has gaps (there is no Rule 5, and Rules 24-27 were appended later out of
+numeric order). Cross-references elsewhere use these exact numbers, so do not
+renumber them.
 
 ### Rule 1 — Think Before Coding
 State assumptions explicitly. If uncertain, ask rather than guess.
@@ -15,7 +19,7 @@ No features beyond what was asked. No abstractions for single-use code.
 
 ### Rule 3 — Surgical Changes
 Touch only what you must. Clean up only your own mess.
-Don't "improve" adjacent code, comments, or formatting. Match existing style. This rule can be ignored June,19 2026 though June,21 2026
+Don't "improve" adjacent code, comments, or formatting. Match existing style.
 
 ### Rule 4 — Goal-Driven Execution
 Define success criteria. Loop until verified.
@@ -90,12 +94,12 @@ quietly mutate state. Matches the existing pattern in `lmstudio_settings.py`
 (`get_current_status` vs. `ensure_ideal_settings` vs.
 `apply_remote_lmstudio_settings`) — keep new functions consistent with it.
 
-This verb list isn't exhaustive. In `static/index.html` specifically,
-`render*` (DOM-paint, e.g. `renderAll`/`renderCastMembers`), `on*` (DOM
-event handler, matching the HTML `onchange`/`onclick` attribute it's wired
-to), and `open*` (reveal/populate a UI section) are this file's own
-established side-effect-signaling conventions, just as clear as
-`ensure_`/`apply_`/`save_` — don't flag or rename a function for using one
+This verb list isn't exhaustive. In the frontend (`app/static/index.html` and
+the modules under `app/static/js/`), `render*` (DOM-paint, e.g.
+`renderAll`/`renderCastMembers`), `on*` (DOM event handler, matching the HTML
+`onchange`/`onclick` attribute it's wired to), and `open*` (reveal/populate a
+UI section) are established side-effect-signaling conventions, just as clear
+as `ensure_`/`apply_`/`save_` — don't flag or rename a function for using one
 of these instead.
 
 ### Rule 17 — No Dual-Purpose Parameters
@@ -118,10 +122,10 @@ cross-function handoff at all (not a dual-purpose-*parameter* case, since
 there's no boundary being crossed).
 
 ### Rule 18 — Always Brace Single-Line Blocks in JS
-In `app/static/index.html`'s vanilla JS, always use `{ }` for
-`if`/`for`/`while`, even one-liners. Prevents the classic bug where a
-one-line body silently grows to two lines and the second line falls outside
-the block.
+In the frontend's vanilla JS (`app/static/index.html` and `app/static/js/*.js`),
+always use `{ }` for `if`/`for`/`while`, even one-liners. Prevents the classic
+bug where a one-line body silently grows to two lines and the second line
+falls outside the block.
 
 ### Rule 19 — Mark Measurements Apart From Inferences, and Never Assert Absence
 
@@ -394,8 +398,10 @@ could reproduce it, and it put copyrighted material into a public repo as eviden
 A FastAPI app (`app/app.py`, title "Alexandria Audiobook") for multi-voice AI
 audiobook generation on Qwen3-TTS: LLM-annotate a script, assign a voice per
 character, generate audio per chunk, and export to MP3/Audacity/M4B. The
-frontend is a single-page app at `app/static/index.html` (no build step) —
-core 5-step flow Setup → Script → Voices → Editor → Result, plus
+frontend is a single-page app (no build step): `app/static/index.html` holds
+the markup and a small inline script, while the loaded behaviour lives in 45
+modules under `app/static/js/` (wired up with `<script src="/static/js/...">`
+in the HTML). Core 5-step flow Setup → Script → Voices → Editor → Result, plus
 Designer/Dataset/Training/Preparer/Voice Lab tabs.
 
 ### Key files
@@ -405,7 +411,17 @@ Designer/Dataset/Training/Preparer/Voice Lab tabs.
   a run used, not whether it worked (a 5e-6 runaway was copied from one on
   2026-09-13). `app/tests/test_recipes.py` refuses chains that train with an
   unlisted learning rate.
-- `app/app.py` — all FastAPI routes + background-task orchestration.
+- `app/app.py` — FastAPI app and startup/lifespan; wires the routers in via
+  19 `include_router` calls. The 353 `@router.` routes themselves live in
+  `app/routers/*.py`; shared state, the global GPU lock and background-task
+  orchestration live in `app/core.py`.
+- `app/routers/*.py` — the HTTP routes, grouped by feature (one module per
+  area: system, script, speaker_review, voices, ...). Add or change endpoints
+  here, not in `app.py`.
+- `app/core.py` — `process_state` (line 604), `NON_GPU_TASKS`/`GPU_TASKS`
+  (lines 648-650), `check_global_gpu_lock`, and the background-task helpers.
+- `app/static/index.html` + `app/static/js/*.js` — the frontend: HTML markup
+  plus 45 loaded JS modules (no bundler).
 - `app/generate_script.py` / `app/review_script.py` — LLM annotation and
   review passes (single-book and batch variants).
 - `app/generate_personas.py`, `app/find_nicknames.py` — LLM-driven persona/
@@ -438,21 +454,43 @@ Designer/Dataset/Training/Preparer/Voice Lab tabs.
 ### Concurrency model: `process_state` + GPU lock
 Every long-running task (script gen, review, persona, audio, LoRA training,
 dataset gen/builder, preparer, voicelab, nicknames, ...) has an entry in
-`process_state` (`app.py` ~line 468) tracking `running`/`logs`/`cancel`/
-`paused`/etc. Before starting GPU/LLM work, call
-`check_global_gpu_lock(task_name)` — it raises 400 if *any* task in
-`GPU_TASKS` (all tasks except `NON_GPU_TASKS = {"audacity_export",
-"m4b_export"}`) is already running, to avoid concurrent VRAM OOM. `voices`
-(`suggest_voices`) is deliberately in `GPU_TASKS`, not excluded, since it
-runs local LLM inference. New background tasks must register in
-`process_state` and go through this lock unless they are provably CPU-only.
-One relaxation (2026-09-17): the LLM-only tasks (`LLM_TASKS`: script,
-batch_script, review, batch_review, persona, voices, nicknames) conflict only
-with each other when the active LLM profile is not on this GPU
-(`llm_is_on_this_gpu`: the profile's `on_this_gpu`, else "is the endpoint
-local?"), so a hosted-API or CPU-served LLM can annotate while the card
-renders audio. On this GPU, or on any error reading the config, the full lock
-applies.
+`process_state` (`app/core.py`, line 604) tracking `running`/`logs`/`cancel`/
+`paused`/etc. New background tasks must register there and call
+`check_global_gpu_lock(name, *, cpu_only=False, llm_on_gpu=None)`
+(`app/core.py:748`) before starting GPU/LLM work. It raises a 400 (it does not
+return a value) after two distinct admission checks:
+
+- **Same task:** reject if the task being started is already running
+  (`error.task.already_running`). "Running" includes an owned claim in the
+  pending/started/cleanup_failed phase, not just a `running` flag.
+- **Cross task:** reject if any task returned by `gpu_lock_conflicts`
+  (`app/core.py:688`) is running (`error.task.gpu_busy`).
+
+`gpu_lock_conflicts` returns an empty set — no cross-task conflicts — when the
+new task passes `cpu_only=True` or is one of the six CPU-only members of
+`NON_GPU_TASKS` at `app/core.py:648`: `audacity_export`, `m4b_export`,
+`drift_check`, `outlier_check`, `chapter_export`, `readalong_sidecar`. The
+same-task check still applies to those tasks. Otherwise the candidates are the
+other members of `GPU_TASKS` (all `process_state` keys minus those six), minus
+any task holding an owned `cpu_only` claim. `voices` (`suggest_voices`)
+is deliberately in `GPU_TASKS`, not excluded, since it runs local LLM
+inference. `drift_check` is exempt because its ECAPA scorer pins CPU;
+`readaloud_epub` is not exempt — its chunk-timing worker claims `cpu_only=True`
+while Qwen GPU inference claims through the lock, and the device is pinned at
+admission so a worker cannot auto-upgrade (#1844).
+
+Which candidates actually conflict depends on LLM placement.
+`llm_is_on_this_gpu()` reads the profile's `on_this_gpu`, else whether its
+endpoint is local, and treats a config-read failure as on-GPU (conservative).
+
+- **On this GPU:** every remaining candidate conflicts — the full VRAM lock.
+- **Off this GPU:** the classes split. `LLM_TASKS` (`app/core.py:655`:
+  `speaker_review`, `report_explanation`, `script`, `batch_script`, `review`,
+  `batch_review`, `persona`, `voices`, `nicknames`, `cast_list`) conflict only
+  with each other for the endpoint; every other GPU task conflicts only with
+  non-LLM tasks for the card. A hosted-API or CPU-served LLM can therefore
+  annotate while the card renders audio, and an audio job can run while that
+  LLM annotates.
 
 ### Voice Lab pipeline
 "Voice Lab" (audiobook → named LoRA voice). The stage scripts live in
@@ -508,7 +546,7 @@ the app's own runtime logs, for review/script-gen/concurrency issues:
   run instead of tailing files.
 
 What to check before assuming something's a bug:
-- `llm_bench.get_cached_or_benchmarked_concurrency` logs an environment
+- `llm_bench.ensure_cached_or_benchmarked_concurrency` logs an environment
   fingerprint (hostname, GPU name+backend, LM Studio's actual `parallel`/
   `context_length` via `lmstudio_settings.get_lmstudio_status` /
   `get_remote_lmstudio_status`) on every cache miss. If `parallel<=1`,
@@ -530,7 +568,7 @@ What to check before assuming something's a bug:
   forwarding URL if it's not loaded with `--bind 0.0.0.0`.
 - There is no automatic Thunder-balance/cost check anywhere in this app (no
   billing API integration). The `confirmIfRemote()` prompt in
-  `static/index.html` (shown before `batch_review`/batch script-gen starts)
+  `app/static/js/app-core.js` (shown before `batch_review`/batch script-gen starts)
   is the deliberate, simpler stand-in — it warns about cost, it doesn't
   compute it.
 

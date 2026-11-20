@@ -487,7 +487,7 @@ class PartialPublicationTests(unittest.TestCase):
             for name, value in [('get_runtime_data_dir', directory), ('load_app_config', config),
                                 ('ensure_ideal_settings', (True, {}, 'fixture')),
                                 ('get_active_llm_config', config['llm_remote']), ('make_run_client', client),
-                                ('get_cached_or_benchmarked_concurrency', concurrency),
+                                ('ensure_cached_or_benchmarked_concurrency', concurrency),
                                 ('get_current_status', {'loaded': False})]:
                 stack.enter_context(patch.object(review, name, return_value=value))
             stack.enter_context(patch.object(generation, 'get_response_log_path', return_value=str(Path(directory, 'responses.log'))))

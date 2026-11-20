@@ -80,7 +80,7 @@ class ContextualReviewEstimateTests(unittest.TestCase):
                     stack.enter_context(patch.object(review_script,'ensure_ideal_settings',return_value=(False,{},'CPU fixture settings')))
                     stack.enter_context(patch.object(review_script,'get_current_status',return_value={'loaded':False}))
                     stack.enter_context(patch.object(review_script,'make_run_client',return_value=object()))
-                    stack.enter_context(patch.object(review_script,'get_cached_or_benchmarked_concurrency',return_value=1))
+                    stack.enter_context(patch.object(review_script,'ensure_cached_or_benchmarked_concurrency',return_value=1))
                     headroom = stack.enter_context(patch.object(review_script,'wait_for_vram_headroom',return_value=True))
                     stack.enter_context(patch.object(review_script,'review_batch',side_effect=review))
                     client = stack.enter_context(TestClient(api))

@@ -90,7 +90,7 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
                 with patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                                   return_value=("fixture", "fixture")), \
                      patch.object(llm_bench, "find_optimal_concurrency", side_effect=_valid_find(2)) as bench:
-                    result = llm_bench.get_cached_or_benchmarked_concurrency(
+                    result = llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model", object(),
                         max_concurrency=2, status={"available": True, "parallel": 8})
                 self.assertEqual(2, result)
@@ -106,7 +106,7 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
             with patch.object(llm_bench, "find_optimal_concurrency", side_effect=_valid_find(8)), \
                  patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                               return_value=("fixture", "fixture")):
-                llm_bench.get_cached_or_benchmarked_concurrency(
+                llm_bench.ensure_cached_or_benchmarked_concurrency(
                     str(path), "local", "http://localhost:1234/v1", "model", object(), status=status)
             for current, cap, expected in [(status, 3, 3), (status, 16, 8),
                                             ({"available": False}, 16, 1), (status, 16, 8)]:
@@ -114,7 +114,7 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
                      patch.object(llm_bench, "find_optimal_concurrency") as bench, \
                      patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                                   return_value=("fixture", "fixture")) as gpu:
-                    got = llm_bench.get_cached_or_benchmarked_concurrency(
+                    got = llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model",
                         object(), max_concurrency=cap, status=current)
                     self.assertEqual(expected, got)
@@ -125,6 +125,89 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
                         gpu.assert_not_called()
             self.assertEqual(8, json.loads(path.read_text())["llm_local"]["concurrency"])
 
+    @staticmethod
+    def _assert_no_config_write(write):
+        """Guard the production persistence boundary, not just the file bytes."""
+        write.assert_not_called()
+
+    def test_cache_hit_is_a_pure_read_that_never_rewrites_config(self):
+        """A valid cached measurement is reused without benchmarking or writing.
+
+        Issue #2137 renamed this side-effecting function to `ensure_...`, but
+        its warm-cache branch must remain a pure read: a caller that only reads
+        a cached number must not race a writer over the whole config.json. The
+        byte check alone cannot see a same-byte rewrite, so guard the actual
+        `atomic_json_write` boundary as well.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "config.json")
+            path.write_text("{}")
+            status = {"available": True, "loaded": True, "parallel": 8,
+                      "context_length": 8192}
+            with patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
+                              return_value=("fixture", "fixture")), \
+                 patch.object(llm_bench, "find_optimal_concurrency",
+                              side_effect=_valid_find(2)):
+                self.assertEqual(2, llm_bench.ensure_cached_or_benchmarked_concurrency(
+                    str(path), "local", "http://localhost:1234/v1", "model", object(),
+                    max_concurrency=2, status=status))
+            saved = path.read_bytes()
+            self.assertEqual(2, json.loads(saved)["llm_local"]["concurrency"])
+            with patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
+                              return_value=("fixture", "fixture")), \
+                 patch.object(llm_bench, "find_optimal_concurrency") as bench, \
+                 patch.object(llm_bench, "atomic_json_write") as write:
+                self.assertEqual(2, llm_bench.ensure_cached_or_benchmarked_concurrency(
+                    str(path), "local", "http://localhost:1234/v1", "model", object(),
+                    max_concurrency=2, status=status))
+            bench.assert_not_called()
+            self._assert_no_config_write(write)
+            self.assertEqual(saved, path.read_bytes(),
+                             "cache-hit read path must not rewrite config.json")
+
+    def test_cache_hit_write_guard_rejects_an_injected_identical_rewrite(self):
+        """Negative control: a same-byte write through the boundary fails the guard.
+
+        The injected write leaves the file byte-identical, so the byte check
+        cannot detect it. This pins the boundary assertion to the real warm-hit
+        call path and proves it discriminates instead of passing vacuously.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "config.json")
+            path.write_text("{}")
+            status = {"available": True, "loaded": True, "parallel": 8,
+                      "context_length": 8192}
+            with patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
+                              return_value=("fixture", "fixture")), \
+                 patch.object(llm_bench, "find_optimal_concurrency",
+                              side_effect=_valid_find(2)):
+                self.assertEqual(2, llm_bench.ensure_cached_or_benchmarked_concurrency(
+                    str(path), "local", "http://localhost:1234/v1", "model", object(),
+                    max_concurrency=2, status=status))
+            saved = path.read_bytes()
+
+            def inject_through_boundary(*_args, **_kwargs):
+                # Simulate a regression in this call: the warm-hit path reaches
+                # the production writer with the same data (identical bytes).
+                llm_bench.atomic_json_write(json.loads(saved), str(path),
+                                            allow_nonatomic_fallback=False)
+                return ("fixture", "fixture")
+
+            with patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
+                              side_effect=inject_through_boundary), \
+                 patch.object(llm_bench, "find_optimal_concurrency") as bench, \
+                 patch.object(llm_bench, "atomic_json_write",
+                              side_effect=lambda *args, **kwargs: path.write_bytes(saved)) as write:
+                self.assertEqual(2, llm_bench.ensure_cached_or_benchmarked_concurrency(
+                    str(path), "local", "http://localhost:1234/v1", "model", object(),
+                    max_concurrency=2, status=status))
+            bench.assert_not_called()
+            write.assert_called()
+            self.assertEqual(saved, path.read_bytes(),
+                             "the injected rewrite is byte-identical: only the boundary guard sees it")
+            with self.assertRaises(AssertionError):
+                self._assert_no_config_write(write)
+
     def test_cache_hit_fetches_status_when_caller_has_not_supplied_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "config.json")
@@ -134,7 +217,7 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
             with patch.object(llm_bench.lmstudio_settings, "get_remote_gpu_name_and_backend",
                               return_value=("fixture", "fixture")), \
                  patch.object(llm_bench, "find_optimal_concurrency", side_effect=_valid_find(2)):
-                llm_bench.get_cached_or_benchmarked_concurrency(
+                llm_bench.ensure_cached_or_benchmarked_concurrency(
                     str(path), "remote", "http://remote:1234/v1", "model", object(),
                     ssh_alias="test-host", status=current)
             with patch.object(llm_bench.lmstudio_settings, "get_current_status",
@@ -143,7 +226,7 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
                  patch.object(llm_bench.lmstudio_settings, "get_remote_gpu_name_and_backend",
                               return_value=("fixture", "fixture")), \
                  patch.object(llm_bench, "find_optimal_concurrency") as bench:
-                got = llm_bench.get_cached_or_benchmarked_concurrency(
+                got = llm_bench.ensure_cached_or_benchmarked_concurrency(
                     str(path), "remote", "http://remote:1234/v1", "model",
                     object(), ssh_alias="test-host")
             self.assertEqual(2, got)
@@ -158,7 +241,7 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
             with patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                               return_value=("fixture", "fixture")), \
                  patch.object(llm_bench, "find_optimal_concurrency", side_effect=_valid_find(2)) as bench:
-                got = llm_bench.get_cached_or_benchmarked_concurrency(
+                got = llm_bench.ensure_cached_or_benchmarked_concurrency(
                     str(path), "local", "http://localhost:1234/v1", "model",
                     client, max_concurrency=3, status={"available": True, "parallel": 4})
             self.assertEqual(2, got)
@@ -186,7 +269,7 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
                      patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                                   return_value=("GPU", "backend")), \
                      patch.object(llm_bench, "find_optimal_concurrency", side_effect=_valid_find(2)):
-                    llm_bench.get_cached_or_benchmarked_concurrency(
+                    llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model", object(), status=initial)
                 before = json.loads(path.read_text())["llm_local"]
                 current = dict(initial)
@@ -197,7 +280,7 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
                          changed if field == "gpu" else "GPU", changed if field == "backend" else "backend")), \
                      patch.object(llm_bench, "find_optimal_concurrency", side_effect=_valid_find(3)) as bench:
                     for _ in range(2):
-                        self.assertEqual(3, llm_bench.get_cached_or_benchmarked_concurrency(
+                        self.assertEqual(3, llm_bench.ensure_cached_or_benchmarked_concurrency(
                             str(path), "local", "http://localhost:1234/v1", "model", object(), status=current))
                 bench.assert_called_once()
                 after = json.loads(path.read_text())["llm_local"]
@@ -212,7 +295,7 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
             with patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                               return_value=("fixture", "fixture")), \
                  patch.object(llm_bench, "find_optimal_concurrency", side_effect=_valid_find(2)) as bench:
-                self.assertEqual(2, llm_bench.get_cached_or_benchmarked_concurrency(
+                self.assertEqual(2, llm_bench.ensure_cached_or_benchmarked_concurrency(
                     str(path), "local", "http://localhost:1234/v1", "model", object(),
                     status={"available": True, "parallel": 8, "context_length": 8192}))
             bench.assert_called_once()
@@ -226,7 +309,7 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
             with patch.object(llm_bench, "find_optimal_concurrency") as bench, \
                  patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                               return_value=("fixture", "fixture")) as gpu:
-                self.assertEqual(1, llm_bench.get_cached_or_benchmarked_concurrency(
+                self.assertEqual(1, llm_bench.ensure_cached_or_benchmarked_concurrency(
                     str(path), "local", "http://localhost:1234/v1", "model", object(),
                     status={"available": False}))
             self.assertEqual(before, path.read_bytes())
@@ -285,7 +368,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
              patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                           return_value=("fixture-GPU", "fixture-backend")), \
              patch.object(llm_bench.platform, "node", return_value="fixture-host"):
-            return llm_bench.get_cached_or_benchmarked_concurrency(
+            return llm_bench.ensure_cached_or_benchmarked_concurrency(
                 str(path), "local", "http://localhost:1234/v1", "model", client,
                 max_concurrency=2, status=dict(_STATUS) if status is None else status, **kwargs)
 
@@ -323,7 +406,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                               side_effect=[10, 10, 10, 10, 10, 10]) as measure, \
                  patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                               return_value=("fixture", "fixture")):
-                self.assertEqual(1, llm_bench.get_cached_or_benchmarked_concurrency(
+                self.assertEqual(1, llm_bench.ensure_cached_or_benchmarked_concurrency(
                     str(path), "local", "http://localhost:1234/v1", "model", object(),
                     max_concurrency=2, status=dict(_STATUS)))
             self.assertEqual(6, measure.call_count)
@@ -331,7 +414,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
             with patch.object(llm_bench, "measure_throughput") as measure, \
                  patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                               return_value=("fixture", "fixture")):
-                self.assertEqual(1, llm_bench.get_cached_or_benchmarked_concurrency(
+                self.assertEqual(1, llm_bench.ensure_cached_or_benchmarked_concurrency(
                     str(path), "local", "http://localhost:1234/v1", "model", object(),
                     max_concurrency=2, status=dict(_STATUS)))
             measure.assert_not_called()
@@ -349,7 +432,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                 with patch.object(llm_bench, "measure_throughput", side_effect=list(samples)) as measure, \
                      patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                                   return_value=("fixture", "fixture")):
-                    self.assertEqual(expected, llm_bench.get_cached_or_benchmarked_concurrency(
+                    self.assertEqual(expected, llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model", object(),
                         max_concurrency=cap, status=dict(_STATUS)))
                 self.assertEqual(sample_count, measure.call_count)
@@ -357,7 +440,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                 with patch.object(llm_bench, "measure_throughput") as measure, \
                      patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                                   return_value=("fixture", "fixture")):
-                    self.assertEqual(expected, llm_bench.get_cached_or_benchmarked_concurrency(
+                    self.assertEqual(expected, llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model", object(),
                         max_concurrency=cap, status=dict(_STATUS)))
                 measure.assert_not_called()
@@ -392,7 +475,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                  patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                               return_value=("fixture", "fixture")):
                 with self.assertRaises(KeyboardInterrupt):
-                    llm_bench.get_cached_or_benchmarked_concurrency(
+                    llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model", object(),
                         max_concurrency=4, status=dict(_STATUS))
             self.assertEqual(before, path.read_bytes())
@@ -432,7 +515,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                  patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                               return_value=("fixture-GPU", "fixture-backend")) as gpu, \
                  patch.object(llm_bench.platform, "node", return_value="fixture-host"):
-                result = llm_bench.get_cached_or_benchmarked_concurrency(
+                result = llm_bench.ensure_cached_or_benchmarked_concurrency(
                     str(path), "local", "http://localhost:1234/v1", "model", client,
                     max_concurrency=2, status=policy_status)
             self.assertEqual(1, result)
@@ -469,7 +552,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                  patch.object(llm_bench.platform, "node", return_value="fixture-host"):
                 with patch.object(llm_bench, "measure_throughput",
                                   side_effect=[10, 10, 10, 20, 20, 20]) as measure:
-                    measured = llm_bench.get_cached_or_benchmarked_concurrency(
+                    measured = llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model", object(),
                         max_concurrency=2, status=dict(status))
                 self.assertEqual(2, measured)
@@ -479,7 +562,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                 self.assertIsNone(saved["concurrency_environment"]["parallel"])
                 with patch.object(llm_bench, "measure_throughput",
                                   side_effect=AssertionError("policy must not measure")) as measure:
-                    policy = llm_bench.get_cached_or_benchmarked_concurrency(
+                    policy = llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model", object(),
                         max_concurrency=2, status=dict(status, parallel=1))
                 self.assertEqual(1, policy)
@@ -490,7 +573,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                 original_find = llm_bench.find_optimal_concurrency
                 with patch.object(llm_bench, "measure_throughput", return_value=None) as measure, \
                      patch.object(llm_bench, "find_optimal_concurrency", wraps=original_find) as find:
-                    stale = llm_bench.get_cached_or_benchmarked_concurrency(
+                    stale = llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model", object(),
                         max_concurrency=2, status=dict(status))
                 self.assertEqual(1, stale,
@@ -499,13 +582,13 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                 self.assertEqual(1, measure.call_count)
                 with patch.object(llm_bench, "measure_throughput",
                                   side_effect=[10, 10, 10, 20, 20, 20]) as measure:
-                    retry = llm_bench.get_cached_or_benchmarked_concurrency(
+                    retry = llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model", object(),
                         max_concurrency=2, status=dict(status))
                 self.assertEqual(2, retry)
                 self.assertEqual(6, measure.call_count)
                 with patch.object(llm_bench, "measure_throughput") as measure:
-                    third = llm_bench.get_cached_or_benchmarked_concurrency(
+                    third = llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model", object(),
                         max_concurrency=2, status=dict(status))
                 self.assertEqual(2, third)
@@ -521,7 +604,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                 with patch.object(llm_bench, "find_optimal_concurrency") as bench, \
                      patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                                   return_value=("fixture-GPU", "fixture-backend")) as gpu:
-                    result = llm_bench.get_cached_or_benchmarked_concurrency(
+                    result = llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model", client,
                         max_concurrency=2, status=dict(_STATUS, parallel=1))
                 self.assertEqual(1, result)
@@ -555,7 +638,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
             with patch.object(llm_bench, "file_lock", side_effect=fake_lock), \
                  patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                               return_value=("fixture-GPU", "fixture-backend")) as gpu:
-                result = llm_bench.get_cached_or_benchmarked_concurrency(
+                result = llm_bench.ensure_cached_or_benchmarked_concurrency(
                     str(path), "local", "http://localhost:1234/v1", "model", object(),
                     max_concurrency=2, status=dict(_STATUS, parallel=1))
             self.assertEqual(1, result)
@@ -576,7 +659,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
             with patch.object(llm_bench, "atomic_json_write", side_effect=OSError("synthetic")), \
                  patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                               return_value=("fixture-GPU", "fixture-backend")) as gpu:
-                result = llm_bench.get_cached_or_benchmarked_concurrency(
+                result = llm_bench.ensure_cached_or_benchmarked_concurrency(
                     str(path), "local", "http://localhost:1234/v1", "model", object(),
                     max_concurrency=2, status=dict(_STATUS, parallel=1))
             self.assertEqual(1, result)
@@ -593,7 +676,7 @@ class LlmUnmeasuredFallbackCacheTests(unittest.TestCase):
                 with patch.object(llm_bench, "_measure_robust", return_value=throughput) as robust, \
                      patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                                   return_value=("fixture", "fixture")):
-                    result = llm_bench.get_cached_or_benchmarked_concurrency(
+                    result = llm_bench.ensure_cached_or_benchmarked_concurrency(
                         str(path), "local", "http://localhost:1234/v1", "model", object(),
                         max_concurrency=2, status=dict(_STATUS))
                 self.assertEqual(1, result)

@@ -21,7 +21,7 @@ class ConcurrencyCacheOrderingTests(unittest.TestCase):
         with patch.object(llm_bench.platform, 'node', return_value='fixture-host'), \
              patch.object(llm_bench.lmstudio_settings, 'get_gpu_name_and_backend',
                           return_value=('fixture-gpu', 'fixture-backend')):
-            return llm_bench.get_cached_or_benchmarked_concurrency(
+            return llm_bench.ensure_cached_or_benchmarked_concurrency(
                 str(path), 'local', 'http://localhost:1234/v1', 'fixture', object(),
                 max_concurrency=2, status=self.status if status is None else status)
 

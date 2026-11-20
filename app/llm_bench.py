@@ -216,9 +216,9 @@ def _invalidate_concurrency_cache(config_path, profile_key, cache_key, observed_
         pass
 
 
-def get_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model_name,
-                                           client, ssh_alias=None, max_concurrency=16,
-                                           status=None, llm_config=None):
+def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, model_name,
+                                              client, ssh_alias=None, max_concurrency=16,
+                                              status=None, llm_config=None):
     """Return a concurrency level for (base_url, model_name).
 
     Reuses the cached value from config.json's llm_local/llm_remote section

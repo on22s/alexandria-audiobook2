@@ -23,7 +23,7 @@ from config_settings import load_app_config
 from llm_provider import make_run_client
 from generate_script import LLMGenParams, call_llm_for_object, ensure_run_request_params
 from utils import safe_load_json, file_lock, atomic_json_write, extract_json_object, warn_unparseable_llm_json, get_runtime_data_dir, get_app_config_path
-from llm_bench import get_cached_or_benchmarked_concurrency
+from llm_bench import ensure_cached_or_benchmarked_concurrency
 from lmstudio_settings import ensure_ideal_settings, get_active_llm_config, TokenBudgetError
 
 # Reuse the group/narrator guards so we never propose collapsing two characters.
@@ -488,7 +488,7 @@ def main():
             print(f"WARNING: loaded model reported no context_length; falling back to a "
                   f"conservative {context_length} for evidence chunk sizing.")
 
-    concurrency = get_cached_or_benchmarked_concurrency(
+    concurrency = ensure_cached_or_benchmarked_concurrency(
         config_path, llm_mode, base_url, model_name, client,
         ssh_alias=config.get("llm_remote_ssh"), status=status, llm_config=llm)
     if concurrency > 1:

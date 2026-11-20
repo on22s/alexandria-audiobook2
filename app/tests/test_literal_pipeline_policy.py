@@ -368,7 +368,7 @@ class LiteralPipelinePolicyTests(unittest.TestCase):
                     patch.object(review, "ensure_ideal_settings", return_value=(False, status, "CPU fixture")), \
                     patch.object(review, "get_current_status", return_value=status), \
                     patch.object(review, "make_run_client", return_value=client), \
-                    patch.object(review, "get_cached_or_benchmarked_concurrency", return_value=1), \
+                    patch.object(review, "ensure_cached_or_benchmarked_concurrency", return_value=1), \
                     patch.object(review, "wait_for_vram_headroom", return_value=True), \
                     contextlib.redirect_stdout(io.StringIO()):
                 review.main()

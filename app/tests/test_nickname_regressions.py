@@ -70,7 +70,7 @@ class NicknameRegressionTests(unittest.TestCase):
             stack.enter_context(patch.object(find_nicknames, "load_app_config", return_value=config))
             stack.enter_context(patch.object(find_nicknames, "ensure_ideal_settings",
                                             return_value=(False, {"loaded": True, "context_length": 8192}, "test")))
-            stack.enter_context(patch.object(find_nicknames, "get_cached_or_benchmarked_concurrency", return_value=1))
+            stack.enter_context(patch.object(find_nicknames, "ensure_cached_or_benchmarked_concurrency", return_value=1))
             stack.enter_context(patch.object(find_nicknames, "make_llm_client", return_value=primary, create=True))
             stack.enter_context(patch.object(llm_provider, "make_llm_client",
                                             side_effect=[primary, secondary] if secondary else [primary]))
@@ -374,7 +374,7 @@ class ReservedNarratorAliasTests(unittest.TestCase):
                 stack.enter_context(patch.object(find_nicknames, "make_run_client", return_value=client))
                 stack.enter_context(patch.object(find_nicknames, "ensure_ideal_settings",
                     return_value=(False, {"loaded": True, "context_length": 8192}, "fixture")))
-                stack.enter_context(patch.object(find_nicknames, "get_cached_or_benchmarked_concurrency", return_value=1))
+                stack.enter_context(patch.object(find_nicknames, "ensure_cached_or_benchmarked_concurrency", return_value=1))
                 stack.enter_context(patch.object(generate_script, "get_response_log_path", return_value=str(root / "responses.log")))
                 find_nicknames.main()
             self.assertEqual({"OLD": "HUMAN ROOT", "BETTY": "ALICE"}, json.loads(registry.read_text()))

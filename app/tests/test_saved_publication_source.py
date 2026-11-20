@@ -230,7 +230,7 @@ class SavedPublicationSourceTests(unittest.TestCase):
                        'load_app_config':{'generation':{'review_batch_size':1}, 'llm_mode':'remote'},
                        'get_active_llm_config':{}, 'ensure_ideal_settings':(True, {}, 'fixture'),
                        'get_current_status':{'loaded':False}, 'make_run_client':object(),
-                       'get_cached_or_benchmarked_concurrency':1}
+                       'ensure_cached_or_benchmarked_concurrency':1}
             for name, value in patches.items():
                 stack.enter_context(patch.object(review, name, return_value=value))
             stack.enter_context(patch.object(review, 'review_batch', side_effect=lambda _c,_m,batch,*a,**k:batch))

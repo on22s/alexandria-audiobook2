@@ -72,7 +72,7 @@ class ReviewRegressionTests(unittest.TestCase):
             with patch.object(sys,'argv',['find_nicknames.py','--input',str(source),'--aliases-file',str(Path(tmp,'aliases.json'))]), \
                  patch.object(fn,'load_app_config',return_value={'llm':profile}),patch.object(fn,'ensure_ideal_settings',side_effect=heal), \
                  patch('lmstudio_settings.get_current_status',side_effect=lambda *a,**kw:dict(runtime)),patch('llm_provider.OpenAI') as raw, \
-                 patch.object(fn,'get_cached_or_benchmarked_concurrency',return_value=1),patch.object(fn,'find_nicknames',side_effect=scan):
+                 patch.object(fn,'ensure_cached_or_benchmarked_concurrency',return_value=1),patch.object(fn,'find_nicknames',side_effect=scan):
                 fn.main()
                 self.assertEqual(2000,raw.return_value.chat.completions.create.call_args.kwargs['max_tokens'])
 

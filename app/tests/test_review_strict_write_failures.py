@@ -200,7 +200,7 @@ class ReviewStrictWriteMainStopTests(unittest.TestCase):
                 stack.enter_context(patch.object(
                     review_script, 'make_run_client', return_value=object()))
                 stack.enter_context(patch.object(
-                    review_script, 'get_cached_or_benchmarked_concurrency', return_value=1))
+                    review_script, 'ensure_cached_or_benchmarked_concurrency', return_value=1))
                 stack.enter_context(patch.object(
                     review_script, 'wait_for_vram_headroom', return_value=True))
                 stack.enter_context(patch.object(
