@@ -44,7 +44,7 @@ from core import (
     claim_gpu_task, schedule_claimed_background_task,
     process_state,
 )
-from device_utils import normalize_device
+from device_utils import get_cuda_device_index, normalize_device
 from training_preflight import get_training_vram_error, get_training_disk_error
 from utils import atomic_json_write, file_lock, safe_load_json
 from voicelab_settings import get_profiler_paths, get_voice_lab_script_path
@@ -154,22 +154,30 @@ class VoiceLabRequest(BaseModel):
         return normalize_device(value) if value is not None else None
 
 
-def _probe_voicelab_interpreter(rocm_python: str) -> dict:
-    """Read Torch/device/dependency state from the interpreter that will run ML stages."""
+def _probe_voicelab_interpreter(rocm_python: str, device: str = "auto") -> dict:
+    """Read Torch/device/dependency state from the interpreter that will run ML stages.
+
+    An explicit cuda:N is passed to the subprocess as a validated integer argv
+    so mem_get_info measures that GPU. 'cuda'/'auto' keep the unindexed call
+    (the current device), exactly as before.
+    """
     from review_startup import record_failure
+    normalized = normalize_device(device)
+    index = get_cuda_device_index(normalized) if normalized.startswith("cuda:") else -1
     code = (
-        "import importlib.util,json,torch; "
+        "import importlib.util,json,sys,torch; "
+        "idx=int(sys.argv[1]) if len(sys.argv)>1 else -1; "
         "ok=torch.cuda.is_available(); "
         "mps=bool(getattr(getattr(torch,'backends',None),'mps',None) and torch.backends.mps.is_available()); "
         "print(json.dumps({'python':__import__('sys').version.split()[0],"
         "'torch':torch.__version__,'hip':getattr(torch.version,'hip',None),"
         "'cuda_available':ok,'mps_available':mps,"
         "'gpu':torch.cuda.get_device_name(0) if ok else ('Apple MPS' if mps else None),"
-        "'vram':torch.cuda.mem_get_info() if ok else None,"
+        "'vram':(torch.cuda.mem_get_info(idx) if idx>=0 else torch.cuda.mem_get_info()) if ok else None,"
         "'deps':{n:importlib.util.find_spec(n) is not None for n in "
         "['speechbrain','librosa','peft','llama_cpp']}}))")
     try:
-        result = subprocess.run([rocm_python, "-c", code], capture_output=True,
+        result = subprocess.run([rocm_python, "-c", code, str(index)], capture_output=True,
                                 text=True, timeout=20, check=False,
                                 env=_rocm_env(rocm_python))
         lines = [line for line in result.stdout.splitlines() if line.strip()]
@@ -284,7 +292,9 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
     needs_rocm = bool(ml_stages.intersection(stages))
     rocm = cfg.get("rocm_python") or ""
     interpreter_ok = bool(rocm and os.path.isfile(rocm) and os.access(rocm, os.X_OK))
-    probe = _probe_voicelab_interpreter(rocm) if needs_rocm and interpreter_ok else {}
+    requested_device = request.device or "auto"
+    probe = (_probe_voicelab_interpreter(rocm, requested_device)
+             if needs_rocm and interpreter_ok else {})
     if needs_rocm and not interpreter_ok:
         finding(blockers, "interpreter_missing", "Configure an executable ROCm Python interpreter.")
     elif needs_rocm and not probe:
@@ -327,8 +337,7 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
     elif usage.free < 10 * 1024 ** 3:
         finding(warnings, "disk_low", "Less than 10 GB of free disk remains.")
     vram = probe.get("vram") or []
-    free_vram_gb = round(vram[0] / 1024 ** 3, 1) if len(vram) == 2 else None
-    requested_device = request.device or "auto"
+    free_vram_gb = vram[0] / 1024 ** 3 if len(vram) == 2 else None
     cuda_available = probe.get("cuda_available", bool(probe.get("gpu")))
     mps_available = probe.get("mps_available", False)
     available = (requested_device == "cpu" or
@@ -367,7 +376,8 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
             "runtime": {"interpreter_configured": interpreter_ok, "python": probe.get("python"),
                         "torch": probe.get("torch"), "hip": probe.get("hip"),
                         "device": requested_device, "gpu": probe.get("gpu"),
-                        "free_vram_gb": free_vram_gb, "free_disk_gb": free_gb,
+                        "free_vram_gb": (round(free_vram_gb, 1) if free_vram_gb is not None else None),
+                        "free_disk_gb": free_gb,
                         "dependencies": deps},
             "outputs": {"datasets": "LoRA datasets library", "models": "LoRA models library",
                         "manifest": "LoRA model manifest"},

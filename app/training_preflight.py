@@ -3,7 +3,7 @@ import importlib.util
 import json
 import math
 import sys
-from device_utils import normalize_device, resolve_device
+from device_utils import get_cuda_device_index, normalize_device, resolve_device
 
 
 def get_training_vram_error(device, free_gb):
@@ -37,7 +37,7 @@ def get_training_runtime_preflight(requested_device):
     if device.startswith('cuda'):
         if not torch.cuda.is_available():
             raise ValueError('Selected CUDA/ROCm device is unavailable')
-        index = int(device.split(':')[1]) if ':' in device else 0
+        index = get_cuda_device_index(device)
         if index >= torch.cuda.device_count():
             raise ValueError('Selected CUDA/ROCm device index is unavailable')
         free, _ = torch.cuda.mem_get_info(index)

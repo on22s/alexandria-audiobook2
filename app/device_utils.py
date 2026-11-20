@@ -34,6 +34,17 @@ def normalize_device(device_str, allow_auto=True):
     raise ValueError(f"Unsupported device '{device_str}'; expected {allowed}")
 
 
+def get_cuda_device_index(device):
+    """Map a normalized CUDA device name to its integer index.
+
+    'cuda' -> 0 (the default device), 'cuda:N' -> N. The runtime preflight and
+    the Voice Lab probe both use this one parser, so an explicit cuda:N cannot
+    be read as cuda:0 in one place and as N in another.
+    """
+    value = str(device).strip().lower()
+    return int(value.split(':')[1]) if ':' in value else 0
+
+
 def get_available_gpu_device(torch):
     """Read the supported Torch GPU backend, without loading a model."""
     if torch is None:
