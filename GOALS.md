@@ -5769,6 +5769,15 @@ bug.
 
 **Target — 0, with the couple case and the case-variant case both tested.**
 
+**Scope — this metric covers only "two different characters wrongly share one
+voice."** It does not cover one character holding two voices (below), and it does
+not cover the `design` voice type: that type intentionally draws a fresh voice
+per line (seed `-1`, see `docs/wiki/Voice-Types.md`), so a character left on Voice
+Design does *not* have one voice. The README's "one character has one voice"
+claim is qualified to exclude it. `app/tests/test_character_voice_seed.py` pins both
+the stable seeds for Custom/Clone/LoRA/built-in voices and the design sentinel,
+so the exclusion cannot drift silently.
+
 #### The inverse case is real, and this metric does not cover it
 
 Measuring the rendered chapter on 2026-08-21 (`character_distinctiveness.py`,
@@ -5808,6 +5817,22 @@ questions in the listening package under 6.5.
 **Probe** — waveform SHA-256 comparison.
 **Current** — seeded generation confirmed deterministic; `character_voice_seed`
 now derives a stable per-character seed. **MET for TTS.**
+
+**Scope — "identical seed and inputs" requires that a seed is actually supplied.**
+The waveform-SHA-256 probe above establishes byte identity for seeded rendering
+paths. What #2140 adds on the Designer path is narrower and is all that is
+verified there: `POST /api/voice_design/preview` accepts a pinned seed only in the
+portable range (`-1`, or `0..2**64-1` — torch and the MLX worker both use unsigned
+64-bit seeds), forwards it to the engine, and records that seed with the effective
+language in a server-owned receipt bound to the preview's bytes. A save persists
+the seed only when it agrees with that receipt; an unverifiable legacy preview
+claims none. Two real-synthesis Designer previews with the same seed have NOT
+been compared byte-for-byte — the synthetic engine fixture tests input plumbing,
+not the waveform. The Designer form does not expose a seed control, and the
+Voices-tab `design` type draws per line, so neither gives a character one
+reproducible voice on its own. Setup → "Reproducible takes" derives a per-line
+seed from the text, which reproduces a take but still changes the voice as the
+text changes.
 
 **Target — extend to the LLM path: same seed, same model, same script output.**
 

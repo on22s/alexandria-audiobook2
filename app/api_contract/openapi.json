@@ -6462,6 +6462,14 @@
           "sample_text": {
             "title": "Sample Text",
             "type": "string"
+          },
+          "seed": {
+            "default": -1,
+            "description": "-1 = random; 0..18446744073709551615 = reproducible",
+            "maximum": 1.8446744073709552e+19,
+            "minimum": -1.0,
+            "title": "Seed",
+            "type": "integer"
           }
         },
         "required": [
@@ -6488,6 +6496,19 @@
           "sample_text": {
             "title": "Sample Text",
             "type": "string"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "maximum": 1.8446744073709552e+19,
+                "minimum": -1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
           },
           "voice_id": {
             "anyOf": [

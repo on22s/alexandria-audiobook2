@@ -109,5 +109,50 @@ class TestAssignmentSitesUseIt(unittest.TestCase):
                         f"{rel} derives every character's seed from a literal")
 
 
+class TestDesignTypeIsExcludedFromTheOneVoiceClaim(unittest.TestCase):
+    """#2141: 'one character has one voice' and 'reproducible' exclude design.
+
+    The Voices-tab `design` type deliberately sends seed "-1" for every
+    character, so each line is an independent draw (see
+    docs/wiki/Voice-Types.md). The README/GOALS claims are qualified to say so.
+    Pin the real behavior here so the qualification cannot silently drift.
+    """
+
+    def _source(self, rel):
+        with open(os.path.join(APP, rel), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_design_voice_type_keeps_the_random_per_line_sentinel(self):
+        src = self._source(os.path.join("static", "js", "app-core.js"))
+        start = src.index("} else if (type === 'design') {")
+        end = src.index("\n                }", start)
+        design_branch = src[start:end]
+        self.assertIn('seed: "-1"', design_branch,
+                      "the design branch must keep requesting an independent draw per line")
+        self.assertNotIn("character_voice_seed", design_branch,
+                         "a stable per-character seed would contradict the documented design behavior")
+
+    def test_the_design_sentinel_does_not_seed_global_torch_rng(self):
+        """-1 leaves the global RNG alone; a pinned seed seeds only when >= 0."""
+        import tempfile
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        import numpy as np
+        import tts
+
+        engine = tts.TTSEngine({"tts": {"mode": "local"}})
+        manual_seeds = []
+        torch_stub = SimpleNamespace(manual_seed=lambda value: manual_seeds.append(value))
+        model = SimpleNamespace(generate_voice_design=lambda **kwargs: ([np.full(240, .125)], 24000))
+        with tempfile.TemporaryDirectory() as root, \
+                patch.dict("sys.modules", {"torch": torch_stub}), \
+                patch.object(engine, "_init_local_design", return_value=model), \
+                patch.object(tts, "_resolve_asset_path", return_value=root):
+            engine.generate_voice_design("Synthetic narrator", "Synthetic line.", seed=-1)
+            engine.generate_voice_design("Synthetic narrator", "Synthetic line.", seed=17)
+        self.assertEqual([17], manual_seeds,
+                         "only a pinned design seed may touch the global torch RNG")
+
+
 if __name__ == "__main__":
     unittest.main()
