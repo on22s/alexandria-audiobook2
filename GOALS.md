@@ -5774,7 +5774,7 @@ voice."** It does not cover one character holding two voices (below), and it doe
 not cover the `design` voice type: that type intentionally draws a fresh voice
 per line (seed `-1`, see `docs/wiki/Voice-Types.md`), so a character left on Voice
 Design does *not* have one voice. The README's "one character has one voice"
-claim is qualified to exclude it. `tests/test_character_voice_seed.py` pins both
+claim is qualified to exclude it. `app/tests/test_character_voice_seed.py` pins both
 the stable seeds for Custom/Clone/LoRA/built-in voices and the design sentinel,
 so the exclusion cannot drift silently.
 
