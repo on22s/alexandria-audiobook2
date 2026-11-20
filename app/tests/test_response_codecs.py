@@ -9,6 +9,7 @@ import types
 import unittest
 
 import generate_script
+from chunk_quality import validate_chunk_quality
 from generate_script import LLMGenParams, get_generation_fingerprint
 from response_codecs import (PromptShapeError, build_line_format_prompt,
                              get_codec)
@@ -110,6 +111,55 @@ class EndToEndThroughTheRealPipeline(unittest.TestCase):
             log_name="test_responses.log", label="CHUNK 1/1", max_retries=0)
         self.assertEqual(entries[0]["speaker"], "NARRATOR")
         self.assertEqual(entries[0]["text"], "The room was cold.")
+
+
+class LineCodecKeepsUnicodeSeparators(unittest.TestCase):
+    """The whole splitlines separator domain must survive the codec path."""
+
+    SEPARATORS = ("\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
+
+    def test_extract_keeps_the_continuation_of_a_split_record(self):
+        codec = get_codec("lines")
+        for sep in self.SEPARATORS:
+            with self.subTest(sep=ascii(sep)):
+                text = "alpha" + sep + r"see C:\fiction\volume, \frac and \u2028"
+                raw = "NARRATOR|Flat.|" + text
+                self.assertEqual(
+                    [{"speaker": "NARRATOR", "text": text, "instruct": "Flat."}],
+                    codec.parse(codec.extract(raw)))
+
+    def test_fenced_reply_with_form_feed_keeps_the_tail(self):
+        codec = get_codec("lines")
+        raw = "```\nNARRATOR|Flat.|alpha\x0cbeta\n```"
+        entries = codec.parse(codec.extract(raw))
+        self.assertEqual(["alpha\x0cbeta"], [e["text"] for e in entries])
+
+    def test_form_feed_chunk_is_not_truncated_through_pipeline(self):
+        words = [f"word{i}" for i in range(120)]
+        source = " ".join(words) + "\x0cfinal four words here."
+        reply = "NARRATOR|Flat narration.|" + source
+        attempts = []
+        entries = generate_script.call_llm_for_entries(
+            _StubClient(reply), "m", "sys", "usr",
+            LLMGenParams(output_format="lines"),
+            log_name="test_response_lines_form_feed.log", label="CHUNK 1/1",
+            max_retries=0, codec=get_codec("lines"),
+            validate_entries=lambda found: validate_chunk_quality(source, found),
+            attempt_observer=attempts.append)
+        self.assertEqual(source, " ".join(e["text"] for e in entries))
+        self.assertIn("\x0c", entries[0]["text"])
+        quality = validate_chunk_quality(source, entries)
+        self.assertTrue(quality["passed"])
+        self.assertEqual([], quality["findings"])
+        self.assertTrue(attempts)
+        self.assertEqual(0, attempts[-1]["parse_provenance"]["skipped_records"])
+
+    def test_skipped_records_are_surfaced_as_provenance(self):
+        codec = get_codec("lines")
+        payload = "NARRATOR|Flat.|Good line.\nBROKEN LINE WITH NO PIPE"
+        entries, provenance = codec.parse_with_provenance(payload)
+        self.assertEqual(1, len(entries))
+        self.assertEqual(1, provenance["skipped_records"])
 
 
 if __name__ == "__main__":

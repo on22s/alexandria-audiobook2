@@ -22,6 +22,15 @@ salvage_json_entries in generate_script.
 DELIMITER = "|"
 FIELDS = ("speaker", "instruct", "text")
 
+def _split_records(text):
+    """Split on CR/LF only, so other Unicode line separators stay in `text`.
+
+    CRLF and bare CR remain record breaks (existing replies may use either),
+    but FF, VT, NEL, LS, PS, FS, GS and RS remain literal field data.
+    A model can copy them verbatim without losing the rest of its passage.
+    """
+    return str(text).replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
 
 class LineFormatError(ValueError):
     """A line could not be read as an entry."""
@@ -74,7 +83,7 @@ def _parse_line(line):
 
 def parse_entries(text):
     """Parse the compact format. Raises LineFormatError on any bad line."""
-    return [_parse_line(line) for line in str(text).splitlines() if line.strip()]
+    return [_parse_line(line) for line in _split_records(text) if line.strip()]
 
 
 def salvage_entries(text):
@@ -83,7 +92,7 @@ def salvage_entries(text):
     The caller decides what a partial read means; this never hides one.
     """
     entries, skipped = [], []
-    for line in str(text).splitlines():
+    for line in _split_records(text):
         if not line.strip():
             continue
         try:

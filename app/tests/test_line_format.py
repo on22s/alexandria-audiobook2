@@ -119,5 +119,44 @@ class GateIsUnaffected(unittest.TestCase):
                          validate_chunk_quality(SOURCE, from_lines))
 
 
+class UnicodeLineSeparatorsAreData(unittest.TestCase):
+    """str.splitlines() breaks on 11 code points; this format breaks on 2.
+
+    Project Gutenberg plain-text uses \\x0c as a page break and it reaches the
+    model verbatim, so every other splitlines separator must stay inside
+    `text` instead of stranding its tail on a pipe-less line.
+    """
+
+    SEPARATORS = ("\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
+
+    def test_raw_separator_inside_text_is_not_a_record_break(self):
+        for sep in self.SEPARATORS:
+            with self.subTest(sep=ascii(sep)):
+                text = "alpha" + sep + "beta"
+                expected = [{"speaker": "NARRATOR", "text": text, "instruct": "Flat."}]
+                self.assertEqual(expected, line_format.parse_entries(
+                    "NARRATOR|Flat.|" + text))
+
+    def test_producer_round_trip_keeps_every_separator(self):
+        for sep in self.SEPARATORS:
+            with self.subTest(sep=ascii(sep)):
+                entries = [{"speaker": "NARRATOR",
+                            "text": "alpha" + sep + "beta", "instruct": "Flat."}]
+                encoded = line_format.format_entries(entries)
+                self.assertEqual(1, len(encoded.split("\n")))
+                self.assertEqual(entries, line_format.parse_entries(encoded))
+                self.assertEqual((entries, []), line_format.salvage_entries(encoded))
+
+    def test_lf_crlf_and_bare_cr_are_still_record_breaks(self):
+        """Only CR/LF frame records; changing that must not break old replies."""
+        payload = ("NARRATOR|A|one\r\nELENA|B|two\rMARCUS|C|three\n"
+                   "FOUR|Flat.|four")
+        entries = line_format.parse_entries(payload)
+        self.assertEqual(["NARRATOR", "ELENA", "MARCUS", "FOUR"],
+                         [e["speaker"] for e in entries])
+        self.assertEqual(["one", "two", "three", "four"],
+                         [e["text"] for e in entries])
+
+
 if __name__ == "__main__":
     unittest.main()
