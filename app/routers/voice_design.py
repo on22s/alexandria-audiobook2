@@ -1,5 +1,7 @@
 import asyncio
 import filecmp
+import hashlib
+import json
 import logging
 import math
 import os
@@ -14,6 +16,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+import core
 from core import (
     CLONE_VOICES_DIR,
     UPLOADS_DIR,
@@ -28,7 +31,7 @@ from core import (
     process_state,
     project_manager,
 )
-from utils import file_lock, get_unique_id
+from utils import atomic_json_write, file_lock, get_unique_id
 from voice_reference_import import import_reference_audio
 from audio_channel_staging import AudioChannelStaging
 from audio_channel_preview import render_audio_channel_preview
@@ -41,23 +44,29 @@ logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
 
 
+# Portable seed contract: -1 leaves the engine RNG alone (random draw); a
+# pinned seed must fit both workers. Measured on torch.manual_seed: 2**64-1 is
+# accepted, 2**64 raises "Overflow when unpacking long long"; the MLX worker
+# uses mx.random.seed, which takes the same unsigned 64-bit range. This also
+# matches the repo's existing `0 <= seed < 2**64` request guards.
+MAX_DESIGN_SEED = 2**64 - 1
+
+
 class VoiceDesignPreviewRequest(BaseModel):
     description: str
     sample_text: str
     language: Optional[str] = None
-    # -1 (the default when omitted) leaves the engine's RNG alone and draws a
-    # random voice; >= 0 is a reproducible draw. Anything below -1 cannot be
-    # honoured, so reject it instead of silently treating it as random.
-    seed: int = Field(default=-1, ge=-1)
+    seed: int = Field(default=-1, ge=-1, le=MAX_DESIGN_SEED,
+                      description="-1 = random; 0..18446744073709551615 = reproducible")
 
 class VoiceDesignSaveRequest(BaseModel):
     name: str
     description: str
     sample_text: str
     preview_file: str
-    # The seed used for the preview being saved, so the manifest can
-    # reproduce it. -1 means it was an unseeded/random draw.
-    seed: int = Field(default=-1, ge=-1)
+    # Optional on purpose: None means the caller did not assert a seed. When
+    # supplied it must agree with the server's receipt for this preview.
+    seed: Optional[int] = Field(default=None, ge=-1, le=MAX_DESIGN_SEED)
     # Set by the Designer's Edit flow: replace this manifest entry (and its
     # audio) instead of appending a duplicate.
     voice_id: Optional[str] = None
@@ -68,12 +77,100 @@ class VoiceDesignSaveRequest(BaseModel):
 DESIGNED_VOICES_MANIFEST = os.path.join(DESIGNED_VOICES_DIR, "manifest.json")
 
 
+def _preview_receipts_dir():
+    """Server-owned provenance, resolved from the live DATA_DIR.
+
+    Deliberately NOT under DESIGNED_VOICES_DIR, which app.py mounts at
+    /designed_voices (static exposure). Resolving at call time keeps it on the
+    same data root as everything else, including overridden/test data dirs.
+    """
+    return os.path.join(core.DATA_DIR, "design_preview_receipts")
+
+
 def _append_manifest_entry(path, entry):
     """Append one immutable voice entry without losing a concurrent upload."""
     with file_lock(path):
         manifest = _load_manifest(path, for_update=True)
         manifest.append(entry)
         _save_manifest(path, manifest)
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _preview_receipt_path(filename):
+    name = os.path.basename(filename)
+    if not name or name in (".", "..") or any(sep in name for sep in ("/", "\\", os.sep)):
+        raise HTTPException(status_code=400, detail="Invalid preview file")
+    return os.path.join(_preview_receipts_dir(), name + ".json")
+
+
+def _write_preview_receipt(filename, wav_path, *, seed, language, description, sample_text):
+    """Bind the generation inputs to the exact bytes returned by this preview."""
+    receipt = {"version": 1, "seed": seed, "language": language,
+               "description": description, "sample_text": sample_text,
+               "sha256": _sha256_file(wav_path)}
+    path = _preview_receipt_path(filename)
+    os.makedirs(_preview_receipts_dir(), exist_ok=True)
+    with file_lock(path):
+        atomic_json_write(receipt, path, allow_nonatomic_fallback=False)
+    return receipt
+
+
+def _load_preview_receipt(filename):
+    """Return the server's receipt for a generated preview, or None for legacy files."""
+    try:
+        with open(_preview_receipt_path(filename), encoding="utf-8") as handle:
+            receipt = json.load(handle)
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError):
+        logger.warning("Ignoring corrupt design preview receipt for %s", filename)
+        return None
+    if (not isinstance(receipt, dict) or receipt.get("version") != 1
+            or type(receipt.get("seed")) is not int
+            or not -1 <= receipt["seed"] <= MAX_DESIGN_SEED
+            or not isinstance(receipt.get("sha256"), str) or len(receipt["sha256"]) != 64
+            or not isinstance(receipt.get("description"), str)
+            or not isinstance(receipt.get("sample_text"), str)
+            or (receipt.get("language") is not None and not isinstance(receipt["language"], str))):
+        logger.warning("Ignoring invalid design preview receipt for %s", filename)
+        return None
+    return receipt
+
+
+def _saved_preview_provenance(preview_path, request, *, existing):
+    """Derive provable generation inputs, never trusting an unverified claim."""
+    receipt = _load_preview_receipt(request.preview_file)
+    if receipt is None:
+        if request.seed is not None:
+            raise HTTPException(status_code=400, detail=(
+                "This preview has no server receipt, so its seed cannot be verified. "
+                "Generate a new preview before saving with a seed."))
+        # A legacy resave keeps whatever provenance the existing entry had;
+        # it must not invent a seed or language for an old artifact.
+        kept = {key: existing[key] for key in ("seed", "language")
+                if existing and existing.get(key) is not None}
+        return kept
+    if receipt["sha256"] != _sha256_file(preview_path):
+        raise HTTPException(status_code=400, detail=(
+            "The preview changed since generation. Generate a new preview before saving."))
+    if (receipt["description"] != request.description
+            or receipt["sample_text"] != request.sample_text):
+        raise HTTPException(status_code=400, detail=(
+            "The description or sample text changed since the preview. Generate a matching preview."))
+    if request.seed is not None and request.seed != receipt["seed"]:
+        raise HTTPException(status_code=400, detail=(
+            "The supplied seed does not match the preview's recorded seed."))
+    provenance = {"seed": receipt["seed"]}
+    if receipt["language"] is not None:
+        provenance["language"] = receipt["language"]
+    return provenance
 
 
 @router.post("/api/voice_design/preview")
@@ -89,6 +186,8 @@ def _generate_voice_design_preview(request):
         engine = project_manager.get_engine()
         if not engine:
             raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
+        effective_language = (request.language if request.language is not None
+                              else getattr(engine, "_language", None))
         wav_path, _ = engine.generate_voice_design(
             description=request.description,
             sample_text=request.sample_text,
@@ -97,6 +196,10 @@ def _generate_voice_design_preview(request):
         )
         # Return relative URL for the static mount
         filename = os.path.basename(wav_path)
+        _write_preview_receipt(filename, wav_path, seed=request.seed,
+                               language=effective_language,
+                               description=request.description,
+                               sample_text=request.sample_text)
         return {"status": "ok", "audio_url": f"/designed_voices/previews/{filename}"}
     except UnsupportedVoiceBackendError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -136,9 +239,10 @@ def _save_voice_design(request):
         dest_path = os.path.join(DESIGNED_VOICES_DIR, dest_filename)
         staging_path = os.path.join(DESIGNED_VOICES_DIR,
                                     f".{dest_filename}.{get_unique_id('stage')}.tmp")
+        provenance = _saved_preview_provenance(preview_path, request, existing=existing)
         entry = {"id": voice_id, "name": request.name,
                  "description": request.description, "sample_text": request.sample_text,
-                 "filename": dest_filename, "seed": request.seed}
+                 "filename": dest_filename, **provenance}
         backup_path = staging_path + ".backup"
         retain_backup = False
         try:
@@ -226,8 +330,6 @@ def _delete_voice_design(voice_id):
 
 CLONE_VOICES_MANIFEST = os.path.join(CLONE_VOICES_DIR, "manifest.json")
 ALLOWED_AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg"}
-import hashlib
-import json
 import uuid
 
 import reference_cleanup

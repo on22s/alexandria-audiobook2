@@ -843,8 +843,9 @@ RECIPES §"Rescored 2026-09-28"):
 Goals met and kept in place by a test (GOALS Part II): the selection gap is closed, every
 generated file is real audio, one character has one voice for Custom, Clone, LoRA and
 built-in voices (Voice Design draws a new voice per line by design), output is reproducible
-when a seed is pinned (the Designer preview API accepts one; the Designer form does not
-expose it), generation is faster than real time, nothing unspeakable reaches the TTS,
+with a pinned seed on seeded TTS paths (the Designer preview's seed plumbing is tested;
+byte identity is not measured there, and the Designer form has no seed control),
+generation is faster than real time, nothing unspeakable reaches the TTS,
 foreign words are said as foreign words, and the measurement-integrity rules 6.1–6.4 hold.
 
 ---

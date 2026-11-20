@@ -1,10 +1,11 @@
-"""The Designer preview's `seed` is a real input, not a discarded field.
+"""Designer preview seed plumbing and server-owned preview provenance.
 
 Fail-first coverage for #2140. The HTTP boundary used to accept `seed` through
-Pydantic's extra="ignore", forward the engine default (-1), and answer 200, so
-a caller's pinned request silently produced a random voice. These tests drive
-the REAL request schema, the REAL FastAPI route and the REAL manifest writer;
-only the engine is stubbed. No GPU, no billable inference, no user data.
+Pydantic's extra="ignore", forward the engine default (-1), and answer 200. A
+first fix forwarded the caller's seed but let the save route trust an unrelated
+caller-supplied seed and ignore `language`. These tests drive the REAL schemas,
+FastAPI routes and manifest writer; only the engine is stubbed. No GPU, no
+billable inference, no user data.
 """
 import copy
 import json
@@ -24,6 +25,7 @@ from routers import voice_design
 
 SEED = 733
 OTHER_SEED = 734
+MAX_SEED = 2**64 - 1
 
 
 def _write_tone(path, seed):
@@ -40,8 +42,9 @@ def _write_tone(path, seed):
 
 
 class RecordingEngine:
-    def __init__(self, directory):
+    def __init__(self, directory, language="English"):
         self.directory = Path(directory)
+        self._language = language
         self.calls = []
         self.outputs = []
 
@@ -59,113 +62,199 @@ class VoiceDesignSeedTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        self.previews = self.root / "previews"
+        self.manifest = self.root / "manifest.json"
+        self.production_data_dir = core.DATA_DIR
+        self.production_designed_dir = voice_design.DESIGNED_VOICES_DIR
         self.state = copy.deepcopy(core.process_state)
         for row in self.state.values():
             row["running"] = False
-        overrides = (
-            ("process_state", self.state),
-            ("_task_claims", {}),
-            ("_gpu_leases", {}),
-            ("DATA_DIR", str(self.root)),
-            ("acquire_gpu_lock", lambda *a, **k: None),
-            ("check_global_gpu_lock", lambda *a, **k: None),
-            ("llm_is_on_this_gpu", lambda *a, **k: True),
-        )
-        for name, value in overrides:
+        for name, value in (("process_state", self.state),
+                            ("_task_claims", {}),
+                            ("_gpu_leases", {}),
+                            ("DATA_DIR", str(self.root)),
+                            ("acquire_gpu_lock", lambda *a, **k: None),
+                            ("check_global_gpu_lock", lambda *a, **k: None),
+                            ("llm_is_on_this_gpu", lambda *a, **k: True)):
             ctx = patch.object(core, name, value)
             ctx.start()
             self.addCleanup(ctx.stop)
+        for name, value in (("DESIGNED_VOICES_DIR", str(self.root)),
+                            ("DESIGNED_VOICES_MANIFEST", str(self.manifest))):
+            ctx = patch.object(voice_design, name, value)
+            ctx.start()
+            self.addCleanup(ctx.stop)
+        self.engine = RecordingEngine(self.previews)
 
-    def _app(self, engine):
+    def _app(self):
         app = FastAPI()
         app.include_router(voice_design.router)
-        engine_ctx = patch.object(voice_design.project_manager, "get_engine", return_value=engine)
-        engine_ctx.start()
-        self.addCleanup(engine_ctx.stop)
+        ctx = patch.object(voice_design.project_manager, "get_engine", return_value=self.engine)
+        ctx.start()
+        self.addCleanup(ctx.stop)
         return app
 
-    def _preview(self, engine, seed=None):
+    def _post(self, path, payload):
+        with TestClient(self._app(), raise_server_exceptions=False) as client:
+            return client.post(path, json=payload)
+
+    def _preview(self, seed=None, language=None):
         payload = {"description": "A synthetic narrator", "sample_text": "Synthetic sample line."}
         if seed is not None:
             payload["seed"] = seed
-        app = self._app(engine)
-        with TestClient(app, raise_server_exceptions=False) as client:
-            response = client.post("/api/voice_design/preview", json=payload)
+        if language is not None:
+            payload["language"] = language
+        response = self._post("/api/voice_design/preview", payload)
         self.assertEqual(200, response.status_code, response.text)
         return response.json()
 
-    # --- schema boundary -----------------------------------------------------
+    def _save(self, preview_file, **overrides):
+        payload = {"name": "Synthetic voice", "description": "A synthetic narrator",
+                   "sample_text": "Synthetic sample line.", "preview_file": preview_file}
+        payload.update(overrides)
+        response = self._post("/api/voice_design/save", payload)
+        return response
 
-    def test_request_schema_accepts_a_seed_and_defaults_to_random(self):
+    def _entries(self):
+        if not self.manifest.exists():
+            return []
+        return json.loads(self.manifest.read_text(encoding="utf-8"))
+
+    # --- schema / range boundary ---------------------------------------------
+
+    def test_request_schema_accepts_seed_and_defaults_to_random(self):
         pinned = voice_design.VoiceDesignPreviewRequest(
-            description="A synthetic narrator", sample_text="Synthetic sample line.", seed=SEED)
+            description="d", sample_text="s", seed=SEED)
         self.assertEqual(SEED, pinned.model_dump()["seed"])
-        omitted = voice_design.VoiceDesignPreviewRequest(
-            description="A synthetic narrator", sample_text="Synthetic sample line.")
+        omitted = voice_design.VoiceDesignPreviewRequest(description="d", sample_text="s")
         self.assertEqual(-1, omitted.model_dump()["seed"])
 
-    def test_request_schema_rejects_an_unsupported_seed_instead_of_ignoring_it(self):
-        """A negative seed other than the -1 sentinel cannot be honoured: fail loud."""
+    def test_request_schema_rejects_an_unsupported_negative_seed(self):
         with self.assertRaises(ValidationError):
-            voice_design.VoiceDesignPreviewRequest(
-                description="A synthetic narrator", sample_text="Synthetic sample line.", seed=-2)
+            voice_design.VoiceDesignPreviewRequest(description="d", sample_text="s", seed=-2)
 
-    # --- HTTP dispatch -> engine boundary ------------------------------------
+    def test_http_range_boundaries_are_422_instead_of_a_500_at_the_rng(self):
+        """-1 and [0, 2**64) are portable; 2**64 overflows the engine RNG."""
+        for accepted in (-1, 0, MAX_SEED):
+            with self.subTest(accepted=accepted):
+                result = self._preview(seed=accepted)
+                self.assertEqual("ok", result["status"])
+        for rejected in (-2, 2**64):
+            with self.subTest(rejected=rejected):
+                response = self._post("/api/voice_design/preview",
+                                      {"description": "d", "sample_text": "s", "seed": rejected})
+                self.assertEqual(422, response.status_code, response.text)
+
+    # --- preview -> engine ---------------------------------------------------
 
     def test_route_forwards_seed_and_omission_stays_random(self):
-        pinned_engine = RecordingEngine(self.root / "pinned")
-        self._preview(pinned_engine, seed=SEED)
-        self.assertEqual([SEED], [call["seed"] for call in pinned_engine.calls])
-
-        random_engine = RecordingEngine(self.root / "random")
-        self._preview(random_engine)
-        self.assertEqual([-1], [call["seed"] for call in random_engine.calls])
+        self._preview(seed=SEED)
+        self.assertEqual([SEED], [call["seed"] for call in self.engine.calls])
+        self.engine = RecordingEngine(self.previews)
+        self._preview()
+        self.assertEqual([-1], [call["seed"] for call in self.engine.calls])
 
     def test_same_seed_reproduces_audio_and_a_different_seed_does_not(self):
-        """Synthetic seeded engine: reproducibility is checked without real synthesis."""
-        engine = RecordingEngine(self.root / "repro")
-        first = self._preview(engine, seed=SEED)
-        second = self._preview(engine, seed=SEED)
-        third = self._preview(engine, seed=OTHER_SEED)
-
-        outputs = {path.name: path.read_bytes() for path in engine.outputs}
-        first_bytes = outputs[first["audio_url"].rsplit("/", 1)[-1]]
-        second_bytes = outputs[second["audio_url"].rsplit("/", 1)[-1]]
-        third_bytes = outputs[third["audio_url"].rsplit("/", 1)[-1]]
-        self.assertEqual(first_bytes, second_bytes)
-        self.assertNotEqual(first_bytes, third_bytes)
+        """Synthetic seeded engine: reproducibility checked without real synthesis."""
+        first = self._preview(seed=SEED)
+        second = self._preview(seed=SEED)
+        third = self._preview(seed=OTHER_SEED)
+        outputs = {path.name: path.read_bytes() for path in self.engine.outputs}
+        pick = lambda result: outputs[result["audio_url"].rsplit("/", 1)[-1]]
+        self.assertEqual(pick(first), pick(second))
+        self.assertNotEqual(pick(first), pick(third))
 
     def test_seed_is_per_request_and_leaves_task_state_clean(self):
-        engine = RecordingEngine(self.root / "scoped")
-        self._preview(engine, seed=11)
-        self._preview(engine, seed=22)
-        self.assertEqual([11, 22], [call["seed"] for call in engine.calls])
+        self._preview(seed=11)
+        self._preview(seed=22)
+        self.assertEqual([11, 22], [call["seed"] for call in self.engine.calls])
         self.assertFalse(self.state["voice_design"]["running"])
         self.assertNotIn("voice_design", core._task_claims)
 
-    # --- manifest provenance -------------------------------------------------
+    # --- preview receipt -> save provenance ----------------------------------
 
-    def test_save_persists_the_seed_and_records_random_when_omitted(self):
-        previews = self.root / "previews"
-        _write_tone(previews / "seeded.wav", SEED)
-        _write_tone(previews / "random.wav", -1)
-        manifest = self.root / "manifest.json"
-        with patch.object(voice_design, "DESIGNED_VOICES_DIR", str(self.root)), \
-                patch.object(voice_design, "DESIGNED_VOICES_MANIFEST", str(manifest)):
-            app = FastAPI()
-            app.include_router(voice_design.router)
-            base = {"name": "Synthetic voice", "description": "A synthetic narrator",
-                    "sample_text": "Synthetic sample line."}
-            with TestClient(app, raise_server_exceptions=False) as client:
-                pinned = client.post("/api/voice_design/save",
-                                     json={**base, "preview_file": "seeded.wav", "seed": SEED})
-                random = client.post("/api/voice_design/save",
-                                     json={**base, "preview_file": "random.wav"})
-        self.assertEqual(200, pinned.status_code, pinned.text)
-        self.assertEqual(200, random.status_code, random.text)
-        entries = json.loads(manifest.read_text(encoding="utf-8"))
-        self.assertEqual(SEED, entries[0]["seed"])
-        self.assertEqual(-1, entries[1]["seed"])
+    def test_save_derives_seed_and_effective_language_from_preview_receipt(self):
+        result = self._preview(seed=SEED, language="English")
+        preview_file = result["audio_url"].rsplit("/", 1)[-1]
+        for supplied in (None, SEED):
+            with self.subTest(supplied=supplied):
+                overrides = {} if supplied is None else {"seed": supplied}
+                response = self._save(preview_file, **overrides)
+                self.assertEqual(200, response.status_code, response.text)
+                entry = self._entries()[-1]
+                self.assertEqual(SEED, entry["seed"])
+                self.assertEqual("English", entry["language"])
+
+    def test_save_effective_language_falls_back_to_engine_config(self):
+        self.engine = RecordingEngine(self.previews, language="Chinese")
+        result = self._preview(seed=SEED)
+        preview_file = result["audio_url"].rsplit("/", 1)[-1]
+        response = self._save(preview_file)
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual("Chinese", self._entries()[-1]["language"])
+
+    def test_save_rejects_a_seed_that_disagrees_with_the_receipt(self):
+        result = self._preview(seed=SEED, language="English")
+        preview_file = result["audio_url"].rsplit("/", 1)[-1]
+        response = self._save(preview_file, seed=OTHER_SEED)
+        self.assertEqual(400, response.status_code, response.text)
+        self.assertEqual([], self._entries())
+
+    def test_save_rejects_inputs_that_changed_since_the_preview(self):
+        result = self._preview(seed=SEED, language="English")
+        preview_file = result["audio_url"].rsplit("/", 1)[-1]
+        for field in ("description", "sample_text"):
+            with self.subTest(field=field):
+                response = self._save(preview_file, **{field: "changed after preview"})
+                self.assertEqual(400, response.status_code, response.text)
+
+    def test_save_receipt_is_bound_to_the_actual_preview_bytes(self):
+        result = self._preview(seed=SEED, language="English")
+        preview_file = result["audio_url"].rsplit("/", 1)[-1]
+        (self.previews / preview_file).write_bytes(b"tampered preview bytes")
+        response = self._save(preview_file)
+        self.assertEqual(400, response.status_code, response.text)
+        self.assertEqual([], self._entries())
+
+    def test_concurrent_previews_keep_their_own_provenance(self):
+        first = self._preview(seed=11, language="English")
+        second = self._preview(seed=22, language="Chinese")
+        self.assertEqual(200, self._save(first["audio_url"].rsplit("/", 1)[-1]).status_code)
+        self.assertEqual(200, self._save(second["audio_url"].rsplit("/", 1)[-1]).status_code)
+        entries = self._entries()
+        self.assertEqual([11, 22], [entry["seed"] for entry in entries])
+        self.assertEqual(["English", "Chinese"], [entry["language"] for entry in entries])
+
+    # --- legacy / resave -----------------------------------------------------
+
+    def test_legacy_preview_never_claims_an_unverified_seed(self):
+        legacy = self.previews / "legacy.wav"
+        _write_tone(legacy, -1)
+        rejected = self._save("legacy.wav", seed=SEED)
+        self.assertEqual(400, rejected.status_code, rejected.text)
+        self.assertEqual([], self._entries())
+        accepted = self._save("legacy.wav")
+        self.assertEqual(200, accepted.status_code, accepted.text)
+        entry = self._entries()[-1]
+        self.assertNotIn("seed", entry)
+        self.assertNotIn("language", entry)
+
+    def test_legacy_resave_preserves_existing_provenance(self):
+        result = self._preview(seed=SEED, language="English")
+        saved = self._save(result["audio_url"].rsplit("/", 1)[-1])
+        voice_id = saved.json()["voice_id"]
+        legacy = self.previews / "legacy.wav"
+        _write_tone(legacy, -1)
+        response = self._save("legacy.wav", voice_id=voice_id)
+        self.assertEqual(200, response.status_code, response.text)
+        entry = self._entries()[-1]
+        self.assertEqual(SEED, entry["seed"])
+        self.assertEqual("English", entry["language"])
+
+    def test_receipts_are_stored_outside_the_web_served_asset_directory(self):
+        self._preview(seed=SEED, language="English")
+        receipts = Path(self.production_data_dir) / "design_preview_receipts"
+        self.assertFalse(receipts.is_relative_to(Path(self.production_designed_dir)))
 
 
 if __name__ == "__main__":

@@ -5819,12 +5819,20 @@ questions in the listening package under 6.5.
 now derives a stable per-character seed. **MET for TTS.**
 
 **Scope — "identical seed and inputs" requires that a seed is actually supplied.**
-It holds for seeded Custom/Clone/LoRA/built-in generation and, since #2140, for
-`POST /api/voice_design/preview` and the seed recorded in a saved design's
-manifest. The Designer form does not expose a seed control, and the Voices-tab
-`design` type draws per line, so neither gives a character one reproducible voice
-on its own. Setup → "Reproducible takes" derives a per-line seed from the text,
-which reproduces a take but still changes the voice as the text changes.
+The waveform-SHA-256 probe above establishes byte identity for seeded rendering
+paths. What #2140 adds on the Designer path is narrower and is all that is
+verified there: `POST /api/voice_design/preview` accepts a pinned seed only in the
+portable range (`-1`, or `0..2**64-1` — torch and the MLX worker both use unsigned
+64-bit seeds), forwards it to the engine, and records that seed with the effective
+language in a server-owned receipt bound to the preview's bytes. A save persists
+the seed only when it agrees with that receipt; an unverifiable legacy preview
+claims none. Two real-synthesis Designer previews with the same seed have NOT
+been compared byte-for-byte — the synthetic engine fixture tests input plumbing,
+not the waveform. The Designer form does not expose a seed control, and the
+Voices-tab `design` type draws per line, so neither gives a character one
+reproducible voice on its own. Setup → "Reproducible takes" derives a per-line
+seed from the text, which reproduces a take but still changes the voice as the
+text changes.
 
 **Target — extend to the LLM path: same seed, same model, same script output.**
 
