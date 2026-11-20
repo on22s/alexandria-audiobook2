@@ -999,7 +999,22 @@ async def lora_start_training(request: LoraTrainingRequest, background_tasks: Ba
             state["error"] = "Training exited without the adapter metadata required for registration."
             state["logs"].append("[ERROR] " + state["error"])
 
-    schedule_claimed_background_task(background_tasks, "lora_training", on_training_complete)
+    try:
+        schedule_claimed_background_task(background_tasks, "lora_training", on_training_complete)
+    except BaseException:
+        # The claim was never owned: undo only the empty directory this request
+        # reserved under the naming lock. rmdir (not rmtree) refuses to remove
+        # anything a worker may have written there in the meantime.
+        try:
+            if os.path.isdir(output_dir):
+                os.rmdir(output_dir)
+        except OSError as cleanup_error:
+            from review_startup import record_failure
+            record_failure('lora_adapter_dir_cleanup_failed', cleanup_error,
+                           task='lora_training', operation='remove_reserved_adapter_dir',
+                           resource=output_dir)
+        # Diagnostics are best-effort; the claim error is the caller's error.
+        raise
     return {"status": "started", "adapter_id": adapter_id}
 
 @router.get("/api/lora/models")
