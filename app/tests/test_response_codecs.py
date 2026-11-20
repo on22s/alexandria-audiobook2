@@ -122,7 +122,7 @@ class LineCodecKeepsUnicodeSeparators(unittest.TestCase):
         codec = get_codec("lines")
         for sep in self.SEPARATORS:
             with self.subTest(sep=ascii(sep)):
-                text = "alpha" + sep + "beta"
+                text = "alpha" + sep + r"see C:\fiction\volume, \frac and \u2028"
                 raw = "NARRATOR|Flat.|" + text
                 self.assertEqual(
                     [{"speaker": "NARRATOR", "text": text, "instruct": "Flat."}],
