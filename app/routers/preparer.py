@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, SecretStr, model_validator
 
 from core import (
     BASE_DIR,
+    AppError,
     CONFIG_PATH,
     PREPARER_OUTPUT_DIR,
     PREPARER_SCRIPT_PATH,
@@ -31,6 +32,7 @@ from core import (
     process_state,
 )
 from utils import secure_filename
+from diagnostics import redact_text
 from preparer_numeric_settings import (validate_preparer_numeric_booleans,
                                        validate_preparer_numeric_settings)
 from preparer_enrichment_settings import validate_preparer_enrichment_settings
@@ -42,13 +44,59 @@ router = APIRouter()
 logger = logging.getLogger("AlexandriaUI")
 
 
+def _get_preparer_name_key(value: str) -> str:
+    """Comparison key for names that live on a case-insensitive filesystem.
+
+    Windows treats ``book.zip`` and ``Book.zip`` as the same file; POSIX does
+    not. ``os.path.normcase`` encodes exactly that difference, so every
+    preparer name/path comparison goes through this one function (Rule 15).
+    """
+    return os.path.normcase(value)
+
+
+def _reject_nul_filename(value: str, detail: str = "Invalid filename.") -> str:
+    """Reject a NUL byte in a user-supplied name before any path is built.
+
+    A percent-encoded NUL survives URL decoding. Letting it reach realpath or
+    Path.stat raises ValueError (POSIX) or a masked 500 (Windows), so every
+    preparer route that accepts a filename passes it through this one gate.
+    """
+    if "\0" in value:
+        raise HTTPException(status_code=400, detail=detail)
+    return value
+
+
+def _get_preparer_config_error_detail(error: Exception) -> str:
+    """Summarise a config validation failure without echoing rejected input.
+
+    Pydantic's ``errors()`` includes the offending ``input`` and ``ctx`` can
+    embed it too, so only ``loc`` (the field) and ``msg`` (the reason) are used.
+    ``redact_text`` is a final belt-and-braces pass over the assembled summary.
+    """
+    errors = error.errors(include_input=False) if hasattr(error, "errors") else []
+    parts = []
+    for item in errors:
+        loc = ".".join(str(part) for part in item.get("loc", ()) if part != "__root__")
+        msg = str(item.get("msg", "")).strip()
+        if loc and msg:
+            parts.append(f"{loc}: {msg}")
+        elif msg:
+            parts.append(msg)
+    return redact_text("; ".join(parts)) if parts else "malformed configuration"
+
+
 class _PreparerZipResponse(FileResponse):
     async def __call__(self, scope, receive, send):
         try:
             with ensure_zip_archive_readable(self.path):
                 return await super().__call__(scope, receive, send)
         except ZipPublicationError as error:
-            raise HTTPException(status_code=409, detail=str(error)) from error
+            logger.error("Preparer ZIP publication check failed for %s: %s", self.path, error)
+            raise AppError(
+                409,
+                "The dataset ZIP could not be published safely; check the server log and retry.",
+                key="error.preparer.zip_unavailable",
+            ) from error
 
 
 def publish_preparer_uploads(staged, schedule):
@@ -174,18 +222,21 @@ def _resolve_preparer_interpreter() -> str:
         else _load_voicelab_config()["rocm_python"]
     )
     if not os.path.exists(PREPARER_SCRIPT_PATH):
-        raise HTTPException(
-            status_code=503,
-            detail=f"Preparer script not found at {PREPARER_SCRIPT_PATH}.",
+        logger.error("Preparer script is missing at %s", PREPARER_SCRIPT_PATH)
+        raise AppError(
+            503,
+            "Preparer is not installed; re-run Install.",
+            key="error.preparer.missing_script",
         )
     if not os.path.isfile(interpreter):
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                f"Preparer needs an interpreter with torch and llama-cpp; not "
-                f"found: {interpreter or PREPARER_ENV_PYTHON}. Re-run Install "
-                f"to create preparer_env."
-            ),
+        logger.error(
+            "Preparer interpreter is missing: override=%r preparer_env=%s interpreter=%s",
+            override, PREPARER_ENV_PYTHON, interpreter,
+        )
+        raise AppError(
+            503,
+            "Preparer needs an interpreter with torch and llama-cpp; re-run Install to create preparer_env.",
+            key="error.preparer.missing_runtime",
         )
     _validate_voicelab_path(interpreter, "preparer_python")
     return interpreter
@@ -234,7 +285,16 @@ async def preparer_start(
     try:
         config = PreparerConfig(**json.loads(config_json))
     except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Invalid config: {e}")
+        # Pydantic echoes the offending input, which may be an absolute host
+        # path. Keep that in the log; the body gets only field + reason.
+        detail = _get_preparer_config_error_detail(e)
+        logger.warning("Invalid preparer config: %s", e)
+        raise AppError(
+            422,
+            f"Preparer configuration is invalid: {detail}. Check your settings and try again.",
+            key="error.preparer.invalid_config",
+            values={"detail": detail},
+        ) from e
     if config.skip_annotation:
         raise HTTPException(status_code=400, detail="Skip annotation is not implemented.")
     if config.enrich_with_llm:
@@ -254,10 +314,10 @@ async def preparer_start(
     if not has_space:
         raise HTTPException(status_code=400, detail=f"Insufficient disk space ({free_gb} GB free, 2 GB required).")
 
-    audio_filename = secure_filename(config.audio_filename)
+    audio_filename = secure_filename(_reject_nul_filename(config.audio_filename, "Invalid audio filename"))
     if not audio_filename:
         raise HTTPException(status_code=400, detail="Invalid audio filename")
-    output_filename = secure_filename(config.output_filename)
+    output_filename = secure_filename(_reject_nul_filename(config.output_filename, "Invalid output filename"))
     if not output_filename:
         raise HTTPException(status_code=400, detail="Invalid output filename")
     # Claim, stage, then publish. Two overlapping starts with the same filename
@@ -268,11 +328,12 @@ async def preparer_start(
     audio_path = os.path.join(UPLOADS_DIR, audio_filename)
     source_path = None
     if source_file is not None:
-        source_filename = secure_filename(config.source_filename or source_file.filename)
+        source_filename = secure_filename(_reject_nul_filename(
+            config.source_filename or source_file.filename or "", "Invalid source filename"))
         if not source_filename:
             raise HTTPException(status_code=400, detail="Invalid source filename")
         source_path = os.path.join(UPLOADS_DIR, source_filename)
-        if os.path.normcase(source_path) == os.path.normcase(audio_path):
+        if _get_preparer_name_key(source_path) == _get_preparer_name_key(audio_path):
             raise HTTPException(status_code=400, detail="Audio and source uploads must use different filenames.")
     staged = {audio_path: f"{audio_path}.upload.{uuid.uuid4().hex}"}
     claim_id = reserve_background_task("preparer")
@@ -451,6 +512,9 @@ async def preparer_list_outputs():
 @router.get("/api/preparer/download/{filename:path}")
 async def preparer_download(filename: str):
     """Download a generated dataset ZIP."""
+    # Reject a percent-encoded NUL before realpath/stat can raise ValueError
+    # (POSIX) or a masked 500 through get_zip_archive_family (Windows).
+    filename = _reject_nul_filename(filename)
     root = os.path.realpath(PREPARER_OUTPUT_DIR)
     file_path = os.path.realpath(os.path.join(PREPARER_OUTPUT_DIR, filename))
     if not file_path.startswith(root + os.sep) and file_path != root:
@@ -465,7 +529,14 @@ async def preparer_download(filename: str):
     except FileNotFoundError:
         pass
     except ZipPublicationError as error:
-        raise HTTPException(status_code=409, detail=str(error)) from error
+        # ZipPublicationError messages embed absolute paths; keep those in the
+        # server log and return one static, keyed refusal.
+        logger.error("Preparer ZIP family check failed for %s: %s", file_path, error)
+        raise AppError(
+            409,
+            "The dataset ZIP could not be published safely; check the server log and retry.",
+            key="error.preparer.zip_unavailable",
+        ) from error
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="File not found.")
     return _PreparerZipResponse(file_path, media_type="application/zip", filename=os.path.basename(file_path))
@@ -487,7 +558,16 @@ async def preparer_batch_upload_start(
     try:
         request = BatchPreparerRequest(**json.loads(config_json))
     except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail=f"Invalid config: {exc}") from exc
+        # Same redaction as the single-book route: validation errors can echo
+        # absolute paths supplied in the config.
+        detail = _get_preparer_config_error_detail(exc)
+        logger.warning("Invalid batch preparer config: %s", exc)
+        raise AppError(
+            422,
+            f"Preparer configuration is invalid: {detail}. Check your settings and try again.",
+            key="error.preparer.invalid_config",
+            values={"detail": detail},
+        ) from exc
     return await _start_preparer_batch(request, background_tasks, audio_files or [])
 
 
@@ -495,6 +575,9 @@ async def _start_preparer_batch(request, background_tasks, audio_files=None):
     """Use one admission, upload-publication and dispatch path for both clients."""
     ensure_preparer_diarization_token(
         request.diarize, request.auto_detect_speakers, request.hf_token)
+    for task in request.tasks:
+        _reject_nul_filename(task.audio_filename, "Invalid audio filename")
+        _reject_nul_filename(task.output_filename, "Invalid output filename")
     interpreter = _resolve_preparer_interpreter()
     check_global_gpu_lock("batch_preparer")
 
@@ -524,7 +607,7 @@ async def _start_preparer_batch(request, background_tasks, audio_files=None):
             filename = secure_filename(task.audio_filename)
             if not filename or filename != secure_filename(upload_name):
                 raise HTTPException(status_code=400, detail="Batch task and audio upload filenames must match.")
-            key = os.path.normcase(filename)
+            key = _get_preparer_name_key(filename)
             if key in names:
                 raise HTTPException(status_code=400, detail="Batch audio uploads must use distinct filenames.")
             names.add(key)
@@ -562,7 +645,10 @@ async def _start_preparer_batch(request, background_tasks, audio_files=None):
 
         existing_outputs = set()
         if os.path.exists(PREPARER_OUTPUT_DIR):
-            existing_outputs = {e.name for e in os.scandir(PREPARER_OUTPUT_DIR) if e.is_file()}
+            existing_outputs = {
+                _get_preparer_name_key(e.name)
+                for e in os.scandir(PREPARER_OUTPUT_DIR) if e.is_file()
+            }
 
         for i, task in enumerate(request.tasks):
             if state["cancel"]:
@@ -606,7 +692,7 @@ async def _start_preparer_batch(request, background_tasks, audio_files=None):
             base, ext = os.path.splitext(safe_output)
             candidate = safe_output
             counter = 1
-            while candidate in existing_outputs:
+            while _get_preparer_name_key(candidate) in existing_outputs:
                 if counter > 1000:
                     state["logs"].append(f"[{i+1}] Skipping — too many filename collisions for: {safe_output}")
                     state["tasks"][i]["status"] = "failed"
@@ -616,7 +702,9 @@ async def _start_preparer_batch(request, background_tasks, audio_files=None):
                 counter += 1
             if candidate is None:
                 continue
-            existing_outputs.add(candidate)
+            existing_outputs.add(_get_preparer_name_key(candidate))
+            # Keep the original spelling for the actual output path; only the
+            # uniqueness bookkeeping is case-folded.
             safe_output = candidate
 
             cmd = [interpreter, "-u", PREPARER_SCRIPT_PATH,
