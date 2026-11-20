@@ -16120,6 +16120,15 @@
     "tests.test_tts_benchmark_probe_rate.BenchmarkProbeRateTests.test_default_and_short_requested_intervals_do_not_launch_high_rate_probes"
     , "tests.test_tts_benchmark_probe_rate.BenchmarkProbeRateTests.test_generation_exception_stops_waiting_poller_without_a_second_probe"
   ]
+  , "test_tts_boundary_audit_predicate": [
+    "tests.test_tts_boundary_audit_predicate.AuditInstrumentTests.test_audit_text_accepts_normal_text"
+    , "tests.test_tts_boundary_audit_predicate.AuditInstrumentTests.test_audit_text_rejects_a_c0_control"
+    , "tests.test_tts_boundary_audit_predicate.AuditInstrumentTests.test_script_entrypoint_counts_a_control_the_runtime_removes"
+    , "tests.test_tts_boundary_audit_predicate.PredicateParityTests.test_audit_predicate_matches_runtime_on_every_category"
+    , "tests.test_tts_boundary_audit_predicate.PredicateParityTests.test_c0_controls_the_runtime_removes_are_unspeakable_to_the_audit"
+    , "tests.test_tts_boundary_audit_predicate.PredicateParityTests.test_every_category_has_a_sample_in_the_runtime_set"
+    , "tests.test_tts_boundary_audit_predicate.PredicateParityTests.test_exemptions_are_classified_identically"
+  ]
   , "test_tts_capability_guidance": [
     "tests.test_tts_capability_guidance.TtsCapabilityGuidanceTests.test_descriptor_and_native_dispatch_agree_for_every_voice_category"
     , "tests.test_tts_capability_guidance.TtsCapabilityGuidanceTests.test_descriptor_never_initializes_engine_or_contacts_a_server"

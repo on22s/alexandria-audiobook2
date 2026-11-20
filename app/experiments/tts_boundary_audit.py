@@ -36,21 +36,25 @@ APP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(APP)
 sys.path.insert(0, os.path.join(REPO, "app"))
 
+from speech_policy import (  # noqa: E402
+    UNSPEAKABLE_CATEGORIES as _RUNTIME_UNSPEAKABLE_CATEGORIES,
+    REPLACEMENT_CHARACTER,
+    is_unspeakable_character,
+)
 from speech_text import get_speech_normalization  # noqa: E402
 
-# Categories with no spoken form. Sc (currency) is deliberately absent: "$"
-# and "£" have well-defined spoken forms and belong in a verbalization table,
-# not in a defect count.
-UNSPEAKABLE_CATEGORIES = {"So", "Sm", "Sk", "Co", "Cn", "Cs"}
-REPLACEMENT_CHAR = "�"
+# Single source of dispatch (Rule 15). This audit used to re-declare the set,
+# omitting Cc, so C0/C1 controls the runtime strips were invisible to the
+# instrument (#2118). Sc (currency) stays excluded in the shared set: "$" and
+# "£" have well-defined spoken forms and belong in a verbalization table, not
+# in a defect count. Whitespace stays exempt for the same reason as in speech.
+UNSPEAKABLE_CATEGORIES = _RUNTIME_UNSPEAKABLE_CATEGORIES
+REPLACEMENT_CHAR = REPLACEMENT_CHARACTER
 
 
-def is_unspeakable(ch):
-    if ch == REPLACEMENT_CHAR:
-        return True
-    if ch.isspace():
-        return False
-    return unicodedata.category(ch) in UNSPEAKABLE_CATEGORIES
+# Keep the historical name as an alias so this experiment's callers (including
+# the reproduction command in #2118) cannot drift from the runtime predicate.
+is_unspeakable = is_unspeakable_character
 
 
 def audit_text(text):
