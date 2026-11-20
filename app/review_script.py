@@ -1037,11 +1037,16 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
 
 
 def _remapped_voice_config(cfg, mapping):
-    """Remap a parsed voice config in memory, returning the number moved.
+    """Return (remapped_config, moved) without touching `cfg`.
 
     Chained maps (A->B, B->C) are resolved to their final root before any key
     is touched, so the result does not depend on the insertion order of
     `mapping`. A cycle fails loud instead of looping or picking a root.
+
+    Rule 17: the caller owns `cfg`. The working copy is deep so merging one
+    variant into an existing root cannot mutate a nested dict the caller still
+    holds. The caller publishes the returned config; this function never
+    writes back into the argument.
     """
     def resolve_root(variant):
         path = []
@@ -1059,13 +1064,12 @@ def _remapped_voice_config(cfg, mapping):
     # Resolve every variant first so no rename can observe a half-applied map.
     resolved_roots = {variant: resolve_root(variant) for variant in mapping}
 
-    original = dict(cfg)
-    result = dict(original)
+    result = copy.deepcopy(cfg)
     moved = 0
     for variant, root in resolved_roots.items():
-        if variant not in original or variant == root:
+        if variant not in cfg or variant == root:
             continue
-        variant_cfg = original[variant]
+        variant_cfg = result[variant]
         if root not in result:
             result[root] = variant_cfg
         else:
@@ -1078,9 +1082,7 @@ def _remapped_voice_config(cfg, mapping):
                 result[root] = variant_cfg
         result.pop(variant, None)
         moved += 1
-    cfg.clear()
-    cfg.update(result)
-    return moved
+    return result, moved
 
 
 def _remap_voice_config(voice_config_path, mapping):
@@ -1095,7 +1097,7 @@ def _remap_voice_config(voice_config_path, mapping):
             cfg = safe_load_json(voice_config_path)
             if cfg is None:
                 return 0
-            moved = _remapped_voice_config(cfg, mapping)
+            cfg, moved = _remapped_voice_config(cfg, mapping)
             if moved:
                 try:
                     atomic_json_write(cfg, voice_config_path, allow_nonatomic_fallback=False)

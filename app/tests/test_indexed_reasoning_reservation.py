@@ -1,5 +1,6 @@
 """CPU SDK/orchestrator controls for fixed-window learned reasoning budgets."""
 import contextlib
+import copy
 import io
 import json
 import tempfile
@@ -43,6 +44,34 @@ class IndexedTransport(httpx2.BaseTransport):
             'usage': {'prompt_tokens': 1, 'completion_tokens': self.first_reasoning if truncated else 30,
                       'total_tokens': 1, 'completion_tokens_details': {
                           'reasoning_tokens': self.first_reasoning if truncated else 0}}})
+
+
+class ReasoningEveryCallTransport(httpx2.BaseTransport):
+    """Valid indexed responses that report reasoning tokens on every call.
+
+    Mirrors the #2130 probe: a reasoning model whose first observed call must
+    raise the allowance used by later requests in the same run.
+    """
+
+    def __init__(self, reasoning=2048):
+        self.reasoning = reasoning
+        self.max_tokens = []
+
+    def handle_request(self, request):
+        body = json.loads(request.content)
+        self.max_tokens.append(body.get('max_tokens'))
+        rows = json.loads(body['messages'][-1]['content'])
+        content = json.dumps([
+            {'n': row['n'], 'head': ' '.join(row['text'].split()[:3]),
+             **({'speaker': 'UNKNOWN'} if 'type' in row else {'instruct': 'Natural.'})}
+            for row in rows])
+        return httpx2.Response(200, json={
+            'id': 'fixture-every-call', 'object': 'chat.completion', 'created': 1,
+            'model': body['model'],
+            'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': content},
+                         'finish_reason': 'stop'}],
+            'usage': {'prompt_tokens': 1, 'completion_tokens': 30, 'total_tokens': 31,
+                      'completion_tokens_details': {'reasoning_tokens': self.reasoning}}})
 
 
 class IndexedReasoningReservationTests(unittest.TestCase):
@@ -101,7 +130,10 @@ class IndexedReasoningReservationTests(unittest.TestCase):
         params = self.get_params()
         result, measured, _ = self.run_pipeline(transport, params=params, on_exhaustion='fail')
         self.assertEqual(4, len(result))
-        self.assertEqual(18978, params.reasoning_allowance, 'raw learner must remain uncapped')
+        self.assertEqual(0, params.reasoning_allowance,
+                         'run learning must not be written into the caller params')
+        self.assertEqual(0, params.observed_calls,
+                         'run-local call count must not be written into the caller params')
         bounded = [row['metadata'] for row in measured if row['metadata'].get('raw') == 18978]
         self.assertTrue(bounded)
         self.assertTrue(all(row['applied'] < row['raw'] for row in bounded))
@@ -115,7 +147,10 @@ class IndexedReasoningReservationTests(unittest.TestCase):
         transport = IndexedTransport(first_reasoning=900, truncated_calls=1)
         _, measured, output = self.run_pipeline(transport, count=16, words=385, params=params,
                                                 attribute_batch_size=8, attribute_target_chars=0)
-        self.assertEqual(1800, params.reasoning_allowance)
+        self.assertEqual(0, params.reasoning_allowance,
+                         'run learning must not be written into the caller params')
+        self.assertEqual(0, params.observed_calls,
+                         'run-local call count must not be written into the caller params')
         self.assertIn('Attribution request exceeds budget; subdividing 8 entries', output)
         warm = [row['metadata'] for row in measured if row['metadata'].get('raw') == 1800
                 and row['metadata']['per_entry_tokens'] == tp.ATTRIBUTE_TOKENS_PER_ENTRY]
@@ -148,6 +183,39 @@ class IndexedReasoningReservationTests(unittest.TestCase):
         self.assertEqual((0, 0, None), tuple(resolved.reasoning_reservation[key]
                                            for key in ('raw', 'applied', 'limit')))
         self.assertEqual(1024, tp.bound_index_request_params(resolved, 1, 64).max_tokens)
+
+    def test_reused_params_give_each_run_a_fresh_first_request_budget(self):
+        # #2130: run_three_pass's observers must not write observed_calls or
+        # reasoning_allowance into the caller's params. The --preflight loop
+        # reuses one params object across samples; before the fix, sample 2
+        # began with sample 1's counters and capped its first request.
+        source = '"Hello," said Alice. "How are you?" Bob replied. "Fine," she answered.'
+        params = replace(self.get_params(), segmentation='quotes')
+        snapshot = copy.deepcopy(params)
+
+        def run_in_isolation(transport, run_params):
+            with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()), \
+                 patch.object(gs, 'get_response_log_path',
+                              side_effect=lambda name: str(Path(tmp) / name)):
+                return tp.run_three_pass(self.get_sdk(transport), 'fixture', source,
+                                         run_params, 30000, on_exhaustion='fallback')
+
+        first = ReasoningEveryCallTransport()
+        run_in_isolation(first, params)
+        self.assertEqual(snapshot, params, 'caller params must be unchanged by a run')
+
+        second = ReasoningEveryCallTransport()
+        run_in_isolation(second, params)
+        self.assertEqual(snapshot, params, 'caller params must be unchanged by a second run')
+
+        fresh = ReasoningEveryCallTransport()
+        run_in_isolation(fresh, replace(self.get_params(), segmentation='quotes'))
+
+        self.assertEqual(10000, first.max_tokens[0])
+        self.assertEqual(fresh.max_tokens[0], second.max_tokens[0],
+                         'reused params must not cap the first request')
+        self.assertLess(second.max_tokens[-1], second.max_tokens[0],
+                        'intra-run budgeting must still cap later requests')
 
     def test_unknown_context_and_explicit_stage_initial_preserved(self):
         source = replace(self.get_params(), context_length=None, max_tokens=500,

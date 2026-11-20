@@ -281,7 +281,7 @@ def _voice_remap_bytes(root, name, mapping, remap):
         raise ValueError('Invalid voice configuration; review was not published') from error
     if not isinstance(config, dict):
         raise ValueError('Invalid voice configuration; review was not published')
-    moved = remap(config, mapping)
+    config, moved = remap(config, mapping)
     return (json.dumps(config, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
             if moved else None), moved
 
