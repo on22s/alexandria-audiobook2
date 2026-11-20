@@ -2920,7 +2920,9 @@
     , "tests.test_chapter_export_contract_2102.ChapterExportContract2102Tests.test_durations_none_has_its_own_refusal"
     , "tests.test_chapter_export_contract_2102.ChapterExportContract2102Tests.test_every_reachable_staging_failure_keeps_the_tuple_contract"
     , "tests.test_chapter_export_contract_2102.ChapterExportContract2102Tests.test_full_export_corrupt_chapter_is_a_clean_refusal"
+    , "tests.test_chapter_export_contract_2102.ChapterExportContract2102Tests.test_get_skipped_lines_and_truncated_message"
     , "tests.test_chapter_export_contract_2102.ChapterExportContract2102Tests.test_normal_full_export_is_unchanged"
+    , "tests.test_chapter_export_contract_2102.ChapterExportContract2102Tests.test_two_corrupt_lines_in_one_chapter_report_both"
   ]
   , "test_chapter_export_empty_ui": [
     "tests.test_chapter_export_empty_ui.ChapterExportEmptyUiTests.test_native_empty_receipt_and_empty_renderer_remove_stale_downloads"

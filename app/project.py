@@ -3454,8 +3454,9 @@ class ProjectManager:
                     lines = get_skipped_chapter_lines(chunks, first, last, pairs)
                     where = ""
                     if lines:
+                        word = "lines" if len(lines) > 1 else "line"
                         shown = ", ".join(lines[:5]) + (", ..." if len(lines) > 5 else "")
-                        where = f" (line {shown}" + ("s)" if len(lines) > 1 else ")")
+                        where = f" ({word} {shown})"
                     return False, (f"Chapter {plan['number']} has missing or corrupt audio "
                                    f"that could not be decoded{where}; regenerate it before exporting.")
                 try:

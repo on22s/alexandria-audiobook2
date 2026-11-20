@@ -16,24 +16,27 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from project import CHAPTER_EXPORT_DIR, ProjectManager
+from project import CHAPTER_EXPORT_DIR, ProjectManager, get_skipped_chapter_lines
 from routers import editor as editor_module
 # Plain helpers only; importing a TestCase subclass would double-register it.
 from tests.test_chapter_export import _project
 
 
-def _skip_decode_of(relative_path):
-    """A loader that drops one admitted row the way a corrupt clip does.
+def _skip_decode_of(*relative_paths):
+    """Drop exactly the named admitted rows, the way corrupt clips do.
 
     Accepts *args/**kwargs so it survives new keyword arguments on the real
     method (test hygiene: fakes must not pin the current signature).
     """
+    targets = set(relative_paths)
     real = ProjectManager._load_chunks_with_audio
 
     def fake(self, *args, **kwargs):
         rows = kwargs.get('chunks')
-        if rows and any(row.get('audio_path') == relative_path for row in rows):
-            return [], 1
+        if rows and any(row.get('audio_path') in targets for row in rows):
+            kept = [(row, object()) for row in rows
+                    if row.get('audio_path') not in targets]
+            return kept, len(rows) - len(kept)
         return real(self, *args, **kwargs)
 
     return fake
@@ -80,7 +83,8 @@ class ChapterExportContract2102Tests(unittest.TestCase):
             self.assertNotIn('NoneType', message)
             self.assertIn('Chapter 2', message)
             self.assertIn('missing or corrupt audio', message)
-            self.assertIn('line 4', message)
+            self.assertIn('(line 4)', message)
+            self.assertNotIn('(lines', message)
             self.assertTrue(any('Export failed: Chapter 2' in line
                                 for line in result['logs']), result['logs'])
             self.assertNotIn(tmp, message)
@@ -109,8 +113,38 @@ class ChapterExportContract2102Tests(unittest.TestCase):
             self.assertNotIn('NoneType', message)
             self.assertIn('Chapter 2', message)
             self.assertIn('missing or corrupt audio', message)
-            self.assertIn('line 4', message)
+            self.assertIn('(line 4)', message)
+            self.assertNotIn('(lines', message)
             self.assertNotIn(tmp, message)
+
+    def test_two_corrupt_lines_in_one_chapter_report_both(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pm, chunks = _project(tmp)
+            targets = (chunks[3]['audio_path'], chunks[4]['audio_path'])
+            with patch.object(pm, 'load_chunks', return_value=chunks), \
+                    patch.object(ProjectManager, '_load_chunks_with_audio',
+                                 _skip_decode_of(*targets)):
+                result = self._post_export(tmp, pm)
+            self.assertEqual('failed', result['result']['status'], result)
+            message = result['result']['message']
+            self.assertIn('Chapter 2', message)
+            self.assertIn('(lines 4, 5)', message)
+
+    def test_get_skipped_lines_and_truncated_message(self):
+        chunks = [{'index': index, 'audio_path': f'voicelines/c{index}.wav'}
+                  for index in range(8)]
+        pairs = [(chunk, object()) for chunk in chunks[:2]]
+        # The helper itself reports every dropped row, in order (six here).
+        self.assertEqual(['3', '4', '5', '6', '7', '8'],
+                         get_skipped_chapter_lines(chunks, 0, 7, pairs))
+        with tempfile.TemporaryDirectory() as tmp:
+            pm = ProjectManager(tmp)
+            plans = [{'index': 0, 'number': 1, 'title': 'One', 'file': '01 - One.wav',
+                      'chunks': [0, 7], 'fingerprint': 'fake'}]
+            result = self._stage(pm, chunks, plans, chapters=[0], get_pairs=lambda f, l: (pairs, 6))
+        self._assert_contract(result)
+        self.assertFalse(result[0])
+        self.assertIn('(lines 3, 4, 5, 6, 7, ...)', result[1])
 
     def test_normal_full_export_is_unchanged(self):
         with tempfile.TemporaryDirectory() as tmp:
