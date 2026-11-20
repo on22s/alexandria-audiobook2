@@ -171,7 +171,8 @@ class NamingTransactionTests(unittest.TestCase):
                 self.assertTrue((models/NAMING_PUBLICATION_JOURNAL).is_file())
                 for _ in range(2):
                     result = subprocess.run([sys.executable, str(SCRIPT), '--manifest',str(models/'manifest.json'),
-                                             '--models-dir',str(models),'--recover'], capture_output=True, text=True, timeout=10)
+                                             '--models-dir',str(models),'--recover'], capture_output=True, text=True,
+                                             encoding='utf-8', errors='replace', timeout=10)
                     self.assertEqual(0, result.returncode, result.stderr)
                 if point == 'committed':
                     named = json.loads((models/'manifest.json').read_text())
@@ -358,7 +359,8 @@ class NamingTransactionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             models,_rows=self.fixture(Path(tmp))
             result=subprocess.run([sys.executable,'-S',str(SCRIPT),'--manifest',str(models/'manifest.json'),
-                                   '--models-dir',str(models),'--apply'],capture_output=True,text=True,timeout=10)
+                                   '--models-dir',str(models),'--apply'],capture_output=True,text=True,
+                                   encoding='utf-8',errors='replace',timeout=10)
             self.assertEqual(0,result.returncode,result.stderr)
             self.assertTrue((models/'manifest.json.bak').is_file())
             self.assertEqual(3,len(json.loads((models/'manifest.json').read_text())))

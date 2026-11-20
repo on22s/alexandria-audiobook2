@@ -29,7 +29,8 @@ def execute_payload(payload):
         result = subprocess.run(
             [payload["python"], payload["script"], "--manifest", manifest_path,
              "--models-dir", models_dir, "--apply"],
-            capture_output=True, text=True, timeout=60, check=False)
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=60, check=False)
         elapsed = time.monotonic() - started
         if result.returncode:
             raise RuntimeError(result.stderr.strip() or result.stdout.strip())

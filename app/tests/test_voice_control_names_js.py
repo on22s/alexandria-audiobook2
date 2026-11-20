@@ -31,7 +31,8 @@ a=s.indexOf('function getSavedAdapterOption(');vm.runInContext(s.slice(a,s.index
 a=s.indexOf('function getVoiceReviewButtonsMarkup(');vm.runInContext(s.slice(a,s.indexOf('function createVoiceCard(',a)),c);
 a=s.indexOf('function createVoiceCard(');vm.runInContext(s.slice(a,s.indexOf('// Suggest members',a)),c);
 console.log(JSON.stringify(c.createVoiceCard({name:JSON.parse(process.argv[2]),config:{type:'clone',ref_audio:'clip.wav',voice:'Ryan'},traits:{states:[{},{}]}},4)));'''
-        result = subprocess.run(['node', '-e', script, str(SOURCE), json.dumps(name)], text=True, capture_output=True, timeout=15)
+        result = subprocess.run(['node', '-e', script, str(SOURCE), json.dumps(name)], text=True, capture_output=True,
+                                encoding='utf-8', errors='replace', timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
         parser = Controls()
         parser.feed(json.loads(result.stdout))
@@ -58,7 +59,8 @@ load('function escapeHtml(','// Parse a numeric input');load('function openCastS
 load('function _renderCastMatchRows(','// Apply a cast to the current book');load('function ensembleMembersMarkup(','window.toggleVoiceType =');
 c.openCastSave();const save=panel.innerHTML;const apply=c._renderCastMatchRows([{character:name,line_count:30,match:{key:'member',exact:true}}],[{key:'member',name,source:'cast'}]);
 console.log(JSON.stringify(save+'<table>'+apply+'</table>'+c.ensembleMembersMarkup('GROUP',[name])));'''
-        result = subprocess.run(['node','-e',script,str(SOURCE),json.dumps(name)],text=True,capture_output=True,timeout=15)
+        result = subprocess.run(['node','-e',script,str(SOURCE),json.dumps(name)],text=True,capture_output=True,
+                                encoding='utf-8',errors='replace',timeout=15)
         self.assertEqual(result.returncode,0,result.stderr)
         parser = Controls()
         parser.feed(json.loads(result.stdout))
@@ -76,7 +78,8 @@ console.log(JSON.stringify(save+'<table>'+apply+'</table>'+c.ensembleMembersMark
         name = 'RUDY "< & 日本語\'s'
         script = r'''const fs=require('fs'),vm=require('vm');const core=fs.readFileSync(process.argv[1],'utf8'),source=fs.readFileSync(process.argv[2],'utf8'),voice=JSON.parse(process.argv[3]);const elements={};const c={window:{},console,document:{getElementById:id=>elements[id]||(elements[id]={})},API:{get:async()=>[voice]}};vm.createContext(c),vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'),c);c.t=c.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),c.formatUiSafetyText=c.formatUiSafetyText||((key,english,values=Object())=>c.t(key,english,values)),c.tSafety=c.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',c.t(key,english,values)],['secondary',null]]));let a=core.indexOf('function escapeHtml(');vm.runInContext(core.slice(a,core.indexOf('// Parse a numeric input',a)),c);a=source.indexOf('async function loadDesignedVoices()');vm.runInContext(source.slice(a,source.indexOf('function getDesignerFormSnapshot()',a)),c);c.loadDesignedVoices().then(()=>console.log(JSON.stringify(elements['designed-voices-list'].innerHTML))).catch(e=>{console.error(e);process.exitCode=1;});'''
         voice = {'id':name, 'name':name, 'filename':name+'.wav', 'description':'description'}
-        result = subprocess.run(['node','-e',script,str(SOURCE),str(SOURCE.with_name('app-scripts.js')),json.dumps(voice)],capture_output=True,text=True,timeout=15)
+        result = subprocess.run(['node','-e',script,str(SOURCE),str(SOURCE.with_name('app-scripts.js')),json.dumps(voice)],capture_output=True,text=True,
+                                encoding='utf-8',errors='replace',timeout=15)
         self.assertEqual(0,result.returncode,result.stderr)
         parser = Controls()
         parser.feed(json.loads(result.stdout))
@@ -91,9 +94,10 @@ console.log(JSON.stringify(save+'<table>'+apply+'</table>'+c.ensembleMembersMark
 
     def test_stop_preview_control_dispatches_native_pause_without_deleting_media(self):
         parser = Controls()
-        parser.feed((SOURCE.parent.parent / 'index.html').read_text())
+        parser.feed((SOURCE.parent.parent / 'index.html').read_text(encoding='utf-8'))
         actions = [a for tag,a in parser.controls if tag=='button' and a.get('onclick')=='stopDesignedVoicePlayback()']
         self.assertEqual(1,len(actions))
         script = r'''const fs=require('fs'),vm=require('vm'),assert=require('assert'),s=fs.readFileSync(process.argv[1],'utf8');const saved={src:'saved.wav',pause(){this.pauses=(this.pauses||0)+1;}},preview={src:'preview.wav',pause(){this.pauses=(this.pauses||0)+1;}};const c={window:{_designedPlaybackAudio:saved},document:{getElementById:()=>preview}};vm.createContext(c),vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-i18n.js'),'utf8'),c);let a=s.indexOf('function stopDesignedVoicePlayback(');vm.runInContext(s.slice(a,s.indexOf('function invalidateDesignerWork()',a)),c);vm.runInContext(process.argv[2],c);assert.strictEqual(saved.pauses,1);assert.strictEqual(preview.pauses,1);assert.strictEqual(saved.src,'saved.wav');assert.strictEqual(preview.src,'preview.wav');'''
-        result=subprocess.run(['node','-e',script,str(SOURCE.with_name('app-scripts.js')),actions[0]['onclick']],capture_output=True,text=True,timeout=10)
+        result=subprocess.run(['node','-e',script,str(SOURCE.with_name('app-scripts.js')),actions[0]['onclick']],capture_output=True,text=True,
+                              encoding='utf-8',errors='replace',timeout=10)
         self.assertEqual(0,result.returncode,result.stderr)

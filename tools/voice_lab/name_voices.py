@@ -31,6 +31,7 @@ Pure standard library — no ML dependencies — so it runs under any interprete
 
 import argparse
 import copy
+import io
 import os
 import re
 import sys
@@ -179,7 +180,23 @@ def cmd_verify(manifest):
     return 0
 
 
+def _configure_stdio_encoding():
+    """Emit UTF-8 on a redirected stdout, whatever the host code page is.
+
+    PEP 528 only reconfigures the Windows *console*: a pipe or redirect still
+    inherits the ANSI code page (cp1252). Printing the arrow, the tick marks or
+    an operator's non-ASCII adapter ID would then raise UnicodeEncodeError,
+    which main()'s (OSError, ValueError) handler misreports as "naming refused"
+    (#2122). Use the same UTF-8 wire encoding the Voice Lab reader decodes, on
+    stderr too, so genuine failures keep reporting their cause.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main():
+    _configure_stdio_encoding()
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--manifest", default=DEFAULT_MANIFEST)

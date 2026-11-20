@@ -128,7 +128,7 @@ class RollbackBackupDeletionTests(unittest.TestCase):
         self.assertEqual(409,caught.exception.status_code)
         command=[sys.executable,str(Path(__file__).resolve().parents[2]/'tools/voice_lab/name_voices.py'),
                  '--recover','--models-dir',str(self.root),'--manifest',str(self.manifest)]
-        result=subprocess.run(command,capture_output=True,text=True,timeout=5)
+        result=subprocess.run(command,capture_output=True,text=True,encoding='utf-8',errors='replace',timeout=5)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertIn('committed',result.stdout)
         self.assertIsNone(get_adapter_publication_recovery_command(self.root))
