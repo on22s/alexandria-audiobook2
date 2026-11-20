@@ -1054,8 +1054,12 @@ def build_chapter_filename(template, number, title, ext, padding=2, book_name=""
               "book_name": book_name or "", "series_name": series_name or "",
               "volume_number": str(volume_number or "")}
     name = template or DEFAULT_CHAPTER_TEMPLATE
-    for field, value in values.items():
-        name = name.replace("{" + field + "}", value)
+    # Substitute in one pass over the template only. A later pass over the
+    # accumulated string would re-expand tokens inside inserted titles/names
+    # (e.g. a chapter called "The {book_name} War" becoming "The Dune War").
+    # The callback keeps inserted values literal, including backslashes.
+    token_pattern = r"\{(" + "|".join(re.escape(field) for field in values) + r")\}"
+    name = re.sub(token_pattern, lambda match: values[match.group(1)], name)
     name = secure_filename(re.sub(r"\s+", " ", name).strip(" ._-")) or f"chapter_{number}"
     return f"{name}.{ext}"
 

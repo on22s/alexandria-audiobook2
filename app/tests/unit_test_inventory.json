@@ -2913,6 +2913,7 @@
     , "tests.test_chapter_export.FilenameTemplateTests.test_duplicate_names_are_rejected_before_an_export_can_overwrite_audio"
     , "tests.test_chapter_export.FilenameTemplateTests.test_every_field_and_padding_widths"
     , "tests.test_chapter_export.FilenameTemplateTests.test_filesystem_hostile_titles_cannot_escape_or_break"
+    , "tests.test_chapter_export.FilenameTemplateTests.test_tokens_inside_inserted_values_are_not_re_expanded"
     , "tests.test_chapter_export.FilenameTemplateTests.test_unknown_fields_and_empty_titles_still_yield_a_name"
     , "tests.test_chapter_export.MalformedChapterManifestTests.test_corrupt_previous_rows_render_complete_audio_then_reuse_it"
     , "tests.test_chapter_export.MalformedChapterManifestTests.test_http_listing_and_zip_reject_corrupt_whole_set_without_rewriting_manifest"

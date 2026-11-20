@@ -51,6 +51,26 @@ class FilenameTemplateTests(unittest.TestCase):
         self.assertEqual("02 - chapter 2.mp3", build_chapter_filename("", 2, "", "mp3"))
         self.assertTrue(build_chapter_filename("???", 2, "", "mp3").endswith(".mp3"))
 
+    def test_tokens_inside_inserted_values_are_not_re_expanded(self):
+        # Only the template's own tokens are expanded, in one pass. A known
+        # token that is literal data inside a chapter/book/series name must
+        # stay literal (braces sanitized to underscores) rather than being
+        # replaced by that field's value in a later substitution pass.
+        cases = [
+            ("{chapter_number} - {chapter_name}", 1, "The {book_name} War", "mp3",
+             {"book_name": "Emberfall"}, "01 - The _book_name_ War.mp3"),
+            ("{book_name} {chapter_number}", 2, "x", "wav",
+             {"book_name": "Tales of {series_name}", "series_name": "Z"},
+             "Tales of _series_name_ 02.wav"),
+            ("{series_name} {volume_number} {chapter_number}", 3, "x", "mp3",
+             {"series_name": "The {volume_number}", "volume_number": 7},
+             "The _volume_number_ 7 03.mp3"),
+        ]
+        for template, number, title, ext, kwargs, expected in cases:
+            with self.subTest(template=template, expected=expected):
+                self.assertEqual(expected, build_chapter_filename(
+                    template, number, title, ext, **kwargs))
+
     def test_duplicate_names_are_rejected_before_an_export_can_overwrite_audio(self):
         groups = [("Chapter 1", 0, 0), ("Chapter 2", 1, 1)]
         with self.assertRaisesRegex(ValueError, "duplicate filenames"):
