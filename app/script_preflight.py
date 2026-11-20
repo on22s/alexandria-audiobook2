@@ -462,76 +462,122 @@ def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None
     return findings
 
 
-# A single short quoted term can be duplicated at a split seam: the model
-# emits it inside the surrounding narration and again as its own narrator
-# entry. The adjacent-block check cannot see one repeated entry, and at book
-# chunk size the recall/trigram/ratio metrics barely move. Only whole-token
-# phrases this short are candidate seam fragments; longer narration is the
-# adjacent-block check's job and must not be re-judged here.
+# A quoted lexical term can be copied at a split seam in three shapes: its own
+# short narrator row, the head of the following narrator row, or twice inside
+# one narrator row. The adjacent-block check cannot see a short copy, and at
+# book chunk size the recall/trigram/ratio metrics barely move. Candidate
+# phrases come from source provenance (bracketed reference terms and lexical
+# quote regions) plus bounded narrator seam fragments, so this never becomes
+# an unbounded scan of every word phrase in the chunk.
 MAX_SEAM_DUPLICATE_WORDS = 10
 MAX_SEAM_DUPLICATE_CHARS = 120
+MAX_SEAM_DUPLICATE_CANDIDATES = 128
+_BRACKETED_TERM = re.compile(r"\[([^\[\]\n]{1,80})\]")
+# Quoted reference terms are lexical-quote evidence too. Scan only the short
+# paired-quote contents: dialogue rows are excluded from the finding, so this
+# cannot turn a repeated spoken line into a narration duplicate.
+_QUOTED_TERM = re.compile(r'["“「『«]([^"”」』»\n]{1,80})["”」』»]')
 
 
-def find_seam_duplicate_narration(source_text, entries, *, source_normalized=None,
-                                  count_phrase=None):
-    """Find a short narration entry that repeats a phrase at a split seam.
+def _is_narration_row(entry):
+    if not isinstance(entry, dict):
+        return False
+    role = str(entry.get("speaker") or entry.get("type") or "")
+    return not role or role.casefold() in {"narrator", "narration"}
+
+
+def _phrase_near_edge(words, phrase_words, side):
+    """Whole-phrase match within the bounded window of an entry edge."""
+    if not phrase_words or not words:
+        return False
+    region = words[-MAX_SEAM_DUPLICATE_WORDS:] if side == "end" else words[:MAX_SEAM_DUPLICATE_WORDS]
+    size = len(phrase_words)
+    return any(region[i:i + size] == phrase_words for i in range(len(region) - size + 1))
+
+
+def get_seam_duplicate_candidates(source_text, entries, *, quote_analysis=None):
+    """Bounded short phrases grounded in source quotes or narrator row edges."""
+    candidates = []
+
+    def add(value):
+        phrase = _normalize_words(value)
+        if (phrase and phrase not in candidates
+                and len(phrase.split()) <= MAX_SEAM_DUPLICATE_WORDS
+                and len(phrase) <= MAX_SEAM_DUPLICATE_CHARS
+                and len(candidates) < MAX_SEAM_DUPLICATE_CANDIDATES):
+            candidates.append(phrase)
+
+    for match in _BRACKETED_TERM.finditer(str(source_text or "")):
+        add(match.group(1))
+    for match in _QUOTED_TERM.finditer(str(source_text or "")):
+        add(match.group(1))
+    for region in (quote_analysis or {}).get("regions", []):
+        if region.get("quote_role") and region.get("type") == "NARRATOR":
+            add(region.get("text"))
+    for entry in entries:
+        if not _is_narration_row(entry):
+            continue
+        words = _normalize_words(entry.get("text")).split()
+        if words:
+            add(" ".join(words[:MAX_SEAM_DUPLICATE_WORDS]))
+            add(" ".join(words[-MAX_SEAM_DUPLICATE_WORDS:]))
+    return candidates
+
+
+def find_seam_duplicate_narration(source_text, entries, *, quote_analysis=None,
+                                  source_normalized=None, count_phrase=None):
+    """Find a short narration quote copied near a split, with source support.
 
     Pass 1 sometimes splits a sentence at a quoted lexical term (a title, a
-    skill, a name) and emits that term a second time as its own NARRATOR entry,
-    often with the neighbouring punctuation copied too. Unlike a duplicated
-    block, this is one short entry, so ``find_adjacent_duplicate_blocks``
-    starts too late to see it; and because a chunk holds thousands of words,
-    the aggregate fidelity metrics stay clean and let it into the final
-    script (issue #2143).
+    skill, a name) and emits that term a second time: as its own NARRATOR row,
+    at the head of the next row, or twice inside one row. ``find_adjacent_
+    duplicate_blocks`` starts at two repeated rows and the aggregate fidelity
+    metrics stay clean at chunk size, so none of them see the extra copy
+    (issue #2143).
 
-    The decision is provenance, not length alone: count whole-token
-    occurrences in the source and in the emitted output and reject only a
-    strictly greater output count. A phrase the source itself repeats that
-    many times is faithful transcription and is left alone, so legitimately
-    repeated source quotes are never removed. Dialogue entries (SPOKEN or a
-    character speaker) are excluded: their contained-quote provenance is
-    checked by ``find_contained_source_duplicates``.
+    Candidates are short phrases with verified source provenance, not every
+    word in the output. A finding needs both a locally duplicated shape and a
+    strictly greater whole-token output count than the source. A phrase the
+    source itself repeats that many times is faithful transcription and is
+    left alone. Dialogue rows (SPOKEN or a character speaker) are excluded:
+    their contained-quote provenance is ``find_contained_source_duplicates``'s
+    job. No fidelity threshold is changed here.
     """
     if source_normalized is None:
         source_normalized = _normalize_words(source_text)
     count_phrase = count_phrase or get_source_phrase_counter(source_normalized)
     texts = [_normalize_words(entry.get("text")) if isinstance(entry, dict) else ""
              for entry in entries]
+    narration = [_is_narration_row(entry) for entry in entries]
+    word_lists = [text.split() for text in texts]
     findings = []
-    for index, text in enumerate(texts):
-        words = text.split()
-        if not words or len(words) > MAX_SEAM_DUPLICATE_WORDS:
-            continue
-        if len(text) > MAX_SEAM_DUPLICATE_CHARS:
-            continue
-        role = str(entries[index].get("speaker") or entries[index].get("type") or "")
-        if role and role.casefold() not in {"narrator", "narration"}:
-            continue
-        previous = texts[index - 1] if index else ""
-        following = texts[index + 1] if index + 1 < len(texts) else ""
-        after_previous = bool(previous) and (previous == text or previous.endswith(" " + text))
-        before_following = bool(following) and (following == text or following.startswith(text + " "))
-        if not (after_previous or before_following):
-            continue
-        source_count = count_phrase(text)
+    for phrase in get_seam_duplicate_candidates(source_text, entries,
+                                                quote_analysis=quote_analysis):
+        source_count = count_phrase(phrase)
         if source_count < 1:
             # No verified source correspondence: abstain rather than invent
             # a duplicate verdict from a phrase the source cannot confirm.
             continue
-        emitted = sum(get_source_phrase_occurrences(candidate, text) for candidate in texts)
+        counts = [get_source_phrase_occurrences(text, phrase) if narration[i] else 0
+                  for i, text in enumerate(texts)]
+        emitted = sum(counts)
         if emitted <= source_count:
             continue
-        neighbors = []
-        if after_previous:
-            neighbors.append(index)
-        if before_following:
-            neighbors.append(index + 2)
+        phrase_words = phrase.split()
+        numbers = {number for number, count in enumerate(counts, 1) if count >= 2}
+        for index in range(len(texts) - 1):
+            if (counts[index] and counts[index + 1]
+                    and _phrase_near_edge(word_lists[index], phrase_words, "end")
+                    and _phrase_near_edge(word_lists[index + 1], phrase_words, "start")):
+                numbers.update((index + 1, index + 2))
+        if not numbers:
+            continue
         findings.append(_finding(
             "blocking", "seam_duplicate_narration",
-            "A short narration quote is emitted twice at a split seam; the "
-            "source does not carry the extra copy.",
-            sorted({index + 1, *neighbors}),
-            phrase=text, source_occurrences=source_count, output_occurrences=emitted))
+            "A short narration quote is copied near a split seam or inside "
+            "one entry; the source does not carry the extra copy.",
+            sorted(numbers),
+            phrase=phrase, source_occurrences=source_count, output_occurrences=emitted))
     return findings
 
 

@@ -668,6 +668,97 @@ class PassOneSeamDuplicateTests(unittest.TestCase):
         self.assertIn(3, finding["entry_numbers"])
         self.assertEqual("silver knight", finding["details"]["phrase"])
 
+    def test_embedded_copy_at_next_entry_head_is_rejected(self):
+        source = (self.FILLER
+                  + "At the gate stood the [Silver Knight]. He waited there quietly.")
+        entries = [
+            _seg(self.FILLER.strip()),
+            _seg("At the gate stood the [Silver Knight]."),
+            _seg("Silver Knight. He waited there quietly."),
+        ]
+        report = self._report(source, entries)
+        self.assertGreaterEqual(report["metrics"]["ordered_trigram_recall"], 0.99)
+        self.assertLessEqual(report["metrics"]["output_source_ratio"], 1.01)
+        finding = next(f for f in report["findings"]
+                       if f["code"] == "source_unsupported_duplicate")
+        self.assertEqual("silver knight", finding["details"]["phrase"])
+        self.assertEqual({2, 3}, set(finding["entry_numbers"]))
+
+    def test_repeated_quote_inside_one_entry_is_rejected(self):
+        source = (self.FILLER
+                  + "At the gate stood the [Silver Knight]. He waited there quietly.")
+        entries = [
+            _seg(self.FILLER.strip()),
+            _seg("At the gate stood the [Silver Knight] [Silver Knight]. "
+                 "He waited there quietly."),
+        ]
+        report = self._report(source, entries)
+        self.assertGreaterEqual(report["metrics"]["ordered_trigram_recall"], 0.99)
+        self.assertLessEqual(report["metrics"]["output_source_ratio"], 1.01)
+        finding = next(f for f in report["findings"]
+                       if f["code"] == "source_unsupported_duplicate")
+        self.assertEqual("silver knight", finding["details"]["phrase"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(2, finding["details"]["output_occurrences"])
+        self.assertEqual([2], finding["entry_numbers"])
+
+    def test_faithful_source_repeat_with_same_seam_shape_is_accepted(self):
+        # The source itself repeats the term at the seam; the output carries
+        # exactly that many copies, so the triggering shape is not a defect.
+        source = (self.FILLER
+                  + "At the gate stood the [Silver Knight]. "
+                    "[Silver Knight] waited there quietly.")
+        entries = [
+            _seg(self.FILLER.strip()),
+            _seg("At the gate stood the [Silver Knight]."),
+            _seg("Silver Knight waited there quietly."),
+        ]
+        report = self._report(source, entries)
+        self.assertTrue(report["passed"], report["findings"])
+
+    def test_faithful_source_repeat_inside_one_entry_is_accepted(self):
+        source = (self.FILLER
+                  + "At the gate stood the [Silver Knight] [Silver Knight]. "
+                    "He waited there quietly.")
+        entries = [
+            _seg(self.FILLER.strip()),
+            _seg("At the gate stood the [Silver Knight] [Silver Knight]. "
+                 "He waited there quietly."),
+        ]
+        report = self._report(source, entries)
+        self.assertTrue(report["passed"], report["findings"])
+
+    def test_ordinary_dialogue_is_not_treated_as_a_lexical_copy(self):
+        source = 'He said "Go now." Then he said "Come back." She left.'
+        entries = [
+            _seg("He said", "NARRATOR"),
+            _seg("Go now.", "SPOKEN"),
+            _seg("Then he said", "NARRATOR"),
+            _seg("Come back.", "SPOKEN"),
+            _seg("She left.", "NARRATOR"),
+        ]
+        report = self._report(source, entries)
+        self.assertTrue(report["passed"], report["findings"])
+
+    def test_lexical_quote_region_from_analysis_is_a_candidate(self):
+        source = (self.FILLER
+                  + "They called him the \u201cSilver Knight\u201d. He waited there quietly.")
+        analysis = {"regions": [
+            {"type": "NARRATOR", "text": "the \u201cSilver Knight\u201d",
+             "quote_role": "LEXICAL_QUOTE"},
+        ]}
+        entries = [
+            _seg(self.FILLER.strip()),
+            _seg("They called him the \u201cSilver Knight\u201d."),
+            _seg("Silver Knight. He waited there quietly."),
+        ]
+        report = validate_segment_quality(source, entries, quote_analysis=analysis,
+                                          **self.GATE)
+        self.assertFalse(report["passed"])
+        finding = next(f for f in report["findings"]
+                       if f["code"] == "source_unsupported_duplicate")
+        self.assertEqual("silver knight", finding["details"]["phrase"])
+
     def test_legitimately_repeated_source_quote_is_accepted(self):
         source = " ".join(["The [Silver Knight] waited."] * 4)
         entries = [_seg("The [Silver Knight] waited. " * 4)]

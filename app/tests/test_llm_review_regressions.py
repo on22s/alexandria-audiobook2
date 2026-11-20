@@ -1432,6 +1432,31 @@ class ReviewMetadataOmissionTests(unittest.TestCase):
         return [{key: row[key] for key in ("speaker", "text", "instruct")}
                 for row in entries]
 
+    def test_production_review_entry_point_restores_omitted_keys(self):
+        """Verify the conclusion through review_script.main(), not just a helper.
+
+        The raw model reply omits every extra key; the persisted script must
+        still carry the original metadata. Only the stub client and the
+        pre-existing run_review harness are substituted.
+        """
+        original = self._entries()
+        real_review_batch = review_script.review_batch
+        reply = json.dumps(self._bare(original))
+        stub = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+            create=lambda **_kwargs: SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=reply), finish_reason="stop")], usage=None))))
+
+        def review(_client, model, batch, *args, **kwargs):
+            return real_review_batch(stub, model, batch, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "script.json")
+            path.write_text(json.dumps(original))
+            ReviewVramTests.run_review(
+                self, path, [True, True, True], review,
+                MagicMock(return_value=({}, 0, [])))
+            self.assertEqual(original, json.loads(path.read_text()))
+
     def test_omitted_extra_keys_are_restored_for_every_entry(self):
         original = self._entries()
         bound, quality = review_script.get_review_source_binding(

@@ -445,7 +445,7 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
     return findings, "ran"
 
 
-def _introduced_character_findings(source_text, output_text, entries):
+def _introduced_character_findings(source_text, output_text, entries, quote_analysis=None):
     """Mirror the single-pass gate's introduced-character + adjacent-duplicate
     checks so pass 1 has the same fidelity bar (unsupported_cyrillic,
     unsupported_unicode_character, source_unsupported_duplicate). Text-only, so
@@ -474,7 +474,8 @@ def _introduced_character_findings(source_text, output_text, entries):
             findings.append({"code": "source_unsupported_duplicate",
                              "entry_numbers": duplicate["entry_numbers"],
                              "message": "An adjacent repeated block is not repeated in the source."})
-    for duplicate in find_seam_duplicate_narration(source_text, entries):
+    for duplicate in find_seam_duplicate_narration(source_text, entries,
+                                                   quote_analysis=quote_analysis):
         if duplicate["severity"] == "blocking":
             findings.append({"code": "source_unsupported_duplicate",
                              "entry_numbers": duplicate["entry_numbers"],
@@ -548,7 +549,8 @@ def validate_segment_quality(source_text, entries, quote_analysis=None, *,
         quoted_must_be_spoken=quoted_must_be_spoken,
         unquoted_must_be_narrator=unquoted_must_be_narrator)
     findings.extend(quote_findings)
-    findings.extend(_introduced_character_findings(source_text, output_text, entries))
+    findings.extend(_introduced_character_findings(source_text, output_text, entries,
+                                                    quote_analysis=quote_analysis))
     report = _report(sc, oc, recall, trigram, ratio, findings,
                      quote_gate=quote_gate)
     report["missing_source_spans"] = missing_runs
