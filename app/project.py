@@ -115,6 +115,20 @@ CHAPTER_SELECTION_AUDIO_ERROR = (
     "Some chapter audio could not be decoded. Repair the affected clips before exporting selected chapters.")
 
 
+def get_skipped_chapter_lines(chunks, first, last, pairs):
+    """1-based line numbers of admitted rows a chapter's decoder dropped.
+
+    ``_load_chunks_with_audio`` only returns a skipped count; the skipped rows
+    are the chapter's chunks that did not survive into ``pairs``. Comparing the
+    object identities is free (no second decode) and lets a refusal name lines
+    without ever echoing a host path.
+    """
+    loaded = {id(chunk) for chunk, _ in pairs}
+    return [str(position + 1)
+            for position, chunk in enumerate(chunks[first:last + 1], start=first)
+            if id(chunk) not in loaded]
+
+
 class ChunkTargetMissingError(LookupError):
     """A captured publication target disappeared before its locked update."""
 
@@ -3437,7 +3451,14 @@ class ProjectManager:
             elif index in wanted:
                 pairs, skipped = get_pairs(first, last)
                 if skipped or not pairs:
-                    return None
+                    lines = get_skipped_chapter_lines(chunks, first, last, pairs)
+                    where = ""
+                    if lines:
+                        word = "lines" if len(lines) > 1 else "line"
+                        shown = ", ".join(lines[:5]) + (", ..." if len(lines) > 5 else "")
+                        where = f" ({word} {shown})"
+                    return False, (f"Chapter {plan['number']} has missing or corrupt audio "
+                                   f"that could not be decoded{where}; regenerate it before exporting.")
                 try:
                     # get_chapter_audio always assembles the whole chapter, so
                     # the same finite ceiling applies before any trimmed copy
@@ -3487,7 +3508,8 @@ class ProjectManager:
                     return False, (f"Chapter {plan['number']} has an invalid or unverified retained output; "
                                    "select it for export or export all chapters to rebuild its independent frame proof.")
                 if durations is None:
-                    return None
+                    return False, (f"Chapter {plan['number']} has no retained export and no computed "
+                                   "duration; export all chapters to rebuild the chapter manifest.")
                 row, duration = None, durations[position]
             if row is not None:
                 row["duration_ms"] = duration
