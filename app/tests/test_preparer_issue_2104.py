@@ -55,7 +55,7 @@ class PreparerPathRedactionTests(unittest.TestCase):
         self.assertNotIn(HOST_PATH, error.detail)
         self.assertNotIn("not found", error.detail)
 
-    def test_invalid_config_detail_hides_the_pydantic_echoed_path(self):
+    def test_invalid_config_detail_names_the_field_and_reason_without_the_path(self):
         bad_config = json.dumps({"audio_filename": "a.wav", "chunk_size": HOST_PATH + "/model.gguf"})
         with self.assertRaises(core.AppError) as raised:
             asyncio.run(preparer.preparer_start(
@@ -63,16 +63,42 @@ class PreparerPathRedactionTests(unittest.TestCase):
         error = raised.exception
         self.assertEqual(422, error.status_code)
         self.assertEqual("error.preparer.invalid_config", error.message_key)
+        self.assertIn("chunk_size", error.detail)
+        self.assertIn("valid number", error.detail)
         self.assertNotIn(HOST_PATH, error.detail)
+        self.assertNotIn(HOST_PATH, str(error.message_values))
 
-    def test_batch_invalid_config_detail_hides_the_pydantic_echoed_path(self):
-        bad_config = json.dumps({"tasks": [], "chunk_size": HOST_PATH + "/model.gguf"})
+    def test_batch_invalid_config_detail_names_the_field_and_reason_without_the_path(self):
+        bad_config = json.dumps({
+            "tasks": [{"audio_filename": "a.wav", "output_filename": "o.zip"}],
+            "min_confidence": HOST_PATH + "/model.gguf",
+        })
         with self.assertRaises(core.AppError) as raised:
-            asyncio.run(preparer.preparer_batch_upload_start(BackgroundTasks(), config_json=bad_config))
+            asyncio.run(preparer.preparer_batch_upload_start(
+                BackgroundTasks(), config_json=bad_config, audio_files=[]))
         error = raised.exception
         self.assertEqual(422, error.status_code)
         self.assertEqual("error.preparer.invalid_config", error.message_key)
+        self.assertIn("min_confidence", error.detail)
+        self.assertIn("valid number", error.detail)
         self.assertNotIn(HOST_PATH, error.detail)
+        self.assertNotIn(HOST_PATH, str(error.message_values))
+
+    def test_invalid_config_http_body_names_field_and_reason_but_no_path(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        bad_config = json.dumps({"audio_filename": "a.wav", "chunk_size": HOST_PATH + "/model.gguf"})
+        api = FastAPI()
+        api.include_router(preparer.router)
+        api.add_exception_handler(core.AppError, core.handle_app_error)
+        with TestClient(api) as client:
+            response = client.post("/api/preparer/start", data={"config_json": bad_config})
+        self.assertEqual(422, response.status_code, response.text)
+        self.assertNotIn(HOST_PATH, response.text)
+        self.assertIn("chunk_size", response.text)
+        self.assertIn("valid number", response.text)
+        self.assertEqual("error.preparer.invalid_config", response.json()["message_key"])
 
     def test_zip_publication_detail_hides_the_archive_path(self):
         with tempfile.TemporaryDirectory() as root:
@@ -96,6 +122,7 @@ class PreparerPathRedactionTests(unittest.TestCase):
                     if locale != "en":
                         self.assertNotEqual(payload["_meta"].get("locale"), "en")
                         self.assertNotIn(HOST_PATH, payload[key])
+                self.assertIn("{detail}", payload["error.preparer.invalid_config"])
 
 
 if __name__ == "__main__":

@@ -1312,7 +1312,7 @@
   "error.voice.busy": "El libro o las voces están ocupados; inténtalo de nuevo.",
   "error.voice.config_busy": "La configuración de voces está ocupada (bloqueada por otra operación); inténtalo de nuevo.",
   "error.voice.version_applied": "La versión de voz está aplicada; selecciona otra versión base o borra primero sus puntos de la línea de tiempo.",
-  "error.preparer.invalid_config": "La configuración del preparador no es válida; revisa tus ajustes e inténtalo de nuevo.",
+  "error.preparer.invalid_config": "La configuración del preparador no es válida: {detail}. Revisa tus ajustes e inténtalo de nuevo.",
   "error.preparer.missing_runtime": "El preparador necesita un intérprete con torch y llama-cpp; vuelve a ejecutar Install para crear preparer_env.",
   "error.preparer.missing_script": "El preparador no está instalado; vuelve a ejecutar Install.",
   "error.preparer.zip_unavailable": "No se pudo publicar el ZIP del conjunto de datos de forma segura; revisa el registro del servidor e inténtalo de nuevo.",

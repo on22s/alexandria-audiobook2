@@ -1680,7 +1680,7 @@
   "error.manual_llm.no_pending_request": "No request is waiting for a reply.",
   "error.manual_llm.pending_corrupt": "The manual LLM request file manual_llm/pending.json in the data directory is corrupt. Cancel the manual request (or restart the app), then delete or rename this file before trying again.",
   "error.manual_llm.pending_read_failed": "The pending manual LLM request could not be read. Try again.",
-  "error.preparer.invalid_config": "Preparer configuration is invalid; check your settings and try again.",
+  "error.preparer.invalid_config": "Preparer configuration is invalid: {detail}. Check your settings and try again.",
   "error.preparer.missing_runtime": "Preparer needs an interpreter with torch and llama-cpp; re-run Install to create preparer_env.",
   "error.preparer.missing_script": "Preparer is not installed; re-run Install.",
   "error.preparer.zip_unavailable": "The dataset ZIP could not be published safely; check the server log and retry.",

@@ -32,6 +32,7 @@ from core import (
     process_state,
 )
 from utils import secure_filename
+from diagnostics import redact_text
 from preparer_numeric_settings import (validate_preparer_numeric_booleans,
                                        validate_preparer_numeric_settings)
 from preparer_enrichment_settings import validate_preparer_enrichment_settings
@@ -63,6 +64,25 @@ def _reject_nul_filename(value: str, detail: str = "Invalid filename.") -> str:
     if "\0" in value:
         raise HTTPException(status_code=400, detail=detail)
     return value
+
+
+def _get_preparer_config_error_detail(error: Exception) -> str:
+    """Summarise a config validation failure without echoing rejected input.
+
+    Pydantic's ``errors()`` includes the offending ``input`` and ``ctx`` can
+    embed it too, so only ``loc`` (the field) and ``msg`` (the reason) are used.
+    ``redact_text`` is a final belt-and-braces pass over the assembled summary.
+    """
+    errors = error.errors(include_input=False) if hasattr(error, "errors") else []
+    parts = []
+    for item in errors:
+        loc = ".".join(str(part) for part in item.get("loc", ()) if part != "__root__")
+        msg = str(item.get("msg", "")).strip()
+        if loc and msg:
+            parts.append(f"{loc}: {msg}")
+        elif msg:
+            parts.append(msg)
+    return redact_text("; ".join(parts)) if parts else "malformed configuration"
 
 
 class _PreparerZipResponse(FileResponse):
@@ -266,12 +286,14 @@ async def preparer_start(
         config = PreparerConfig(**json.loads(config_json))
     except Exception as e:
         # Pydantic echoes the offending input, which may be an absolute host
-        # path. Keep it in the log, never in the HTTP body.
+        # path. Keep that in the log; the body gets only field + reason.
+        detail = _get_preparer_config_error_detail(e)
         logger.warning("Invalid preparer config: %s", e)
         raise AppError(
             422,
-            "Preparer configuration is invalid; check your settings and try again.",
+            f"Preparer configuration is invalid: {detail}. Check your settings and try again.",
             key="error.preparer.invalid_config",
+            values={"detail": detail},
         ) from e
     if config.skip_annotation:
         raise HTTPException(status_code=400, detail="Skip annotation is not implemented.")
@@ -538,11 +560,13 @@ async def preparer_batch_upload_start(
     except (TypeError, ValueError) as exc:
         # Same redaction as the single-book route: validation errors can echo
         # absolute paths supplied in the config.
+        detail = _get_preparer_config_error_detail(exc)
         logger.warning("Invalid batch preparer config: %s", exc)
         raise AppError(
             422,
-            "Preparer configuration is invalid; check your settings and try again.",
+            f"Preparer configuration is invalid: {detail}. Check your settings and try again.",
             key="error.preparer.invalid_config",
+            values={"detail": detail},
         ) from exc
     return await _start_preparer_batch(request, background_tasks, audio_files or [])
 

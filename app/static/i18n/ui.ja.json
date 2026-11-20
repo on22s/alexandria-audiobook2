@@ -1312,7 +1312,7 @@
   "error.voice.busy": "本または声が使用中です。もう一度お試しください。",
   "error.voice.config_busy": "声の設定が使用中です（別の操作がロックしています）。もう一度お試しください。",
   "error.voice.version_applied": "この声のバージョンは適用済みです。別のベースバージョンを選ぶか、先にタイムラインのポイントを解除してください。",
-  "error.preparer.invalid_config": "プリペアラの設定が無効です。設定を確認してからもう一度お試しください。",
+  "error.preparer.invalid_config": "プリペアラの設定が無効です：{detail}。設定を確認してからもう一度お試しください。",
   "error.preparer.missing_runtime": "プリペアラには torch と llama-cpp を備えたインタプリタが必要です。Install を再実行して preparer_env を作成してください。",
   "error.preparer.missing_script": "プリペアラがインストールされていません。Install を再実行してください。",
   "error.preparer.zip_unavailable": "データセット ZIP を安全に公開できませんでした。サーバーログを確認して再試行してください。",

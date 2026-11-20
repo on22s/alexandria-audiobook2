@@ -9872,8 +9872,9 @@
     , "tests.test_preparer_issue_2101.PreparerOutputCollisionTests.test_two_batch_outputs_differing_only_in_case_get_distinct_names_on_windows"
   ]
   , "test_preparer_issue_2104": [
-    "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_batch_invalid_config_detail_hides_the_pydantic_echoed_path"
-    , "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_invalid_config_detail_hides_the_pydantic_echoed_path"
+    "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_batch_invalid_config_detail_names_the_field_and_reason_without_the_path"
+    , "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_invalid_config_detail_names_the_field_and_reason_without_the_path"
+    , "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_invalid_config_http_body_names_field_and_reason_but_no_path"
     , "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_missing_runtime_detail_hides_preparer_env_and_rocm_python"
     , "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_missing_script_detail_is_static_and_keyed"
     , "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_new_error_keys_ship_in_all_four_catalogs"
