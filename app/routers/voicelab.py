@@ -158,8 +158,9 @@ def _probe_voicelab_interpreter(rocm_python: str, device: str = "auto") -> dict:
     """Read Torch/device/dependency state from the interpreter that will run ML stages.
 
     An explicit cuda:N is passed to the subprocess as a validated integer argv
-    so mem_get_info measures that GPU. 'cuda'/'auto' keep the unindexed call
-    (the current device), exactly as before.
+    so mem_get_info and get_device_name both use that GPU. An index at or above
+    device_count is reported rather than raising inside the probe. 'cuda'/'auto'
+    keep the unindexed calls (the current device), exactly as before.
     """
     from review_startup import record_failure
     normalized = normalize_device(device)
@@ -168,12 +169,16 @@ def _probe_voicelab_interpreter(rocm_python: str, device: str = "auto") -> dict:
         "import importlib.util,json,sys,torch; "
         "idx=int(sys.argv[1]) if len(sys.argv)>1 else -1; "
         "ok=torch.cuda.is_available(); "
+        "index_ok=True if not ok else (idx<0 or idx<torch.cuda.device_count()); "
         "mps=bool(getattr(getattr(torch,'backends',None),'mps',None) and torch.backends.mps.is_available()); "
+        "gpu=(torch.cuda.get_device_name(idx if idx>=0 else 0) if index_ok else None) "
+        "if ok else ('Apple MPS' if mps else None); "
+        "vram=((torch.cuda.mem_get_info(idx) if idx>=0 else torch.cuda.mem_get_info()) "
+        "if index_ok else None) if ok else None; "
         "print(json.dumps({'python':__import__('sys').version.split()[0],"
         "'torch':torch.__version__,'hip':getattr(torch.version,'hip',None),"
-        "'cuda_available':ok,'mps_available':mps,"
-        "'gpu':torch.cuda.get_device_name(0) if ok else ('Apple MPS' if mps else None),"
-        "'vram':(torch.cuda.mem_get_info(idx) if idx>=0 else torch.cuda.mem_get_info()) if ok else None,"
+        "'cuda_available':ok,'mps_available':mps,'device_index_ok':index_ok,"
+        "'gpu':gpu,'vram':vram,"
         "'deps':{n:importlib.util.find_spec(n) is not None for n in "
         "['speechbrain','librosa','peft','llama_cpp']}}))")
     try:
@@ -339,6 +344,7 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
     vram = probe.get("vram") or []
     free_vram_gb = vram[0] / 1024 ** 3 if len(vram) == 2 else None
     cuda_available = probe.get("cuda_available", bool(probe.get("gpu")))
+    device_index_ok = probe.get("device_index_ok", True)
     mps_available = probe.get("mps_available", False)
     available = (requested_device == "cpu" or
                  requested_device == "auto" and (cuda_available or mps_available) or
@@ -348,6 +354,8 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
         free_vram_gb = None
     if needs_rocm and not available:
         finding(blockers, "gpu_unavailable", "The selected interpreter cannot see the requested GPU backend.")
+    elif needs_rocm and not device_index_ok:
+        finding(blockers, "gpu_unavailable", "Selected CUDA/ROCm device index is unavailable")
     elif "train" in stages and get_training_vram_error(requested_device, free_vram_gb):
         finding(blockers, "vram_low", get_training_vram_error(requested_device, free_vram_gb))
     if request.candidate_checkpoints and request.max_epochs == 1:
@@ -360,7 +368,8 @@ def _build_voicelab_preflight(request: VoiceLabRequest, cfg: dict) -> dict:
               "profiler_model_identity": (get_voicelab_file_identity(profiler_model)
                                           if "profile" in stages and profiler_model else None),
               "torch": probe.get("torch"), "hip": probe.get("hip"), "gpu": probe.get("gpu"),
-              "cuda_available": cuda_available, "mps_available": mps_available,
+              "cuda_available": cuda_available, "device_index_ok": device_index_ok,
+              "mps_available": mps_available,
               "missing_deps": missing_deps, "blockers": [item["code"] for item in blockers],
               "profiler_command": (_build_profiler_command(
                   rocm, profiler_model, cfg.get("epub_dirs") or [], request.device)
