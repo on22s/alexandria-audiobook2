@@ -93,6 +93,13 @@ The Qwen3.8 preflight **passed** on tnr-4 at 06:32Z 2026-09-18 (a 40-step
 adapter served on the Q4_K_M base answered one michel2_full window in contract
 at scale 1.0 and at scale 0.0; `qwen38_adapter_tnr4_20260917.log`), and the
 full 2,540-step training started on that verdict.
+The app's startup adapter check does not enforce this pairing: it confirms only
+that the configured adapter path is served at a valid, positive scale (the
+configured scale is checked for finite and positive too, but the two numbers
+are never compared) and records no prompt identity, so the operator must pair
+each adapter with the exact prompt it was trained on. No
+training change or extra metadata is required
+(`docs/guides/ATTRIBUTION_ADAPTER_SETUP.md`).
 The A3B adapter trains on the A100, not an A6000: Qwen3.6's routed experts are
 fused `nn.Parameter`s that bitsandbytes cannot quantise, so a "4-bit" load
 still holds ~62 GB of bf16 experts.
