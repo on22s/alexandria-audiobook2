@@ -17885,6 +17885,7 @@
     , "tests.test_worker_stdio_encoding.ReviewMarkerTests.test_review_script_prints_every_marker_through_the_helper"
     , "tests.test_worker_stdio_encoding.ReviewMarkerTests.test_the_diff_preview_marker_round_trips_non_ansi_text"
     , "tests.test_worker_stdio_encoding.ReviewMarkerTests.test_the_failed_sections_marker_round_trips_non_ansi_text"
+    , "tests.test_worker_stdio_encoding.VoiceLabNamingPipeTests.test_non_ascii_id_survives_a_legacy_code_page_pipe"
   ]
   , "test_workflow_disclosures": [
     "tests.test_workflow_disclosures.WorkflowDisclosureTests.test_cast_and_recovery_keep_native_disclosures_and_live_targets"

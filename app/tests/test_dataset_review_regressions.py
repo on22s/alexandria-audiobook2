@@ -108,7 +108,8 @@ class DatasetReviewRegressions(unittest.TestCase):
             manifest.write_text(json.dumps([row]))
             script = Path(__file__).resolve().parents[2] / 'tools/voice_lab/name_voices.py'
             result = subprocess.run([sys.executable, str(script), '--models-dir', folder,
-                                     '--manifest', str(manifest), '--apply'], capture_output=True, text=True)
+                                     '--manifest', str(manifest), '--apply'], capture_output=True, text=True,
+                                     encoding='utf-8', errors='replace')
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             renamed = json.loads(manifest.read_text())[0]
             self.assertNotEqual(row['id'], renamed['id'])

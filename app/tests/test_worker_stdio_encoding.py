@@ -13,6 +13,7 @@ Synthetic strings only — no text from any book.
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -157,6 +158,54 @@ class ReviewMarkerTests(unittest.TestCase):
         self.assertIn("_emit_json_marker(REVIEW_FAILURE_MARKER,", source)
         self.assertNotIn("json.dumps(failure_details, ensure_ascii=False)", source)
         self.assertNotIn("json.dumps(diff_highlights, ensure_ascii=False)", source)
+
+
+class VoiceLabNamingPipeTests(unittest.TestCase):
+    """#2122: the naming CLI writes its own free text (the arrow, the tick
+    marks and the operator's adapter IDs) to a pipe. PEP 528 only changes the
+    Windows console, so a redirected stdout keeps the ANSI code page (cp1252)
+    unless the CLI opts into UTF-8 itself. The parent reads that pipe as UTF-8.
+    Synthetic IDs only — no text from any book.
+    """
+
+    NAMING_SCRIPT = Path(__file__).resolve().parents[2] / 'tools/voice_lab/name_voices.py'
+    NON_ASCII_ID = '日本語の声'
+
+    def test_non_ascii_id_survives_a_legacy_code_page_pipe(self):
+        # The reproduction must not be satisfied by changing the arrow to
+        # ASCII: the ID itself is unencodable in cp1252.
+        with self.assertRaises(UnicodeEncodeError):
+            self.NON_ASCII_ID.encode('cp1252')
+
+        with tempfile.TemporaryDirectory() as tmp:
+            models = Path(tmp) / 'models'
+            models.mkdir()
+            row = {'id': self.NON_ASCII_ID, 'dataset_id': self.NON_ASCII_ID,
+                   'name': self.NON_ASCII_ID,
+                   'voice_profile': 'Warm baritone in his 30s; best for fantasy.'}
+            bundle = models / self.NON_ASCII_ID
+            (bundle / 'keep').mkdir(parents=True)
+            (bundle / 'adapter_config.json').write_text('{}')
+            (bundle / 'adapter_model.safetensors').write_bytes(b'synthetic adapter')
+            (bundle / 'training_meta.json').write_text('{}')
+            (bundle / 'ref_sample.wav').write_bytes(b'RIFFsynthetic')
+            (bundle / 'keep' / 'probe.txt').write_text('owned')
+            manifest = models / 'manifest.json'
+            manifest.write_text(json.dumps([row], ensure_ascii=False), encoding='utf-8')
+
+            legacy = dict(os.environ, PYTHONIOENCODING='cp1252', PYTHONUTF8='0')
+            result = subprocess.run(
+                [sys.executable, '-S', str(self.NAMING_SCRIPT), '--manifest', str(manifest),
+                 '--models-dir', str(models), '--apply'],
+                capture_output=True, encoding='utf-8', errors='replace',
+                env=legacy, timeout=30)
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn(self.NON_ASCII_ID, result.stdout)
+            self.assertNotIn('naming refused', result.stderr)
+            named = json.loads(manifest.read_text(encoding='utf-8'))[0]
+            self.assertNotEqual(self.NON_ASCII_ID, named['id'])
+            self.assertTrue((models / named['id']).is_dir())
 
 
 if __name__ == "__main__":
