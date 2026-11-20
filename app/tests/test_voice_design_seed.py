@@ -239,22 +239,70 @@ class VoiceDesignSeedTests(unittest.TestCase):
         self.assertNotIn("seed", entry)
         self.assertNotIn("language", entry)
 
-    def test_legacy_resave_preserves_existing_provenance(self):
-        result = self._preview(seed=SEED, language="English")
-        saved = self._save(result["audio_url"].rsplit("/", 1)[-1])
-        voice_id = saved.json()["voice_id"]
-        legacy = self.previews / "legacy.wav"
-        _write_tone(legacy, -1)
-        response = self._save("legacy.wav", voice_id=voice_id)
-        self.assertEqual(200, response.status_code, response.text)
-        entry = self._entries()[-1]
-        self.assertEqual(SEED, entry["seed"])
-        self.assertEqual("English", entry["language"])
-
     def test_receipts_are_stored_outside_the_web_served_asset_directory(self):
         self._preview(seed=SEED, language="English")
         receipts = Path(self.production_data_dir) / "design_preview_receipts"
         self.assertFalse(receipts.is_relative_to(Path(self.production_designed_dir)))
+
+    def test_legacy_replacement_clears_stale_provenance_and_changes_bytes(self):
+        """A receipt-less replacement must not inherit the old seed/language."""
+        original = self._preview(seed=SEED, language="English")
+        voice_id = self._save(original["audio_url"].rsplit("/", 1)[-1]).json()["voice_id"]
+        entry = self._entries()[-1]
+        dest = self.root / entry["filename"]
+        old_bytes = dest.read_bytes()
+
+        other = self._preview(seed=OTHER_SEED)
+        legacy = self.previews / "legacy-replacement.wav"
+        legacy.write_bytes((self.previews / other["audio_url"].rsplit("/", 1)[-1]).read_bytes())
+        response = self._save("legacy-replacement.wav", voice_id=voice_id)
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertNotEqual(old_bytes, dest.read_bytes())
+        self.assertEqual(legacy.read_bytes(), dest.read_bytes())
+        updated = self._entries()[-1]
+        self.assertNotIn("seed", updated)
+        self.assertNotIn("language", updated)
+
+    def test_legacy_same_artifact_resave_keeps_provenance_and_bytes(self):
+        """Only a demonstrably unchanged artifact may retain old provenance."""
+        original = self._preview(seed=SEED, language="English")
+        voice_id = self._save(original["audio_url"].rsplit("/", 1)[-1]).json()["voice_id"]
+        entry = self._entries()[-1]
+        dest = self.root / entry["filename"]
+        old_bytes = dest.read_bytes()
+
+        same = self.previews / "legacy-same.wav"
+        same.write_bytes(old_bytes)
+        response = self._save("legacy-same.wav", voice_id=voice_id)
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual(old_bytes, dest.read_bytes())
+        updated = self._entries()[-1]
+        self.assertEqual(SEED, updated["seed"])
+        self.assertEqual("English", updated["language"])
+
+    def test_verified_save_hashes_the_staged_artifact_that_is_published(self):
+        result = self._preview(seed=SEED, language="English")
+        preview_file = result["audio_url"].rsplit("/", 1)[-1]
+        hashed = []
+        real_hash = voice_design._sha256_file
+        def recording(path):
+            hashed.append(Path(path).name)
+            return real_hash(path)
+        with patch.object(voice_design, "_sha256_file", side_effect=recording):
+            response = self._save(preview_file)
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertTrue(any(name.startswith(".") and name.endswith(".tmp") for name in hashed),
+                        "save must hash the staged bytes it publishes, not only the source path")
+
+    def test_empty_language_uses_the_engines_effective_fallback(self):
+        """tts.py uses `language or self._language`, so '' is not an effective language."""
+        self.engine = RecordingEngine(self.previews, language="English")
+        result = self._preview(seed=SEED, language="")
+        self.assertEqual("", self.engine.calls[-1]["language"])
+        preview_file = result["audio_url"].rsplit("/", 1)[-1]
+        response = self._save(preview_file)
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual("English", self._entries()[-1]["language"])
 
 
 if __name__ == "__main__":

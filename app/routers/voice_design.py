@@ -144,22 +144,15 @@ def _load_preview_receipt(filename):
     return receipt
 
 
-def _saved_preview_provenance(preview_path, request, *, existing):
-    """Derive provable generation inputs, never trusting an unverified claim."""
+def _load_checked_preview_receipt(request):
+    """Receipt lookup and input agreement checks; artifact bytes checked after copy."""
     receipt = _load_preview_receipt(request.preview_file)
     if receipt is None:
         if request.seed is not None:
             raise HTTPException(status_code=400, detail=(
                 "This preview has no server receipt, so its seed cannot be verified. "
                 "Generate a new preview before saving with a seed."))
-        # A legacy resave keeps whatever provenance the existing entry had;
-        # it must not invent a seed or language for an old artifact.
-        kept = {key: existing[key] for key in ("seed", "language")
-                if existing and existing.get(key) is not None}
-        return kept
-    if receipt["sha256"] != _sha256_file(preview_path):
-        raise HTTPException(status_code=400, detail=(
-            "The preview changed since generation. Generate a new preview before saving."))
+        return None
     if (receipt["description"] != request.description
             or receipt["sample_text"] != request.sample_text):
         raise HTTPException(status_code=400, detail=(
@@ -167,10 +160,31 @@ def _saved_preview_provenance(preview_path, request, *, existing):
     if request.seed is not None and request.seed != receipt["seed"]:
         raise HTTPException(status_code=400, detail=(
             "The supplied seed does not match the preview's recorded seed."))
-    provenance = {"seed": receipt["seed"]}
-    if receipt["language"] is not None:
-        provenance["language"] = receipt["language"]
-    return provenance
+    return receipt
+
+
+def _verify_staged_preview(staging_path, receipt):
+    """Hash the bytes that will actually be published, closing the read/copy race."""
+    if receipt["sha256"] != _sha256_file(staging_path):
+        raise HTTPException(status_code=400, detail=(
+            "The preview changed since generation. Generate a new preview before saving."))
+
+
+def _provenance_for_entry(receipt, existing, *, staging_path, dest_path):
+    """Derive provable generation inputs; unknown provenance is never inherited
+    onto a different artifact."""
+    if receipt is not None:
+        provenance = {"seed": receipt["seed"]}
+        if receipt["language"] is not None:
+            provenance["language"] = receipt["language"]
+        return provenance
+    same_artifact = (existing is not None and os.path.exists(dest_path)
+                     and filecmp.cmp(staging_path, dest_path, shallow=False))
+    if same_artifact:
+        # Only an unchanged waveform carries the old entry's provenance with it.
+        return {key: existing[key] for key in ("seed", "language")
+                if existing.get(key) is not None}
+    return {}
 
 
 @router.post("/api/voice_design/preview")
@@ -186,8 +200,9 @@ def _generate_voice_design_preview(request):
         engine = project_manager.get_engine()
         if not engine:
             raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
-        effective_language = (request.language if request.language is not None
-                              else getattr(engine, "_language", None))
+        # Match tts.py's `lang = language or self._language`: '' is not an
+        # effective language, so the engine falls back to its configured one.
+        effective_language = request.language or getattr(engine, "_language", None)
         wav_path, _ = engine.generate_voice_design(
             description=request.description,
             sample_text=request.sample_text,
@@ -223,6 +238,7 @@ def _save_voice_design(request):
         raise HTTPException(status_code=404, detail="Preview file not found")
 
     safe_name = _require_safe_filename(request.name, "Invalid voice name")
+    receipt = _load_checked_preview_receipt(request)
 
     with file_lock(DESIGNED_VOICES_MANIFEST):
         manifest = _load_manifest(DESIGNED_VOICES_MANIFEST, for_update=True)
@@ -239,14 +255,17 @@ def _save_voice_design(request):
         dest_path = os.path.join(DESIGNED_VOICES_DIR, dest_filename)
         staging_path = os.path.join(DESIGNED_VOICES_DIR,
                                     f".{dest_filename}.{get_unique_id('stage')}.tmp")
-        provenance = _saved_preview_provenance(preview_path, request, existing=existing)
-        entry = {"id": voice_id, "name": request.name,
-                 "description": request.description, "sample_text": request.sample_text,
-                 "filename": dest_filename, **provenance}
         backup_path = staging_path + ".backup"
         retain_backup = False
         try:
             shutil.copy2(preview_path, staging_path)
+            if receipt is not None:
+                _verify_staged_preview(staging_path, receipt)
+            provenance = _provenance_for_entry(receipt, existing,
+                                               staging_path=staging_path, dest_path=dest_path)
+            entry = {"id": voice_id, "name": request.name,
+                     "description": request.description, "sample_text": request.sample_text,
+                     "filename": dest_filename, **provenance}
             if existing is not None:
                 had_audio = os.path.exists(dest_path)
                 if had_audio:
@@ -258,6 +277,11 @@ def _save_voice_design(request):
                         or any(existing.get(key) != entry[key]
                                for key in ("description", "sample_text"))):
                     for key in ("synthetic_design", "gender", "age_group"):
+                        existing.pop(key, None)
+                # A new entry without provenance must not inherit a stale
+                # seed/language from the voice being replaced.
+                for key in ("seed", "language"):
+                    if key not in entry:
                         existing.pop(key, None)
                 os.replace(staging_path, dest_path)
                 existing.update(entry)
