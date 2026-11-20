@@ -6889,6 +6889,13 @@
     , "tests.test_gpu_lock_owner.KernelGpuLockOwnershipTests.test_real_exclusive_owner_accepts_direct_nested_descendants_and_closed_fd9"
     , "tests.test_gpu_lock_owner.KernelGpuLockOwnershipTests.test_real_queue_accepts_its_cpu_child_after_closing_fd9"
   ]
+  , "test_gpu_lock_policy_2098": [
+    "tests.test_gpu_lock_policy_2098.GpuLockPolicy2098Test.test_config_read_error_still_applies_the_full_lock"
+    , "tests.test_gpu_lock_policy_2098.GpuLockPolicy2098Test.test_no_passed_config_keeps_the_original_outcome"
+    , "tests.test_gpu_lock_policy_2098.GpuLockPolicy2098Test.test_passed_local_config_governs_conflicts_and_device"
+    , "tests.test_gpu_lock_policy_2098.GpuLockPolicy2098Test.test_passed_remote_config_governs_conflicts_and_device"
+    , "tests.test_gpu_lock_policy_2098.GpuLockPolicy2098Test.test_rewritten_config_is_read_once_per_admission"
+  ]
   , "test_gpu_owner_death": [
     "tests.test_gpu_owner_death.GpuOwnerDeathTests.test_hup_keeps_lease_until_worker_tree_stops"
     , "tests.test_gpu_owner_death.GpuOwnerDeathTests.test_sigkill_keeps_lease_until_worker_tree_stops"

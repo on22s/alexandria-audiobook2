@@ -682,13 +682,18 @@ def llm_is_on_this_gpu() -> bool:
         return True
 
 
-def gpu_lock_conflicts(new_task_name: str, *, cpu_only=False) -> set:
-    """The tasks that must not be running for `new_task_name` to start."""
+def gpu_lock_conflicts(new_task_name: str, *, cpu_only=False, llm_on_gpu=None) -> set:
+    """The tasks that must not be running for `new_task_name` to start.
+
+    `llm_on_gpu` lets one admission pass its already-resolved policy here;
+    None keeps the shared disk reader for every other caller.
+    """
     if cpu_only or new_task_name in NON_GPU_TASKS:
         return set()
     others = {name for name in GPU_TASKS - {new_task_name}
               if not is_task_cpu_only(name)}
-    if llm_is_on_this_gpu():
+    on_gpu = llm_is_on_this_gpu() if llm_on_gpu is None else llm_on_gpu
+    if on_gpu:
         return others
     if new_task_name in LLM_TASKS:
         return others & LLM_TASKS
@@ -737,7 +742,7 @@ def get_task_lifecycle(task_name, states=None):
             'status': 'failed' if retained else state.get('status') or ('running' if running else 'idle')}
 
 
-def check_global_gpu_lock(new_task_name: str, *, cpu_only=False):
+def check_global_gpu_lock(new_task_name: str, *, cpu_only=False, llm_on_gpu=None):
     """Prevent multiple GPU-intensive tasks from running concurrently and causing an OOM crash.
 
     Raises HTTPException on conflict (every caller relies on this propagating
@@ -746,7 +751,7 @@ def check_global_gpu_lock(new_task_name: str, *, cpu_only=False):
     """
     if is_task_running(new_task_name):
         raise AppError(400, f"{new_task_name.replace('_', ' ').capitalize()} is already running.", key='error.task.already_running', values={'task': new_task_name.replace('_', ' ').capitalize()})
-    for task_name in gpu_lock_conflicts(new_task_name, cpu_only=cpu_only):
+    for task_name in gpu_lock_conflicts(new_task_name, cpu_only=cpu_only, llm_on_gpu=llm_on_gpu):
         if is_task_running(task_name):
             raise AppError(400, f"Cannot start {new_task_name.replace('_', ' ')}: {task_name.replace('_', ' ')} is currently running. Please wait for it to finish or cancel it to free up GPU VRAM.", key='error.task.gpu_busy', values={'task': new_task_name.replace('_', ' '), 'running': task_name.replace('_', ' ')})
 
@@ -852,10 +857,17 @@ def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False, resources
             if not is_task_running(old_task):
                 release_gpu_lock(handle)
                 del _gpu_leases[old_task]
+        # One policy for the whole admission: the conflict set, the lock
+        # decision and the device choice must agree even if the passed config
+        # disagrees with config.json or the file changes between reads (#2098).
+        llm_on_gpu = None
+        if not cpu_only:
+            llm_on_gpu = (llm_is_on_this_gpu() if llm_config is None
+                          else is_llm_on_this_gpu(llm_config))
         if cpu_only:
             check_global_gpu_lock(task_name, cpu_only=True)
         else:
-            check_global_gpu_lock(task_name)
+            check_global_gpu_lock(task_name, llm_on_gpu=llm_on_gpu)
         if task_name == "audio":
             try:
                 with ensure_startup_recovery(DATA_DIR, timeout=0) as idle:
@@ -867,13 +879,11 @@ def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False, resources
             except TimeoutError:
                 pass  # Ordinary task-lease admission still determines conflicts.
         needs_local_gpu = (not cpu_only and task_name not in NON_GPU_TASKS
-                           and (task_name not in LLM_TASKS
-                                or (llm_is_on_this_gpu() if llm_config is None
-                                    else is_llm_on_this_gpu(llm_config))))
+                           and (task_name not in LLM_TASKS or llm_on_gpu))
         task_lease = None
         handle = None
         try:
-            conflicts = gpu_lock_conflicts(task_name, cpu_only=cpu_only)
+            conflicts = gpu_lock_conflicts(task_name, cpu_only=cpu_only, llm_on_gpu=llm_on_gpu)
             lease_options = {} if resources is None else {"resources": resources}
             if cpu_only:
                 task_lease = acquire_task_lease(DATA_DIR, task_name, conflicts, cpu_only=True, **lease_options)
