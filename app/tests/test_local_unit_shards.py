@@ -123,7 +123,7 @@ class LocalAggregationTests(unittest.TestCase):
             del payload['errors']
             path = directory / 'tests.json'
             path.write_text(json.dumps(payload), encoding='utf-8')
-            report = self.local.get_worker_report(dict(
+            report = self.local.publish_worker_report(dict(
                 receipt=path, directory=directory, spec='1/1', worktree=directory / 'worktree',
                 log_path=directory / 'output.log', process=SimpleNamespace(returncode=0)))
             self.assertIsNone(report['errors'])
@@ -273,7 +273,7 @@ class RegisteredWindowsSkipTests(unittest.TestCase):
                               skip_reasons={self.identifiers[0]: 'synthetic message'})
             path = directory / 'tests.json'
             path.write_text(json.dumps(payload), encoding='utf-8')
-            report = self.local.get_worker_report(dict(
+            report = self.local.publish_worker_report(dict(
                 receipt=path, directory=directory, spec='1/2', worktree=directory / 'worktree',
                 log_path=directory / 'output.log', process=SimpleNamespace(returncode=0)))
         self.assertEqual({self.identifiers[0]: 'synthetic message'}, report['skip_reasons'])
@@ -1119,13 +1119,13 @@ class LocalWorktreeTests(unittest.TestCase):
         self.assertIn('synthetic checkout failure', Path(failed_report['log_path']).read_text(encoding='utf-8'))
 
     def test_wrong_shard_identities_are_failed_in_the_persistent_shard_artifact(self):
-        collect = self.local.get_worker_report
+        collect = self.local.publish_worker_report
         def wrong(job):
             result = collect(job)
             if result['shard'] == '1/2':
                 result['test_ids'] = self.identifiers[:1]
             return result
-        with patch.object(self.local, 'get_worker_report', side_effect=wrong):
+        with patch.object(self.local, 'publish_worker_report', side_effect=wrong):
             result = self.run_units()
         self.assertEqual('failed', result['status'])
         self.assertEqual([], result['remaining_worktrees'])

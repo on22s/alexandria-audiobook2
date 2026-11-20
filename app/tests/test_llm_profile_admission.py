@@ -168,7 +168,7 @@ class LlmProfileAdmissionTests(unittest.TestCase):
              patch.object(lmstudio_settings, 'get_current_status') as status, \
              patch.object(lmstudio_settings, 'get_gpu_name_and_backend') as gpu, \
              patch.object(llm_bench, 'find_optimal_concurrency') as measure:
-            result = llm_bench.get_cached_or_benchmarked_concurrency('unused', 'local',
+            result = llm_bench.ensure_cached_or_benchmarked_concurrency('unused', 'local',
                 'http://127.0.0.1:1234/v1', 'fixture', object(), status=STATUS, llm_config=profile)
         self.assertEqual(1, result)
         self.assertEqual(original, profile)
@@ -186,7 +186,7 @@ class LlmProfileAdmissionTests(unittest.TestCase):
                     before = path.read_bytes()
                     with patch.object(lmstudio_settings, 'get_current_status') as status, \
                          patch.object(llm_bench, 'find_optimal_concurrency') as measure:
-                        result = llm_bench.get_cached_or_benchmarked_concurrency(str(path), mode,
+                        result = llm_bench.ensure_cached_or_benchmarked_concurrency(str(path), mode,
                             url, 'fixture', object(), status=STATUS)
                     self.assertEqual(1, result)
                     self.assertEqual(before, path.read_bytes())

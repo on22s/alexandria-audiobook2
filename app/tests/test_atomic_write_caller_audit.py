@@ -107,7 +107,7 @@ class AtomicWriteCallerAuditTests(unittest.TestCase):
                     patch.object(llm_bench.lmstudio_settings, "get_gpu_name_and_backend",
                                  return_value=("fixture", "fixture")), \
                     replace_patch, move_patch as move:
-                result = llm_bench.get_cached_or_benchmarked_concurrency(
+                result = llm_bench.ensure_cached_or_benchmarked_concurrency(
                     str(path), "local", "http://localhost:1234/v1", "model", object(),
                     max_concurrency=2,
                     status={"available": True, "parallel": 8, "context_length": 8192})

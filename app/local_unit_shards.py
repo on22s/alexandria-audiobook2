@@ -555,7 +555,7 @@ def cleanup_stale_runs(repo):
                 log_path = directory / 'output.log'
                 if not log_path.exists():
                     log_path.write_text('Coordinator exited before capturing shard output.\n', encoding='utf-8')
-                report = get_worker_report(dict(
+                report = publish_worker_report(dict(
                     receipt=directory / 'tests.json', directory=directory, spec=f'{number}/{count}',
                     worktree=Path(path), log_path=log_path, status='crashed',
                     process=SimpleNamespace(returncode=None)))
@@ -635,7 +635,7 @@ def aggregate_unit_reports(reports, expected_ids, shard_count, *, platform=None,
                 problems=problems, shards=reports)
 
 
-def get_worker_report(job):
+def publish_worker_report(job):
     try:
         receipt = json.loads(job['receipt'].read_text(encoding='utf-8'))
         if not isinstance(receipt, dict):
@@ -808,7 +808,7 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
                         if control is not None:
                             control.close()
                         job['log'].close()
-                        report = get_worker_report(job)
+                        report = publish_worker_report(job)
                         wanted = {identifier for name in assignment[int(job['spec'].split('/')[0])]
                                   for identifier in inventory[name]}
                         ids = report['test_ids']
@@ -852,7 +852,7 @@ def run_local_unit_tests(repo, *, workers, shard_count=LOCAL_SHARDS, report_dir=
                             control.close()
                         job['process'].wait()
                         job['log'].close()
-                        reports.append(get_worker_report(job))
+                        reports.append(publish_worker_report(job))
                     except BaseException as error:
                         problems.append(f"{job['spec']}: owner close/report failed: {type(error).__name__}")
             for path in list(worktrees):

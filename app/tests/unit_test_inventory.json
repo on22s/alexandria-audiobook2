@@ -7772,6 +7772,8 @@
     , "tests.test_llm_concurrency_cache.LlmBenchmarkMeasurementTests.test_zero_invalid_or_empty_completions_do_not_measure_success"
     , "tests.test_llm_concurrency_cache.LlmBenchmarkMeasurementTests.test_zero_throughput_cannot_escalate_concurrency"
     , "tests.test_llm_concurrency_cache.LlmConcurrencyCacheTests.test_cache_hit_fetches_status_when_caller_has_not_supplied_it"
+    , "tests.test_llm_concurrency_cache.LlmConcurrencyCacheTests.test_cache_hit_is_a_pure_read_that_never_rewrites_config"
+    , "tests.test_llm_concurrency_cache.LlmConcurrencyCacheTests.test_cache_hit_write_guard_rejects_an_injected_identical_rewrite"
     , "tests.test_llm_concurrency_cache.LlmConcurrencyCacheTests.test_cache_miss_still_benchmarks_with_both_limits_and_persists_result"
     , "tests.test_llm_concurrency_cache.LlmConcurrencyCacheTests.test_invalid_cached_measurements_are_not_returned_or_used_as_limits"
     , "tests.test_llm_concurrency_cache.LlmConcurrencyCacheTests.test_legacy_measurement_without_environment_is_remeasured"

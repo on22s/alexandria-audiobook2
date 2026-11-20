@@ -206,7 +206,7 @@ class HelperReviewTests(unittest.TestCase):
                                                  return_value=(True, {}, 'ready')))
                 stack.enter_context(patch.object(review_script, 'make_run_client',
                                                  return_value=object()))
-                stack.enter_context(patch.object(review_script, 'get_cached_or_benchmarked_concurrency',
+                stack.enter_context(patch.object(review_script, 'ensure_cached_or_benchmarked_concurrency',
                                                  return_value=1))
                 stack.enter_context(patch.object(review_script, 'get_current_status',
                                                  return_value={'loaded': False}))

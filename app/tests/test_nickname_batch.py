@@ -162,7 +162,7 @@ class NicknameBatchTests(unittest.TestCase):
                  patch.object(nick, "make_run_client", return_value=object()), \
                  patch.object(nick, "ensure_ideal_settings", return_value=(False,
                               {"loaded": True, "context_length": 1024}, "fixture")), \
-                 patch.object(nick, "get_cached_or_benchmarked_concurrency", return_value=1), \
+                 patch.object(nick, "ensure_cached_or_benchmarked_concurrency", return_value=1), \
                  patch.object(nick, "call_llm_for_object") as request:
                 with self.assertRaises(TokenBudgetError):
                     nick.main()

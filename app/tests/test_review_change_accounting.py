@@ -43,7 +43,7 @@ class ReviewAccountingTests(unittest.TestCase):
                                 ('make_run_client', client), ('get_completed_review_fingerprint', 'fixture'),
                                 ('get_current_status', {'loaded': False}), ('is_llm_on_this_gpu', False)]:
                 stack.enter_context(patch.object(review, name, return_value=value))
-            stack.enter_context(patch.object(review, 'get_cached_or_benchmarked_concurrency',
+            stack.enter_context(patch.object(review, 'ensure_cached_or_benchmarked_concurrency',
                 side_effect=benchmark if benchmark else lambda *a, **kw: concurrency))
             stack.enter_context(patch.object(review, 'review_batch', side_effect=respond))
             if remove is not None:

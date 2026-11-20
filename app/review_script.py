@@ -39,7 +39,7 @@ from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SP
     get_review_entries_fingerprint, get_review_sidecar_identity, get_completed_review_match,
     get_review_progress_paths, get_review_receipt_path, save_completed_review_receipt,
     remove_completed_review_receipt)
-from llm_bench import get_cached_or_benchmarked_concurrency
+from llm_bench import ensure_cached_or_benchmarked_concurrency
 from review_prompts import (REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT,
                             REVIEW_TEMPLATE_FIELDS, validate_active_review_user_prompt)
 from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_object
@@ -2427,7 +2427,7 @@ def main():
     remove_completed_review_receipt(output_path)
 
     startup_event('concurrency_setup_started')
-    wave_size = get_cached_or_benchmarked_concurrency(
+    wave_size = ensure_cached_or_benchmarked_concurrency(
         config_path, llm_mode, base_url, model_name, client,
         ssh_alias=config.get("llm_remote_ssh"), status=lm_status, llm_config=llm_config)
     startup_event('concurrency_setup_complete')

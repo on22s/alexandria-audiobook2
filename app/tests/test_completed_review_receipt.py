@@ -100,7 +100,7 @@ class CompletedReviewReceiptTests(unittest.TestCase):
                     values = {'load_app_config': {'generation': {'review_batch_size': 1}},
                         'get_active_llm_config': {}, 'ensure_ideal_settings': (False, {}, 'fixture settings'),
                         'get_current_status': {'loaded': False}, 'make_run_client': client,
-                        'wait_for_vram_headroom': headroom, 'get_cached_or_benchmarked_concurrency': 1}
+                        'wait_for_vram_headroom': headroom, 'ensure_cached_or_benchmarked_concurrency': 1}
                     for name, value in values.items():
                         stack.enter_context(patch.object(review, name, return_value=value))
                     stack.enter_context(patch.object(generate_script, 'get_response_log_path', return_value=str(Path(tmp) / 'response.log')))

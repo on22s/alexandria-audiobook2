@@ -268,7 +268,7 @@ class ReviewResumeCoordinateTests(unittest.TestCase):
                     recorded.append(deltas.load_generation_checkpoint_document(review._checkpoint_path(str(output))).get('source_offsets'))
                     return accounting
                 with contextlib.ExitStack() as stack:
-                    for name, value in [('get_runtime_data_dir', tmp), ('load_app_config', {'generation': {'review_batch_size': 2}, 'llm_mode': 'remote'}), ('get_active_llm_config', {'model_name': 'fixture'}), ('ensure_ideal_settings', (True, {}, 'fixture')), ('make_run_client', object()), ('get_completed_review_fingerprint', 'fixture'), ('get_cached_or_benchmarked_concurrency', 1), ('get_current_status', {'loaded': False})]:
+                    for name, value in [('get_runtime_data_dir', tmp), ('load_app_config', {'generation': {'review_batch_size': 2}, 'llm_mode': 'remote'}), ('get_active_llm_config', {'model_name': 'fixture'}), ('ensure_ideal_settings', (True, {}, 'fixture')), ('make_run_client', object()), ('get_completed_review_fingerprint', 'fixture'), ('ensure_cached_or_benchmarked_concurrency', 1), ('get_current_status', {'loaded': False})]:
                         stack.enter_context(patch.object(review, name, return_value=value))
                     run = stack.enter_context(patch.object(review, 'review_batch', side_effect=lambda client, model, batch, *args, **kwargs: batch))
                     stack.enter_context(patch.object(review, 'save_checkpoint', side_effect=save_and_read))

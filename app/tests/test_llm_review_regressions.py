@@ -884,7 +884,7 @@ class ReviewVramTests(unittest.TestCase):
                 "ensure_ideal_settings": (remote, {}, "test settings"),
                 "get_current_status": {"loaded": False},
                 "make_run_client": object(),
-                "get_cached_or_benchmarked_concurrency": 2 if executor else 1,
+                "ensure_cached_or_benchmarked_concurrency": 2 if executor else 1,
             }
             for name, value in patches.items():
                 stack.enter_context(patch.object(review_script, name, return_value=value))
