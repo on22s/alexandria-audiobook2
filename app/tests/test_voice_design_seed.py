@@ -89,6 +89,7 @@ class VoiceDesignSeedTests(unittest.TestCase):
 
     def _app(self):
         app = FastAPI()
+        app.add_exception_handler(core.AppError, core.handle_app_error)
         app.include_router(voice_design.router)
         ctx = patch.object(voice_design.project_manager, "get_engine", return_value=self.engine)
         ctx.start()
@@ -199,6 +200,10 @@ class VoiceDesignSeedTests(unittest.TestCase):
         preview_file = result["audio_url"].rsplit("/", 1)[-1]
         response = self._save(preview_file, seed=OTHER_SEED)
         self.assertEqual(400, response.status_code, response.text)
+        self.assertEqual({
+            "detail": "The supplied seed does not match the preview's recorded seed.",
+            "message_key": "error.voice.design.seed_mismatch",
+        }, response.json())
         self.assertEqual([], self._entries())
 
     def test_save_rejects_inputs_that_changed_since_the_preview(self):

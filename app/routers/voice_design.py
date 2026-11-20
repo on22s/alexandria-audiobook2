@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 import core
 from core import (
+    AppError,
     CLONE_VOICES_DIR,
     UPLOADS_DIR,
     check_disk_space,
@@ -106,7 +107,7 @@ def _sha256_file(path):
 def _preview_receipt_path(filename):
     name = os.path.basename(filename)
     if not name or name in (".", "..") or any(sep in name for sep in ("/", "\\", os.sep)):
-        raise HTTPException(status_code=400, detail="Invalid preview file")
+        raise AppError(400, "Invalid preview file", key="error.voice.design.invalid_preview_file")
     return os.path.join(_preview_receipts_dir(), name + ".json")
 
 
@@ -134,8 +135,10 @@ def _load_preview_receipt(filename):
     except FileNotFoundError:
         return None
     except (OSError, ValueError) as error:
-        raise HTTPException(status_code=400, detail=(
-            "The preview receipt could not be read; regenerate the preview before saving.")) from error
+        raise AppError(
+            400, "The preview receipt could not be read; regenerate the preview before saving.",
+            key="error.voice.design.receipt_unreadable",
+        ) from error
     if (not isinstance(receipt, dict) or receipt.get("version") != 1
             or type(receipt.get("seed")) is not int
             or not -1 <= receipt["seed"] <= MAX_DESIGN_SEED
@@ -143,8 +146,10 @@ def _load_preview_receipt(filename):
             or not isinstance(receipt.get("description"), str)
             or not isinstance(receipt.get("sample_text"), str)
             or (receipt.get("language") is not None and not isinstance(receipt["language"], str))):
-        raise HTTPException(status_code=400, detail=(
-            "The preview receipt is invalid; regenerate the preview before saving."))
+        raise AppError(
+            400, "The preview receipt is invalid; regenerate the preview before saving.",
+            key="error.voice.design.receipt_invalid",
+        )
     return receipt
 
 
@@ -158,25 +163,33 @@ def _load_checked_preview_receipt(request, preview_file):
     receipt = _load_preview_receipt(preview_file)
     if receipt is None:
         if request.seed is not None:
-            raise HTTPException(status_code=400, detail=(
-                "This preview has no server receipt, so its seed cannot be verified. "
-                "Generate a new preview before saving with a seed."))
+            raise AppError(
+                400, "This preview has no server receipt, so its seed cannot be verified. "
+                "Generate a new preview before saving with a seed.",
+                key="error.voice.design.seed_unverified",
+            )
         return None
     if (receipt["description"] != request.description
             or receipt["sample_text"] != request.sample_text):
-        raise HTTPException(status_code=400, detail=(
-            "The description or sample text changed since the preview. Generate a matching preview."))
+        raise AppError(
+            400, "The description or sample text changed since the preview. Generate a matching preview.",
+            key="error.voice.design.inputs_changed",
+        )
     if request.seed is not None and request.seed != receipt["seed"]:
-        raise HTTPException(status_code=400, detail=(
-            "The supplied seed does not match the preview's recorded seed."))
+        raise AppError(
+            400, "The supplied seed does not match the preview's recorded seed.",
+            key="error.voice.design.seed_mismatch",
+        )
     return receipt
 
 
 def _verify_staged_preview(staging_path, receipt):
     """Hash the bytes that will actually be published, closing the read/copy race."""
     if receipt["sha256"] != _sha256_file(staging_path):
-        raise HTTPException(status_code=400, detail=(
-            "The preview changed since generation. Generate a new preview before saving."))
+        raise AppError(
+            400, "The preview changed since generation. Generate a new preview before saving.",
+            key="error.voice.design.preview_changed",
+        )
 
 
 def _provenance_for_entry(receipt, existing, *, staging_path, dest_path):
