@@ -8180,6 +8180,14 @@
     , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_worker_receipt_records_each_skipped_test_id"
     , "tests.test_local_unit_shards.RegisteredWindowsSkipTests.test_worker_report_carries_skip_reasons_to_the_verdict"
   ]
+  , "test_lora_adapter_dir_leak_2110": [
+    "tests.test_lora_adapter_dir_leak_2110.LoraAdapterDirLeak2110Tests.test_claim_failure_400_removes_reserved_adapter_dir"
+    , "tests.test_lora_adapter_dir_leak_2110.LoraAdapterDirLeak2110Tests.test_claim_failure_409_removes_reserved_adapter_dir"
+    , "tests.test_lora_adapter_dir_leak_2110.LoraAdapterDirLeak2110Tests.test_cleanup_failure_keeps_original_error_and_records_failure"
+    , "tests.test_lora_adapter_dir_leak_2110.LoraAdapterDirLeak2110Tests.test_successful_claim_keeps_the_dir_and_schedules_the_worker"
+    , "tests.test_lora_adapter_dir_leak_2110.LoraAdapterDirLeak2110Tests.test_unrelated_adapter_dir_is_never_touched"
+    , "tests.test_lora_adapter_dir_leak_2110.LoraAdapterDirLeak2110Tests.test_worker_registration_failure_after_claim_removes_reserved_adapter_dir"
+  ]
   , "test_lora_adapter_locations": [
     "tests.test_lora_adapter_locations.LoraAdapterLocationTests.test_list_and_cached_preview_encode_user_and_builtin_adapter_identity"
     , "tests.test_lora_adapter_locations.LoraAdapterLocationTests.test_listing_cannot_inspect_symlinked_adapter_outside_root"
