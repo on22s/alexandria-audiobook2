@@ -54,8 +54,11 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
                 +
                 f'child=subprocess.Popen([sys.executable,"-c",{child_code!r}],'
                 'creationflags=subprocess.DETACHED_PROCESS)\n'
-                f'pathlib.Path({str(ready)!r}).write_text(json.dumps('
+                f'ready=pathlib.Path({str(ready)!r})\n'
+                'pending=ready.with_suffix(".tmp")\n'
+                'pending.write_text(json.dumps('
                 '[os.getpid(),child.pid,bool(ctypes.windll.kernel32.GetConsoleWindow())]))\n'
+                'pending.replace(ready)\n'
                 + ('while True:\n ensure_review_not_cancelled()\n time.sleep(.02)\n'
                    if cooperative else 'time.sleep(60)\n'))
             state = dict(running=False, cancel=False, status='idle', logs=[],
@@ -94,9 +97,12 @@ class WindowsHeadlessCleanupEscalationTests(unittest.TestCase):
                     timer.start()
                     thread.start()
                     deadline = time.monotonic() + 15
-                    while not ready.exists() and thread.is_alive() and time.monotonic() < deadline:
+                    # The worker may write its receipt before start() records the owner.
+                    while ((not processes or not ready.is_file())
+                           and thread.is_alive() and time.monotonic() < deadline):
                         time.sleep(.02)
-                    self.assertTrue(ready.exists(), state['logs'])
+                    self.assertTrue(processes, state['logs'])
+                    self.assertTrue(ready.is_file(), state['logs'])
                     worker_pid, child_pid, has_console = json.loads(ready.read_text())
                     self.assertFalse(has_console, 'fixture worker unexpectedly has a console')
                     job = processes[0]._alexandria_windows_owner.job
