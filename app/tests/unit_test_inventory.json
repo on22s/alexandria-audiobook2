@@ -1713,6 +1713,11 @@
     , "tests.test_book_exchange_primitive.NativeExchangeTests.test_probe_reports_an_unsupported_filesystem_and_cleans_up"
     , "tests.test_book_exchange_primitive.NativeExchangeTests.test_probe_reports_support_and_leaves_nothing_behind"
   ]
+  , "test_book_journal_fallback_2106": [
+    "tests.test_book_journal_fallback_2106.BookJournalFallbackRecheckTests.test_fallback_new_journal_without_expected_version_still_writes"
+    , "tests.test_book_journal_fallback_2106.BookJournalFallbackRecheckTests.test_fallback_normal_update_publishes_its_bytes"
+    , "tests.test_book_journal_fallback_2106.BookJournalFallbackRecheckTests.test_fallback_refuses_journal_replaced_before_publication"
+  ]
   , "test_book_placeholder_readers": [
     "tests.test_book_placeholder_readers.PlaceholderPredicateTests.test_a_symlink_to_a_placeholder_is_not_one"
     , "tests.test_book_placeholder_readers.PlaceholderPredicateTests.test_only_the_exact_placeholder_matches"
