@@ -445,7 +445,9 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
     return findings, "ran"
 
 
-def _introduced_character_findings(source_text, output_text, entries, quote_analysis=None):
+def _introduced_character_findings(source_text, output_text, entries, quote_analysis=None,
+                                   quoted_must_be_spoken=True,
+                                   unquoted_must_be_narrator=True):
     """Mirror the single-pass gate's introduced-character + adjacent-duplicate
     checks so pass 1 has the same fidelity bar (unsupported_cyrillic,
     unsupported_unicode_character, source_unsupported_duplicate). Text-only, so
@@ -474,18 +476,21 @@ def _introduced_character_findings(source_text, output_text, entries, quote_anal
             findings.append({"code": "source_unsupported_duplicate",
                              "entry_numbers": duplicate["entry_numbers"],
                              "message": "An adjacent repeated block is not repeated in the source."})
-    # A spoken occurrence in the source is not a narrator allowance. Score
-    # narration copies against narration source coordinates only, using the
-    # same quote regions the quote gate already relies on (lexical regions
-    # relabelled NARRATOR stay narration).
-    quote_regions = (quote_analysis or {}).get("regions")
-    if not quote_regions:
-        quote_regions = analyze_outer_quote_regions(source_text).get("regions", [])
-    source_narration_text = " ".join(region["text"] for region in quote_regions
-                                     if region.get("type") == "NARRATOR") or source_text
-    for duplicate in find_seam_duplicate_narration(source_text, entries,
-                                                   quote_analysis=quote_analysis,
-                                                   source_narration_text=source_narration_text):
+    # Role-specific accounting is only sound when both quote restrictions
+    # force source and output roles to agree. Under a permissive policy a
+    # quoted source occurrence can be emitted inside a narrator row, so use
+    # compatible whole-source / whole-output counts instead.
+    role_specific = quoted_must_be_spoken and unquoted_must_be_narrator
+    source_narration_text = None
+    if role_specific:
+        quote_regions = (quote_analysis or {}).get("regions")
+        if not quote_regions:
+            quote_regions = analyze_outer_quote_regions(source_text).get("regions", [])
+        source_narration_text = " ".join(region["text"] for region in quote_regions
+                                         if region.get("type") == "NARRATOR") or source_text
+    for duplicate in find_seam_duplicate_narration(
+            source_text, entries, quote_analysis=quote_analysis,
+            role_specific=role_specific, source_narration_text=source_narration_text):
         if duplicate["severity"] == "blocking":
             findings.append({"code": "source_unsupported_duplicate",
                              "entry_numbers": duplicate["entry_numbers"],
@@ -559,8 +564,10 @@ def validate_segment_quality(source_text, entries, quote_analysis=None, *,
         quoted_must_be_spoken=quoted_must_be_spoken,
         unquoted_must_be_narrator=unquoted_must_be_narrator)
     findings.extend(quote_findings)
-    findings.extend(_introduced_character_findings(source_text, output_text, entries,
-                                                    quote_analysis=quote_analysis))
+    findings.extend(_introduced_character_findings(
+        source_text, output_text, entries, quote_analysis=quote_analysis,
+        quoted_must_be_spoken=quoted_must_be_spoken,
+        unquoted_must_be_narrator=unquoted_must_be_narrator))
     report = _report(sc, oc, recall, trigram, ratio, findings,
                      quote_gate=quote_gate)
     report["missing_source_spans"] = missing_runs

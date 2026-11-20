@@ -525,8 +525,8 @@ def get_seam_duplicate_candidates(source_text, entries, *, quote_analysis=None):
 
 
 def find_seam_duplicate_narration(source_text, entries, *, quote_analysis=None,
-                                  source_narration_text=None, source_normalized=None,
-                                  count_phrase=None):
+                                  role_specific=True, source_narration_text=None,
+                                  source_normalized=None, count_phrase=None):
     """Find a short narration quote copied near a split, with source support.
 
     Pass 1 sometimes splits a sentence at a quoted lexical term (a title, a
@@ -540,19 +540,23 @@ def find_seam_duplicate_narration(source_text, entries, *, quote_analysis=None,
     word in the output. A finding needs both a locally duplicated shape and a
     strictly greater whole-token output count than the source. A phrase the
     source itself repeats that many times is faithful transcription and is
-    left alone. Dialogue rows (SPOKEN or a character speaker) are excluded:
-    their contained-quote provenance is ``find_contained_source_duplicates``'s
-    job. No fidelity threshold is changed here.
+    left alone. Dialogue rows (SPOKEN or a character speaker) are excluded
+    when ``role_specific`` is true: their contained-quote provenance is
+    ``find_contained_source_duplicates``'s job. When a permissive quote policy
+    allows a quoted source occurrence to be emitted inside a narrator row,
+    source and output roles are not comparable, so both sides are counted in
+    full. No fidelity threshold is changed here.
     """
-    # Narration copies get narration source occurrences only: a SPOKEN source
-    # quoted term must not hand the narrator a second allowance.
-    allowance_text = source_narration_text if source_narration_text is not None else source_text
-    if source_narration_text is not None or source_normalized is None:
+    # Role-specific accounting is only sound when the run's quote policy
+    # forces source and output roles to agree.
+    allowance_text = (source_narration_text if role_specific and source_narration_text is not None
+                      else source_text)
+    if (role_specific and source_narration_text is not None) or source_normalized is None:
         source_normalized = _normalize_words(allowance_text)
     count_phrase = count_phrase or get_source_phrase_counter(source_normalized)
     texts = [_normalize_words(entry.get("text")) if isinstance(entry, dict) else ""
              for entry in entries]
-    narration = [_is_narration_row(entry) for entry in entries]
+    narration = [_is_narration_row(entry) for entry in entries] if role_specific else [True] * len(entries)
     word_lists = [text.split() for text in texts]
     findings = []
     for phrase in get_seam_duplicate_candidates(source_text, entries,
@@ -578,8 +582,8 @@ def find_seam_duplicate_narration(source_text, entries, *, quote_analysis=None,
             continue
         findings.append(_finding(
             "blocking", "seam_duplicate_narration",
-            "A short narration quote is copied near a split seam or inside "
-            "one entry; the source does not carry the extra copy.",
+            "A short quoted term is copied near a split seam or inside one "
+            "entry; the source does not carry the extra copy.",
             sorted(numbers),
             phrase=phrase, source_occurrences=source_count, output_occurrences=emitted))
     return findings

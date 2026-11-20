@@ -814,9 +814,10 @@ class PassOneSeamDuplicateTests(unittest.TestCase):
                                                    restrictions=False)
         finding = next(f for f in report["findings"]
                        if f["code"] == "source_unsupported_duplicate")
-        self.assertEqual(1, finding["details"]["source_occurrences"])
-        self.assertEqual(2, finding["details"]["output_occurrences"])
-        self.assertEqual([2], finding["entry_numbers"])
+        # Permissive policy: compatible whole-source / whole-output counts.
+        self.assertEqual(2, finding["details"]["source_occurrences"])
+        self.assertEqual(3, finding["details"]["output_occurrences"])
+        self.assertIn(2, finding["entry_numbers"])
 
     def test_repeated_spoken_line_cannot_create_a_narration_duplicate(self):
         source = (self.FILLER + "At the gate stood the [Silver Knight]. "
@@ -831,6 +832,46 @@ class PassOneSeamDuplicateTests(unittest.TestCase):
         self.assertTrue(report["passed"], report["findings"])
         self.assertFalse([f for f in report["findings"]
                           if f["code"] == "source_unsupported_duplicate"])
+
+    def _permissive_source_and_suffix(self):
+        suffix = ('At the gate stood the [Silver Knight]. A child whispered, '
+                  '"Silver Knight." Then she left.')
+        return self.FILLER + suffix, suffix
+
+    def test_permissive_policy_faithful_embedded_dialogue_is_accepted(self):
+        source, suffix = self._permissive_source_and_suffix()
+        entries = [_seg(self.FILLER.strip()), _seg(suffix)]
+        report = self._validate_with_real_analysis(source, entries,
+                                                    self._mixed_analysis(source),
+                                                    restrictions=False)
+        self.assertTrue(report["passed"], report["findings"])
+
+    def test_permissive_policy_extra_copy_is_rejected_with_whole_counts(self):
+        source, _suffix = self._permissive_source_and_suffix()
+        entries = [
+            _seg(self.FILLER.strip()),
+            _seg('At the gate stood the [Silver Knight] [Silver Knight]. '
+                 'A child whispered, "Silver Knight." Then she left.'),
+        ]
+        report = self._validate_with_real_analysis(source, entries,
+                                                    self._mixed_analysis(source),
+                                                    restrictions=False)
+        finding = next(f for f in report["findings"]
+                       if f["code"] == "source_unsupported_duplicate")
+        self.assertEqual(2, finding["details"]["source_occurrences"])
+        self.assertEqual(3, finding["details"]["output_occurrences"])
+
+    def test_quoted_must_be_spoken_false_alone_accepts_faithful_dialogue(self):
+        source, suffix = self._permissive_source_and_suffix()
+        from generate_script import LLMGenParams
+        from three_pass_generate import validate_segment_for_params
+        params = LLMGenParams(segmentation="lexical", max_tokens=500,
+                              quoted_must_be_spoken=False,
+                              unquoted_must_be_narrator=True)
+        report = validate_segment_for_params(
+            source, [_seg(self.FILLER.strip()), _seg(suffix)], params,
+            self._mixed_analysis(source))
+        self.assertTrue(report["passed"], report["findings"])
 
     def test_legitimately_repeated_source_quote_is_accepted(self):
         source = " ".join(["The [Silver Knight] waited."] * 4)
