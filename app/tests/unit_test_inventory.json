@@ -7244,6 +7244,7 @@
     , "tests.test_indexed_reasoning_reservation.IndexedReasoningReservationTests.test_native_primary_profile_cap_does_not_poison_next_secondary_window"
     , "tests.test_indexed_reasoning_reservation.IndexedReasoningReservationTests.test_ordinary_truncation_keeps_learning_and_subdivides_next_window"
     , "tests.test_indexed_reasoning_reservation.IndexedReasoningReservationTests.test_real_oversized_singleton_refuses_before_sdk"
+    , "tests.test_indexed_reasoning_reservation.IndexedReasoningReservationTests.test_reused_params_give_each_run_a_fresh_first_request_budget"
     , "tests.test_indexed_reasoning_reservation.IndexedReasoningReservationTests.test_unknown_context_and_explicit_stage_initial_preserved"
   ]
   , "test_indextts_source_pin": [
@@ -17088,6 +17089,7 @@
     "tests.test_voice_config_remap.VoiceConfigRemapTests.test_cycles_raise_value_error_naming_the_cycle"
     , "tests.test_voice_config_remap.VoiceConfigRemapTests.test_flattened_map_matches_main_byte_for_byte"
     , "tests.test_voice_config_remap.VoiceConfigRemapTests.test_four_chain_all_permutations_converge"
+    , "tests.test_voice_config_remap.VoiceConfigRemapTests.test_input_and_nested_values_are_never_mutated"
     , "tests.test_voice_config_remap.VoiceConfigRemapTests.test_merge_precedence_when_root_exists"
     , "tests.test_voice_config_remap.VoiceConfigRemapTests.test_three_chain_all_permutations_converge"
   ]

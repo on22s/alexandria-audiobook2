@@ -85,7 +85,7 @@ class ScriptSelectionBindingTests(unittest.TestCase):
                         _read_selection_state(root, required=True)
                     config.write_text('{"nested": [' + value + ']}')
                     with self.assertRaises(ValueError):
-                        _voice_remap_bytes(root, config.name, {}, lambda *_: False)
+                        _voice_remap_bytes(root, config.name, {}, lambda *_: ({}, 0))
                     self.assertEqual('{"nested": [' + value + ']}', config.read_text())
             state.write_text('{"small": 1e-999, "zero": -0.0}')
             self.assertEqual(0.0, _read_selection_state(root, required=True)['small'])

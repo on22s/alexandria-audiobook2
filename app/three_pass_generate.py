@@ -2764,6 +2764,14 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     text is sent through the variant provider for every variant, default
     included, so what Setup shows is what the model gets."""
     require_nonempty_source(source_text)
+    # Rule 17: observed_calls and reasoning_allowance are run-local counters,
+    # not outputs the caller asked us to write into its params. The nested
+    # observers below mutate them, so work on a copy: the caller keeps its
+    # input/default values and each call (e.g. each --preflight sample) starts
+    # its own budget. replace() preserves every field, so unusual flags and
+    # intentionally seeded input values still apply to this run; only the
+    # in-run learning is local.
+    params = replace(params)
     if getattr(params, "cast_aliases", False):
         params = replace(params, cast_alias_groups=(cast or {}).get("alias_groups"))
         if not params.cast_alias_groups:
