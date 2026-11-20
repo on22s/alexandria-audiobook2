@@ -8016,6 +8016,7 @@
     , "tests.test_llm_review_regressions.ReviewVramTests.test_mid_run_check_still_waits_for_headroom"
     , "tests.test_llm_review_regressions.ReviewVramTests.test_only_the_first_admission_of_a_run_fails_fast"
     , "tests.test_llm_review_regressions.ReviewVramTests.test_out_of_order_vram_skip_is_retried_from_saved_checkpoint"
+    , "tests.test_llm_review_regressions.ReviewVramTests.test_remote_marked_loopback_review_checks_local_headroom"
     , "tests.test_llm_review_regressions.ReviewVramTests.test_remote_review_does_not_probe_local_headroom"
     , "tests.test_llm_review_regressions.ReviewVramTests.test_vram_full_at_start_skips_every_batch_as_incomplete"
     , "tests.test_llm_review_regressions.ReviewVramTests.test_watchdog_checks_both_gpu_backends_and_keeps_zero_usage"
