@@ -38,7 +38,7 @@ sys.path.insert(0, os.path.join(REPO, "app"))
 
 from speech_policy import (  # noqa: E402
     UNSPEAKABLE_CATEGORIES as _RUNTIME_UNSPEAKABLE_CATEGORIES,
-    REPLACEMENT_CHARACTER as REPLACEMENT_CHAR,
+    REPLACEMENT_CHARACTER,
     is_unspeakable_character,
 )
 from speech_text import get_speech_normalization  # noqa: E402
@@ -49,6 +49,7 @@ from speech_text import get_speech_normalization  # noqa: E402
 # "£" have well-defined spoken forms and belong in a verbalization table, not
 # in a defect count. Whitespace stays exempt for the same reason as in speech.
 UNSPEAKABLE_CATEGORIES = _RUNTIME_UNSPEAKABLE_CATEGORIES
+REPLACEMENT_CHAR = REPLACEMENT_CHARACTER
 
 
 # Keep the historical name as an alias so this experiment's callers (including

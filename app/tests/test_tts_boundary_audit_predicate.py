@@ -79,7 +79,7 @@ class AuditInstrumentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "book.json").write_text(json.dumps([
-                {"text": "Hello\x07World"},
+                {"text": "Hello\x07\x84World"},
             ]), encoding="utf-8")
             out = root / "out.json"
             result = subprocess.run(
@@ -89,8 +89,8 @@ class AuditInstrumentTests(unittest.TestCase):
             )
             self.assertEqual(0, result.returncode, result.stderr)
             payload = json.loads(out.read_text(encoding="utf-8"))
-            self.assertEqual(1, payload["characters_before_normalization"])
-            self.assertEqual(1, payload["removed_by_normalization"])
+            self.assertEqual(2, payload["characters_before_normalization"])
+            self.assertEqual(2, payload["removed_by_normalization"])
             self.assertEqual(0, payload["characters_at_tts_boundary"])
 
 
