@@ -9,6 +9,7 @@ billable inference, no user data.
 """
 import copy
 import json
+import os
 from pathlib import Path
 import struct
 import tempfile
@@ -303,6 +304,59 @@ class VoiceDesignSeedTests(unittest.TestCase):
         response = self._save(preview_file)
         self.assertEqual(200, response.status_code, response.text)
         self.assertEqual("English", self._entries()[-1]["language"])
+
+    def _aliases(self, canonical):
+        aliases = [canonical]
+        if os.name == "nt":
+            # Windows strips trailing dots/spaces when resolving a filename, so
+            # these name the same WAV but not the same raw receipt key.
+            aliases += [canonical + ".", canonical + " "]
+        return aliases
+
+    def test_windows_alias_of_a_preview_uses_its_receipt(self):
+        result = self._preview(seed=SEED, language="English")
+        canonical = result["audio_url"].rsplit("/", 1)[-1]
+        for alias in self._aliases(canonical)[1:]:
+            with self.subTest(alias=alias):
+                response = self._save(alias, seed=SEED)
+                self.assertEqual(200, response.status_code, response.text)
+                entry = self._entries()[-1]
+                self.assertEqual(SEED, entry["seed"])
+                self.assertEqual("English", entry["language"])
+
+    def test_windows_alias_cannot_bypass_the_staged_digest(self):
+        result = self._preview(seed=SEED, language="English")
+        canonical = result["audio_url"].rsplit("/", 1)[-1]
+        (self.previews / canonical).write_bytes(b"mutated preview bytes")
+        for alias in self._aliases(canonical)[1:]:
+            with self.subTest(alias=alias):
+                response = self._save(alias)
+                self.assertEqual(400, response.status_code, response.text)
+                self.assertEqual([], self._entries())
+
+    def test_corrupt_receipt_refuses_before_publication(self):
+        result = self._preview(seed=SEED, language="English")
+        canonical = result["audio_url"].rsplit("/", 1)[-1]
+        voice_id = self._save(canonical).json()["voice_id"]
+        dest = self.root / self._entries()[-1]["filename"]
+        published_bytes, manifest_bytes = dest.read_bytes(), self.manifest.read_bytes()
+        receipt_path = Path(voice_design._preview_receipt_path(canonical))
+        receipt_path.write_text("{", encoding="utf-8")
+        (self.previews / canonical).write_bytes(b"mutated preview bytes")
+
+        response = self._save(canonical, voice_id=voice_id)
+        self.assertEqual(400, response.status_code, response.text)
+        self.assertEqual(published_bytes, dest.read_bytes())
+        self.assertEqual(manifest_bytes, self.manifest.read_bytes())
+
+    def test_unreadable_receipt_is_not_treated_as_a_legacy_preview(self):
+        result = self._preview(seed=SEED, language="English")
+        canonical = result["audio_url"].rsplit("/", 1)[-1]
+        (self.previews / canonical).write_bytes(b"mutated preview bytes")
+        with patch.object(voice_design, "_preview_receipt_path", return_value=str(self.root)):
+            response = self._save(canonical)
+        self.assertEqual(400, response.status_code, response.text)
+        self.assertEqual([], self._entries())
 
 
 if __name__ == "__main__":

@@ -123,15 +123,19 @@ def _write_preview_receipt(filename, wav_path, *, seed, language, description, s
 
 
 def _load_preview_receipt(filename):
-    """Return the server's receipt for a generated preview, or None for legacy files."""
+    """Return the receipt for a generated preview, or None only when genuinely absent.
+
+    An existing but unreadable/malformed sidecar is NOT a legacy preview: falling
+    back would let unverified bytes be published with no provenance.
+    """
     try:
         with open(_preview_receipt_path(filename), encoding="utf-8") as handle:
             receipt = json.load(handle)
     except FileNotFoundError:
         return None
-    except (OSError, ValueError):
-        logger.warning("Ignoring corrupt design preview receipt for %s", filename)
-        return None
+    except (OSError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=(
+            "The preview receipt could not be read; regenerate the preview before saving.")) from error
     if (not isinstance(receipt, dict) or receipt.get("version") != 1
             or type(receipt.get("seed")) is not int
             or not -1 <= receipt["seed"] <= MAX_DESIGN_SEED
@@ -139,14 +143,19 @@ def _load_preview_receipt(filename):
             or not isinstance(receipt.get("description"), str)
             or not isinstance(receipt.get("sample_text"), str)
             or (receipt.get("language") is not None and not isinstance(receipt["language"], str))):
-        logger.warning("Ignoring invalid design preview receipt for %s", filename)
-        return None
+        raise HTTPException(status_code=400, detail=(
+            "The preview receipt is invalid; regenerate the preview before saving."))
     return receipt
 
 
-def _load_checked_preview_receipt(request):
-    """Receipt lookup and input agreement checks; artifact bytes checked after copy."""
-    receipt = _load_preview_receipt(request.preview_file)
+def _load_checked_preview_receipt(request, preview_file):
+    """Receipt lookup and input agreement checks; artifact bytes checked after copy.
+
+    `preview_file` is the basename of the already resolved preview path, not the
+    caller's raw spelling: Windows aliases such as `preview.wav.` resolve to the
+    same WAV but must not bypass that WAV's receipt.
+    """
+    receipt = _load_preview_receipt(preview_file)
     if receipt is None:
         if request.seed is not None:
             raise HTTPException(status_code=400, detail=(
@@ -238,7 +247,9 @@ def _save_voice_design(request):
         raise HTTPException(status_code=404, detail="Preview file not found")
 
     safe_name = _require_safe_filename(request.name, "Invalid voice name")
-    receipt = _load_checked_preview_receipt(request)
+    # _safe_subpath already canonicalised the caller's filename (including
+    # Windows trailing-dot/space aliases); the receipt must key off that identity.
+    receipt = _load_checked_preview_receipt(request, os.path.basename(preview_path))
 
     with file_lock(DESIGNED_VOICES_MANIFEST):
         manifest = _load_manifest(DESIGNED_VOICES_MANIFEST, for_update=True)
