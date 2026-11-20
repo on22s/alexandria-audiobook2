@@ -400,6 +400,12 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
     if context_mode == CONTEXT_MODE_CHARS:
         identity['context_mode'] = context_mode
         identity['context_chars'] = context_value
+    # A backward ("hindsight") pass is a different review even when every
+    # other setting matches: add a direction key only for it, so a forward
+    # checkpoint/receipt can never validate a backward run while the default
+    # and forward identity stay byte-identical to before this key existed.
+    if getattr(args, 'review_pass', 'forward') == 'backward':
+        identity['review_pass'] = 'backward'
     if source_text is not None or is_review_source_span_script(entries):
         identity['algorithm'] = REVIEW_SOURCE_SPAN_ALGORITHM_VERSION
         identity['review_source_sha256'] = (get_review_entries_fingerprint(source_text)
@@ -1031,24 +1037,49 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
 
 
 def _remapped_voice_config(cfg, mapping):
-    """Remap a parsed voice config in memory, returning the number moved."""
+    """Remap a parsed voice config in memory, returning the number moved.
+
+    Chained maps (A->B, B->C) are resolved to their final root before any key
+    is touched, so the result does not depend on the insertion order of
+    `mapping`. A cycle fails loud instead of looping or picking a root.
+    """
+    def resolve_root(variant):
+        path = []
+        seen = {}
+        current = variant
+        while mapping.get(current) not in (None, current):
+            if current in seen:
+                cycle = path[seen[current]:] + [current]
+                raise ValueError("Voice-config alias cycle: " + " -> ".join(cycle))
+            seen[current] = len(path)
+            path.append(current)
+            current = mapping[current]
+        return current
+
+    # Resolve every variant first so no rename can observe a half-applied map.
+    resolved_roots = {variant: resolve_root(variant) for variant in mapping}
+
+    original = dict(cfg)
+    result = dict(original)
     moved = 0
-    for variant, canonical in mapping.items():
-        if variant not in cfg:
+    for variant, root in resolved_roots.items():
+        if variant not in original or variant == root:
             continue
-        if canonical not in cfg:
-            cfg[canonical] = cfg[variant]
+        variant_cfg = original[variant]
+        if root not in result:
+            result[root] = variant_cfg
         else:
-            existing = cfg[canonical]
-            variant_cfg = cfg[variant]
+            existing = result[root]
             if isinstance(existing, dict) and isinstance(variant_cfg, dict):
                 for key, value in variant_cfg.items():
                     if key not in existing:
                         existing[key] = value
             elif isinstance(variant_cfg, dict):
-                cfg[canonical] = variant_cfg
-        del cfg[variant]
+                result[root] = variant_cfg
+        result.pop(variant, None)
         moved += 1
+    cfg.clear()
+    cfg.update(result)
     return moved
 
 
@@ -2106,6 +2137,8 @@ def main():
     parser.add_argument("--labels-only", action="store_true",
                         help="Experimental index-keyed review; preserve source text and boundaries")
     parser.add_argument("--force-review", action="store_true", help="Rerun an unchanged completed review")
+    parser.add_argument("--review-pass", choices=("forward", "backward"), default="forward",
+                        help="Review direction; only a backward (hindsight) pass changes the review identity")
     parser.add_argument("--input", help="Path to the script JSON to review (default: ../annotated_script.json)")
     parser.add_argument("--output", help="Where to write the reviewed script (default: same as --input)")
     parser.add_argument("--dedupe-speakers", action="store_true",
