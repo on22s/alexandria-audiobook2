@@ -7805,6 +7805,16 @@
     , "tests.test_llm_endpoint_locality.EndpointLocalityTests.test_external_mapped_addresses_gateways_and_similar_names_are_remote"
     , "tests.test_llm_endpoint_locality.EndpointLocalityTests.test_real_status_dispatch_uses_local_probe_without_ssh_for_equivalent_addresses"
   ]
+  , "test_llm_gpu_placement_2134": [
+    "tests.test_llm_gpu_placement_2134.RemoteLoopbackPlacementTests.test_claim_gpu_task_resolves_endpoint_for_remote_loopback"
+    , "tests.test_llm_gpu_placement_2134.RemoteLoopbackPlacementTests.test_conservative_fallback_on_policy_read_failure"
+    , "tests.test_llm_gpu_placement_2134.RemoteLoopbackPlacementTests.test_explicit_false_still_overrides_for_tunnels_and_cpu_servers"
+    , "tests.test_llm_gpu_placement_2134.RemoteLoopbackPlacementTests.test_explicit_true_and_manual_transport"
+    , "tests.test_llm_gpu_placement_2134.RemoteLoopbackPlacementTests.test_genuine_remote_endpoint_and_local_loopback_controls"
+    , "tests.test_llm_gpu_placement_2134.RemoteLoopbackPlacementTests.test_local_loopback_explicit_false_is_honoured"
+    , "tests.test_llm_gpu_placement_2134.RemoteLoopbackPlacementTests.test_remote_loopback_without_flag_is_on_this_gpu"
+    , "tests.test_llm_gpu_placement_2134.RemoteLoopbackPlacementTests.test_remote_loopback_without_flag_serializes_with_audio"
+  ]
   , "test_llm_profile_admission": [
     "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_cpu_primary_cannot_bypass_gpu_owned_secondary_headroom"
     , "tests.test_llm_profile_admission.LlmProfileAdmissionTests.test_cpu_profile_reaches_real_review_in_both_modes_and_dedupe"
