@@ -1,0 +1,14 @@
+flowchart LR
+    Browser["Vanilla JS SPA\napp/static/index.html"] -->|HTTP JSON| API["FastAPI app\napp/app.py"]
+    API --> MW["Task claim + origin/auth\nmiddleware"]
+    MW --> Routers["17 feature routers\napp/routers/*.py"]
+    Routers --> Core["core.py\nprocess_state, GPU lock, task claims"]
+    Routers --> Pipeline["three_pass_generate.py\ngenerate/review/personas"]
+    Routers --> Project["project.py\nchunks, synthesis, merge/export"]
+    Project --> TTS["tts.py\nQwen3-TTS local or Gradio"]
+    Pipeline --> LLM["OpenAI-compatible LLM\nlocal / LM Studio / hosted"]
+    Project --> FFmpeg["ffmpeg\nPCM, MP3, M4B, mastering"]
+    Core --> Data[("Data directory\nJSON, WAV, journals, locks")]
+    Project --> Data
+    Pipeline --> Data
+    TTS --> Data

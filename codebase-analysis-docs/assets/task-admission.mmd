@@ -1,0 +1,16 @@
+flowchart TD
+    Req["State-changing HTTP request"] --> Claim["claim_gpu_task\ncheck conflicts + set running"]
+    Claim --> Lease["Kernel task lease\n.task_ownership/task-*.lock"]
+    Claim --> Res{"Same saved book\nor resource?"}
+    Res -->|yes| Resource["Resource lease\nhash(path)"]
+    Res -->|no| GPU{"Local GPU work?"}
+    Resource --> GPU
+    GPU -->|yes| Flock["GPU flock\nshared with gpu_job.sh"]
+    GPU -->|no| Book
+    Flock --> Book["ensure_book_state\n.active_book_transaction.json"]
+    Book --> Worker["Owned worker/thread\n_run_owned_background_task"]
+    Worker --> Publish["Staged publication\natomic replace + fsync"]
+    Publish --> Release["Release claim, lease, GPU"]
+    Worker -->|cancel| Cancel["Cooperative cancel\nAudioGenerationOwner"]
+    Cancel --> Release
+    Release --> History["run_history + logs"]
