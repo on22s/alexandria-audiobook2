@@ -504,14 +504,15 @@ class _HTMLTextExtractor(HTMLParser):
     def handle_data(self, data):
         if self._skip_stack or self._ruby_fallback_depth:
             return
-        if self._ruby is not None:
-            self._ruby.add(data)
-            return
         if self.cdata_elem == 'textarea':
             # RCDATA decodes character references; HTMLParser suppresses its
             # own unescape in raw-text mode (script/style stay raw), so apply
             # it here for the one RCDATA element whose text is narration.
+            # Decode before any consuming collector (ruby below) sees it.
             data = unescape(data)
+        if self._ruby is not None:
+            self._ruby.add(data)
+            return
         self._append_text(data)
 
     def _append_text(self, data):
@@ -519,6 +520,22 @@ class _HTMLTextExtractor(HTMLParser):
             self.parts.append('\n' * self._pending_newline)
         self._pending_newline = 0
         self.parts.append(data)
+
+    def _finalize_pending_rcdata(self):
+        # html.parser buffers RCDATA that is still open at EOF and its close()
+        # intentionally will not flush it while cdata_elem is set. Finalise
+        # ONLY that buffer, through handle_data so entities are decoded once
+        # and the same dispatch applies. Without this, a readable <textarea>
+        # left open at EOF silently loses its whole suffix. Unrelated
+        # incomplete EOF tags (no cdata_elem) and genuinely unclosed skipped
+        # elements (title/script/style) keep their feed-only contracts.
+        if self.cdata_elem != 'textarea':
+            return
+        pending = self.rawdata
+        self.rawdata = ''
+        if pending:
+            self.handle_data(pending)
+        self.cdata_elem = None
 
     def _ensure_skipped_elements_closed(self):
         # Balance is validated here, in the text accessors, rather than by
@@ -533,11 +550,13 @@ class _HTMLTextExtractor(HTMLParser):
                 'skipped content would hide the rest of the resource')
 
     def get_text(self):
+        self._finalize_pending_rcdata()
         self._ensure_skipped_elements_closed()
         return ''.join(part for part in self.parts if isinstance(part, str))
 
     def get_text_with_anchor_positions(self):
         """Return extracted text and character offsets for requested anchors."""
+        self._finalize_pending_rcdata()
         self._ensure_skipped_elements_closed()
         text_parts = []
         positions = {}

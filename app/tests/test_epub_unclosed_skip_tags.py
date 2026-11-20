@@ -755,6 +755,68 @@ class UnclosedSkipTagTests(unittest.TestCase):
         self.assertNotIn('AFTER_REAL', xhtml_text)
         self.assertIn('Middle readable chapter.', xhtml_text)
 
+    def test_html_unclosed_textarea_eof_keeps_rcdata_in_both_accessors(self):
+        # Regression: html.parser buffers RCDATA left open at EOF and its
+        # close() will not flush it while cdata_elem is set. The feed-only
+        # accessors must finalise that one buffer so a readable <textarea>
+        # suffix survives, literal markup kept and entities decoded once.
+        body = ('<html><body><p>Before.</p><textarea>Important EOF narration '
+                '&amp; tail. <script>literal</script> &amp;amp;')
+        expected = ('Important EOF narration & tail. <script>literal</script> '
+                    '&amp;')
+        text = extract(make_epub(body, middle_media_type='text/html'))
+        self.assertIn('Before.', text)
+        self.assertIn(expected, text)
+        self.assertNotIn('&amp;amp;', text)
+        # Plain and anchor-aware accessors finalise the same buffer.
+        source = '<p id="anchor">Before.</p><textarea>Tail &amp; more.'
+        for accessor in ('get_text', 'get_text_with_anchor_positions'):
+            with self.subTest(accessor=accessor):
+                extractor = script._HTMLTextExtractor(
+                    ['anchor'], html_rcdata=True)
+                extractor.feed(source)
+                result = getattr(extractor, accessor)()
+                plain = result[0] if isinstance(result, tuple) else result
+                self.assertIn('Before.', plain)
+                self.assertIn('Tail & more.', plain)
+                if isinstance(result, tuple):
+                    self.assertIn('anchor', result[1])
+        # Unrelated incomplete EOF tags keep feed-only semantics.
+        for tail in ('</', '<'):
+            with self.subTest(tail=tail):
+                tagged = '<html><body><p>Before.</p><p>tail' + tail
+                self.assertEqual(
+                    'First readable chapter.\n\nBefore.\n\ntail\n\n'
+                    'Final readable chapter.',
+                    extract(make_epub(tagged, middle_media_type='text/html')))
+        # Genuinely unclosed skipped elements are still rejected, even in
+        # text/html where they are raw-text scanned.
+        for tag in ('title', 'script', 'style'):
+            with self.subTest(tag=tag):
+                unclosed = f'<html><body><p>Before.</p><{tag}>never closed'
+                with self.assertRaisesRegex(ValueError, r'unclosed <' + tag + '>'):
+                    extract(make_epub(unclosed, middle_media_type='text/html'))
+
+    def test_html_rcdata_entity_decode_reaches_ruby_collector(self):
+        # Regression: handle_data dispatched raw RCDATA to RubyCollector
+        # before the textarea entity decode, so &amp;amp; leaked unchanged
+        # (and a plain &amp; was never decoded). Decode once before any
+        # consuming collector sees the data; skipped/fallback paths still
+        # drop it exactly as before.
+        body = ('<html><body><p>Before.</p><ruby><textarea>'
+                'Tom &amp;amp; Jerry</textarea></ruby>'
+                '<p>After.</p></body></html>')
+        text = extract(make_epub(body, middle_media_type='text/html'))
+        self.assertIn('Tom &amp; Jerry', text)       # one decode, not zero
+        self.assertNotIn('Tom &amp;amp; Jerry', text)
+        self.assertNotIn('Tom & Jerry', text)        # not double-decoded
+        self.assertIn('Before.', text)
+        self.assertIn('After.', text)
+        plain = ('<html><body><ruby><textarea>Tom &amp; Jerry</textarea>'
+                 '</ruby></body></html>')
+        self.assertIn('Tom & Jerry', extract(
+            make_epub(plain, middle_media_type='text/html')))
+
     def test_ordinary_tolerant_html_remains_accepted(self):
         # The existing tolerant-XHTML contract: an unclosed paragraph is
         # not a skipped element and must not be rejected.
