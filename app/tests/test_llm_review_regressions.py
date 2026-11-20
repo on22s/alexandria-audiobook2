@@ -1408,6 +1408,101 @@ class NarratorMetadataMergeTests(unittest.TestCase):
                 self.assertEqual({"BETH": "ELIZABETH", "BOB": "ROBERT"}, json.load(f))
 
 
+class ReviewMetadataOmissionTests(unittest.TestCase):
+    """Issue #2144: a reviewer omitting extra JSON keys must not lose them.
+
+    Measured against the real review path: the classic response contract
+    restores authoritative metadata from the original entries rather than
+    trusting the model to echo it. The example errors attached to the report
+    are source-span and altered-text rejections, not key omission; these tests
+    pin both the preservation and the guards with synthetic data only.
+    """
+
+    def _entries(self):
+        return [
+            {"speaker": "NARRATOR", "text": "Hello there.", "instruct": "Neutral.",
+             "source_span": [0, 12], "spoken": False, "speaker_gender": "female",
+             "extra": {"note": "keep"}},
+            {"speaker": "ALICE", "text": "Hi.", "instruct": "Warm.",
+             "source_span": [13, 16], "spoken": True},
+        ]
+
+    @staticmethod
+    def _bare(entries):
+        return [{key: row[key] for key in ("speaker", "text", "instruct")}
+                for row in entries]
+
+    def test_production_review_entry_point_restores_omitted_keys(self):
+        """Verify the conclusion through review_script.main(), not just a helper.
+
+        The raw model reply omits every extra key; the persisted script must
+        still carry the original metadata. Only the stub client and the
+        pre-existing run_review harness are substituted.
+        """
+        original = self._entries()
+        real_review_batch = review_script.review_batch
+        reply = json.dumps(self._bare(original))
+        stub = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+            create=lambda **_kwargs: SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=reply), finish_reason="stop")], usage=None))))
+
+        def review(_client, model, batch, *args, **kwargs):
+            return real_review_batch(stub, model, batch, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "script.json")
+            path.write_text(json.dumps(original))
+            ReviewVramTests.run_review(
+                self, path, [True, True, True], review,
+                MagicMock(return_value=({}, 0, [])))
+            self.assertEqual(original, json.loads(path.read_text()))
+
+    def test_omitted_extra_keys_are_restored_for_every_entry(self):
+        original = self._entries()
+        bound, quality = review_script.get_review_source_binding(
+            original, self._bare(original))
+        self.assertTrue(quality["passed"], quality["findings"])
+        self.assertEqual(original, bound)
+
+    def test_omitted_extra_keys_are_restored_through_source_span_binding(self):
+        original = self._entries()
+        bound, quality = review_script.get_review_source_binding(
+            original, self._bare(original), source_text="Hello there. Hi.")
+        self.assertTrue(quality["passed"], quality["findings"])
+        self.assertEqual(original, bound)
+
+    def test_punctuation_only_change_still_restores_metadata(self):
+        original = self._entries()
+        reply = self._bare(original)
+        reply[0]["text"] = "Hello there!"
+        bound, quality = review_script.get_review_source_binding(original, reply)
+        self.assertTrue(quality["passed"], quality["findings"])
+        self.assertTrue(quality.get("source_bound_label_recovery"))
+        self.assertEqual(original[0]["source_span"], bound[0]["source_span"])
+        self.assertEqual(original[0]["extra"], bound[0]["extra"])
+
+    def test_altered_text_is_rejected_without_inferring_metadata(self):
+        original = self._entries()
+        reply = self._bare(original)
+        reply[0]["text"] = "Hello there, old friend."
+        bound, quality = review_script.get_review_source_binding(original, reply)
+        self.assertFalse(quality["passed"])
+        self.assertIn("review_text_mismatch", {f["code"] for f in quality["findings"]})
+        self.assertIsNone(bound)
+
+    def test_explicit_model_annotation_is_applied_but_source_metadata_is_not_overwritten(self):
+        original = self._entries()
+        reply = self._bare(original)
+        reply[0]["spoken"] = True
+        reply[0]["source_span"] = [999, 1000]
+        reply[0]["extra"] = {"note": "model invented this"}
+        bound, quality = review_script.get_review_source_binding(original, reply)
+        self.assertTrue(quality["passed"], quality["findings"])
+        self.assertTrue(bound[0]["spoken"])
+        self.assertEqual([0, 12], bound[0]["source_span"])
+        self.assertEqual({"note": "keep"}, bound[0]["extra"])
+
+
 class PassSpecificSalvageTests(unittest.TestCase):
     def test_salvages_pass2_and_pass3_object_shapes(self):
         pass2 = ('[{"n":0,"head":"Tell me now","speaker":"ELENA"},'
