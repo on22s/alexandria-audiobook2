@@ -1352,6 +1352,10 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
             raise ValueError('Book transaction journal changed during publication')
         return result
 
+    def check_expected_version():
+        if expected_version is not None and observed_version() != expected_version:
+            raise ValueError('Book transaction journal changed; update was refused')
+
     if create:
         temporary = f'{JOURNAL}.new-{uuid.uuid4().hex}'
         temporary_path = root / temporary
@@ -1407,8 +1411,7 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
             # A failure may follow a successful rename or a foreign edit to
             # either name. Preserve both as evidence; an inode alone cannot
             # prove the file still contains the data this call wrote.
-    if expected_version is not None and observed_version() != expected_version:
-        raise ValueError('Book transaction journal changed; update was refused')
+    check_expected_version()
     if root_fd is not None:
         temporary = f'{JOURNAL}.new-{uuid.uuid4().hex}'
         descriptor = None
@@ -1435,6 +1438,7 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
                 os.close(descriptor)
             # The temporary name may have been edited or replaced while the
             # update failed. An inode match is not enough to authorize deletion.
+    check_expected_version()
     try:
         save_adapter_publication_bytes(str(path), bytes(payload))
         return verify_published(_book_target_version(path))
