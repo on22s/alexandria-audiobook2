@@ -417,6 +417,8 @@
     , "tests.test_api_contract_regressions.ApiContractTests.test_preparer_download_rejects_output_directory"
     , "tests.test_api_contract_regressions.ApiContractTests.test_preparer_publication_failure_restores_previous_uploads"
     , "tests.test_api_contract_regressions.ApiContractTests.test_preparer_rejects_source_and_audio_upload_name_collision_before_writing"
+    , "tests.test_api_contract_regressions.ApiContractTests.test_readme_api_reference_covers_every_router_with_decorators"
+    , "tests.test_api_contract_regressions.ApiContractTests.test_readme_api_reference_matches_contract"
   ]
   , "test_api_detail_golden": [
     "tests.test_api_detail_golden.GoldenCorpusTests.test_new_detail_sites_must_use_app_error"
@@ -12687,6 +12689,7 @@
     , "tests.test_runtime_regressions.RuntimeTests.test_epub_toc_labels_sharing_anchor_keep_nested_toc_order"
     , "tests.test_runtime_regressions.RuntimeTests.test_epub_toc_listing_a_later_anchor_first_still_places_titles"
     , "tests.test_runtime_regressions.RuntimeTests.test_epub_xhtml_respects_unicode_encoding_and_declared_legacy_charset"
+    , "tests.test_runtime_regressions.RuntimeTests.test_eta_and_task_status_agree_for_a_claimed_unflipped_task"
     , "tests.test_runtime_regressions.RuntimeTests.test_existing_upload_can_be_listed_and_selected"
     , "tests.test_runtime_regressions.RuntimeTests.test_explicit_diarization_wins_over_auto_detection"
     , "tests.test_runtime_regressions.RuntimeTests.test_failed_claimed_task_releases_running_state"
@@ -12725,6 +12728,7 @@
     , "tests.test_runtime_regressions.RuntimeTests.test_saved_book_metadata_is_not_listed_as_a_script"
     , "tests.test_runtime_regressions.RuntimeTests.test_saved_book_metadata_preserves_original_identity"
     , "tests.test_runtime_regressions.RuntimeTests.test_script_collision_helpers_version_and_backup_without_overwrite"
+    , "tests.test_runtime_regressions.RuntimeTests.test_static_status_routes_survive_dynamic_status_route"
     , "tests.test_runtime_regressions.RuntimeTests.test_subprocess_log_replaces_invalid_utf8_and_drains"
     , "tests.test_runtime_regressions.RuntimeTests.test_system_stats_does_not_block_eta_requests"
     , "tests.test_runtime_regressions.RuntimeTests.test_training_blocks_dataset_deletion_until_worker_exits"

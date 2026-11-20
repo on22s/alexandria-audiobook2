@@ -627,6 +627,44 @@ class RuntimeTests(unittest.TestCase):
 
         asyncio.run(exercise_requests())
 
+    def test_eta_and_task_status_agree_for_a_claimed_unflipped_task(self):
+        async def exercise():
+            transport = ASGITransport(app=app_module.app)
+            async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+                with patch.dict(core_module.process_state, {
+                        "benchmark": {"running": False, "status": "idle", "logs": ["starting"]}}), \
+                     patch.dict(core_module._task_claims, {
+                         "benchmark": {"id": "fixture-claim", "phase": "pending", "lease": None}}):
+                    eta = await client.get("/api/status/eta")
+                    status = await client.get("/api/status/benchmark")
+            return eta, status
+
+        eta_response, status_response = asyncio.run(exercise())
+        self.assertEqual(200, eta_response.status_code, eta_response.text)
+        self.assertEqual(200, status_response.status_code, status_response.text)
+        eta = eta_response.json()
+        status = status_response.json()
+        self.assertTrue(eta["running"])
+        self.assertEqual("benchmark", eta["task"])
+        self.assertTrue(status["running"])
+
+    def test_static_status_routes_survive_dynamic_status_route(self):
+        async def exercise():
+            transport = ASGITransport(app=app_module.app)
+            async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+                with patch.object(system_module, "get_runtime_info",
+                                  return_value={"short_revision": "static-version"}), \
+                     patch.dict(core_module.process_state, {}, clear=True):
+                    version = await client.get("/api/status/version")
+                    eta = await client.get("/api/status/eta")
+            return version, eta
+
+        version_response, eta_response = asyncio.run(exercise())
+        self.assertEqual(200, version_response.status_code, version_response.text)
+        self.assertEqual("static-version", version_response.json()["short_revision"])
+        self.assertEqual(200, eta_response.status_code, eta_response.text)
+        self.assertIn("running", eta_response.json())
+
     def test_gpu_stats_cache_preserves_rocm_fallback_result(self):
         fallback_stats = {
             "allocated_gb": 1.0,

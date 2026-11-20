@@ -5,6 +5,7 @@ import core
 import os
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,7 @@ import routers.editor as editor_router
 import routers.preparer as preparer_router
 import routers.dataset_builder as dataset_builder_router
 import update_api_contract_snapshots as api_contract
+import update_readme_api_reference as readme_api
 
 
 class ApiContractTests(unittest.TestCase):
@@ -384,6 +386,31 @@ class ApiContractTests(unittest.TestCase):
                                      (api_contract.ROUTES_SNAPSHOT, routes_path)):
                 self.assertEqual(expected.read_bytes().replace(b'\r\n', b'\n'),
                                  actual.read_bytes().replace(b'\r\n', b'\n'))
+
+    def test_readme_api_reference_matches_contract(self):
+        readme = (Path(__file__).resolve().parent.parent.parent / "README.md").read_text(encoding="utf-8")
+        current = readme[readme.index(readme_api.START):readme.index(readme_api.END) + len(readme_api.END)]
+        self.assertEqual(readme_api.build_reference().rstrip("\n"), current,
+                         "README API reference is stale; run app/update_readme_api_reference.py")
+
+    def test_readme_api_reference_covers_every_router_with_decorators(self):
+        readme = (Path(__file__).resolve().parent.parent.parent / "README.md").read_text(encoding="utf-8")
+        section = readme[readme.index(readme_api.START):readme.index(readme_api.END)]
+        methods = {"api_route", "delete", "get", "head", "options", "patch", "post", "put", "trace"}
+        decorated = set()
+        for path in (Path(__file__).resolve().parent.parent / "routers").glob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                for decorator in node.decorator_list:
+                    target = decorator.func if isinstance(decorator, ast.Call) else decorator
+                    if (isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name)
+                            and target.value.id == "router" and target.attr in methods):
+                        decorated.add(path.stem)
+        headers = re.findall(r"^#### .+ \(`app/routers/(\w+)\.py`\)$", section, re.M)
+        self.assertTrue(decorated)
+        self.assertEqual(sorted(decorated), sorted(headers))
 
     def test_api_contract_regeneration_matches_crlf_checkout_without_rewriting_it(self):
         with tempfile.TemporaryDirectory() as tmp:
