@@ -148,7 +148,8 @@ class ReviewSourceSpanTests(unittest.TestCase):
 
     @contextmanager
     def cli(self, directory, client, *, script=None, labels_only=False):
-        config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
+        config = {'llm_mode': 'remote',
+                  'llm_remote': {'model_name': 'fixture', 'base_url': 'https://api.example.invalid/v1'},
                   'generation': {'review_batch_size': 2, 'merge_narrators': True}}
         with ExitStack() as stack:
             stdout = stack.enter_context(redirect_stdout(io.StringIO()))
@@ -521,7 +522,8 @@ class ReviewSourceSpanTests(unittest.TestCase):
                         source_path.unlink()
                         script.with_suffix('.selection_binding.json').unlink()
                     client, calls = client_for([(REPLY, 'stop')] * 3)
-                    config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
+                    config = {'llm_mode': 'remote',
+                              'llm_remote': {'model_name': 'fixture', 'base_url': 'https://api.example.invalid/v1'},
                               'generation': {'review_batch_size': 2, 'merge_narrators': True}}
                     stdout = io.StringIO()
                     with ExitStack() as stack:

@@ -474,7 +474,8 @@ class PartialPublicationTests(unittest.TestCase):
         return info
 
     def run_main(self, directory, path, client, *, contextual=False, output=None, concurrency=1, partial=True):
-        config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
+        config = {'llm_mode': 'remote',
+                  'llm_remote': {'model_name': 'fixture', 'base_url': 'https://api.example.invalid/v1'},
                   'generation': {'review_batch_size': 3, 'merge_narrators': True}}
         args = ['review', '--input', str(path), '--dedupe-speakers']
         if contextual:args += ['--context-window', '1']

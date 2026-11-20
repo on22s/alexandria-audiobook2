@@ -870,15 +870,17 @@ class ReviewVramTests(unittest.TestCase):
              patch.object(review_script.subprocess, "run", side_effect=FileNotFoundError):
             self.assertIsNone(review_script.get_vram_usage())
 
-    def run_review(self, path, headroom, review, dedupe, executor=None, remote=False, generation=None):
+    def run_review(self, path, headroom, review, dedupe, executor=None, remote_url=None, generation=None):
         from contextlib import ExitStack, redirect_stdout
         from io import StringIO
+        remote = remote_url is not None
+        mode = "remote" if remote else "local"
+        profile = {"base_url": remote_url} if remote else {}
         with ExitStack() as stack:
             stack.enter_context(redirect_stdout(StringIO()))
             patches = {
                 "load_app_config": {"generation": {"review_batch_size": 1, **(generation or {})},
-                                    "llm_mode": "remote" if remote else "local"},
-                "get_active_llm_config": {},
+                                    "llm_mode": mode, f"llm_{mode}": profile},
                 "ensure_ideal_settings": (remote, {}, "test settings"),
                 "get_current_status": {"loaded": False},
                 "make_run_client": object(),
@@ -1029,9 +1031,24 @@ class ReviewVramTests(unittest.TestCase):
             entry = {"speaker": "ALICE", "text": "One line.", "instruct": "neutral"}
             path.write_text(json.dumps([entry]))
             headroom = MagicMock(side_effect=AssertionError("local GPU must not be probed"))
-            self.run_review(path, headroom, MagicMock(return_value=[entry]),
-                            MagicMock(return_value=({}, 0, [])), remote=True)
+            review = MagicMock(return_value=[entry])
+            self.run_review(path, headroom, review,
+                            MagicMock(return_value=({}, 0, [])),
+                            remote_url="https://api.example.invalid/v1")
             headroom.assert_not_called()
+            review.assert_called_once()
+
+    def test_remote_marked_loopback_review_checks_local_headroom(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "script.json")
+            entry = {"speaker": "ALICE", "text": "One line.", "instruct": "neutral"}
+            path.write_text(json.dumps([entry]))
+            headroom = MagicMock(return_value=False)
+            review = MagicMock(return_value=[entry])
+            self.run_review(path, headroom, review, MagicMock(return_value=({}, 0, [])),
+                            remote_url="http://127.0.0.1:4301/v1")
+            headroom.assert_called_once_with(fail_fast=True)
+            review.assert_not_called()
 
     def test_legacy_minimal_entry_and_extra_metadata_remain_valid(self):
         with tempfile.TemporaryDirectory() as tmp:

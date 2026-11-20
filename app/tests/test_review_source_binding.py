@@ -675,7 +675,8 @@ class ReviewSourceBindingTests(unittest.TestCase):
                 else:
                     reply = [row('And yet, Just turn your head.', speaker='ALICE'), original[1]]
                 client, calls = client_for([(reply, 'stop')])
-                config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
+                config = {'llm_mode': 'remote',
+                          'llm_remote': {'model_name': 'fixture', 'base_url': 'https://api.example.invalid/v1'},
                           'generation': {'review_batch_size': 25}}
                 argv = ['review', '--input', str(source)] + (['--labels-only'] if labels_only else [])
                 with ExitStack() as stack:
@@ -723,7 +724,8 @@ class ReviewSourceBindingTests(unittest.TestCase):
                 source, _, _ = create_book(directory, source=original,
                     raw='\n\n'.join(entry['text'] for entry in original))
                 client, calls = client_for([(reply, 'stop')])
-                config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
+                config = {'llm_mode': 'remote',
+                          'llm_remote': {'model_name': 'fixture', 'base_url': 'https://api.example.invalid/v1'},
                           'generation': {'review_batch_size': 2, 'merge_narrators': True}}
                 with ExitStack() as stack:
                     stack.enter_context(redirect_stdout(io.StringIO()))
@@ -946,7 +948,8 @@ class ReviewNewSpeakerSplitTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             script, _, _ = create_book(directory, raw=raw, source=batch)
             client, calls = client_for([(reply, 'stop')])
-            config = {'llm_mode': 'remote', 'llm_remote': {'model_name': 'fixture'},
+            config = {'llm_mode': 'remote',
+                      'llm_remote': {'model_name': 'fixture', 'base_url': 'https://api.example.invalid/v1'},
                       'generation': {'review_batch_size': 9}}
             stdout = io.StringIO()
             with ExitStack() as stack:
