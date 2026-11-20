@@ -22,29 +22,49 @@ salvage_json_entries in generate_script.
 DELIMITER = "|"
 FIELDS = ("speaker", "instruct", "text")
 
+# str.splitlines() also breaks on VT, FF, FS, GS, RS, NEL, LS and PS. Those are
+# data inside `text`, not record breaks: a Gutenberg page break (\x0c) copied
+# verbatim into a passage must not strand its tail on a pipe-less line. Only
+# CR/LF frame records, and the producer escapes every other separator.
+_ESCAPES = {
+    "\n": "n", "\r": "r", "\v": "v", "\f": "f",
+    "\x1c": "u001c", "\x1d": "u001d", "\x1e": "u001e",
+    "\x85": "u0085", "\u2028": "u2028", "\u2029": "u2029",
+}
+_UNESCAPES = {token: char for char, token in _ESCAPES.items()}
+
+
+def _split_records(text):
+    """Split on CR/LF only, so other Unicode line separators stay in `text`.
+
+    CRLF and bare CR remain record breaks (existing replies may use either),
+    but FF, VT, NEL, LS, PS, FS, GS and RS do not - the producer escapes them
+    and a model can emit them raw inside a passage it is copying.
+    """
+    return str(text).replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
 
 class LineFormatError(ValueError):
     """A line could not be read as an entry."""
 
 
 def _escape(value):
-    return (str(value if value is not None else "")
-            .replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r"))
+    text = str(value if value is not None else "").replace("\\", "\\\\")
+    for char, token in _ESCAPES.items():
+        text = text.replace(char, "\\" + token)
+    return text
 
 
 def _unescape(value):
     out, i = [], 0
     while i < len(value):
-        ch = value[i]
-        if ch == "\\" and i + 1 < len(value):
-            nxt = value[i + 1]
-            if nxt == "n":
-                out.append("\n"); i += 2; continue
-            if nxt == "r":
-                out.append("\r"); i += 2; continue
-            if nxt == "\\":
+        if value[i] == "\\" and i + 1 < len(value):
+            if value[i + 1] == "\\":
                 out.append("\\"); i += 2; continue
-        out.append(ch); i += 1
+            token = next((t for t in _UNESCAPES if value.startswith(t, i + 1)), None)
+            if token is not None:
+                out.append(_UNESCAPES[token]); i += 1 + len(token); continue
+        out.append(value[i]); i += 1
     return "".join(out)
 
 
@@ -74,7 +94,7 @@ def _parse_line(line):
 
 def parse_entries(text):
     """Parse the compact format. Raises LineFormatError on any bad line."""
-    return [_parse_line(line) for line in str(text).splitlines() if line.strip()]
+    return [_parse_line(line) for line in _split_records(text) if line.strip()]
 
 
 def salvage_entries(text):
@@ -83,7 +103,7 @@ def salvage_entries(text):
     The caller decides what a partial read means; this never hides one.
     """
     entries, skipped = [], []
-    for line in str(text).splitlines():
+    for line in _split_records(text):
         if not line.strip():
             continue
         try:

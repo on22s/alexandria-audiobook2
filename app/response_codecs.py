@@ -55,7 +55,7 @@ def _line_codec():
         about surrounding text.
         """
         kept = []
-        for line in str(text).splitlines():
+        for line in line_format._split_records(text):
             stripped = line.strip()
             if not stripped or stripped.startswith("```"):
                 continue
@@ -63,15 +63,22 @@ def _line_codec():
                 kept.append(stripped)
         return "\n".join(kept)
 
+    def parse_with_provenance(payload):
+        # The skipped list used to be discarded here, making a partial read
+        # indistinguishable from a complete one (Rule 8). Keep the acceptance
+        # semantics - salvage is intentionally lenient - but surface the count
+        # through the same provenance channel the JSON codec already uses.
+        entries, skipped = line_format.salvage_entries(payload)
+        return entries, {"skipped_records": len(skipped)}
+
     def parse(payload):
-        entries, _ = line_format.salvage_entries(payload)
-        return entries
+        return parse_with_provenance(payload)[0]
 
     def salvage(payload):
-        entries, _ = line_format.salvage_entries(payload)
-        return entries
+        return parse_with_provenance(payload)[0]
 
-    return ResponseCodec("lines", extract, parse, salvage, lambda text: None)
+    return ResponseCodec("lines", extract, parse, salvage, lambda text: None,
+                         parse_with_provenance)
 
 
 def _freeform_codec():
