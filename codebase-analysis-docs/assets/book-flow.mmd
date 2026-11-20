@@ -1,0 +1,28 @@
+sequenceDiagram
+    participant U as User
+    participant API as FastAPI
+    participant LLM as LLM endpoint
+    participant P as Pipeline
+    participant T as TTS
+    participant X as Export
+    participant D as Data dir
+    U->>API: upload TXT/MD/EPUB
+    API->>D: hash, quota, publish upload
+    API->>P: three-pass generation
+    P->>LLM: pass 1 segment windows
+    P->>D: checkpoint accepted chunks
+    P->>LLM: pass 2 attribute windows
+    P->>D: checkpoint named entries
+    P->>LLM: pass 3 instruct windows
+    P->>D: checkpoint annotated script
+    U->>API: review / aliases / roster
+    API->>D: publish script + companions
+    U->>API: assign voices
+    API->>D: voice_config.json
+    U->>API: render chunks
+    API->>T: synthesize chunk text + voice recipe
+    T->>D: publish voiceline + take + receipt
+    U->>API: merge/export
+    API->>X: timeline, PCM, encode, validate
+    X->>D: atomic MP3/M4B/chapters
+    U->>API: download
