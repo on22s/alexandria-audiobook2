@@ -17,7 +17,7 @@ from review_script import normalize_text
 from chunk_quality import (MIN_SOURCE_TOKEN_RECALL, MIN_ORDERED_TRIGRAM_RECALL,
                            MIN_OUTPUT_SOURCE_RATIO, MAX_OUTPUT_SOURCE_RATIO,
                            get_unsupported_cyrillic_characters, get_missing_source_runs)
-from script_preflight import find_adjacent_duplicate_blocks
+from script_preflight import find_adjacent_duplicate_blocks, find_seam_duplicate_narration
 
 _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 # Derive every quote-mark set from dialogue_spans' single PAIRED table so the
@@ -474,6 +474,12 @@ def _introduced_character_findings(source_text, output_text, entries):
             findings.append({"code": "source_unsupported_duplicate",
                              "entry_numbers": duplicate["entry_numbers"],
                              "message": "An adjacent repeated block is not repeated in the source."})
+    for duplicate in find_seam_duplicate_narration(source_text, entries):
+        if duplicate["severity"] == "blocking":
+            findings.append({"code": "source_unsupported_duplicate",
+                             "entry_numbers": duplicate["entry_numbers"],
+                             "message": duplicate["message"],
+                             "details": duplicate["details"]})
     return findings
 
 

@@ -462,6 +462,79 @@ def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None
     return findings
 
 
+# A single short quoted term can be duplicated at a split seam: the model
+# emits it inside the surrounding narration and again as its own narrator
+# entry. The adjacent-block check cannot see one repeated entry, and at book
+# chunk size the recall/trigram/ratio metrics barely move. Only whole-token
+# phrases this short are candidate seam fragments; longer narration is the
+# adjacent-block check's job and must not be re-judged here.
+MAX_SEAM_DUPLICATE_WORDS = 10
+MAX_SEAM_DUPLICATE_CHARS = 120
+
+
+def find_seam_duplicate_narration(source_text, entries, *, source_normalized=None,
+                                  count_phrase=None):
+    """Find a short narration entry that repeats a phrase at a split seam.
+
+    Pass 1 sometimes splits a sentence at a quoted lexical term (a title, a
+    skill, a name) and emits that term a second time as its own NARRATOR entry,
+    often with the neighbouring punctuation copied too. Unlike a duplicated
+    block, this is one short entry, so ``find_adjacent_duplicate_blocks``
+    starts too late to see it; and because a chunk holds thousands of words,
+    the aggregate fidelity metrics stay clean and let it into the final
+    script (issue #2143).
+
+    The decision is provenance, not length alone: count whole-token
+    occurrences in the source and in the emitted output and reject only a
+    strictly greater output count. A phrase the source itself repeats that
+    many times is faithful transcription and is left alone, so legitimately
+    repeated source quotes are never removed. Dialogue entries (SPOKEN or a
+    character speaker) are excluded: their contained-quote provenance is
+    checked by ``find_contained_source_duplicates``.
+    """
+    if source_normalized is None:
+        source_normalized = _normalize_words(source_text)
+    count_phrase = count_phrase or get_source_phrase_counter(source_normalized)
+    texts = [_normalize_words(entry.get("text")) if isinstance(entry, dict) else ""
+             for entry in entries]
+    findings = []
+    for index, text in enumerate(texts):
+        words = text.split()
+        if not words or len(words) > MAX_SEAM_DUPLICATE_WORDS:
+            continue
+        if len(text) > MAX_SEAM_DUPLICATE_CHARS:
+            continue
+        role = str(entries[index].get("speaker") or entries[index].get("type") or "")
+        if role and role.casefold() not in {"narrator", "narration"}:
+            continue
+        previous = texts[index - 1] if index else ""
+        following = texts[index + 1] if index + 1 < len(texts) else ""
+        after_previous = bool(previous) and (previous == text or previous.endswith(" " + text))
+        before_following = bool(following) and (following == text or following.startswith(text + " "))
+        if not (after_previous or before_following):
+            continue
+        source_count = count_phrase(text)
+        if source_count < 1:
+            # No verified source correspondence: abstain rather than invent
+            # a duplicate verdict from a phrase the source cannot confirm.
+            continue
+        emitted = sum(get_source_phrase_occurrences(candidate, text) for candidate in texts)
+        if emitted <= source_count:
+            continue
+        neighbors = []
+        if after_previous:
+            neighbors.append(index)
+        if before_following:
+            neighbors.append(index + 2)
+        findings.append(_finding(
+            "blocking", "seam_duplicate_narration",
+            "A short narration quote is emitted twice at a split seam; the "
+            "source does not carry the extra copy.",
+            sorted({index + 1, *neighbors}),
+            phrase=text, source_occurrences=source_count, output_occurrences=emitted))
+    return findings
+
+
 def find_adjacent_near_duplicate_entries(texts, source_text, minimum_ratio=0.90, *, exact_findings=None, source_normalized=None, count_phrase=None):
     """Adjacent entry pairs that are near-duplicates of each other but not
     supported by the source - likely model re-generation at a seam.

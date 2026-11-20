@@ -625,6 +625,64 @@ class GateParityAndMessagesTests(unittest.TestCase):
         self.assertEqual("é", char["character"])
 
 
+class PassOneSeamDuplicateTests(unittest.TestCase):
+    """A short lexical quote duplicated at a split seam (issue #2143).
+
+    Deliberately use realistic chunk size: on a tiny chunk the aggregate
+    recall/ratio metrics happen to catch the extra copy, which hides the real
+    defect. At book-chunk scale only a provenance-aware duplicate check can
+    see it. Synthetic text only.
+    """
+
+    FILLER = ("The old stone gate groaned softly as the morning rain fell "
+              "across the quiet yard. " * 120)
+    GATE = {"quoted_must_be_spoken": False, "unquoted_must_be_narrator": False}
+
+    def _report(self, source, entries):
+        return validate_segment_quality(source, entries, **self.GATE)
+
+    def test_duplicated_lexical_quote_is_rejected_with_clean_aggregate_metrics(self):
+        source = (self.FILLER
+                  + "At the gate stood the [Silver Knight]. He waited there quietly.")
+        faithful = [
+            _seg(self.FILLER.strip()),
+            _seg("At the gate stood the [Silver Knight]. He waited there quietly."),
+        ]
+        duplicated = [
+            _seg(self.FILLER.strip()),
+            _seg("At the gate stood the [Silver Knight]."),
+            _seg("Silver Knight"),
+            _seg(". He waited there quietly."),
+        ]
+        clean = self._report(source, faithful)
+        self.assertTrue(clean["passed"], clean["findings"])
+
+        report = self._report(source, duplicated)
+        metrics = report["metrics"]
+        self.assertGreaterEqual(metrics["source_token_recall"], 0.99)
+        self.assertGreaterEqual(metrics["ordered_trigram_recall"], 0.99)
+        self.assertLessEqual(metrics["output_source_ratio"], 1.01)
+        self.assertFalse(report["passed"])
+        finding = next(f for f in report["findings"]
+                       if f["code"] == "source_unsupported_duplicate")
+        self.assertIn(3, finding["entry_numbers"])
+        self.assertEqual("silver knight", finding["details"]["phrase"])
+
+    def test_legitimately_repeated_source_quote_is_accepted(self):
+        source = " ".join(["The [Silver Knight] waited."] * 4)
+        entries = [_seg("The [Silver Knight] waited. " * 4)]
+        report = self._report(source, entries)
+        self.assertTrue(report["passed"], report["findings"])
+
+    def test_short_narration_repeated_in_source_is_not_flagged(self):
+        # The same short phrase on both sides of a seam is faithful when the
+        # source carries it that many times: no excess copy to reject.
+        source = "The bell rang. The bell rang again."
+        entries = [_seg("The bell rang."), _seg("The bell rang again.")]
+        report = self._report(source, entries)
+        self.assertTrue(report["passed"], report["findings"])
+
+
 class ValidationExpectedValueTests(unittest.TestCase):
     def test_falsey_expected_values_remain_in_diagnostic_context(self):
         import copy
