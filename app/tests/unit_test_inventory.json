@@ -9865,6 +9865,28 @@
     , "tests.test_preparer_input_output_contract.PreparerInputOutputContractTests.test_valid_boundary_values_are_preserved_without_mutating_input"
     , "tests.test_preparer_input_output_contract.PreparerInputOutputContractTests.test_zip_listing_and_download_admit_all_extension_cases"
   ]
+  , "test_preparer_issue_2101": [
+    "tests.test_preparer_issue_2101.PreparerOutputCollisionTests.test_all_comparisons_share_one_normcase_call_site"
+    , "tests.test_preparer_issue_2101.PreparerOutputCollisionTests.test_case_sensitive_filesystem_keeps_distinct_spellings_distinct"
+    , "tests.test_preparer_issue_2101.PreparerOutputCollisionTests.test_existing_file_differing_only_in_case_is_not_overwritten_on_windows"
+    , "tests.test_preparer_issue_2101.PreparerOutputCollisionTests.test_two_batch_outputs_differing_only_in_case_get_distinct_names_on_windows"
+  ]
+  , "test_preparer_issue_2104": [
+    "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_batch_invalid_config_detail_hides_the_pydantic_echoed_path"
+    , "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_invalid_config_detail_hides_the_pydantic_echoed_path"
+    , "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_missing_runtime_detail_hides_preparer_env_and_rocm_python"
+    , "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_missing_script_detail_is_static_and_keyed"
+    , "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_new_error_keys_ship_in_all_four_catalogs"
+    , "tests.test_preparer_issue_2104.PreparerPathRedactionTests.test_zip_publication_detail_hides_the_archive_path"
+  ]
+  , "test_preparer_issue_2105": [
+    "tests.test_preparer_issue_2105.PreparerNulFilenameTests.test_all_filenames_share_one_nul_gate"
+    , "tests.test_preparer_issue_2105.PreparerNulFilenameTests.test_batch_rejects_nul_in_task_filenames_before_dispatch"
+    , "tests.test_preparer_issue_2105.PreparerNulFilenameTests.test_download_rejects_nul_before_realpath_is_called"
+    , "tests.test_preparer_issue_2105.PreparerNulFilenameTests.test_normal_download_still_works"
+    , "tests.test_preparer_issue_2105.PreparerNulFilenameTests.test_posix_style_realpath_value_error_cannot_escape_as_500"
+    , "tests.test_preparer_issue_2105.PreparerNulFilenameTests.test_start_rejects_nul_in_audio_output_and_source_names"
+  ]
   , "test_preparer_logging_lifecycle": [
     "tests.test_preparer_logging_lifecycle.PreparerLoggingLifecycleTests.test_explicit_setup_survives_reload_and_writes_once"
     , "tests.test_preparer_logging_lifecycle.PreparerLoggingLifecycleTests.test_file_setup_error_preserves_foreign_handlers_and_retry"
