@@ -759,6 +759,79 @@ class PassOneSeamDuplicateTests(unittest.TestCase):
                        if f["code"] == "source_unsupported_duplicate")
         self.assertEqual("silver knight", finding["details"]["phrase"])
 
+    def _mixed_source(self):
+        return (self.FILLER + "At the gate stood the [Silver Knight]. "
+                "He waited there quietly. A child whispered, \"Silver Knight.\"")
+
+    def _mixed_analysis(self, source):
+        return classify_lexical_quote_regions(source, analyze_outer_quote_regions(source))
+
+    def _validate_with_real_analysis(self, source, entries, analysis, restrictions=True):
+        from generate_script import LLMGenParams
+        from three_pass_generate import validate_segment_for_params
+        params = LLMGenParams(segmentation="lexical", max_tokens=500,
+                              quoted_must_be_spoken=restrictions,
+                              unquoted_must_be_narrator=restrictions)
+        return validate_segment_for_params(source, entries, params, analysis)
+
+    def test_mixed_source_extra_narrator_seam_copy_is_rejected(self):
+        source = self._mixed_source()
+        entries = [
+            _seg(self.FILLER.strip()),
+            _seg("At the gate stood the [Silver Knight]."),
+            _seg("Silver Knight. He waited there quietly. A child whispered,"),
+            _seg("Silver Knight.", "SPOKEN"),
+        ]
+        report = self._validate_with_real_analysis(source, entries, self._mixed_analysis(source))
+        finding = next(f for f in report["findings"]
+                       if f["code"] == "source_unsupported_duplicate")
+        # The spoken source occurrence must not supply a second narrator
+        # allowance: one narration copy in source, two emitted.
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(2, finding["details"]["output_occurrences"])
+        self.assertEqual({2, 3}, set(finding["entry_numbers"]))
+
+    def test_mixed_source_faithful_narration_and_dialogue_is_accepted(self):
+        source = self._mixed_source()
+        entries = [
+            _seg(self.FILLER.strip()),
+            _seg("At the gate stood the [Silver Knight]. He waited there quietly. "
+                 "A child whispered,"),
+            _seg("Silver Knight.", "SPOKEN"),
+        ]
+        report = self._validate_with_real_analysis(source, entries, self._mixed_analysis(source))
+        self.assertTrue(report["passed"], report["findings"])
+
+    def test_mixed_source_within_entry_extra_copy_is_rejected(self):
+        source = self._mixed_source()
+        entries = [
+            _seg(self.FILLER.strip()),
+            _seg("At the gate stood the [Silver Knight] [Silver Knight]. "
+                 "He waited there quietly. A child whispered,"),
+            _seg("Silver Knight.", "SPOKEN"),
+        ]
+        report = self._validate_with_real_analysis(source, entries, self._mixed_analysis(source),
+                                                   restrictions=False)
+        finding = next(f for f in report["findings"]
+                       if f["code"] == "source_unsupported_duplicate")
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(2, finding["details"]["output_occurrences"])
+        self.assertEqual([2], finding["entry_numbers"])
+
+    def test_repeated_spoken_line_cannot_create_a_narration_duplicate(self):
+        source = (self.FILLER + "At the gate stood the [Silver Knight]. "
+                  "A child whispered, \"Silver Knight.\" Another whispered, \"Silver Knight.\"")
+        entries = [
+            _seg(self.FILLER.strip()),
+            _seg("At the gate stood the [Silver Knight]."),
+            _seg("Silver Knight.", "SPOKEN"),
+            _seg("Silver Knight.", "SPOKEN"),
+        ]
+        report = self._validate_with_real_analysis(source, entries, self._mixed_analysis(source))
+        self.assertTrue(report["passed"], report["findings"])
+        self.assertFalse([f for f in report["findings"]
+                          if f["code"] == "source_unsupported_duplicate"])
+
     def test_legitimately_repeated_source_quote_is_accepted(self):
         source = " ".join(["The [Silver Knight] waited."] * 4)
         entries = [_seg("The [Silver Knight] waited. " * 4)]

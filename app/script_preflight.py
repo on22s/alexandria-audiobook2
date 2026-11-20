@@ -525,7 +525,8 @@ def get_seam_duplicate_candidates(source_text, entries, *, quote_analysis=None):
 
 
 def find_seam_duplicate_narration(source_text, entries, *, quote_analysis=None,
-                                  source_normalized=None, count_phrase=None):
+                                  source_narration_text=None, source_normalized=None,
+                                  count_phrase=None):
     """Find a short narration quote copied near a split, with source support.
 
     Pass 1 sometimes splits a sentence at a quoted lexical term (a title, a
@@ -543,8 +544,11 @@ def find_seam_duplicate_narration(source_text, entries, *, quote_analysis=None,
     their contained-quote provenance is ``find_contained_source_duplicates``'s
     job. No fidelity threshold is changed here.
     """
-    if source_normalized is None:
-        source_normalized = _normalize_words(source_text)
+    # Narration copies get narration source occurrences only: a SPOKEN source
+    # quoted term must not hand the narrator a second allowance.
+    allowance_text = source_narration_text if source_narration_text is not None else source_text
+    if source_narration_text is not None or source_normalized is None:
+        source_normalized = _normalize_words(allowance_text)
     count_phrase = count_phrase or get_source_phrase_counter(source_normalized)
     texts = [_normalize_words(entry.get("text")) if isinstance(entry, dict) else ""
              for entry in entries]

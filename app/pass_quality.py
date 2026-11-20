@@ -474,8 +474,18 @@ def _introduced_character_findings(source_text, output_text, entries, quote_anal
             findings.append({"code": "source_unsupported_duplicate",
                              "entry_numbers": duplicate["entry_numbers"],
                              "message": "An adjacent repeated block is not repeated in the source."})
+    # A spoken occurrence in the source is not a narrator allowance. Score
+    # narration copies against narration source coordinates only, using the
+    # same quote regions the quote gate already relies on (lexical regions
+    # relabelled NARRATOR stay narration).
+    quote_regions = (quote_analysis or {}).get("regions")
+    if not quote_regions:
+        quote_regions = analyze_outer_quote_regions(source_text).get("regions", [])
+    source_narration_text = " ".join(region["text"] for region in quote_regions
+                                     if region.get("type") == "NARRATOR") or source_text
     for duplicate in find_seam_duplicate_narration(source_text, entries,
-                                                   quote_analysis=quote_analysis):
+                                                   quote_analysis=quote_analysis,
+                                                   source_narration_text=source_narration_text):
         if duplicate["severity"] == "blocking":
             findings.append({"code": "source_unsupported_duplicate",
                              "entry_numbers": duplicate["entry_numbers"],
