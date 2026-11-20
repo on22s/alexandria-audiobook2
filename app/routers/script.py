@@ -24,6 +24,7 @@ import zipfile
 import uuid
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
+from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 import xml.etree.ElementTree as ET
@@ -418,6 +419,9 @@ class _HTMLTextExtractor(HTMLParser):
         'li', 'blockquote', 'br', 'hr', 'tr', 'td', 'th', 'section', 'article',
     })
     SKIP_TAGS = frozenset({'style', 'script', 'title'})
+    # In text/html these are RCDATA: their content is literal text, so markup
+    # that looks like a skipped element inside them is not an element at all.
+    RCDATA_TAGS = frozenset({'title', 'textarea'})
 
     # A paragraph ends with a BLANK LINE, not a single newline. `br` is a line
     # break inside one paragraph and stays single.
@@ -435,8 +439,17 @@ class _HTMLTextExtractor(HTMLParser):
         'li', 'blockquote', 'hr', 'tr', 'section', 'article',
     })
 
-    def __init__(self, anchor_ids=None):
+    def __init__(self, anchor_ids=None, *, html_rcdata=False):
         super().__init__()
+        if html_rcdata:
+            # HTMLParser only treats <script>/<style> as raw text by default.
+            # In text/html, <title>/<textarea> are RCDATA too: adding them here
+            # makes the tokenizer keep their contents literal until the
+            # matching end tag, instead of opening skipped elements from
+            # markup-looking text. XHTML keeps the default element semantics;
+            # its structure is already owned by the XML pass above.
+            self.CDATA_CONTENT_ELEMENTS = (HTMLParser.CDATA_CONTENT_ELEMENTS
+                                           + tuple(sorted(self.RCDATA_TAGS)))
         self.parts = []
         self._pending_newline = 0
         # Skipped-element names are kept on a stack only so the EOF
@@ -445,9 +458,6 @@ class _HTMLTextExtractor(HTMLParser):
         # parsers a skipped close is only delivered for the open skipped
         # element, and XHTML structure is owned by the XML parser before
         # this extractor runs, so no name-mismatch policy is needed here.
-        # HTMLParser itself treats <script>/<style> as raw text and
-        # <title> as RCDATA, so markup inside them is data, never a
-        # nested start/end tag here.
         self._skip_stack = []
         self._anchor_ids = frozenset(anchor_ids or ())
         self.anchor_counts = {}
@@ -497,6 +507,11 @@ class _HTMLTextExtractor(HTMLParser):
         if self._ruby is not None:
             self._ruby.add(data)
             return
+        if self.cdata_elem == 'textarea':
+            # RCDATA decodes character references; HTMLParser suppresses its
+            # own unescape in raw-text mode (script/style stay raw), so apply
+            # it here for the one RCDATA element whose text is narration.
+            data = unescape(data)
         self._append_text(data)
 
     def _append_text(self, data):
@@ -1030,7 +1045,11 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
             html_content = get_epub_xhtml_text(html_bytes)
             targets = toc_by_path.get(href, [])
             anchor_ids = {fragment for fragment, _ in targets if fragment}
-            extractor = _HTMLTextExtractor(anchor_ids)
+            # text/html RCDATA (<title>, <textarea>) keeps literal markup as
+            # text; XHTML stays on the strict XML path with element semantics.
+            extractor = _HTMLTextExtractor(
+                anchor_ids,
+                html_rcdata=media_type != 'application/xhtml+xml')
             try:
                 # XHTML resources are XML: omit true ignored subtrees via
                 # the strict XML path. Ordinary HTML media keeps the

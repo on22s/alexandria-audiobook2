@@ -733,6 +733,28 @@ class UnclosedSkipTagTests(unittest.TestCase):
         self.assertIn('<script>', xhtml_text)
         self.assertIn('Middle readable chapter.', xhtml_text)
 
+    def test_html_rcdata_boundary_and_entity_decoding(self):
+        # Adjacent control for the HTML raw-text model. RCDATA ends at its
+        # matching close: a real skipped element after </textarea> is still
+        # nonspoken, while character references inside RCDATA decode even
+        # though markup-looking text there stays literal. The same bytes as
+        # XHTML keep strict element semantics in both places.
+        body = ('<html><body><textarea>Tom &amp; '
+                '<script>INSIDE_LITERAL</script> &lt;b&gt;</textarea>'
+                '<script>AFTER_REAL</script>'
+                '<p>Middle readable chapter.</p></body></html>')
+        ET.fromstring(body.encode('utf-8'))  # XHTML well-formedness control
+        html_text = extract(make_epub(body, middle_media_type='text/html'))
+        self.assertIn('Tom & <script>INSIDE_LITERAL</script> <b>', html_text)
+        self.assertNotIn('&amp;', html_text)
+        self.assertNotIn('AFTER_REAL', html_text)
+        self.assertIn('Middle readable chapter.', html_text)
+        xhtml_text = extract(make_epub(body))
+        self.assertIn('Tom &', xhtml_text)
+        self.assertNotIn('INSIDE_LITERAL', xhtml_text)
+        self.assertNotIn('AFTER_REAL', xhtml_text)
+        self.assertIn('Middle readable chapter.', xhtml_text)
+
     def test_ordinary_tolerant_html_remains_accepted(self):
         # The existing tolerant-XHTML contract: an unclosed paragraph is
         # not a skipped element and must not be rejected.

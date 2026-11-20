@@ -5540,6 +5540,7 @@
     , "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_external_public_dtd_entities_preserve_exact_narration"
     , "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_foreign_prefixed_elements_retain_readable_text"
     , "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_healthy_text_anchor_and_title_output_preserved"
+    , "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_html_rcdata_boundary_and_entity_decoding"
     , "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_html_textarea_literal_vs_xhtml_script_element"
     , "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_incomplete_eof_markup_is_not_flushed_into_narration"
     , "tests.test_epub_unclosed_skip_tags.UnclosedSkipTagTests.test_legitimate_empty_and_nontext_resources_remain_accepted"
