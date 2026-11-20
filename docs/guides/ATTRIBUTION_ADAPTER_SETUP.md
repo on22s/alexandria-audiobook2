@@ -100,9 +100,11 @@ PDNC cells (Emma, held out; The Sun Also Rises, a training novel) are on the
 cards. The training data is English public-domain prose, so the light-novel
 gain is transfer, and it is small.
 
-**The check does not know the adapter's training prompt.** It compares the
-configured path and scale against what `/lora-adapters` reports; it reads no
-prompt identity from the adapter file, its filename or its training metadata.
+**The check does not know the adapter's training prompt.** It checks that the
+configured adapter path is served and that the scale the server reports is
+finite and positive; the configured scale is validated the same way, but the
+two numbers are never compared for equality. It reads no prompt identity from
+the adapter file, its filename or its training metadata.
 The adapter-name labels in `HF_MODEL_GUIDE.md` are a naming convention, not
 something the check enforces. Pairing a served adapter with the exact prompt
 it was trained on is the operator's responsibility, and a mismatch is not

@@ -100,9 +100,11 @@ de dos libros de PDNC (Emma, retenida; The Sun Also Rises, una novela de entrena
 tarjetas. Los datos de entrenamiento son prosa de dominio público en inglés, así que la mejora
 en novelas ligeras es transferencia, y es pequeña.
 
-**La comprobación no conoce el prompt de entrenamiento del adaptador.** Solo compara la ruta y la
-escala configuradas con lo que informa `/lora-adapters`; no lee ninguna identidad de prompt del
-archivo del adaptador, de su nombre ni de sus metadatos de entrenamiento. Las etiquetas de nombre
+**La comprobación no conoce el prompt de entrenamiento del adaptador.** Solo comprueba que la ruta
+configurada esté siendo servida y que la escala informada por el servidor sea finita y positiva; la
+escala configurada se valida de la misma manera, pero ambos números nunca se comparan entre sí. No
+lee ninguna identidad de prompt del archivo del adaptador, de su nombre ni de sus metadatos de
+entrenamiento. Las etiquetas de nombre
 de adaptador de `HF_MODEL_GUIDE.md` son una convención de nomenclatura, no algo que la comprobación
 aplique. Emparejar el adaptador servido con el prompt exacto con el que se entrenó es responsabilidad
 del operador, y una discrepancia no produce ningún aviso ni fallo. No hace falta cambiar nada en el
