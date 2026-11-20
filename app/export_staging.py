@@ -763,6 +763,13 @@ def reclaim_export_staging(parents, *, max_remove=MAX_RECLAIM,
     removed = 0
     seen_parents = set()
     for parent in order:
+        # A NUL byte is a ValueError at the stat/pin boundaries on both
+        # platforms, not an OSError. Reject the corrupt row here, before either
+        # the normal scan or retained-iterator stat, so it cannot abort recovery
+        # of unrelated parents.
+        if '\0' in os.fspath(parent):
+            result['errors'].append(f'{parent}: embedded null character in path')
+            continue
         try:
             parent = Path(parent)
             scan_parent = Path(os.path.realpath(parent))
