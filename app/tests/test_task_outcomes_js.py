@@ -69,3 +69,36 @@ for(const status of [{logs:['Errors: 2']},{logs:['Errors: 10']},{logs:['errors=0
 }
 assert.strictEqual(ctx.getTaskCompletionOutcome({logs:['Errors: 0'],status:'cancelled'}),'cancelled');
 """)
+
+    def test_batch_completion_ignores_collision_skips_and_keeps_real_failures(self):
+        self.run_js(r'''
+ ctx.clearScriptCancellation=()=>{};
+ ctx.loadSavedScripts=()=>{};
+ load('function _pollScriptBatchLogs(', '// --- Single review');
+ ctx._pollScriptBatchLogs();
+ const panel=el('script-batch-recovery-panel');
+ const message=el('script-batch-status-msg');
+ const skipped={running:false,tasks:[{status:'skipped'},{status:'skipped'}],logs:[
+  'Starting batch of 2 file(s)...',
+  "[1] Skipping — saved script 'Error' already exists. Choose version or replace explicitly.",
+  "[2] Skipping — saved script 'Failures.json' now exists.",
+  'Batch script generation finished.']};
+ poll.onDone(skipped);
+ assert.strictEqual(panel.style.display,'none');
+ assert.match(notifications.at(-1).title,/ finished$/);
+ assert.match(message.innerHTML,/0 completed, 2 skipped, 0 failed/);
+ assert.doesNotMatch(message.innerHTML,/checkpoint/);
+
+ for(const line of ['Error: synthetic preflight refusal','Worker failed during preflight']) {
+   poll.onDone({...skipped,tasks:[{status:'skipped'},{status:'pending'}],
+     logs:[...skipped.logs.slice(0,-1),line]});
+   assert.strictEqual(panel.style.display,'');
+   assert.match(notifications.at(-1).title,/ failed$/);
+ }
+ poll.onDone({...skipped,tasks:[{status:'skipped'},{status:'failed'}]});
+ assert.strictEqual(panel.style.display,'');
+ assert.match(notifications.at(-1).title,/ failed$/);
+ assert.match(message.innerHTML,/1 skipped, 1 failed/);
+ assert.match(message.innerHTML,/may have validated checkpoints/);
+ assert.match(panel.innerHTML,/If a failed book has a validated checkpoint/);
+''')

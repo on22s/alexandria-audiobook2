@@ -44,7 +44,7 @@ class BatchScriptOutputAdmissionTests(unittest.TestCase):
             with patch.object(script,'_stream_subprocess_to_logs',side_effect=self.generate) as generate:
                 script._run_batch_script_job(job,state,None,1)
             self.assertEqual(before,output.read_bytes());generate.assert_not_called()
-            self.assertEqual('failed',state['tasks'][0]['status'])
+            self.assertEqual('skipped',state['tasks'][0]['status'])
 
     def test_version_rechecks_disk_and_other_batch_reservations(self):
         with self.fixture('version') as (root,source,output,job,state,client):
@@ -106,6 +106,47 @@ class BatchScriptOutputAdmissionTests(unittest.TestCase):
                 self.assertEqual(200,client.post('/api/scripts/save',json={'name':'book'}).status_code)
                 self.assertEqual(source.read_bytes(),output.read_bytes())
 
+    def test_collision_skip_at_planning_marks_row_skipped_not_failed(self):
+        """A book the collision policy skips at planning was never attempted:
+        it must read as 'skipped', not as a failed book that kept checkpoints
+        to resume (#2201)."""
+        import asyncio
+        import copy
+        import core
+        from fastapi import BackgroundTasks
+        with self.fixture() as (root,source,output,job,state,client),contextlib.ExitStack() as stack:
+            (root/'book.txt').write_text('A short source story.')
+            self.assertEqual(200,client.post('/api/scripts/save',json={'name':'book'}).status_code)
+            before=output.read_bytes()
+            api_logs=root/'api-logs'
+            api_logs.mkdir()
+            states=copy.deepcopy(core.process_state)
+            for value in states.values():value['running']=False
+            for owner,name,value in ((core,'process_state',states),(script,'process_state',states),
+                                     (core,'_task_claims',{}),(core,'_gpu_leases',{}),
+                                     (script,'UPLOADS_DIR',str(root)),(script,'SCRIPTS_DIR',str(root)),
+                                     (script,'DATA_DIR',str(source.parent)),
+                                     (core,'RUN_HISTORY_DIR',str(root/'run_history')),
+                                     (core,'API_LOG_DIR',str(api_logs))):
+                stack.enter_context(patch.object(owner,name,value))
+            stack.enter_context(patch.object(core,'acquire_gpu_lock',return_value=None))
+            stack.enter_context(patch.object(script,'three_pass_refusal',return_value=None))
+            stack.enter_context(patch.object(script,'load_app_config',return_value={}))
+            generated=stack.enter_context(patch.object(script,'_stream_subprocess_to_logs',side_effect=self.generate))
+            tasks=BackgroundTasks()
+            request=script.BatchScriptRequest(tasks=[script.BatchScriptTask(filename='book.txt')])
+            try:
+                response=asyncio.run(script.generate_script_batch_start(request,tasks))
+                self.assertEqual('started',response['status'])
+                asyncio.run(tasks())
+                generated.assert_not_called()
+                self.assertEqual(before,output.read_bytes())
+                self.assertEqual('skipped',states['batch_script']['tasks'][0]['status'])
+                self.assertFalse(core.is_task_running('batch_script'))
+                self.assertTrue((api_logs/'batch_script-latest.log').is_file())
+                self.assertEqual(1,len(list((root/'run_history').glob('*.json'))))
+            finally:core.release_pending_task_claims()
+
     def test_actual_batch_dispatch_rechecks_save_after_jobs_are_planned(self):
         import asyncio
         import copy
@@ -113,16 +154,20 @@ class BatchScriptOutputAdmissionTests(unittest.TestCase):
         from fastapi import BackgroundTasks
         with self.fixture() as (root,source,output,job,state,client),contextlib.ExitStack() as stack:
             (root/'book.txt').write_text('A short source story.')
+            api_logs=root/'api-logs'
+            api_logs.mkdir()
             states=copy.deepcopy(core.process_state)
             for value in states.values():value['running']=False
             for owner,name,value in ((core,'process_state',states),(script,'process_state',states),
                                      (core,'_task_claims',{}),(core,'_gpu_leases',{}),
-                                     (script,'UPLOADS_DIR',str(root)),(script,'SCRIPTS_DIR',str(root))):
+                                     (script,'UPLOADS_DIR',str(root)),(script,'SCRIPTS_DIR',str(root)),
+                                     (script,'DATA_DIR',str(source.parent)),
+                                     (core,'RUN_HISTORY_DIR',str(root/'run_history')),
+                                     (core,'API_LOG_DIR',str(api_logs))):
                 stack.enter_context(patch.object(owner,name,value))
             stack.enter_context(patch.object(core,'acquire_gpu_lock',return_value=None))
             stack.enter_context(patch.object(script,'three_pass_refusal',return_value=None))
             stack.enter_context(patch.object(script,'load_app_config',return_value={}))
-            stack.enter_context(patch.object(script,'_init_task_log',return_value=str(root/'batch.log')))
             stack.enter_context(patch.object(script,'_get_batch_script_workers',return_value=(1,100,4096)))
             def save_after_planning(*args,**kwargs):
                 self.assertEqual(200,client.post('/api/scripts/save',json={'name':'book'}).status_code)
@@ -136,6 +181,8 @@ class BatchScriptOutputAdmissionTests(unittest.TestCase):
                 self.assertEqual('started',response['status']);self.assertTrue(core.is_task_running('batch_script'))
                 asyncio.run(tasks())
                 self.assertEqual(source.read_bytes(),output.read_bytes());generated.assert_not_called()
-                self.assertEqual('failed',states['batch_script']['tasks'][0]['status'])
+                self.assertEqual('skipped',states['batch_script']['tasks'][0]['status'])
                 self.assertFalse(core.is_task_running('batch_script'));self.assertEqual({},core._task_claims)
+                self.assertTrue((api_logs/'batch_script-latest.log').is_file())
+                self.assertEqual(1,len(list((root/'run_history').glob('*.json'))))
             finally:core.release_pending_task_claims()

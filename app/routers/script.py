@@ -4664,7 +4664,10 @@ def ensure_batch_script_output(job, state):
                 state["logs"].append(
                     f"[{job['index'] + 1}] Skipping — saved script "
                     f"'{os.path.basename(candidate)}' now exists.")
-                yield None
+                # "skipped" tells the worker the policy skipped the book; None
+                # stays reserved for a cancellation, which the worker maps to
+                # its own status (#2201).
+                yield "skipped"
                 return
             if resolved == candidate:
                 if action == "backup":
@@ -4684,6 +4687,11 @@ def _run_batch_script_job(job, state, log_path, total):
         if prepared is None:
             state["tasks"][job["index"]]["status"] = (
                 "cancelled" if state.get("cancel") else "failed")
+            return
+        if prepared == "skipped":
+            # The collision policy skipped this book before generation; it was
+            # never attempted, so it is not a failure (#2201).
+            state["tasks"][job["index"]]["status"] = "skipped"
             return
         _run_claimed_batch_script_job(prepared, state, log_path, total)
 
@@ -4832,7 +4840,11 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                 state["logs"].append(
                     f"[{i+1}] Skipping — saved script '{safe_stem}' already exists. "
                     "Choose version or replace explicitly.")
-                state["tasks"][i]["status"] = "failed"
+                # A policy skip never attempted the book, so it is neither a
+                # failure nor a cancellation (#2201); reporting it as failed
+                # made a re-run of a finished batch read as N failures with
+                # checkpoints that do not exist.
+                state["tasks"][i]["status"] = "skipped"
                 continue
             if action == "version":
                 if was_reserved and request.collision_policy == "replace":

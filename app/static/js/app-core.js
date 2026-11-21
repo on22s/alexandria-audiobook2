@@ -706,7 +706,10 @@
                 if (/^(?:\[ERROR\]|Error:)/i.test(line)) { return true; }
             }
             return logs.some(log => {
-                const line = String(log)
+                const text = String(log).trim();
+                // Collision messages are neutral even if the saved filename contains "Error".
+                if (/^\[\d+\] Skipping — saved script '[^']*' (?:already exists\. Choose version or replace explicitly\.|now exists\.)$/.test(text)) { return false; }
+                const line = text
                     .replace(/\b(?:0|zero|no)\s+(?:(?:batch\(es\)|section\(s\)|batches|sections)\s+)?(?:errors?|failures?|failed)\b(?:\s+or\s+(?:errors?|failures?))?/gi, '')
                     .replace(/\b(?:errors?|failed|failures?)\s*(?:count\s*)?[:=]\s*0(?!\d|\.\d)/gi, '')
                     .replace(/\bwithout (?:any |recorded )?(?:errors?|failures?|failed)(?: or skipped sections)?\b/gi, '');
@@ -778,6 +781,7 @@
         function taskStatusLabel(status) {
             if (status === 'pending') { return t('core.task-status.pending', 'pending'); }
             if (status === 'running') { return t('core.task-status.running', 'running'); }
+            if (status === 'skipped') { return t('core.task-status.skipped', 'skipped'); }
             if (status === 'done') { return t('core.task-status.done', 'done'); }
             if (status === 'finished') { return t('core.task-status.finished', 'finished'); }
             if (status === 'failed') { return t('core.task-status.failed', 'failed'); }
@@ -4009,7 +4013,7 @@
                         state.tasks.forEach((taskStatus, i) => {
                             const el = document.getElementById(`script-batch-status-${i}`);
                             if (!el) { return; }
-                            const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
+                            const colours = { pending: 'secondary', running: 'primary', done: 'success', skipped: 'secondary', failed: 'danger', cancelled: 'warning' };
                             el.innerHTML = `<span class="badge bg-${colours[taskStatus.status] || 'secondary'}">${escapeHtml(taskStatusLabel(taskStatus.status))}</span>`;
                         });
                     }
@@ -4019,7 +4023,7 @@
                     clearScriptCancellation('batch_script');
                     renderManualRequest({ running: false }, 'batch_script');
                     _showTaskRecoveryPanel('script-batch-recovery-panel', 'batch_script', state,
-                        t('script.batch.recovery-hint', 'Inspect the log and resume failed books from their validated checkpoints.'));
+                        t('script.batch.recovery-hint', 'Inspect the log. If a failed book has a validated checkpoint, resume it from there.'));
                     notifyJobDone('batch_script', '', 'finished', state);
                     document.getElementById('btn-gen-script').disabled = false;
                     document.getElementById('btn-pause-batch-script').style.display = 'none';
@@ -4028,9 +4032,14 @@
                     const done = tasks.filter(task => task.status === 'done').length;
                     const failed = tasks.filter(task => task.status === 'failed').length;
                     const cancelled = tasks.filter(task => task.status === 'cancelled').length;
+                    // A collision skip never attempted the book, so count it separately.
+                    const skipped = tasks.filter(task => task.status === 'skipped').length;
                     const tone = failed ? 'text-warning' : 'text-muted';
+                    const summary = failed
+                        ? t('script.batch.finished', 'Batch finished — {done} completed, {skipped} skipped, {failed} failed, {cancelled} cancelled. Failed books may have validated checkpoints.', {done, skipped, failed, cancelled})
+                        : t('script.batch.finished-clean', 'Batch finished — {done} completed, {skipped} skipped, {failed} failed, {cancelled} cancelled.', {done, skipped, failed, cancelled});
                     document.getElementById('script-batch-status-msg').innerHTML =
-                        `<span class="${tone}">${escapeHtml(t('script.batch.finished', 'Batch finished — {done} completed, {failed} failed, {cancelled} cancelled. Failed books keep validated checkpoints.', {done, failed, cancelled}))}</span>`;
+                        `<span class="${tone}">${escapeHtml(summary)}</span>`;
                     loadSavedScripts();
                 }
             });
