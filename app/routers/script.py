@@ -3998,6 +3998,13 @@ def _start_batch_review(request, background_tasks):
 
     names = list(request.script_names)
     total = len(names)
+    pending = {
+        "tasks": [{"name": name, "status": "pending"} for name in names],
+        "current_task_idx": -1,
+        "totals_fwd": _new_review_totals(), "totals_bwd": _new_review_totals(),
+        "aliases_fwd": [], "aliases_bwd": [], "diff_pool": {"text": [], "speaker": []},
+        "logs": [], "artifacts": [], "start_time": None, "run_id": None,
+    }
 
     def _run():
         with ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR):
@@ -4006,12 +4013,7 @@ def _start_batch_review(request, background_tasks):
         prefix = "bidirectional " if bidirectional else ""
         _init_batch_state(state,
                           [f"Starting {prefix}batch review of {total} script(s)..."],
-                          [{"name": n, "status": "pending"} for n in names])
-        state["totals_fwd"] = _new_review_totals()
-        state["totals_bwd"] = _new_review_totals()
-        state["aliases_fwd"] = []
-        state["aliases_bwd"] = []
-        state["diff_pool"] = {"text": [], "speaker": []}
+                          pending["tasks"])
 
         # One full on-disk log for the whole batch (in-memory list is a capped tail)
         log_path = _init_task_log("batch_review")
@@ -4257,7 +4259,9 @@ def _start_batch_review(request, background_tasks):
     except BaseException:
         release_gpu_task_claim('batch_review', claim_id, pending_only=True)
         raise
-    process_state["batch_review"].update(effective_options)
+    # BackgroundTasks starts after the response. Publish one coherent new-run
+    # view here so polling cannot pair new options with the previous tasks.
+    process_state["batch_review"].update(pending, **effective_options)
     return {"status": "started", "task_count": total, **effective_options}
 
 

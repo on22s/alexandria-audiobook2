@@ -183,3 +183,37 @@ class BatchOptionAdmissionTests(unittest.TestCase):
                         self.assertEqual(expected, tuple(status.json()[key] for key in keys))
             self.assertEqual(3, check.call_count)
             self.assertEqual(3, claim.call_count)
+
+    def test_pending_run_does_not_reuse_previous_results(self):
+        state = {"batch_review": {
+            "running": False, "bidirectional": True, "current_task_idx": 0,
+            "tasks": [{"name": "finished", "status": "done",
+                       "stats_fwd": {"total_changes": 2}, "stats_bwd": {"total_changes": 3}}],
+            "totals_fwd": {"total_changes": 2}, "totals_bwd": {"total_changes": 3},
+            "logs": ["Previous batch finished."], "run_id": "previous-run",
+        }}
+        app = FastAPI()
+        app.include_router(script.router)
+        with patch.object(script, "process_state", state), \
+             patch.object(script, "check_global_gpu_lock"), \
+             patch.object(script, "reserve_background_task", return_value="new-claim"), \
+             patch.object(script, "register_claimed_background_task") as registered, \
+             TestClient(app) as client:
+            before = client.get("/api/status/batch_review").json()
+            self.assertEqual(5, before["tasks"][0]["stats"]["total_changes"])
+            start = client.post("/api/review_script/batch/start", json={
+                "script_names": ["next"], "dedupe_speakers": False,
+            })
+            self.assertEqual(200, start.status_code, start.text)
+            status = client.get("/api/status/batch_review")
+        registered.assert_called_once()  # The new worker has not started yet.
+        self.assertEqual(200, status.status_code, status.text)
+        pending = status.json()
+        self.assertEqual([{"name": "next", "status": "pending"}], pending["tasks"])
+        for option in ("bidirectional", "find_nicknames", "dedupe_speakers"):
+            self.assertEqual(start.json()[option], pending[option])
+        for pass_name in ("totals_fwd", "totals_bwd"):
+            self.assertEqual(core._new_review_totals(), pending[pass_name])
+        self.assertEqual(-1, pending["current_task_idx"])
+        self.assertEqual([], pending["logs"])
+        self.assertIsNone(pending["run_id"])

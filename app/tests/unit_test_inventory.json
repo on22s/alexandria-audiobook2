@@ -1289,6 +1289,7 @@
   , "test_batch_review_pass_status": [
     "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_contradictions_are_refused_before_gpu_or_task_claim"
     , "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_effective_flags_keep_legacy_omitted_default_behavior"
+    , "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_pending_run_does_not_reuse_previous_results"
     , "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_valid_defaults_start_and_report_effective_flags"
     , "tests.test_batch_review_pass_status.BatchReviewPassStatusTests.test_actual_batch_route_and_report_keep_both_passes_completion_requirements"
   ]
