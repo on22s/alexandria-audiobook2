@@ -691,8 +691,8 @@ In the order you meet them in the app:
 - **Attribution adapters** served through `llama-server --lora`, trained on rights-clean
   data, and released on Hugging Face with cards that say what was and was not measured.
 - **Measurement discipline**: `GOALS.md`, `RECIPES.md`, a results index that is rebuilt
-  rather than merged, provenance on every artifact, a release verifier, and about 3,400
-  unit tests.
+  rather than merged, provenance on every artifact, a release verifier, and a checked-in
+  [unit-test inventory](app/tests/unit_test_inventory.json) that `ready.sh` refreshes.
 
 ## How it works
 
@@ -944,11 +944,20 @@ reaches the speech engine (goal 5.1).
 
 ## Output files
 
-Everything is stored under the app directory (or `ALEXANDRIA_DATA_DIR` if set):
+The mutable data root is the **repository root**, not `app/`: `DATA_DIR =
+get_runtime_data_dir(ROOT_DIR)` in `app/core.py`. With `ALEXANDRIA_DATA_DIR` unset, the
+scripts, exports, render state and operational records below are written next to the
+checkout. Setting `ALEXANDRIA_DATA_DIR` relocates all of them under that directory.
+Two paths keep their historical `app/` placement only while the data root is the
+repository root — `app/config.json` and `app/uploads/` — and move under a configured
+data root too (`app/utils.py:get_app_storage_path`).
+
+Paths below are relative to the data root unless noted:
 
 | path | contents |
 |---|---|
-| `uploads/` | the books you uploaded (reusable) |
+| `uploads/` (`app/uploads/` by default) | the books you uploaded (reusable) |
+| `config.json` (`app/config.json` by default) | saved settings; a legacy `app/` location only when no data root is configured |
 | `annotated_script.json`, `voice_config.json`, `character_aliases.json` | the active book, its voices and its aliases |
 | `scripts/<name>.json` + `<name>.voice_config.json` | the saved-script library |
 | `voice_library.json` | casts |
@@ -960,7 +969,10 @@ Everything is stored under the app directory (or `ALEXANDRIA_DATA_DIR` if set):
 | `manual_llm/pending.json` / `response.json` | the manual-transport mailbox |
 | `lora_models/`, `lora_datasets/`, `designed_voices/`, `clone_voices/`, `builtin_lora/` | model assets (built-in adapters ship read-only in the repo) |
 | `logs/api/`, `logs/review_responses.log`, `reports/` | operational records; run history is served by `/api/runs` |
-| `ab_test_runtime/experiments/` | every measurement artifact, indexed in `RESULTS_INDEX.md` |
+| `ab_test_runtime/experiments/` (repository root, not the data root) | every measurement artifact, indexed in `RESULTS_INDEX.md` |
+
+With the default data root, that puts `scripts/`, `cloned_audiobook.mp3`, `audiobook.m4b`,
+`chapter_exports/` and `voicelines/` at the repository root.
 
 ## Prompt customization
 
@@ -1706,7 +1718,7 @@ alexandria-audiobook2/
 │   ├── train_lora.py, voice_reference.py, speaker_identity.py
 │   ├── experiments/                 # ~290 measurement scripts (lora_serving_eval, voice_drift,
 │   │                                #   aligned_japanese_accent, quote_segmenter, …)
-│   ├── tests/                       # ~3,400 unit tests + unit_test_inventory.json
+│   ├── tests/                       # unit tests; inventory in unit_test_inventory.json
 │   ├── static/index.html            # the single-page app (no build step)
 │   ├── static/js/app-*.js           # core, scripts, workbench, training, voicelab, reports
 │   └── requirements.txt, torch-constraints.txt
