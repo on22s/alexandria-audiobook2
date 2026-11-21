@@ -26,13 +26,13 @@ def _ensure_export_book(root, timeout=10):
 
 
 @contextmanager
-def _ensure_export_capture(root):
+def _ensure_export_capture(root, *, recover=True):
     # Loaders and settings providers may themselves check the task owner. Admit
     # around capture, while holding only the book lock during those callbacks.
     try:
         with ensure_audio_generation_publication():
             pass
-        with ensure_book_state(root):
+        with ensure_book_state(root, recover=recover):
             yield
         with ensure_audio_generation_publication():
             pass
@@ -52,12 +52,22 @@ def _get_rows_digest(rows):
         **{key: row[key] for key in fields if key in row}} for row in rows])
 
 
-def _get_saved_rows_digest(manager):
+def get_export_editor_revision(book_token, rows):
+    """Identify the exact book and rows used to check speaker readiness."""
+    return get_snapshot_digest([book_token, rows])
+
+
+def _get_saved_rows(manager):
     # Caller owns both existing chunk locks. Do not regenerate/backfill rows here.
     try:
-        return _get_rows_digest(manager._get_saved_chunk_rows_locked())
+        return manager._get_saved_chunk_rows_locked()
     except FileNotFoundError:
         return None
+
+
+def _get_saved_rows_digest(manager):
+    rows = _get_saved_rows(manager)
+    return _get_rows_digest(rows) if rows is not None else None
 
 
 def _get_source_version(path):
@@ -72,14 +82,16 @@ def _get_source_version(path):
 
 class ExportSourceSnapshot:
     """Keep immutable source facts; hash outside final publication locks."""
-    def __init__(self, manager, chunks=None, cancel_check=None, additional_sources=()):
+    def __init__(self, manager, chunks=None, cancel_check=None, additional_sources=(),
+                 *, expected_editor_revision=None):
         self.manager, self.cancel_check = manager, cancel_check
+        self.expected_editor_revision = expected_editor_revision
         self.path_contract = self._get_path_contract()
         self.root = self.path_contract['root_dir']
         self.real_root = os.path.realpath(self.root)
         ensure_audio_export_active(cancel_check)
         state_path = os.path.join(self.root, 'state.json')
-        with _ensure_export_capture(self.root):
+        with _ensure_export_capture(self.root, recover=expected_editor_revision is None):
             # A retained script from an older selection must never certify this
             # capture. The request-time preflight checks the same fence, but the
             # shared capture is also entered by workers and other exporters, so
@@ -90,15 +102,25 @@ class ExportSourceSnapshot:
                 for path in (state_path, manager.script_path, manager.config_path)}
             self.book = _get_book_identity(self.root)
             state = safe_load_json(state_path, {})
-            with manager._chunks_lock, file_lock(manager.chunks_path):
-                before_rows = _get_saved_rows_digest(manager)
-            current = copy.deepcopy(manager.load_chunks())
+            if expected_editor_revision is not None:
+                with manager._chunks_lock, file_lock(manager.chunks_path):
+                    current = _get_saved_rows(manager)
+                    revision = get_export_editor_revision(get_snapshot_digest(self.book), current)
+                    if revision != expected_editor_revision:
+                        raise ValueError('Book or Editor rows changed after readiness was checked. Retry the export.')
+                    self.saved_rows_digest = _get_rows_digest(current) if current is not None else None
+                if current is None:
+                    current = []
+            else:
+                with manager._chunks_lock, file_lock(manager.chunks_path):
+                    before_rows = _get_saved_rows_digest(manager)
+                current = copy.deepcopy(manager.load_chunks())
+                with manager._chunks_lock, file_lock(manager.chunks_path):
+                    self.saved_rows_digest = _get_saved_rows_digest(manager)
+                    if (self.saved_rows_digest != before_rows
+                            and self.saved_rows_digest != _get_rows_digest(current)):
+                        raise ValueError('Editor rows changed while capturing export sources. Retry the export.')
             self.chunks = current if chunks is None else copy.deepcopy(chunks)
-            with manager._chunks_lock, file_lock(manager.chunks_path):
-                self.saved_rows_digest = _get_saved_rows_digest(manager)
-                if (self.saved_rows_digest != before_rows
-                        and self.saved_rows_digest != _get_rows_digest(current)):
-                    raise ValueError('Editor rows changed while capturing export sources. Retry the export.')
             if chunks is not None and self.saved_rows_digest is not None:
                 # Explicit subsets are allowed, but each supplied row must still
                 # describe a live UID (or an exact legacy ID), with no stale take.
@@ -224,8 +246,15 @@ class ExportSourceSnapshot:
         if (self._get_path_contract() != self.path_contract
                 or os.path.realpath(self.root) != self.real_root):
             raise ValueError('Export project paths changed before publication. Retry the export.')
-        if (_get_book_identity(self.root) != self.book or
-                _get_saved_rows_digest(manager) != self.saved_rows_digest):
+        book = _get_book_identity(self.root)
+        if book != self.book:
+            raise ValueError('Book or Editor rows changed during export. Retry the export.')
+        if self.expected_editor_revision is not None:
+            rows_current = (get_export_editor_revision(get_snapshot_digest(book), _get_saved_rows(manager))
+                            == self.expected_editor_revision)
+        else:
+            rows_current = _get_saved_rows_digest(manager) == self.saved_rows_digest
+        if not rows_current:
             raise ValueError('Book or Editor rows changed during export. Retry the export.')
         for path, resolved in self.paths.items():
             if manager.get_chunk_audio_path(path) != resolved:

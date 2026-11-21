@@ -27,6 +27,82 @@ class ExportTaskResultTests(unittest.TestCase):
             app=FastAPI();app.include_router(editor.router);app.include_router(script.router)
             with TestClient(app) as client:yield root,states,client
 
+    @contextmanager
+    def ready_book_with_undo(self):
+        with self.fixture() as (root, states, client):
+            root = Path(root)
+            manager, rows = _project(root)
+            for index, row in enumerate(rows):
+                row.update(id=index, uid=f'chunk-{index}', status='done')
+            manager.save_chunks(rows)
+            script_path = root / 'annotated_script.json'
+            script_path.write_text(json.dumps([
+                {'speaker': row['speaker'], 'text': row['text']} for row in rows]))
+            (root / 'voice_config.json').write_text(json.dumps({
+                'NARRATOR': {'ready': True}, 'MIA': {'ready': False}}))
+            with patch.object(editor, 'project_manager', manager), \
+                    patch.object(editor, 'SCRIPT_PATH', str(script_path)):
+                index = next(index for index, row in enumerate(rows) if row['speaker'] == 'MIA')
+                deleted = client.delete(f'/api/chunks/{index}')
+                self.assertEqual(200, deleted.status_code, deleted.text)
+                receipt = deleted.json()
+
+                def restore():
+                    response = client.post('/api/chunks/restore', json={
+                        'chunk': receipt['deleted'], 'at_index': index,
+                        'undo_token': receipt['undo_token']})
+                    self.assertEqual(200, response.status_code, response.text)
+                    restored = manager.read_saved_chunk_rows()[index]
+                    self.assertEqual(('MIA', 'done', receipt['deleted']['audio_path']),
+                                     (restored['speaker'], restored['status'], restored['audio_path']))
+
+                yield root, states, client, restore
+
+    def test_ready_export_refuses_undo_before_reservation(self):
+        with self.ready_book_with_undo() as (root, _states, client, restore):
+            real_readiness = editor.validate_export_readiness
+            async def restore_after_readiness(*args):
+                await real_readiness(*args)
+                await editor.asyncio.to_thread(restore)
+
+            with patch.object(editor, 'validate_export_readiness', restore_after_readiness), \
+                    patch.object(editor, 'schedule_claimed_background_task') as schedule:
+                response = client.post('/api/export_chapters', json={
+                    'require_ready': True, 'format': 'wav', 'per_chunk_chapters': True})
+            self.assertEqual(409, response.status_code, response.text)
+            schedule.assert_not_called()
+            self.assertFalse(list((root / 'chapter_exports').glob('*.wav')))
+
+    def test_ready_workers_refuse_undo_after_reservation(self):
+        routes = (('/api/merge_m4b', 'm4b_export', {}),
+                  ('/api/export_chapters', 'chapter_export',
+                   {'format': 'wav', 'per_chunk_chapters': True}))
+        for route, task, options in routes:
+            with self.subTest(route=route), self.ready_book_with_undo() as (root, states, client, restore):
+                real_attempt = editor.get_export_quality_attempt
+                def restore_before_capture(*args, **kwargs):
+                    attempt = real_attempt(*args, **kwargs)
+                    restore()
+                    return attempt
+
+                with patch.object(editor, 'get_export_quality_attempt', restore_before_capture):
+                    response = client.post(route, json={'require_ready': True, **options})
+                self.assertEqual(200, response.status_code, response.text)
+                result = states[task]['result']
+                self.assertEqual('failed', result['status'], result)
+                self.assertIn('Editor rows changed after readiness was checked', result['message'])
+                self.assertFalse((root / 'audiobook.m4b').exists())
+                self.assertFalse(list((root / 'chapter_exports').glob('*.wav')))
+
+    def test_ready_chapter_worker_exports_the_unchanged_roster(self):
+        with self.ready_book_with_undo() as (root, states, client, _restore):
+            response = client.post('/api/export_chapters', json={
+                'require_ready': True, 'format': 'wav', 'per_chunk_chapters': True})
+            self.assertEqual(200, response.status_code, response.text)
+            result = states['chapter_export']['result']
+            self.assertEqual('done', result['status'], result)
+            self.assertEqual(4, len(list((root / 'chapter_exports').glob('*.wav'))))
+
     def test_native_http_success_failure_exception_and_cancellation_have_results(self):
         cases=[(True,'No complete keyword','done'),(False,'Export complete: deliberately misleading','failed'),(False,'Export cancelled','cancelled'),(RuntimeError('<script>encoding error</script>'),None,'failed')]
         with self.fixture() as (_,states,client):

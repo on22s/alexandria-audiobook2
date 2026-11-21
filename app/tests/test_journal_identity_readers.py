@@ -1093,6 +1093,35 @@ class StorageBoundaryFollowupTests(JournalIdentityCases):
             self.assertEqual(409, unready.status_code, unready.text)
             self.assertEqual(["MIA"], unready.json()["detail"]["speakers"])
 
+    def test_export_readiness_distinguishes_missing_chunks_from_a_saved_empty_book(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            client = self.http_client(root, state=self.export_state())
+            snapshot = root / "chunks.json"
+            Path(get_chunk_status_journal_path(snapshot)).unlink()
+            snapshot.unlink()
+            voices = root / "voice_config.json"
+            voices.write_text(json.dumps({"N": {
+                "ready": False, "versions": {"first": {"type": "custom", "voice": "Ryan", "ready": False}},
+                "version_timeline": [{"from_index": 0, "version_id": "first"}],
+            }}))
+            with patch.object(editor, "schedule_claimed_background_task") as scheduled:
+                absent = client.post("/api/merge_m4b", json={"require_ready": True})
+                self.assertEqual(503, absent.status_code, absent.text)
+                scheduled.assert_not_called()
+                self.assertFalse(snapshot.exists())
+                snapshot.write_text("[]")
+                empty = client.post("/api/merge_m4b", json={"require_ready": True})
+                self.assertEqual(200, empty.status_code, empty.text)
+                scheduled.assert_called_once()
+                scheduled.reset_mock()
+                snapshot.unlink()
+                voices.write_text(json.dumps({"N": {"ready": False}}))
+                fallback = client.post("/api/merge_m4b", json={"require_ready": True})
+                self.assertEqual(409, fallback.status_code, fallback.text)
+                self.assertEqual(["N"], fallback.json()["detail"]["speakers"])
+                scheduled.assert_not_called()
+
     def test_oversize_emitted_state_is_refused_before_publication(self):
         with tempfile.TemporaryDirectory() as tmp:
             root, _source, _rows, _identity = self.make_published_book(tmp)

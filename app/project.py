@@ -2994,7 +2994,7 @@ class ProjectManager:
 
     def merge_m4b(self, per_chunk_chapters=False, metadata=None, cancel_check=None, progress_callback=None,
                   mastering=None, mastering_callback=None, export_quality=None, export_quality_callback=None,
-                  source_cover=None, expected_book_token=None):
+                  source_cover=None, expected_book_token=None, *, expected_editor_revision=None):
         """Merge audio chunks into an M4B audiobook with chapter markers.
 
         Args:
@@ -3025,7 +3025,8 @@ class ProjectManager:
                 source_cover, expected_book_token, cancel_check))
             cover_path = resolved['cover_path']
             source_snapshot = ExportSourceSnapshot(self, cancel_check=cancel_check,
-                additional_sources=([cover_path] if cover_path else []) + list(resolved['expected_sources']))
+                additional_sources=([cover_path] if cover_path else []) + list(resolved['expected_sources']),
+                expected_editor_revision=expected_editor_revision)
             captured_cover = source_snapshot.identities.get(cover_path) if cover_path else None
             if cover_path and captured_cover is None:
                 raise ValueError('Selected M4B cover is missing before source capture')
@@ -3647,7 +3648,7 @@ class ProjectManager:
                         book_name="", series_name="", volume_number="",
                         chapters=None, changed_only=False,
                         progress_callback=None, cancel_check=None, mastering=None,
-                        export_quality=None):
+                        export_quality=None, *, expected_editor_revision=None):
         """Write selected chapter files and shared source/timing metadata.
 
         Changed-only exports decode only changed groups when the prior manifest
@@ -3666,7 +3667,8 @@ class ProjectManager:
         with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
             try:
                 from export_publication import ExportSourceSnapshot
-                source_snapshot = ExportSourceSnapshot(self, cancel_check=cancel_check)
+                source_snapshot = ExportSourceSnapshot(self, cancel_check=cancel_check,
+                                                       expected_editor_revision=expected_editor_revision)
                 captured_chunks = source_snapshot.chunks
                 selected_sources = None
                 # Number chapters by the whole book, as preview does, before a
