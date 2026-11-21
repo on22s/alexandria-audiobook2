@@ -125,8 +125,11 @@ def sanitize_url_for_display(value):
         return get_redacted_credentials(value)
     try:
         parts = urlsplit(value)
-        if not parts.scheme or not parts.netloc:
-            return get_redacted_credentials(value)
+    except (ValueError, TypeError):
+        return REDACTED
+    if not parts.scheme or not parts.netloc:
+        return REDACTED
+    try:
         netloc = parts.netloc
         if "@" in netloc:
             netloc = REDACTED + "@" + netloc.rsplit("@", 1)[1]
@@ -135,9 +138,12 @@ def sanitize_url_for_display(value):
         if any(_key_is_sensitive(key) for key, _ in pairs):
             query = urlencode([(key, REDACTED if _key_is_sensitive(key) else val)
                                for key, val in pairs])
-        return urlunsplit((parts.scheme, netloc, parts.path, query, ""))
+        display = urlunsplit((parts.scheme, netloc, parts.path, query, ""))
     except (ValueError, TypeError):
-        return get_redacted_credentials(value)
+        return REDACTED
+    # Ordinary parameters still get the generic credential-shape scrub: a
+    # secret-looking value under a harmless key must not survive display.
+    return get_redacted_credentials(display)
 
 
 def redact(obj, home_dir=None):

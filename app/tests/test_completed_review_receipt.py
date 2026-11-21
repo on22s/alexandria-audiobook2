@@ -355,21 +355,22 @@ class LegacyReceiptContextTests(unittest.TestCase):
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
             for headers in headers_cases:
                 with self.subTest(headers=headers):
-                    profile = {'transport': 'manual', 'api_key': '',
+                    profile = {'api_key': 'fixture-key',
                                'base_url': 'https://hosted.invalid/v1',
                                'model_name': 'fixture', 'provider_headers': headers}
                     config = {'generation': {'review_batch_size': 2},
                               'llm_mode': 'local', 'llm_local': profile}
                     self.assertIsNone(review.get_legacy_review_fingerprint(
                         config, profile, params, args, object(), 'fixture'),
-                        'a historical header that could change the wire must refuse')
-            clean = {'transport': 'manual', 'api_key': '',
-                     'base_url': 'https://hosted.invalid/v1', 'model_name': 'fixture',
-                     'provider_headers': {'Authorization': 'Token configured-fixture'}}
+                        'an HTTP header that could change the wire must refuse')
+            manual = {'transport': 'manual', 'api_key': '',
+                      'base_url': 'https://hosted.invalid/v1', 'model_name': 'fixture',
+                      'provider_headers': {'Authorization': 'env:AA2_UNSET_FIXTURE'}}
             config = {'generation': {'review_batch_size': 2},
-                      'llm_mode': 'local', 'llm_local': clean}
+                      'llm_mode': 'local', 'llm_local': manual}
             self.assertIsNotNone(review.get_legacy_review_fingerprint(
-                config, clean, params, args, object(), 'fixture'))
+                config, manual, params, args, object(), 'fixture'),
+                'a Manual header is never dispatched, so its env reference is inert')
 
     def test_rotated_referenced_credential_refuses_receipt_and_checkpoint(self):
         import review_script as review
@@ -421,7 +422,7 @@ class LegacyReceiptContextTests(unittest.TestCase):
         params = LLMGenParams(system_prompt='sys', user_prompt_template='{batch}')
         args = SimpleNamespace(context_window=0, dedupe_speakers=False,
                                alias_registry=None, remap_voice_config=None)
-        profile = {'transport': 'manual', 'api_key': '',
+        profile = {'api_key': 'fixture-key',
                    'base_url': 'https://hosted.invalid/v1', 'model_name': 'fixture',
                    'provider_headers': {'Authorization': 'env:AA2_HEADER_FIXTURE'}}
         config = {'generation': {'review_batch_size': 2},

@@ -458,12 +458,14 @@ def _legacy_dispatch_is_equivalent(profile):
     run's client flag.
     """
     profile = profile or {}
+    if profile.get("transport") == "manual":
+        # Manual dispatches no HTTP at all: a retained Authorization header is
+        # inert, even if it is still an env reference or ambiguously spelled.
+        return True
     if not is_authorization_header_unambiguous(profile):
         return False
     if has_unresolved_authorization_reference(profile):
         return False
-    if profile.get("transport") == "manual":
-        return True
     try:
         explicit = get_explicit_authorization(profile)
         historical = explicit

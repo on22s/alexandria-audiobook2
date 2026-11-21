@@ -194,6 +194,61 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
             self.assertFalse(gpu_is_busy(str(lock)))
             self.assertNotIn('script', core._task_claims)
 
+    def test_display_sanitizer_scrubs_secret_shapes_and_fails_closed(self):
+        import contextlib
+        import io
+        from diagnostics import REDACTED, sanitize_url_for_display
+        normal = 'https://host.example/v1?note=kept&page=2'
+        self.assertEqual(normal, sanitize_url_for_display(normal))
+        leaky = 'https://host.example/v1?note=sk-abcdefghijklmnop'
+        self.assertNotIn('sk-abcdefghijklmnop', sanitize_url_for_display(leaky))
+        self.assertIn(REDACTED, sanitize_url_for_display(leaky))
+        with patch('diagnostics.urlsplit', side_effect=ValueError('fixture malformed url')):
+            self.assertEqual(REDACTED,
+                sanitize_url_for_display('https://host.example/v1?token=secret#frag'))
+
+    def test_real_settings_message_and_corpus_report_hide_url_secrets(self):
+        import contextlib
+        import io
+        import lmstudio_settings
+        url = ('https://fixture-user:fixture-password@host.example/v1'
+               '?access_token=synthetic-query-secret&note=kept#frag-secret')
+        native = {'runtime': 'llama.cpp', 'available': True, 'loaded': True,
+                  'context_length': 8192, 'parallel': 1, 'optimized': None}
+        secrets = ('fixture-password', 'synthetic-query-secret', 'frag-secret')
+        with patch.object(lmstudio_settings, 'get_llama_cpp_status', return_value=native):
+            _, _, message = lmstudio_settings.ensure_ideal_settings('remote', url, 'fixture')
+        for secret in secrets:
+            self.assertNotIn(secret, message)
+        self.assertIn('[REDACTED]@host.example/v1', message)
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            lock = root / 'gpu.lock'
+            text = 'one two three four five'
+            manifest = {'books': [{'name': 'book.txt', 'passages': [{
+                'category': 'opening', 'text': text, 'sha256': 'fixture'}]}]}
+            stack.enter_context(patch.object(core, 'acquire_gpu_lock',
+                side_effect=lambda: acquire_gpu_lock(str(lock))))
+            lock, manifest, config, heal, adapter, provider, process = self.get_fixture(root, stack)
+            heal.side_effect = lambda *args, **kwargs: lmstudio_settings.ensure_ideal_settings(
+                'remote', url, 'fixture')
+            stack.enter_context(patch.object(lmstudio_settings, 'get_llama_cpp_status',
+                return_value=native))
+            stack.enter_context(patch.object(runner, 'make_llm_client'))
+            stack.enter_context(patch.object(runner, 'process_chunk', return_value=[{
+                'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}]))
+            output = root / 'report.json'
+            log = io.StringIO()
+            with contextlib.redirect_stdout(log):
+                report = runner.run_manifest(manifest, str(output))
+            body = output.read_text() + log.getvalue()
+            for secret in secrets:
+                self.assertNotIn(secret, body)
+            self.assertIn('[REDACTED]@host.example/v1', report['settings_message'])
+            self.assertEqual(1, report['summary']['passed'])
+            self.assertFalse(gpu_is_busy(str(lock)))
+            self.assertNotIn('script', core._task_claims)
+
     def test_credentials_are_removed_from_report_but_preserved_for_provider(self):
         cases = (
             ('https://fixture-user:fixture-password@host.example/v1', 'https://[REDACTED]@host.example/v1'),

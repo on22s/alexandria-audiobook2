@@ -24,6 +24,7 @@ from weakref import WeakValueDictionary
 from copy import deepcopy
 from urllib.parse import urlparse
 
+from diagnostics import sanitize_url_for_display
 from utils import run_rocm_smi_json
 from lmstudio_endpoint import get_lmstudio_endpoint_status, open_no_redirect
 
@@ -1191,7 +1192,8 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_ke
         return (is_remote, initial_status,
                 "llama.cpp server at %s - context %s, %s slot(s), fixed at "
                 "launch. No LM Studio settings to apply."
-                % (base_url, initial_status.get("context_length"),
+                % (sanitize_url_for_display(base_url),
+                   initial_status.get("context_length"),
                    initial_status.get("parallel")))
 
     if not initial_status.get("management_verified"):
