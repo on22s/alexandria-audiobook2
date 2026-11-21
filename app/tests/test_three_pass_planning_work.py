@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import three_pass_generate as tp
 from generate_script import LLMGenParams
+from tests.test_support import write_three_pass_completion_manifest
 
 if os.environ.get('THREE_PASS_PLANNING_SOURCE'):
     spec = importlib.util.spec_from_file_location('saved_planning', os.environ['THREE_PASS_PLANNING_SOURCE'])
@@ -46,9 +47,11 @@ class ThreePassPlanningWorkTests(unittest.TestCase):
 
     def test_actual_cli_uses_counts_without_full_preflight_report(self):
         def run(client, model, text, params, chunk_size, **kwargs):
-            Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(
-                json.dumps({'status': 'complete', 'passes': {}, 'diagnostic_failures': []}))
-            return [{'speaker': 'NARRATOR', 'text': 'result', 'instruct': 'Neutral.'}]
+            entries = [{'speaker': 'NARRATOR', 'text': 'result', 'instruct': 'Neutral.'}]
+            write_three_pass_completion_manifest(
+                tp.three_pass_manifest_path(kwargs['output_path']),
+                entries, status='complete')
+            return entries
 
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / 'source.txt'

@@ -12,6 +12,8 @@ from unittest.mock import patch
 
 import three_pass_generate as tp
 from attribution_prompt_variants import builtin_texts
+from tests.test_support import (write_three_pass_completion_manifest,
+                                build_three_pass_completion_manifest)
 
 if os.environ.get('THREE_PASS_CLI_SOURCE'):
     spec = importlib.util.spec_from_file_location('tp_cli_saved', os.environ['THREE_PASS_CLI_SOURCE'])
@@ -70,10 +72,11 @@ class ThreePassCliSettingsTests(unittest.TestCase):
             selection = capture_generation_selection(tmp, str(source))
             def run(client, model, text, params, chunk_size, **kwargs):
                 self.assertTrue(kwargs['defer_final_publication'])
-                Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(
-                    json.dumps({'status': 'publishing', 'run_id': 'f' * 32,
-                                'passes': {}, 'diagnostic_failures': []}))
-                return [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+                entries = [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+                write_three_pass_completion_manifest(
+                    tp.three_pass_manifest_path(kwargs['output_path']),
+                    entries, run_id='f' * 32)
+                return entries
             argv = ['three_pass_generate', str(source), '--active-book-token', selection['book_token'],
                     '--active-source-sha256', selection['source_sha256'], '--active-run-id', 'f'*32]
             with patch.object(tp.sys, 'argv', argv), patch.object(tp, 'get_runtime_data_dir', return_value=tmp), \
@@ -103,11 +106,12 @@ class ThreePassCliSettingsTests(unittest.TestCase):
             (root / 'chunks.json').write_text('[{"text":"old chunk"}]')
             selection = capture_generation_selection(tmp, str(source))
             def run(client, model, text, params, chunk_size, **kwargs):
-                Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(
-                    json.dumps({'status': 'publishing', 'run_id': 'f' * 32,
-                                'passes': {}, 'diagnostic_failures': []}))
+                entries = [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+                write_three_pass_completion_manifest(
+                    tp.three_pass_manifest_path(kwargs['output_path']),
+                    entries, run_id='f' * 32)
                 source.write_text('A different source was selected.', encoding='utf-8')
-                return [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+                return entries
             argv = ['three_pass_generate', str(source), '--active-book-token', selection['book_token'],
                     '--active-source-sha256', selection['source_sha256'], '--active-run-id', 'f'*32]
             with patch.object(tp.sys, 'argv', argv), patch.object(tp, 'get_runtime_data_dir', return_value=tmp), \
@@ -186,9 +190,12 @@ class ThreePassCliSettingsTests(unittest.TestCase):
                         swapped = True
 
                 def run(client, model, text, params, chunk_size, **kwargs):
-                    Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(
-                        json.dumps({'status': 'complete', 'passes': {}, 'diagnostic_failures': []}))
-                    return [{'speaker': 'NARRATOR', 'text': 'new script', 'instruct': 'Neutral.'}]
+                    entries = [{'speaker': 'NARRATOR', 'text': 'new script',
+                                'instruct': 'Neutral.'}]
+                    write_three_pass_completion_manifest(
+                        tp.three_pass_manifest_path(kwargs['output_path']),
+                        entries, status='complete')
+                    return entries
 
                 patches = [
                     patch.object(tp.sys, 'argv', ['three_pass_generate', str(source),
@@ -253,9 +260,11 @@ class ThreePassCliSettingsTests(unittest.TestCase):
 
         def run(client, model, text, params, chunk_size, **kwargs):
             calls.append((text, params, chunk_size, kwargs))
-            Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(
-                json.dumps({'status': 'complete', 'passes': {}, 'diagnostic_failures': []}))
-            return [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+            entries = [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+            write_three_pass_completion_manifest(
+                tp.three_pass_manifest_path(kwargs['output_path']),
+                entries, status='complete')
+            return entries
 
         argv = ['three_pass_generate', str(source), '--output', str(output),
                 '--chunk-size', '6000', '--segmentation', 'quotes'] + extra
@@ -360,3 +369,116 @@ class ThreePassCliSettingsTests(unittest.TestCase):
             attributed = [r for r in report['requests'] if r['stage'] == 'attribute']
             self.assertTrue(attributed)
             self.assertGreater(attributed[0]['prompt_tokens'], len(texts['system']) // 3)
+
+
+class StandaloneCompletionBoundaryTests(unittest.TestCase):
+    """The standalone publication boundary uses the same completion contract."""
+
+    @contextlib.contextmanager
+    def _run_main(self, tmp, writer, *, scripts=None):
+        source = Path(tmp) / 'source.txt'
+        source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+        output = Path(tmp) / 'out.json'
+        prior = b'[{"text":"prior accepted script"}]'
+        output.write_bytes(prior)
+        chunks = Path(tmp) / 'chunks.json'
+        chunks.write_bytes(b'old chunks')
+        config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                  'generation': {'max_tokens': 4096}}
+
+        def run(client, model, text, params, chunk_size, **kwargs):
+            entries = [{'speaker': 'NARRATOR', 'text': 'new script',
+                        'instruct': 'Neutral.'}]
+            writer(Path(tp.three_pass_manifest_path(kwargs['output_path'])),
+                   entries, prior)
+            return entries
+
+        patches = [
+            patch.object(tp.sys, 'argv', ['three_pass_generate', str(source),
+                                          '--output', str(output)]),
+            patch.object(tp, 'load_app_config', return_value=config),
+            patch.object(tp, 'ensure_ideal_settings',
+                         return_value=(None, {'context_length': 32768}, 'fixture')),
+            patch.object(tp, 'make_run_client', return_value=object()),
+            patch.object(tp, 'run_three_pass', side_effect=run),
+        ]
+        if scripts is not None:
+            patches.append(patch.object(tp, 'atomic_json_write', side_effect=scripts))
+        with contextlib.ExitStack() as stack:
+            for item in patches:
+                stack.enter_context(item)
+            yield output, chunks, prior, tp.main
+
+    def test_substitutions_leave_prior_script_and_chunks_untouched(self):
+        staged = [{'speaker': 'NARRATOR', 'text': 'new script',
+                   'instruct': 'Neutral.'}]
+        valid = build_three_pass_completion_manifest(staged, status='complete')
+        old_sha = hashlib.sha256(b'[{"text":"prior accepted script"}]').hexdigest()
+        substitutions = {
+            'status_only': {'status': 'complete'},
+            'string_unchecked': {**valid,
+                                 'passes': {'attribute': {'unchecked_entries': '2'}}},
+            'malformed_pass_mapping': {**valid,
+                                       'passes': {'attribute': 'not a pass record'}},
+            'stale_completion': {**valid, 'completion': {
+                **valid['completion'], 'script_sha256': old_sha}},
+            'prior_receipt_old_script': {**valid, 'publication': {
+                'script_sha256': old_sha}},
+        }
+        for label, manifest in substitutions.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                def writer(path, entries, prior, manifest=manifest):
+                    path.write_text(json.dumps(manifest))
+                with self._run_main(tmp, writer) as (output, chunks, prior, main):
+                    with self.assertRaises(SystemExit):
+                        main()
+                self.assertEqual(prior, output.read_bytes())
+                self.assertEqual(b'old chunks', chunks.read_bytes())
+
+    def test_manifest_permission_failure_cannot_leave_a_half_published_book(self):
+        """The final manifest write was redundant: an injected permission
+        failure on it must not decide whether the script and chunks publish."""
+        with tempfile.TemporaryDirectory() as tmp:
+            calls = []
+            original = tp.atomic_json_write
+
+            def writer(path, entries, prior):
+                write_three_pass_completion_manifest(
+                    path, entries, status='complete')
+
+            def guarded(data, path, *args, **kwargs):
+                calls.append(Path(path).name)
+                if str(path).endswith('threepass_manifest.json'):
+                    error = PermissionError('injected manifest permission failure')
+                    error.errno = 13
+                    raise error
+                return original(data, path, *args, **kwargs)
+
+            with self._run_main(tmp, writer, scripts=guarded) as (output, chunks, prior, main):
+                main()
+            self.assertNotIn('annotated_script.json.threepass_manifest.json', calls)
+            self.assertIn('out.json', calls)
+            self.assertNotEqual(prior, output.read_bytes())
+            self.assertIn('new script', output.read_text())
+            self.assertEqual(b'old chunks', chunks.read_bytes())
+
+    def test_script_write_permission_failure_preserves_chunks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original = tp.atomic_json_write
+
+            def writer(path, entries, prior):
+                write_three_pass_completion_manifest(
+                    path, entries, status='complete')
+
+            def guarded(data, path, *args, **kwargs):
+                if Path(path).name == 'out.json':
+                    error = PermissionError('injected script permission failure')
+                    error.errno = 13
+                    raise error
+                return original(data, path, *args, **kwargs)
+
+            with self._run_main(tmp, writer, scripts=guarded) as (output, chunks, prior, main):
+                with self.assertRaisesRegex(PermissionError, 'script permission'):
+                    main()
+            self.assertEqual(prior, output.read_bytes())
+            self.assertEqual(b'old chunks', chunks.read_bytes())

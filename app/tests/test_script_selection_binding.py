@@ -10,7 +10,9 @@ from script_selection_binding import (make_script_selection_binding,
                                       check_script_selection_binding, publish_generated_script,
                                       capture_generation_selection, BINDING_NAME)
 from book_state_transaction import ensure_book_state, get_book_operation_token
-from tests.test_support import intercept_book_publications
+from tests.test_support import (intercept_book_publications,
+                                write_three_pass_completion_manifest,
+                                build_three_pass_completion_manifest)
 
 
 class ScriptSelectionBindingTests(unittest.TestCase):
@@ -264,7 +266,7 @@ class ScriptSelectionBindingTests(unittest.TestCase):
             (root / 'chunks.json').write_bytes(b'old chunks')
             (root / 'chunks.json.status.jsonl').write_bytes(b'old journal')
             manifest = root / 'annotated_script.json.threepass_manifest.json'
-            manifest.write_text('{"status":"publishing","run_id":"' + 'f' * 32 + '"}')
+            write_three_pass_completion_manifest(manifest, self.script, run_id='f' * 32)
             token = get_book_operation_token(tmp)
             import book_state_transaction as transaction
             binding_path = root / BINDING_NAME
@@ -504,9 +506,9 @@ class CompletionEvidencePublisherTests(unittest.TestCase):
                 'script_generation_base_sha256': hashlib.sha256(b'old script').hexdigest()}))
             (root / 'annotated_script.json').write_bytes(b'old script')
             (root / 'chunks.json').write_bytes(b'old chunks')
-            (root / 'annotated_script.json.threepass_manifest.json').write_text(
-                json.dumps({'status': 'publishing', 'run_id': 'f' * 32,
-                            'passes': {}, 'diagnostic_failures': []}))
+            write_three_pass_completion_manifest(
+                root / 'annotated_script.json.threepass_manifest.json',
+                b'[{"text":"new"}]', run_id='f' * 32)
             selected = capture_generation_selection(tmp, str(source))
             checked = []
 
@@ -525,4 +527,87 @@ class CompletionEvidencePublisherTests(unittest.TestCase):
             self.assertTrue(checked)
             self.assertEqual(b'old script', (root / 'annotated_script.json').read_bytes())
             self.assertEqual(b'old chunks', (root / 'chunks.json').read_bytes())
+            self.assertFalse((root / BINDING_NAME).exists())
+
+
+class CompletionRecordSubstitutionTests(unittest.TestCase):
+    """Each forged completion substitution is refused at the locked boundary."""
+
+    def _setup_book(self, tmp, script=b'[{"text":"new"}]'):
+        root = Path(tmp)
+        source = root / 'source.txt'
+        source.write_bytes(b'source')
+        old = b'old script'
+        state = {'active_book_id': 'a', 'book_generation': 'one',
+                 'input_file_path': str(source), 'script_generation_run_id': 'f' * 32,
+                 'script_generation_base_sha256': hashlib.sha256(old).hexdigest()}
+        (root / 'state.json').write_text(json.dumps(state))
+        (root / 'annotated_script.json').write_bytes(old)
+        (root / 'chunks.json').write_bytes(b'old chunks')
+        (root / 'chunks.json.status.jsonl').write_bytes(b'old journal')
+        manifest = root / 'annotated_script.json.threepass_manifest.json'
+        return root, source, old, manifest, script
+
+    def test_substitutions_preserve_every_prior_byte(self):
+        script = b'[{"text":"new"}]'
+        valid = build_three_pass_completion_manifest(script, run_id='f' * 32)
+        substitutions = {
+            'status_only': {'status': 'publishing', 'run_id': 'f' * 32},
+            'string_unchecked': {**valid,
+                                 'passes': {'attribute': {'unchecked_entries': '2'}}},
+            'malformed_pass_mapping': {**valid,
+                                       'passes': {'attribute': 'not a pass record'}},
+            'stale_complete': build_three_pass_completion_manifest(
+                script, status='complete', run_id='e' * 32),
+            'prior_receipt_old_script': {**valid, 'publication': {
+                'run_id': 'f' * 32,
+                'script_sha256': hashlib.sha256(b'old script').hexdigest()}},
+        }
+        for label, manifest in substitutions.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root, source, old, path, staged = self._setup_book(tmp, script)
+                path.write_text(json.dumps(manifest))
+                before_state = (root / 'state.json').read_bytes()
+                token = get_book_operation_token(tmp)
+                with self.assertRaisesRegex(ValueError, 'completion|manifest|unchecked|receipt'):
+                    publish_generated_script(tmp, token, str(source),
+                                             hashlib.sha256(b'source').hexdigest(),
+                                             staged, expected_run_id='f' * 32,
+                                             complete_manifest=True)
+                self.assertEqual(old, (root / 'annotated_script.json').read_bytes())
+                self.assertEqual(b'old chunks', (root / 'chunks.json').read_bytes())
+                self.assertEqual(before_state, (root / 'state.json').read_bytes())
+                self.assertFalse((root / BINDING_NAME).exists())
+
+    def test_source_edit_at_commit_boundary_restores_script_chunks_and_state(self):
+        """An edit after the last row validation but before the committed
+        journal write rolls the whole publication back while rollback is still
+        possible; exact old script, chunks, state and binding are restored."""
+        from script_selection_binding import require_unchanged_source
+        with tempfile.TemporaryDirectory() as tmp:
+            root, source, old, manifest_path, staged = self._setup_book(tmp)
+            write_three_pass_completion_manifest(manifest_path, staged, run_id='f' * 32)
+            before_state = (root / 'state.json').read_bytes()
+            before_manifest = manifest_path.read_bytes()
+            selected = capture_generation_selection(tmp, str(source))
+
+            def edit_at_commit():
+                if (not (root / 'chunks.json').exists()
+                        and not (root / 'chunks.json.status.jsonl').exists()):
+                    source.write_bytes(b'edited during final cleanup')
+                require_unchanged_source(str(source), selected['source_sha256'],
+                                         owning_root=tmp)
+
+            token = get_book_operation_token(tmp)
+            with self.assertRaisesRegex(ValueError, 'changed during generation'):
+                publish_generated_script(tmp, token, str(source),
+                                         selected['source_sha256'], staged,
+                                         expected_run_id='f' * 32,
+                                         complete_manifest=True,
+                                         before_replace=edit_at_commit)
+            self.assertEqual(old, (root / 'annotated_script.json').read_bytes())
+            self.assertEqual(b'old chunks', (root / 'chunks.json').read_bytes())
+            self.assertEqual(b'old journal', (root / 'chunks.json.status.jsonl').read_bytes())
+            self.assertEqual(before_state, (root / 'state.json').read_bytes())
+            self.assertEqual(before_manifest, manifest_path.read_bytes())
             self.assertFalse((root / BINDING_NAME).exists())

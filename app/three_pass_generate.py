@@ -2456,7 +2456,8 @@ def _resolution_counts(resolutions):
 def _write_manifest(output_path, fingerprint, resolutions, passes, status,
                     failed_pass=None, failed_chunk=None, legacy_resume=False,
                     progress=None, diagnostic_failures=None, telemetry=None,
-                    model_binding=None, delivery_review=None, run_id=None):
+                    model_binding=None, delivery_review=None, run_id=None,
+                    completion=None):
     """Persist the run manifest next to the output so results are analyzable from
     structured data instead of log-grepping."""
     if not output_path:
@@ -2477,6 +2478,8 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
     }
     if run_id is not None:
         manifest["run_id"] = run_id
+    if completion is not None:
+        manifest["completion"] = completion
     if failed_pass is not None:
         manifest["failed_pass"] = failed_pass
     if failed_chunk is not None:
@@ -3010,6 +3013,16 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         failure_counts = Counter(
             code for attempt in attempts
             for code in (attempt.get("failure_codes") or []))
+        completion = None
+        if status in ("publishing", "complete"):
+            # Bind the completion record to the exact staged script bytes, so a
+            # manifest copied from another run or receipt cannot authorize it.
+            staged = [entry for entry in annotated if isinstance(entry, dict)]
+            staged_bytes = json.dumps(staged, ensure_ascii=False, indent=2,
+                                      allow_nan=False).encode('utf-8')
+            completion = {'status': status, 'run_id': run_id,
+                          'script_sha256': hashlib.sha256(staged_bytes).hexdigest(),
+                          'entries': len(staged)}
         _write_manifest(output_path, fingerprint, resolutions, passes, status,
                         delivery_review=get_delivery_review_info(annotated),
                         model_binding=get_run_model_binding(client, model_name, resumed_binding),
@@ -3053,7 +3066,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                             "response_fingerprints": len({
                                 a.get("response_fingerprint") for a in attempts
                                 if a.get("response_fingerprint")}),
-                        }, diagnostic_failures=diagnostic_failures, run_id=run_id)
+                        }, diagnostic_failures=diagnostic_failures, run_id=run_id,
+                        completion=completion)
 
     # Pass 1 — resume from chunks_done.
     seg_start = time.time()
@@ -3564,7 +3578,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             "error": str(exc)[:500]})
     if getattr(params, "literal_source_preserving", False) and not diagnostic_failures:
         from literal_policy import bind_literal_policy
-        annotated = bind_literal_policy(source_text, annotated)
+        annotated = bind_literal_policy(
+            source_text, annotated,
+            input_sha256=getattr(params, "literal_input_sha256", None),
+            strip_front_matter=getattr(params, "literal_strip_front_matter", None))
     save("done")
     # #2158: a kept, quality-rejected attribution is flagged, not verified.
     # Keep it out of the published script while preserving the checkpoint,
@@ -3887,15 +3904,24 @@ def get_output_paths(data_dir, requested_output=None):
 
 
 def get_three_pass_unchecked_count(manifest):
-    """Number of quality-rejected kept attributions recorded in a manifest."""
-    if not isinstance(manifest, dict):
-        return 0
-    return sum(
-        pass_info["unchecked_entries"]
-        for pass_info in (manifest.get("passes") or {}).values()
-        if isinstance(pass_info, dict)
-        and type(pass_info.get("unchecked_entries")) is int
-        and pass_info["unchecked_entries"] > 0)
+    """Number of quality-rejected kept attributions recorded in a manifest.
+
+    A malformed pass mapping (including a string count) is refused, not silently
+    counted as zero: every unchecked row must be rejected independently of the
+    other publication checks.
+    """
+    passes = manifest.get("passes") or {} if isinstance(manifest, dict) else None
+    if not isinstance(passes, dict):
+        raise ValueError('generation pass mapping is invalid')
+    unchecked = 0
+    for pass_info in passes.values():
+        if not isinstance(pass_info, dict):
+            raise ValueError('generation pass mapping is invalid')
+        value = pass_info.get('unchecked_entries', 0)
+        if type(value) is not int or value < 0:
+            raise ValueError('unchecked attribution count is invalid')
+        unchecked += value
+    return unchecked
 
 
 def load_three_pass_completion_manifest(path):
@@ -3918,35 +3944,78 @@ def load_three_pass_completion_manifest(path):
     return manifest
 
 
-def get_three_pass_publication_blocker(manifest, *, expected_run_id=None):
+def get_three_pass_publication_blocker(manifest, *, expected_run_id=None,
+                                       staged_script_sha256=None,
+                                       require_publishing=False):
     """Why a finished three-pass manifest must not be published, or None.
 
-    Publication needs a valid manifest from a run that actually finished in a
-    publishable state, with no contradictory diagnostic evidence and (for an
-    active book) bound to this exact attempt. A missing or malformed manifest
-    is never an empty, publishable result.
+    Publication needs a typed completion record from this exact attempt, bound
+    to the staged script bytes, with no contradictory diagnostic evidence and
+    no unchecked rows. The locked active boundary additionally requires the
+    publishing state and no prior completion receipt: that boundary writes the
+    receipt itself. A missing or malformed manifest is never an empty,
+    publishable result.
     """
     if not isinstance(manifest, dict) or not manifest:
         return 'generation manifest is missing or invalid'
     status = manifest.get("status")
-    if status not in ("publishing", "complete"):
+    if not isinstance(status, str) or status not in ("publishing", "complete"):
         return f"generation status is {status!r}"
-    if expected_run_id is not None and manifest.get("run_id") != expected_run_id:
-        return 'generation manifest belongs to a different attempt'
+    if require_publishing and status != 'publishing':
+        return 'generation manifest is already complete'
+    run_id = manifest.get("run_id")
+    if expected_run_id is not None:
+        if (not isinstance(run_id, str) or not re.fullmatch(r'[0-9a-f]{32}', run_id)
+                or run_id != expected_run_id):
+            return 'generation manifest belongs to a different attempt'
+    elif run_id is not None and (not isinstance(run_id, str) or not re.fullmatch(r'[0-9a-f]{32}', run_id)):
+        return 'generation attempt identity is invalid'
+    completion = manifest.get("completion")
+    if not isinstance(completion, dict):
+        return 'generation completion record is missing or invalid'
+    if completion.get('status') != status:
+        return 'generation completion record contradicts the manifest status'
+    if completion.get('run_id') != run_id:
+        return 'generation completion record belongs to a different attempt'
+    script_sha256 = completion.get('script_sha256')
+    if (not isinstance(script_sha256, str) or not re.fullmatch(r'[0-9a-f]{64}', script_sha256)):
+        return 'generation completion record is not bound to a script'
+    if staged_script_sha256 is not None and script_sha256 != staged_script_sha256:
+        return 'generation completion record does not match the staged script'
+    if type(completion.get('entries')) is not int or completion['entries'] < 0:
+        return 'generation completion record has an invalid entry count'
     receipt = manifest.get("publication")
     if receipt is not None:
-        receipt_run = receipt.get("run_id") if isinstance(receipt, dict) else None
-        if receipt_run != (expected_run_id or manifest.get("run_id")):
+        if require_publishing:
+            return 'generation manifest has a prior completion receipt'
+        expected_receipt_run = expected_run_id or run_id
+        if (not isinstance(receipt, dict) or receipt.get('run_id') != expected_receipt_run
+                or not isinstance(receipt.get('script_sha256'), str)
+                or not re.fullmatch(r'[0-9a-f]{64}', receipt['script_sha256'])):
             return 'generation manifest has a conflicting publication receipt'
+        if staged_script_sha256 is not None and receipt['script_sha256'] != staged_script_sha256:
+            return 'generation publication receipt does not match the staged script'
     if manifest.get("failed_pass") is not None or manifest.get("failed_chunk") is not None:
         return 'generation did not complete successfully'
     failures = manifest.get("diagnostic_failures")
+    if failures is None:
+        failures = []
+    if not isinstance(failures, list):
+        return 'generation diagnostic evidence is invalid'
     if failures:
         return f"{len(failures)} diagnostic failure(s) remain"
-    for pass_info in (manifest.get("passes") or {}).values():
-        if isinstance(pass_info, dict) and pass_info.get("status") not in (None, "complete"):
+    passes = manifest.get("passes") or {}
+    if not isinstance(passes, dict):
+        return 'generation pass mapping is invalid'
+    for pass_info in passes.values():
+        if not isinstance(pass_info, dict):
+            return 'generation pass mapping is invalid'
+        if pass_info.get('status') not in (None, 'complete'):
             return f"generation pass status is {pass_info['status']!r}"
-    unchecked = get_three_pass_unchecked_count(manifest)
+    try:
+        unchecked = get_three_pass_unchecked_count(manifest)
+    except ValueError as exc:
+        return str(exc)
     if unchecked:
         return f"{unchecked} quality-rejected attribution(s) remain unchecked"
     return None
@@ -4192,6 +4261,8 @@ def main():
     print(heal_msg)
     params = get_three_pass_run_params(config, lm_status, args.reasoning_effort, generation_settings)
     params.literal_source_preserving = args.literal_source_preserving
+    params.literal_input_sha256 = input_source_sha256
+    params.literal_strip_front_matter = args.strip_front_matter
     generation_settings.update({
         "segment_system_prompt": params.segment_system_prompt,
         "segment_user_prompt_template": params.segment_user_prompt_template,
@@ -4313,13 +4384,6 @@ def main():
               f"wrote {len(entries)} entries to {partial_path}")
         sys.exit(1)
 
-    try:
-        manifest = load_three_pass_completion_manifest(three_pass_manifest_path(output_path))
-    except ValueError as exc:
-        refuse(str(exc))
-    blocker = get_three_pass_publication_blocker(manifest, expected_run_id=active_run_id)
-    if blocker:
-        refuse(blocker)
     # Re-verify source identity at the publication boundary. The same guard is
     # re-run at the final replacement boundary (and on every retry) by the
     # guarded commit below, so an edit in either window cannot publish stale text.
@@ -4338,9 +4402,19 @@ def main():
             input_sha256=input_source_sha256,
             strip_front_matter=args.strip_front_matter)
         require_source_unchanged()
-    # Stage the final bytes only after literal binding, then commit under the
-    # guarded boundary; completion and chunk clearing follow a successful commit.
+    # Stage the final bytes only after literal binding. The completion record
+    # must match these bytes, so no manifest can authorize a different script.
     script_bytes = json.dumps(entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
+    try:
+        manifest = load_three_pass_completion_manifest(three_pass_manifest_path(output_path))
+    except ValueError as exc:
+        refuse(str(exc))
+    blocker = get_three_pass_publication_blocker(
+        manifest, expected_run_id=active_run_id,
+        staged_script_sha256=hashlib.sha256(script_bytes).hexdigest(),
+        require_publishing=active_run_id is not None)
+    if blocker:
+        refuse(blocker)
     if active_run_id is not None:
         from script_selection_binding import publish_generated_script
         publish_generated_script(data_dir, args.active_book_token, args.input_file,
@@ -4351,9 +4425,6 @@ def main():
     else:
         atomic_json_write(entries, output_path, allow_nonatomic_fallback=False,
                           before_replace=require_source_unchanged)
-        manifest['status'] = 'complete'
-        atomic_json_write(manifest, three_pass_manifest_path(output_path),
-                          allow_nonatomic_fallback=False)
     print(f"Wrote {len(entries)} entries to {output_path}")
     if args.active_book_token is None and chunks_path is not None and remove_chunk_snapshot(chunks_path):
         print("Cleared old chunks.json")

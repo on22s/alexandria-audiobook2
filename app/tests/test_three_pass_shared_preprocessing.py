@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import generate_script as gs
 import three_pass_generate as tp
+from tests.test_support import write_three_pass_completion_manifest
 
 if os.environ.get('THREE_PASS_PREPROCESS_SOURCE'):
     spec = importlib.util.spec_from_file_location('tp_preprocess_saved', os.environ['THREE_PASS_PREPROCESS_SOURCE'])
@@ -83,12 +84,14 @@ class SharedPreprocessingCliTests(unittest.TestCase):
                       'generation': {'max_tokens': 4096}}
 
             def fake_run(client, model, source_text, params, chunk_size, **kwargs):
-                manifest = {'status': 'complete', 'passes': {},
-                            'fingerprint': tp.three_pass_fingerprint(source_text, model, chunk_size),
-                            'diagnostic_failures': []}
-                Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(json.dumps(manifest))
+                entries = [{'speaker': 'NARRATOR', 'text': 'new script',
+                            'instruct': 'Neutral.'}]
+                write_three_pass_completion_manifest(
+                    tp.three_pass_manifest_path(kwargs['output_path']), entries,
+                    status='complete',
+                    fingerprint=tp.three_pass_fingerprint(source_text, model, chunk_size))
                 source.write_text('Different words published by an editor.', encoding='utf-8')
-                return [{'speaker': 'NARRATOR', 'text': 'new script', 'instruct': 'Neutral.'}]
+                return entries
 
             with patch.dict(os.environ, {'ALEXANDRIA_DATA_DIR': tmp}), \
                  patch.object(tp.sys, 'argv', ['generator', str(source), '--output', str(output)]), \

@@ -4910,9 +4910,10 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
     Stream objects must already be pinned by the caller. Their extent and hash
     are checked during staging. The byte limit also bounds each aggregate scan
     of existing targets; no stream authorizes a book restore by itself.
-    before_replace is rechecked at the final publication boundary and before
-    every row replacement, so evidence that changed during staging cannot be
-    published.
+    before_replace is rechecked at the final publication boundary, before every
+    row replacement, and once more immediately before the committed journal
+    write (while rollback is still possible), so evidence that changed during
+    staging or final validation cannot be published.
     """
     root, root_identity = _book_operation_root(data_dir)
     if os.path.lexists(root / JOURNAL):
@@ -5447,6 +5448,12 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             # journal is still "publishing", so the rollback is valid.
             _require_transaction_parent_identities(
                 root, names, parent_identities, root_fd=root_fd, cancel_check=cancel_check)
+        if before_replace is not None:
+            # Last rollback point: revalidate the confined source immediately
+            # before the committed journal makes this publication durable. An
+            # edit in the final validation window must restore every target,
+            # not publish new bytes and remove the old chunks.
+            before_replace()
         data['phase'] = 'committed'
         if root_guard is not None:
             root_guard.check()
