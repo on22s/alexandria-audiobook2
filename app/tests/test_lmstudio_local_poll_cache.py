@@ -84,7 +84,7 @@ class LocalPollCacheTests(unittest.TestCase):
 
     def test_concurrent_same_key_shares_fetch_and_returns_independent_snapshots(self):
         entered, release = threading.Event(), threading.Event()
-        def provider(*args):
+        def provider(*args, **kwargs):
             entered.set()
             if not release.wait(3):raise AssertionError('fixture not released')
             return {'runtime': 'llama.cpp', 'nested': {'rows': [1]}}
@@ -137,6 +137,24 @@ class LocalPollCacheTests(unittest.TestCase):
         self.assertNotIn('configured-fixture', repr(settings._remote_status_cache))
         self.assertNotIn('sk-unused-fixture', repr(settings._remote_status_cache))
 
+    def test_llama_props_probe_receives_effective_authorization_cached_and_live(self):
+        native = {'runtime': 'llama.cpp', 'loaded': True, 'context_length': 8192}
+        with patch.object(settings, 'get_llama_cpp_status', return_value=native) as props:
+            settings.get_current_status('local', BASE, 'm', use_cache=True,
+                cache_local=True, api_key='sk-unused-fixture',
+                authorization='Token configured-fixture')
+            settings.get_current_status('local', BASE, 'm', use_cache=True,
+                cache_local=True, api_key='sk-unused-fixture',
+                authorization='Token configured-fixture')
+            cached_probes = props.call_count
+            settings.get_current_status('local', BASE, 'm',
+                api_key='sk-unused-fixture', authorization='Token configured-fixture')
+        self.assertEqual(1, cached_probes)
+        self.assertEqual(2, props.call_count)
+        for call in props.call_args_list:
+            self.assertEqual('sk-unused-fixture', call.kwargs['api_key'])
+            self.assertEqual('Token configured-fixture', call.kwargs['authorization'])
+
     def test_cache_identity_separates_credentials_and_remote_cached_api_forwards(self):
         with patch.object(settings, 'get_llama_cpp_status', return_value=None), \
                 patch.object(settings, 'get_lmstudio_endpoint_status',
@@ -158,7 +176,7 @@ class LocalPollCacheTests(unittest.TestCase):
 
     def test_invalidated_inflight_result_is_returned_but_cannot_repopulate_cache(self):
         entered, release = threading.Event(), threading.Event()
-        def provider(*args):
+        def provider(*args, **kwargs):
             entered.set()
             if not release.wait(3):raise AssertionError('fixture not released')
             return {'context_length': 8192}

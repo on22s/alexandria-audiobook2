@@ -874,7 +874,7 @@ _props_miss = {}
 _props_miss_lock = threading.Lock()
 
 
-def get_llama_cpp_status(base_url, model_name, timeout=5):
+def get_llama_cpp_status(base_url, model_name, timeout=5, api_key=None, authorization=None):
     """-> a status dict if `base_url` is llama.cpp, else None.
 
     WHY THIS EXISTS. `get_lmstudio_status` asks `lms ps`, which is the right
@@ -910,8 +910,17 @@ def get_llama_cpp_status(base_url, model_name, timeout=5):
         missed_at = _props_miss.get(root)
     if missed_at is not None and time.monotonic() - missed_at < PROPS_MISS_TTL_SECONDS:
         return None
+    # Same credential precedence as the LM Studio endpoint probe: an explicit
+    # Authorization header wins verbatim, otherwise a bearer comes from api_key.
+    headers = {}
+    if authorization:
+        headers['Authorization'] = authorization
+    elif api_key:
+        headers['Authorization'] = 'Bearer ' + api_key
     try:
-        with urllib.request.urlopen(root + "/props", timeout=timeout) as response:
+        props_request = (urllib.request.Request(root + "/props", headers=headers)
+                         if headers else root + "/props")
+        with urllib.request.urlopen(props_request, timeout=timeout) as response:
             payload = response.read(PROPS_MAX_BYTES + 1)
             if len(payload) > PROPS_MAX_BYTES:
                 return None
@@ -1028,7 +1037,8 @@ def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache
     if use_cache and (remote or cache_local):
         return get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name,
                                          api_key, authorization)
-    native = get_llama_cpp_status(base_url, model_name)
+    native = get_llama_cpp_status(base_url, model_name, api_key=api_key,
+                                  authorization=authorization)
     if native is not None:
         return native
     endpoint = get_lmstudio_endpoint_status(base_url, model_name, api_key,

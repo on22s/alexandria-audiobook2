@@ -2386,7 +2386,7 @@ def _make_llm_client(timeout: float = None):
     Validates that the base_url is local/trusted.
     Reuses cached client if config hasn't changed to avoid connection pool leaks.
     """
-    from llm_provider import get_effective_authorization, make_llm_client
+    from llm_provider import make_llm_client
     # None means "the shared answer", so this function stops being a second
     # opinion on how long a request may hang. An explicit argument still wins:
     # a caller that knows its request is quick may want a tighter bound.
@@ -2427,6 +2427,7 @@ def _llm_summarize_report(markdown_body: str) -> Optional[str]:
     Validates that the configured base_url is local/trusted before sending data."""
     from manual_llm_context import ManualRequestCancelled
     try:
+        from llm_provider import get_effective_authorization
         client, model_name = _make_llm_client(timeout=60)
 
         messages = [

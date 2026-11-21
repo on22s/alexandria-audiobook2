@@ -66,6 +66,21 @@ class LlamaCppStatusTests(unittest.TestCase):
         self.assertEqual(1, status["parallel"])
         self.assertEqual("llama.cpp", status["runtime"])
 
+    def test_props_request_uses_explicit_header_or_bearer_with_same_precedence(self):
+        seen = []
+        def opener(request, timeout=None):
+            seen.append((request.full_url, request.headers.get('Authorization')))
+            return _Ctx(json.dumps(PROPS).encode())
+        with patch("urllib.request.urlopen", opener):
+            status = ls.get_llama_cpp_status("http://127.0.0.1:8090/v1", "qwen3-14b",
+                api_key="sk-unused-fixture", authorization="Token configured-fixture")
+            self.assertTrue(status["loaded"])
+            ls.get_llama_cpp_status("http://127.0.0.1:8090/v1", "qwen3-14b",
+                api_key="fixture-key")
+        self.assertEqual([("http://127.0.0.1:8090/props", "Token configured-fixture"),
+                          ("http://127.0.0.1:8090/props", "Bearer fixture-key")], seen,
+                         "an explicit header must win; an unused key must not become a bearer")
+
     def test_optimized_is_none_not_false(self):
         """llama.cpp is configured at launch and has no reload settings.
 

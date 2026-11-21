@@ -14,7 +14,8 @@ from dataclasses import dataclass, field, replace
 from core import AUTO_PAUSE_MARKER, llm_timeout_seconds
 from generation_completion import get_file_sha256, get_generation_input
 from config_settings import load_app_config, get_generation_config
-from llm_provider import make_llm_client, make_run_client, merge_provider_extra_body, get_provider_extra_body
+from llm_provider import (make_llm_client, make_run_client, merge_provider_extra_body,
+                          get_provider_extra_body, get_effective_authorization)
 from llm_provider import classify_llm_error, get_retry_delay, get_run_model_binding, get_run_fingerprint_identity
 from llm_provider import (FailoverClient, RunProfileChanged, RunRequestAdmissionError,
                           is_failover_eligible)
@@ -2396,7 +2397,8 @@ def main():
     # processed strictly sequentially), so only the self-heal call applies
     # here - is_remote/lm_status aren't needed for anything else in this file.
     _, lm_status, heal_msg = ensure_ideal_settings(
-        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key)
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key,
+        authorization=get_effective_authorization(llm_config))
     print(heal_msg)
 
     # Create OpenAI client with custom base URL

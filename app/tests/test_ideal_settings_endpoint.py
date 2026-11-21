@@ -66,6 +66,17 @@ class IdealSettingsEndpointTest(unittest.TestCase):
         apply_.assert_called_once()
         self.assertIn("LM Studio", message)
 
+    def test_explicit_non_bearer_authorization_reaches_the_status_probe(self):
+        with mock.patch.object(lmstudio_settings, "get_llama_cpp_status",
+                               return_value=None) as probe, \
+             mock.patch.object(lmstudio_settings, "get_current_status",
+                               return_value=dict(self.LLAMA)) as status:
+            lmstudio_settings.ensure_ideal_settings(
+                "remote", "https://hosted.invalid/v1", "qwen3-14b", "fixture-host",
+                api_key="sk-unused-fixture", authorization="Token configured-fixture")
+        self.assertEqual("Token configured-fixture", status.call_args.kwargs["authorization"])
+        self.assertEqual("sk-unused-fixture", status.call_args.kwargs["api_key"])
+
     def test_a_remote_endpoint_is_unaffected_by_the_local_probe(self):
         """Remote endpoints are probed too, so remote llama.cpp is not sent
         LM Studio SSH management commands."""
@@ -79,6 +90,24 @@ class IdealSettingsEndpointTest(unittest.TestCase):
             lmstudio_settings.ensure_ideal_settings(
                 "remote", "http://10.0.0.5:1234/v1", "qwen3-14b", None)
         probe.assert_called_once()
+
+
+class ProfileBackedPreflightWiringTests(unittest.TestCase):
+    def test_every_production_preflight_forwards_its_bound_profile_credential(self):
+        import inspect
+        for name, profile in (("generate_script", "llm_config"),
+                              ("three_pass_generate", "llm"),
+                              ("generate_personas", "llm_cfg"),
+                              ("find_nicknames", "llm"),
+                              ("integration_runner", "llm"),
+                              ("routers.script", "llm")):
+            with self.subTest(module=name):
+                module = __import__(name, fromlist=["*"])
+                source = inspect.getsource(module)
+                self.assertIn(f"authorization=get_effective_authorization({profile})",
+                              source,
+                              "the preflight must use the credential of the profile "
+                              "bound to this run's client/endpoint")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ import os
 import time
 from collections import defaultdict
 
-from openai import OpenAI
+from llm_provider import get_effective_authorization, make_llm_client
 
 from attribution_adapter import check_adapter, describe
 from chunk_quality import validate_chunk_quality
@@ -65,14 +65,14 @@ def run_manifest(manifest, output_path, limit=None):
         model = llm.get("model_name", "local-model")
         _, status, heal_message = ensure_ideal_settings(
             config.get("llm_mode", "local"), base_url, model,
-            ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+            ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"),
+            authorization=get_effective_authorization(llm))
         adapter_ok, adapter_message = check_adapter(config, base_url)
         adapter_evidence = {"expected": describe(config), "verified": adapter_ok,
                             "message": adapter_message}
         if not adapter_ok:
             print(f"WARNING: {adapter_message}", flush=True)
-        client = OpenAI(base_url=base_url, api_key=llm.get("api_key", "local"),
-                        timeout=llm_timeout_seconds())
+        client = make_llm_client(llm, llm_timeout_seconds())
         params = LLMGenParams(
             system_prompt=prompts.get("system_prompt"),
             user_prompt_template=prompts.get("user_prompt"),

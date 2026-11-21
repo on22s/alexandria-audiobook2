@@ -14,7 +14,7 @@ from contextlib import nullcontext
 from book_state_transaction import (ensure_book_state, get_book_snapshot,
                                     require_book_snapshot_current, get_book_snapshot_token)
 from config_settings import load_app_config
-from llm_provider import make_run_client
+from llm_provider import get_effective_authorization, make_run_client
 from generate_script import (LLMGenParams, call_llm_for_object, split_failed_chunk,
                              ensure_run_request_params)
 
@@ -1615,7 +1615,8 @@ def main():
     # are generated sequentially per speaker/batch), so only the self-heal
     # call applies here.
     _, lm_status, heal_msg = ensure_ideal_settings(
-        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key)
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key,
+        authorization=get_effective_authorization(llm_cfg))
     print(heal_msg)
 
     client = make_run_client(config, llm_cfg, llm_timeout_seconds())

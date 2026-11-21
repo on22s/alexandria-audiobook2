@@ -279,15 +279,18 @@ class LegacyReceiptContextTests(unittest.TestCase):
             self.assertNotIn('sk-synthetic', digest)
             self.assertNotIn('sk-different-fixture', digest)
 
-    def test_used_failover_and_changed_endpoint_refuse_historical_matching(self):
+    def test_changed_secondary_refuses_regardless_of_current_failover_flag(self):
         review, config, primary, params, args = self._case(failover=True)
-        with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False), \
-                patch.object(review, 'get_run_model_binding',
-                             return_value={'primary_model': 'fixture',
-                                           'failover_model': 'secondary',
-                                           'failover_used': True}):
-            self.assertIsNone(review.get_legacy_review_fingerprint(
-                config, primary, params, args, object(), 'fixture'))
+        for used in (True, False):
+            with self.subTest(failover_used=used), \
+                    patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False), \
+                    patch.object(review, 'get_run_model_binding',
+                                 return_value={'primary_model': 'fixture',
+                                               'failover_model': 'secondary',
+                                               'failover_used': used}):
+                self.assertIsNone(review.get_legacy_review_fingerprint(
+                    config, primary, params, args, object(), 'fixture'),
+                    'the current client flag cannot prove a historical secondary was unused')
         other, other_config, other_primary, _, _ = self._case(
             base_url='https://other.invalid/v1')
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
@@ -298,35 +301,41 @@ class LegacyReceiptContextTests(unittest.TestCase):
         self.assertNotEqual(unchanged, changed,
                             'a changed endpoint must not reuse the old receipt')
 
-    def test_unused_empty_secondary_reproduces_historical_ambient_contribution(self):
+    def test_secondary_credential_equivalence_decides_historical_matching(self):
         from types import SimpleNamespace
         from generate_script import LLMGenParams
         import review_script as review
-        config = {'generation': {'review_batch_size': 2}, 'llm_mode': 'local',
-                  'llm_failover': True,
-                  'llm_local': {'api_key': 'fixture-key',
-                                'base_url': 'https://hosted.invalid/v1',
-                                'model_name': 'fixture'},
-                  'llm_remote': {'api_key': '', 'base_url': 'http://127.0.0.1:1234/v1',
-                                 'model_name': 'secondary'}}
-        primary = config['llm_local']
         params = LLMGenParams(system_prompt='sys', user_prompt_template='{batch}')
         args = SimpleNamespace(context_window=0, dedupe_speakers=False,
                                alias_registry=None, remap_voice_config=None)
+        for secondary_key, expect_legacy in (('', False), ('secondary-key', True)):
+            with self.subTest(secondary_key=secondary_key), \
+                    patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+                config = {'generation': {'review_batch_size': 2}, 'llm_mode': 'local',
+                          'llm_failover': True,
+                          'llm_local': {'transport': 'manual', 'api_key': '',
+                                        'base_url': 'https://hosted.invalid/v1',
+                                        'model_name': 'fixture'},
+                          'llm_remote': {'api_key': secondary_key,
+                                         'base_url': 'http://127.0.0.1:1234/v1',
+                                         'model_name': 'secondary'}}
+                legacy = review.get_legacy_review_fingerprint(
+                    config, config['llm_local'], params, args, object(), 'fixture')
+                if expect_legacy:
+                    self.assertIsNotNone(legacy,
+                                         'an unchanged secondary keeps historical matching')
+                    self.assertNotIn('sk-synthetic', legacy)
+                else:
+                    self.assertIsNone(legacy,
+                                      'a changed secondary could have received the ambient key')
+
+        config['llm_remote']['api_key'] = ''
+        config['llm_remote']['provider_headers'] = {'Authorization': 'Token kept-fixture'}
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
-            canonical = review.get_completed_review_fingerprint(
-                config, primary, params, args, object(), 'fixture')
-            legacy = review.get_legacy_review_fingerprint(
-                config, primary, params, args, object(), 'fixture')
-            with patch.object(review, 'resolve_historical_api_key', return_value='local'):
-                without_ambient = review.get_legacy_review_fingerprint(
-                    config, primary, params, args, object(), 'fixture')
-        self.assertIsNotNone(legacy,
-                             'an unused empty secondary must get a historical candidate')
-        self.assertNotEqual(canonical, legacy)
-        self.assertNotEqual(legacy, without_ambient,
-                            'the ambient contribution must come from the historical resolver')
-        self.assertNotIn('sk-synthetic', legacy)
+            explicit_legacy = review.get_legacy_review_fingerprint(
+                config, config['llm_local'], params, args, object(), 'fixture')
+        self.assertIsNotNone(explicit_legacy,
+                             'an explicit header keeps dispatch equivalent across eras')
 
     def test_pre_pr_manual_checkpoint_with_offset_resumes_only_with_legacy_digest(self):
         import review_script as review

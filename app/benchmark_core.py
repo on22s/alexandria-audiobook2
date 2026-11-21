@@ -168,15 +168,19 @@ def get_benchmark_execution_environment(manifest, environment, config):
     result["sha256"] = _stable_hash({"target": target, "details": result["details"]})
     if target == "thunder" and stage in {"script_generation", "script_review",
                                          "persona_generation", "nickname_detection"}:
-        from llm_provider import resolve_historical_api_key
+        from llm_provider import (get_effective_authorization, get_explicit_authorization,
+                                  resolve_historical_api_key)
         public = get_benchmark_llm_config(config, target)
         historical_key = resolve_historical_api_key(public.get("api_key", "local"))
         # Older reports fingerprinted the public profile while the worker has
-        # always dispatched against the rewritten loopback URL. Offer the old
-        # digest for resume only when both resolve the SAME credential: a
-        # keyless public profile used to inherit an ambient key the worker no
-        # longer sends, so that changed dispatch must never be treated as equal.
-        if get_thunder_worker_profile(public).get("api_key") == historical_key:
+        # always dispatched against the rewritten loopback URL. What matters is
+        # the Authorization actually sent, not an api_key the profile never uses:
+        # an explicit header overrides an unused key in both eras. A keyless
+        # public profile used to inherit an ambient key the worker no longer
+        # sends, so that changed dispatch must never be treated as equal.
+        explicit = get_explicit_authorization(public)
+        historical_auth = explicit or (f'Bearer {historical_key}' if historical_key else None)
+        if get_effective_authorization(get_thunder_worker_profile(public)) == historical_auth:
             omitted = {"concurrency", "concurrency_for", "concurrency_environment",
                        "concurrency_revision"}
             legacy_identity = copy.deepcopy(identity)
@@ -257,4 +261,9 @@ def load_resumable_benchmark_report(path, manifest, environment):
         accepted.add(environment["legacy_sha256"])
     if stored_environment["sha256"] not in accepted:
         raise ValueError("benchmark environment changed; refusing unsafe resume")
+    if stored_environment["sha256"] != environment["sha256"]:
+        # Resumed through the legacy digest: republish with the canonical
+        # environment so the next save cannot keep carrying the old identity.
+        report = copy.deepcopy(report)
+        report["environment"] = copy.deepcopy(environment)
     return report

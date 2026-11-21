@@ -457,7 +457,8 @@ class ThunderLegacyReportResumeTests(unittest.TestCase):
             core.save_benchmark_report(path, report)
             resumed = core.load_resumable_benchmark_report(path, manifest, current)
         self.assertEqual([], resumed['cases'])
-        self.assertEqual(old['sha256'], resumed['environment']['sha256'])
+        self.assertEqual(current['sha256'], resumed['environment']['sha256'],
+                         'a legacy resume must republish the canonical digest')
 
     def test_changed_profile_and_keyless_public_profile_refuse_legacy_resume(self):
         config = get_config(True)
@@ -483,3 +484,29 @@ class ThunderLegacyReportResumeTests(unittest.TestCase):
                              'a keyless public profile changed the worker credential')
             with self.assertRaisesRegex(ValueError, 'environment changed'):
                 core.load_resumable_benchmark_report(path, manifest, keyless_environment)
+
+    def test_explicit_header_over_unused_key_compares_effective_authorization(self):
+        config = get_config(True)
+        config['llm_remote']['api_key'] = 'sk-unused-fixture'
+        config['llm_remote']['provider_headers'] = {'Authorization': 'Token configured-fixture'}
+        manifest, current = self._case(config)
+        old = copy.deepcopy(current)
+        old['details']['execution_sha256'] = self._pre_fix_digest(manifest, config)
+        old['sha256'] = core._stable_hash({'target': 'thunder', 'details': old['details']})
+        self.assertEqual(current['legacy_sha256'], old['sha256'],
+                         'the header, not the unused key, decides dispatch equivalence')
+        report = core.build_benchmark_report(manifest, current)
+        report['environment'] = old
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'report.json'
+            core.save_benchmark_report(path, report)
+            resumed = core.load_resumable_benchmark_report(path, manifest, current)
+            core.save_benchmark_report(path, resumed)
+            canonical = core.load_resumable_benchmark_report(path, manifest, current)
+            self.assertEqual(current['sha256'], canonical['environment']['sha256'],
+                             'the resumed report must be saved with the canonical digest')
+            changed = copy.deepcopy(config)
+            changed['llm_remote']['provider_headers'] = {'Authorization': 'Token changed-fixture'}
+            _, changed_environment = self._case(changed)
+            with self.assertRaisesRegex(ValueError, 'environment changed'):
+                core.load_resumable_benchmark_report(path, manifest, changed_environment)
