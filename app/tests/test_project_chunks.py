@@ -588,7 +588,8 @@ class ChunkUpdateNullTests(unittest.TestCase):
                      patch.object(editor, 'check_global_gpu_lock'):
                     response = client.post('/api/chunks/0', params={'expected_uid':json.loads(path.read_text())[0]['uid'], 'expected_book_token':editor.get_snapshot_digest(editor.get_editor_book_identity(str(root)))}, json={field: value})
                 self.assertEqual(200, response.status_code, response.text)
-                expected = {**original, field: value, 'status': 'pending', 'audio_path': None}
+                expected = {**original, field: value, 'status': 'pending', 'audio_path': None,
+                            'error': None}
                 self.assertEqual(expected, response.json())
                 self.assertEqual([expected], json.loads(path.read_bytes()))
                 self.assertEqual(b'preserved prior audio', (root / 'audio.wav').read_bytes())
@@ -604,10 +605,31 @@ class ChunkUpdateNullTests(unittest.TestCase):
                 path.write_text(json.dumps([original]))
                 result = manager.update_chunk(0, {field: value})
                 expected = {**original, field: value, 'status': 'pending',
-                            'audio_path': None, 'outlier': None, 'drift': None}
+                            'audio_path': None, 'error': None, 'outlier': None, 'drift': None}
                 self.assertEqual(expected, result)
                 self.assertEqual([expected], json.loads(path.read_bytes()))
                 self.assertEqual(b'preserved prior audio', (root / 'audio.wav').read_bytes())
+
+    def test_render_invalidation_clears_stale_error_but_unrelated_edits_keep_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manager, path, original = self._setup(root)
+            original.update(status='error', error='TTS returned no audio.')
+            path.write_text(json.dumps([original]))
+            unchanged = manager.update_chunk(0, {'pause_after': 400})
+            self.assertEqual('TTS returned no audio.', unchanged['error'])
+            self.assertEqual('error', unchanged['status'])
+            for field, value in (('text', 'Corrected words'), ('instruct', 'Calmer'),
+                                 ('speaker', 'Other'), ('take', 1)):
+                with self.subTest(field=field):
+                    manager, path, original = self._setup(root)
+                    original.update(status='error', error='TTS returned no audio.')
+                    path.write_text(json.dumps([original]))
+                    result = manager.update_chunk(0, {field: value})
+                    self.assertIsNone(result['error'])
+                    self.assertEqual('pending', result['status'])
+                    self.assertIsNone(result['audio_path'])
+                    self.assertIsNone(json.loads(path.read_bytes())[0]['error'])
 
 
 class BatchWorkerConfigTests(unittest.TestCase):

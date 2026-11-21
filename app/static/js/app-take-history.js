@@ -58,7 +58,11 @@ async function loadEditorTakeSnapshots(all = false, offset = 0) {
         if (request !== takeHistoryRequest || identity !== getTakeHistoryIdentity() || hasTakeHistoryDrafts()) { return; }
         renderEditorTakeSnapshots(result, book, identity);
     } catch (error) {
-        if (request === takeHistoryRequest) { showActionError(t('take.error.load', 'Cannot load snapshots'), error, t('take.error.load-recovery', 'Current line audio is unchanged.')); }
+        if (request === takeHistoryRequest) {
+            showActionError(t('take.error.load', 'Cannot load snapshots'), error, t('take.error.load-recovery', 'Current line audio is unchanged.'));
+            document.getElementById('editor-take-status').textContent = t('take.status.load-failed', 'Snapshots could not be loaded. The list is empty until a reload succeeds.');
+            takeHistoryIdentity = null;
+        }
     }
 }
 

@@ -45,6 +45,31 @@ document.getElementById('editor-repair-speakers').children[0].selected=true;let 
 context.chunkSnapshotBookToken='b'.repeat(64);context.API.post=async()=>({book_token:'b'.repeat(64),rows:[row],repair_revision:'c'.repeat(64),rendered_count:1});await context.previewEditorRepair();document.getElementById('editor-repair-chapter').value='0';assert.throws(()=>context.getEditorRepairSelection([row],vm.runInContext('editorRepairPreview',context)),/selection changed/);assert.equal(starts.length,0);
 ''')
 
+    def test_failed_options_load_clears_stale_pickers_and_reports_the_real_reason(self):
+        self.run_ui(r'''
+context.API.get=async()=>{throw new Error('repair options unreadable');};
+await context.loadEditorRepairOptions();
+const status=document.getElementById('editor-repair-status');
+assert(status.textContent.includes('could not be loaded'),status.textContent);
+assert(!status.textContent.includes('Selection changed'),status.textContent);
+assert.equal(document.getElementById('editor-repair-chapter').children.length,1);
+assert.equal(document.getElementById('editor-repair-speakers').children.length,0);
+assert.equal(vm.runInContext('editorRepairBook',context),null);
+assert.equal(vm.runInContext('editorRepairOptionsRevision',context),null);
+''')
+
+    def test_refused_render_start_reports_refusal_not_selection_change(self):
+        self.run_ui(r'''
+await context.loadEditorRepairOptions();document.getElementById('editor-repair-speakers').children[0].selected=true;
+await context.previewEditorRepair();assert.equal(starts.length,0);
+context.startRender=async()=>{throw new Error('GPU busy');};
+try { await context.generateEditorRepair(); } catch (error) { assert.equal(error.message,'GPU busy'); }
+const status=document.getElementById('editor-repair-status');
+assert(status.textContent.includes('did not start'),status.textContent);
+assert(!status.textContent.includes('Selection changed'),status.textContent);
+assert.equal(document.getElementById('editor-repair-start').disabled,true);
+''')
+
     def run_render(self, code):
         with tempfile.TemporaryDirectory() as root:
             source = (STATIC/'js/app-editor-repair.js').read_text(); helper=source[source.index('function getEditorRepairSelection('):source.index('async function generateEditorRepair(')]

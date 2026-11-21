@@ -5110,6 +5110,8 @@
     , "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_both_render_buttons_serialize_rows_and_include_focused_uncommitted_controls"
     , "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_edits_during_snapshot_and_confirmation_are_flushed_and_resnapshotted"
     , "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_failed_row_save_aborts_render_and_successful_retry_uses_latest_artifact"
+    , "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_failed_row_save_badge_names_failure_instead_of_unsaved_edits"
+    , "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_failed_row_save_reports_the_server_reason_and_names_failed_line"
     , "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_gap_suggestion_confirms_without_rendering_and_refuses_book_switch"
     , "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_generated_blank_speaker_preserves_artifact_through_render_barrier"
     , "tests.test_editor_render_barrier.EditorRenderBarrierTests.test_generated_speaker_lazy_options_and_explicit_selection_pass_same_barrier"
@@ -5121,7 +5123,9 @@
   , "test_editor_repair_js": [
     "tests.test_editor_repair_js.EditorRepairJsTests.test_batch_selection_confirmation_cancellation_and_change"
     , "tests.test_editor_repair_js.EditorRepairJsTests.test_empty_selection_late_book_and_changed_filters_cannot_start"
+    , "tests.test_editor_repair_js.EditorRepairJsTests.test_failed_options_load_clears_stale_pickers_and_reports_the_real_reason"
     , "tests.test_editor_repair_js.EditorRepairJsTests.test_preview_no_job_safe_text_and_exact_selected_start"
+    , "tests.test_editor_repair_js.EditorRepairJsTests.test_refused_render_start_reports_refusal_not_selection_change"
     , "tests.test_editor_repair_js.EditorRepairJsTests.test_terminal_subset_polling_counts_and_cancellation_reset"
   ]
   , "test_editor_report_cover_boundary": [
@@ -5146,6 +5150,7 @@
     "tests.test_editor_review_js.EditorReviewJsTests.test_all_lines_view_exposes_unrendered_and_no_candidate_without_fabricated_findings"
     , "tests.test_editor_review_js.EditorReviewJsTests.test_editor_shortcuts_leave_focused_controls_and_plain_keys_alone"
     , "tests.test_editor_review_js.EditorReviewJsTests.test_filters_counts_text_injection_and_inspector_use_saved_facts"
+    , "tests.test_editor_review_js.EditorReviewJsTests.test_first_recheck_without_current_digest_installs_evidence_and_refreshes"
     , "tests.test_editor_review_js.EditorReviewJsTests.test_historical_reason_copy_and_recheck_availability_are_distinct"
     , "tests.test_editor_review_js.EditorReviewJsTests.test_historical_receipt_is_labelled_and_never_presented_as_current"
     , "tests.test_editor_review_js.EditorReviewJsTests.test_historical_recheck_success_is_not_discarded_as_another_selection"
@@ -10208,6 +10213,7 @@
     , "tests.test_project_chunks.ChunkUpdateNullTests.test_null_render_fields_reject_entire_request_before_any_mutation"
     , "tests.test_project_chunks.ChunkUpdateNullTests.test_omitted_fields_and_null_pause_preserve_existing_render"
     , "tests.test_project_chunks.ChunkUpdateNullTests.test_render_edits_clear_existing_outlier_and_drift_without_removing_audio"
+    , "tests.test_project_chunks.ChunkUpdateNullTests.test_render_invalidation_clears_stale_error_but_unrelated_edits_keep_it"
     , "tests.test_project_chunks.InvalidExportAudioPathTests.test_all_invalid_and_cancellation_keep_the_existing_export"
     , "tests.test_project_chunks.InvalidExportAudioPathTests.test_invalid_persisted_paths_are_skipped_without_decoding_outside_audio"
     , "tests.test_project_chunks.InvalidExportAudioPathTests.test_partial_merge_publishes_decodable_audio_and_reports_every_skip"
@@ -15189,6 +15195,7 @@
     , "tests.test_take_history_js.TakeHistoryJsTests.test_damaged_policy_can_be_disabled_without_a_selected_line_or_saved_drafts"
     , "tests.test_take_history_js.TakeHistoryJsTests.test_deleted_and_pending_copies_have_no_audio_and_remain_visible_in_usage"
     , "tests.test_take_history_js.TakeHistoryJsTests.test_failed_explicit_acceptance_keeps_current_take_and_other_line"
+    , "tests.test_take_history_js.TakeHistoryJsTests.test_failed_load_replaces_stale_count_status_and_clears_committed_identity"
     , "tests.test_take_history_js.TakeHistoryJsTests.test_failed_policy_read_or_write_requires_refresh_before_retry"
     , "tests.test_take_history_js.TakeHistoryJsTests.test_incomplete_entries_do_not_claim_verified_audio_and_auditions_are_named"
     , "tests.test_take_history_js.TakeHistoryJsTests.test_late_restore_admission_reply_preserves_another_lines_status_and_still_releases_busy"

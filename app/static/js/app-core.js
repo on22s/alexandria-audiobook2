@@ -8276,9 +8276,27 @@
             }
         }
 
+        function showFailedEditorIntegrity(badge) {
+            const failed = getFailedChunkEdits();
+            const first = failed[0];
+            editorIntegrityView++;
+            if (failed.length === 1) {
+                setUiMessage(badge, 'editor.integrity.save-failed-one', 'Line {line} failed to save — {reason}',
+                    () => ({line: first.line, reason: first.reason}));
+            } else {
+                setUiMessage(badge, 'editor.integrity.save-failed', '{count} line edits failed to save — {reason}',
+                    () => ({count: failed.length, reason: first.reason}));
+            }
+            badge.className = 'badge bg-danger';
+        }
+
         async function refreshEditorIntegrity() {
             const badge = document.getElementById('editor-integrity-badge');
             if (!badge) { return; }
+            if (typeof getEditorFailedEditsSummary === 'function' && getEditorFailedEditsSummary()) {
+                showFailedEditorIntegrity(badge);
+                return;
+            }
             if (isEditorEditPending()) {
                 invalidateEditorIntegrity('Save edits before checking source');
                 return;
@@ -9609,6 +9627,24 @@
         const failedChunkEdits = new Map();
         let chunkEditsRevision = 0;
 
+        function getFailedChunkEdits() {
+            return Array.from(failedChunkEdits, ([id, entry]) => ({
+                line: id + 1,
+                field: entry.field,
+                reason: entry.error?.message || String(entry.error),
+            }));
+        }
+
+        function getEditorFailedEditsSummary() {
+            const failed = getFailedChunkEdits();
+            if (!failed.length) { return ''; }
+            const first = failed[0];
+            return failed.length === 1
+                ? t('editor.integrity.save-failed-one', 'Line {line} failed to save — {reason}', {line: first.line, reason: first.reason})
+                : t('editor.integrity.save-failed', '{count} line edits failed to save — {reason}', {count: failed.length, reason: first.reason});
+        }
+        window.getEditorFailedEditsSummary = getEditorFailedEditsSummary;
+
         function applyChunkEdits(id, data) {
             const row = document.querySelector(`#chunks-table-body tr[data-id="${id}"]`);
             const uid = row?.dataset.uid;
@@ -9629,8 +9665,10 @@
                     // The server can normalize an edit without changing its revision.
                     chunkSnapshotRevision = null;
                     failedChunkEdits.delete(id);
+                    row?.classList?.remove?.('text-danger');
                 } catch (error) {
-                    failedChunkEdits.set(id, error);
+                    failedChunkEdits.set(id, {error, field: Object.keys(captured).join(', ')});
+                    row?.classList?.add?.('text-danger');
                     throw error;
                 }
             })();
@@ -9651,7 +9689,7 @@
             while (pendingChunkEdits.size) {
                 await Promise.allSettled(Array.from(pendingChunkEdits.values()));
             }
-            if (failedChunkEdits.size) { throw failedChunkEdits.values().next().value; }
+            if (failedChunkEdits.size) { throw failedChunkEdits.values().next().value.error; }
         }
 
         async function ensureEditorRenderSnapshot() {
@@ -9709,7 +9747,8 @@
                 // For now, next loadChunks will show updated status (pending)
             } catch (e) {
                 console.error("Update failed", e);
-                showToast(t('core.editor.update-failed', 'Failed to update chunk'), 'error');
+                showActionError(t('core.editor.save-line-failed', 'Could not save this line'), e,
+                    t('core.editor.save-line-recovery', 'Fix the reported problem, then edit and save the line again. Reload the Editor if it keeps refusing.'));
             }
         };
 
