@@ -95,7 +95,7 @@ finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});
   const first=b.context.applyChunkEdits(7,{text:'first intent'}),second=b.context.applyChunkEdits(7,{text:'newer intent'});
   await tick();b.gates.shift()();await tick();
   assert.strictEqual(vm.runInContext('cachedChunks[0].text',b.context),'SERVER-NORMALIZED','cache holds only the confirmed first reply');
-  assert.strictEqual(vm.runInContext('queuedChunkEdits.get(JSON.stringify(["book-token","row-7",7])).size',b.context),1,'newer draft stays queued, not cached as saved');
+  assert.strictEqual(vm.runInContext('queuedChunkEdits.get(JSON.stringify(["book-token","row-7"])).size',b.context),1,'newer draft stays queued, not cached as saved');
   assert.strictEqual(b.row.querySelector('.chunk-text').value,'focused new line','visible draft is untouched by the first reply');
   b.gates.shift()();await Promise.all([first,second]);
   assert.strictEqual(vm.runInContext('cachedChunks[0].text',b.context),'newer intent','the second reply confirms its own draft');
@@ -364,6 +364,145 @@ vm.runInContext("uiCatalogs.set('es-419',{meta:{review_status:{all:'human-review
 vm.runInContext("applyUiLocale('es-419')",context);
 assert.equal(status.querySelectorAll('.ui-safety-primary')[0].textContent,'Revision de voz registrada, pero la instantanea cambio.');
 assert.equal(status.querySelectorAll('.ui-safety-secondary').length,1,'authored English safety wording stays beside the translation');
+''')
+
+    def test_render_barrier_pins_book_through_flush_and_snapshot(self):
+        self.run_barrier(r'''
+(async()=>{
+ const a=client();
+ const barrier=a.context.ensureEditorRenderSnapshot().catch(error=>error);
+ await tick();
+ assert.strictEqual(a.gates.length,1,'A must have a gated row write before the book switch');
+ assert.strictEqual(a.gets.length,0);
+ a.row.dataset.uid='b-uid';a.row.dataset.bookToken='book-token-b';
+ vm.runInContext('chunkSnapshotBookToken="book-token-b";cachedChunks=[{id:7,uid:"b-uid",text:"B saved",status:"done",error:null}];',a.context);
+ const bSave=a.context.applyChunkEdits(7,{text:'B pending draft'});
+ await tick();assert.strictEqual(a.gates.length,2,'B has its own pending save');
+ a.gates.shift()();await tick();
+ assert.strictEqual(a.gets.length,0,'the A barrier must not read B\'s snapshot');
+ const error=await barrier;
+ assert(error && /book changed/i.test(error.message),'the A barrier must refuse, not return B\'s snapshot: '+JSON.stringify(error));
+ a.setHold(false);a.gates.shift()();await bSave.catch(()=>{});
+ finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_failure_follows_uid_index_move_and_retry_clears_it(self):
+        self.run_barrier(r'''
+(async()=>{
+ const a=client();a.setHold(false);a.setFail(true);
+ await a.context.updateChunk(7,'text','bad text');
+ let summary=vm.runInContext('getEditorFailedEditsSummary()',a.context);
+ assert(summary.includes('Line 8'),summary);
+ assert.strictEqual(vm.runInContext('failedChunkEdits.size',a.context),1);
+ vm.runInContext('cachedChunks=[{id:3,uid:"row-7",text:"saved",status:"done",error:null}];',a.context);
+ summary=vm.runInContext('getEditorFailedEditsSummary()',a.context);
+ assert(summary.includes('Line 4'),summary,'the visible line must follow the uid in the current snapshot');
+ a.context.API.post=async(url,data)=>url.startsWith('/api/chunks/3?')?{status:'done',error:null,...data}:{};
+ await a.context.applyChunkEdits(3,{text:'bad text'});
+ assert.strictEqual(vm.runInContext('getEditorFailedEditsSummary()',a.context),'', 'retry by the same uid must clear the earlier refusal');
+ assert.strictEqual(vm.runInContext('failedChunkEdits.size',a.context),0);
+ finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_row_failure_marker_derived_on_unrelated_success_and_retry(self):
+        self.run_barrier(r'''
+(async()=>{
+ const marks=[];const a=client();a.setHold(false);
+ a.row.classList={add:v=>marks.push('add:'+v),remove:v=>marks.push('remove:'+v),contains:v=>false,
+  toggle:(v,on)=>marks.push((on?'add:':'remove:')+v)};
+ a.setFail(true);
+ await a.context.updateChunk(7,'text','bad text');
+ assert(marks.includes('add:text-danger'),marks);
+ a.setFail(false);
+ await a.context.updateChunk(7,'pause_after',300);
+ assert(!marks.includes('remove:text-danger'),marks,'an unrelated successful field must not hide a failed field');
+ assert.equal(JSON.stringify(vm.runInContext('getFailedChunkEdits().map(f=>f.field)',a.context)),'["text"]');
+ await a.context.updateChunk(7,'text','corrected');
+ assert(marks.includes('remove:text-danger'),marks,'the marker clears when the last failure settles');
+ finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
+    def test_player_identity_pause_generating_and_semantic_invalidation(self):
+        self.run_review(r'''
+const core=fs.readFileSync(process.argv[1].replace('app-editor-review.js','app-core.js'),'utf8');
+Object.defineProperty(Element.prototype,'classList',{get(){const node=this;return {
+ contains:v=>node.className.split(/\s+/).includes(v),
+ add(v){if(!this.contains(v)){node.className=(node.className+' '+v).trim();}},
+ remove(v){node.className=node.className.split(/\s+/).filter(x=>x!==v).join(' ');},
+ toggle(v,force){const on=force===undefined?!this.contains(v):force;if(on){this.add(v);}else{this.remove(v);}return on;}
+};}});
+Object.defineProperty(Element.prototype,'innerText',{get(){return this.textContent;},set(v){this.textContent=v;}});
+Element.prototype.insertAdjacentHTML=function(position,html){
+ if(position==='afterend'){return;}
+ if(position!=='beforeend'){throw Error('unsupported position');}
+ const audio=html.match(/<audio[^>]*class="chunk-audio"[^>]*src="([^"]+)"/);
+ const node=new Element(audio?'audio':'span',audio?{class:'chunk-audio',src:audio[1]}:{class:'text-muted small'});
+ if(!audio){node.textContent='No audio';}
+ this.appendChild(node);};
+vm.runInContext(core.slice(core.indexOf('        function updateChunkRow('),core.indexOf('        function ensureChunkRefresh(')),context);
+vm.runInContext(core.slice(core.indexOf('        const pendingChunkEdits ='),core.indexOf('        function getEditorFieldValue(')),context);
+context.invalidateEditorIntegrity=()=>{};context.refreshEditorIntegrity=async()=>{};context.applyDriftFilter=()=>{};
+context._driftBadge=()=>'';context.getChunkRowState=()=>'pending';context.ensureEditorRenderSnapshot=async()=>context.cachedChunks;
+const row=document.querySelector('#chunks-table-body tr[data-id="1"]');
+row.children.filter(c=>c.classList.contains('chunk-audio')).forEach(c=>c.remove());
+row.appendChild(new Element('span',{class:'badge bg-secondary chunk-status-label','data-status':'done'}));
+const actions=row.appendChild(new Element('div',{class:'chunk-actions'}));
+const player=actions.appendChild(new Element('audio',{class:'chunk-audio',src:'/one.wav?t=r1','data-id':'1'}));
+let loads=0;player.load=()=>{loads++;};player.pause=()=>{};
+await context.refreshEditorReview();context.selectEditorReviewLineById(1);
+context.API.post=async(url,data)=>({status:'done',error:null,audio_path:'one.wav',audio_revision:'r1',...data});
+await context.applyChunkEdits(1,{pause_after:300});
+assert.strictEqual(actions.querySelectorAll('audio.chunk-audio').length,1);
+assert.strictEqual(actions.querySelector('audio.chunk-audio'),player,'identical audio keeps the same player element');
+assert.strictEqual(loads,0,'an unchanged audio identity must not reload the player');
+context.API.post=async(url,data)=>({status:'generating',error:null,audio_path:'one.wav',audio_revision:'r1',...data});
+await context.applyChunkEdits(1,{pause_after:400});
+assert.strictEqual(actions.querySelectorAll('audio.chunk-audio').length,1,'generating with valid audio keeps the player');
+assert.strictEqual(loads,0);
+context.API.post=async(url,data)=>({status:'pending',error:null,audio_path:null,audio_revision:null,...data});
+await context.applyChunkEdits(1,{text:'new semantic words'});
+assert.strictEqual(actions.querySelectorAll('audio.chunk-audio').length,0,'a cleared path removes the stale player');
+assert.strictEqual(actions.querySelectorAll('.text-muted').length,1);
+''')
+
+    def test_status_badge_keeps_locale_selector_after_save_and_switch(self):
+        self.run_review(r'''
+const core=fs.readFileSync(process.argv[1].replace('app-editor-review.js','app-core.js'),'utf8');
+Object.defineProperty(Element.prototype,'classList',{get(){const node=this;return {
+ contains:v=>node.className.split(/\s+/).includes(v),
+ add(v){if(!this.contains(v)){node.className=(node.className+' '+v).trim();}},
+ remove(v){node.className=node.className.split(/\s+/).filter(x=>x!==v).join(' ');},
+ toggle(v,force){const on=force===undefined?!this.contains(v):force;if(on){this.add(v);}else{this.remove(v);}return on;}
+};}});
+Object.defineProperty(Element.prototype,'innerText',{get(){return this.textContent;},set(v){this.textContent=v;}});
+Element.prototype.insertAdjacentHTML=function(position,html){
+ if(position==='afterend'){return;}
+ if(position!=='beforeend'){throw Error('unsupported position');}
+ const audio=html.match(/<audio[^>]*class="chunk-audio"[^>]*src="([^"]+)"/);
+ const node=new Element(audio?'audio':'span',audio?{class:'chunk-audio',src:audio[1]}:{class:'text-muted small'});
+ if(!audio){node.textContent='No audio';}
+ this.appendChild(node);};
+vm.runInContext(core.slice(core.indexOf('        function updateChunkRow('),core.indexOf('        function ensureChunkRefresh(')),context);
+vm.runInContext(core.slice(core.indexOf('        function chunkStatusLabel('),core.indexOf('        // The Script tab')),context);
+vm.runInContext(core.slice(core.indexOf('        function renderVoiceLocaleChrome('),core.indexOf('        function getVoiceSectionStorageKey(')),context);
+vm.runInContext(core.slice(core.indexOf('        const pendingChunkEdits ='),core.indexOf('        function getEditorFieldValue(')),context);
+context.invalidateEditorIntegrity=()=>{};context.refreshEditorIntegrity=async()=>{};context.applyDriftFilter=()=>{};
+context._driftBadge=()=>'';context.getChunkRowState=()=>'pending';context.ensureEditorRenderSnapshot=async()=>context.cachedChunks;
+const row=document.querySelector('#chunks-table-body tr[data-id="1"]');
+row.children.filter(c=>c.classList.contains('chunk-audio')).forEach(c=>c.remove());
+const badge=row.appendChild(new Element('span',{class:'badge bg-secondary chunk-status-label','data-status':'pending'}));
+const actions=row.appendChild(new Element('div',{class:'chunk-actions'}));
+await context.refreshEditorReview();context.selectEditorReviewLineById(1);
+context.API.post=async(url,data)=>({status:'done',error:null,audio_path:null,audio_revision:null,...data});
+await context.applyChunkEdits(1,{text:'updated line'});
+assert(badge.classList.contains('chunk-status-label'),badge.className);
+assert.strictEqual(badge.getAttribute('data-status'),'done');
+assert.strictEqual(badge.textContent,'done');
+context.t=vm.runInContext('(key,english,values={},locale=getUiLocale())=>translateUiMessage(key,english,values,locale)',context);
+vm.runInContext("uiCatalogs.set('es-419',{meta:{review_status:{all:'human-reviewed'}},messages:{'core.editor.status.done':'hecho'}});",context);
+vm.runInContext("applyUiLocale('es-419')",context);
+context.renderVoiceLocaleChrome();
+assert.strictEqual(badge.textContent,'hecho',badge.textContent);
 ''')
 
 

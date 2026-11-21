@@ -8568,11 +8568,15 @@
                               chunk.status === 'error' ? 'danger' : 'secondary';
             if (typeof getChunkRowState === 'function') { tr.dataset.renderState = getChunkRowState(chunk); }
 
-            // Update status badge
+            // Update status badge. Keep the locale selector class and the
+            // data-status it repaints from; otherwise a save freezes the badge
+            // in the language that happened to be active at save time.
             const badge = tr.querySelector('.badge');
             if (badge) {
-                badge.className = `badge bg-${statusColor}`;
-                badge.innerText = chunk.status;
+                const statusLabel = typeof chunkStatusLabel === 'function' ? chunkStatusLabel(chunk.status) : chunk.status;
+                badge.className = `badge bg-${statusColor} chunk-status-label`;
+                badge.setAttribute?.('data-status', chunk.status);
+                badge.innerText = statusLabel;
                 const oldDrift = tr.querySelector('.drift-badge');
                 if (oldDrift) { oldDrift.remove(); }
                 badge.insertAdjacentHTML('afterend', _driftBadge(chunk));
@@ -8613,30 +8617,31 @@
                     }
                 }
 
-                // Update audio player when status is done - always refresh src to bust cache
-                if (chunk.status === 'done' && chunk.audio_path) {
-                    const existingAudio = actionContainer.querySelector('audio');
-                    const existingNoAudio = actionContainer.querySelector('.text-muted');
+                // The player is owned by the audio identity, not by the row
+                // status. A pause-only save leaves that identity untouched and
+                // must not interrupt playback; 'generating' with valid audio
+                // keeps the old take listenable. Only a cleared path removes it.
+                const existingAudio = actionContainer.querySelector('audio.chunk-audio');
+                if (chunk.audio_path) {
                     const newSrc = encodeURI(`/${chunk.audio_path}`) + `?t=${encodeURIComponent(chunk.audio_revision || Date.now())}`;
-
-                    if (existingNoAudio) {
-                        // No audio element yet, create one
+                    if (existingAudio) {
+                        if (existingAudio.getAttribute?.('src') !== newSrc) {
+                            existingAudio.src = newSrc;
+                            existingAudio.load?.();
+                        }
+                    } else {
+                        const existingNoAudio = actionContainer.querySelector('.text-muted');
                         const audioHtml = `<audio class="chunk-audio" data-id="${chunk.id}" controls src="${newSrc}" style="width: 200px; height: 30px;" onplay="stopOthers(${chunk.id})"></audio>`;
-                        existingNoAudio.outerHTML = audioHtml;
-                    } else if (existingAudio) {
-                        // Audio exists - just update the src with new cache-busting timestamp
-                        // This forces browser to fetch the regenerated file
-                        existingAudio.src = newSrc;
-                        existingAudio.load(); // Force reload
+                        if (existingNoAudio) { existingNoAudio.outerHTML = audioHtml; }
+                        else if (typeof actionContainer.insertAdjacentHTML === 'function') { actionContainer.insertAdjacentHTML('beforeend', audioHtml); }
                     }
                 } else {
                     // A semantic edit can downgrade a previously rendered row to
                     // pending with no audio. Stop and remove the stale player so
                     // neither the table nor the inspector can play the old take.
-                    const stale = actionContainer.querySelector('audio.chunk-audio');
-                    if (stale) {
-                        try { stale.pause?.(); stale.removeAttribute?.('src'); stale.load?.(); } catch (error) {}
-                        try { stale.remove?.(); } catch (error) {}
+                    if (existingAudio) {
+                        try { existingAudio.pause?.(); existingAudio.removeAttribute?.('src'); existingAudio.load?.(); } catch (error) {}
+                        try { existingAudio.remove?.(); } catch (error) {}
                     }
                     if (!actionContainer.querySelector('.text-muted')) {
                         const noAudio = typeof document.createElement === 'function' ? document.createElement('span') : null;
@@ -9049,8 +9054,11 @@
                             `<div class="tp tp-dither tp-sm tp-indeterminate" style="width: 100px;"><span class="tp-label" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</span></div>` :
                             `<button class="btn btn-sm ${chunk.status === 'error' ? 'btn-outline-danger' : 'btn-primary'}" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> ${chunk.status === 'error' ? uiMessageMarkup('core.editor.retry-line', 'Retry') : uiMessageMarkup('core.editor.generate-short', 'Gen')}</button>`;
 
+                        const failedMarkup = (typeof getFailedChunkEntries === 'function' && typeof chunkEditKey === 'function'
+                            && getFailedChunkEntries(chunkEditKey(chunk.uid, snapshot.book_token)).length > 0) ? ' text-danger' : '';
+
                         return `
-                            <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" data-render-state="${window.getChunkRowState?.(chunk) || 'pending'}" class="chunk-row">
+                            <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" data-render-state="${window.getChunkRowState?.(chunk) || 'pending'}" class="chunk-row${failedMarkup}">
                                 <td class="text-center align-middle" style="white-space:nowrap;">
                                     <button type="button" class="chunk-action-btn" onclick="selectEditorReviewLineById(${chunk.id})" title="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}" aria-label="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}"><i class="fas fa-magnifying-glass"></i></button><button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="${escapeHtml(t('core.editor.expand', 'Expand/collapse'))}"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="${escapeHtml(t('core.editor.insert-line', 'Insert line below'))}"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="${escapeHtml(t('core.editor.delete-line', 'Delete line'))}"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="${escapeHtml(t('core.editor.voice-change', 'Voice changes here: from this line on, this character sounds different (time skip, older)'))}"><i class="fas fa-user-clock"></i></button>${document.getElementById('reproducible-takes')?.checked === true ? `<button class="chunk-action-btn" onclick="differentTake(${chunk.id})" title="${escapeHtml(t('core.editor.different-take', 'Different take: render this line again with a new seed'))}"><i class="fas fa-dice"></i></button>` : ''}
                                 </td>
@@ -9654,11 +9662,12 @@
         let chunkEditsRevision = 0;
         let chunkEditOrder = 0;
 
-        // A numeric row id is reused after a reorder or a book switch. Every
-        // scheduling, failure and marker decision is owned by a composite key
-        // that also carries the stable row uid and the book generation token.
-        function chunkEditKey(id, uid, bookToken) {
-            return JSON.stringify([bookToken, uid, id]);
+        // A numeric row id is reused after a reorder or a book switch, and the
+        // same uid can move to a different index. Work and failures are owned
+        // by the stable book token + uid (with the field kept in the failure
+        // map), never by the transient index.
+        function chunkEditKey(uid, bookToken) {
+            return JSON.stringify([bookToken, uid]);
         }
 
         function readChunkEditKey(key) {
@@ -9697,9 +9706,14 @@
         function getFailedChunkEdits() {
             return Array.from(failedChunkEdits.entries(), ([key, entry]) => {
                 if (!isRelevantChunkEditKey(key)) { return null; }
+                const {uid} = readChunkEditKey(key);
+                // The line number follows the uid in the *current* snapshot,
+                // not the index captured when the save was first refused.
+                const current = typeof cachedChunks !== 'undefined' && Array.isArray(cachedChunks)
+                    ? cachedChunks.find(chunk => chunk.uid === uid) : null;
                 const failures = getFailedChunkEntries(key);
                 return {
-                    line: readChunkEditKey(key).id + 1,
+                    line: (current ? current.id : (entry?.id ?? 0)) + 1,
                     field: Array.from(new Set(failures.flatMap(failure => failure.fields || []))).join(', '),
                     reason: failures[0]?.error?.message || String(failures[0]?.error || ''),
                 };
@@ -9744,12 +9758,22 @@
             entry.error = entry.failures.values().next().value.error;
         }
 
+        // The red marker is derived, never set directly: an unrelated field
+        // settling or a full redraw must not hide a still-outstanding failure.
+        function syncChunkRowFailureMarker(row, key) {
+            if (!row?.classList) { return; }
+            const failed = getFailedChunkEntries(key).length > 0;
+            if (typeof row.classList.toggle === 'function') { row.classList.toggle('text-danger', failed); }
+            else if (failed && typeof row.classList.add === 'function') { row.classList.add('text-danger'); }
+            else if (!failed && typeof row.classList.remove === 'function') { row.classList.remove('text-danger'); }
+        }
+
         function applyChunkEdits(id, data) {
             const row = document.querySelector(`#chunks-table-body tr[data-id="${id}"]`);
             const uid = row?.dataset.uid;
             const bookToken = row?.dataset.bookToken;
             if (!uid || !bookToken) { throw new Error('Reload the Editor before saving this row.'); }
-            const key = chunkEditKey(id, uid, bookToken);
+            const key = chunkEditKey(uid, bookToken);
             const query = new URLSearchParams({expected_book_token: bookToken, expected_uid: uid}).toString();
             const previous = pendingChunkEdits.get(key);
             const captured = JSON.parse(JSON.stringify(data));
@@ -9783,7 +9807,7 @@
                     chunkSnapshotRevision = null;
                     clearFailedChunkEdits(key, fields, order);
                     const activeRow = getCurrentChunkEditRow(id, uid, bookToken);
-                    activeRow?.classList?.remove?.('text-danger');
+                    syncChunkRowFailureMarker(activeRow, key);
                     const confirmed = cachedChunks.find(chunk => chunk.id === id && chunk.uid === uid);
                     if (confirmed && activeRow && typeof updateChunkRow === 'function') { updateChunkRow(confirmed); }
                 } catch (error) {
@@ -9792,7 +9816,7 @@
                     if (!isCurrentChunkEditRow(id, uid, bookToken)) { return; }
                     setFailedChunkEdits(key, id, uid, bookToken, fields, error, order);
                     const activeRow = getCurrentChunkEditRow(id, uid, bookToken);
-                    activeRow?.classList?.add?.('text-danger');
+                    syncChunkRowFailureMarker(activeRow, key);
                     throw error;
                 } finally {
                     intents.delete(order);
@@ -9837,14 +9861,25 @@
         }
 
         async function ensureEditorRenderSnapshot() {
+            // Pin the book for the whole barrier. Another book can become
+            // active while A's writes are still in flight; its pending save
+            // must not be mistaken for A's, and its snapshot must never be
+            // returned as A's.
             const bookToken = chunkSnapshotBookToken;
+            const stillCurrent = () => chunkSnapshotBookToken === bookToken;
+            const refuse = () => { throw new Error(t('safety.core.editor.restart-render', 'Active book changed; restart rendering for the current book.')); };
             while (true) {
+                if (!stillCurrent()) { refuse(); }
                 // Includes the focused textarea whose onchange has not fired yet.
                 await Promise.all(Array.from(document.querySelectorAll('#chunks-table-body tr[data-id]'))
+                    .filter(row => row.dataset.bookToken === bookToken)
                     .map(row => saveRowEdits(Number(row.dataset.id), true)));
+                if (!stillCurrent()) { refuse(); }
                 await flushChunkEditsFor(bookToken);
+                if (!stillCurrent()) { refuse(); }
                 const revision = chunkEditsRevision;
                 const chunks = await API.get('/api/chunks');
+                if (!stillCurrent()) { refuse(); }
                 if (revision === chunkEditsRevision) { return chunks; }
             }
         }
@@ -9904,7 +9939,7 @@
 
             const inputs = tr.querySelectorAll('input, textarea, select');
             const data = {};
-            const editKey = chunkEditKey(id, tr.dataset.uid, tr.dataset.bookToken);
+            const editKey = chunkEditKey(tr.dataset.uid, tr.dataset.bookToken);
             const cached = cachedChunks.find(chunk => chunk.id === id && chunk.uid === tr.dataset.uid);
 
             inputs.forEach(input => {
@@ -10074,8 +10109,9 @@
                         tr.classList.add('table-info');
                         const badge = tr.querySelector('.badge');
                         if (badge) {
-                            badge.className = 'badge bg-warning';
-                            badge.innerText = t('core.editor.status.generating', 'generating');
+                            badge.className = 'badge bg-warning chunk-status-label';
+                            badge.setAttribute?.('data-status', 'generating');
+                            badge.innerText = typeof chunkStatusLabel === 'function' ? chunkStatusLabel('generating') : t('core.editor.status.generating', 'generating');
                         }
                     }
                 }
