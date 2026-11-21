@@ -12,6 +12,7 @@ import os
 import re
 import sys
 import time
+import uuid
 from pathlib import Path
 from collections import Counter
 from dataclasses import replace
@@ -2764,6 +2765,24 @@ def require_nonempty_source(source_text):
         raise ValueError("prepared source contains no text to generate")
 
 
+_LITERAL_PROVENANCE_FIELDS = ('literal_input_sha256', 'literal_strip_front_matter')
+
+
+def copy_run_params(params, **changes):
+    """Copy params for one run while retaining runtime-only literal provenance.
+
+    `literal_input_sha256` and `literal_strip_front_matter` are set on the
+    instance by main() and are not LLMGenParams fields, so a bare replace()
+    loses them and Pass 3 binds a different script than the one staged.
+    """
+    provenance = {name: getattr(params, name) for name in _LITERAL_PROVENANCE_FIELDS
+                  if hasattr(params, name)}
+    copied = replace(params, **changes)
+    for name, value in provenance.items():
+        setattr(copied, name, value)
+    return copied
+
+
 @record_judge_run()
 def run_three_pass(client, model_name, source_text, params, chunk_size,
                    on_exhaustion="fail", output_path=None,
@@ -2799,9 +2818,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     # its own budget. replace() preserves every field, so unusual flags and
     # intentionally seeded input values still apply to this run; only the
     # in-run learning is local.
-    params = replace(params)
+    params = copy_run_params(params)
     if getattr(params, "cast_aliases", False):
-        params = replace(params, cast_alias_groups=(cast or {}).get("alias_groups"))
+        params = copy_run_params(params, cast_alias_groups=(cast or {}).get("alias_groups"))
         if not params.cast_alias_groups:
             print("Experimental Step 2 alias evidence unavailable: no cast aliases loaded.", flush=True)
     validate_instruct_context_chars(instruct_context_chars, params)
@@ -3910,7 +3929,9 @@ def get_three_pass_unchecked_count(manifest):
     counted as zero: every unchecked row must be rejected independently of the
     other publication checks.
     """
-    passes = manifest.get("passes") or {} if isinstance(manifest, dict) else None
+    passes = manifest.get("passes") if isinstance(manifest, dict) else None
+    if passes is None:
+        passes = {}
     if not isinstance(passes, dict):
         raise ValueError('generation pass mapping is invalid')
     unchecked = 0
@@ -3945,19 +3966,31 @@ def load_three_pass_completion_manifest(path):
 
 
 def get_three_pass_publication_blocker(manifest, *, expected_run_id=None,
-                                       staged_script_sha256=None,
-                                       require_publishing=False):
+                                       staged_script_sha256=None, staged_script_bytes=None,
+                                       require_publishing=False, require_receipt_free=False):
     """Why a finished three-pass manifest must not be published, or None.
 
     Publication needs a typed completion record from this exact attempt, bound
     to the staged script bytes, with no contradictory diagnostic evidence and
-    no unchecked rows. The locked active boundary additionally requires the
-    publishing state and no prior completion receipt: that boundary writes the
-    receipt itself. A missing or malformed manifest is never an empty,
-    publishable result.
+    no unchecked rows. When the bytes are supplied they are decoded again and
+    checked against the declared row count and every row's own unchecked flag:
+    a manifest that merely agrees with its own digest is not sufficient. The
+    locked active boundary additionally requires the publishing state and no
+    prior completion receipt: that boundary writes the receipt itself.
     """
     if not isinstance(manifest, dict) or not manifest:
         return 'generation manifest is missing or invalid'
+    rows = None
+    if staged_script_bytes is not None:
+        from script_selection_binding import _validated_script_entries
+        try:
+            rows = _validated_script_entries(staged_script_bytes)
+        except ValueError as exc:
+            return str(exc)
+        staged_digest = hashlib.sha256(staged_script_bytes).hexdigest()
+        if staged_script_sha256 is not None and staged_script_sha256 != staged_digest:
+            return 'staged script digest does not match its bytes'
+        staged_script_sha256 = staged_digest
     status = manifest.get("status")
     if not isinstance(status, str) or status not in ("publishing", "complete"):
         return f"generation status is {status!r}"
@@ -3984,9 +4017,14 @@ def get_three_pass_publication_blocker(manifest, *, expected_run_id=None,
         return 'generation completion record does not match the staged script'
     if type(completion.get('entries')) is not int or completion['entries'] < 0:
         return 'generation completion record has an invalid entry count'
+    if rows is not None:
+        if completion['entries'] != len(rows):
+            return 'generation completion record has an invalid entry count'
+        if any(entry.get('attribution_unchecked') for entry in rows):
+            return 'staged script contains unchecked attributions'
     receipt = manifest.get("publication")
     if receipt is not None:
-        if require_publishing:
+        if require_publishing or require_receipt_free:
             return 'generation manifest has a prior completion receipt'
         expected_receipt_run = expected_run_id or run_id
         if (not isinstance(receipt, dict) or receipt.get('run_id') != expected_receipt_run
@@ -4004,7 +4042,9 @@ def get_three_pass_publication_blocker(manifest, *, expected_run_id=None,
         return 'generation diagnostic evidence is invalid'
     if failures:
         return f"{len(failures)} diagnostic failure(s) remain"
-    passes = manifest.get("passes") or {}
+    passes = manifest.get("passes")
+    if passes is None:
+        passes = {}
     if not isinstance(passes, dict):
         return 'generation pass mapping is invalid'
     for pass_info in passes.values():
@@ -4272,7 +4312,7 @@ def main():
     attribute_prompt_variant, attribute_prompt_texts = resolve_attribute_prompt(
         config, args.prompt_variant)
     if args.cast_aliases is not None:
-        params = replace(params, cast_aliases=args.cast_aliases)
+        params = copy_run_params(params, cast_aliases=args.cast_aliases)
     from attribution_prompt_variants import (GROUP_RULE_7, VARIANTS, builtin_texts,
                                              validate_preset_texts)
     if (config.get("generation") or {}).get("three_pass_group_rule") is True:
@@ -4364,11 +4404,13 @@ def main():
         atomic_json_write(summary, output_path + ".preflight_manifest.json", allow_nonatomic_fallback=False)
         sys.exit(0 if summary["status"] == "complete" else 1)
     active_run_id = args.active_run_id if args.active_book_token is not None else None
+    run_id = active_run_id if active_run_id is not None else uuid.uuid4().hex
     try:
         entries = run_three_pass(client, model_name, book, params, chunk_size,
                                  output_path=output_path,
                                  planned_calls=planned_calls,
-                                 **({'defer_final_publication': True, 'run_id': active_run_id}
+                                 run_id=run_id,
+                                 **({'defer_final_publication': True}
                                     if active_run_id is not None else {}),
                                  **({'require_matching_checkpoint': True}
                                     if args.require_matching_checkpoint else {}),
@@ -4410,9 +4452,9 @@ def main():
     except ValueError as exc:
         refuse(str(exc))
     blocker = get_three_pass_publication_blocker(
-        manifest, expected_run_id=active_run_id,
-        staged_script_sha256=hashlib.sha256(script_bytes).hexdigest(),
-        require_publishing=active_run_id is not None)
+        manifest, expected_run_id=run_id, staged_script_bytes=script_bytes,
+        require_publishing=active_run_id is not None,
+        require_receipt_free=active_run_id is None)
     if blocker:
         refuse(blocker)
     if active_run_id is not None:

@@ -631,8 +631,7 @@ def publish_generated_script(data_dir, expected_token, expected_source_path,
                     parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Invalid numeric constant')))
                 blocker = (get_three_pass_publication_blocker(
                     manifest, expected_run_id=expected_run_id,
-                    staged_script_sha256=hashlib.sha256(script_bytes).hexdigest(),
-                    require_publishing=True)
+                    staged_script_bytes=script_bytes, require_publishing=True)
                     if isinstance(manifest, dict) else 'generation manifest is invalid')
             except (UnicodeDecodeError, ValueError, RecursionError) as error:
                 raise ValueError('Generation completion evidence is invalid; edits were preserved') from error

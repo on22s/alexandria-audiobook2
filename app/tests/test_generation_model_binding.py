@@ -203,11 +203,11 @@ class GenerationModelBindingTests(unittest.TestCase):
                     patch_target='load_generation_checkpoint'
                 else:
                     load=tp._load_three_pass_checkpoint
-                    def seeded_load(path,fingerprint,chunk_count=None):
+                    def seeded_load(path,fingerprint,chunk_count=None,**kwargs):
                         row={'speaker':'NARRATOR','text':TEXT,'instruct':'Neutral.'}
                         tp._save_three_pass_checkpoint(path,fingerprint,'instruct',
                             [{'type':'NARRATOR','text':TEXT}],1,[row],[row],['quotes'],model_binding=binding)
-                        return load(path,fingerprint,chunk_count)
+                        return load(path,fingerprint,chunk_count,**kwargs)
                     patch_target='_load_three_pass_checkpoint'
                 def provider(profile,timeout):return SimpleNamespace()
                 with patch.dict(os.environ,{'ALEXANDRIA_DATA_DIR':str(root)}), \

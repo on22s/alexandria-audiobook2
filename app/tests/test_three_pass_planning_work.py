@@ -50,7 +50,7 @@ class ThreePassPlanningWorkTests(unittest.TestCase):
             entries = [{'speaker': 'NARRATOR', 'text': 'result', 'instruct': 'Neutral.'}]
             write_three_pass_completion_manifest(
                 tp.three_pass_manifest_path(kwargs['output_path']),
-                entries, status='complete')
+                entries, status='complete', run_id=kwargs.get('run_id'))
             return entries
 
         with tempfile.TemporaryDirectory() as tmp:

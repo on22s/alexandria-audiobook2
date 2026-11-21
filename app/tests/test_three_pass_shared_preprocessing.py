@@ -88,7 +88,7 @@ class SharedPreprocessingCliTests(unittest.TestCase):
                             'instruct': 'Neutral.'}]
                 write_three_pass_completion_manifest(
                     tp.three_pass_manifest_path(kwargs['output_path']), entries,
-                    status='complete',
+                    status='complete', run_id=kwargs.get('run_id'),
                     fingerprint=tp.three_pass_fingerprint(source_text, model, chunk_size))
                 source.write_text('Different words published by an editor.', encoding='utf-8')
                 return entries

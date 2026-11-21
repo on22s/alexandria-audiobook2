@@ -1426,6 +1426,8 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
                 output.flush(); os.fsync(output.fileno())
             if observed_version() != expected_version:
                 raise ValueError('Book transaction journal changed; update was refused')
+            if on_publish_attempt is not None:
+                on_publish_attempt()
             try:
                 os.replace(temporary, JOURNAL, src_dir_fd=root_fd, dst_dir_fd=root_fd)
                 os.fsync(root_fd)
@@ -1439,6 +1441,8 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
             # The temporary name may have been edited or replaced while the
             # update failed. An inode match is not enough to authorize deletion.
     check_expected_version()
+    if on_publish_attempt is not None:
+        on_publish_attempt()
     try:
         save_adapter_publication_bytes(str(path), bytes(payload))
         return verify_published(_book_target_version(path))
@@ -4911,9 +4915,9 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
     are checked during staging. The byte limit also bounds each aggregate scan
     of existing targets; no stream authorizes a book restore by itself.
     before_replace is rechecked at the final publication boundary, before every
-    row replacement, and once more immediately before the committed journal
-    write (while rollback is still possible), so evidence that changed during
-    staging or final validation cannot be published.
+    row replacement, immediately before the committed journal is staged and
+    again immediately before its replace (while rollback is still possible), so
+    evidence that changed during staging or final validation cannot be published.
     """
     root, root_identity = _book_operation_root(data_dir)
     if os.path.lexists(root / JOURNAL):
@@ -5458,7 +5462,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
         if root_guard is not None:
             root_guard.check()
         journal_version = _save_journal(root, data, expected_version=journal_version,
-                                        root_fd=root_fd)
+                                        root_fd=root_fd, on_publish_attempt=before_replace)
         # Publication is durable at this point.  Finish validation and cleanup
         # without surfacing a late cancellation for data that was committed.
         if streams:
