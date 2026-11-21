@@ -1170,8 +1170,8 @@ def _get_fresh_upload_hash(path: str) -> str:
     restored mtime keeps its cached digest, so destructive dedupe must
     confirm the candidate's current bytes here before reusing it. Raises
     FileNotFoundError, ValueError or OSError when the file is missing,
-    changed while reading, oversized, or otherwise unverifiable; callers
-    fail closed by skipping the candidate.
+    changed while reading, oversized, or otherwise unverifiable. Callers
+    skip invalid candidates and abort publication on storage faults.
     """
     absolute = os.path.abspath(path)
     proof, _raw = capture_scope_file(os.path.dirname(absolute),
@@ -1201,8 +1201,9 @@ def _evict_disproven_upload_hash_hint(candidate_path: str, cached_entry) -> None
 
 
 def _reraise_fresh_io_error(error):
-    """A device/I/O failure is never an unverifiable candidate or a no-match."""
-    if isinstance(error, OSError) and error.errno == errno.EIO:
+    """Abort on storage faults while keeping legacy unreadable candidates skippable."""
+    if isinstance(error, OSError) and error.errno not in (
+            None, errno.ENOENT, errno.ENOTDIR, errno.EACCES, errno.EPERM):
         raise error
 
 
@@ -1214,10 +1215,9 @@ def _is_candidate_upload_hash_match(candidate_path: str, digest: str) -> bool:
     the bounded fresh read in _get_fresh_upload_hash. When the advisory
     digest matches but the fresh read succeeds with a different digest,
     just that disproven cached hint is evicted so later checks do not
-    repeat the fresh scan. An unverifiable candidate (ValueError/OSError
-    from either read, including a permission/lock failure on the advisory
-    or fresh read) is always a conservative non-match without eviction,
-    so callers skip it and retain the incoming bytes. Control-flow
+    repeat the fresh scan. Missing, invalid or inaccessible candidates are
+    conservative non-matches without eviction. Unexpected storage errors
+    abort publication before a different candidate can be selected. Control-flow
     exceptions such as CancelledError (a BaseException, not
     ValueError/OSError) always propagate exactly.
     """

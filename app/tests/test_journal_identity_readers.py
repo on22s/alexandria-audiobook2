@@ -760,29 +760,86 @@ class ExportAdmissionIdentityTests(JournalIdentityCases):
 
 
 class ExportBoundaryFinalTests(JournalIdentityCases):
-    def test_duplicate_upload_fresh_verification_eio_aborts_route(self):
+    def test_export_and_editor_refuse_unreadable_chunk_files_without_dropping_progress(self):
         with tempfile.TemporaryDirectory() as tmp:
             root, source, _rows, _identity = self.make_published_book(tmp)
-            watched = [root / "state.json", root / "chunks.json",
-                       Path(get_chunk_status_journal_path(root / "chunks.json")),
-                       root / BINDING_NAME, root / "annotated_script.json", source]
+            snapshot = root / "chunks.json"
+            journal = Path(get_chunk_status_journal_path(snapshot))
+            watched = (snapshot, journal, root / "line-0.wav", root / "state.json",
+                       root / BINDING_NAME, root / "annotated_script.json", source)
             before = {path: path.read_bytes() for path in watched}
-            client = self.http_client(root, raise_server_exceptions=False)
-            real_capture = script.capture_scope_file
-            def eio_capture(root_path, relative, **kwargs):
-                if relative == source.name:
-                    raise OSError(errno.EIO, "injected fresh verification lstat EIO")
-                return real_capture(root_path, relative, **kwargs)
-            with patch.object(script, "capture_scope_file", side_effect=eio_capture):
-                response = client.post("/api/upload",
+            manager = ProjectManager(str(root))
+            client = self.http_client(root, manager=manager, state=self.export_state())
+            preview_url = "/api/export_chapters/preview"
+            preview_before = client.get(preview_url)
+            self.assertEqual(200, preview_before.status_code, preview_before.text)
+            self.assertEqual(1, len(preview_before.json()["chapters"]))
+            listed = client.get("/api/chunks")
+            self.assertEqual(200, listed.status_code, listed.text)
+            self.assertEqual("done", listed.json()[0]["status"])
+
+            real_lstat, real_path_lstat = os.lstat, Path.lstat
+            for failed_path in (snapshot, journal):
+                with self.subTest(path=failed_path.name):
+                    def refuse_faulted_path(path):
+                        if os.fspath(path) == str(failed_path):
+                            raise OSError(errno.EIO, "injected chunk lookup failure")
+
+                    def fail_lookup(path, *args, **kwargs):
+                        refuse_faulted_path(path)
+                        return real_lstat(path, *args, **kwargs)
+
+                    def fail_path_lookup(path):
+                        refuse_faulted_path(path)
+                        return real_path_lstat(path)
+
+                    with patch.object(os, "lstat", side_effect=fail_lookup), \
+                         patch.object(Path, "lstat", new=fail_path_lookup), \
+                         patch.object(editor, "schedule_claimed_background_task") as scheduled, \
+                         patch.object(application, "project_manager", manager):
+                        responses = [
+                            client.get(preview_url),
+                            client.post("/api/export_audacity"),
+                            client.get("/api/chunks"),
+                        ]
+                        self.assertEqual(0, application.reset_stuck_chunks())
+                        scheduled.assert_not_called()
+                    for response in responses:
+                        self.assertEqual(409, response.status_code, response.text)
+                        self.assertNotIn(tmp, response.text)
+                    self.assertEqual(before, {path: path.read_bytes() for path in watched})
+
+            preview_after = client.get(preview_url)
+            self.assertEqual(200, preview_after.status_code, preview_after.text)
+            self.assertEqual(preview_before.json(), preview_after.json())
+
+    def test_duplicate_upload_fresh_verification_storage_error_aborts_route(self):
+        for number in (errno.EIO, getattr(errno, "ESTALE", errno.EINVAL)):
+            with self.subTest(errno=number), tempfile.TemporaryDirectory() as tmp:
+                root, source, _rows, _identity = self.make_published_book(tmp)
+                watched = [root / "state.json", root / "chunks.json",
+                           Path(get_chunk_status_journal_path(root / "chunks.json")),
+                           root / BINDING_NAME, root / "annotated_script.json",
+                           root / "line-0.wav", source]
+                before = {path: path.read_bytes() for path in watched}
+                client = self.http_client(root, raise_server_exceptions=False)
+                real_capture = script.capture_scope_file
+
+                def fail_capture(root_path, relative, **kwargs):
+                    if relative == source.name:
+                        raise OSError(number, "injected fresh verification failure")
+                    return real_capture(root_path, relative, **kwargs)
+
+                with patch.object(script, "capture_scope_file", side_effect=fail_capture):
+                    response = client.post("/api/upload",
+                        files={"file": ("again.txt", self.SOURCE, "text/plain")})
+                self.assertEqual(500, response.status_code, response.text)
+                self.assertEqual(before, {path: path.read_bytes() for path in watched})
+                self.assertEqual([source], sorted(source.parent.iterdir()))
+                retry = client.post("/api/upload",
                     files={"file": ("again.txt", self.SOURCE, "text/plain")})
-            self.assertEqual(500, response.status_code, response.text)
-            for path, raw in before.items():
-                self.assertEqual(raw, path.read_bytes(), path.name)
-            retry = client.post("/api/upload",
-                files={"file": ("again.txt", self.SOURCE, "text/plain")})
-            self.assertEqual(200, retry.status_code, retry.text)
-            self.assertTrue(retry.json().get("reused"))
+                self.assertEqual(200, retry.status_code, retry.text)
+                self.assertTrue(retry.json().get("reused"))
 
     def test_readiness_validates_admission_before_reporting_other_book(self):
         with tempfile.TemporaryDirectory() as tmp:

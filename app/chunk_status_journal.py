@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import stat
 import uuid
 
 from adapter_publication import save_adapter_publication_bytes, sync_adapter_directory
@@ -44,9 +45,17 @@ def remove_chunk_snapshot(chunks_path):
     return removed
 
 
-def _get_version(path):
-    stat = path.stat()
-    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
+def get_chunk_state_file_version(path):
+    """Return the no-follow file version, or None only for a missing file."""
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise ValueError("Chunk status file is unreadable; saved progress was preserved") from error
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError("Chunk status file is not a regular file; saved progress was preserved")
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
 
 
 def _get_json_bytes(value):
@@ -94,7 +103,7 @@ def capture_chunk_state_file(path, *, what, limit=512 * 1024**2):
     try:
         proof, raw = capture_scope_file(os.fspath(path.parent), path.name,
                                         limit=limit, include_bytes=True)
-    except ValueError as error:
+    except (ValueError, FileNotFoundError) as error:
         raise ValueError(
             f"Chunk status {what} is unreadable or not a bounded regular file") from error
     return raw if proof['exists'] else None
@@ -115,7 +124,8 @@ class ChunkStatusJournal:
         self._compacted = False
 
     def _get_versions(self):
-        return (_get_version(self.snapshot), _get_version(self.path) if self.path.exists() else None)
+        return (get_chunk_state_file_version(self.snapshot),
+                get_chunk_state_file_version(self.path))
 
     def _load(self):
         versions = self._get_versions()

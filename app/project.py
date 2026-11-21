@@ -33,7 +33,8 @@ from utils import (atomic_json_write, safe_load_json, is_oom_failure, is_path_in
                    get_app_config_path, is_nonverbal_text, secure_filename, file_lock)
 from chunk_status_journal import (ChunkStatusJournal, get_chunk_status_journal_path,
                                    get_chunk_audio_key, capture_chunk_state_file,
-                                   _decode_json, _ensure_supported_depth)
+                                   get_chunk_state_file_version, _decode_json,
+                                   _ensure_supported_depth)
 from adapter_publication import sync_adapter_directory
 from export_file_io import replace_export_output
 from config_settings import load_app_config
@@ -1252,14 +1253,8 @@ class ProjectManager:
         journal without its snapshot is an actionable conflict, not absence.
         """
         journal_path = get_chunk_status_journal_path(self.chunks_path)
-        snapshot_exists = os.path.lexists(self.chunks_path)
-        journal_exists = os.path.lexists(journal_path)
-        if not snapshot_exists and not journal_exists:
-            raise FileNotFoundError(self.chunks_path)
-        snapshot_bytes = (capture_chunk_state_file(self.chunks_path, what="snapshot")
-                          if snapshot_exists else None)
-        journal_bytes = (capture_chunk_state_file(journal_path, what="journal")
-                         if journal_exists else None)
+        snapshot_bytes = capture_chunk_state_file(self.chunks_path, what="snapshot")
+        journal_bytes = capture_chunk_state_file(journal_path, what="journal")
         if journal_bytes is not None:
             if snapshot_bytes is None:
                 raise ValueError(
@@ -1339,15 +1334,17 @@ class ProjectManager:
 
     def _read_chunks_snapshot(self):
         """-> (bytes, (dev, ino)) of chunks.json read through one descriptor,
-        or (None, None) when it is missing or unreadable."""
+        or (None, None) when it is missing."""
         flags = (os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0)
                  | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NOFOLLOW', 0))
         try:
             descriptor = os.open(self.chunks_path, flags)
-        except OSError:
-            if os.path.lexists(self.chunks_path):
-                raise ValueError("Saved chunks file is unreadable; it was preserved")
-            return None, None
+        except FileNotFoundError:
+            if get_chunk_state_file_version(self.chunks_path) is None:
+                return None, None
+            raise ValueError("Saved chunks file disappeared while opening; saved progress was preserved")
+        except OSError as error:
+            raise ValueError("Saved chunks file is unreadable; it was preserved") from error
         try:
             info = os.fstat(descriptor)
             if not stat.S_ISREG(info.st_mode):
@@ -1391,15 +1388,9 @@ class ProjectManager:
                                       is_book_placeholder_bytes)
         switching = "A book switch is in progress; chunks are not available yet"
         journal_path = get_chunk_status_journal_path(self.chunks_path)
-        if is_book_placeholder(journal_path):
-            raise BookSwitchPlaceholderError(switching)
-        if os.path.lexists(journal_path):
-            if os.path.islink(journal_path):
-                raise ValueError(
-                    "Chunk status journal link needs inspection; saved progress was preserved")
-            # A placeholder landing after the check fails to parse: an error,
-            # never a write. lexists (not exists) so a dangling link is refused
-            # rather than silently treated as an absent journal.
+        if get_chunk_state_file_version(journal_path) is not None:
+            if is_book_placeholder(journal_path):
+                raise BookSwitchPlaceholderError(switching)
             return self._get_status_journal_locked().get_rows()
         file_version = self._get_chunks_file_version()
         raw, read_identity = self._read_chunks_snapshot()
