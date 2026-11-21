@@ -1281,11 +1281,16 @@ class SaveRedactionTests(unittest.TestCase):
                 for value in (secret, auth, "deep", "1e310"):
                     self.assertNotIn(value, text)
                 if variant == "stale_aux":
+                    # The unmarked auxiliary text is irrelevant: structured
+                    # input stays authoritative on both routes.
                     self.assertEqual(200, preview.status_code)
+                    self.assertEqual(200, saved.status_code)
+                    self.assertEqual({"valid": 1},
+                                     _load(path)["llm_local"]["provider_extra_body"])
                 else:
                     self.assertIn(preview.status_code, (400, 422))
-                self.assertIn(saved.status_code, (400, 422))
-                self.assertEqual(before, _load(path))
+                    self.assertIn(saved.status_code, (400, 422))
+                    self.assertEqual(before, _load(path))
 
 
 class SharedHydrationBaselineTests(unittest.TestCase):
@@ -1350,6 +1355,125 @@ class PositionalTypeSignatureTests(unittest.TestCase):
             self.assertEqual(1, len(rows))
             self.assertNotEqual(rows[0]["before"], rows[0]["after"])
             self.assertNotIn("rows", rows[0]["before"] + rows[0]["after"])
+            self.assertNotIn("v", rows[0]["before"] + rows[0]["after"])
+
+
+class AuthoritativeRawShapeTests(unittest.TestCase):
+    def test_every_invalid_raw_shape_is_redacted_on_both_routes(self):
+        secret, auth = "SYNTHETIC_SECRET_KEY_888", "SYNTHETIC_AUTH_777"
+        shapes = {"array": ["x"], "null": None, "whitespace": "   ",
+                  "missing": object(), "number": 42}
+        for name, raw in shapes.items():
+            with self.subTest(shape=name), tempfile.TemporaryDirectory() as tmp:
+                profile = dict(LOW, api_key="saved-legacy")
+                path = _seed(tmp, {"llm_mode": "local", "llm": dict(profile),
+                                   "llm_local": dict(profile), "tts": {}, "generation": {}})
+                before = _load(path)
+                app = FastAPI()
+                app.include_router(system_module.router)
+                client = TestClient(app, raise_server_exceptions=True)
+                with patch.object(system_module, "CONFIG_PATH", path), \
+                        patch.object(system_module.project_manager, "engine", None), \
+                        patch.object(system_module.project_manager, "invalidate_config_cache"):
+                    form = _form(_get(tmp))
+                    for section in ("llm", "llm_local"):
+                        form[section]["api_key"] = secret
+                        form[section]["provider_headers"] = {"authorization": auth}
+                        form[section]["provider_extra_body_raw"] = True
+                        if raw is shapes["missing"]:
+                            form[section].pop("provider_extra_body_json", None)
+                        else:
+                            form[section]["provider_extra_body_json"] = raw
+                    preview = client.post("/api/config/preview", json=form)
+                    saved = client.post("/api/config", json=form)
+                    self.assertEqual(200, client.get("/api/config").status_code)
+                text = preview.text + saved.text
+                for value in (secret, auth, "SYNTHETIC", "authorization"):
+                    self.assertNotIn(value, text)
+                self.assertEqual(400, preview.status_code)
+                self.assertEqual(400, saved.status_code)
+                self.assertEqual(before, _load(path))
+
+    def test_unmarked_auxiliary_text_never_blocks_structured_input(self):
+        for raw in ('{"v":1e310}', '{bad'):
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as tmp:
+                path = _seed(tmp, {"llm_mode": "local", "llm": dict(LOW),
+                                   "llm_local": dict(LOW), "tts": {}, "generation": {}})
+                app = FastAPI()
+                app.include_router(system_module.router)
+                client = TestClient(app, raise_server_exceptions=True)
+                with patch.object(system_module, "CONFIG_PATH", path), \
+                        patch.object(system_module.project_manager, "engine", None), \
+                        patch.object(system_module.project_manager, "invalidate_config_cache"):
+                    form = _form(_get(tmp))
+                    for section in ("llm", "llm_local"):
+                        form[section]["provider_extra_body"] = {"flag": 1}
+                        form[section]["provider_extra_body_json"] = raw
+                    self.assertEqual(200, client.post("/api/config/preview", json=form).status_code)
+                    self.assertEqual(200, client.post("/api/config", json=form).status_code)
+                self.assertEqual({"flag": 1}, _load(path)["llm_local"]["provider_extra_body"])
+
+
+class MirrorAbsentBodyBaselineTests(unittest.TestCase):
+    def test_absent_mirror_body_wins_over_neutral_slot_options(self):
+        from config_settings import AppConfig, load_app_config_result
+        for mode in ("local", "remote"):
+            active = f"llm_{mode}"
+            inactive = "llm_remote" if mode == "local" else "llm_local"
+            legacy = dict(LOW, api_key="legacy-fixture")  # no provider_extra_body
+            neutral = dict(LLMConfig(base_url="", api_key="", model_name="").model_dump(),
+                           provider_extra_body={"saved_option": True})
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                path = _seed(tmp, {"llm_mode": mode, "llm": legacy, active: neutral,
+                                   inactive: dict(LOW, api_key="inactive-fixture"),
+                                   "tts": {}, "generation": {}})
+                existing = load_app_config_result(path)
+                document = _get(tmp)
+                preview = config_change_preview.get_config_change_preview(
+                    existing, AppConfig.model_validate(document),
+                    system_module.get_config_local_profile, exists=True)
+                self.assertEqual([], [row for row in preview["changes"]
+                                      if "provider_extra_body" in row["path"]])
+                document[inactive]["provider_extra_body"] = {"edited": True}
+                edited = config_change_preview.get_config_change_preview(
+                    existing, AppConfig.model_validate(document),
+                    system_module.get_config_local_profile, exists=True)
+                self.assertEqual([inactive + ".provider_extra_body"],
+                                 [row["path"] for row in edited["changes"]
+                                  if "provider_extra_body" in row["path"]])
+
+
+class DeepTypeSwapTests(unittest.TestCase):
+    def test_changes_beyond_display_caps_still_render_distinctly(self):
+        from config_change_preview import _json_types, _type_tree
+        late = {"x": [{"v": True} for _ in range(9)]}
+        late_edited = json.loads(json.dumps(late))
+        late_edited["x"][8]["v"] = 1
+        deep = {"a": {"b": {"c": {"d": {"e": {"v": True}}}}}}
+        deep_edited = json.loads(json.dumps(deep))
+        deep_edited["a"]["b"]["c"]["d"]["e"]["v"] = 1
+        for before, after in ((late, late_edited), (deep, deep_edited)):
+            self.assertNotEqual(_type_tree(before), _type_tree(after))
+            self.assertLessEqual(len(_json_types(before)), 160)
+
+    def test_preview_marks_hidden_type_change_without_names_or_values(self):
+        from config_settings import AppConfig, load_app_config_result
+        body = {"x": [{"v": True} for _ in range(9)]}
+        with tempfile.TemporaryDirectory() as tmp:
+            profile = dict(LOW, provider_extra_body=body)
+            path = _seed(tmp, {"llm_mode": "local", "llm": dict(profile),
+                               "llm_local": dict(profile), "tts": {}, "generation": {}})
+            existing = load_app_config_result(path)
+            document = _get(tmp)
+            document["llm_local"]["provider_extra_body"] = {
+                "x": [{"v": True} for _ in range(8)] + [{"v": 1}]}
+            preview = config_change_preview.get_config_change_preview(
+                existing, AppConfig.model_validate(document),
+                system_module.get_config_local_profile, exists=True)
+            rows = [row for row in preview["changes"]
+                    if row["path"] == "llm_local.provider_extra_body"]
+            self.assertEqual(1, len(rows))
+            self.assertNotEqual(rows[0]["before"], rows[0]["after"])
             self.assertNotIn("v", rows[0]["before"] + rows[0]["after"])
 
 

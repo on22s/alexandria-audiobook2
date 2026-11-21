@@ -131,6 +131,26 @@ def _json_types(value, depth=0):
     return 'value'
 
 
+def _type_tree(value, depth=0):
+    """Full positional type structure for detecting changes past display caps."""
+    if depth >= 20:
+        return ('deep',)
+    if isinstance(value, bool):
+        return ('boolean',)
+    if isinstance(value, (int, float)):
+        return ('number',)
+    if isinstance(value, str):
+        return ('text',)
+    if value is None:
+        return ('blank',)
+    if isinstance(value, dict):
+        return ('object', tuple((key, _type_tree(item, depth + 1))
+                                for key, item in sorted(value.items())))
+    if isinstance(value, list):
+        return ('array', tuple(_type_tree(item, depth + 1) for item in value))
+    return ('value',)
+
+
 def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
     """Read schema defaults; never change the supplied document or model."""
     saved = jsonable_encoder(existing.data)
@@ -146,10 +166,12 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
         """
         source = get_hydrated_profile_source(saved, section)
         if source != section:
+            # GET hydrated this slot from the mirror, so the mirror's body is
+            # the baseline - an absent body there means an empty one, never
+            # options saved in the neutral named slot.
             persisted = saved.get(source)
-            if isinstance(persisted, dict) and isinstance(
-                    persisted.get('provider_extra_body'), dict):
-                return persisted['provider_extra_body']
+            body = persisted.get('provider_extra_body') if isinstance(persisted, dict) else None
+            return body if isinstance(body, dict) else {}
         return old_profile.get('provider_extra_body', _ABSENT)
 
     def append_row(section, key, old, new, default=_ABSENT, absent=False, field=None):
@@ -168,8 +190,13 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
             # Python treats True and 1 as equal; a JSON type change is a real
             # edit and must be visible without exposing any values.
             if structured and isinstance(before, dict) and isinstance(new, dict):
-                row['before'] = _json_types(before)
-                row['after'] = _json_types(new)
+                left, right = _json_types(before), _json_types(new)
+                if left == right and _type_tree(before) != _type_tree(new):
+                    # The change lies beyond the bounded display; still show a
+                    # distinct, value-free signal rather than an unchanged row.
+                    left += ' …'
+                    right += ' …types differ'
+                row['before'], row['after'] = left, right
             changes.append(row)
         elif absent and new is not _ABSENT:
             defaults.append(row)

@@ -1453,12 +1453,45 @@ def _reject_nonfinite_request(value):
             _reject_nonfinite_request(item)
 
 
+def refuse_invalid_request_body():
+    raise HTTPException(status_code=400, detail="Settings contain invalid request-body JSON; no settings were applied.")
+
+
+def validate_authoritative_raw(profile):
+    """One controlled rule for a declared-authoritative provider-body editor.
+
+    Any invalid shape is refused generically before the submitted model is
+    formatted, so no submitted value can reach an error response. Auxiliary
+    text without the explicit flag is ignored: structured input stays
+    authoritative for ordinary API callers.
+    """
+    if not isinstance(profile, dict) or profile.get("provider_extra_body_raw") is not True:
+        return
+    raw = profile.get("provider_extra_body_json")
+    if not isinstance(raw, str) or not raw.strip():
+        refuse_invalid_request_body()
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        refuse_invalid_request_body()
+    if not isinstance(parsed, dict):
+        refuse_invalid_request_body()
+    _reject_nonfinite_request(parsed)
+
+
+def validate_submitted_raw_sections(payload):
+    if isinstance(payload, dict):
+        for section in _LLM_PROFILE_SECTIONS:
+            validate_authoritative_raw(payload.get(section))
+
+
 @router.post("/api/config/preview")
 async def preview_config(proposed: Any = Body(...)):
     """Compare supported saved settings with the normalized Save proposal."""
     if not isinstance(proposed, dict):
         raise HTTPException(status_code=400, detail="Preview requires a settings object.")
     _reject_nonfinite_request(proposed)
+    validate_submitted_raw_sections(proposed)
     try:
         config = AppConfig.model_validate(proposed)
         return await asyncio.to_thread(_get_config_preview_sync, config)
@@ -1610,22 +1643,7 @@ async def ensure_finite_settings_body(request: Request):
     except (ValueError, UnicodeDecodeError):
         return
     _reject_nonfinite_request(payload)
-    if not isinstance(payload, dict):
-        return
-    for section in _LLM_PROFILE_SECTIONS:
-        profile = payload.get(section)
-        if not isinstance(profile, dict):
-            continue
-        raw = profile.get("provider_extra_body_json")
-        if not isinstance(raw, str) or not raw.strip():
-            continue
-        try:
-            parsed = json.loads(raw)
-        except (TypeError, ValueError):
-            if profile.get("provider_extra_body_raw") is True:
-                raise HTTPException(status_code=400, detail="Settings contain invalid request-body JSON; no settings were applied.")
-            continue
-        _reject_nonfinite_request(parsed)
+    validate_submitted_raw_sections(payload)
 
 
 @router.post("/api/config", dependencies=[Depends(ensure_finite_settings_body)])
