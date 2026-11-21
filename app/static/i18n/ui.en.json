@@ -5362,6 +5362,7 @@
   "take.status.changed": "The line or saved take changed. Refresh snapshots.",
   "take.status.drafts-hidden": "Pending edits hide the comparison; saved audio is unchanged. Save or discard drafts, then refresh snapshots.",
   "take.status.load-failed": "Snapshots could not be loaded. The list is empty until a reload succeeds.",
+  "take.status.loading": "Loading saved snapshots…",
   "take.status.summary": "{count} saved snapshots in this view. Project archive: {records}/{max_records} records, {used} MiB/{max_bytes} MiB. Deleted and incomplete copies count. Audition keeps selected audio. Restoration checks eligibility when requested.",
   "take.status.summary.no-restore": "{count} saved snapshots in this view. Project archive: {records}/{max_records} records, {used} MiB/{max_bytes} MiB. Deleted and incomplete copies count. Audition keeps selected audio. Restoration checks eligibility when requested. Verified restoration is not qualified on this host.",
   "take.toast.saved": "Immutable take snapshot saved.",

@@ -8629,6 +8629,30 @@
                         existingAudio.src = newSrc;
                         existingAudio.load(); // Force reload
                     }
+                } else {
+                    // A semantic edit can downgrade a previously rendered row to
+                    // pending with no audio. Stop and remove the stale player so
+                    // neither the table nor the inspector can play the old take.
+                    const stale = actionContainer.querySelector('audio.chunk-audio');
+                    if (stale) {
+                        try { stale.pause?.(); stale.removeAttribute?.('src'); stale.load?.(); } catch (error) {}
+                        try { stale.remove?.(); } catch (error) {}
+                    }
+                    if (!actionContainer.querySelector('.text-muted')) {
+                        const noAudio = typeof document.createElement === 'function' ? document.createElement('span') : null;
+                        if (noAudio) {
+                            noAudio.className = 'text-muted small';
+                            if (typeof setUiMessage === 'function' && typeof noAudio.setAttribute === 'function') {
+                                setUiMessage(noAudio, 'core.editor.no-audio', 'No audio');
+                            } else {
+                                noAudio.textContent = t('core.editor.no-audio', 'No audio');
+                            }
+                            if (typeof actionContainer.appendChild === 'function') { actionContainer.appendChild(noAudio); }
+                            else if (typeof actionContainer.insertAdjacentHTML === 'function') { actionContainer.insertAdjacentHTML('beforeend', `<span class="text-muted small">${uiMessageMarkup('core.editor.no-audio', 'No audio')}</span>`); }
+                        } else if (typeof actionContainer.insertAdjacentHTML === 'function') {
+                            actionContainer.insertAdjacentHTML('beforeend', `<span class="text-muted small">${uiMessageMarkup('core.editor.no-audio', 'No audio')}</span>`);
+                        }
+                    }
                 }
             }
             return true;
@@ -9173,6 +9197,7 @@
             }
             return {
                 query: new URLSearchParams({expected_book_token: token, expected_uid: uid}).toString(),
+                uid, bookToken: token,
                 isCurrent: () => book === currentBookFilename && token === chunkSnapshotBookToken
             };
         }
@@ -9629,29 +9654,56 @@
         let chunkEditsRevision = 0;
         let chunkEditOrder = 0;
 
-        function getFailedChunkEntries(id) {
-            const entry = failedChunkEdits.get(id);
+        // A numeric row id is reused after a reorder or a book switch. Every
+        // scheduling, failure and marker decision is owned by a composite key
+        // that also carries the stable row uid and the book generation token.
+        function chunkEditKey(id, uid, bookToken) {
+            return JSON.stringify([bookToken, uid, id]);
+        }
+
+        function readChunkEditKey(key) {
+            if (typeof key !== 'string') { return {bookToken: null, uid: null, id: Number(key)}; }
+            try {
+                const [bookToken, uid, id] = JSON.parse(key);
+                return {bookToken, uid, id};
+            } catch (error) {
+                return {bookToken: null, uid: null, id: Number(key)};
+            }
+        }
+
+        function isRelevantChunkEditKey(key, bookToken = chunkSnapshotBookToken, uids = null) {
+            const owner = readChunkEditKey(key);
+            return owner.bookToken === null || (owner.bookToken === bookToken && (!uids || uids.has(owner.uid)));
+        }
+
+        function getCurrentChunkEditRow(id, uid, bookToken) {
+            if (bookToken !== chunkSnapshotBookToken) { return null; }
+            const row = document.querySelector(`#chunks-table-body tr[data-id="${id}"]`);
+            return row?.dataset.uid === uid && row?.dataset.bookToken === bookToken ? row : null;
+        }
+
+        function getFailedChunkEntries(key) {
+            const entry = failedChunkEdits.get(key);
             if (!entry) { return []; }
             if (entry.failures instanceof Map) { return Array.from(entry.failures.values()); }
             return [{error: entry.error || entry, fields: entry.field ? String(entry.field).split(', ') : []}];
         }
 
         function isCurrentChunkEditRow(id, uid, bookToken) {
-            if (bookToken !== chunkSnapshotBookToken) { return false; }
-            const row = document.querySelector(`#chunks-table-body tr[data-id="${id}"]`);
-            return row?.dataset.uid === uid && row?.dataset.bookToken === bookToken
-                && cachedChunks.find(chunk => chunk.id === id)?.uid === uid;
+            return !!getCurrentChunkEditRow(id, uid, bookToken)
+                && cachedChunks.find(chunk => chunk.id === id && chunk.uid === uid)?.uid === uid;
         }
 
         function getFailedChunkEdits() {
-            return Array.from(failedChunkEdits.keys(), id => {
-                const failures = getFailedChunkEntries(id);
+            return Array.from(failedChunkEdits.entries(), ([key, entry]) => {
+                if (!isRelevantChunkEditKey(key)) { return null; }
+                const failures = getFailedChunkEntries(key);
                 return {
-                    line: id + 1,
+                    line: readChunkEditKey(key).id + 1,
                     field: Array.from(new Set(failures.flatMap(failure => failure.fields || []))).join(', '),
                     reason: failures[0]?.error?.message || String(failures[0]?.error || ''),
                 };
-            });
+            }).filter(Boolean);
         }
 
         function getEditorFailedEditsSummary() {
@@ -9664,30 +9716,30 @@
         }
         window.getEditorFailedEditsSummary = getEditorFailedEditsSummary;
 
-        function setFailedChunkEdits(id, fields, error, order) {
-            let entry = failedChunkEdits.get(id);
+        function setFailedChunkEdits(key, id, uid, bookToken, fields, error, order) {
+            let entry = failedChunkEdits.get(key);
             if (!(entry?.failures instanceof Map)) {
-                entry = {failures: new Map(), error, field: ''};
-                failedChunkEdits.set(id, entry);
+                entry = {failures: new Map(), error, field: '', id, uid, bookToken};
+                failedChunkEdits.set(key, entry);
             }
             for (const field of fields) { entry.failures.set(field, {error, fields, order}); }
             entry.error = error;
             entry.field = Array.from(entry.failures.keys()).join(', ');
         }
 
-        function clearFailedChunkEdits(id, fields, order) {
-            const entry = failedChunkEdits.get(id);
+        function clearFailedChunkEdits(key, fields, order) {
+            const entry = failedChunkEdits.get(key);
             if (!entry) { return; }
             if (!(entry.failures instanceof Map)) {
                 const recorded = String(entry.field || '').split(', ').filter(Boolean);
-                if (!recorded.length || recorded.some(field => fields.includes(field))) { failedChunkEdits.delete(id); }
+                if (!recorded.length || recorded.some(field => fields.includes(field))) { failedChunkEdits.delete(key); }
                 return;
             }
             for (const field of fields) {
                 const failure = entry.failures.get(field);
                 if (failure && failure.order <= order) { entry.failures.delete(field); }
             }
-            if (!entry.failures.size) { failedChunkEdits.delete(id); return; }
+            if (!entry.failures.size) { failedChunkEdits.delete(key); return; }
             entry.field = Array.from(entry.failures.keys()).join(', ');
             entry.error = entry.failures.values().next().value.error;
         }
@@ -9697,14 +9749,15 @@
             const uid = row?.dataset.uid;
             const bookToken = row?.dataset.bookToken;
             if (!uid || !bookToken) { throw new Error('Reload the Editor before saving this row.'); }
+            const key = chunkEditKey(id, uid, bookToken);
             const query = new URLSearchParams({expected_book_token: bookToken, expected_uid: uid}).toString();
-            const previous = pendingChunkEdits.get(id);
+            const previous = pendingChunkEdits.get(key);
             const captured = JSON.parse(JSON.stringify(data));
             const fields = Object.keys(captured);
             chunkEditsRevision++;
             const order = ++chunkEditOrder;
-            let intents = queuedChunkEdits.get(id);
-            if (!intents) { intents = new Map(); queuedChunkEdits.set(id, intents); }
+            let intents = queuedChunkEdits.get(key);
+            if (!intents) { intents = new Map(); queuedChunkEdits.set(key, intents); }
             intents.set(order, captured);
             invalidateEditorIntegrity('Edits awaiting save');
             window.markEditorReviewStale?.();
@@ -9713,37 +9766,42 @@
                 try {
                     const saved = await API.post(`/api/chunks/${id}?${query}`, captured);
                     if (!isCurrentChunkEditRow(id, uid, bookToken)) { return; }
-                    const newer = Array.from(intents, ([queuedOrder, queued]) => queuedOrder > order ? queued : null).filter(Boolean);
                     cachedChunks = cachedChunks.map(chunk => {
-                        if (chunk.id !== id) { return chunk; }
+                        if (chunk.id !== id || chunk.uid !== uid) { return chunk; }
                         const next = {...chunk, ...captured};
                         if (saved && typeof saved === 'object') {
-                            for (const field of [...fields, 'status', 'error']) {
+                            // Only the confirmed reply may change cached state.
+                            // Queued field drafts stay in the DOM until their own
+                            // POST succeeds, so a full redraw keeps showing them.
+                            for (const field of [...fields, 'status', 'error', 'audio_path', 'audio_revision', 'drift']) {
                                 if (Object.prototype.hasOwnProperty.call(saved, field)) { next[field] = saved[field]; }
                             }
                         }
-                        for (const queued of newer) { Object.assign(next, queued); }
                         return next;
                     });
                     // The server can normalize an edit without changing its revision.
                     chunkSnapshotRevision = null;
-                    clearFailedChunkEdits(id, fields, order);
-                    row?.classList?.remove?.('text-danger');
+                    clearFailedChunkEdits(key, fields, order);
+                    const activeRow = getCurrentChunkEditRow(id, uid, bookToken);
+                    activeRow?.classList?.remove?.('text-danger');
+                    const confirmed = cachedChunks.find(chunk => chunk.id === id && chunk.uid === uid);
+                    if (confirmed && activeRow && typeof updateChunkRow === 'function') { updateChunkRow(confirmed); }
                 } catch (error) {
                     // A reply for a replaced row must not install an error (or
                     // an integrity barrier) on the book that replaced it.
                     if (!isCurrentChunkEditRow(id, uid, bookToken)) { return; }
-                    setFailedChunkEdits(id, fields, error, order);
-                    row?.classList?.add?.('text-danger');
+                    setFailedChunkEdits(key, id, uid, bookToken, fields, error, order);
+                    const activeRow = getCurrentChunkEditRow(id, uid, bookToken);
+                    activeRow?.classList?.add?.('text-danger');
                     throw error;
                 } finally {
                     intents.delete(order);
-                    if (!intents.size) { queuedChunkEdits.delete(id); }
+                    if (!intents.size) { queuedChunkEdits.delete(key); }
                 }
             })();
-            pendingChunkEdits.set(id, request);
+            pendingChunkEdits.set(key, request);
             request.finally(() => {
-                if (pendingChunkEdits.get(id) === request) { pendingChunkEdits.delete(id); }
+                if (pendingChunkEdits.get(key) === request) { pendingChunkEdits.delete(key); }
                 window.renderEditorLineInspector?.();
                 void refreshEditorIntegrity();
             }).catch(() => {});
@@ -9751,22 +9809,40 @@
         }
 
         function isEditorEditPending() {
-            return pendingChunkEdits.size > 0 || failedChunkEdits.size > 0;
+            const currentBook = typeof chunkSnapshotBookToken === 'undefined' ? null : chunkSnapshotBookToken;
+            const inBook = key => {
+                if (typeof key !== 'string') { return true; }
+                try { return currentBook === null || JSON.parse(key)[0] === currentBook; }
+                catch (error) { return true; }
+            };
+            return Array.from(pendingChunkEdits.keys()).some(inBook)
+                || Array.from(failedChunkEdits.keys()).some(inBook);
         }
 
         async function flushChunkEdits() {
-            while (pendingChunkEdits.size) {
-                await Promise.allSettled(Array.from(pendingChunkEdits.values()));
+            return flushChunkEditsFor(chunkSnapshotBookToken);
+        }
+
+        async function flushChunkEditsFor(bookToken, uids = null) {
+            while (true) {
+                const pending = Array.from(pendingChunkEdits.entries())
+                    .filter(([key]) => isRelevantChunkEditKey(key, bookToken, uids))
+                    .map(([, request]) => request);
+                if (!pending.length) { break; }
+                await Promise.allSettled(pending);
             }
-            if (failedChunkEdits.size) { throw failedChunkEdits.values().next().value.error; }
+            const failure = Array.from(failedChunkEdits.entries())
+                .find(([key]) => isRelevantChunkEditKey(key, bookToken, uids));
+            if (failure) { throw failure[1].error; }
         }
 
         async function ensureEditorRenderSnapshot() {
+            const bookToken = chunkSnapshotBookToken;
             while (true) {
                 // Includes the focused textarea whose onchange has not fired yet.
                 await Promise.all(Array.from(document.querySelectorAll('#chunks-table-body tr[data-id]'))
                     .map(row => saveRowEdits(Number(row.dataset.id), true)));
-                await flushChunkEdits();
+                await flushChunkEditsFor(bookToken);
                 const revision = chunkEditsRevision;
                 const chunks = await API.get('/api/chunks');
                 if (revision === chunkEditsRevision) { return chunks; }
@@ -9794,7 +9870,7 @@
                     return;
                 }
                 if (!await showConfirm(formatUiSafetyText('safety.core.editor.apply-gap', 'Set pause after this line to {pause} ms? Uses NARRATOR as the narrator. Speech, delivery instructions and takes stay unchanged.', {pause: suggestion.pause_after}), {title: t('safety.core.editor.apply-gap.title', 'Apply suggested gap?'), actionLabel: t('core.editor.apply-gap', 'Apply gap')})) { return; }
-                await flushChunkEdits();
+                await flushChunkEditsFor(target.bookToken, new Set([target.uid]));
                 if (!target.isCurrent()) { throw new Error(t('safety.core.editor.book-changed', 'Active book changed; request a new suggestion.')); }
                 await API.post(url, {expected_revision: suggestion.revision});
                 if (!target.isCurrent()) { return; }
@@ -9828,6 +9904,7 @@
 
             const inputs = tr.querySelectorAll('input, textarea, select');
             const data = {};
+            const editKey = chunkEditKey(id, tr.dataset.uid, tr.dataset.bookToken);
             const cached = cachedChunks.find(chunk => chunk.id === id && chunk.uid === tr.dataset.uid);
 
             inputs.forEach(input => {
@@ -9846,7 +9923,7 @@
                 data.pause_after = data.pause_after === '' ? null : parseInt(data.pause_after);
             }
 
-            if (changedOnly && !pendingChunkEdits.has(id) && !failedChunkEdits.has(id)) {
+            if (changedOnly && !pendingChunkEdits.has(editKey) && !failedChunkEdits.has(editKey)) {
                 if (cached) {
                     for (const field of Object.keys(data)) {
                         const saved = field === 'pause_after' ? (cached[field] ?? null) : (cached[field] ?? '');
