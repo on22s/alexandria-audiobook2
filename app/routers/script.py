@@ -2894,6 +2894,19 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
     claim_id = None
     try:
         with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+            starts_over = request is not None and request.start_over
+            resumes_checkpoint = os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH)) and not starts_over
+            # A fenced checkpoint must never be replayed by any launcher path
+            # that can reuse it, not just explicit Retry. Ordinary Generate
+            # with Start Over off resumes the same checkpoint the worker loads
+            # at three_pass_generate.py's _load_three_pass_checkpoint, so it is
+            # fenced here under the same book/checkpoint admission. An explicit
+            # Start Over discards progress and a truly new baseline has no
+            # checkpoint, so neither is blocked and both still clear the marker.
+            if (require_recovery or resumes_checkpoint) and is_script_recovery_cast_invalidated(DATA_DIR):
+                raise HTTPException(status_code=409, detail=(
+                    "The approved cast changed since this run started, so it cannot resume; "
+                    "start a new run. The saved checkpoint was preserved."))
             if require_recovery:
                 stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
                 stored = (stored.get("script_generation_options") or {}) if isinstance(stored, dict) else {}
@@ -2904,10 +2917,6 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                     raise HTTPException(status_code=409, detail=(
                         "The cast list this run started with is missing or changed, so it cannot "
                         "resume; start a new run."))
-                if is_script_recovery_cast_invalidated(DATA_DIR):
-                    raise HTTPException(status_code=409, detail=(
-                        "The approved cast changed since this run started, so it cannot resume; "
-                        "start a new run. The saved checkpoint was preserved."))
                 cast_source = None
             else:
                 cast_source = get_existing_cast_list(input_file)

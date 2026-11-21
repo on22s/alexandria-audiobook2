@@ -150,11 +150,18 @@ def apply_character_roster_undo(root, expected_revision):
     if not isinstance(expected_revision, str) or proof['sha256'] != expected_revision:
         raise ValueError('Character undo changed; inspect it again')
     # Recheck the complete saved inputs immediately before compound publication.
-    if get_character_roster_snapshot(root, load_saved=False)[0] != snapshot:
+    _current_snapshot, _source, current, _saved = get_character_roster_snapshot(root, load_saved=False)
+    if _current_snapshot != snapshot:
         raise ValueError('Character inputs changed before undo; exact undo was preserved')
     replacements = {snapshot['paths'][key]: raw for key, raw in before.items() if raw is not None}
     removals = [UNDO] + [snapshot['paths'][key] for key, raw in before.items() if raw is None]
-    flagged = get_stale_recovery_state(root, get_roster_digest(before.get('cast')))
+    # Only a cast change creates a new stale-recovery situation. An exact undo
+    # of an evidence-only approval restores byte-identical cast bytes, so it
+    # must not re-evaluate a fence (which could invent one against a legacy
+    # run with no stored cast digest); any existing fence is left untouched.
+    flagged = None
+    if get_roster_digest(before.get('cast')) != get_roster_digest(current.get('cast')):
+        flagged = get_stale_recovery_state(root, get_roster_digest(before.get('cast')))
     if flagged is not None:
         replacements['state.json'] = get_roster_json_bytes(flagged, MAX_UNDO_BYTES)
     apply_book_state_locked(root, replacements, removals)
