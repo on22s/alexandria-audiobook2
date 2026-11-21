@@ -20,7 +20,7 @@ import threading
 import time
 import uuid
 import zipfile
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from typing import Annotated, Any, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Query, Path as PathParameter
@@ -847,12 +847,21 @@ def _apply_chunk_edit(operation, *args, recover=True):
     no local lock path is ever exposed in a user-visible detail. Markup passes
     recover=False so its preview/apply/replay never auto-recovers a pending
     journal on the caller's behalf.
+
+    The GPU mutex and task check run as a guard under the already-held book
+    lock, before ensure_book_state recovers anything. A busy refusal therefore
+    leaves a pending journal byte-for-byte intact; recovery only happens once
+    the task is admitted and the book admission is still held.
     """
     try:
-        with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25,
-                               recover=recover), _gpu_lock:
-            check_global_gpu_lock("audio")
-            return operation(*args)
+        with ExitStack() as stack:
+            def guard():
+                stack.enter_context(_gpu_lock)
+                check_global_gpu_lock("audio")
+
+            with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25,
+                                   recover=recover, guard=guard):
+                return operation(*args)
     except (TimeoutError, OSError, ValueError) as error:
         fault = get_book_fault_response(error)
         if fault is not None:
@@ -3074,6 +3083,14 @@ def _apply_audio_cancel():
     try:
         with ensure_startup_recovery(DATA_DIR, timeout=0) as idle:
             if not idle:
+                # A local audio claim may have landed between the fast check
+                # above and this fence. Recheck local ownership under the GPU
+                # mutex: a real local task needs its cancel flag, not a
+                # foreign-owner refusal.
+                with _gpu_lock:
+                    outcome = request_owned_cancel()
+                if outcome is not None:
+                    return outcome
                 raise HTTPException(status_code=409, detail="Another worker owns an active task; cancel it on its owning server")
             with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
                 with _gpu_lock:

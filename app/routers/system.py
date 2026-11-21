@@ -78,7 +78,7 @@ from pronunciation import get_pronunciation_model_context, is_pronunciation_sett
 from synthesis_settings import (get_enabled_synthesis_window_settings, get_enabled_synthesis_recovery_settings,
                                 get_synthesis_execution_policy)
 from project import ProjectManager
-from core import ensure_book_switch_allowed
+from core import ensure_book_switch_allowed, _gpu_lock
 
 
 logger = logging.getLogger("AlexandriaUI")
@@ -1363,8 +1363,8 @@ def apply_pronunciation_config_change(config, manager):
             manager.reset_engine()
             return True
 
-    with ensure_book_switch_allowed(operation="change synthesis window, recovery, speech verification or conditional pronunciation settings"):
-        with ensure_book_state(root, timeout=0.25, recover=False):
+    with ensure_book_switch_allowed(operation="change synthesis window, recovery, speech verification or conditional pronunciation settings", hold_task_mutex=False):
+        with ensure_book_state(root, timeout=0.25, recover=False), _gpu_lock:
             before = manager.get_pronunciation_preview_settings()["settings"]
             try:
                 with manager._chunks_lock, file_lock(manager.chunks_path), file_lock(CONFIG_PATH):
@@ -1408,8 +1408,8 @@ def _clear_synthesis_recovery_sync(expected_book_token):
     from editor_poll_snapshot import get_snapshot_digest
     from synthesis_recovery_cache import CACHE_DIRECTORY, RecoveryCacheStorage, RecoveryCacheUnavailable
     root = project_manager.root_dir
-    with ensure_book_switch_allowed(operation='clear retained synthesis recovery windows'):
-        with ensure_book_state(root, timeout=0.25):
+    with ensure_book_switch_allowed(operation='clear retained synthesis recovery windows', hold_task_mutex=False):
+        with ensure_book_state(root, timeout=0.25), _gpu_lock:
             if get_snapshot_digest(get_book_operation_identity(root)) != expected_book_token:
                 raise HTTPException(status_code=409, detail='Active book changed; reload Editor before clearing recovery windows.')
             removed = 0

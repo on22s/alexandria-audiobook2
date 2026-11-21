@@ -97,14 +97,16 @@ def _sha(raw):
 
 
 @contextlib.contextmanager
-def _inputs_locked(reference_name=None, *, recover=True):
+def _inputs_locked(reference_name=None, *, recover=True, pending_detail=None):
     """Match native book/saved-book order; hold compare-and-swap through alias write.
 
     Apply passes recover=False: a pending journal must never be recovered (and
-    the workspace mutated) before the busy checks under the GPU mutex run.
+    the workspace mutated) before the busy checks under the GPU mutex run. A
+    well-formed v1 journal still maps to the shared migration guidance; any
+    other pending journal gets pending_detail (Apply's own wording).
     """
-    with (ensure_book_state(core.DATA_DIR, recover=recover),
-          ensure_book_state(core.SCRIPTS_DIR, recover=recover),
+    with (ensure_book_state(core.DATA_DIR, recover=recover, pending_detail=pending_detail),
+          ensure_book_state(core.SCRIPTS_DIR, recover=recover, pending_detail=pending_detail),
           contextlib.ExitStack() as locks):
         # Match voice edits: chunks before voices. A checkpoint reader is told it is locked.
         paths = [core.SCRIPT_PATH, core.CHUNKS_PATH, core.VOICE_CONFIG_PATH,
@@ -502,8 +504,11 @@ def _apply(run_id, request):
     # The book admission comes before the GPU mutex, as in every other caller
     # that nests them; _inputs_locked owns the native book/saved-book order.
     # Non-recovering: a pending committed journal is refused with no mutation
-    # before the live-review checks under the GPU mutex are reached.
-    with _inputs_locked(reference_name, recover=False):
+    # before the live-review checks under the GPU mutex are reached. A valid v1
+    # journal maps to the shared migration guidance; other pending states get
+    # wording that reflects Apply rather than a preview.
+    with _inputs_locked(reference_name, recover=False,
+                        pending_detail='Book recovery is required before applying a speaker review'):
         with core._gpu_lock:
             if core.is_task_running(TASK):
                 raise HTTPException(status_code=409, detail='Wait for the speaker review to finish before applying')

@@ -12,7 +12,9 @@ import contextlib
 from pathlib import Path
 from book_state_transaction import (ensure_book_state, apply_book_state_locked,
                                     get_book_operation_token, get_book_snapshot,
-                                    get_book_fault_response)
+                                    get_book_fault_response, BookTransactionError,
+                                    BookJournalMigrationRequired,
+                                    BookJournalPublicationUncertain, BookExchangeDiverged)
 from publication_source import (get_publication_source_path, get_publication_source_capture,
                                 get_saved_publication_source_bytes)
 
@@ -123,6 +125,21 @@ def _validate_sound_destination(root, relative, *, limit):
             'Sound-design destination requires inspection; existing book files were preserved.')) from None
 
 
+def _raise_book_fault(error, fallback):
+    """One path-free mapping for book faults at admission or publication."""
+    fault = get_book_fault_response(error)
+    raise HTTPException(status_code=fault.status_code if fault else 409,
+                        detail=fault.detail if fault else fallback) from error
+
+
+def _raise_publication_book_fault(error):
+    """Map a dedicated journal outcome, preserving storage/contention contracts."""
+    if isinstance(error, (BookTransactionError, BookJournalMigrationRequired,
+                          BookJournalPublicationUncertain, BookExchangeDiverged)):
+        _raise_book_fault(error, '')
+    raise error
+
+
 @contextlib.contextmanager
 def _saved_mutation_admission():
     """Book locks then the task mutex: never wait on a journal under the GPU lock."""
@@ -132,9 +149,7 @@ def _saved_mutation_admission():
             admission.enter_context(ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR, timeout=0.25))
             admission.enter_context(_gpu_lock)
         except (TimeoutError, OSError, ValueError) as error:
-            fault = get_book_fault_response(error)
-            raise HTTPException(status_code=fault.status_code if fault else 409,
-                                detail=fault.detail if fault else 'Book is busy; try again.') from error
+            _raise_book_fault(error, 'Book is busy; try again.')
         yield
 
 
@@ -1072,7 +1087,10 @@ def _delete_script_sync(name):
         if saved_script_is_active_source(DATA_DIR, filepath):
             raise HTTPException(status_code=409,
                                 detail='This saved book is currently loaded; switch books before deleting it.')
-        apply_book_state_locked(SCRIPTS_DIR, {}, [os.path.basename(path) for path in artifacts])
+        try:
+            apply_book_state_locked(SCRIPTS_DIR, {}, [os.path.basename(path) for path in artifacts])
+        except (TimeoutError, OSError, ValueError) as error:
+            _raise_publication_book_fault(error)
     logger.info(f"Script '{name}' deleted")
     return {"status": "deleted", "name": name}
 

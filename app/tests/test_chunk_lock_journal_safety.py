@@ -25,7 +25,8 @@ from book_state_transaction import (BookTransactionError, BOOK_STATE_BUSY_DETAIL
 import core
 from project import ProjectManager
 from routers import (editor, script, scripts_library as library,
-                     speaker_review as speaker_routes)
+                     speaker_review as speaker_routes, system,
+                     pronunciation_panel as panel)
 from tests import test_narration_markup as markup_fixtures
 import utils
 from utils import file_lock
@@ -590,7 +591,7 @@ class SpeakerReviewApplyJournalTests(unittest.TestCase):
                 lease.close()
             self.assertEqual(409, response.status_code, response.text)
             detail = response.json()['detail']
-            self.assertEqual('Book recovery is required before previewing saved state', detail)
+            self.assertEqual(BOOK_JOURNAL_MIGRATION_DETAIL, detail)
             self.assertNotIn('/', detail)
             self.assertNotIn(str(root), detail)
             self.assertEqual(before, book_artifacts(root))
@@ -681,7 +682,7 @@ class JournalFaultBypassRouteTests(unittest.TestCase):
                         cancel = client.post('/api/cancel_audio')
                     with patch.object(library, 'ensure_book_state', side_effect=error):
                         delete = client.delete('/api/scripts/book_b')
-                    with patch.object(speaker_routes, '_apply', side_effect=error):
+                    with patch.object(speaker_routes, 'ensure_book_state', side_effect=error):
                         applied = client.post('/api/speaker_review/' + run_id + '/apply', json={
                             'snapshot': run_id, 'candidate_id': 'c' * 64,
                             'alias': 'ALICE', 'canonical': 'AL'})
@@ -692,6 +693,194 @@ class JournalFaultBypassRouteTests(unittest.TestCase):
                         self.assertNotIn(str(root), response.json()['detail'])
                     self.assertEqual(before, book_artifacts(root))
                     self.assertEqual({}, core._task_claims)
+
+
+class CancelLocalClaimRaceTests(unittest.TestCase):
+    """A local audio claim landing at the startup fence is cancelled, not refused."""
+
+    def test_local_audio_claim_at_fence_is_cancelled_not_refused(self):
+        with editor_http_fixture() as (root, _pm, states, client):
+            lease = {}
+            real_startup = editor.ensure_startup_recovery
+
+            @contextmanager
+            def claiming_startup(*args, **kwargs):
+                lease['handle'] = core.acquire_task_lease(core.DATA_DIR, 'audio', ())
+                states['audio']['running'] = True
+                with real_startup(*args, **kwargs) as idle:
+                    yield idle
+
+            try:
+                with patch.object(editor, 'ensure_startup_recovery', claiming_startup):
+                    response = client.post('/api/cancel_audio')
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertEqual({'status': 'cancelling'}, response.json())
+                self.assertTrue(states['audio']['cancel'])
+            finally:
+                states['audio']['running'] = False
+                states['audio']['cancel'] = False
+                if 'handle' in lease:
+                    lease['handle'].close()
+
+
+class FencedSettingsLockOrderTests(unittest.TestCase):
+    """Fenced settings wait for the book without holding the GPU mutex."""
+
+    def test_cache_clear_waits_for_book_without_gpu_mutex(self):
+        with editor_http_fixture() as (root, pm, _states, _client):
+            token = editor.get_snapshot_digest(books.get_book_operation_identity(str(root)))
+            with patch.object(system, 'project_manager', pm):
+                entered, release = threading.Event(), threading.Event()
+
+                def hold_book():
+                    with books.ensure_book_state(str(root)):
+                        entered.set()
+                        release.wait(3)
+
+                holder = threading.Thread(target=hold_book, daemon=True)
+                holder.start()
+                self.assertTrue(entered.wait(2), 'edit never held the book journal')
+                result = {}
+
+                def clear():
+                    result['outcome'] = system._clear_synthesis_recovery_sync(token)
+
+                clearer = threading.Thread(target=clear, daemon=True)
+                clearer.start()
+                try:
+                    time.sleep(0.06)
+                    self.assertTrue(clearer.is_alive(), 'cache clear finished while the book was held')
+                    self.assertFalse(core._gpu_lock.locked(),
+                                     'cache clear held the GPU mutex while waiting for the book')
+                finally:
+                    release.set()
+                clearer.join(3)
+                holder.join(3)
+                self.assertFalse(clearer.is_alive())
+                self.assertFalse(holder.is_alive())
+                self.assertEqual({'status': 'cleared', 'removed_requests': 0,
+                                  'book_token': token}, result['outcome'])
+
+    def test_occurrence_rules_take_book_before_gpu(self):
+        events = []
+
+        class Sentinel(Exception):
+            pass
+
+        @contextmanager
+        def recording_switch(*args, **kwargs):
+            events.append(('switch', kwargs.get('hold_task_mutex', True)))
+            yield
+
+        @contextmanager
+        def recording_book(*args, **kwargs):
+            events.append('book')
+            yield
+
+        class RecordingGpu:
+            def __enter__(self):
+                events.append('gpu')
+                raise Sentinel()
+
+            def __exit__(self, *args):
+                return False
+
+        with patch.object(panel, 'ensure_book_switch_allowed', recording_switch), \
+                patch.object(panel, 'ensure_book_state', recording_book), \
+                patch.object(panel, '_gpu_lock', RecordingGpu()):
+            with self.assertRaises(Sentinel):
+                panel._save_occurrence_rules_admitted(None)
+
+        self.assertEqual([('switch', False), 'book', 'gpu'], events)
+
+
+class DeferredEditRecoveryTests(unittest.TestCase):
+    """A busy refusal leaves a crash-produced journal byte-for-byte intact."""
+
+    def test_busy_refused_edit_preserves_committed_journal_and_recovers_when_allowed(self):
+        with editor_http_fixture() as (root, _pm, states, _client):
+            class Crash(BaseException):
+                pass
+
+            def crash_on_finish(*args, **kwargs):
+                raise Crash()
+
+            (root / 'synthetic.txt').write_bytes(b'old')
+            with patch.object(books, '_finish_transaction', side_effect=crash_on_finish):
+                with self.assertRaises(Crash):
+                    with books.ensure_book_state(str(root)):
+                        books.apply_book_state_locked(str(root), {'synthetic.txt': b'new'}, [])
+
+            journal = root / books.JOURNAL
+            self.assertTrue(journal.exists())
+            self.assertEqual('committed', json.loads(journal.read_text())['phase'])
+            before = book_artifacts(root)
+            lease = core.acquire_task_lease(core.DATA_DIR, 'audio', ())
+            states['audio']['running'] = True
+            try:
+                with self.assertRaises(HTTPException) as refused:
+                    editor._apply_chunk_edit(lambda: 'edited')
+                self.assertEqual(400, refused.exception.status_code)
+                self.assertEqual(before, book_artifacts(root))
+            finally:
+                states['audio']['running'] = False
+                lease.close()
+
+            self.assertEqual('edited', editor._apply_chunk_edit(lambda: 'edited'))
+            self.assertFalse(journal.exists())
+            self.assertEqual(b'new', (root / 'synthetic.txt').read_bytes())
+
+
+class SpeakerReviewApplyPendingTests(unittest.TestCase):
+    """Apply's non-recovering pending journal keeps its own wording."""
+
+    def test_genuine_pending_journal_gets_apply_specific_text(self):
+        with bypass_routes_fixture() as (root, client, _states, run_id):
+            (root / books.JOURNAL).write_text(json.dumps({
+                'version': 3, 'phase': 'recovered',
+                'workspace': '.book-switch-' + 'a' * 32,
+                'entries': [{'path': 'state.json', 'existed': False,
+                             'old_sha256': None, 'new_sha256': None}]}), encoding='utf-8')
+            before = book_artifacts(root)
+            response = client.post('/api/speaker_review/' + run_id + '/apply', json={
+                'snapshot': run_id, 'candidate_id': 'c' * 64,
+                'alias': 'ALICE', 'canonical': 'AL'})
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual('Book recovery is required before applying a speaker review',
+                             response.json()['detail'])
+            self.assertNotIn('/', response.json()['detail'])
+            self.assertNotIn(str(root), response.json()['detail'])
+            self.assertEqual(before, book_artifacts(root))
+
+
+class SavedBookDeletePublicationFaultTests(unittest.TestCase):
+    """Uncertain/diverged at the DELETE publication maps to shared JSON with evidence."""
+
+    def test_uncertain_and_diverged_at_publication_map_identically(self):
+        from book_state_transaction import (BookJournalPublicationUncertain,
+                                            BookExchangeDiverged)
+        cases = (
+            (BookJournalPublicationUncertain('injected uncertain publication'),
+             BOOK_JOURNAL_UNCERTAIN_DETAIL),
+            (BookExchangeDiverged('injected diverged exchange'), BOOK_EXCHANGE_DIVERGED_DETAIL),
+        )
+        with bypass_routes_fixture() as (root, client, _states, run_id):
+            before = book_artifacts(root)
+            for error, detail in cases:
+                with self.subTest(error=type(error).__name__):
+                    with patch.object(library, 'apply_book_state_locked', side_effect=error):
+                        with self.assertRaises(HTTPException) as refused:
+                            library._delete_script_sync('book_b')
+                        self.assertEqual(409, refused.exception.status_code)
+                        self.assertEqual(detail, refused.exception.detail)
+                        self.assertIs(error, refused.exception.__cause__)
+                        self.assertNotIn('/', refused.exception.detail)
+                        self.assertNotIn(str(root), refused.exception.detail)
+                        response = client.delete('/api/scripts/book_b')
+                    self.assertEqual(409, response.status_code, response.text)
+                    self.assertEqual(detail, response.json()['detail'])
+            self.assertEqual(before, book_artifacts(root))
+            self.assertEqual({}, core._task_claims)
 
 
 if __name__ == '__main__':

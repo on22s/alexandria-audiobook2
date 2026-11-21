@@ -4731,9 +4731,18 @@ def book_operator_locked(data_dir, timeout=10):
 
 
 @contextlib.contextmanager
-def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None):
-    """Serialize book operations and recover pending switches before use."""
+def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None,
+                      guard=None, pending_detail=None):
+    """Serialize book operations and recover pending switches before use.
+
+    guard() runs under the book-operation lock before any recovery, so a caller
+    that nests the GPU mutex and its task check can refuse first without
+    mutating a pending journal. pending_detail customizes the refusal for a
+    non-migration pending journal (e.g. Apply's own wording).
+    """
     with book_operator_locked(data_dir, timeout=timeout) as (root, identity):
+        if guard is not None:
+            guard()
         if recover:
             try:
                 recover_book_state_locked(
@@ -4749,7 +4758,10 @@ def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None):
                     raise BookTransactionError(str(refusal)) from refusal.__cause__
                 raise
         elif os.path.lexists(root / JOURNAL):
-            raise ValueError("Book recovery is required before previewing saved state")
+            if get_book_journal_status(root) == 'legacy':
+                raise BookJournalMigrationRequired(
+                    'Legacy active-book transaction requires explicit recovery inspection')
+            raise ValueError(pending_detail or "Book recovery is required before previewing saved state")
         # Recovery may have taken time; refuse admission if the named root was
         # replaced while the operation lock was held.
         admitted_root, admitted_identity = _direct_book_root(root)
