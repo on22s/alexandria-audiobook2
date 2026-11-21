@@ -289,3 +289,15 @@ for(const change of ['none','uid','book']){
 """
         result = subprocess.run(['node', '-e', code, str(SOURCE)], capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_outstanding_field_failure_marks_the_row_through_full_redraw(self):
+        self.run_js(r'''
+run('var failedChunkEdits=new Map();');
+run(source.slice(source.indexOf('function chunkEditKey('),source.indexOf('window.getEditorFailedEditsSummary =')));
+run("failedChunkEdits.set(chunkEditKey('row-1','fixture-token'),{failures:new Map([['text',{error:new Error('bad'),fields:['text'],order:1}]]),error:new Error('bad'),field:'text',id:0});");
+ctx.API.get=async()=>[chunk(1,'pending')];
+await ctx.loadChunks(true);
+assert.match(body.innerHTML,/class="chunk-row text-danger"/,body.innerHTML);
+assert.match(body.innerHTML,/data-uid="row-1"/);
+assert.strictEqual(run('failedChunkEdits.size'),1);
+''')
