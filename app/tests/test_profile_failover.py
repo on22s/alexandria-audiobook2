@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import generate_script as gs
 from llm_provider import FailoverClient, make_run_client
-from lmstudio_settings import get_failover_llm_config
+from lmstudio_settings import TokenBudgetError, get_failover_llm_config
 
 
 def _fake(script, seen):
@@ -29,7 +29,12 @@ def _fake(script, seen):
 
 
 RATE_LIMITED = type("RateLimited", (Exception,), {"status_code": 429})
+SERVER_ERROR = type("ServerError", (Exception,), {"status_code": 503})
 BLOCKED = type("Blocked", (Exception,), {"status_code": 400})
+CONTEXT_BUDGET = type("ContextBudget", (Exception,),
+                      {"status_code": 400, "body": {"code": "context_length_exceeded"}})
+UNAUTHORIZED = type("Unauthorized", (Exception,), {"status_code": 401})
+NOT_FOUND = type("NotFound", (Exception,), {"status_code": 404})
 GOOD = [{"type": "NARRATOR", "text": "He waited."}]
 BASE = {"base_url": "http://127.0.0.1:1234/v1", "api_key": "k", "model_name": "local-model"}
 REMOTE = {"base_url": "http://10.0.0.9:1234/v1", "api_key": "k", "model_name": "remote-model"}
@@ -84,13 +89,14 @@ class FailoverClientTests(unittest.TestCase):
 
 
 class RetryLoopFailoverTests(unittest.TestCase):
-    def _params(self):
+    def _params(self, api_retry_limit=0):
         return gs.LLMGenParams(system_prompt="s", user_prompt_template="{batch}", temperature=0.0,
-                               max_tokens=64, api_retry_limit=0, retry_initial_delay_seconds=0)
+                               max_tokens=64, api_retry_limit=api_retry_limit,
+                               retry_initial_delay_seconds=0)
 
-    def _call(self, client):
+    def _call(self, client, params=None):
         with tempfile.TemporaryDirectory() as tmp, patch.object(gs, "REPO", tmp, create=True):
-            return gs.call_llm_for_entries(client, "local-model", "sys", "user", self._params(),
+            return gs.call_llm_for_entries(client, "local-model", "sys", "user", params or self._params(),
                                            log_name="t.log", label="T", max_retries=0)
 
     def test_rate_limit_exhaustion_switches_and_the_request_completes_on_the_other_profile(self):
@@ -117,6 +123,54 @@ class RetryLoopFailoverTests(unittest.TestCase):
         seen = []
         self.assertEqual([], self._call(_fake([RATE_LIMITED("429"), GOOD], seen)))
         self.assertEqual(1, len(seen))
+
+    def test_context_budget_never_fails_over_a_local_sizing_error(self):
+        for error in (CONTEXT_BUDGET("context window exceeded"),
+                      TokenBudgetError("prompt does not fit the verified context")):
+            with self.subTest(error=type(error).__name__):
+                seen_p, seen_s = [], []
+                fo = FailoverClient(_fake([error], seen_p), "a", _fake([GOOD], seen_s), "b")
+                self.assertEqual([], self._call(fo))
+                self.assertFalse(fo.switched)
+                self.assertEqual(1, len(seen_p))
+                self.assertEqual([], seen_s, "the billed secondary must not receive the prompt")
+
+    def test_actual_predispatch_context_budget_calls_neither_configured_provider(self):
+        cfg = {'llm_failover': True, 'llm_mode': 'local',
+               'llm_local': {**BASE, 'model_name': 'primary'},
+               'llm_remote': {**REMOTE, 'model_name': 'secondary'}}
+        seen_primary, seen_secondary = [], []
+        with patch('llm_provider.make_llm_client',
+                   side_effect=[_fake([], seen_primary), _fake([], seen_secondary)]):
+            client = make_run_client(cfg, cfg['llm_local'], 30)
+        params = self._params(api_retry_limit=3)
+        params.context_length = 1
+        with tempfile.TemporaryDirectory() as tmp, patch.object(gs, 'REPO', tmp, create=True):
+            out = gs.call_llm_for_entries(client, 'primary', 'sys', 'user', params,
+                                          log_name='t.log', label='T', max_retries=0)
+        self.assertEqual([], out)
+        self.assertEqual([], seen_primary, "the primary must not be called before sizing")
+        self.assertEqual([], seen_secondary, "a local sizing failure must not reach a billed provider")
+        self.assertFalse(client.switched)
+
+    def test_auth_and_not_found_stop_retrying_but_still_fail_over(self):
+        for error, category in ((UNAUTHORIZED("invalid api key"), "auth"),
+                                (NOT_FOUND("model not found"), "not_found")):
+            with self.subTest(category=category):
+                seen_p, seen_s = [], []
+                fo = FailoverClient(_fake([error], seen_p), "a", _fake([GOOD], seen_s), "b")
+                self.assertEqual(GOOD, self._call(fo, self._params(api_retry_limit=3)))
+                self.assertEqual(1, len(seen_p), f"{category} is deterministic: no retry budget burned")
+                self.assertEqual(["b"], seen_s, "the configured secondary may have a valid key/model")
+
+    def test_throttling_and_transient_provider_errors_keep_retrying_then_fail_over(self):
+        for error in (RATE_LIMITED("429"), SERVER_ERROR("503")):
+            with self.subTest(error=type(error).__name__):
+                seen_p, seen_s = [], []
+                fo = FailoverClient(_fake([error, error], seen_p), "a", _fake([GOOD], seen_s), "b")
+                self.assertEqual(GOOD, self._call(fo, self._params(api_retry_limit=1)))
+                self.assertEqual(2, len(seen_p), "transient failures still use one retry")
+                self.assertEqual(["b"], seen_s)
 
 
 if __name__ == "__main__":

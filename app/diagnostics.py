@@ -12,6 +12,7 @@ Pinokio's native Get Help / session bundle for complete logs.
 import datetime
 import json
 import re
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 SCHEMA_VERSION = 1
 
@@ -58,6 +59,7 @@ _HEADER_CREDENTIAL = re.compile(
 # mistaken for secrets. Residual limitation: an unformatted opaque secret with no
 # recognizable prefix under an innocent key can still pass — the config summary
 # is whitelisted precisely so real credentials never reach this text path.
+# Token characters are ASCII; adjacent Unicode text is a boundary.
 _SECRET_TOKENS = re.compile(
     r"\b("
     r"sk-[A-Za-z0-9_-]{16,}"                            # OpenAI / Anthropic
@@ -65,7 +67,7 @@ _SECRET_TOKENS = re.compile(
     r"|xox[baprs]-[A-Za-z0-9-]{10,}"                     # Slack
     r"|AKIA[0-9A-Z]{16}"                                 # AWS access key id
     r"|eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}"  # JWT
-    r")\b")
+    r")\b", re.ASCII)
 _BEARER_TOKEN = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{16,}")
 # Common home-directory shapes across platforms.
 _HOME_PATTERNS = (
@@ -111,6 +113,35 @@ def redact_text(value, home_dir=None):
     if len(result) > MAX_STRING_CHARS:
         result = result[:MAX_STRING_CHARS] + STRING_TRUNCATION_MARKER
     return result
+
+
+def sanitize_url_for_display(value):
+    """Display-only URL: no userinfo, query credentials or fragment.
+
+    Network dispatch must keep using the original URL; only artifacts, messages
+    and logs may use this form. Ordinary query parameters are preserved so a
+    redacted URL still explains which endpoint was configured.
+    """
+    if not isinstance(value, str) or "://" not in value:
+        return REDACTED
+    try:
+        parts = urlsplit(value)
+        if not parts.scheme or not parts.netloc:
+            return REDACTED
+        netloc = parts.netloc
+        if "@" in netloc:
+            netloc = REDACTED + "@" + netloc.rsplit("@", 1)[1]
+        # Match secret shapes on decoded keys and values before rendering
+        # them back to a query string. Encoded values can hide the prefix.
+        pairs = parse_qsl(parts.query, keep_blank_values=True)
+        scrubbed = [(get_redacted_credentials(key),
+                     REDACTED if _key_is_sensitive(key) else get_redacted_credentials(val))
+                    for key, val in pairs]
+        query = urlencode(scrubbed, safe="[]") if scrubbed != pairs else parts.query
+        endpoint = get_redacted_credentials(urlunsplit((parts.scheme, netloc, parts.path, "", "")))
+    except (ValueError, TypeError):
+        return REDACTED
+    return f"{endpoint}?{query}" if query else endpoint
 
 
 def redact(obj, home_dir=None):

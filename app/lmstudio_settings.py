@@ -24,8 +24,13 @@ from weakref import WeakValueDictionary
 from copy import deepcopy
 from urllib.parse import urlparse
 
+from diagnostics import sanitize_url_for_display
 from utils import run_rocm_smi_json
-from lmstudio_endpoint import get_lmstudio_endpoint_status
+from lmstudio_endpoint import get_lmstudio_endpoint_status, open_no_redirect
+
+# Distinguishes an omitted legacy argument from an explicitly resolved None:
+# None is authoritative ("send no credential"), omission is just old-call shape.
+_STATUS_UNSET = object()
 
 IDEAL_SETTINGS = {"context_length": 8192, "parallel": 1, "gpu": "max"}
 DEFAULT_SETTINGS = {"context_length": 4096, "parallel": 4, "gpu": "max"}
@@ -629,9 +634,11 @@ def get_remote_lmstudio_status_cached(ssh_alias, model_name, timeout=20):
         return deepcopy(status)
 
 
-def get_remote_runtime_status_cached(base_url, ssh_alias, model_name, api_key=None):
+def get_remote_runtime_status_cached(base_url, ssh_alias, model_name, api_key=None,
+                                     authorization=None):
     """Preserve the existing remote runtime-cache API."""
-    return get_runtime_status_cached("remote", base_url, ssh_alias, model_name, api_key)
+    return get_runtime_status_cached("remote", base_url, ssh_alias, model_name, api_key,
+                                     authorization)
 
 
 def save_runtime_status_cache(key, status, local_epoch):
@@ -657,12 +664,22 @@ def invalidate_local_status_cache():
                 del _remote_status_cache[key]
 
 
-def get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name, api_key=None):
-    """Cache an explicitly requested UI runtime observation, including `/props`."""
+def get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name, api_key=None,
+                              authorization=None):
+    """Cache an explicitly requested UI runtime observation, including `/props`.
+
+    The credential is part of the cache identity: a profile authenticating by
+    a non-Bearer header must not inherit a probe made with an unrelated api_key.
+    Only a digest is stored, never the header value itself.
+    """
+    from llm_provider import resolve_authorization_value
+    api_key = resolve_authorization_value(api_key)
+    authorization = resolve_authorization_value(authorization)
     remote = is_remote_llm(llm_mode, base_url)
     key = (ssh_alias, model_name, base_url,
-           hashlib.sha256(repr((type(api_key).__name__, api_key)).encode()).hexdigest()
-           if api_key is not None else None)
+           hashlib.sha256(repr((type(api_key).__name__, api_key,
+                                type(authorization).__name__, authorization)).encode()).hexdigest()
+           if (api_key is not None or authorization is not None) else None)
     if not remote:
         key = (None, *key[1:], "local-ui")
     cached = ensure_remote_status_cache_entry(key)
@@ -674,7 +691,8 @@ def get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name, api_key
             return cached[1]
         with _remote_status_cache_lock:
             epoch = _status_cache_epoch_locked(key)
-        status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+        status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key,
+                                    authorization=authorization)
         save_runtime_status_cache(key, status, epoch)
         return deepcopy(status)
 
@@ -857,14 +875,24 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, port=1234)
     return True, f"Reloaded {model_name} on '{ssh_alias}' with {label} settings"
 
 
-# /props probe misses, keyed by server root: see get_llama_cpp_status.
+# /props probe misses, scoped to origin + effective credential: a server that
+# answers one profile may refuse another, and the digest must never be the
+# credential itself. See get_llama_cpp_status.
 PROPS_MISS_TTL_SECONDS = 600
 PROPS_MAX_BYTES = 1 << 20
 _props_miss = {}
 _props_miss_lock = threading.Lock()
 
 
-def get_llama_cpp_status(base_url, model_name, timeout=5):
+def _props_miss_key(origin, api_key=None, authorization=None):
+    """One cache scope per origin and wire Authorization, never plaintext."""
+    credential = (authorization if authorization else
+                  (f'Bearer {api_key}' if api_key else None))
+    digest = hashlib.sha256(repr((type(credential).__name__, credential)).encode()).hexdigest()
+    return (origin, digest)
+
+
+def get_llama_cpp_status(base_url, model_name, timeout=5, api_key=None, authorization=None):
     """-> a status dict if `base_url` is llama.cpp, else None.
 
     WHY THIS EXISTS. `get_lmstudio_status` asks `lms ps`, which is the right
@@ -896,12 +924,24 @@ def get_llama_cpp_status(base_url, model_name, timeout=5):
     # gateway every poll was a fresh GET /props answered 404 - hundreds in a
     # row in one user's proxy log (2026-09-17). Remember the miss per URL for
     # a while instead of asking again on every poll.
+    from llm_provider import resolve_authorization_value
+    api_key = resolve_authorization_value(api_key)
+    authorization = resolve_authorization_value(authorization)
+    miss_key = _props_miss_key(root, api_key, authorization)
     with _props_miss_lock:
-        missed_at = _props_miss.get(root)
+        missed_at = _props_miss.get(miss_key)
     if missed_at is not None and time.monotonic() - missed_at < PROPS_MISS_TTL_SECONDS:
         return None
+    # Same credential precedence as the LM Studio endpoint probe: an explicit
+    # Authorization header wins verbatim, otherwise a bearer comes from api_key.
+    headers = {}
+    if authorization:
+        headers['Authorization'] = authorization
+    elif api_key:
+        headers['Authorization'] = 'Bearer ' + api_key
     try:
-        with urllib.request.urlopen(root + "/props", timeout=timeout) as response:
+        props_request = urllib.request.Request(root + "/props", headers=headers)
+        with open_no_redirect(props_request, timeout=timeout) as response:
             payload = response.read(PROPS_MAX_BYTES + 1)
             if len(payload) > PROPS_MAX_BYTES:
                 return None
@@ -911,16 +951,16 @@ def get_llama_cpp_status(base_url, model_name, timeout=5):
         # failure or gateway outage. Those do not identify the runtime.
         if exc.code in (404, 405, 501):
             with _props_miss_lock:
-                _props_miss[root] = time.monotonic()
+                _props_miss[miss_key] = time.monotonic()
         return None
     except Exception:                                       # noqa: BLE001
         return None
     if not isinstance(props, dict) or "default_generation_settings" not in props:
         with _props_miss_lock:
-            _props_miss[root] = time.monotonic()
+            _props_miss[miss_key] = time.monotonic()
         return None
     with _props_miss_lock:
-        _props_miss.pop(root, None)
+        _props_miss.pop(miss_key, None)
 
     generation = props.get("default_generation_settings") or {}
     context = generation.get("n_ctx")
@@ -1005,18 +1045,43 @@ def get_lmstudio_management_binding(base_url, ssh_alias=None):
         return False, None, "CLI management binding could not be verified"
 
 
-def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False, api_key=None, cache_local=False):
+def get_manual_runtime_status(llm_config):
+    """Declared-limit serial status for Manual transport, with no HTTP at all."""
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits(llm_config or {})
+    return {"runtime": "manual", "available": False, "loaded": False,
+            "context_length": limits.get("context_length"), "parallel": 1,
+            "optimized": None, "management_verified": False,
+            "management_reason": "Manual transport has no runtime to configure"}
+
+
+def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False,
+                       api_key=_STATUS_UNSET, cache_local=False,
+                       authorization=_STATUS_UNSET, llm_config=None):
     """Read runtime without reloads; cache_local opts the UI into bounded caching.
 
-    Existing local worker reads stay live even when use_cache=True.
+    Existing local worker reads stay live even when use_cache=True. An explicit
+    `authorization` is the profile's effective credential and is used verbatim
+    by the native endpoint probe (a profile may authenticate by header rather
+    than by api_key).
     """
+    from llm_provider import resolve_authorization_value
+    api_key = (None if api_key is _STATUS_UNSET
+               else resolve_authorization_value(api_key))
+    authorization = (None if authorization is _STATUS_UNSET
+                     else resolve_authorization_value(authorization))
+    if (llm_config or {}).get("transport") == "manual":
+        return get_manual_runtime_status(llm_config)
     remote = is_remote_llm(llm_mode, base_url)
     if use_cache and (remote or cache_local):
-        return get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name, api_key)
-    native = get_llama_cpp_status(base_url, model_name)
+        return get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name,
+                                         api_key, authorization)
+    native = get_llama_cpp_status(base_url, model_name, api_key=api_key,
+                                  authorization=authorization)
     if native is not None:
         return native
-    endpoint = get_lmstudio_endpoint_status(base_url, model_name, api_key)
+    endpoint = get_lmstudio_endpoint_status(base_url, model_name, api_key,
+                                            authorization=authorization)
     if endpoint is None:
         return {"runtime": "unknown", "available": False, "loaded": False,
                 "context_length": None, "parallel": None, "optimized": False,
@@ -1036,7 +1101,8 @@ def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache
             "management_port": port, "management_reason": reason}
 
 
-def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None):
+def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None,
+                               authorization=None):
     """Return the settings a subsequent ``ensure_ideal_settings`` will target.
 
     This is a pure sizing helper for preflight UIs: it reports the verified
@@ -1047,7 +1113,8 @@ def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, a
     ``context_known`` is False only when the context is the conservative
     fallback for a runtime that neither reported one nor can be healed to one.
     """
-    status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+    status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key,
+                                authorization=authorization)
     if status.get("runtime") == "llama.cpp" or not status.get("management_verified"):
         reported = status.get("ideal_context_length") or status.get("context_length")
         return {
@@ -1079,6 +1146,7 @@ def get_planned_request_context(config):
     known, `known` is False and `context` is that conservative guess, usable
     for sizing but not as evidence that a larger request fits.
     """
+    from llm_provider import get_effective_authorization
     from llm_request_budget import get_request_limits
     llm = get_active_llm_config(config)
     if llm.get("transport") == "manual":
@@ -1088,7 +1156,8 @@ def get_planned_request_context(config):
     else:
         planned = get_planned_ideal_settings(
             config.get("llm_mode", "local"), llm.get("base_url", ""),
-            llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+            llm.get("model_name", ""), config.get("llm_remote_ssh"),
+            api_key=llm.get("api_key"), authorization=get_effective_authorization(llm))
     detected = planned["context_length"] if planned.get("context_known") else None
     context = get_request_limits(llm, detected)["context_length"]
     return {"context": int(context or planned.get("context_length") or 0),
@@ -1096,7 +1165,8 @@ def get_planned_request_context(config):
             "parallel": max(1, int(planned.get("parallel") or 1))}
 
 
-def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None):
+def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None,
+                          authorization=None, llm_config=None):
     """Self-heal LM Studio's load settings (local or remote) toward the ideal
     config (VRAM-safe locally, large-context remotely), then return the FRESH
     post-heal status so callers can size chunking/context decisions and the
@@ -1109,15 +1179,21 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_ke
     {available, loaded, context_length, parallel, optimized} shape. Never
     raises - every call it makes is itself best-effort/non-raising.
     """
+    if (llm_config or {}).get("transport") == "manual":
+        return (False, get_manual_runtime_status(llm_config),
+                "Manual transport: serial execution with declared limits; no runtime to configure.")
+
     is_remote = is_remote_llm(llm_mode, base_url)
 
     initial_status = get_current_status(
-        llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+        llm_mode, base_url, model_name, ssh_alias, api_key=api_key,
+        authorization=authorization)
     if initial_status.get("runtime") == "llama.cpp":
         return (is_remote, initial_status,
                 "llama.cpp server at %s - context %s, %s slot(s), fixed at "
                 "launch. No LM Studio settings to apply."
-                % (base_url, initial_status.get("context_length"),
+                % (sanitize_url_for_display(base_url),
+                   initial_status.get("context_length"),
                    initial_status.get("parallel")))
 
     if not initial_status.get("management_verified"):
@@ -1129,7 +1205,7 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_ke
                 "Remote LLM endpoint - no SSH alias configured, cannot verify/apply ideal settings.")
 
     if is_remote:
-        get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+        get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key, authorization=authorization)
         apply_settings = lambda: apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, port=initial_status["management_port"])
         label = "Remote LM Studio"
         ok_warning = ("Proceeding with whatever is currently loaded, which may truncate "
@@ -1145,7 +1221,7 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_ke
         # warn about. get_llama_cpp_status already answers this question and
         # returns None for anything that is not llama.cpp (Rule 15) - the local
         # branch simply never asked it.
-        get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+        get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key, authorization=authorization)
         apply_settings = lambda: apply_lmstudio_settings(model_name, ideal=True)
         label = "LM Studio"
         ok_warning = ("The model may be running with a higher 'parallel'/context-length "

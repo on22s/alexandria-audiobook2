@@ -22,7 +22,8 @@ from external_tts_client import ExternalTTSClient, get_external_tts_urls, get_ex
 from external_tts_capabilities import make_unknown_capability_report, UNAVAILABLE_ERROR
 
 from default_prompts import load_default_prompts, load_instruct_prompts, load_segment_prompts
-from llm_provider import is_api_key_reference
+from llm_provider import (get_effective_authorization, is_api_key_reference,
+                          resolve_probe_api_key)
 from device_utils import get_available_gpu_device, normalize_device
 from review_prompts import load_review_prompts
 from diagnostics import redact_text
@@ -691,7 +692,8 @@ async def lmstudio_status():
     ssh_alias = (full_cfg.get("llm_remote_ssh") or "").strip()
     status = dict(await asyncio.to_thread(
         get_current_status, llm_mode, base_url, model_name, ssh_alias,
-        use_cache=True, api_key=llm_cfg.get("api_key"), cache_local=True,
+        use_cache=True, api_key=resolve_probe_api_key(llm_cfg), cache_local=True,
+        authorization=get_effective_authorization(llm_cfg), llm_config=llm_cfg,
     ))
     status["model"] = model_name
     if is_remote_llm(llm_mode, base_url):
@@ -759,7 +761,8 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
     def _get_reload_response(message):
         status = dict(get_current_status(full_cfg.get("llm_mode", "local"),
             cfg.get("base_url", ""), model_name,
-            (full_cfg.get("llm_remote_ssh") or "").strip(), api_key=cfg.get("api_key")))
+            (full_cfg.get("llm_remote_ssh") or "").strip(), api_key=cfg.get("api_key"),
+            authorization=get_effective_authorization(cfg), llm_config=cfg))
         if (not status.get("management_verified") or not status.get("loaded")
                 or status.get("optimized") is not req.enable):
             raise HTTPException(status_code=502, detail="CLI reported reload, but fresh endpoint status did not verify the requested settings")
@@ -772,7 +775,8 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
     def _apply_settings():
         ownership = get_current_status(full_cfg.get("llm_mode", "local"),
             cfg.get("base_url", ""), model_name,
-            (full_cfg.get("llm_remote_ssh") or "").strip(), api_key=cfg.get("api_key"))
+            (full_cfg.get("llm_remote_ssh") or "").strip(), api_key=cfg.get("api_key"),
+            authorization=get_effective_authorization(cfg), llm_config=cfg)
         if not ownership.get("management_verified"):
             raise HTTPException(status_code=400, detail="Settings were not applied: " + ownership.get(
                 "management_reason", "endpoint management ownership is unverified"))
@@ -810,18 +814,23 @@ def _run_llm_test(profile: dict) -> dict:
     Returns a dict describing each step. On failure, writes a log file and
     includes its path so the user can hand it back for debugging.
     """
-    from llm_provider import make_llm_client
+    from llm_provider import MissingAPIKeyError, make_llm_client
     base_url = profile.get("base_url", "")
-    api_key = profile.get("api_key", "local")
     model_name = profile.get("model_name", "")
     try:
         _validate_local_llm_base_url(base_url)
     except LLMConfigError as e:
         return {"ok": False, "step": "validate", "error": str(e)}
 
-    client = make_llm_client(
-        {**profile, "api_key": api_key or "local"}, timeout=30,
-        respect_profile_timeout=False)
+    # Let make_llm_client resolve omitted and blank keys exactly as generation
+    # does: a blank official-OpenAI key may inherit OPENAI_API_KEY, and nothing
+    # should be forced to "local" before that decision. A configuration error
+    # here happens before any request, so report it as a redacted config step
+    # (no log file, no outbound call) and let the caller release the claim.
+    try:
+        client = make_llm_client(profile, timeout=30, respect_profile_timeout=False)
+    except (MissingAPIKeyError, ValueError) as e:
+        return {"ok": False, "step": "config", "error": redact_text(str(e))}
     # Step 1: list models (cheap reachability + model-id check)
     try:
         models = [m.id for m in client.models.list().data]
@@ -867,7 +876,7 @@ async def llm_models(request: LlmModelsRequest):
         from llm_provider import make_llm_client
         profile = request.model_dump()
         profile["base_url"] = url
-        profile["api_key"] = _resolve_redacted_api_key(request.api_key, url) or "local"
+        profile["api_key"] = _resolve_redacted_api_key(request.api_key, url)
         profile["provider_headers"] = _resolve_redacted_provider_headers(
             profile.get("provider_headers"), url)
         client = make_llm_client(profile, timeout=10, respect_profile_timeout=False)

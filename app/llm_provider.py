@@ -14,14 +14,58 @@ import re
 import threading
 import time
 from types import SimpleNamespace
+from urllib.parse import urlparse
 
 import httpx2
-from openai import OpenAI
+from openai import OpenAI as _SDKOpenAI
+from lmstudio_settings import is_local_llm_endpoint
 from manual_llm_context import (ManualRequestCancelled, apply_manual_cancellation,
                                 ensure_manual_request_active)
 
 
 _ENV_REF = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+_OPENAI_API_HOST = "api.openai.com"
+
+
+class MissingAPIKeyError(ValueError):
+    """A non-local endpoint has no configured key, so no bearer token may be
+    invented for it. OPENAI_API_KEY belongs only to the official OpenAI host.
+    """
+
+
+class ResolvedCredential(str):
+    """A value already resolved from its reference; transports must not re-parse it.
+
+    An opaque resolved value may itself start with `env:` (a real secret can
+    contain those characters). Parsing it again would silently replace that
+    credential with another environment lookup, so resolved values are tagged.
+    """
+
+
+_DETERMINISTIC_ERROR_STATUSES = frozenset({400, 401, 403, 404, 405, 410, 413, 422})
+
+
+class _DeterministicErrorOpenAI(_SDKOpenAI):
+    """SDK transport retries are for transient failures only.
+
+    The SDK honours a provider's ``x-should-retry: true`` even on deterministic
+    4xx responses, which would repeat a bad request before the app ever
+    classifies it. Invalid requests, auth/model mistakes and missing methods or
+    resources are terminal here; 408/409/429, 5xx, timeouts and every other
+    transient condition keep their normal recovery. ``classify_llm_error`` uses
+    the same status set for the app-level retry decision (Rule 15).
+    """
+
+    def _should_retry(self, response):
+        if getattr(response, "status_code", None) in _DETERMINISTIC_ERROR_STATUSES:
+            return False
+        return super()._should_retry(response)
+
+
+# One client constructor for the whole app, so the retry policy above cannot be
+# bypassed by a caller reaching for the bare SDK class. Tests patch this name.
+OpenAI = _DeterministicErrorOpenAI
+
 
 def is_api_key_reference(configured):
     """True for `env:NAME` / `${NAME}` - a pointer, not a secret, so the setup
@@ -30,14 +74,65 @@ def is_api_key_reference(configured):
     return value.startswith("env:") or bool(_ENV_REF.match(value))
 
 
-def resolve_api_key(configured):
-    """-> the API key to send, from a profile's `api_key` value.
+def is_official_openai_endpoint(base_url):
+    """True only for the official OpenAI HTTPS API origin.
+
+    Used to decide where an implicit OPENAI_API_KEY may be sent. Anything else
+    - another hosted provider, a proxy, a look-alike host, a URL with
+    credentials or a non-default port - must carry its own explicit key.
+    """
+    parsed = urlparse(str(base_url or ""))
+    if (parsed.hostname or "").lower().removesuffix(".") != _OPENAI_API_HOST:
+        return False
+    try:
+        port = parsed.port
+    except ValueError:
+        return False
+    return (parsed.scheme == "https" and port in (None, 443)
+            and parsed.path.rstrip("/") in ("", "/v1")
+            and parsed.username is None and parsed.password is None
+            and not parsed.query and not parsed.fragment)
+
+
+def resolve_api_key(configured, base_url=None):
+    """-> the API key to send, from a profile's `api_key` and `base_url`.
 
     `env:NAME` and `${NAME}` read the environment so the secret never sits in
-    config.json (which the UI now redacts but still stores); an empty value
-    falls back to OPENAI_API_KEY; anything else - "local", "sk-..." - is the
-    key itself. Missing environment variables resolve to "" rather than to
-    the literal reference, so a typo shows up as an auth error, not as a key.
+    config.json (which the UI now redacts but still stores); an explicit
+    "local" or "sk-..." value is the key itself. Missing environment variables
+    resolve to "" rather than to the literal reference, so a typo shows up as
+    an auth error, not as a key.
+
+    An EMPTY value only inherits OPENAI_API_KEY on the official OpenAI
+    endpoint. Local endpoints keep the harmless "local" placeholder, and any
+    other host refuses to start rather than sending a real OpenAI key to a
+    third party. Every caller passes the endpoint the key will be used against.
+    """
+    value = str(configured or "").strip()
+    if value.startswith("env:"):
+        return os.environ.get(value[4:].strip(), "")
+    match = _ENV_REF.match(value)
+    if match:
+        return os.environ.get(match.group(1), "")
+    if value:
+        return value
+    if is_official_openai_endpoint(base_url):
+        return os.environ.get("OPENAI_API_KEY", "local")
+    if is_local_llm_endpoint(base_url):
+        return "local"
+    host = (urlparse(str(base_url or "")).hostname or str(base_url or "")).lower()
+    raise MissingAPIKeyError(
+        f"No API key configured for {host}. Set api_key in the profile "
+        "(OPENAI_API_KEY is only used for the official OpenAI endpoint).")
+
+
+def resolve_historical_api_key(configured):
+    """The pre-fix key resolution, for local fingerprint matching ONLY.
+
+    Historical receipts and checkpoints hashed an empty key against the ambient
+    OPENAI_API_KEY regardless of endpoint. Reproducing that value lets an
+    unchanged run reuse its evidence after an upgrade; it must never build a
+    request, because the ambient key may belong to a different provider.
     """
     value = str(configured or "").strip()
     if value.startswith("env:"):
@@ -48,6 +143,145 @@ def resolve_api_key(configured):
     if not value:
         return os.environ.get("OPENAI_API_KEY", "local")
     return value
+
+
+def _raw_authorization_headers(llm_config):
+    """Non-blank Authorization headers, regardless of name spelling."""
+    headers = (llm_config or {}).get("provider_headers") or {}
+    return [(name, str(value).strip()) for name, value in headers.items()
+            if str(name).lower() == "authorization" and str(value).strip()]
+
+
+def is_authorization_header_unambiguous(llm_config):
+    """True when header presence and spelling cannot change the wire identity.
+
+    Historical transports sent the raw header mapping. A present-but-empty
+    Authorization or two case spellings of the name may therefore have produced
+    a different request than today's single canonical header, so such profiles
+    cannot prove an unchanged dispatch for legacy receipt/report matching.
+    """
+    headers = (llm_config or {}).get("provider_headers") or {}
+    names = [name for name in headers if str(name).lower() == "authorization"]
+    if len(names) > 1:
+        return False
+    if not names:
+        return True
+    value = headers[names[0]]
+    return isinstance(value, str) and bool(value.strip())
+
+
+def resolve_authorization_value(value):
+    """Resolve one credential value; an unset env reference is None, not text.
+
+    Bare legacy header values are returned verbatim. `env:NAME` / `${NAME}` are
+    references: when the variable is unset the answer is authoritatively no
+    credential, never the literal reference sent on the wire or used as a token.
+    """
+    if value is None or not isinstance(value, str):
+        return value
+    if isinstance(value, ResolvedCredential):
+        return value
+    text = value.strip()
+    if text.startswith("env:"):
+        return os.environ.get(text[4:].strip()) or None
+    match = _ENV_REF.match(text)
+    if match:
+        return os.environ.get(match.group(1)) or None
+    return text or None
+
+
+def get_explicit_authorization(llm_config):
+    """The one resolved Authorization header value (names case-insensitive).
+
+    None means the profile has no usable explicit Authorization header. Probes
+    and the SDK must use the resolved value rather than deriving a bearer from
+    an unrelated api_key. Conflicting case spellings are ambiguous about what
+    the transport sends, so they are rejected here rather than resolved
+    differently by each caller.
+    """
+    raw = _raw_authorization_headers(llm_config)
+    values = {resolved for _, value in raw
+              if (resolved := resolve_authorization_value(value)) is not None}
+    if len(values) > 1:
+        raise ValueError("ambiguous Authorization header: conflicting case spellings")
+    return next(iter(values)) if values else None
+
+
+def has_unresolved_authorization_reference(llm_config):
+    """True when a profile's Authorization header is still an env reference.
+
+    Historical transports sent that literal reference on the wire while the
+    modern resolver sends the referenced value, so such a profile cannot prove
+    historical/wire equivalence for legacy evidence matching.
+    """
+    headers = (llm_config or {}).get("provider_headers") or {}
+    for name, value in headers.items():
+        if str(name).lower() != "authorization":
+            continue
+        text = str(value or "").strip()
+        if text.startswith("env:") or _ENV_REF.match(text):
+            return True
+    return False
+
+
+def resolve_probe_api_key(llm_config):
+    """The resolved key a status probe may use, or None when intentionally absent."""
+    try:
+        return resolve_client_api_key(llm_config) or None
+    except MissingAPIKeyError:
+        return None
+
+
+def has_explicit_authorization_header(llm_config):
+    """True when a profile explicitly configures a nonempty Authorization header.
+
+    Header names are case-insensitive, so `authorization` and `Authorization`
+    are one credential. Such a header authenticates the request itself: the SDK
+    still needs an api_key argument, but it must be a harmless placeholder and
+    no unrelated environment key may be attached.
+    """
+    return get_explicit_authorization(llm_config) is not None
+
+
+def resolve_client_api_key(llm_config):
+    """The api_key the HTTP client for this profile actually uses.
+
+    Single source for client construction, receipts and benchmark identity. The
+    order matters: a Manual profile has no SDK key, and an explicit nonempty
+    Authorization header authenticates the request on its own, so both return a
+    harmless placeholder BEFORE any api_key lookup. That lookup would otherwise
+    resolve (and record in a fingerprint) a credential the request never uses.
+    An OMITTED key keeps the legacy "local" placeholder; other values go through
+    resolve_api_key. MissingAPIKeyError still propagates for a genuinely keyless
+    hosted profile - the real client must refuse it too.
+    """
+    llm_config = llm_config or {}
+    if llm_config.get("transport") == "manual":
+        return ResolvedCredential("manual")
+    if has_explicit_authorization_header(llm_config):
+        return ResolvedCredential("local")
+    configured = llm_config.get("api_key", "local")
+    resolved = resolve_api_key(configured, llm_config.get("base_url", ""))
+    return ResolvedCredential(resolved) if resolved else ""
+
+
+def get_effective_authorization(llm_config):
+    """The exact Authorization header value this profile sends, or None.
+
+    One answer for the SDK, the native runtime probe and the adapter probe: an
+    explicit header wins verbatim; otherwise the effective SDK key is sent as a
+    bearer. Manual sends no HTTP at all, so it has no wire credential even when
+    a retained URL or headers remain in the profile. Never store this in a
+    receipt or fingerprint - it is a credential.
+    """
+    llm_config = llm_config or {}
+    if llm_config.get("transport") == "manual":
+        return None
+    explicit = get_explicit_authorization(llm_config)
+    if explicit is not None:
+        return ResolvedCredential(explicit)
+    key = resolve_client_api_key(llm_config)
+    return ResolvedCredential(f"Bearer {key}") if key else None
 
 
 def is_openai_reasoning_model(model_name):
@@ -96,9 +330,18 @@ def adapt_request_for_reasoning_model(kwargs):
 
 
 def get_provider_headers(llm_config):
-    """Return a copied, string-only header mapping from one LLM profile."""
-    headers = (llm_config or {}).get("provider_headers") or {}
-    return dict(headers)
+    """Return the copied headers the SDK sends, with one canonical credential.
+
+    Case variants of Authorization are the same header to an HTTP transport.
+    Collapsing them here - using the shared resolver - keeps the SDK, adapter
+    probes and status probes on the same value instead of relying on dict order.
+    """
+    headers = {name: value for name, value in ((llm_config or {}).get("provider_headers") or {}).items()
+               if str(name).lower() != "authorization"}
+    authorization = get_explicit_authorization(llm_config)
+    if authorization is not None:
+        headers["Authorization"] = authorization
+    return headers
 
 
 def get_provider_extra_body(llm_config):
@@ -148,6 +391,15 @@ def classify_llm_error(error):
         return {"category": "rate_limited", "status_code": status_code, "retryable": True}
     if isinstance(status_code, int) and 500 <= status_code <= 599:
         return {"category": "server_error", "status_code": status_code, "retryable": True}
+    if status_code in (401, 403):
+        return {"category": "auth", "status_code": status_code, "retryable": False}
+    if status_code == 404:
+        return {"category": "not_found", "status_code": status_code, "retryable": False}
+    if status_code in (400, 405, 410, 413, 422):
+        # A malformed request, wrong method, gone resource, oversized body or
+        # schema refusal will fail identically on a retry. Keep the established
+        # api_error category but stop retrying; 408/409/429/5xx stay retryable.
+        return {"category": "api_error", "status_code": status_code, "retryable": False}
     error_type = type(error).__name__.lower()
     if "timeout" in error_type:
         return {"category": "timeout", "status_code": status_code, "retryable": True}
@@ -160,6 +412,22 @@ def classify_llm_error(error):
     if "connect" in lowered:
         return {"category": "connection_error", "status_code": status_code, "retryable": True}
     return {"category": "api_error", "status_code": status_code, "retryable": True}
+
+
+_LOCAL_REQUEST_FAILURE_CATEGORIES = frozenset({
+    "context_budget", "profile_changed", "request_admission",
+})
+
+
+def is_failover_eligible(error_details):
+    """Whether an exhausted error may switch to the other profile.
+
+    Local sizing and dispatch/config failures are not the provider's fault:
+    re-sending the whole book to a second (possibly billed) endpoint cannot
+    help, so they stop at the primary. Provider refusals and auth/model errors
+    remain eligible - a different provider may accept the same request.
+    """
+    return error_details.get("category") not in _LOCAL_REQUEST_FAILURE_CATEGORIES
 
 
 def get_retry_delay(retry_initial_delay_seconds, retry_multiplier,
@@ -333,7 +601,10 @@ class FailoverClient:
                 try:
                     status = get_current_status(
                         self._pair[1][2], config.get("base_url", ""), self.secondary_model,
-                        ssh_alias=self._ssh_alias, api_key=resolve_api_key(config.get("api_key")))
+                        ssh_alias=self._ssh_alias,
+                        api_key=resolve_client_api_key(config),
+                        authorization=get_effective_authorization(config),
+                        llm_config=config)
                 except Exception as error:
                     status = {"available": False, "loaded": False,
                               "runtime_error": f"{type(error).__name__}: {error}"}
@@ -732,7 +1003,7 @@ def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
         return ConfiguredOpenAI(client, get_provider_extra_body(llm_config), limits=limits) if limits else client
     client = OpenAI(
         base_url=llm_config.get("base_url", "http://localhost:11434/v1"),
-        api_key=resolve_api_key(llm_config.get("api_key", "local")),
+        api_key=resolve_client_api_key(llm_config),
         timeout=(get_profile_timeout(llm_config, timeout)
                  if respect_profile_timeout else timeout),
         default_headers=get_provider_headers(llm_config) or None,
