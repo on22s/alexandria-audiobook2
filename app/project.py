@@ -1367,6 +1367,10 @@ class ProjectManager:
             return None
         try:
             value = json.loads(raw.decode('utf-8'))
+        except RecursionError as error:
+            # Decoder-time overflow is the same controlled conflict as the
+            # post-decode depth guard, not corruption to back up or replace.
+            raise ValueError("Chunk status snapshot is too deeply nested") from error
         except (UnicodeDecodeError, ValueError) as error:
             logger.warning("Corrupted/unreadable JSON at %s, using default: %s", "chunks.json", error)
             return None

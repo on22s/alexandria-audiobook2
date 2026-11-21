@@ -5889,8 +5889,12 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
         data_dir = root
         state_path = Path(data_dir) / "state.json"
         chunks_path = Path(data_dir) / "chunks.json"
-        journal_exists = os.path.lexists(get_chunk_status_journal_path(chunks_path))
-        snapshot_exists = os.path.lexists(chunks_path)
+        # lexists() swallows lstat I/O failures as absence. Use the same confined
+        # lookup as the readers so an EIO aborts before any progress changes.
+        from project_scope_files import _confined_absent
+        journal_exists = not _confined_absent(
+            Path(get_chunk_status_journal_path(chunks_path)))
+        snapshot_exists = not _confined_absent(chunks_path)
         with file_lock(str(state_path)):
             state = safe_load_json(str(state_path), default={})
             if not isinstance(state, dict):

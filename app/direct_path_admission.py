@@ -1,4 +1,5 @@
 """Plain-path admission; live operations still need their identity guards."""
+import errno
 import os
 from pathlib import Path
 import stat
@@ -8,6 +9,17 @@ import stat
 TRUSTED_ALIAS_OWNERS = frozenset({0})
 # Bounds chained aliases, like the kernel's own symlink-loop limit.
 MAX_ALIAS_DEPTH = 40
+
+# Errors that genuinely mean "not a plain path". A real device/I/O failure is
+# never one of these: it must abort the caller instead of being downgraded to
+# an ordinary alias refusal that a selection can continue past.
+_PATH_SHAPE_ERRORS = frozenset((errno.ENOTDIR, errno.ELOOP, errno.EACCES,
+                                errno.EPERM, errno.ENAMETOOLONG))
+
+
+def _reraise_io_error(error):
+    if error.errno not in _PATH_SHAPE_ERRORS:
+        raise error
 
 
 def _stat_directory(path):
@@ -28,7 +40,8 @@ def _is_administrator_controlled(link, info):
         try:
             # Earlier components were admitted already, so follow them here.
             parent = _stat_directory(directory)
-        except OSError:
+        except OSError as error:
+            _reraise_io_error(error)
             return False
         if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid not in TRUSTED_ALIAS_OWNERS
                 or parent.st_mode & (stat.S_IWGRP | stat.S_IWOTH)):
@@ -51,7 +64,8 @@ def _is_plain_posix_spelling(path, depth):
                     return False
             except FileNotFoundError:
                 continue
-            except OSError:
+            except OSError as error:
+                _reraise_io_error(error)
                 return False
         return os.path.normcase(os.path.realpath(path)) == os.path.normcase(os.path.abspath(path))
     return _is_plain_posix_path(Path(os.path.abspath(path)), depth)
@@ -67,7 +81,8 @@ def _is_plain_posix_path(path, depth):
             info = component.lstat()
         except FileNotFoundError:
             continue  # publication destinations may not exist yet
-        except OSError:
+        except OSError as error:
+            _reraise_io_error(error)
             return False  # a file used as a directory, a loop or an unreadable entry
         if stat.S_ISLNK(info.st_mode):
             # Only the requested path itself must not be a link; an alias
@@ -77,7 +92,8 @@ def _is_plain_posix_path(path, depth):
             try:
                 # Relative targets resolve from the link's physical directory.
                 target = Path(os.path.realpath(component.parent)) / os.readlink(component)
-            except OSError:
+            except OSError as error:
+                _reraise_io_error(error)
                 return False
             if not _is_plain_posix_spelling(target, depth + 1):
                 return False
@@ -104,7 +120,8 @@ def is_plain_path(path):
             info = component.lstat()
         except FileNotFoundError:
             continue
-        except OSError:
+        except OSError as error:
+            _reraise_io_error(error)
             return False
         if (stat.S_ISLNK(info.st_mode) or
                 getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):

@@ -4,7 +4,7 @@ from pathlib import Path
 from review_report import get_review_report_info, apply_review_report_explanation
 from completed_review_receipt import get_review_progress_paths
 from book_state_transaction import (ensure_book_state, reuse_book_state,
-    get_book_fault_response, get_book_operation_identity)
+    get_book_fault_response, get_book_operation_identity, get_book_operation_token)
 from task_ownership import ensure_startup_recovery
 import asyncio
 import copy
@@ -578,22 +578,39 @@ def _require_export_chunks():
     loader would regenerate/backfill a corrupt or absent snapshot, silently
     repairing the very evidence a stale journal conflict is meant to protect.
     A genuinely absent snapshot is not a conflict; any other unreadable state
-    is. Returns the admitted rows so later stages need not read them again.
+    is. Returns (admitted rows, authoritative selection token) so later stages
+    need not reread rows and can prove the book has not changed since admission.
     """
     try:
         with ensure_book_state(DATA_DIR, recover=False):
-            return _read_export_rows_locked()
+            rows = _read_export_rows_locked()
+            return rows, get_book_operation_token(DATA_DIR)
     except (ValueError, OSError, RecursionError) as error:
         # Non-recovering admission refuses a pending book transaction without
         # mutating its staged publication artifacts.
         raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
 
 
-def _chapter_preview_with_rows(admitted_rows, **options):
+def _assert_export_admission_locked(token):
+    """Caller holds non-recovering book admission: verify the selected book."""
+    _ensure_editor_selection()
+    if not isinstance(token, str) or get_book_operation_token(DATA_DIR) != token:
+        raise ValueError("The selected book changed during export admission")
+
+
+def _assert_export_admission(token):
+    try:
+        with ensure_book_state(DATA_DIR, recover=False):
+            _assert_export_admission_locked(token)
+    except (ValueError, OSError, RecursionError) as error:
+        raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
+
+
+def _chapter_preview_with_rows(admitted_rows, admitted_token, **options):
     """Complete a chapter preview under the same non-recovering read contract."""
     try:
         with ensure_book_state(DATA_DIR, recover=False):
-            _ensure_editor_selection()
+            _assert_export_admission_locked(admitted_token)
     except (ValueError, OSError, RecursionError) as error:
         raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
     return project_manager.preview_chapter_filenames(rows=admitted_rows, **options)
@@ -1174,13 +1191,15 @@ async def get_editor_integrity():
     return await asyncio.to_thread(_ensure_editor_integrity)
 
 
-def get_export_quality_attempt(request, state, *, audacity=False):
+def get_export_quality_attempt(request, state, *, audacity=False, expected_token=None):
     # A cancelled queued worker must not start book I/O for evidence capture.
     ensure_audio_export_active(lambda: state.get('cancel', False))
     options = getattr(request, 'export_quality', None)
     with ensure_book_state(DATA_DIR):
         _ensure_editor_selection()
         token = get_snapshot_digest(get_editor_book_identity(DATA_DIR))
+        if expected_token is not None and token != expected_token:
+            raise ValueError("The selected book changed during export admission")
         # Stamp the input revision at admitted start under the book lock.
         return ExportQualityAttempt(state, token,
             options.model_dump() if options is not None else None, audacity=audacity,
@@ -1566,13 +1585,15 @@ async def export_audacity_endpoint(background_tasks: BackgroundTasks):
     # where two rapid POSTs both pass a plain running check before either sets it).
     # audacity_export is a NON_GPU_TASK, so this only guards against self-double-start.
 
-    await asyncio.to_thread(_require_export_chunks)
+    _admitted_rows, admitted_token = await asyncio.to_thread(_require_export_chunks)
+    await asyncio.to_thread(_assert_export_admission, admitted_token)
 
     def task():
         process_state["audacity_export"]["logs"] = ["Starting Audacity export..."]
         quality_attempt = None
         try:
-            quality_attempt = get_export_quality_attempt(None, process_state["audacity_export"], audacity=True)
+            quality_attempt = get_export_quality_attempt(None, process_state["audacity_export"],
+                audacity=True, expected_token=admitted_token)
             success, msg = project_manager.export_audacity(
                 progress_callback=lambda m: process_state["audacity_export"]["logs"].append(m),
                 **quality_attempt.kwargs)
@@ -1654,7 +1675,7 @@ def get_unready_export_speakers():
     return missing
 
 
-async def validate_export_readiness(require_ready):
+async def validate_export_readiness(require_ready, token=None):
     def check():
         with ensure_book_state(DATA_DIR, recover=False):
             _ensure_editor_selection()
@@ -1665,7 +1686,10 @@ async def validate_export_readiness(require_ready):
                         "message": "Mark every speaker ready before exporting.", "speakers": missing})
             # Late boundary: a transaction published while readiness was being
             # checked must still refuse, without recovering or repairing it.
-            _ensure_editor_selection()
+            if token is not None:
+                _assert_export_admission_locked(token)
+            else:
+                _ensure_editor_selection()
     try:
         await asyncio.to_thread(check)
     except ValueError as error:
@@ -1753,8 +1777,9 @@ class M4bExportRequest(BaseModel):
 async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: BackgroundTasks):
     # Journal readability is authoritative: report a stale book before optional
     # readiness, which would otherwise mask it with an unrelated speaker list.
-    await asyncio.to_thread(_require_export_chunks)
-    await validate_export_readiness(request.require_ready)
+    _admitted_rows, admitted_token = await asyncio.to_thread(_require_export_chunks)
+    await validate_export_readiness(request.require_ready, admitted_token)
+    await asyncio.to_thread(_assert_export_admission, admitted_token)
     # Atomic check-and-set on the request thread (closes the double-start TOCTOU
     # where two rapid POSTs both pass a plain running check before either sets it).
 
@@ -1762,7 +1787,8 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
         process_state["m4b_export"]["logs"] = ["Starting M4B export..."]
         quality_attempt = None
         try:
-            quality_attempt = get_export_quality_attempt(request, process_state["m4b_export"])
+            quality_attempt = get_export_quality_attempt(request, process_state["m4b_export"],
+                expected_token=admitted_token)
             meta = {name: getattr(request, name) for name in ('title', 'author', 'narrator', 'year', 'description')
                     if getattr(request, name) is not None}
             meta['cover_path'] = os.path.join(DATA_DIR, 'm4b_cover.jpg') if os.path.exists(os.path.join(DATA_DIR, 'm4b_cover.jpg')) else ''
@@ -1843,13 +1869,13 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
     """Write chapters as separate MP3/WAV files (CPU only, no GPU lock)."""
     if request.format not in ("mp3", "wav"):
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
-    admitted_rows = await asyncio.to_thread(_require_export_chunks)
-    await validate_export_readiness(request.require_ready)
+    admitted_rows, admitted_token = await asyncio.to_thread(_require_export_chunks)
+    await validate_export_readiness(request.require_ready, admitted_token)
     chapters = request.chapters
     if chapters is not None:
         try:
             preview = await asyncio.to_thread(
-                _chapter_preview_with_rows, admitted_rows,
+                _chapter_preview_with_rows, admitted_rows, admitted_token,
                 fmt=request.format, per_chunk_chapters=request.per_chunk_chapters,
                 template=request.template, padding=request.padding,
                 book_name=request.book_name, series_name=request.series_name,
@@ -1858,13 +1884,15 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
             chapters = get_chapter_selection(chapters, {row["number"] - 1 for row in preview})
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await asyncio.to_thread(_assert_export_admission, admitted_token)
     state = process_state["chapter_export"]
 
     def task():
         state["logs"] = ["Starting chapter export..."]
         quality_attempt = None
         try:
-            quality_attempt = get_export_quality_attempt(request, state)
+            quality_attempt = get_export_quality_attempt(request, state,
+                expected_token=admitted_token)
             success, msg = project_manager.export_chapters(
                 fmt=request.format, per_chunk_chapters=request.per_chunk_chapters,
                 template=request.template, padding=request.padding,
@@ -1907,14 +1935,14 @@ async def preview_chapter_filenames(format: str = "mp3", per_chunk_chapters: boo
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
     if not 0 <= padding <= 6:
         raise HTTPException(status_code=400, detail="padding must be 0-6 digits")
-    admitted_rows = await asyncio.to_thread(_require_export_chunks)
-    await validate_export_readiness(require_ready)
+    admitted_rows, admitted_token = await asyncio.to_thread(_require_export_chunks)
+    await validate_export_readiness(require_ready, admitted_token)
     try:
         mastering_options = MasteringOptions.model_validate_json(mastering).model_dump() if mastering is not None else None
     except ValueError as exc:
         raise HTTPException(status_code=422, detail='Invalid mastering options.') from exc
     try:
-        rows = await asyncio.to_thread(_chapter_preview_with_rows, admitted_rows,
+        rows = await asyncio.to_thread(_chapter_preview_with_rows, admitted_rows, admitted_token,
             fmt=format, per_chunk_chapters=per_chunk_chapters, template=template,
             padding=padding, book_name=book_name,
             series_name=series_name, volume_number=volume_number,
