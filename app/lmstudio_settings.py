@@ -182,15 +182,29 @@ def is_local_llm_endpoint(base_url):
     return address.is_loopback or (mapped is not None and mapped.is_loopback)
 
 
+def normalize_llm_endpoint(base_url):
+    """Trim a saved HTTP endpoint for dialing, or None when it is not dialable.
+
+    One answer for the failover predicate and the runtime client (Rule 15): a
+    padded legacy URL stays usable, a malformed port is refused rather than
+    handed to the client to fail obscurely later.
+    """
+    if not isinstance(base_url, str) or not base_url.strip():
+        return None
+    candidate = base_url.strip()
+    try:
+        parsed = urlparse(candidate)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return None
+        parsed.port  # raises ValueError on an out-of-range or non-numeric port
+    except ValueError:
+        return None
+    return candidate
+
+
 def is_usable_llm_endpoint(base_url):
     """Whether a saved HTTP profile has an endpoint a client can dial."""
-    if not isinstance(base_url, str) or not base_url.strip():
-        return False
-    try:
-        parsed = urlparse(base_url.strip())
-    except ValueError:
-        return False
-    return parsed.scheme in ("http", "https") and bool(parsed.hostname)
+    return normalize_llm_endpoint(base_url) is not None
 
 
 def is_billed_http_profile(profile):
@@ -241,6 +255,8 @@ def get_active_llm_config(config):
 
 _PROFILE_CREDENTIAL_KEYS = frozenset(("api_key", "provider_headers", "provider_extra_body"))
 BENCHMARK_IDENTITY_KEY = "benchmark_identity"
+BENCHMARK_IDENTITY_VERSION = 1
+_BENCHMARK_SSH_ALIAS = object()
 BENCHMARK_CACHE_KEYS = frozenset(("concurrency", "concurrency_for", "concurrency_environment",
                                   "concurrency_revision", BENCHMARK_IDENTITY_KEY))
 # A scheduling hint, not a request setting: changing it must not retire a
@@ -286,6 +302,12 @@ def is_profile_configured(block):
     settings = get_profile_settings(block)
     if settings.get("transport") == "manual":
         return True
+    # attribution_adapter lives outside LLMConfig, so it is not in the neutral
+    # map. A configured adapter still makes the profile complete: the required
+    # serving check must run even when the named slot holds nothing else.
+    spec = settings.get("attribution_adapter")
+    if isinstance(spec, dict) and str(spec.get("path") or "").strip():
+        return True
     neutral = get_profile_neutral_values()
     return any(key in neutral and value != neutral[key] for key, value in settings.items())
 
@@ -305,7 +327,7 @@ def is_executable_failover_profile(block):
             and bool(str(block.get("model_name") or "").strip()))
 
 
-def get_benchmark_identity(config, section, *, profile=None):
+def get_benchmark_identity(config, section, *, profile=None, ssh_alias=_BENCHMARK_SSH_ALIAS):
     """Nonsecret identity of the requests a concurrency measurement belongs to.
 
     One answer for the benchmark writer, reader and Setup retention (Rule 15).
@@ -320,16 +342,24 @@ def get_benchmark_identity(config, section, *, profile=None):
     profile compares equal to the same settings normalized by Setup.
 
     `profile` lets the caller pass an already-bound run profile; when absent
-    the section's own config block is used.
+    the section's own config block is used and global limits are inherited.
+    A bound profile already carries the ceiling captured when its client was
+    built, so inheriting again here would describe a later config edit rather
+    than the requests that client actually sends (including an absent ceiling).
+    `ssh_alias` overrides the management alias for the same reason.
     """
     config = config if isinstance(config, dict) else {}
-    if profile is None:
+    bound = profile is not None
+    if not bound:
         profile = config.get(section)
     if not isinstance(profile, dict):
         return None
     from llm_provider import get_provider_extra_body
-    from llm_request_budget import get_inherited_profile_limits
-    effective = get_inherited_profile_limits(profile, config.get("generation") or {})
+    if bound:
+        effective = profile
+    else:
+        from llm_request_budget import get_inherited_profile_limits
+        effective = get_inherited_profile_limits(profile, config.get("generation") or {})
     neutral = get_profile_neutral_values()
     identity = {key: neutral[key] for key in neutral if key not in _BENCHMARK_IDENTITY_EXCLUDED}
     identity.pop("reasoning_effort", None)
@@ -338,8 +368,10 @@ def get_benchmark_identity(config, section, *, profile=None):
     # is what the bound client sends, and a body-only spelling of the same
     # option must therefore compare equal to the typed setting.
     identity["provider_extra_body"] = get_provider_extra_body(effective)
+    if ssh_alias is _BENCHMARK_SSH_ALIAS:
+        ssh_alias = config.get("llm_remote_ssh")
     if is_remote_llm(config.get("llm_mode") or "local", identity.get("base_url", "")):
-        identity["ssh_alias"] = config.get("llm_remote_ssh")
+        identity["ssh_alias"] = ssh_alias
     return identity
 
 
@@ -356,12 +388,39 @@ def _canonical_identity_value(value):
     return value
 
 
-def get_benchmark_identity_key(config, section, *, profile=None):
-    identity = get_benchmark_identity(config, section, profile=profile)
+def get_benchmark_identity_key(config, section, *, profile=None, ssh_alias=_BENCHMARK_SSH_ALIAS):
+    """A versioned digest of the effective request identity.
+
+    The canonical JSON is hashed rather than persisted: a raw identity carried
+    provider body values (and can carry future ones) into config.json, so a
+    retired value stayed on disk long after the setting that produced it was
+    changed. The version makes a future identity-schema change explicit rather
+    than silently reinterpreting old receipts.
+    """
+    identity = get_benchmark_identity(config, section, profile=profile, ssh_alias=ssh_alias)
     if identity is None:
         return None
-    return json.dumps({key: _canonical_identity_value(value) for key, value in identity.items()},
-                      sort_keys=True, default=str)
+    canonical = json.dumps({key: _canonical_identity_value(value) for key, value in identity.items()},
+                           sort_keys=True, default=str)
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return f"v{BENCHMARK_IDENTITY_VERSION}:{digest}"
+
+
+def get_benchmark_destination(profile):
+    """The endpoint::model a stored measurement was actually taken against.
+
+    The environment records the destination at measurement time; a named slot
+    may since have been hydrated to a neutral stub by Setup, so its current
+    base_url/model_name alone cannot qualify a fresh receipt.
+    """
+    profile = profile if isinstance(profile, dict) else {}
+    environment = profile.get("concurrency_environment")
+    if isinstance(environment, dict):
+        base_url = environment.get("base_url")
+        model_name = environment.get("model_name")
+        if base_url and model_name:
+            return f"{base_url}::{model_name}"
+    return f"{profile.get('base_url', '')}::{profile.get('model_name', '')}"
 
 
 def is_qualified_concurrency_cache(profile):
@@ -369,14 +428,26 @@ def is_qualified_concurrency_cache(profile):
     if not isinstance(profile, dict):
         return False
     concurrency = profile.get("concurrency")
-    return (isinstance(concurrency, int) and not isinstance(concurrency, bool) and concurrency > 0
-            and profile.get("concurrency_for") == f"{profile.get('base_url', '')}::{profile.get('model_name', '')}")
+    if not (isinstance(concurrency, int) and not isinstance(concurrency, bool) and concurrency > 0):
+        return False
+    return (profile.get("concurrency_for") == get_benchmark_destination(profile)
+            and has_valid_benchmark_environment(profile))
 
 
 def has_valid_benchmark_environment(profile):
-    """Whether a stored entry carries real measured-environment evidence."""
+    """Whether a stored entry carries real measured-environment evidence.
+
+    An empty or malformed environment is not evidence: a neutral named slot
+    must not displace a qualified measurement just because it has a cache
+    field. The version and the measured endpoint are the minimum schema.
+    """
     environment = profile.get("concurrency_environment") if isinstance(profile, dict) else None
-    return isinstance(environment, dict) and bool(environment)
+    if not isinstance(environment, dict) or not environment:
+        return False
+    version = environment.get("version")
+    base_url = environment.get("base_url")
+    return (isinstance(version, int) and not isinstance(version, bool)
+            and isinstance(base_url, str) and bool(base_url.strip()))
 
 
 def get_benchmark_target_slot(config):
@@ -407,15 +478,21 @@ def get_document_with_retained_cache(document, existing):
     result = dict(document)
     before_map = existing if isinstance(existing, dict) else {}
     qualified = {}
-    for section in ("llm", "llm_local", "llm_remote"):
+    legacy_key = None
+    # Named slots first: a structurally valid named receipt is the authority
+    # for its own identity. The mirror is only a fallback source, never a way
+    # to overwrite newer named evidence for the same endpoint.
+    for section in ("llm_local", "llm_remote", "llm"):
         before = before_map.get(section)
         if not is_qualified_concurrency_cache(before) or not has_valid_benchmark_environment(before):
             continue
         key = get_benchmark_identity_key(before_map, section)
         entry = {name: before[name] for name in BENCHMARK_CACHE_KEYS if name in before}
         entry.setdefault(BENCHMARK_IDENTITY_KEY, key)
-        if key not in qualified or section == "llm":
+        if key not in qualified:
             qualified[key] = entry
+            if section == "llm":
+                legacy_key = key
     for section in ("llm", "llm_local", "llm_remote"):
         after = result.get(section)
         if not isinstance(after, dict):
@@ -424,7 +501,7 @@ def get_document_with_retained_cache(document, existing):
         if entry:
             result[section] = {**after, **entry}
     target = get_benchmark_target_slot(result)
-    legacy_entry = qualified.get(get_benchmark_identity_key(result, "llm"))
+    legacy_entry = qualified.get(legacy_key) if legacy_key is not None else None
     after = result.get(target)
     if legacy_entry and isinstance(after, dict) and not is_qualified_concurrency_cache(after):
         result[target] = {**after, **legacy_entry}

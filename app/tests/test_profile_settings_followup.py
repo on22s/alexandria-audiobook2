@@ -361,5 +361,201 @@ class PreviewDroppedFieldTests(unittest.TestCase):
             self.assertNotIn("mystery_field", saved["llm_local"])
 
 
+class BoundProvenanceRegressionTests(unittest.TestCase):
+    def test_ceiling_is_captured_at_binding_not_reinherited_at_entry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            document = {"llm_mode": "local", "llm": dict(LOW), "llm_local": dict(LOW),
+                        "tts": {"mode": "local"}, "generation": {"max_input_tokens": 4096}}
+            path = _seed(tmp, document)
+            uncapped = settings.get_benchmark_identity_key(document, "llm_local", profile=dict(LOW))
+            capped = settings.get_benchmark_identity_key(
+                document, "llm_local", profile=dict(LOW, max_input_tokens=4096))
+            identity = settings.get_benchmark_identity(document, "llm_local", profile=dict(LOW))
+            self.assertIsNone(identity["max_input_tokens"])
+            self.assertNotEqual(uncapped, capped)
+
+            with _patches()[0], _patches()[1], patch.object(
+                    llm_bench, "find_optimal_concurrency", side_effect=_find(3)) as bench:
+                llm_bench.ensure_cached_or_benchmarked_concurrency(
+                    path, "local", LOW["base_url"], LOW["model_name"], object(),
+                    status=STATUS, llm_config=dict(LOW))
+            bench.assert_called_once()
+            self.assertEqual(uncapped, _load(path)["llm_local"][settings.BENCHMARK_IDENTITY_KEY])
+
+            with _patches()[0], _patches()[1], patch.object(
+                    llm_bench, "find_optimal_concurrency", side_effect=_find(4)) as bench:
+                value = llm_bench.ensure_cached_or_benchmarked_concurrency(
+                    path, "local", LOW["base_url"], LOW["model_name"], object(),
+                    status=STATUS, llm_config=dict(LOW, max_input_tokens=4096))
+            self.assertEqual(4, value)
+            bench.assert_called_once()  # the new client owns a distinct sweep
+            self.assertEqual(capped, _load(path)["llm_local"][settings.BENCHMARK_IDENTITY_KEY])
+
+    def test_bound_management_alias_overrides_the_disk_alias(self):
+        profile = dict(LOW, base_url=HOSTED, model_name="hosted-model")
+        config = {"llm_mode": "local", "llm_remote_ssh": "disk-fixture-alias"}
+        bound = settings.get_benchmark_identity(config, "llm_remote", profile=profile,
+                                                ssh_alias="bound-fixture-alias")
+        self.assertEqual("bound-fixture-alias", bound["ssh_alias"])
+        derived = settings.get_benchmark_identity(config, "llm_remote", profile=profile)
+        self.assertEqual("disk-fixture-alias", derived["ssh_alias"])
+
+
+class HostedReceiptSlotTests(unittest.TestCase):
+    @staticmethod
+    def _run_hosted(path, hosted):
+        with _patches(remote=True), patch.object(
+                llm_bench, "find_optimal_concurrency",
+                side_effect=AssertionError("migrated cache must be reused")):
+            return llm_bench.ensure_cached_or_benchmarked_concurrency(
+                path, "local", HOSTED, "hosted-model", object(), status=STATUS,
+                llm_config=hosted)
+
+    def test_fresh_named_hosted_receipt_survives_an_unrelated_save(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hosted = {"base_url": HOSTED, "api_key": "fixture", "model_name": "hosted-model"}
+            environment = _environment(HOSTED, "hosted-model", remote=True)
+            entry = _entry(environment, hosted)
+            # The endpoint-based slot was hydrated to a neutral stub after the
+            # measurement; its recorded destination still qualifies the receipt.
+            stub = {"base_url": "", "api_key": "local", "model_name": "", **entry}
+            path = _seed(tmp, {"llm_mode": "local", "llm": dict(hosted),
+                               "llm_local": dict(hosted), "llm_remote": stub,
+                               "tts": {"mode": "local"}, "generation": {}})
+            saved = _save(tmp, _form(_get(tmp)))
+            self.assertEqual(entry["concurrency"], saved["llm_remote"]["concurrency"])
+            self.assertEqual(environment, saved["llm_remote"]["concurrency_environment"])
+            self.assertEqual(entry["concurrency"], self._run_hosted(path, hosted))
+
+    def test_named_evidence_wins_over_the_legacy_mirror(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            hosted = {"base_url": HOSTED, "api_key": "fixture", "model_name": "hosted-model"}
+            environment = _environment(HOSTED, "hosted-model", remote=True)
+            mirror = dict(hosted, **_entry(environment, hosted))
+            mirror["concurrency"] = 2
+            named = dict(hosted, **_entry(environment, hosted))
+            named["concurrency"] = 7
+            path = _seed(tmp, {"llm_mode": "local", "llm": mirror, "llm_local": dict(hosted),
+                               "llm_remote": named, "tts": {"mode": "local"}, "generation": {}})
+            saved = _save(tmp, _form(_get(tmp)))
+            self.assertEqual(7, saved["llm_remote"]["concurrency"])
+            self.assertEqual(7, self._run_hosted(path, hosted))
+
+
+class SetupProvenanceRegressionTests(unittest.TestCase):
+    def test_two_named_credentials_on_equal_endpoints_follow_the_active_role(self):
+        endpoint = "http://127.0.0.1:7777/v1"
+        local = {**LOW, "base_url": endpoint, "api_key": "local-fixture",
+                 "provider_headers": {"x-local-fixture": "local-header"}}
+        remote = {**LOW, "base_url": endpoint, "api_key": "remote-fixture",
+                  "provider_headers": {"x-remote-fixture": "remote-header"}}
+        for mode, expected_key, expected_header in (
+                ("local", "local-fixture", "local-header"),
+                ("remote", "remote-fixture", "remote-header")):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                active = local if mode == "local" else remote
+                _seed(tmp, {"llm_mode": mode, "llm": dict(active), "llm_local": dict(local),
+                            "llm_remote": dict(remote), "tts": {"mode": "local"},
+                            "generation": {}})
+                document = _get(tmp)
+                self.assertEqual(system_module._REDACTED_SECRET,
+                                 document["llm_local"]["api_key"])
+                saved = _save(tmp, _form(document))
+                self.assertEqual(expected_key, saved["llm"]["api_key"])
+                header_name = "x-local-fixture" if mode == "local" else "x-remote-fixture"
+                self.assertEqual(expected_header, saved["llm"]["provider_headers"][header_name])
+                self.assertEqual("local-fixture", saved["llm_local"]["api_key"])
+                self.assertEqual("remote-fixture", saved["llm_remote"]["api_key"])
+
+    def test_headers_restore_independently_of_the_api_key_field(self):
+        profile = dict(LOW, provider_headers={"x-acme-fixture": "header-fixture"})
+        for key in ("env:FIXTURE_KEY_REFERENCE", "", "typed-fixture-key"):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as tmp:
+                _seed(tmp, {"llm_mode": "local", "llm": dict(profile),
+                            "llm_local": dict(profile), "tts": {"mode": "local"},
+                            "generation": {}})
+                document = _get(tmp)
+                document["llm_local"]["api_key"] = key
+                saved = _save(tmp, _form(document))
+                self.assertEqual(key, saved["llm_local"]["api_key"])
+                self.assertEqual("header-fixture",
+                                 saved["llm_local"]["provider_headers"]["x-acme-fixture"])
+
+
+class EndpointAndDigestRegressionTests(unittest.TestCase):
+    def test_malformed_port_refused_and_padded_endpoint_trimmed(self):
+        self.assertTrue(settings.is_usable_llm_endpoint(f"  {LOCAL}  "))
+        self.assertEqual(LOCAL, settings.normalize_llm_endpoint(f"  {LOCAL}  "))
+        for bad in ("http://127.0.0.1:abc/v1", "http://127.0.0.1:99999/v1", "http://["):
+            self.assertFalse(settings.is_usable_llm_endpoint(bad), bad)
+            self.assertFalse(is_executable_failover_profile(
+                {"base_url": bad, "model_name": MODEL}), bad)
+
+    def test_runtime_client_uses_trimmed_endpoint_and_model(self):
+        with patch.object(llm_provider, "OpenAI") as make:
+            llm_provider.make_llm_client(dict(LOW, base_url=f"  {LOCAL}  "), 30)
+        self.assertEqual(LOCAL, make.call_args.kwargs["base_url"])
+
+        secondary = {"base_url": "http://127.0.0.1:6666/v1", "api_key": "fixture",
+                     "model_name": "secondary-model"}
+        with patch.object(llm_provider, "make_llm_client", side_effect=[object(), object()]):
+            client = llm_provider.make_run_client(
+                {"llm_mode": "local", "llm_failover": True, "llm_remote": secondary},
+                dict(LOW, model_name="  active-model  "), 30)
+        self.assertEqual("active-model", client._pair[0][1])
+        self.assertEqual("secondary-model", client._pair[1][1])
+
+    def test_identity_is_a_versioned_nonsecret_digest(self):
+        profile = dict(LOW, provider_extra_body={"retired_fixture_marker": "fixture-secret-value"})
+        key = settings.get_benchmark_identity_key(
+            {"llm_mode": "local", "llm": profile}, "llm", profile=profile)
+        self.assertTrue(key.startswith("v1:"), key)
+        self.assertNotIn("fixture-secret-value", key)
+        self.assertNotIn("retired_fixture_marker", key)
+
+    def test_setup_output_omits_benchmark_metadata_but_disk_keeps_it(self):
+        entry = _entry()
+        with tempfile.TemporaryDirectory() as tmp:
+            _seed(tmp, {"llm_mode": "local", "llm": dict(LOW, **entry),
+                        "llm_local": dict(LOW, **entry), "tts": {"mode": "local"},
+                        "generation": {}})
+            document = _get(tmp)
+            for section in ("llm", "llm_local"):
+                for key in settings.BENCHMARK_CACHE_KEYS:
+                    self.assertNotIn(key, document[section], (section, key))
+            saved = _save(tmp, _form(document))
+            self.assertEqual(entry["concurrency"], saved["llm_local"]["concurrency"])
+
+    def test_retired_body_value_is_absent_after_save(self):
+        marker = "fixture-retired-body-value"
+        old = dict(LOW, provider_extra_body={"marker": marker})
+        with tempfile.TemporaryDirectory() as tmp:
+            _seed(tmp, {"llm_mode": "local", "llm": dict(old, **_entry(profile=old)),
+                        "llm_local": dict(old, **_entry(profile=old)),
+                        "tts": {"mode": "local"}, "generation": {}})
+            document = _get(tmp)
+            document["llm_local"]["provider_extra_body"] = {"marker": "fixture-new-body-value"}
+            saved = _save(tmp, _form(document))
+            self.assertNotIn(marker, json.dumps(saved))
+
+
+class PreviewCountRegressionTests(unittest.TestCase):
+    def test_legacy_only_section_is_counted_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _seed(tmp, {"llm_mode": "local", "llm": dict(LOW, legacy_only="fixture-note"),
+                        "tts": {"mode": "local"}, "generation": {}})
+            preview = _preview(tmp, _form(_get(tmp)))
+            self.assertEqual(1, preview["unmanaged_fields"], preview["unmanaged_fields"])
+
+    def test_unknown_field_sharing_a_value_is_not_treated_as_cache_migration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            remote = {"base_url": "http://127.0.0.1:6666/v1", "api_key": "fixture",
+                      "model_name": "other-model", "stray": "fixture-shared-value"}
+            _seed(tmp, {"llm_mode": "local", "llm": dict(LOW, stray="fixture-shared-value"),
+                        "llm_remote": remote, "tts": {"mode": "local"}, "generation": {}})
+            preview = _preview(tmp, _form(_get(tmp)))
+            self.assertEqual(2, preview["unmanaged_fields"], preview["unmanaged_fields"])
+
+
 if __name__ == "__main__":
     unittest.main()

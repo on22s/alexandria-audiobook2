@@ -458,8 +458,8 @@ def make_run_client(config, active_llm_config, timeout):
     except BaseException:
         primary.close()
         raise
-    return FailoverClient(primary, active_llm_config.get("model_name", ""),
-                          secondary, other.get("model_name", ""),
+    return FailoverClient(primary, str(active_llm_config.get("model_name", "")).strip(),
+                          secondary, str(other.get("model_name", "")).strip(),
                           primary_label=mode,
                           secondary_label="remote" if mode == "local" else "local",
                           secondary_config=other, ssh_alias=config.get("llm_remote_ssh"))
@@ -746,8 +746,10 @@ def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
     if llm_config.get("transport") == "manual":
         client = ManualClient(get_manual_llm_data_dir())
         return ConfiguredOpenAI(client, get_provider_extra_body(llm_config), limits=limits) if limits else client
+    from lmstudio_settings import normalize_llm_endpoint
+    endpoint = normalize_llm_endpoint(llm_config.get("base_url"))
     client = OpenAI(
-        base_url=llm_config.get("base_url", "http://localhost:11434/v1"),
+        base_url=endpoint or llm_config.get("base_url", "http://localhost:11434/v1"),
         api_key=resolve_api_key(llm_config.get("api_key", "local")),
         timeout=(get_profile_timeout(llm_config, timeout)
                  if respect_profile_timeout else timeout),

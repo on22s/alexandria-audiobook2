@@ -33,7 +33,8 @@ from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
                                get_active_llm_config, get_current_status,
                                get_saved_llm_profile, is_active_llm_remote,
-                               get_document_with_retained_cache, is_billed_http_profile)
+                               get_document_with_retained_cache, is_billed_http_profile,
+                               BENCHMARK_CACHE_KEYS)
 
 
 from core import (
@@ -340,21 +341,19 @@ def get_api_key_endpoint(base_url):
     return _normalize_openai_base_url(base_url) if isinstance(base_url, str) else ""
 
 
-def get_saved_profile_for_endpoint(base_url, existing=None):
+def get_saved_profile_for_endpoint(base_url, existing=None, *, section=None, llm_mode=None):
     """The stored LLM profile whose endpoint matches `base_url`, or None.
 
     One answer to "which saved profile does this endpoint belong to?", shared
-    by both sentinel resolutions below so they cannot disagree about it.
+    by GET hydration, Preview, Save and the Test / Load-models requests so
+    they cannot disagree about it.
 
-    Returns None both when nothing matches and when more than one profile
-    does: the Test / Load-models requests carry no section (the Setup tab
-    posts one profile-shaped object, static/js/app-core.js
-    `getEditedLlmProfile`), so on a real tie - `llm_local` and `llm_remote`
-    sharing an endpoint, say - there is no way to tell whose credential was
-    asked for, and guessing would hand one profile's secret to the other.
-    `llm` is not a tie: save writes it as a copy of the active profile, so
-    when it matches the same endpoint as the active section they are one
-    credential.
+    Two named profiles may share an endpoint with different credentials. A
+    Setup form knows which section it is restoring, so `section` disambiguates
+    a tie by that role; for the `llm` mirror the active role (`llm_mode`) owns
+    the credential. Requests that carry no section (Test / Load-models post a
+    single profile-shaped object, static/js/app-core.js `getEditedLlmProfile`)
+    keep the conservative refusal on a real tie rather than guess.
     """
     existing = existing if existing is not None else load_app_config(CONFIG_PATH)
     wanted = get_api_key_endpoint(base_url)
@@ -364,13 +363,21 @@ def get_saved_profile_for_endpoint(base_url, existing=None):
     profiles = {"llm_local": get_config_local_profile(existing),
                 "llm_remote": existing.get("llm_remote"),
                 "llm": existing.get("llm")}
-    matches = {section: profile for section, profile in profiles.items()
+    matches = {name: profile for name, profile in profiles.items()
                if isinstance(profile, dict)
                and get_api_key_endpoint(profile.get("base_url")) == wanted}
-    active = "llm_remote" if existing.get("llm_mode") == "remote" else "llm_local"
+    active = ("llm_remote" if (llm_mode or existing.get("llm_mode")) == "remote" else "llm_local")
     if "llm" in matches and active in matches:
         matches.pop("llm")
-    return next(iter(matches.values())) if len(matches) == 1 else None
+    if not matches:
+        return None
+    if len(matches) == 1:
+        return next(iter(matches.values()))
+    if section in matches:
+        return matches[section]
+    if section == "llm" and active in matches:
+        return matches[active]
+    return None
 
 
 def _resolve_redacted_api_key(api_key, base_url, existing=None):
@@ -413,15 +420,24 @@ def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
     updates = {}
     for section in ("llm", "llm_local", "llm_remote", "tts"):
         incoming = getattr(config, section, None)
-        saved = (get_config_local_profile(existing or {}) if section == "llm_local"
-                 else (existing or {}).get(section))
         if incoming is None:
             continue
+        saved = (get_config_local_profile(existing or {}) if section == "llm_local"
+                 else (existing or {}).get(section))
         saved = saved if isinstance(saved, dict) else {}
+        endpoint = get_api_key_endpoint(getattr(incoming, "base_url", None))
+        saved_endpoint = get_api_key_endpoint(saved.get("base_url"))
+        # One endpoint-bound provenance decision per section, shared by the
+        # credential and the headers. GET hydrates a neutral active slot from
+        # the runtime profile whose secret lives in another saved section, and
+        # two named profiles may share an endpoint: the shared resolver picks
+        # the owner by section/active role so GET, Preview and Save agree.
+        bound = (get_saved_profile_for_endpoint(endpoint, existing, section=section,
+                                                llm_mode=config.llm_mode)
+                 if endpoint and endpoint != saved_endpoint else None)
+        source = bound if bound is not None else saved
         changes = {}
         if getattr(incoming, "api_key", None) == _REDACTED_SECRET:
-            endpoint = get_api_key_endpoint(getattr(incoming, "base_url", None))
-            saved_endpoint = get_api_key_endpoint(saved.get("base_url"))
             inactive = "llm_remote" if config.llm_mode == "local" else "llm_local"
             unchanged_inactive_blank = (section == inactive and not endpoint and not saved_endpoint
                                         and isinstance((existing or {}).get(section), dict))
@@ -429,32 +445,22 @@ def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
             # sentinel still means "keep this profile's own stored key".
             unchanged_manual_blank = (saved.get("transport") == "manual" and not endpoint
                                       and not saved_endpoint and bool(saved.get("api_key")))
-            if endpoint != saved_endpoint:
-                # GET hydrates a neutral active slot from the runtime profile,
-                # whose credential still lives in another saved section. Bind
-                # by endpoint through the shared resolver before refusing.
-                bound = get_saved_profile_for_endpoint(endpoint, existing) if endpoint else None
-                if bound is not None and bound.get("api_key"):
-                    saved = bound
-                else:
-                    raise HTTPException(status_code=400, detail=f"Enter an API key for the changed {section} endpoint, or clear the key field.")
-            elif not endpoint and not unchanged_inactive_blank and not unchanged_manual_blank:
+            needs_explicit_key = (
+                (endpoint != saved_endpoint and not (bound is not None and bound.get("api_key")))
+                or (endpoint == saved_endpoint and not endpoint
+                    and not unchanged_inactive_blank and not unchanged_manual_blank)
+            )
+            if needs_explicit_key:
                 raise HTTPException(status_code=400, detail=f"Enter an API key for the changed {section} endpoint, or clear the key field.")
-            changes["api_key"] = saved.get("api_key", "")
+            changes["api_key"] = source.get("api_key", "")
         if section in _LLM_PROFILE_SECTIONS:
-            saved_headers = saved.get("provider_headers")
-            # A stored header belongs to the endpoint it was saved for. When
-            # the posted base_url names a different endpoint, a sentinel in
-            # the editor must not resolve to the old profile's value: that
-            # would hand a credential saved for one host to another (#2006).
-            # Dropped, not refused, for the same reason a sentinel with no
-            # stored counterpart is dropped below - the browser sent a
-            # placeholder for a header that has no meaning at this endpoint,
-            # and a sentinel-free save (a typed api_key) must stay possible.
-            if (get_api_key_endpoint(getattr(incoming, "base_url", None))
-                    != get_api_key_endpoint(saved.get("base_url"))):
-                saved_headers = None
-            restored = _restore_provider_headers(incoming.provider_headers, saved_headers)
+            # Headers use the same provenance but do not depend on the api_key
+            # field being a sentinel: a typed key or an env reference keeps its
+            # sentinelled headers, and a header with no stored counterpart is
+            # dropped rather than sent as the literal placeholder.
+            header_source = source if get_api_key_endpoint(source.get("base_url")) == endpoint else {}
+            restored = _restore_provider_headers(incoming.provider_headers,
+                                                 header_source.get("provider_headers"))
             if restored != incoming.provider_headers:
                 changes["provider_headers"] = restored
         if changes:
@@ -1114,6 +1120,15 @@ async def get_config():
                               "tts_modes": get_tts_capability_modes()}
 
     safe = _redact_config_secrets(config)
+    # Benchmark receipts are machine evidence, not Setup inputs: they are kept
+    # on disk by get_document_with_retained_cache across every save, so sending
+    # them through the form only offers a stale copy a chance to overwrite a
+    # newer measurement. Their raw body values never reach the browser.
+    for section in _LLM_PROFILE_SECTIONS:
+        value = safe.get(section)
+        if isinstance(value, dict):
+            for key in BENCHMARK_CACHE_KEYS:
+                value.pop(key, None)
 
     def _has_postable_identity(value):
         # Blank profiles are valid (an unused inactive slot keeps empty
@@ -1166,10 +1181,10 @@ async def get_config():
     inactive_section = "llm_local" if active_section == "llm_remote" else "llm_remote"
     runtime = get_active_llm_config(config)
     runtime_endpoint = get_api_key_endpoint(runtime.get("base_url")) if runtime else None
-    saved_credential = any(
-        _has_endpoint(loaded_config.get(section))
-        and get_api_key_endpoint(loaded_config[section].get("base_url")) == runtime_endpoint
-        for section in ("llm", "llm_local", "llm_remote"))
+    bound_credential = (get_saved_profile_for_endpoint(runtime_endpoint, loaded_config,
+                                                       section="llm", llm_mode=config["llm_mode"])
+                        if runtime_endpoint else None)
+    saved_credential = bound_credential is not None and bool(bound_credential.get("api_key"))
     runtime_safe = _redact_config_secrets({"llm": runtime})["llm"] if runtime else None
     if runtime_safe is not None and not saved_credential:
         # Synthesized public placeholder, not a saved credential: a sentinel
