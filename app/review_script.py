@@ -35,7 +35,8 @@ from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config, get_review_labels_only
 from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
                           get_run_fingerprint_identity, get_effective_authorization,
-                          resolve_client_api_key, resolve_historical_api_key)
+                          get_explicit_authorization, resolve_client_api_key,
+                          resolve_historical_api_key)
 from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SPAN_ALGORITHM_VERSION,
     get_review_entries_fingerprint, get_review_sidecar_identity, get_completed_review_match,
     get_review_progress_paths, get_review_receipt_path, save_completed_review_receipt,
@@ -426,27 +427,46 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
     return get_review_entries_fingerprint(get_run_fingerprint_identity(identity))
 
 
+def _legacy_dispatch_is_equivalent(profile):
+    """True when the old digest's credential cannot have changed dispatch.
+
+    The fingerprint identity drops ``failover_used``, so neither a receipt nor a
+    checkpoint can prove a secondary was unused. Equivalence of the effective
+    Authorization is the only portable evidence: a Manual profile sends no SDK
+    key at all, and an explicit header wins over an unrelated api_key in both
+    eras. A changed secondary credential must refuse, not be excused by this
+    run's client flag.
+    """
+    profile = profile or {}
+    if profile.get("transport") == "manual":
+        return True
+    try:
+        explicit = get_explicit_authorization(profile)
+        historical = explicit
+        if historical is None:
+            key = resolve_historical_api_key(profile.get("api_key"))
+            historical = f"Bearer {key}" if key else None
+        return historical == get_effective_authorization(profile)
+    except Exception:
+        return False
+
+
 def get_legacy_review_fingerprint(config, llm_config, params, args, client, model_name,
                                   source_text=None, *, entries=()):
     """The pre-fix digest for effectively unchanged profiles, else None.
 
-    ``resolve_client_api_key`` replaced the old resolver in the receipt. The
-    digest changes only when a profile had an empty key: the old resolver then
-    folded the ambient OPENAI_API_KEY in. That value is inert evidence only when
-    no request could have carried it - a Manual primary (no SDK key) or a
-    secondary this run did not fail over to. A used failover, or a live primary
-    whose effective credential actually changed, must refuse the old digest.
-    No historical credential is passed to a client, a probe or a log.
+    ``resolve_client_api_key`` replaced the old resolver in the receipt. The old
+    digest can be reused only when it describes the same dispatched credential:
+    a Manual primary sends no SDK key, and an unchanged (or explicitly headed)
+    secondary has the same credential in both eras. A changed secondary could
+    have received the historical ambient key, and the digest cannot prove it was
+    unused, so refuse. No historical credential reaches a client, probe or log.
     """
     primary = llm_config or {}
-    if get_run_model_binding(client, model_name).get("failover_used"):
+    if not _legacy_dispatch_is_equivalent(primary):
         return None
-    try:
-        historical = resolve_historical_api_key(primary.get("api_key"))
-        effective = resolve_client_api_key(primary)
-    except Exception:
-        return None
-    if primary.get("transport") != "manual" and historical != effective:
+    secondary = get_failover_llm_config(config)
+    if secondary and not _legacy_dispatch_is_equivalent(secondary):
         return None
     try:
         historical_digest = get_completed_review_fingerprint(
