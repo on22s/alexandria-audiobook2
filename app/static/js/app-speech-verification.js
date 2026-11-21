@@ -70,29 +70,41 @@ window.applySpeechVerificationInspector = () => {
     document.getElementById('editor-line-speech-cancel').disabled=!isSpeechVerificationTaskActive();
 };
 
+function setSpeechVerificationStatus(message) {
+    renderUiMessage(document.getElementById('editor-line-speech-status'), message);
+}
+
 function applySpeechVerificationTaskActivity(running) {
     speechVerificationReattached=running;
-    document.getElementById('editor-line-speech-status').textContent=running
-        ? t('editor.speech.running', 'A speech recheck is running. Cancellation waits for owned provider cleanup.')
-        : t('editor.speech.finished', 'Speech recheck task finished. Refresh review to see current evidence or inspect task logs.');
+    if (running) {
+        setSpeechVerificationStatus(uiMessage('editor.speech.running', 'A speech recheck is running. Cancellation waits for owned provider cleanup.'));
+    } else {
+        setSpeechVerificationStatus(uiMessage('editor.speech.finished', 'Speech recheck task finished. Refresh review to see current evidence or inspect task logs.'));
+    }
     window.applySpeechVerificationInspector();
 }
 
 async function recheckEditorSpeech() {
     if (isSpeechVerificationTaskActive()) { return; }
+    // Own the line that was clicked, not whatever is selected after the async
+    // barrier. A stale line must neither POST nor write a status on the panel
+    // that replaced it.
+    const clickedTarget=getEditorReviewTarget();
+    const clickedIdentity=clickedTarget ? getSpeechVerificationTargetIdentity(clickedTarget) : null;
     try { await ensureEditorRenderSnapshot(); }
     catch (error) { showActionError(t('editor.speech.not-ready', 'Editor is not ready for a speech recheck'),error,t('editor.speech.not-ready-recovery', 'Save pending edits and refresh the selected line.'));return; }
     if (isSpeechVerificationTaskActive()) { return; }
     const target=getEditorReviewTarget();
+    if (clickedIdentity !== null && clickedIdentity !== getSpeechVerificationTargetIdentity(target)) { return; }
     window.applySpeechVerificationInspector();
     if (!target || document.getElementById('editor-line-speech-recheck').disabled) {
         showToast(t('editor.speech.choose-take', 'Choose a saved take with recorded synthesis input. Takes without recorded input must be regenerated with speech checks enabled.'),'warning');return;
     }
-    const identity=getSpeechVerificationTargetIdentity(target);
+    const identity=clickedIdentity ?? getSpeechVerificationTargetIdentity(target);
     const priorDigest=getSpeechVerificationEvidenceDigest(target);
     const book=chunkSnapshotBookToken;
     speechVerificationBusy=true;window.applySpeechVerificationInspector();
-    document.getElementById('editor-line-speech-status').textContent=t('editor.speech.rechecking', 'Rechecking this take with cached CPU models. Audio stays selected; checks can take time.');
+    setSpeechVerificationStatus(uiMessage('editor.speech.rechecking', 'Rechecking this take with cached CPU models. Audio stays selected; checks can take time.'));
     try {
         const result=await API.post(`/api/chunks/${target.chunk.id}/speech_verification`,{
             expected_book_token:book,expected_uid:target.chunk.uid,expected_audio_revision:target.chunk.audio_revision,
@@ -111,18 +123,20 @@ async function recheckEditorSpeech() {
         const targetAfter=getEditorReviewTarget();
         const concurrentEvidence=priorDigest !== null
             && priorDigest !== getSpeechVerificationEvidenceDigest(targetAfter);
-        document.getElementById('editor-line-speech-status').textContent=editorReviewFresh && !concurrentEvidence
-            ? t('editor.speech.recorded', 'Speech recheck recorded. Review the evidence and listen before accepting the take.')
-            : formatUiSafetyText('safety.editor.speech.snapshot-changed', 'Speech recheck recorded, but the review snapshot changed. Refresh review for current evidence.');
+        if (editorReviewFresh && !concurrentEvidence) {
+            setSpeechVerificationStatus(uiMessage('editor.speech.recorded', 'Speech recheck recorded. Review the evidence and listen before accepting the take.'));
+        } else {
+            renderUiMessage(document.getElementById('editor-line-speech-status'), formatUiSafetyText('safety.editor.speech.snapshot-changed', 'Speech recheck recorded, but the review snapshot changed. Refresh review for current evidence.'));
+        }
     } catch (error) {
         if (identity === getSpeechVerificationTargetIdentity(getEditorReviewTarget())) {
-            document.getElementById('editor-line-speech-status').textContent=t('editor.speech.unavailable', 'Speech recheck unavailable or cancelled. Saved audio is retained.');
+            setSpeechVerificationStatus(uiMessage('editor.speech.unavailable', 'Speech recheck unavailable or cancelled. Saved audio is retained.'));
             showActionError(t('editor.speech.error.title', 'Could not recheck speech'),error,t('editor.speech.error.recovery', 'Refresh review, inspect the recorded input, and check cached CPU model availability.'));
         }
     } finally {
         speechVerificationBusy=false;window.applySpeechVerificationInspector();
         if (identity !== getSpeechVerificationTargetIdentity(getEditorReviewTarget())) {
-            document.getElementById('editor-line-speech-status').textContent=t('editor.speech.other-selection', 'Recheck finished for a different selection. Refresh review for current evidence.');
+            setSpeechVerificationStatus(uiMessage('editor.speech.other-selection', 'Recheck finished for a different selection. Refresh review for current evidence.'));
         }
     }
 }

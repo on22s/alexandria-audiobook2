@@ -5,14 +5,18 @@ let editorRepairOptionsRevision = null;
 let editorRepairRequest = 0;
 let editorRepairBusy = false;
 
+// Keyed so a locale repaint repaints the live announcement instead of the
+// markup's default status; renderUiMessage also clears the key for runtime text.
+function setEditorRepairStatus(message) {
+    renderUiMessage(document.getElementById('editor-repair-status'), message);
+}
+
 function resetEditorRepairPreview() {
     editorRepairRequest++;
     editorRepairPreview = null;
     document.getElementById('editor-repair-start').disabled = true;
     document.getElementById('editor-repair-lines').replaceChildren();
-    const status = document.getElementById('editor-repair-status');
-    status.textContent = t('editor.repair.selection-changed', 'Selection changed. Preview again before rendering.');
-    return status;
+    setEditorRepairStatus(uiMessage('editor.repair.selection-changed', 'Selection changed. Preview again before rendering.'));
 }
 
 function getEditorRepairFilters() {
@@ -22,7 +26,7 @@ function getEditorRepairFilters() {
 }
 
 async function loadEditorRepairOptions() {
-    const status = resetEditorRepairPreview();
+    resetEditorRepairPreview();
     const request = editorRepairRequest;
     const book = chunkSnapshotBookToken;
     const chapters = document.getElementById('editor-repair-chapter');
@@ -40,7 +44,7 @@ async function loadEditorRepairOptions() {
         speakers.replaceChildren();
         for (const speaker of result.speakers) { speakers.add(new Option(speaker || t('editor.repair.unknown-speaker', '(Unknown speaker)'), speaker)); }
         document.getElementById('editor-repair-note').textContent = result.grouping_note;
-        status.textContent = t('editor.repair.choose', 'Choose speakers and preview. Loading options does not start generation.');
+        setEditorRepairStatus(uiMessage('editor.repair.choose', 'Choose speakers and preview. Loading options does not start generation.'));
     } catch (error) {
         if (request === editorRepairRequest) {
             showActionError(t('editor.repair.load-error', 'Could not load repair options'), error, t('editor.repair.load-recovery', 'Refresh Editor and load the current options again.'), 'error');
@@ -48,7 +52,7 @@ async function loadEditorRepairOptions() {
             editorRepairOptionsRevision = null;
             chapters.replaceChildren(new Option(t('editor.repair.entire-book', 'Entire book'), ''));
             speakers.replaceChildren();
-            status.textContent = t('editor.repair.options-load-failed', 'Repair options could not be loaded. The listed chapters and speakers may belong to a previous book; refresh Editor and load options again.');
+            setEditorRepairStatus(uiMessage('editor.repair.options-load-failed', 'Repair options could not be loaded. The listed chapters and speakers may belong to a previous book; refresh Editor and load options again.'));
         }
     }
 }
@@ -79,10 +83,10 @@ async function previewEditorRepair() {
             list.appendChild(item);
         }
         document.getElementById('editor-repair-start').disabled = !result.rows.length;
-        document.getElementById('editor-repair-status').textContent = t('editor.repair.preview-summary', '{lines} non-empty lines selected; {rendered} have saved audio paths that may be replaced. Review every selected line before continuing.', {lines: result.rows.length, rendered: result.rendered_count});
+        setEditorRepairStatus(uiMessage('editor.repair.preview-summary', '{lines} non-empty lines selected; {rendered} have saved audio paths that may be replaced. Review every selected line before continuing.', {lines: result.rows.length, rendered: result.rendered_count}));
     } catch (error) {
         if (request === editorRepairRequest) {
-            document.getElementById('editor-repair-status').textContent = t('editor.repair.preview-failed', 'Preview failed. Refresh and preview again.');
+            setEditorRepairStatus(uiMessage('editor.repair.preview-failed', 'Preview failed. Refresh and preview again.'));
             showActionError(t('editor.repair.preview-error', 'Could not preview repair'), error, t('editor.repair.preview-recovery', 'Check your selection and refresh Editor.'), 'error');
         }
     } finally { editorRepairBusy = false; }
@@ -109,13 +113,20 @@ async function generateEditorRepair() {
     if (editorRepairBusy || !editorRepairPreview || isRenderingAll) { return; }
     editorRepairBusy = true;
     document.getElementById('editor-repair-start').disabled = true;
-    let started = false;
-    try { await startRender(true, editorRepairPreview); started = true; }
+    const request = editorRepairRequest;
+    const book = chunkSnapshotBookToken;
+    const preview = editorRepairPreview;
+    let dispatched = false;
+    try { dispatched = await startRender(true, preview) === true; }
     finally {
         editorRepairBusy = false;
-        const status = resetEditorRepairPreview();
-        if (!started) {
-            status.textContent = t('editor.repair.render-not-started', 'The repair render did not start. Review the error, then preview the selection again.');
+        // A render owned by a previous book/context must not clear this book's
+        // options or overwrite its live status when it finally settles.
+        if (request === editorRepairRequest && book === chunkSnapshotBookToken && preview === editorRepairPreview) {
+            resetEditorRepairPreview();
+            if (!dispatched) {
+                setEditorRepairStatus(uiMessage('editor.repair.render-not-started', 'The repair render did not start. Review the error, then preview the selection again.'));
+            }
         }
     }
 }
