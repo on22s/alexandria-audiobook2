@@ -7404,6 +7404,15 @@
     , "tests.test_japanese_asr_cache.JapaneseAsrCacheTests.test_valid_real_format_good_and_poor_measurements_skip_without_model_or_generation"
   ]
   , "test_japanese_text_boundary": []
+  , "test_journal_identity_readers": [
+    "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_other_source_selection_retires_old_snapshot"
+    , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_same_source_selection_keeps_validated_progress_and_chunks_readable"
+    , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_selection_over_already_stale_journal_preserves_raw_evidence"
+    , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_torn_tail_is_backed_up_and_journal_retired_with_progress"
+    , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_editor_integrity_and_merge_report_actionable_conflict"
+    , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_exports_refuse_before_enqueue_and_preview_reports_conflict"
+    , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_startup_recovery_survives_a_stale_journal"
+  ]
   , "test_judge_reason_contract": [
     "tests.test_judge_reason_contract.JudgeReasonContractTests.test_existing_speaker_gate_still_rejects_even_with_evidence"
     , "tests.test_judge_reason_contract.JudgeReasonContractTests.test_missing_empty_or_wrong_type_reason_cannot_be_accepted_or_append"
