@@ -638,6 +638,7 @@ def publish_generated_script(data_dir, expected_token, expected_source_path,
             if blocker:
                 raise ValueError(f'Generation completion evidence is invalid: {blocker}; edits were preserved')
             manifest['status'] = 'complete'
+            manifest['completion']['status'] = 'complete'
             manifest['publication'] = {
                 'run_id': expected_run_id,
                 'script_sha256': hashlib.sha256(script_bytes).hexdigest(),

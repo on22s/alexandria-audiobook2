@@ -158,6 +158,24 @@ ctx.renderScriptRecovery(null);assert.strictEqual(panel.innerHTML,'');assert.str
                 self.assertIsNone(payload['unchecked_count'])
                 self.assertFalse(payload['unchecked_count_valid'])
 
+    def test_explicit_null_pass_status_is_invalid_but_omitted_legacy_is_not(self):
+        for label, passes, valid in (
+                ('null', {'attribute': {'status': None, 'unchecked_entries': 0}}, False),
+                ('omitted_legacy', {'attribute': {'unchecked_entries': 0}}, True)):
+            with self.subTest(label=label), \
+                    transactions.ScriptRecoveryTransactionTests().fixture() as (root, path):
+                manifest_path = Path(script.three_pass_manifest_path(path))
+                manifest = json.loads(manifest_path.read_text())
+                manifest['passes'] = passes
+                manifest_path.write_text(json.dumps(manifest))
+                api = FastAPI(); api.include_router(script.router)
+                with TestClient(api) as client:
+                    response = client.get('/api/generate_script/recovery')
+                self.assertEqual(200, response.status_code)
+                payload = response.json()
+                self.assertTrue(payload['recoverable'])
+                self.assertEqual(valid, payload['unchecked_count_valid'])
+
     def test_optional_reader_waits_for_complete_native_publication(self):
         from tests.test_support import intercept_book_publications
         with transactions.ScriptRecoveryTransactionTests().fixture() as (_root, path):

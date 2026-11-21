@@ -1441,14 +1441,25 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
             # The temporary name may have been edited or replaced while the
             # update failed. An inode match is not enough to authorize deletion.
     check_expected_version()
-    if on_publish_attempt is not None:
-        on_publish_attempt()
+    replace_started = []
+    def before_committed_replace():
+        # Portable writers stage through a text/byte temp of their own. Move the
+        # rollback-capable guard to after that durable staged write and
+        # immediately before its replace, matching the descriptor path: a source
+        # edit in the staging window is refused while the destination is intact.
+        check_expected_version()
+        if on_publish_attempt is not None:
+            on_publish_attempt()
+        replace_started.append(True)
     try:
-        save_adapter_publication_bytes(str(path), bytes(payload))
+        save_adapter_publication_bytes(str(path), bytes(payload),
+                                       before_replace=before_committed_replace)
         return verify_published(_book_target_version(path))
     except Exception as error:
-        raise BookJournalPublicationUncertain(
-            'Book transaction journal update is uncertain; evidence was preserved') from error
+        if replace_started:
+            raise BookJournalPublicationUncertain(
+                'Book transaction journal update is uncertain; evidence was preserved') from error
+        raise
 
 
 @_refuse_book_io('Active-book journal could not be read')

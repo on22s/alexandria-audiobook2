@@ -3922,12 +3922,22 @@ def get_output_paths(data_dir, requested_output=None):
             os.path.join(data_dir, "chunks.json"))
 
 
+def _has_explicit_null_pass_status(pass_info):
+    """An explicit null pass status is invalid; an omitted one is legacy.
+
+    Older manifests omit the status field entirely. Using .get() would treat an
+    explicit null the same as that supported legacy shape, so the distinction
+    has one authority shared by publication and the recovery GET.
+    """
+    return 'status' in pass_info and pass_info['status'] is None
+
+
 def get_three_pass_unchecked_count(manifest):
     """Number of quality-rejected kept attributions recorded in a manifest.
 
-    A malformed pass mapping (including a string count) is refused, not silently
-    counted as zero: every unchecked row must be rejected independently of the
-    other publication checks.
+    A malformed pass mapping (including a string count or an explicit null pass
+    status) is refused, not silently counted as zero: every unchecked row must
+    be rejected independently of the other publication checks.
     """
     passes = manifest.get("passes") if isinstance(manifest, dict) else None
     if passes is None:
@@ -3938,6 +3948,8 @@ def get_three_pass_unchecked_count(manifest):
     for pass_info in passes.values():
         if not isinstance(pass_info, dict):
             raise ValueError('generation pass mapping is invalid')
+        if _has_explicit_null_pass_status(pass_info):
+            raise ValueError('generation pass status is null')
         value = pass_info.get('unchecked_entries', 0)
         if type(value) is not int or value < 0:
             raise ValueError('unchecked attribution count is invalid')
@@ -4050,6 +4062,8 @@ def get_three_pass_publication_blocker(manifest, *, expected_run_id=None,
     for pass_info in passes.values():
         if not isinstance(pass_info, dict):
             return 'generation pass mapping is invalid'
+        if _has_explicit_null_pass_status(pass_info):
+            return 'generation pass status is null'
         if pass_info.get('status') not in (None, 'complete'):
             return f"generation pass status is {pass_info['status']!r}"
     try:
@@ -4465,8 +4479,11 @@ def main():
                                  complete_manifest=True,
                                  before_replace=require_source_unchanged)
     else:
+        # script_bytes above is the exact byte sequence the manifest is bound
+        # to. Pin the text writer's newline so a native-CRLF platform cannot
+        # emit different bytes than the digest that was validated.
         atomic_json_write(entries, output_path, allow_nonatomic_fallback=False,
-                          before_replace=require_source_unchanged)
+                          newline="\n", before_replace=require_source_unchanged)
     print(f"Wrote {len(entries)} entries to {output_path}")
     if args.active_book_token is None and chunks_path is not None and remove_chunk_snapshot(chunks_path):
         print("Cleared old chunks.json")

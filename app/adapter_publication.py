@@ -191,7 +191,7 @@ def get_adapter_bundle_sha256(root, cancel_check=None):
     return hashlib.sha256(encoded).hexdigest()
 
 
-def save_adapter_publication_bytes(path, data, mode=None):
+def save_adapter_publication_bytes(path, data, mode=None, before_replace=None):
     fd, temporary = tempfile.mkstemp(prefix=".publication-", dir=os.path.dirname(path))
     try:
         with os.fdopen(fd, "wb") as handle:
@@ -200,6 +200,12 @@ def save_adapter_publication_bytes(path, data, mode=None):
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
+        # The staged bytes are durable here. A caller-supplied guard runs at the
+        # last rollback point, immediately before the replace makes them
+        # visible, so a source edit during staging is detected while the
+        # original destination is still intact. Ordinary writers pass none.
+        if before_replace is not None:
+            before_replace()
         os.replace(temporary, path)
         sync_adapter_directory(os.path.dirname(path))
     finally:

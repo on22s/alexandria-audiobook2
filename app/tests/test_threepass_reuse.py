@@ -12,6 +12,7 @@ Every rejection below is a way a manifest can exist and still not be evidence,
 and each is tested separately so a future loosening of one cannot be hidden by
 the others passing.
 """
+import hashlib
 import json
 import os
 import tempfile
@@ -79,6 +80,42 @@ class ReuseTest(unittest.TestCase):
 
     def test_a_manifest_with_no_chunk_total_is_not_reusable(self):
         out = self._arm(".threepass_manifest.json", manifest(total=None, done=None))
+        self.assertFalse(_is_reusable(out, MODEL))
+
+    def test_manifest_claiming_new_digest_after_failed_replacement_is_not_reusable(self):
+        """The prior script survived; the manifest claims different bytes."""
+        out = self._arm(".threepass_manifest.json", manifest())
+        with open(out, "rb") as handle:
+            prior = handle.read()
+        record = manifest()
+        record["completion"] = {"script_sha256": hashlib.sha256(b"new run").hexdigest()}
+        with open(out + ".threepass_manifest.json", "w", encoding="utf-8") as handle:
+            json.dump(record, handle)
+        self.assertFalse(_is_reusable(out, MODEL))
+        with open(out, "rb") as handle:
+            self.assertEqual(prior, handle.read())
+
+    def test_manifest_digest_matching_the_script_is_reusable(self):
+        out = self._arm(".threepass_manifest.json", manifest())
+        with open(out, "rb") as handle:
+            digest = hashlib.sha256(handle.read()).hexdigest()
+        record = manifest()
+        record["completion"] = {"script_sha256": digest}
+        with open(out + ".threepass_manifest.json", "w", encoding="utf-8") as handle:
+            json.dump(record, handle)
+        self.assertTrue(_is_reusable(out, MODEL))
+
+    def test_legacy_manifest_without_completion_digest_is_still_reusable(self):
+        out = self._arm(".threepass_manifest.json", manifest())
+        self.assertNotIn("completion", manifest())
+        self.assertTrue(_is_reusable(out, MODEL))
+
+    def test_manifest_with_malformed_digest_is_not_reusable(self):
+        out = self._arm(".threepass_manifest.json", manifest())
+        record = manifest()
+        record["completion"] = {"script_sha256": "not-a-digest"}
+        with open(out + ".threepass_manifest.json", "w", encoding="utf-8") as handle:
+            json.dump(record, handle)
         self.assertFalse(_is_reusable(out, MODEL))
 
     # --- the single-pass arm must behave exactly as before ----------------
