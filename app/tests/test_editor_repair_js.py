@@ -8,6 +8,7 @@ from tests.test_ui_help_js import DOM_FIXTURE
 
 STATIC = Path(__file__).resolve().parent.parent/'static'
 UI_SETUP = r'''
+vm.runInContext(fs.readFileSync(process.argv[1].replace('app-editor-repair.js','app-i18n.js'),'utf8'),context);
 Element.prototype.querySelector=function(s){return this.querySelectorAll(s)[0]||null;};
 Element.prototype.replaceChildren=function(...children){for(const child of [...this.children]){child.remove();}this.textContent='';for(const child of children){this.appendChild(child);}};
 Element.prototype.add=function(child){this.appendChild(child);};
@@ -43,6 +44,31 @@ await context.generateEditorRepair();assert.equal(starts.length,1);assert.equal(
 await context.loadEditorRepairOptions();await context.previewEditorRepair();assert.equal(posts.length,0);assert.equal(errors.length,1);
 document.getElementById('editor-repair-speakers').children[0].selected=true;let release;context.API.post=()=>new Promise(resolve=>release=resolve);const first=context.previewEditorRepair();await tick();const duplicate=context.previewEditorRepair();context.chunkSnapshotBookToken='d'.repeat(64);release({book_token:'b'.repeat(64),rows:[row]});await Promise.all([first,duplicate]);await context.generateEditorRepair();assert.equal(starts.length,0);
 context.chunkSnapshotBookToken='b'.repeat(64);context.API.post=async()=>({book_token:'b'.repeat(64),rows:[row],repair_revision:'c'.repeat(64),rendered_count:1});await context.previewEditorRepair();document.getElementById('editor-repair-chapter').value='0';assert.throws(()=>context.getEditorRepairSelection([row],vm.runInContext('editorRepairPreview',context)),/selection changed/);assert.equal(starts.length,0);
+''')
+
+    def test_failed_options_load_clears_stale_pickers_and_reports_the_real_reason(self):
+        self.run_ui(r'''
+context.API.get=async()=>{throw new Error('repair options unreadable');};
+await context.loadEditorRepairOptions();
+const status=document.getElementById('editor-repair-status');
+assert(status.textContent.includes('could not be loaded'),status.textContent);
+assert(!status.textContent.includes('Selection changed'),status.textContent);
+assert.equal(document.getElementById('editor-repair-chapter').children.length,1);
+assert.equal(document.getElementById('editor-repair-speakers').children.length,0);
+assert.equal(vm.runInContext('editorRepairBook',context),null);
+assert.equal(vm.runInContext('editorRepairOptionsRevision',context),null);
+''')
+
+    def test_refused_render_start_reports_refusal_not_selection_change(self):
+        self.run_ui(r'''
+await context.loadEditorRepairOptions();document.getElementById('editor-repair-speakers').children[0].selected=true;
+await context.previewEditorRepair();assert.equal(starts.length,0);
+context.startRender=async()=>{throw new Error('GPU busy');};
+try { await context.generateEditorRepair(); } catch (error) { assert.equal(error.message,'GPU busy'); }
+const status=document.getElementById('editor-repair-status');
+assert(status.textContent.includes('did not start'),status.textContent);
+assert(!status.textContent.includes('Selection changed'),status.textContent);
+assert.equal(document.getElementById('editor-repair-start').disabled,true);
 ''')
 
     def run_render(self, code):

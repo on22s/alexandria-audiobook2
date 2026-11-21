@@ -6,6 +6,7 @@ from tests.test_ui_help_js import DOM_FIXTURE
 
 SOURCE = Path(__file__).resolve().parent.parent / 'static/js/app-take-history.js'
 SETUP = r'''
+vm.runInContext(fs.readFileSync(process.argv[1].replace('app-take-history.js','app-i18n.js'),'utf8'),context);
 context.window=context;context.URLSearchParams=URLSearchParams;
 Element.prototype.replaceChildren=function(...nodes){for(const child of [...this.children]){child.remove();}this.textContent='';for(const child of nodes){this.appendChild(child);}};
 Element.prototype.append=function(...nodes){for(const child of nodes){this.appendChild(child);}};
@@ -58,6 +59,17 @@ dirty=false;const pending=context.loadEditorTakeSnapshots();assert.equal(gets.le
 dirty=true;gets[0].resolve(result());await pending;assert.equal(document.getElementById('editor-take-list').children.length,0);
 dirty=false;const retry=context.loadEditorTakeSnapshots();gets[1].reject(Error('Archive unavailable'));await retry;
 assert.equal(errors.length,1);assert.equal(selected.chunk.audio_revision,'r1');assert.equal(posts.length,0);
+''')
+
+    def test_failed_load_replaces_stale_count_status_and_clears_committed_identity(self):
+        self.run_js(r'''
+const first=context.loadEditorTakeSnapshots();await tick();gets[0].resolve(result());await first;
+const status=document.getElementById('editor-take-status');assert(status.textContent.includes('saved snapshots in this view'));
+assert(vm.runInContext('takeHistoryIdentity',context));
+const failed=context.loadEditorTakeSnapshots();await tick();gets[1].reject(Error('Archive unavailable'));await failed;
+assert.equal(errors.length,1);assert.equal(document.getElementById('editor-take-list').children.length,0);
+assert(status.textContent.includes('could not be loaded'));assert(status.textContent.includes('list is empty'));
+assert.equal(vm.runInContext('takeHistoryIdentity',context),null);
 ''')
 
     def test_candidate_evidence_is_labelled_historical_missing_or_unavailable(self):

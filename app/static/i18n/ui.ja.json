@@ -594,7 +594,6 @@
   "core.editor.suggest-gap-action": "間を提案",
   "core.editor.suggest-gap-title": "任意の間の提案です。正確な NARRATOR 話者ラベルを使用します。明示的な停止は置き換えません。",
   "core.editor.text-line": "行 {line} のテキスト",
-  "core.editor.update-failed": "チャンクを更新できませんでした",
   "core.editor.voice-change": "ここで声が変わります：この行以降、この登場人物は別の声になります（時間跳躍、加齢）",
   "core.eta.unavailable": "ステータスを取得できません。タスクはまだ実行中の可能性があります",
   "core.eta.with-elapsed": "{label}（実行中 {elapsed}）",
@@ -6513,5 +6512,13 @@
   "script.review.context-mode.aria.entries": "コンテキストはエントリ数で測定中。有効化すると文字数に切り替わります。",
   "script.review.context-mode.chars": "文字",
   "script.review.context-mode.entries": "エントリ",
-  "help.item.btn-review-context-mode": "エントリ数と文字数を切り替えます。各モードは別々の値を保持します。モードや値を変更すると新しいレビューとみなされ、完了済みのレビューは再利用されず、一時停止中のレビューも新しい設定では再開されません。既定値（4 エントリ）は以前のレビューと同じなので、それらは再実行されません。"
+  "help.item.btn-review-context-mode": "エントリ数と文字数を切り替えます。各モードは別々の値を保持します。モードや値を変更すると新しいレビューとみなされ、完了済みのレビューは再利用されず、一時停止中のレビューも新しい設定では再開されません。既定値（4 エントリ）は以前のレビューと同じなので、それらは再実行されません。",
+  "take.status.load-failed": "スナップショットを読み込めませんでした。再読み込みが成功するまでリストは空です。",
+  "take.status.loading": "保存済みスナップショットを読み込んでいます…",
+  "editor.repair.options-load-failed": "修復オプションを読み込めませんでした。表示されている章と話者は前の本のものかもしれません。Editor を更新してオプションを再読み込みしてください。",
+  "editor.repair.render-not-started": "修復レンダリングが開始されませんでした。エラーを確認してから、選択内容を再度プレビューしてください。",
+  "core.editor.save-line-failed": "この行を保存できませんでした",
+  "core.editor.save-line-recovery": "報告された問題を修正し、この行を再度編集して保存してください。拒否が続く場合は Editor を再読み込みしてください。",
+  "editor.integrity.save-failed": "{count} 件の行編集が保存に失敗しました — {reason}",
+  "editor.integrity.save-failed-one": "{line} 行目の保存に失敗しました — {reason}"
 }
