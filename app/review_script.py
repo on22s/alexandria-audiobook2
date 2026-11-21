@@ -34,7 +34,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config, get_review_labels_only
 from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
-                          get_run_fingerprint_identity, resolve_client_api_key)
+                          get_run_fingerprint_identity, resolve_api_key, resolve_client_api_key)
 from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SPAN_ALGORITHM_VERSION,
     get_review_entries_fingerprint, get_review_sidecar_identity, get_completed_review_match,
     get_review_progress_paths, get_review_receipt_path, save_completed_review_receipt,
@@ -371,7 +371,7 @@ def get_review_remaining_windows(review_windows, entries, resume_offset):
 
 
 def get_completed_review_fingerprint(config, llm_config, params, args, client, model_name, source_text=None,
-                                     *, entries=()):
+                                      *, entries=(), legacy=False):
     generation_config = config.get('generation') or {}
     batch_size, target_chars = get_review_batching(generation_config)
     profiles = []
@@ -384,7 +384,12 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         # Manual profile has no SDK key) or collapse an omitted legacy key into
         # a blank one. resolve_client_api_key is the same helper make_llm_client
         # uses, so a profile the client accepts can never fail fingerprinting.
-        profiles[-1]['resolved_api_key'] = resolve_client_api_key(profile)
+        # `legacy` rebuilds the pre-fix digest for narrow historical matching.
+        if legacy:
+            profiles[-1]['resolved_api_key'] = resolve_api_key(
+                profile.get('api_key'), profile.get('base_url', ''))
+        else:
+            profiles[-1]['resolved_api_key'] = resolve_client_api_key(profile)
     identity = {'algorithm': REVIEW_ALGORITHM_VERSION, 'profiles': profiles,
         'model_binding': get_run_model_binding(client, model_name),
         'params': {field.name: getattr(params, field.name) for field in fields(params) if field.compare
@@ -417,6 +422,27 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
                                             if source_text is not None else None)
     # Store only a digest, never profile credentials or private headers.
     return get_review_entries_fingerprint(get_run_fingerprint_identity(identity))
+
+
+def get_legacy_review_fingerprint(config, llm_config, params, args, client, model_name,
+                                  source_text=None, *, entries=()):
+    """The pre-fix digest for effectively unchanged profiles, else None.
+
+    ``resolve_client_api_key`` replaced ``resolve_api_key`` in the receipt. The
+    only profiles where that changes the digest without changing the effective
+    settings are a Manual profile (no SDK key) and an absent/unused secondary.
+    Accepting the old digest for exactly those cases keeps receipts written by
+    the previous release valid after an upgrade, without letting any other
+    profile - or any credential-bearing value - be reused across profiles.
+    """
+    if llm_config.get("transport") != "manual" and get_failover_llm_config(config):
+        return None
+    try:
+        return get_completed_review_fingerprint(
+            config, llm_config, params, args, client, model_name, source_text,
+            entries=entries, legacy=True)
+    except Exception:
+        return None
 
 
 REVIEW_EDIT_COUNTERS = ('text_changed', 'speaker_changed', 'instruct_changed', 'annotations_changed',
@@ -2381,7 +2407,12 @@ def main():
     review_source_identity = review_source_snapshot['identity'] if review_source_snapshot is not None else None
     receipt_fingerprint = get_completed_review_fingerprint(config, llm_config, gen_params, args, client,
                                                          model_name, review_source_text, entries=entries)
-    matched, receipt_reason = get_completed_review_match(script_path, output_path, source_sha256, receipt_fingerprint)
+    legacy_fingerprint = get_legacy_review_fingerprint(config, llm_config, gen_params, args, client,
+                                                       model_name, review_source_text, entries=entries)
+    legacy_fingerprints = (() if legacy_fingerprint in (None, receipt_fingerprint)
+                           else (legacy_fingerprint,))
+    matched, receipt_reason = get_completed_review_match(
+        script_path, output_path, source_sha256, receipt_fingerprint, legacy_fingerprints)
     if matched and not args.force_review:
         print(receipt_reason)
         print(f"Review complete: {len(entries)} -> {len(entries)} entries")

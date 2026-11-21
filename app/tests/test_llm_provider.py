@@ -59,8 +59,10 @@ class ProviderRequestSettingsTest(unittest.TestCase):
             self.assertEqual(result['category'], 'context_budget')
             self.assertFalse(result['retryable'])
         error = SimpleNamespace(status_code=400, body={'error': {'code': 'invalid_api_key'}})
-        self.assertEqual(classify_llm_error(error)['category'], 'api_error')
-        self.assertTrue(classify_llm_error(error)['retryable'])
+        result = classify_llm_error(error)
+        self.assertEqual(result['category'], 'api_error')
+        self.assertFalse(result['retryable'],
+                         'a deterministic 400 must not burn retries like a context rejection')
 
     def test_profile_keeps_json_provider_options(self):
         profile = LLMConfig(
@@ -538,6 +540,88 @@ class CredentialProfilePolicyTests(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertEqual(["sk-synthetic", "sk-synthetic"], seen,
                          "Setup Test and Models must resolve keys like generation does")
+
+    def test_explicit_authorization_wins_over_unused_keys_in_both_spellings(self):
+        from types import SimpleNamespace
+        for header_name in ("authorization", "AUTHORIZATION"):
+            with self.subTest(header_name=header_name):
+                seen, clients = [], []
+
+                def handler(request):
+                    seen.append([(name, value) for name, value in request.headers.items()
+                                 if name.lower() == "authorization"])
+                    return self._completion()
+
+                profile = {"base_url": "https://hosted.invalid/v1",
+                           "api_key": "sk-unused-fixture",
+                           "provider_headers": {header_name: "Token configured-fixture"}}
+                with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-env-fixture"}, clear=False), \
+                        patch("llm_provider.OpenAI", self._sdk_factory(handler, clients)):
+                    client = make_llm_client(profile, timeout=5)
+                    client.chat.completions.create(
+                        model="m", messages=[{"role": "user", "content": "hi"}])
+                self.assertEqual("local", clients[0].api_key)
+                self.assertEqual(["Token configured-fixture"], [value for _, value in seen[0]],
+                                 "only the configured header may be sent, never a derived bearer")
+                self.assertEqual("local", resolve_client_api_key(profile),
+                                 "an unused key must not enter receipt/benchmark identity")
+                self.assertNotIn("sk-unused-fixture", str(seen))
+                self.assertNotIn("sk-env-fixture", str(seen))
+
+    def test_deterministic_4xx_terminal_transient_retryable(self):
+        from types import SimpleNamespace
+        terminal = (400, 405, 410, 413, 422)
+        transient = (408, 409, 429, 503)
+        for status in terminal + transient:
+            with self.subTest(status=status):
+                calls, clients = [], []
+
+                def handler(request, status=status):
+                    calls.append(request)
+                    return httpx2.Response(status, headers={"x-should-retry": "true"}, json={
+                        "error": {"message": "fixture", "type": "invalid_request_error"}})
+
+                with patch("llm_provider.OpenAI", self._sdk_factory(handler, clients)):
+                    client = make_llm_client({"base_url": "https://hosted.invalid/v1",
+                                              "api_key": "fixture"}, timeout=5)
+                    with self.assertRaises(Exception):
+                        client.chat.completions.create(
+                            model="m", messages=[{"role": "user", "content": "hi"}])
+                if status in terminal:
+                    self.assertEqual(1, len(calls), "a deterministic 4xx must not be retried")
+                else:
+                    self.assertGreater(len(calls), 1, "a transient status keeps SDK recovery")
+                details = classify_llm_error(SimpleNamespace(
+                    status_code=status, body={"error": {"code": "bad_request"}}))
+                self.assertEqual(details["retryable"], status in transient)
+
+    def test_setup_test_config_failure_has_no_outbound_request_and_redacts(self):
+        import asyncio
+        from config_settings import LLMConfig
+        from routers import system as system_routes
+
+        calls = []
+
+        def handler(request):
+            calls.append(request)
+            return self._completion()
+
+        with patch("llm_provider.OpenAI", self._sdk_factory(handler, [])), \
+                patch.dict("os.environ", {"OPENAI_API_KEY": "sk-synthetic"}, clear=False):
+            direct = system_routes._run_llm_test(
+                {"base_url": "https://api.deepseek.com/v1", "api_key": "", "model_name": "m"})
+            with patch.object(system_routes, "claim_gpu_task", return_value="claim-fixture") as claim, \
+                    patch.object(system_routes, "release_gpu_task_claim") as release:
+                routed = asyncio.run(system_routes.llm_test(
+                    LLMConfig(base_url="https://api.deepseek.com/v1", api_key="", model_name="m")))
+        for result in (direct, routed):
+            self.assertFalse(result["ok"])
+            self.assertEqual("config", result["step"])
+            self.assertNotIn("log_file", result, "no request was sent, so no log is needed")
+            self.assertNotIn("sk-synthetic", result["error"])
+        self.assertEqual([], calls, "a config error must make zero outbound requests")
+        claim.assert_called_once_with("llm_test")
+        release.assert_called_once_with("llm_test", "claim-fixture")
 
 
 if __name__ == "__main__":

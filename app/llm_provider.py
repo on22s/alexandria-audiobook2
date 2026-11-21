@@ -33,17 +33,22 @@ class MissingAPIKeyError(ValueError):
     """
 
 
+_DETERMINISTIC_ERROR_STATUSES = frozenset({400, 401, 403, 404, 405, 410, 413, 422})
+
+
 class _DeterministicErrorOpenAI(_SDKOpenAI):
     """SDK transport retries are for transient failures only.
 
-    The SDK honours a provider's ``x-should-retry: true`` even on 401/403/404,
-    which would repeat a deterministic failure before the app ever classifies
-    it. Those three statuses are terminal here; 429, 5xx, timeouts and every
-    other SDK-retryable condition keep their normal recovery.
+    The SDK honours a provider's ``x-should-retry: true`` even on deterministic
+    4xx responses, which would repeat a bad request before the app ever
+    classifies it. Invalid requests, auth/model mistakes and missing methods or
+    resources are terminal here; 408/409/429, 5xx, timeouts and every other
+    transient condition keep their normal recovery. ``classify_llm_error`` uses
+    the same status set for the app-level retry decision (Rule 15).
     """
 
     def _should_retry(self, response):
-        if getattr(response, "status_code", None) in (401, 403, 404):
+        if getattr(response, "status_code", None) in _DETERMINISTIC_ERROR_STATUSES:
             return False
         return super()._should_retry(response)
 
@@ -112,6 +117,19 @@ def resolve_api_key(configured, base_url=None):
         "(OPENAI_API_KEY is only used for the official OpenAI endpoint).")
 
 
+def get_explicit_authorization(llm_config):
+    """The configured Authorization header value (names are case-insensitive).
+
+    None means the profile has no explicit Authorization header. This is the
+    credential the request actually carries, so probes and the SDK must use it
+    verbatim rather than deriving a bearer from an unrelated api_key.
+    """
+    for name, value in get_provider_headers(llm_config).items():
+        if str(name).lower() == "authorization" and str(value).strip():
+            return str(value).strip()
+    return None
+
+
 def has_explicit_authorization_header(llm_config):
     """True when a profile explicitly configures a nonempty Authorization header.
 
@@ -120,32 +138,42 @@ def has_explicit_authorization_header(llm_config):
     still needs an api_key argument, but it must be a harmless placeholder and
     no unrelated environment key may be attached.
     """
-    return any(str(name).lower() == "authorization" and str(value).strip()
-               for name, value in get_provider_headers(llm_config).items())
+    return get_explicit_authorization(llm_config) is not None
 
 
 def resolve_client_api_key(llm_config):
     """The api_key the HTTP client for this profile actually uses.
 
-    Single source for client construction and profile fingerprints. A Manual
-    profile has no SDK key at all; an OMITTED key keeps the legacy "local"
-    placeholder exactly as make_llm_client has always defaulted it; an
-    explicitly blank key goes through resolve_api_key, except on a hosted
-    profile that carries its own Authorization header, where a harmless
-    placeholder keeps the SDK from inventing a bearer token. MissingAPIKeyError
-    still propagates for a genuinely keyless hosted profile - the real client
-    must refuse it too.
+    Single source for client construction, receipts and benchmark identity. The
+    order matters: a Manual profile has no SDK key, and an explicit nonempty
+    Authorization header authenticates the request on its own, so both return a
+    harmless placeholder BEFORE any api_key lookup. That lookup would otherwise
+    resolve (and record in a fingerprint) a credential the request never uses.
+    An OMITTED key keeps the legacy "local" placeholder; other values go through
+    resolve_api_key. MissingAPIKeyError still propagates for a genuinely keyless
+    hosted profile - the real client must refuse it too.
     """
     llm_config = llm_config or {}
     if llm_config.get("transport") == "manual":
         return "manual"
+    if has_explicit_authorization_header(llm_config):
+        return "local"
     configured = llm_config.get("api_key", "local")
-    try:
-        return resolve_api_key(configured, llm_config.get("base_url", ""))
-    except MissingAPIKeyError:
-        if has_explicit_authorization_header(llm_config):
-            return "local"
-        raise
+    return resolve_api_key(configured, llm_config.get("base_url", ""))
+
+
+def get_effective_authorization(llm_config):
+    """The exact Authorization header value this profile sends, or None.
+
+    One answer for the SDK, the native runtime probe and the adapter probe: an
+    explicit header wins verbatim; otherwise the effective SDK key is sent as a
+    bearer. Never store this in a receipt or fingerprint - it is a credential.
+    """
+    explicit = get_explicit_authorization(llm_config)
+    if explicit is not None:
+        return explicit
+    key = resolve_client_api_key(llm_config)
+    return f"Bearer {key}" if key else None
 
 
 def is_openai_reasoning_model(model_name):
@@ -250,6 +278,11 @@ def classify_llm_error(error):
         return {"category": "auth", "status_code": status_code, "retryable": False}
     if status_code == 404:
         return {"category": "not_found", "status_code": status_code, "retryable": False}
+    if status_code in (400, 405, 410, 413, 422):
+        # A malformed request, wrong method, gone resource, oversized body or
+        # schema refusal will fail identically on a retry. Keep the established
+        # api_error category but stop retrying; 408/409/429/5xx stay retryable.
+        return {"category": "api_error", "status_code": status_code, "retryable": False}
     error_type = type(error).__name__.lower()
     if "timeout" in error_type:
         return {"category": "timeout", "status_code": status_code, "retryable": True}
@@ -452,7 +485,8 @@ class FailoverClient:
                     status = get_current_status(
                         self._pair[1][2], config.get("base_url", ""), self.secondary_model,
                         ssh_alias=self._ssh_alias,
-                        api_key=resolve_client_api_key(config))
+                        api_key=resolve_client_api_key(config),
+                        authorization=get_effective_authorization(config))
                 except Exception as error:
                     status = {"available": False, "loaded": False,
                               "runtime_error": f"{type(error).__name__}: {error}"}
