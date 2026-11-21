@@ -168,7 +168,8 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
             manifest = {'books': [{'name': 'book.txt', 'passages': [{
                 'category': 'opening', 'text': text, 'sha256': 'fixture'}]}]}
             url = ('https://fixture-user:fixture-password@host.example/v1'
-                   '?access_token=synthetic-query-secret&note=kept#frag-secret')
+                   '?access_token=synthetic-query-secret&note=kept'
+                   '&label=sk%2Dabcdefghijklmnop#frag-secret')
             config = {'llm_mode': 'local', 'llm_local': {
                 'base_url': url, 'model_name': 'fixture',
                 'attribution_adapter': {'path': '/optional.gguf', 'scale': 1}}}
@@ -186,7 +187,8 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
             with contextlib.redirect_stdout(log):
                 report = runner.run_manifest(manifest, str(output))
             body = output.read_text() + log.getvalue()
-            for secret in ('fixture-password', 'synthetic-query-secret', 'frag-secret'):
+            for secret in ('fixture-password', 'synthetic-query-secret', 'frag-secret',
+                           'abcdefghijklmnop'):
                 self.assertNotIn(secret, body)
             self.assertIn('[REDACTED]@host.example/v1', report['base_url'])
             self.assertIn('note=kept', report['base_url'])
@@ -200,9 +202,13 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
         from diagnostics import REDACTED, sanitize_url_for_display
         normal = 'https://host.example/v1?note=kept&page=2'
         self.assertEqual(normal, sanitize_url_for_display(normal))
-        leaky = 'https://host.example/v1?note=sk-abcdefghijklmnop'
-        self.assertNotIn('sk-abcdefghijklmnop', sanitize_url_for_display(leaky))
-        self.assertIn(REDACTED, sanitize_url_for_display(leaky))
+        for secret in ('sk-abcdefghijklmnop', 'sk%2Dabcdefghijklmnop'):
+            with self.subTest(encoded='%' in secret):
+                leaky = f'https://host.example/v1?note={secret}&page=2'
+                sanitized = sanitize_url_for_display(leaky)
+                self.assertNotIn('abcdefghijklmnop', sanitized)
+                self.assertIn(REDACTED, sanitized)
+                self.assertIn('page=2', sanitized)
         with patch('diagnostics.urlsplit', side_effect=ValueError('fixture malformed url')):
             self.assertEqual(REDACTED,
                 sanitize_url_for_display('https://host.example/v1?token=secret#frag'))
@@ -212,10 +218,10 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
         import io
         import lmstudio_settings
         url = ('https://fixture-user:fixture-password@host.example/v1'
-               '?access_token=synthetic-query-secret&note=kept#frag-secret')
+               '?note=kept&label=sk%2Dabcdefghijklmnop#frag-secret')
         native = {'runtime': 'llama.cpp', 'available': True, 'loaded': True,
                   'context_length': 8192, 'parallel': 1, 'optimized': None}
-        secrets = ('fixture-password', 'synthetic-query-secret', 'frag-secret')
+        secrets = ('fixture-password', 'abcdefghijklmnop', 'frag-secret')
         with patch.object(lmstudio_settings, 'get_llama_cpp_status', return_value=native):
             _, _, message = lmstudio_settings.ensure_ideal_settings('remote', url, 'fixture')
         for secret in secrets:
@@ -256,6 +262,7 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
             ('https://fixture-user:fixture-password@[::1]:8090/v1', 'https://[REDACTED]@[::1]:8090/v1'),
             ('https://fixture-user%40name:fixture-password%3Aextra@host.example/v1', 'https://[REDACTED]@host.example/v1'),
             ('https://host.example?note=visible@label', 'https://host.example?note=visible@label'),
+            ('//fixture-user:fixture-password@host.example/v1#fixture-fragment', '[REDACTED]'),
         )
         for url, expected in cases:
             with self.subTest(url=url), tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:

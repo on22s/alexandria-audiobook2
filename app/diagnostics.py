@@ -122,28 +122,25 @@ def sanitize_url_for_display(value):
     redacted URL still explains which endpoint was configured.
     """
     if not isinstance(value, str) or "://" not in value:
-        return get_redacted_credentials(value)
+        return REDACTED
     try:
         parts = urlsplit(value)
-    except (ValueError, TypeError):
-        return REDACTED
-    if not parts.scheme or not parts.netloc:
-        return REDACTED
-    try:
+        if not parts.scheme or not parts.netloc:
+            return REDACTED
         netloc = parts.netloc
         if "@" in netloc:
             netloc = REDACTED + "@" + netloc.rsplit("@", 1)[1]
+        # Match secret shapes on decoded keys and values before rendering
+        # them back to a query string. Encoded values can hide the prefix.
         pairs = parse_qsl(parts.query, keep_blank_values=True)
-        query = parts.query
-        if any(_key_is_sensitive(key) for key, _ in pairs):
-            query = urlencode([(key, REDACTED if _key_is_sensitive(key) else val)
-                               for key, val in pairs])
-        display = urlunsplit((parts.scheme, netloc, parts.path, query, ""))
+        scrubbed = [(get_redacted_credentials(key),
+                     REDACTED if _key_is_sensitive(key) else get_redacted_credentials(val))
+                    for key, val in pairs]
+        query = urlencode(scrubbed, safe="[]") if scrubbed != pairs else parts.query
+        endpoint = get_redacted_credentials(urlunsplit((parts.scheme, netloc, parts.path, "", "")))
     except (ValueError, TypeError):
         return REDACTED
-    # Ordinary parameters still get the generic credential-shape scrub: a
-    # secret-looking value under a harmless key must not survive display.
-    return get_redacted_credentials(display)
+    return f"{endpoint}?{query}" if query else endpoint
 
 
 def redact(obj, home_dir=None):
