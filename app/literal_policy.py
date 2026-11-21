@@ -28,6 +28,27 @@ def get_word_identity(texts):
     return {"words": count, "sha256": digest.hexdigest()}
 
 
+def is_literal_word_identity(value):
+    """Bounded positive word count with a full source-word digest."""
+    return (isinstance(value, dict) and set(value) == {'words', 'sha256'}
+            and type(value['words']) is int and 0 < value['words'] < 1_000_000_000
+            and isinstance(value['sha256'], str)
+            and re.fullmatch(r'[0-9a-f]{64}', value['sha256']) is not None)
+
+
+def is_literal_chunk_marker(marker):
+    """Shape emitted by bind_literal_chunks; ancestor digests stay valid."""
+    return (isinstance(marker, dict)
+            and set(marker) == {'version', 'source_policy_sha256', 'narration_words',
+                                'projection', 'boundary'}
+            and marker['version'] == POLICY_VERSION
+            and marker['boundary'] == 'before_speech_preparation'
+            and marker['projection'] == 'existing_project_speakable_entries_v1'
+            and isinstance(marker['source_policy_sha256'], str)
+            and re.fullmatch(r'[0-9a-f]{64}', marker['source_policy_sha256']) is not None
+            and is_literal_word_identity(marker['narration_words']))
+
+
 def get_literal_policy(entries):
     policies = [entry[SCRIPT_POLICY_KEY] for entry in entries
                 if isinstance(entry, dict) and SCRIPT_POLICY_KEY in entry]
@@ -40,10 +61,7 @@ def get_literal_policy(entries):
             or any(other != policy for other in policies)):
         raise ValueError("Invalid or conflicting literal-source policy")
     identity = policy.get("source_words")
-    if (not isinstance(identity, dict) or type(identity.get("words")) is not int
-            or identity["words"] < 1
-            or not isinstance(identity.get("sha256"), str)
-            or not re.fullmatch(r"[0-9a-f]{64}", identity["sha256"])
+    if (not is_literal_word_identity(identity)
             or not isinstance(policy.get("source_sha256"), str)
             or not re.fullmatch(r"[0-9a-f]{64}", policy["source_sha256"])):
         raise ValueError("Invalid literal-source identity")
@@ -59,11 +77,11 @@ def get_literal_policy(entries):
                 or any(not isinstance(scope[key], str) or not re.fullmatch(r'[0-9a-f]{64}', scope[key])
                        for key in ('parent_policy_sha256', 'prepared_source_sha256'))
                 or any(type(scope[key]) is not int for key in ('start_word','end_word','total_words'))
-                or not 0 < scope['start_word'] < scope['end_word'] == scope['total_words']
-                or identity['words'] != scope['end_word'] - scope['start_word']
-                or not isinstance(chunks, dict) or not chunks
-                or any(not isinstance(uid, str) or not uid or not isinstance(marker, dict)
-                       for uid, marker in chunks.items())):
+                 or not 0 < scope['start_word'] < scope['end_word'] == scope['total_words']
+                 or identity['words'] != scope['end_word'] - scope['start_word']
+                 or not isinstance(chunks, dict) or not chunks
+                 or any(not isinstance(uid, str) or not uid or not is_literal_chunk_marker(marker)
+                        for uid, marker in chunks.items())):
             raise ValueError('Invalid selected literal-source lineage')
     return copy.deepcopy(policy)
 

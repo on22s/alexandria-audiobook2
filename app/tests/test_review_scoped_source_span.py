@@ -9,11 +9,15 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from book_state_transaction import get_book_operation_token
 from dialogue_spans import _normalize, mark_entries
+from generate_script import get_preprocessed_source
 from literal_fidelity import _words
-from literal_policy import (SCRIPT_POLICY_KEY, bind_literal_policy, get_literal_policy,
-                            get_literal_policy_identity, get_word_identity)
+from literal_policy import (SCRIPT_POLICY_KEY, bind_literal_chunks, bind_literal_policy,
+                            get_literal_policy, get_literal_policy_identity, get_word_identity)
+from project_scope_literal import get_literal_scope
 import review_script as review
+from script_selection_binding import make_script_selection_binding
 from tests.test_pass_boundary_retry_regressions import client_for
 from tests.test_review_source_binding import row
 from tests.test_review_source_spans import create_book
@@ -27,21 +31,22 @@ NARRATOR_TEXT = ('At last the ledger was balanced.\n\n'
 START_ENTRY = 1
 NEW_SPEAKER = 'ARIA VANCE'
 ANNOTATIONS = {'speaker_gender': 'male', 'speaker_age_group': 'adult', 'speaker_ageless': True}
+RAW_ROWS = [
+    row('The council adjourned.', 'NARRATOR', instruct='Even.', spoken=False),
+    row('A bell rang.', 'NARRATOR', instruct='Even.', spoken=False),
+    row('She waited.', 'NARRATOR', instruct='Even.', spoken=False),
+    row('Nothing happened.', 'NARRATOR', instruct='Even.', spoken=False),
+    row('The door closed.', 'NARRATOR', instruct='Even.', spoken=False),
+    row(NARRATOR_TEXT, 'NARRATOR', instruct='Reflective.', spoken=False,
+        provenance={'section': 7}),
+    row('Night fell.', 'NARRATOR', instruct='Even.', spoken=False),
+    row('A soft chime sounded.', 'NARRATOR', instruct='Even.', spoken=False),
+]
 
 
 def make_scoped_book():
     """A synthetic retained script with a verified selected-source policy."""
-    source_rows = [
-        row('The council adjourned.', 'NARRATOR', instruct='Even.', spoken=False),
-        row('A bell rang.', 'NARRATOR', instruct='Even.', spoken=False),
-        row('She waited.', 'NARRATOR', instruct='Even.', spoken=False),
-        row('Nothing happened.', 'NARRATOR', instruct='Even.', spoken=False),
-        row('The door closed.', 'NARRATOR', instruct='Even.', spoken=False),
-        row(NARRATOR_TEXT, 'NARRATOR', instruct='Reflective.', spoken=False,
-            provenance={'section': 7}),
-        row('Night fell.', 'NARRATOR', instruct='Even.', spoken=False),
-        row('A soft chime sounded.', 'NARRATOR', instruct='Even.', spoken=False),
-    ]
+    source_rows = copy.deepcopy(RAW_ROWS)
     marked = mark_entries(source_rows, RAW)
     parent = get_literal_policy(bind_literal_policy(RAW, marked))
     words = list(_words(RAW))
@@ -80,11 +85,11 @@ def split_reply(batch):
     return answer
 
 
-def run_cli(batch, replies, config=None):
+def run_cli(batch, replies, config=None, *, raw=RAW):
     """Drive the real review entry point with a mock provider."""
     client, calls = client_for([(reply, 'stop') for reply in replies])
     with tempfile.TemporaryDirectory() as directory:
-        script, _, _ = create_book(directory, raw=RAW, source=batch)
+        script, _, _ = create_book(directory, raw=raw, source=batch)
         config = config or {'llm_mode': 'remote',
                             'llm_remote': {'model_name': 'fixture',
                                            'base_url': 'https://api.example.invalid/v1'},
@@ -201,4 +206,322 @@ class ScopedReviewSourceSpanTests(unittest.TestCase):
             script, source_path, entries = create_book(directory, raw=RAW, source=batch)
             source_path.write_text(RAW.replace('A bell rang.', 'A bell tolled.'), encoding='utf-8')
             self.assertIsNone(review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+
+
+def build_scoped_rows(raw, source_rows, start_entry, *, input_sha256=None, strip=None,
+                      ancestor=None, chunks=None):
+    """Synthetic retained rows and a scoped policy over a chosen prepared source."""
+    marked = mark_entries(source_rows, raw)
+    words = list(_words(raw))
+    start = sum(len(list(_words(entry['text']))) for entry in marked[:start_entry])
+    selected = ' '.join(words[start:])
+    retained = [{key: value for key, value in entry.items() if key != SCRIPT_POLICY_KEY}
+                for entry in marked[start_entry:]]
+    parent = get_literal_policy(bind_literal_policy(raw, marked))
+    policy = get_literal_policy(bind_literal_policy(
+        selected, retained, input_sha256=input_sha256, strip_front_matter=strip))
+    policy.update(boundary='selected_source_words_v1',
+                  scope_chunks=chunks if chunks is not None else {
+                      'chunk-1': {'version': 'literal_words_v1',
+                                  'boundary': 'before_speech_preparation',
+                                  'projection': 'existing_project_speakable_entries_v1',
+                                  'source_policy_sha256': get_literal_policy_identity(ancestor or parent),
+                                  'narration_words': get_word_identity([selected])}},
+                  scope_source={'parent_policy_sha256': get_literal_policy_identity(ancestor or parent),
+                                'prepared_source_sha256': hashlib.sha256(raw.encode()).hexdigest(),
+                                'start_word': start, 'end_word': len(words),
+                                'total_words': len(words)})
+    retained[0][SCRIPT_POLICY_KEY] = policy
+    return retained, parent
+
+
+def make_saved_hop(directory, *, raw, original_rows, active_rows):
+    """A saved book whose selected source is another saved script."""
+    original_script, source_path, _ = create_book(
+        directory, raw=raw, source=original_rows, saved=True)
+    root = Path(directory)
+    active = root / 'scripts' / 'active.json'
+    published = json.dumps(active_rows).encode('utf-8')
+    active.write_bytes(published)
+    binding = make_script_selection_binding(
+        get_book_operation_token(directory),
+        hashlib.sha256(original_script.read_bytes()).hexdigest(),
+        published, source_path=str(original_script))
+    active.with_suffix('.selection_binding.json').write_text(json.dumps(binding), encoding='utf-8')
+    state_path = root / 'state.json'
+    state = json.loads(state_path.read_text(encoding='utf-8'))
+    state['input_file_path'] = str(original_script)
+    state_path.write_text(json.dumps(state), encoding='utf-8')
+    return active, original_script, source_path
+
+
+def run_cli_at(directory, script, replies, *, raw=RAW, config=None):
+    """Review a prepared book in place, returning its saved script and output."""
+    client, calls = client_for([(reply, 'stop') for reply in replies])
+    config = config or {'llm_mode': 'remote',
+                        'llm_remote': {'model_name': 'fixture',
+                                       'base_url': 'https://api.example.invalid/v1'},
+                        'generation': {'review_batch_size': 32, 'merge_narrators': False}}
+    stdout = io.StringIO()
+    before = script.read_bytes()
+    with ExitStack() as stack:
+        stack.enter_context(redirect_stdout(stdout))
+        stack.enter_context(patch.object(review.sys, 'argv', ['review', '--input', str(script)]))
+        for name, value in (('get_runtime_data_dir', directory), ('load_app_config', config),
+                            ('ensure_ideal_settings', (True, {}, 'fixture')),
+                            ('get_active_llm_config', config['llm_remote']),
+                            ('make_run_client', client),
+                            ('ensure_cached_or_benchmarked_concurrency', 1),
+                            ('get_current_status', {'loaded': False})):
+            stack.enter_context(patch.object(review, name, return_value=value))
+        stack.enter_context(patch.object(review, 'wait_for_vram_headroom',
+                                         side_effect=AssertionError('No GPU calls')))
+        stack.enter_context(patch('generate_script.time.sleep'))
+        review.main()
+    return json.loads(script.read_bytes()), stdout.getvalue(), calls, script.read_bytes() != before
+
+
+class ScopedRowBindingFindingsTests(unittest.TestCase):
+    """Astra #2225 finding 1: rows bind to selected suffix word coordinates."""
+
+    def test_duplicated_prefix_cannot_substitute_for_selected_suffix(self):
+        raw = ('Repeat me.\n\nThe lantern glowed.\n\nRepeat me.\n\nAfterward.')
+        rows = [row('Repeat me.', 'NARRATOR'), row('The lantern glowed.', 'NARRATOR'),
+                row('Repeat me.', 'NARRATOR'), row('Afterward.', 'NARRATOR')]
+        marked = mark_entries(rows, raw)
+        self.assertNotEqual(marked[0]['source_span'], marked[2]['source_span'])
+        retained, _ = build_scoped_rows(raw, rows, 2)
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=retained)
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+        substituted = copy.deepcopy(retained)
+        substituted[0]['source_span'] = list(marked[0]['source_span'])
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=substituted)
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+
+    def test_literal_offsets_survive_nfc_length_and_typographic_apostrophes(self):
+        sample = 'Cafe\u0301 reopens.\n\nDon\u2019t stop.'
+        words = review._literal_words_with_offsets(sample)
+        self.assertEqual('Caf\u00e9', words[0][0])
+        self.assertEqual('Cafe\u0301', sample[words[0][1]:words[0][2]])
+        self.assertIn("Don't", [word for word, _, _ in words])
+
+    def test_punctuation_and_unicode_rows_capture_with_suffix_coordinates(self):
+        raw = 'Cafe\u0301 reopens.\n\nDon\u2019t stop.\n\nThe bell rang.'
+        rows = [row('Cafe\u0301 reopens.', 'NARRATOR'), row('Don\u2019t stop.', 'NARRATOR'),
+                row('The bell rang.', 'NARRATOR')]
+        retained, _ = build_scoped_rows(raw, rows, 1)
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=retained)
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+
+    def test_inherited_intervals_resolve_before_suffix_binding(self):
+        raw = 'Removed.\n\nFirst part.\nSecond part.\n\nAfterward.'
+        rows = [row('Removed.', 'NARRATOR'), row('First part.', 'NARRATOR'),
+                row('Second part.', 'NARRATOR'), row('Afterward.', 'NARRATOR')]
+        retained, _ = build_scoped_rows(raw, rows, 1)
+        inherited = copy.deepcopy(retained)
+        parent = [raw.index('First part.'), raw.index('\n\nAfterward.')]
+        inherited[0]['source_span'] = list(parent)
+        inherited[1]['source_span'] = list(parent)
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=inherited)
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+            resolved = review.get_review_source_entries(entries, raw)
+            self.assertNotEqual(resolved[0]['source_span'], resolved[1]['source_span'])
+
+
+class SavedSourceHopFindingsTests(unittest.TestCase):
+    """Astra #2225 finding 2: saved-source hop inherits verified policy lineage."""
+
+    def setUp(self):
+        self.rows = mark_entries(copy.deepcopy(RAW_ROWS), RAW)
+
+    def test_valid_chain_carries_terminal_raw_identity_and_offsets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original, _ = build_scoped_rows(RAW, self.rows, 1, input_sha256=hashlib.sha256(RAW.encode()).hexdigest())
+            active, saved, source = make_saved_hop(
+                directory, raw=RAW, original_rows=original, active_rows=copy.deepcopy(original))
+            snapshot = review.get_review_source_snapshot(
+                directory, str(active), active.read_bytes(), copy.deepcopy(original))
+            self.assertIsNotNone(snapshot)
+            self.assertEqual(RAW, snapshot['text'])
+            terminal = hashlib.sha256(source.read_bytes()).hexdigest()
+            self.assertIn(terminal, [proof['source_sha256']
+                                     for proof in snapshot['identity']['sources']])
+            self.assertEqual(original[0]['source_span'],
+                             review.get_review_source_entries(copy.deepcopy(original), RAW)[0]['source_span'])
+
+    def test_descendant_policy_is_accepted_and_unscoped_legacy_chain_stays_valid(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original, _ = build_scoped_rows(RAW, self.rows, 1)
+            child, _ = build_scoped_rows(RAW, self.rows, 2,
+                                         ancestor=get_literal_policy(original))
+            active, _, _ = make_saved_hop(
+                directory, raw=RAW, original_rows=original, active_rows=child)
+            self.assertEqual(RAW, review.get_review_source_text(
+                directory, str(active), active.read_bytes(), child))
+        with tempfile.TemporaryDirectory() as directory:
+            legacy = [copy.deepcopy(entry) for entry in self.rows]
+            active, _, _ = make_saved_hop(
+                directory, raw=RAW, original_rows=self.rows, active_rows=legacy)
+            self.assertEqual(RAW, review.get_review_source_text(
+                directory, str(active), active.read_bytes(), legacy))
+
+    def test_absent_conflicting_or_stale_inherited_provenance_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original, _ = build_scoped_rows(RAW, self.rows, 1)
+            absent = [{key: value for key, value in entry.items() if key != SCRIPT_POLICY_KEY}
+                      for entry in original]
+            active, _, _ = make_saved_hop(
+                directory, raw=RAW, original_rows=original, active_rows=absent)
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(active), active.read_bytes(), absent))
+        with tempfile.TemporaryDirectory() as directory:
+            original, _ = build_scoped_rows(RAW, self.rows, 1)
+            conflicting = copy.deepcopy(original)
+            conflicting[0][SCRIPT_POLICY_KEY]['source_sha256'] = '4' * 64
+            active, _, _ = make_saved_hop(
+                directory, raw=RAW, original_rows=original, active_rows=conflicting)
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(active), active.read_bytes(), conflicting))
+        with tempfile.TemporaryDirectory() as directory:
+            original, _ = build_scoped_rows(
+                RAW, self.rows, 1, input_sha256=hashlib.sha256(RAW.encode()).hexdigest())
+            stale = copy.deepcopy(original)
+            stale[0][SCRIPT_POLICY_KEY]['input_sha256'] = '5' * 64
+            active, _, _ = make_saved_hop(
+                directory, raw=RAW, original_rows=original, active_rows=stale)
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(active), active.read_bytes(), stale))
+
+    def test_refused_hop_does_not_publish_the_split(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original, _ = build_scoped_rows(RAW, self.rows, 1)
+            absent = [{key: value for key, value in entry.items() if key != SCRIPT_POLICY_KEY}
+                      for entry in original]
+            active, _, _ = make_saved_hop(
+                directory, raw=RAW, original_rows=original, active_rows=absent)
+            reply = [{key: value for key, value in entry.items()
+                      if key not in ('source_span', SCRIPT_POLICY_KEY)} for entry in absent[:1]]
+            narrator = {key: value for key, value in absent[1].items() if key not in ('text',)}
+            reply += [{**narrator, 'text': 'At last the ledger was balanced.\n\nAfterward.'},
+                      {**narrator, 'speaker': NEW_SPEAKER, 'text': 'HARK—!', **ANNOTATIONS},
+                      {key: value for key, value in absent[2].items() if key != 'source_span'}]
+            saved, stdout, _, _ = run_cli_at(directory, active, [reply])
+            self.assertNotIn(NEW_SPEAKER, [entry['speaker'] for entry in saved])
+            self.assertEqual([entry['text'] for entry in absent],
+                             [entry['text'] for entry in saved])
+
+
+class ScopedPreparationFindingsTests(unittest.TestCase):
+    """Astra #2225 finding 3: explicit strip choice, legacy tries both safely."""
+
+    def setUp(self):
+        self.header = ('Manifesto.\nA synthetic translator note.\n'
+                       'Original Web Novel Chapter ― Complete.\n'
+                       'Original Translation by Tester.\n\n')
+        self.full = self.header + RAW
+        self.prepared = get_preprocessed_source(self.full, strip_front_matter=True)[0]
+        self.rows = [row(part, 'NARRATOR') for part in self.prepared.split('\n\n')]
+        self.raw_rows = mark_entries(self.rows, self.prepared)
+
+    def test_explicit_strip_true_captures_removable_header(self):
+        retained, _ = build_scoped_rows(self.prepared, self.raw_rows, 1, strip=True)
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=self.full, source=retained)
+            self.assertEqual(self.prepared, review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+
+    def test_contradictory_strip_false_is_refused_when_only_stripped_matches(self):
+        retained, _ = build_scoped_rows(self.prepared, self.raw_rows, 1, strip=False)
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=self.full, source=retained)
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+
+    def test_legacy_absence_tries_both_and_invalid_alternate_cannot_abort(self):
+        retained, _ = build_scoped_rows(self.prepared, self.raw_rows, 1)
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=self.full, source=retained)
+            self.assertEqual(self.prepared, review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+        full_rows = mark_entries([row(part, 'NARRATOR')
+                                  for part in self.full.split('\n\n')], self.full)
+        full_scoped, _ = build_scoped_rows(self.full, full_rows, 1)
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=self.full, source=full_scoped)
+            original_prepare = get_preprocessed_source
+
+            def refusing_prepare(text, strip_front_matter=True):
+                if strip_front_matter:
+                    raise ValueError('invalid alternate preparation')
+                return original_prepare(text, strip_front_matter=strip_front_matter)
+
+            with patch('generate_script.get_preprocessed_source', side_effect=refusing_prepare):
+                self.assertEqual(self.full, review.get_review_source_text(
+                    directory, str(script), script.read_bytes(), entries))
+
+
+class ScopedMarkerFindingsTests(unittest.TestCase):
+    """Astra #2225 finding 4: scope-chunk markers require native shape."""
+
+    def rows(self, raw):
+        return [row(part, 'NARRATOR') for part in raw.split('\n\n')]
+
+    def test_empty_and_malformed_markers_are_refused(self):
+        raw = 'Removed line.\n\nFirst retained line.\n\nSecond retained line.\n\nAfterward.'
+        variants = {}
+        variants['empty'] = {}
+        good = {'version': 'literal_words_v1', 'boundary': 'before_speech_preparation',
+                'projection': 'existing_project_speakable_entries_v1',
+                'source_policy_sha256': 'a' * 64,
+                'narration_words': get_word_identity(['First retained line. Second retained line. Afterward.'])}
+        for name, mutation in (('missing_version', {'version': None}),
+                               ('wrong_boundary', {'boundary': 'narration'}),
+                               ('wrong_projection', {'projection': 'other'}),
+                               ('bad_digest', {'source_policy_sha256': 'xyz'}),
+                               ('empty_words', {'narration_words': {'words': 0, 'sha256': 'a' * 64}}),
+                               ('extra_field', {'extra': True})):
+            marker = dict(good)
+            marker.update(mutation)
+            variants[name] = {'chunk-1': marker}
+        for name, chunks in variants.items():
+            with self.subTest(marker=name):
+                retained, _ = build_scoped_rows(raw, self.rows(raw), 1, chunks=chunks)
+                with tempfile.TemporaryDirectory() as directory:
+                    script, _, entries = create_book(directory, raw=raw, source=retained)
+                    self.assertIsNone(review.get_review_source_text(
+                        directory, str(script), script.read_bytes(), entries))
+
+    def test_repeated_scoping_keeps_ancestor_marker_hashes_valid(self):
+        source = ('First line.\nSecond line.\nThird line.\n\n'
+                  'Fourth line.\nFifth line.\nSixth line.')
+        rows = mark_entries([row(text, 'NARRATOR') for text in
+                             ('First line.', 'Second line.', 'Third line.',
+                              'Fourth line.', 'Fifth line.', 'Sixth line.')], source)
+        digest = hashlib.sha256(source.encode()).hexdigest()
+        original = bind_literal_policy(source, rows, input_sha256=digest)
+        chunks = bind_literal_chunks(
+            [{'id': index, 'uid': f'uid-{index}', 'text': entry['text']}
+             for index, entry in enumerate(rows)], get_literal_policy(original))
+        first = get_literal_scope(source, original, chunks, 3, 3, input_sha256=digest)
+        first_policy = get_literal_policy(first)
+        marker = next(iter(first_policy['scope_chunks'].values()))
+        self.assertNotEqual(marker['source_policy_sha256'],
+                            get_literal_policy_identity(first_policy))
+        second = get_literal_scope(source, first, chunks[3:], 2, 2, input_sha256=digest)
+        second_policy = get_literal_policy(second)
+        self.assertEqual('selected_source_words_v1', second_policy['boundary'])
+        self.assertEqual(marker['source_policy_sha256'],
+                         next(iter(second_policy['scope_chunks'].values()))['source_policy_sha256'])
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=source, source=second)
+            self.assertEqual(source, review.get_review_source_text(
                 directory, str(script), script.read_bytes(), entries))
