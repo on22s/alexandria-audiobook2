@@ -564,12 +564,20 @@ CHUNK_SNAPSHOT_CONFLICT_DETAIL = (
 
 
 def _require_export_chunks():
-    """Request-time export admission: refuse before a worker is enqueued."""
+    """Request-time export admission: refuse before a worker is enqueued.
+
+    Read the saved rows only. The mutating loader would regenerate/backfill a
+    corrupt or absent snapshot, silently repairing the very evidence a stale
+    journal conflict is meant to protect. A genuinely absent snapshot is not a
+    conflict; any other unreadable state is.
+    """
     with ensure_book_state(DATA_DIR):
         _ensure_editor_selection()
         try:
-            project_manager.load_chunks()
-        except (ValueError, OSError) as error:
+            project_manager.read_saved_chunk_rows()
+        except FileNotFoundError:
+            return
+        except (ValueError, OSError, RecursionError) as error:
             raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
 
 
@@ -1710,8 +1718,10 @@ class M4bExportRequest(BaseModel):
 
 @router.post("/api/merge_m4b")
 async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: BackgroundTasks):
-    await validate_export_readiness(request.require_ready)
+    # Journal readability is authoritative: report a stale book before optional
+    # readiness, which would otherwise mask it with an unrelated speaker list.
     await asyncio.to_thread(_require_export_chunks)
+    await validate_export_readiness(request.require_ready)
     # Atomic check-and-set on the request thread (closes the double-start TOCTOU
     # where two rapid POSTs both pass a plain running check before either sets it).
 
@@ -1800,8 +1810,8 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
     """Write chapters as separate MP3/WAV files (CPU only, no GPU lock)."""
     if request.format not in ("mp3", "wav"):
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
-    await validate_export_readiness(request.require_ready)
     await asyncio.to_thread(_require_export_chunks)
+    await validate_export_readiness(request.require_ready)
     chapters = request.chapters
     if chapters is not None:
         try:
@@ -1864,8 +1874,8 @@ async def preview_chapter_filenames(format: str = "mp3", per_chunk_chapters: boo
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
     if not 0 <= padding <= 6:
         raise HTTPException(status_code=400, detail="padding must be 0-6 digits")
-    await validate_export_readiness(require_ready)
     await asyncio.to_thread(_require_export_chunks)
+    await validate_export_readiness(require_ready)
     try:
         mastering_options = MasteringOptions.model_validate_json(mastering).model_dump() if mastering is not None else None
     except ValueError as exc:
