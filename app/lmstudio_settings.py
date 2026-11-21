@@ -438,6 +438,22 @@ def is_benchmark_digest(value):
     return isinstance(value, str) and bool(_BENCHMARK_DIGEST_PATTERN.fullmatch(value))
 
 
+def predigest_identity_matches(raw, config, section):
+    """Whether an old receipt's plain identity describes this exact request.
+
+    A receipt whose provider body changed before Setup opened must be dropped,
+    not given the new request's digest; only an identity that still matches
+    the saved section can be relabelled and reused.
+    """
+    try:
+        stored = json.loads(raw)
+    except (TypeError, ValueError):
+        return False
+    current = get_benchmark_identity(config, section)
+    return (isinstance(stored, dict) and isinstance(current, dict)
+            and _canonical_identity_value(stored) == _canonical_identity_value(current))
+
+
 def get_benchmark_destination(profile):
     """The endpoint::model a stored measurement was actually taken against.
 
@@ -521,8 +537,14 @@ def get_document_with_retained_cache(document, existing):
         if not is_qualified_concurrency_cache(before) or not has_valid_benchmark_environment(before):
             continue
         stored = before.get(BENCHMARK_IDENTITY_KEY)
-        key = (stored if is_benchmark_digest(stored)
-               else get_benchmark_identity_key(before_map, section))
+        if is_benchmark_digest(stored):
+            key = stored
+        elif stored is None or predigest_identity_matches(stored, before_map, section):
+            key = get_benchmark_identity_key(before_map, section)
+        else:
+            # Stale or malformed plain identity: drop it rather than relabel
+            # evidence from a different request as the active one's receipt.
+            continue
         if key is None:
             continue
         entry = {name: before[name] for name in BENCHMARK_CACHE_KEYS if name in before}

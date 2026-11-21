@@ -393,12 +393,19 @@ def get_endpoint_credential_source(section, endpoint, saved, existing, llm_mode)
     saved_endpoint = get_api_key_endpoint(saved.get("base_url"))
     if not endpoint or endpoint == saved_endpoint:
         return saved
+    runtime = get_active_llm_config(existing) if isinstance(existing, dict) else {}
+    runtime_endpoint = get_api_key_endpoint(runtime.get("base_url"))
+    # Persisted pre-Save state is the provenance: a named slot saved without an
+    # endpoint was hydrated from the active runtime profile by GET. A mode
+    # toggle in the form happens after that, so resolving by the NEW mode at
+    # this point would hand the slot another profile's key and headers.
+    if (section in ("llm_local", "llm_remote") and not saved_endpoint
+            and runtime_endpoint == endpoint):
+        return runtime
     bound = get_saved_profile_for_endpoint(endpoint, existing, section=section, llm_mode=llm_mode)
     if bound is not None:
         return bound
-    runtime = get_active_llm_config(existing) if isinstance(existing, dict) else {}
-    if (section in ("llm", f"llm_{llm_mode}")
-            and get_api_key_endpoint(runtime.get("base_url")) == endpoint):
+    if section == "llm" and runtime_endpoint == endpoint:
         return runtime
     return None
 
@@ -1149,6 +1156,11 @@ async def get_config():
         if isinstance(value, dict):
             for key in BENCHMARK_CACHE_KEYS:
                 value.pop(key, None)
+            if isinstance(value.get("provider_extra_body"), dict):
+                # Exact text for the browser editor: its JSON.parse cannot hold
+                # integers above 2^53. AppConfig ignores this helper on POST.
+                value["provider_extra_body_json"] = json.dumps(value["provider_extra_body"],
+                                                               indent=2)
 
     def _has_postable_identity(value):
         # Blank profiles are valid (an unused inactive slot keeps empty
@@ -1215,6 +1227,9 @@ async def get_config():
         public_runtime = {key: value for key, value in runtime.items()
                           if key not in BENCHMARK_CACHE_KEYS}
         runtime_safe = _redact_config_secrets({"llm": public_runtime})["llm"]
+        if isinstance(runtime_safe.get("provider_extra_body"), dict):
+            runtime_safe["provider_extra_body_json"] = json.dumps(
+                runtime_safe["provider_extra_body"], indent=2)
     if runtime_safe is not None and not saved_credential:
         # Synthesized public placeholder, not a saved credential: a sentinel
         # here would make first setup unsaveable.

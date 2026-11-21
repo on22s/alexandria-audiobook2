@@ -6,9 +6,14 @@ disposable temp directory. No network or GPU work is performed.
 import asyncio
 import json
 import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 import llm_bench
 import llm_provider
@@ -717,6 +722,145 @@ class AdapterOnlyPrecedenceTests(unittest.TestCase):
                 with patch("attribution_adapter.served_adapters", return_value=[]), \
                         self.assertRaises(AdapterError):
                     check_adapter(cfg, "http://x/v1", require=True)
+
+
+FORM_JS = r"""
+const fs = require('fs'), vm = require('vm');
+const source = fs.readFileSync('static/js/app-core.js', 'utf8');
+const profiles = JSON.parse(fs.readFileSync(0, 'utf8'));
+const elements = {};
+const document = {getElementById(id) { return elements[id] ??= {value: ''}; }};
+const context = {document, window: {}, llmProfiles: profiles,
+                 getOptionalTokenInput: () => null, getOptionalNumberInput: () => null};
+const code = source.slice(source.indexOf('        function populateLlmInputs('),
+                          source.indexOf('        function syncCurrentLlmProfile('));
+process.stdout.write(JSON.stringify(vm.runInNewContext(
+    code + '\npopulateLlmInputs("local"); getEditedLlmProfile();', context)));
+"""
+
+
+def _form_via_js(document):
+    result = subprocess.run(["node", "-e", FORM_JS], input=json.dumps(
+        {"local": document["llm_local"]}), text=True, check=True, capture_output=True, timeout=20)
+    return json.loads(result.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "node is not installed")
+class ProductionSetupFormTests(unittest.TestCase):
+    def test_blank_key_and_large_seed_survive_real_form_and_routes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            legacy = dict(LOW, api_key="", provider_headers={"x-fixture": "fixture-header"},
+                          provider_extra_body={"seed": 9007199254740993})
+            path = _seed(tmp, {"llm_mode": "local", "llm": legacy,
+                               "llm_local": LLMConfig(base_url="", api_key="", model_name="").model_dump(),
+                               "llm_remote": dict(LOW, model_name="inactive"),
+                               "tts": {}, "generation": {}})
+            document = _get(tmp)
+            posted = _form_via_js(document)
+            saved = _save(tmp, {**_form(document), "llm": posted, "llm_local": posted})
+            self.assertEqual("", saved["llm_local"]["api_key"])
+            self.assertEqual(9007199254740993, saved["llm_local"]["provider_extra_body"]["seed"])
+            self.assertEqual({"x-fixture": "fixture-header"},
+                             saved["llm_local"]["provider_headers"])
+
+
+class ModeSwitchProvenanceTests(unittest.TestCase):
+    def test_switching_mode_preserves_both_slots_at_a_shared_endpoint(self):
+        endpoint = "http://127.0.0.1:7272/v1"
+        for saved_mode, legacy_key in (("local", "legacy-fixture"),
+                                       ("remote", "env:FIXTURE_KEY")):
+            with self.subTest(saved_mode=saved_mode), tempfile.TemporaryDirectory() as tmp:
+                legacy = {"base_url": endpoint, "api_key": legacy_key, "model_name": "legacy-model",
+                          "provider_headers": {"x-legacy": "legacy-header"}}
+                inactive = {"base_url": endpoint, "api_key": "inactive-fixture",
+                            "model_name": "inactive-model",
+                            "provider_headers": {"x-inactive": "inactive-header"}}
+                old_active = "llm_local" if saved_mode == "local" else "llm_remote"
+                new_active = "llm_remote" if saved_mode == "local" else "llm_local"
+                _seed(tmp, {"llm_mode": saved_mode, "llm": dict(legacy),
+                            old_active: LLMConfig(base_url="", api_key="", model_name="").model_dump(),
+                            new_active: dict(inactive), "tts": {}, "generation": {}})
+                form = _form(_get(tmp))
+                form["llm_mode"] = new_active.removeprefix("llm_")
+                saved = _save(tmp, form)
+                self.assertEqual(legacy_key, saved[old_active]["api_key"])
+                self.assertEqual({"x-legacy": "legacy-header"},
+                                 saved[old_active]["provider_headers"])
+                self.assertEqual("inactive-fixture", saved[new_active]["api_key"])
+                self.assertEqual({"x-inactive": "inactive-header"},
+                                 saved[new_active]["provider_headers"])
+
+
+class StalePredigestReceiptTests(unittest.TestCase):
+    @staticmethod
+    def _receipt(profile):
+        entry = _entry(profile=profile)
+        entry[settings.BENCHMARK_IDENTITY_KEY] = json.dumps(
+            settings.get_benchmark_identity({"llm_mode": "local", "llm": profile}, "llm"))
+        return entry
+
+    def test_changed_body_before_setup_forces_a_fresh_benchmark(self):
+        old = dict(LOW, provider_extra_body={"marker": "fixture-old"})
+        new = dict(LOW, provider_extra_body={"marker": "fixture-new"})
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _seed(tmp, {"llm_mode": "local", "llm": dict(new, **self._receipt(old)),
+                               "llm_local": LLMConfig(base_url="", api_key="", model_name="").model_dump(),
+                               "tts": {}, "generation": {}})
+            saved = _save(tmp, _form(_get(tmp)))
+            self.assertNotIn("concurrency", saved["llm_local"])
+            with _patches()[0], _patches()[1], patch.object(
+                    llm_bench, "find_optimal_concurrency", side_effect=_find(3)) as bench:
+                value = llm_bench.ensure_cached_or_benchmarked_concurrency(
+                    path, "local", new["base_url"], new["model_name"], object(),
+                    status=STATUS, llm_config=new)
+            bench.assert_called_once()
+            self.assertEqual(3, value)
+
+    def test_matching_predigest_receipt_is_relabelled_and_reused(self):
+        legacy = dict(LOW, provider_extra_body={"marker": "fixture-legacy"})
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _seed(tmp, {"llm_mode": "local", "llm": dict(legacy, **self._receipt(legacy)),
+                               "llm_local": dict(legacy), "tts": {}, "generation": {}})
+            saved = _save(tmp, _form(_get(tmp)))
+            self.assertEqual(5, saved["llm_local"].get("concurrency"))
+            self.assertTrue(settings.is_benchmark_digest(
+                saved["llm_local"][settings.BENCHMARK_IDENTITY_KEY]))
+            with _patches()[0], _patches()[1], patch.object(
+                    llm_bench, "find_optimal_concurrency",
+                    side_effect=AssertionError("proven receipt must be reused")):
+                value = llm_bench.ensure_cached_or_benchmarked_concurrency(
+                    path, "local", legacy["base_url"], legacy["model_name"], object(),
+                    status=STATUS, llm_config=legacy)
+            self.assertEqual(5, value)
+
+
+class StrictEndpointApiTests(unittest.TestCase):
+    def test_preview_and_save_reject_port_zero_and_keep_ipv6(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _seed(tmp, {"llm_mode": "local",
+                               "llm": dict(LOW, base_url="http://127.0.0.1:0/v1"),
+                               "llm_local": dict(LOW, base_url="http://127.0.0.1:0/v1"),
+                               "tts": {}, "generation": {}})
+            app = FastAPI()
+            app.include_router(system_module.router)
+            client = TestClient(app, raise_server_exceptions=True)
+            with patch.object(system_module, "CONFIG_PATH", path), \
+                    patch.object(system_module.project_manager, "engine", None), \
+                    patch.object(system_module.project_manager, "invalidate_config_cache"):
+                payload = _form(_get(tmp))
+                self.assertEqual(400, client.post("/api/config/preview", json=payload).status_code)
+                self.assertEqual(400, client.post("/api/config", json=payload).status_code)
+
+            path = _seed(tmp, {"llm_mode": "local",
+                               "llm": dict(LOW, base_url="http://[::1]:1234/v1"),
+                               "llm_local": dict(LOW, base_url="http://[::1]:1234/v1"),
+                               "tts": {}, "generation": {}})
+            with patch.object(system_module, "CONFIG_PATH", path), \
+                    patch.object(system_module.project_manager, "engine", None), \
+                    patch.object(system_module.project_manager, "invalidate_config_cache"):
+                payload = _form(_get(tmp))
+                self.assertEqual(200, client.post("/api/config/preview", json=payload).status_code)
+                self.assertEqual(200, client.post("/api/config", json=payload).status_code)
 
 
 if __name__ == "__main__":

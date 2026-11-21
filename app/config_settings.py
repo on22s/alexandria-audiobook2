@@ -321,6 +321,19 @@ class PromptPreset(BaseModel):
     builtin: bool = False
 
 
+def _js_round_numbers(value):
+    """Emulate the browser's IEEE-754 parse of JSON numbers for comparison."""
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, int):
+        return float(value) if abs(value) > 2 ** 53 else value
+    if isinstance(value, dict):
+        return {key: _js_round_numbers(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_js_round_numbers(item) for item in value]
+    return value
+
+
 class AppConfig(BaseModel):
     llm: LLMConfig
     llm_mode: Literal["local", "remote"] = "local"
@@ -335,6 +348,40 @@ class AppConfig(BaseModel):
     prompts: Optional[PromptConfig] = None
     prompt_presets: List[PromptPreset] = Field(default_factory=list, max_length=50)
     generation: Optional[GenerationConfig] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def restore_exact_provider_body(cls, data):
+        """Use the editor's raw JSON text when it is present.
+
+        A browser parses GET's JSON with IEEE-754 numbers, so an unchanged
+        integer above 2^53 would come back one lower. The Setup editor posts
+        the exact text alongside the parsed object; parsing it here (with
+        Python's arbitrary-precision ints) keeps ordinary API callers and the
+        existing field validation untouched.
+        """
+        if not isinstance(data, dict):
+            return data
+        for section in ("llm", "llm_local", "llm_remote"):
+            profile = data.get(section)
+            if not isinstance(profile, dict):
+                continue
+            raw = profile.get("provider_extra_body_json")
+            if not isinstance(raw, str) or not raw.strip():
+                continue
+            try:
+                parsed = json.loads(raw)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(parsed, dict) and _js_round_numbers(parsed) == profile.get(
+                    "provider_extra_body"):
+                # The object is the browser's rounded parse of this exact text;
+                # only then replace it with the lossless Python-parsed value.
+                # A differing object is a deliberate edit and must win.
+                profile = {**profile, "provider_extra_body": parsed}
+                profile.pop("provider_extra_body_json", None)
+                data = {**data, section: profile}
+        return data
 
 
 def get_config_section_model(field):
