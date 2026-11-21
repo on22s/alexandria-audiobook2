@@ -1947,8 +1947,10 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
         try:
             quality_attempt = get_export_quality_attempt(request, state,
                 expected_token=admission.token)
+            # Chapter indices refer to the previewed row order even when
+            # speaker readiness is optional.
             expected_editor_revision = (get_export_editor_revision(admission.token, admission.rows)
-                                        if request.require_ready else None)
+                                        if request.require_ready or chapters is not None else None)
             success, msg = project_manager.export_chapters(
                 fmt=request.format, per_chunk_chapters=request.per_chunk_chapters,
                 template=request.template, padding=request.padding,

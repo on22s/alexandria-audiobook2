@@ -53,7 +53,7 @@ def _get_rows_digest(rows):
 
 
 def get_export_editor_revision(book_token, rows):
-    """Identify the exact book and rows used to check speaker readiness."""
+    """Identify the exact book and rows used to admit an export."""
     return get_snapshot_digest([book_token, rows])
 
 
@@ -107,7 +107,7 @@ class ExportSourceSnapshot:
                     current = _get_saved_rows(manager)
                     revision = get_export_editor_revision(get_snapshot_digest(self.book), current)
                     if revision != expected_editor_revision:
-                        raise ValueError('Book or Editor rows changed after readiness was checked. Retry the export.')
+                        raise ValueError('Book or Editor rows changed after export admission. Retry the export.')
                     self.saved_rows_digest = _get_rows_digest(current) if current is not None else None
                 if current is None:
                     current = []

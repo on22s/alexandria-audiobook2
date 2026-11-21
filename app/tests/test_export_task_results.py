@@ -90,7 +90,7 @@ class ExportTaskResultTests(unittest.TestCase):
                 self.assertEqual(200, response.status_code, response.text)
                 result = states[task]['result']
                 self.assertEqual('failed', result['status'], result)
-                self.assertIn('Editor rows changed after readiness was checked', result['message'])
+                self.assertIn('Editor rows changed after export admission', result['message'])
                 self.assertFalse((root / 'audiobook.m4b').exists())
                 self.assertFalse(list((root / 'chapter_exports').glob('*.wav')))
 
@@ -102,6 +102,36 @@ class ExportTaskResultTests(unittest.TestCase):
             result = states['chapter_export']['result']
             self.assertEqual('done', result['status'], result)
             self.assertEqual(4, len(list((root / 'chapter_exports').glob('*.wav'))))
+
+    def test_explicit_chapter_selection_binds_the_previewed_roster_without_readiness(self):
+        for undo in (True, False):
+            with self.subTest(undo=undo), self.ready_book_with_undo() as (root, states, client, restore):
+                preview = client.get('/api/export_chapters/preview', params={
+                    'format': 'wav', 'per_chunk_chapters': True, 'chapters': 2})
+                self.assertEqual(200, preview.status_code, preview.text)
+                chapter, = preview.json()['chapters']
+                self.assertEqual((3, '[NARRATOR] Chapter 2'), (chapter['number'], chapter['title']))
+                real_attempt = editor.get_export_quality_attempt
+
+                def maybe_restore_before_capture(*args, **kwargs):
+                    attempt = real_attempt(*args, **kwargs)
+                    if undo:
+                        restore()
+                    return attempt
+
+                with patch.object(editor, 'get_export_quality_attempt', maybe_restore_before_capture):
+                    response = client.post('/api/export_chapters', json={
+                        'format': 'wav', 'per_chunk_chapters': True, 'chapters': [2]})
+                self.assertEqual(200, response.status_code, response.text)
+                result = states['chapter_export']['result']
+                files = list((root / 'chapter_exports').glob('*.wav'))
+                if undo:
+                    self.assertEqual('failed', result['status'], result)
+                    self.assertIn('Editor rows changed after export admission', result['message'])
+                    self.assertEqual([], files)
+                else:
+                    self.assertEqual('done', result['status'], result)
+                    self.assertEqual([chapter['file']], [path.name for path in files])
 
     def test_native_http_success_failure_exception_and_cancellation_have_results(self):
         cases=[(True,'No complete keyword','done'),(False,'Export complete: deliberately misleading','failed'),(False,'Export cancelled','cancelled'),(RuntimeError('<script>encoding error</script>'),None,'failed')]
