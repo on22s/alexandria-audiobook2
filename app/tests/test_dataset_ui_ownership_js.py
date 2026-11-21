@@ -29,6 +29,39 @@ finish({});await new Promise(resolve=>setImmediate(resolve));pending.at(-1).reso
 const first=context.refreshLmStudioStatus(),second=context.refreshLmStudioStatus();pending.at(-1).resolve({remote:true,optimized:true});await second;const current=badge.textContent;pending[pending.length-2].reject(Error('old status'));await first;assert.strictEqual(badge.textContent,current);assert.strictEqual(toggle.checked,true);finished=true;
 ''')
 
+    def test_row_and_metadata_saves_flush_in_order_and_final_token_is_used(self):
+        self.run_scenario(r'''
+const t0='a'.repeat(64),t1='b'.repeat(64),t2='c'.repeat(64),t3='d'.repeat(64);
+run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'Original',emotion:'calm',seed:'',status:'pending'}]");
+context.document.getElementById('dsb-description').value='old root';
+context.document.getElementById('dsb-global-seed').value='5';
+context.API.get=async()=>({description:'old root',global_seed:'5',samples:[{text:'Original',emotion:'calm',seed:'',status:'pending'}],row_revisions:[t0],running:false,logs:[]});
+await context.dsbLoadProject('A');
+assert.strictEqual(run('ensureDatasetRowSaveState("A").tokens[0]'),t0);
+const posts=[],gates={};
+context.API.post=(url,body)=>{posts.push([url,JSON.parse(JSON.stringify(body))]);return new Promise(resolve=>gates[url]=resolve);};
+context.dsbUpdateRow(0,'text','Edited');
+context.document.getElementById('dsb-description').value='new root';
+context.document.getElementById('dsb-global-seed').value='9';
+context.dsbSaveForm();
+const generating=context.dsbGenSample(0);
+await new Promise(resolve=>setImmediate(resolve));
+assert.deepStrictEqual(posts.map(p=>p[0]),['/api/dataset_builder/edit_rows']);
+gates['/api/dataset_builder/edit_rows']({row_revisions:{'0':t1}});
+await new Promise(resolve=>setImmediate(resolve));
+assert.deepStrictEqual(posts.map(p=>p[0]),['/api/dataset_builder/edit_rows','/api/dataset_builder/update_meta']);
+const committed={text:'Edited',emotion:'calm',seed:'',status:'pending'};
+gates['/api/dataset_builder/update_meta']({status:'ok',description:'new root',global_seed:'9',samples:[committed],row_revisions:[t2]});
+await new Promise(resolve=>setImmediate(resolve));
+assert.strictEqual(posts.length,3);assert.strictEqual(posts[2][0],'/api/dataset_builder/generate_sample');
+assert.strictEqual(posts[2][1].expected_revision,t2);
+assert.strictEqual(posts[2][1].description,'new root, calm');
+gates['/api/dataset_builder/generate_sample']({audio_url:'/ok.wav',row_revision:t3,row:{...committed,status:'done',audio_url:'/ok.wav'}});
+await generating;
+assert.strictEqual(run('ensureDatasetRowSaveState("A").tokens[0]'),t3);
+assert.strictEqual(run('dsbRows[0].text'),'Edited');
+''')
+
     def test_scientific_seed_values_reach_generation_and_export_without_truncation(self):
         self.run_scenario(r'''
 const errors=[];context.showToast=(...args)=>errors.push(args);context.document.getElementById('dsb-description').value='voice';const global=context.document.getElementById('dsb-global-seed');let packet,exported;

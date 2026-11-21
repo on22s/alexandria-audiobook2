@@ -45,14 +45,14 @@ class DatasetBuilderAdmissionTests(unittest.TestCase):
                     self.assertEqual(422,response.status_code,response.text)
                 single_claim.assert_not_called()
                 for seed in (-1,0,42):
-                    body={'name':'voice','description':'Warm','samples':[{'text':'One'},{'text':'Two'}],'indices':[1,0],'global_seed':seed,'seeds':[-1,0]}
+                    body={'name':'seedbatch','description':'Warm','samples':[{'text':'One'},{'text':'Two'}],'indices':[1,0],'global_seed':seed,'seeds':[-1,0]}
                     response=client.post('/api/dataset_builder/generate_batch',json=body)
                     self.assertEqual(200,response.status_code,response.text);self.assertEqual(2,response.json()['total'])
                 self.assertEqual(3,batch_claim.call_count);self.assertEqual(3,start.call_count)
 
     def test_actual_asgi_can_ping_while_single_sample_worker_is_held_and_publishes_exact_pcm(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);work=root/'voice';work.mkdir();stored={'samples':[{'text':'Old','emotion':'calm','status':'pending'}]};(work/'state.json').write_text(json.dumps(stored))
+            root=Path(tmp);work=root/'voice';work.mkdir();stored={'samples':[{'text':'Known','emotion':'calm','seed':0,'status':'pending'}]};(work/'state.json').write_text(json.dumps(stored))
             source=root/'source.wav';sf.write(source,np.full(240,.125),24000);expected_audio=source.read_bytes()
             entered=threading.Event();release=threading.Event();states={'dataset_builder':{'running':False,'logs':[]}};threads=[]
             def claim(task, *, resources):states[task]['running']=True;threads.append(('claim',threading.get_ident()));return 'fixture'

@@ -26,7 +26,7 @@ class DatasetPreviewCleanupTests(unittest.TestCase):
             work = root / 'builder/voice'
             work.mkdir(parents=True)
             (work / 'state.json').write_text(json.dumps({'samples': [
-                {'text': 'Original line.', 'status': 'pending'}]}))
+                {'text': 'Original line.', 'seed': 42, 'status': 'pending'}]}))
             generated = []
             def render(**kwargs):
                 path = previews / f'preview_{len(generated)}.wav'
@@ -44,10 +44,10 @@ class DatasetPreviewCleanupTests(unittest.TestCase):
             def release(name, token, **kwargs):
                 self.assertEqual('owned-fixture', token)
                 states[name]['running'] = False
-            def start(name, token, worker, resolved=None):
+            def start(name, token, worker, resolved=None, definitions=None):
                 self.assertEqual('owned-fixture', token)
                 try:
-                    worker(resolved)
+                    worker(resolved, definitions)
                 finally:
                     release(name, token)
             for name, value in (('DATASET_BUILDER_DIR', str(work.parent)), ('process_state', states),

@@ -217,7 +217,7 @@
 
         function ensureDatasetRowSaveState(name) {
             if (!dsbRowSaveStates.has(name)) {
-                dsbRowSaveStates.set(name, { tokens: null, edits: new Map(), sequence: 0, fullRevision: null });
+                dsbRowSaveStates.set(name, { tokens: null, edits: new Map(), sequence: 0, fullRevision: null, conflictShown: false });
             }
             return dsbRowSaveStates.get(name);
         }
@@ -226,6 +226,50 @@
             const state = ensureDatasetRowSaveState(name);
             state.tokens = Array.isArray(revisions) && revisions.length === count
                 && revisions.every(token => typeof token === 'string' && /^[0-9a-f]{64}$/.test(token)) ? revisions.slice() : null;
+        }
+
+        function datasetRowDefinition(row) {
+            return { emotion: row.emotion || row.description || '', text: row.text || '', seed: row.seed ?? '' };
+        }
+
+        function reconcileDatasetRows(name, samples, revisions, { preserveDrafts = true } = {}) {
+            const validTokens = Array.isArray(revisions) && Array.isArray(samples)
+                && revisions.length === samples.length
+                && revisions.every(token => typeof token === 'string' && /^[0-9a-f]{64}$/.test(token));
+            if (!validTokens) { applyDatasetRowRevisions(name, null, 0); }
+            if (!Array.isArray(samples)) { return false; }
+            const state = ensureDatasetRowSaveState(name);
+            if (samples.length !== dsbRows.length) {
+                if (preserveDrafts && state.edits.size) { return false; }
+                dsbRows = samples.map(datasetRowDefinition).map((definition, index) => ({
+                    ...definition, status: samples[index].status || 'pending',
+                    audio_url: samples[index].audio_url || null,
+                }));
+                if (validTokens) { state.tokens = revisions.slice(); }
+                state.edits.clear();
+                state.conflictShown = false;
+                return validTokens;
+            }
+            let conflict = false;
+            samples.forEach((serverRow, index) => {
+                const definition = datasetRowDefinition(serverRow);
+                if (preserveDrafts && state.edits.has(index)
+                    && JSON.stringify(getDatasetRowDefinition(dsbRows[index])) !== JSON.stringify(definition)) {
+                    conflict = true;
+                    return;
+                }
+                Object.assign(dsbRows[index], definition);
+                if (serverRow.status) { dsbRows[index].status = serverRow.status; }
+                dsbRows[index].audio_url = serverRow.audio_url || null;
+                if (serverRow.status !== 'error') { delete dsbRows[index].error; }
+                if (validTokens && state.tokens) { state.tokens[index] = revisions[index]; }
+            });
+            if (conflict && !state.conflictShown) {
+                state.conflictShown = true;
+                showToast(t('workbench.rows.external-edit', 'Dataset rows changed elsewhere. Reload before saving the affected rows.'), 'warning');
+            }
+            if (!conflict) { state.conflictShown = false; }
+            return validTokens && !conflict;
         }
 
         async function saveDatasetRows(value) {
@@ -273,7 +317,13 @@
             const globalSeed = document.getElementById('dsb-global-seed').value;
             if (!dsbSaveMetaQueue) {
                 dsbSaveMetaQueue = createSerializedSaveQueue({
-                    write: value => API.post('/api/dataset_builder/update_meta', value),
+                    write: async value => {
+                        const result = await API.post('/api/dataset_builder/update_meta', value);
+                        if (Array.isArray(result.samples) && Array.isArray(result.row_revisions)) {
+                            reconcileDatasetRows(value.name, result.samples, result.row_revisions);
+                        }
+                        return result;
+                    },
                     onError: error => _toastSaveError('meta', error),
                 });
             }
@@ -499,7 +549,8 @@
             if (!row || !row.text.trim()) { showToast(t('workbench.error.row-no-text', 'This row has no text.'), 'warning'); return; }
             const sequence = dsbBatchStartSequence;
             try {
-                await Promise.all([dsbSaveRowsQueue?.flush(), dsbSaveMetaQueue?.flush()]);
+                await dsbSaveRowsQueue?.flush();
+                await dsbSaveMetaQueue?.flush();
             } catch (error) {
                 _toastSaveError('rows', error);
                 return;
@@ -546,13 +597,20 @@
             try {
                 const result = await API.post('/api/dataset_builder/generate_sample', request);
                 if (!isCurrent()) { return; }
-                dsbRows[index].status = 'done';
-                dsbRows[index].audio_url = result.audio_url;
-                if (/^[0-9a-f]{64}$/.test(result.row_revision || '') && tokens?.[index]) {
+                if (Array.isArray(result.row) && /^[0-9a-f]{64}$/.test(result.row_revision || '')) {
+                    reconcileDatasetRows(name, [result.row], [result.row_revision]);
+                } else if (/^[0-9a-f]{64}$/.test(result.row_revision || '') && tokens) {
                     tokens[index] = result.row_revision;
                 }
+                dsbRows[index].status = 'done';
+                dsbRows[index].audio_url = result.audio_url;
             } catch (e) {
                 if (!isCurrent()) { return; }
+                const committed = e.detail && typeof e.detail === 'object' ? e.detail : null;
+                if (committed && Array.isArray(committed.row)
+                    && /^[0-9a-f]{64}$/.test(committed.row_revision || '')) {
+                    reconcileDatasetRows(name, committed.row, [committed.row_revision]);
+                }
                 dsbRows[index].status = 'error';
                 dsbRows[index].error = getActionErrorMessage(t('workbench.sample.generate-failed', 'Sample generation failed'), e, t('workbench.sample.generate-failed.guidance', 'Check the sample audio and dataset task status before generating again. Review the voice description and TTS configuration if the request was refused.'));
                 showToast(dsbRows[index].error, 'error', 10000);
@@ -596,7 +654,8 @@
             document.getElementById('dsb-logs').style.display = '';
 
             try {
-                await Promise.all([dsbSaveRowsQueue?.flush(), dsbSaveMetaQueue?.flush()]);
+                await dsbSaveRowsQueue?.flush();
+                await dsbSaveMetaQueue?.flush();
                 if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name)
                     || dsbRows !== rows) { return; }
                 const tokens = ensureDatasetRowSaveState(name).tokens;
@@ -654,27 +713,15 @@
                     applyDatasetBatchState(!!(result.running || result.ownership_unconfirmed));
                     if (result.running || result.ownership_unconfirmed) { admitted = true; }
                     const serverSamples = result.samples || [];
-                    applyDatasetRowRevisions(name, result.row_revisions, serverSamples.length);
-
-                    // Merge server state into local rows, creating missing rows
+                    const before = dsbRows.map(row => ({ status: row.status, audio_url: row.audio_url }));
+                    const beforeCount = dsbRows.length;
+                    reconcileDatasetRows(name, serverSamples, result.row_revisions);
+                    const added = dsbRows.length !== beforeCount;
                     const changed = [];
-                    let added = false;
-                    serverSamples.forEach((s, i) => {
-                        if (i < dsbRows.length) {
-                            const oldStatus = dsbRows[i].status;
-                            const oldAudio = dsbRows[i].audio_url;
-                            if (s.status) { dsbRows[i].status = s.status; }
-                            if (s.audio_url) { dsbRows[i].audio_url = s.audio_url; }
-                            if (dsbRows[i].status !== oldStatus || dsbRows[i].audio_url !== oldAudio) { changed.push(i); }
-                        } else {
-                            dsbRows.push({
-                                emotion: s.description || '',
-                                text: s.text || '',
-                                seed: s.seed ?? '',
-                                status: s.status || 'pending',
-                                audio_url: s.audio_url || null
-                            });
-                            added = true;
+                    dsbRows.forEach((row, index) => {
+                        if (index < before.length
+                            && (row.status !== before[index].status || row.audio_url !== before[index].audio_url)) {
+                            changed.push(index);
                         }
                     });
 
