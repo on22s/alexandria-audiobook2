@@ -2717,13 +2717,21 @@
             for (const pass of Object.keys(passPromptDefaults)) {
                 const payload = getPassPromptPresetPayload(pass);
                 passPayload[pass + '_preset'] = payload.active;
-                passPayload[pass + '_prompt_presets'] = payload.own;
+                passPayload[pass + '_prompt_preset'] = payload.own;
             }
+            // An untouched slot comes straight from the browser-parsed GET
+            // response, whose numbers may already be rounded. Its exact text
+            // travelled alongside it; declare that text authoritative so an
+            // unrelated save cannot rewrite the stored body.
+            const withExactBody = profile => (profile && typeof profile === 'object'
+                && typeof profile.provider_extra_body_json === 'string'
+                && profile.provider_extra_body_raw !== true)
+                ? {...profile, provider_extra_body_raw: true} : profile;
             return {
-                llm: llmProfiles[currentLlmMode],
+                llm: withExactBody(llmProfiles[currentLlmMode]),
                 llm_mode: currentLlmMode,
-                llm_local: llmProfiles.local,
-                llm_remote: llmProfiles.remote,
+                llm_local: withExactBody(llmProfiles.local),
+                llm_remote: withExactBody(llmProfiles.remote),
                 llm_remote_ssh: document.getElementById('llm-ssh').value.trim() || null,
                 llm_failover: document.getElementById('llm-failover').checked,
                 tts: {

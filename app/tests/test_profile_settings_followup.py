@@ -15,6 +15,7 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+import config_change_preview
 import llm_bench
 import llm_provider
 import lmstudio_settings as settings
@@ -956,8 +957,8 @@ class ExplicitBodyRepresentationTests(unittest.TestCase):
                     form[section]["provider_extra_body"] = {"flag": 3}
                     form[section]["provider_extra_body_json"] = "{not json"
                     form[section]["provider_extra_body_raw"] = True
-                self.assertEqual(200, client.post("/api/config", json=form).status_code)
-            self.assertEqual({"flag": 3}, _load(path)["llm_local"]["provider_extra_body"])
+                self.assertEqual(422, client.post("/api/config", json=form).status_code)
+            self.assertEqual({"flag": 2}, _load(path)["llm_local"]["provider_extra_body"])
 
 
 class BooleanNumberReceiptTests(StalePredigestReceiptTests):
@@ -979,6 +980,139 @@ class BooleanNumberReceiptTests(StalePredigestReceiptTests):
                     status=STATUS, llm_config=new)
             bench.assert_called_once()
             self.assertEqual(3, value)
+
+
+PAYLOAD_JS = r"""
+const fs=require('fs'),vm=require('vm');
+const src=fs.readFileSync(0,'utf8');
+const input=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
+const el=()=>({value:'',checked:false});
+const context={document:{getElementById:el}, llmProfiles:input.profiles, currentLlmMode:input.mode,
+  promptPresetPayload:()=>({active:'default',own:[]}), passPromptDefaults:{},
+  getPassPromptPresetPayload:()=>({active:'default',own:[]}),
+  getNumFieldValue:(id,d)=>d, getOptionalTokenInput:()=>null, getIntListInput:()=>[],
+  legacyChunkSize:3000, getDesignTextRangeInput:()=>({}), selectedPromptPreset:()=>null,
+  getSynthesisWindowConfig:()=>({}), getSynthesisRecoveryConfig:()=>({}), getSpeechVerificationConfig:()=>({})};
+vm.createContext(context); vm.runInContext(src,context);
+const payload=vm.runInContext('buildConfigPayload(2)',context);
+process.stdout.write(JSON.stringify({llm:payload.llm,llm_local:payload.llm_local,
+                                     llm_remote:payload.llm_remote,llm_mode:payload.llm_mode}));
+"""
+
+
+def _payload_via_js(tmp, document, mode):
+    source = open(os.path.join(os.path.dirname(os.path.dirname(__file__)), "static/js/app-core.js"),
+                  encoding="utf-8").read()
+    start = source.index("        function buildConfigPayload(")
+    depth = 0
+    for index in range(source.index("{", start), len(source)):
+        if source[index] == "{":
+            depth += 1
+        elif source[index] == "}":
+            depth -= 1
+            if depth == 0:
+                end = index + 1
+                break
+    fixture = os.path.join(tmp, "payload-profiles.json")
+    with open(fixture, "w", encoding="utf-8") as handle:
+        json.dump({"profiles": {"local": document["llm_local"],
+                                "remote": document["llm_remote"]}, "mode": mode}, handle)
+    result = subprocess.run(["node", "-e", PAYLOAD_JS, fixture],
+                            input=source[start:end], text=True, check=True,
+                            capture_output=True, timeout=20)
+    return {**document, **json.loads(result.stdout)}
+
+
+@unittest.skipUnless(shutil.which("node"), "node is not installed")
+class InactiveSlotExactBodyTests(unittest.TestCase):
+    def test_unrelated_save_preserves_both_slots_exact_bodies(self):
+        values = {"seed": 2 ** 53 + 1, "nested": {"big": 10 ** 310}}
+        for mode in ("local", "remote"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                profile = dict(LOW, provider_extra_body=values)
+                _seed(tmp, {"llm_mode": mode, "llm": dict(profile),
+                            "llm_local": dict(profile), "llm_remote": dict(profile),
+                            "tts": {}, "generation": {}})
+                document = _get(tmp)
+                document["llm_mode"] = "remote" if mode == "local" else "local"
+                payload = _payload_via_js(tmp, document, document["llm_mode"])
+                preview = _save_preview(tmp, payload)
+                saved = _save(tmp, payload)
+                self.assertEqual(200, preview)
+                self.assertEqual([], [row for row in _get_preview_rows(tmp, payload)
+                                      if "provider_extra_body" in row["path"]])
+                for section in ("llm_local", "llm_remote"):
+                    self.assertEqual(values, saved[section]["provider_extra_body"], section)
+
+
+def _get_preview_rows(tmp, document):
+    with patch.object(system_module, "CONFIG_PATH", os.path.join(tmp, "config.json")):
+        return asyncio.run(system_module.preview_config(document))["changes"]
+
+
+class ProviderBodyValidationTests(unittest.TestCase):
+    def test_nonfinite_raw_and_structured_values_are_refused(self):
+        for raw in ('{"exp":1e310}', '{"exp":NaN}', '{"nested":{"v":Infinity}}'):
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as tmp:
+                path = _seed(tmp, {"llm_mode": "local", "llm": dict(LOW),
+                                   "llm_local": dict(LOW), "tts": {}, "generation": {}})
+                before = _load(path)
+                app = FastAPI()
+                app.include_router(system_module.router)
+                client = TestClient(app, raise_server_exceptions=True)
+                with patch.object(system_module, "CONFIG_PATH", path), \
+                        patch.object(system_module.project_manager, "engine", None), \
+                        patch.object(system_module.project_manager, "invalidate_config_cache"):
+                    form = _form(_get(tmp))
+                    for section in ("llm", "llm_local"):
+                        form[section]["provider_extra_body_json"] = raw
+                        form[section]["provider_extra_body_raw"] = True
+                    self.assertEqual(400, client.post("/api/config/preview", json=form).status_code)
+                    self.assertEqual(422, client.post("/api/config", json=form).status_code)
+                    self.assertEqual(200, client.get("/api/config").status_code)
+                self.assertEqual(before, _load(path))
+
+    def test_malformed_authoritative_raw_is_refused_and_bytes_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            body = {"seed": 9007199254740993}
+            profile = dict(LOW, provider_extra_body=body)
+            path = _seed(tmp, {"llm_mode": "local", "llm": dict(profile),
+                               "llm_local": dict(profile), "tts": {}, "generation": {}})
+            before = _load(path)
+            app = FastAPI()
+            app.include_router(system_module.router)
+            client = TestClient(app, raise_server_exceptions=True)
+            with patch.object(system_module, "CONFIG_PATH", path), \
+                    patch.object(system_module.project_manager, "engine", None), \
+                    patch.object(system_module.project_manager, "invalidate_config_cache"):
+                form = _form(_get(tmp))
+                for section in ("llm", "llm_local"):
+                    form[section].pop("provider_extra_body", None)
+                    form[section]["provider_extra_body_json"] = "{bad"
+                    form[section]["provider_extra_body_raw"] = True
+                self.assertEqual(400, client.post("/api/config/preview", json=form).status_code)
+                self.assertEqual(422, client.post("/api/config", json=form).status_code)
+            self.assertEqual(before, _load(path))
+
+    def test_preview_shows_json_type_change_but_not_numeric_equivalence(self):
+        from config_settings import AppConfig, load_app_config_result
+        for old, new, expected in ((True, 1, 1), (1, 1.0, 0)):
+            with self.subTest(old=old, new=new), tempfile.TemporaryDirectory() as tmp:
+                path = _seed(tmp, {"llm_mode": "local", "llm": dict(LOW, provider_extra_body={"flag": old}),
+                                   "llm_local": dict(LOW, provider_extra_body={"flag": old}),
+                                   "tts": {}, "generation": {}})
+                existing = load_app_config_result(path)
+                document = existing.data.copy()
+                document["llm"] = document["llm_local"] = dict(LOW, provider_extra_body={"flag": new})
+                preview = config_change_preview.get_config_change_preview(
+                    existing, AppConfig.model_validate(document),
+                    system_module.get_config_local_profile, exists=True)
+                rows = [row for row in preview["changes"]
+                        if row["path"] == "llm_local.provider_extra_body"]
+                self.assertEqual(expected, len(rows))
+                if expected:
+                    self.assertEqual("flag: boolean", rows[0]["before"])
+                    self.assertEqual("flag: number", rows[0]["after"])
 
 
 if __name__ == "__main__":

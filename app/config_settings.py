@@ -3,6 +3,7 @@
 import copy
 import json
 import logging
+import math
 import os
 import shutil
 import uuid
@@ -321,6 +322,27 @@ class PromptPreset(BaseModel):
     builtin: bool = False
 
 
+def _reject_json_constant(name):
+    """json.loads accepts NaN/Infinity by default; a config body must not."""
+    raise ValueError(f"Provider request body cannot contain {name}")
+
+
+def _reject_nonfinite(value):
+    """Reject float infinities anywhere in a provider body, with no coercion.
+
+    A finite JSON integer keeps its full size; only values that cannot be
+    written back as readable JSON are refused.
+    """
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError("Provider request body must contain only finite JSON numbers")
+    if isinstance(value, dict):
+        for item in value.values():
+            _reject_nonfinite(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _reject_nonfinite(item)
+
+
 class AppConfig(BaseModel):
     llm: LLMConfig
     llm_mode: Literal["local", "remote"] = "local"
@@ -361,13 +383,16 @@ class AppConfig(BaseModel):
                        if key not in ("provider_extra_body_json", "provider_extra_body_raw")}
             if profile.get("provider_extra_body_raw") is True:
                 raw = profile.get("provider_extra_body_json")
-                if isinstance(raw, str) and raw.strip():
-                    try:
-                        parsed = json.loads(raw)
-                    except (TypeError, ValueError):
-                        parsed = None
-                    if isinstance(parsed, dict):
-                        updated["provider_extra_body"] = parsed
+                if not isinstance(raw, str) or not raw.strip():
+                    raise ValueError("Raw provider request body is required when declared authoritative")
+                try:
+                    parsed = json.loads(raw, parse_constant=_reject_json_constant)
+                except (TypeError, ValueError) as error:
+                    raise ValueError("Raw provider request body is not valid JSON") from error
+                if not isinstance(parsed, dict):
+                    raise ValueError("Raw provider request body must be a JSON object")
+                updated["provider_extra_body"] = parsed
+            _reject_nonfinite(updated.get("provider_extra_body"))
             data = {**data, section: updated}
         return data
 

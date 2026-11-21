@@ -7,7 +7,8 @@ from fastapi.encoders import jsonable_encoder
 from config_settings import AppConfig, GenerationConfig, LLMConfig, PromptConfig, TTSConfig
 from lmstudio_settings import (BENCHMARK_CACHE_KEYS, BENCHMARK_IDENTITY_KEY,
                                get_benchmark_identity_key, get_document_with_retained_cache,
-                               has_valid_benchmark_environment, is_benchmark_digest)
+                               has_valid_benchmark_environment, is_benchmark_digest,
+                               json_values_equal)
 
 _ABSENT = object()
 _MODELS = {'llm_local': LLMConfig, 'llm_remote': LLMConfig, 'tts': TTSConfig,
@@ -105,6 +106,25 @@ def _count_dropped_unmanaged(saved, after, config):
     return count
 
 
+def _json_shape(value):
+    """Bounded, value-free description of a JSON object's scalar types."""
+    if isinstance(value, dict):
+        items = ', '.join(f'{name}: {_json_shape(item)}'
+                          for name, item in list(value.items())[:4])
+        return items or 'empty object'
+    if isinstance(value, bool):
+        return 'boolean'
+    if isinstance(value, (int, float)):
+        return 'number'
+    if isinstance(value, str):
+        return 'text'
+    if value is None:
+        return 'blank'
+    if isinstance(value, list):
+        return 'list'
+    return 'value'
+
+
 def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
     """Read schema defaults; never change the supplied document or model."""
     saved = jsonable_encoder(existing.data)
@@ -122,7 +142,14 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
                         if section in {'llm_local', 'llm_remote'} else _SCOPES.get(section, 'Setup'),
                'before': get_preview_value(before, key, section, allowed), 'after': get_preview_value(new, key, section, allowed),
                'was_default': absent and default is not _ABSENT}
-        if before != new:
+        structured = key in ('provider_extra_body', 'provider_headers')
+        changed = (not json_values_equal(before, new)) if structured else before != new
+        if changed:
+            # Python treats True and 1 as equal; a JSON type change is a real
+            # edit and must be visible without exposing any values.
+            if structured and isinstance(before, dict) and isinstance(new, dict):
+                row['before'] = _json_shape(before)
+                row['after'] = _json_shape(new)
             changes.append(row)
         elif absent and new is not _ABSENT:
             defaults.append(row)

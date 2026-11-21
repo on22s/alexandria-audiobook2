@@ -443,7 +443,7 @@ def is_benchmark_digest(value):
     return isinstance(value, str) and bool(_BENCHMARK_DIGEST_PATTERN.fullmatch(value))
 
 
-def _identity_values_equal(left, right):
+def json_values_equal(left, right):
     """JSON equality that never confuses a boolean with a number.
 
     Python treats True and 1 as equal, which would let an old `{"flag":true}`
@@ -457,10 +457,10 @@ def _identity_values_equal(left, right):
         return left == right
     if isinstance(left, dict) and isinstance(right, dict):
         return (left.keys() == right.keys()
-                and all(_identity_values_equal(left[key], right[key]) for key in left))
+                and all(json_values_equal(left[key], right[key]) for key in left))
     if isinstance(left, (list, tuple)) and isinstance(right, (list, tuple)):
         return (len(left) == len(right)
-                and all(_identity_values_equal(a, b) for a, b in zip(left, right)))
+                and all(json_values_equal(a, b) for a, b in zip(left, right)))
     return left == right
 
 
@@ -477,7 +477,7 @@ def predigest_identity_matches(raw, config, section):
         return False
     current = get_benchmark_identity(config, section)
     return (isinstance(stored, dict) and isinstance(current, dict)
-            and _identity_values_equal(_canonical_identity_value(stored),
+            and json_values_equal(_canonical_identity_value(stored),
                                        _canonical_identity_value(current)))
 
 
