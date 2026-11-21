@@ -246,6 +246,12 @@
     "tests.test_alias_correction_rescore.AliasCorrectionRescoreTests.test_records_changed_score_without_mutating_artifact"
     , "tests.test_alias_correction_rescore.AliasCorrectionRescoreTests.test_unrelated_rows_produce_no_ledger_entry"
   ]
+  , "test_alias_registry_admission": [
+    "tests.test_alias_registry_admission.AliasRegistryAdmissionTests.test_busy_book_file_lock_is_translated_without_writing"
+    , "tests.test_alias_registry_admission.AliasRegistryAdmissionTests.test_foreign_task_claim_refuses_before_book_lock"
+    , "tests.test_alias_registry_admission.AliasRegistryAdmissionTests.test_pending_recovery_refuses_alias_save_without_touching_artifacts"
+    , "tests.test_alias_registry_admission.AliasRegistryAdmissionTests.test_save_succeeds_after_normal_recovery"
+  ]
   , "test_aligned_japanese_accent": [
     "tests.test_aligned_japanese_accent.Aggregate.test_nones_are_ignored_and_coverage_is_reported"
     , "tests.test_aligned_japanese_accent.MoraUnits.test_a_nucleus_on_the_last_mora_is_read_as_unaccented"
@@ -8729,9 +8735,11 @@
     , "tests.test_manual_activity_js.ManualActivityTests.test_speaker_merge_stage_replaces_the_finished_review_batch_count"
   ]
   , "test_manual_alias_validation": [
-    "tests.test_manual_alias_validation.ManualAliasValidationTests.test_identity_case_fixes_chains_and_blank_editor_rows_keep_existing_contract"
+    "tests.test_manual_alias_validation.ManualAliasValidationTests.test_alias_save_refuses_while_a_model_task_runs"
+    , "tests.test_manual_alias_validation.ManualAliasValidationTests.test_identity_case_fixes_chains_and_blank_editor_rows_keep_existing_contract"
     , "tests.test_manual_alias_validation.ManualAliasValidationTests.test_invalid_graphs_and_oversized_registry_preserve_native_saved_bytes"
     , "tests.test_manual_alias_validation.ManualAliasValidationTests.test_long_chain_reuses_validated_roots_without_quadratic_identity_checks"
+    , "tests.test_manual_alias_validation.ManualAliasValidationTests.test_protected_merges_are_refused_but_legacy_edges_stay_readable"
     , "tests.test_manual_alias_validation.ManualAliasValidationTests.test_shared_reader_policy_has_same_limits_without_mutating_inputs"
   ]
   , "test_manual_llm": [
@@ -11627,6 +11635,40 @@
     , "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_only_the_record_defines_gold_files"
     , "tests.test_record_stamps_every_gold.RecordStampsEveryGoldTest.test_the_consumers_selector_still_matches"
   ]
+  , "test_recovery_cast_baseline": [
+    "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_absent_baseline_fails_closed_with_valid_legacy_tokens"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_castless_approved_cast_is_not_a_change"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_checkpoint_before_manifest_surfaces_fence_on_every_recovery_surface"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_loader_fence_refuses_real_cli_without_publication_or_alteration"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_manifest_backed_fence_surfaces_identical_guidance_everywhere"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_manifest_backed_prepared_source_bytes_keep_the_recovery_fence"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_manifest_with_proven_different_source_stays_unfenced"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_no_checkpoint_and_different_source_are_not_fenced"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_normal_recovery_after_start_over_clears_the_fence"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_null_baseline_fails_closed_with_valid_legacy_tokens"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_prepared_source_bytes_keep_the_cast_change_recovery_state"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_proven_unchanged_cast_keeps_a_legitimate_retry"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_recovery_get_retry_skip_and_inject_all_report_the_fence"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_worker_first_checkpoint_without_manifest_survives_approval_and_undo"
+  ]
+  , "test_recovery_fence_races": [
+    "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_a_book_with_a_list_generates_from_a_frozen_copy"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_a_book_without_a_list_generates_without_one"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_alias_collisions_refuse_edits_without_changing_saved_bytes"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_approval_before_admission_blocks_retry_and_keeps_evidence"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_cast_list_is_an_llm_task_under_the_lock"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_changed_cast_newer_failed_run_undo_still_refuses_retry"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_command_carries_cast_file_only_when_given"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_fenced_checkpoint_is_not_replayed_by_ordinary_generate"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_identical_cast_approval_keeps_retry_and_run_evidence"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_injected_rollback_keeps_artifacts_and_retry"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_retry_keeps_the_list_the_run_started_with"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_retry_refuses_when_the_frozen_list_changed"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_same_cast_legacy_undo_keeps_a_valid_retry"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_saving_a_bad_list_is_refused_and_writes_nothing"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_undo_after_newer_failed_run_refences_retry"
+    , "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_undo_then_ordinary_generate_keeps_fence_until_start_over"
+  ]
   , "test_reference_audio_boundary": [
     "tests.test_reference_audio_boundary.ReferenceAudioBoundaryTests.test_missing_and_directory_entries_preserve_original_indices_and_internal_links"
     , "tests.test_reference_audio_boundary.ReferenceAudioBoundaryTests.test_ranking_refuses_outside_paths_before_similarity_even_if_they_exist"
@@ -12121,6 +12163,13 @@
     , "tests.test_research_chain_pause.ResearchChainPauseTests.test_full_release_keeps_gpu_queue_and_rejects_full_only_skip"
     , "tests.test_research_chain_pause.ResearchChainPauseTests.test_legacy_hold_refuses_without_removing_flag_or_starting_worker"
     , "tests.test_research_chain_pause.ResearchChainPauseTests.test_unpaused_queue_starts_worker_without_wait"
+  ]
+  , "test_reserved_edge_dedupe": [
+    "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_bulk_dedupe_writes_no_protected_terminal_alias_or_script_edit"
+    , "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_proposal_roots_stop_at_reserved_edges"
+    , "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_spelling_variant_dedupe_writes_no_protected_terminal_alias"
+    , "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_spelling_variants_cannot_launder_a_reserved_edge"
+    , "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_valid_unprotected_chain_is_still_accepted"
   ]
   , "test_residency_diagnostics": [
     "tests.test_residency_diagnostics.ResidencyDiagnosticsTests.test_actual_http_report_keeps_uninitialized_engine_unloaded"
@@ -13293,6 +13342,7 @@
   , "test_script_recovery_response": [
     "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_corrupt_checkpoint_fails_detail_without_hiding_metadata_or_editing_evidence"
     , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_explicit_null_pass_status_is_invalid_but_omitted_legacy_is_not"
+    , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_fenced_recovery_surfaces_server_detail_and_start_over"
     , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_legacy_retry_confirmation_ui_requires_explicit_choice"
     , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_legacy_retry_requires_current_explicit_confirmation_and_keeps_saved_options"
     , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_malformed_unchecked_evidence_returns_controlled_recovery"
@@ -16702,6 +16752,7 @@
     , "tests.test_ui_catalog_parity.RealCatalogTests.test_every_real_catalog_passes_every_rule"
     , "tests.test_ui_catalog_parity.RealCatalogTests.test_no_locale_claims_a_review_it_does_not_have"
     , "tests.test_ui_catalog_parity.RealCatalogTests.test_the_auto_configure_flow_keys_are_used_and_translated"
+    , "tests.test_ui_catalog_parity.RealCatalogTests.test_the_cast_changed_recovery_keys_are_used_and_translated"
     , "tests.test_ui_catalog_parity.RealCatalogTests.test_the_catalogs_are_utf8_json_without_a_bom"
     , "tests.test_ui_catalog_parity.RealCatalogTests.test_the_english_catalog_matches_a_fresh_harvest_of_the_source"
     , "tests.test_ui_catalog_parity.RealCatalogTests.test_the_html_allowlist_is_small_and_named"
