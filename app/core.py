@@ -962,7 +962,8 @@ class _RequestTaskClaims(list):
     closed = False
 
 
-def reserve_background_task(task_name, *, cpu_only=False, saved_destinations=None, resources=None):
+def reserve_background_task(task_name, *, cpu_only=False, saved_destinations=None,
+                            resources=None, verify=None):
     """Reserve unstarted work and bind its token to the current request."""
     destinations = (tuple(get_saved_book_destination_path(path) for path in saved_destinations)
                     if saved_destinations is not None else None)
@@ -979,6 +980,10 @@ def reserve_background_task(task_name, *, cpu_only=False, saved_destinations=Non
             if destinations is not None and any(path in _saved_book_publications for path in destinations):
                 raise HTTPException(status_code=409, detail=(
                     "A selected saved book is being saved. Wait for it to finish before starting batch review."))
+            if verify is not None:
+                # Last check before the claim is committed: callers hold book
+                # admission across reservation (book lock before GPU lock).
+                verify()
             _task_claims[task_name]["phase"] = "pending"
             if destinations is not None:
                 _task_claims[task_name]["saved_destinations"] = destinations
@@ -1006,13 +1011,16 @@ def register_claimed_background_task(background_tasks, task_name, claim_id, call
 
 
 def schedule_claimed_background_task(background_tasks, task_name, callback, *args,
-                                    cpu_only=False, saved_destinations=None, **kwargs):
+                                     cpu_only=False, saved_destinations=None,
+                                     verify=None, **kwargs):
     """Reserve and register one owned worker; failed registration rolls back."""
     if saved_destinations is not None:
         claim_id = reserve_background_task(task_name, cpu_only=cpu_only,
-                                           saved_destinations=saved_destinations)
+                                           saved_destinations=saved_destinations,
+                                           verify=verify)
     else:
-        claim_id = reserve_background_task(task_name, cpu_only=True) if cpu_only else reserve_background_task(task_name)
+        claim_id = reserve_background_task(task_name, cpu_only=cpu_only,
+                                           verify=verify)
     return register_claimed_background_task(background_tasks, task_name, claim_id, callback, *args, **kwargs)
 
 

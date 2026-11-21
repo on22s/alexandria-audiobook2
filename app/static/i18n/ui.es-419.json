@@ -1285,6 +1285,7 @@
   "editor.word-timing.unavailable": "Los tiempos no están disponibles. El audio existente de la línea no cambia.",
   "editor.word-timing.wrong-take": "El resultado de los tiempos pertenece a otra toma guardada.",
   "error.book.busy_preview": "El libro está ocupado; vuelve a intentar la vista previa en un momento.",
+  "error.book.chunk_snapshot_unreadable": "No se puede leer el estado guardado del libro. Vuelve a cargarlo o cambia de libro antes de continuar. El progreso guardado y el audio se han conservado.",
   "error.book.owned_by_batch_review": "Este libro guardado está en uso por la revisión por lotes. Espera a que termine o cancélala.",
   "error.book.owned_or_saving": "Este libro guardado está en uso por la revisión por lotes u otro guardado. Espera a que termine o cancélalo.",
   "error.book.snapshot_busy": "El libro o la instantánea guardada está ocupado; reintenta en breve.",

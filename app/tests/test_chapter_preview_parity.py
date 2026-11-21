@@ -14,8 +14,12 @@ class ChapterPreviewParityTests(unittest.TestCase):
 
     def test_native_readiness_errors_match_export_and_selected_changed_only_preview_matches_files(self):
         with self.fixture() as (root,states,client):
-            pm,chunks=_project(root);source=Path(root,'script.json');voices=Path(root,'voice_config.json');source.write_text(json.dumps([{'speaker':'NARRATOR'},{'speaker':'MIA'}]));voices.write_text(json.dumps({'NARRATOR':{'ready':False},'MIA':{'ready':True}}))
-            with patch.object(editor,'SCRIPT_PATH',str(source)),patch.object(editor,'project_manager',pm),patch.object(pm,'load_chunks',return_value=chunks):
+            pm,chunks=_project(root)
+            for index,row in enumerate(chunks):
+                row.update(id=index,uid=f'c{index}',status='done')
+            pm.save_chunks(chunks)
+            source=Path(root,'script.json');voices=Path(root,'voice_config.json');source.write_text(json.dumps([{'speaker':'NARRATOR'},{'speaker':'MIA'}]));voices.write_text(json.dumps({'NARRATOR':{'ready':False},'MIA':{'ready':True}}))
+            with patch.object(editor,'SCRIPT_PATH',str(source)),patch.object(editor,'project_manager',pm):
                 before={p.name:p.read_bytes() for p in (source,voices)}
                 preview=client.get('/api/export_chapters/preview',params={'format':'wav','require_ready':True});export=client.post('/api/export_chapters',json={'format':'wav','require_ready':True})
                 self.assertEqual(409,preview.status_code);self.assertEqual(preview.json(),export.json());self.assertEqual(['NARRATOR'],preview.json()['detail']['speakers']);self.assertFalse(states['chapter_export']['running']);self.assertEqual(before,{p.name:p.read_bytes() for p in (source,voices)})

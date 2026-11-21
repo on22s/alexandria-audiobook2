@@ -1285,6 +1285,7 @@
   "editor.word-timing.unavailable": "计时不可用。现有行音频未更改。",
   "editor.word-timing.wrong-take": "计时结果属于另一条已保存录音。",
   "error.book.busy_preview": "这本书正忙；请稍后重试预览。",
+  "error.book.chunk_snapshot_unreadable": "无法读取已保存的书籍状态。请重新加载或切换书籍后再继续。已保留保存的进度和音频。",
   "error.book.owned_by_batch_review": "这本已保存的书正被批量审阅占用。请等待其完成或取消它。",
   "error.book.owned_or_saving": "这本已保存的书正被批量审阅或另一次保存占用。请等待其完成或取消它。",
   "error.book.snapshot_busy": "书或已保存的快照正忙；请稍后重试。",

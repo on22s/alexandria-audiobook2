@@ -9,6 +9,7 @@ from book_state_transaction import (ensure_book_state, apply_book_input_selectio
 
 import asyncio
 import contextlib
+import errno
 import copy
 import difflib
 import hashlib
@@ -1200,8 +1201,8 @@ def _get_fresh_upload_hash(path: str) -> str:
     restored mtime keeps its cached digest, so destructive dedupe must
     confirm the candidate's current bytes here before reusing it. Raises
     FileNotFoundError, ValueError or OSError when the file is missing,
-    changed while reading, oversized, or otherwise unverifiable; callers
-    fail closed by skipping the candidate.
+    changed while reading, oversized, or otherwise unverifiable. Callers
+    skip invalid candidates and abort publication on storage faults.
     """
     absolute = os.path.abspath(path)
     proof, _raw = capture_scope_file(os.path.dirname(absolute),
@@ -1230,6 +1231,13 @@ def _evict_disproven_upload_hash_hint(candidate_path: str, cached_entry) -> None
             _upload_hash_cache.pop(candidate_path, None)
 
 
+def _reraise_fresh_io_error(error):
+    """Abort on storage faults while keeping legacy unreadable candidates skippable."""
+    if isinstance(error, OSError) and error.errno not in (
+            None, errno.ENOENT, errno.ENOTDIR, errno.EACCES, errno.EPERM):
+        raise error
+
+
 def _is_candidate_upload_hash_match(candidate_path: str, digest: str) -> bool:
     """Return True only when a candidate matches digest on both hashes.
 
@@ -1238,17 +1246,17 @@ def _is_candidate_upload_hash_match(candidate_path: str, digest: str) -> bool:
     the bounded fresh read in _get_fresh_upload_hash. When the advisory
     digest matches but the fresh read succeeds with a different digest,
     just that disproven cached hint is evicted so later checks do not
-    repeat the fresh scan. An unverifiable candidate (ValueError/OSError
-    from either read, including a permission/lock failure on the advisory
-    or fresh read) is always a conservative non-match without eviction,
-    so callers skip it and retain the incoming bytes. Control-flow
+    repeat the fresh scan. Missing, invalid or inaccessible candidates are
+    conservative non-matches without eviction. Unexpected storage errors
+    abort publication before a different candidate can be selected. Control-flow
     exceptions such as CancelledError (a BaseException, not
     ValueError/OSError) always propagate exactly.
     """
     try:
         if _get_upload_hash(candidate_path) != digest:
             return False
-    except (ValueError, OSError):
+    except (ValueError, OSError) as error:
+        _reraise_fresh_io_error(error)
         return False
     # Capture the exact advisory tuple that matched, then release the lock
     # before any fresh I/O. If the hint is absent or its digest differs
@@ -1259,7 +1267,8 @@ def _is_candidate_upload_hash_match(candidate_path: str, digest: str) -> bool:
             cached_entry = None
     try:
         fresh_digest = _get_fresh_upload_hash(candidate_path)
-    except (ValueError, OSError):
+    except (ValueError, OSError) as error:
+        _reraise_fresh_io_error(error)
         return False
     if fresh_digest == digest:
         return True
@@ -1308,7 +1317,8 @@ def _reuse_duplicate_upload(path: str) -> tuple[str, bool]:
                     # considered. Failure retains it.
                     try:
                         digest = _get_fresh_upload_hash(path)
-                    except (ValueError, OSError):
+                    except (ValueError, OSError) as error:
+                        _reraise_fresh_io_error(error)
                         return path, False
                 # Advisory cache pre-filter only: confirm current bytes
                 # before the destructive removal below.
