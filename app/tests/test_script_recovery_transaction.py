@@ -201,14 +201,14 @@ class ScriptRecoveryTransactionTests(unittest.TestCase):
     def test_stale_inject_and_skip_decisions_cannot_apply_to_changed_checkpoint(self):
         for route in ('inject','skip'):
             with self.subTest(route=route),self.fixture() as (_,path):
-                app=FastAPI();app.include_router(script.router);read=script.ensure_failed_checkpoint
+                app=FastAPI();app.include_router(script.router);read=script.get_recovery_admission
                 def changed_after_read():
-                    result=read();current=copy.deepcopy(result);current['failed']['reason']='new failed request'
+                    fenced,result=read();current=copy.deepcopy(result);current['failed']['reason']='new failed request'
                     script.atomic_json_write(current,script.three_pass_checkpoint_path(path))
-                    return result
+                    return fenced,result
                 payload={'chunk':2}
                 if route=='inject':payload['entries']=self.entries()
-                with TestClient(app) as client,patch.object(script,'ensure_failed_checkpoint',side_effect=changed_after_read):
+                with TestClient(app) as client,patch.object(script,'get_recovery_admission',side_effect=changed_after_read):
                     response=client.post('/api/generate_script/'+route,json=payload)
                 self.assertEqual(409,response.status_code);self.assertIn('changed',response.json()['detail'])
                 checkpoint=json.loads(Path(script.three_pass_checkpoint_path(path)).read_text())

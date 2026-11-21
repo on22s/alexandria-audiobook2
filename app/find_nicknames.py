@@ -20,7 +20,7 @@ import argparse
 from dataclasses import replace
 from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config
-from llm_provider import make_run_client
+from llm_provider import get_effective_authorization, make_run_client
 from generate_script import LLMGenParams, call_llm_for_object, ensure_run_request_params
 from utils import safe_load_json, file_lock, atomic_json_write, extract_json_object, warn_unparseable_llm_json, get_runtime_data_dir, get_app_config_path
 from llm_bench import ensure_cached_or_benchmarked_concurrency
@@ -473,7 +473,8 @@ def main():
     # context_length, so this replaces a previous hardcoded 8192 guess that
     # was disconnected from whatever was really loaded.
     _, status, heal_msg = ensure_ideal_settings(
-        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"),
+        authorization=get_effective_authorization(llm), llm_config=llm)
     print(heal_msg)
     client = make_run_client(config, llm, llm_timeout_seconds())
 

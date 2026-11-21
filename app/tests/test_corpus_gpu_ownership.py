@@ -29,7 +29,7 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
         stack.enter_context(patch.object(runner, 'load_app_config', return_value=config))
         heal = stack.enter_context(patch.object(runner, 'ensure_ideal_settings', return_value=(False, {}, 'ready')))
         adapter = stack.enter_context(patch.object(runner, 'check_adapter', return_value=(True, 'verified')))
-        provider = stack.enter_context(patch.object(runner, 'OpenAI'))
+        provider = stack.enter_context(patch.object(runner, 'make_llm_client'))
         process = stack.enter_context(patch.object(runner, 'process_chunk', return_value=[{
             'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}]))
         return lock, manifest, config, heal, adapter, provider, process
@@ -126,6 +126,135 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
                 self.assertNotIn('script',core._task_claims)
                 self.assertEqual(b'prior report',output.read_bytes())
 
+    def test_optional_adapter_miss_report_sanitizes_url_and_retains_lease(self):
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            lock = root / 'gpu.lock'
+            text = 'one two three four five'
+            manifest = {'books': [{'name': 'book.txt', 'passages': [{
+                'category': 'opening', 'text': text, 'sha256': 'fixture'}]}]}
+            url = 'https://fixture-user:fixture-password@host.example/v1'
+            config = {'llm_mode': 'local', 'llm_local': {
+                'base_url': url, 'model_name': 'fixture',
+                'attribution_adapter': {'path': '/optional.gguf', 'scale': 1}}}
+            stack.enter_context(patch.object(core, 'acquire_gpu_lock',
+                side_effect=lambda: acquire_gpu_lock(str(lock))))
+            stack.enter_context(patch.object(runner, 'load_app_config', return_value=config))
+            stack.enter_context(patch.object(runner, 'ensure_ideal_settings',
+                return_value=(False, {}, 'ready')))
+            stack.enter_context(patch('attribution_adapter.served_adapters', return_value=None))
+            stack.enter_context(patch.object(runner, 'make_llm_client'))
+            stack.enter_context(patch.object(runner, 'process_chunk', return_value=[{
+                'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}]))
+            output = root / 'report.json'
+            report = runner.run_manifest(manifest, str(output))
+            body = output.read_text()
+            self.assertFalse(gpu_is_busy(str(lock)))
+            self.assertNotIn('script', core._task_claims)
+            self.assertNotIn('fixture-password', body)
+            self.assertNotIn('fixture-user', body)
+            self.assertIn('[REDACTED]', report['attribution_adapter']['message'])
+            self.assertFalse(report['attribution_adapter']['verified'])
+            self.assertEqual(1, report['summary']['passed'])
+            self.assertEqual(report, json.loads(body))
+
+    def test_query_token_and_fragment_are_absent_from_report_and_log(self):
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            lock = root / 'gpu.lock'
+            text = 'one two three four five'
+            manifest = {'books': [{'name': 'book.txt', 'passages': [{
+                'category': 'opening', 'text': text, 'sha256': 'fixture'}]}]}
+            url = ('https://fixture-user:fixture-password@host.example/v1'
+                   '?access_token=synthetic-query-secret&note=kept'
+                   '&label=sk%2Dabcdefghijklmnop#frag-secret')
+            config = {'llm_mode': 'local', 'llm_local': {
+                'base_url': url, 'model_name': 'fixture',
+                'attribution_adapter': {'path': '/optional.gguf', 'scale': 1}}}
+            stack.enter_context(patch.object(core, 'acquire_gpu_lock',
+                side_effect=lambda: acquire_gpu_lock(str(lock))))
+            stack.enter_context(patch.object(runner, 'load_app_config', return_value=config))
+            stack.enter_context(patch.object(runner, 'ensure_ideal_settings',
+                return_value=(False, {}, 'ready')))
+            stack.enter_context(patch('attribution_adapter.served_adapters', return_value=None))
+            stack.enter_context(patch.object(runner, 'make_llm_client'))
+            stack.enter_context(patch.object(runner, 'process_chunk', return_value=[{
+                'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}]))
+            output = root / 'report.json'
+            log = io.StringIO()
+            with contextlib.redirect_stdout(log):
+                report = runner.run_manifest(manifest, str(output))
+            body = output.read_text() + log.getvalue()
+            for secret in ('fixture-password', 'synthetic-query-secret', 'frag-secret',
+                           'abcdefghijklmnop'):
+                self.assertNotIn(secret, body)
+            self.assertIn('[REDACTED]@host.example/v1', report['base_url'])
+            self.assertIn('note=kept', report['base_url'])
+            self.assertFalse(report['attribution_adapter']['verified'])
+            self.assertFalse(gpu_is_busy(str(lock)))
+            self.assertNotIn('script', core._task_claims)
+
+    def test_display_sanitizer_scrubs_secret_shapes_and_fails_closed(self):
+        import contextlib
+        import io
+        from diagnostics import REDACTED, sanitize_url_for_display
+        normal = 'https://host.example/v1?note=kept&page=2'
+        self.assertEqual(normal, sanitize_url_for_display(normal))
+        for secret in ('sk-abcdefghijklmnop', 'sk%2Dabcdefghijklmnop'):
+            with self.subTest(encoded='%' in secret):
+                leaky = f'https://host.example/v1?note={secret}&page=2'
+                sanitized = sanitize_url_for_display(leaky)
+                self.assertNotIn('abcdefghijklmnop', sanitized)
+                self.assertIn(REDACTED, sanitized)
+                self.assertIn('page=2', sanitized)
+        with patch('diagnostics.urlsplit', side_effect=ValueError('fixture malformed url')):
+            self.assertEqual(REDACTED,
+                sanitize_url_for_display('https://host.example/v1?token=secret#frag'))
+
+    def test_real_settings_message_and_corpus_report_hide_url_secrets(self):
+        import contextlib
+        import io
+        import lmstudio_settings
+        url = ('https://fixture-user:fixture-password@host.example/v1'
+               '?note=kept&label=sk%2Dabcdefghijklmnop#frag-secret')
+        native = {'runtime': 'llama.cpp', 'available': True, 'loaded': True,
+                  'context_length': 8192, 'parallel': 1, 'optimized': None}
+        secrets = ('fixture-password', 'abcdefghijklmnop', 'frag-secret')
+        with patch.object(lmstudio_settings, 'get_llama_cpp_status', return_value=native):
+            _, _, message = lmstudio_settings.ensure_ideal_settings('remote', url, 'fixture')
+        for secret in secrets:
+            self.assertNotIn(secret, message)
+        self.assertIn('[REDACTED]@host.example/v1', message)
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            lock = root / 'gpu.lock'
+            text = 'one two three four five'
+            manifest = {'books': [{'name': 'book.txt', 'passages': [{
+                'category': 'opening', 'text': text, 'sha256': 'fixture'}]}]}
+            stack.enter_context(patch.object(core, 'acquire_gpu_lock',
+                side_effect=lambda: acquire_gpu_lock(str(lock))))
+            lock, manifest, config, heal, adapter, provider, process = self.get_fixture(root, stack)
+            heal.side_effect = lambda *args, **kwargs: lmstudio_settings.ensure_ideal_settings(
+                'remote', url, 'fixture')
+            stack.enter_context(patch.object(lmstudio_settings, 'get_llama_cpp_status',
+                return_value=native))
+            stack.enter_context(patch.object(runner, 'make_llm_client'))
+            stack.enter_context(patch.object(runner, 'process_chunk', return_value=[{
+                'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}]))
+            output = root / 'report.json'
+            log = io.StringIO()
+            with contextlib.redirect_stdout(log):
+                report = runner.run_manifest(manifest, str(output))
+            body = output.read_text() + log.getvalue()
+            for secret in secrets:
+                self.assertNotIn(secret, body)
+            self.assertIn('[REDACTED]@host.example/v1', report['settings_message'])
+            self.assertEqual(1, report['summary']['passed'])
+            self.assertFalse(gpu_is_busy(str(lock)))
+            self.assertNotIn('script', core._task_claims)
+
     def test_credentials_are_removed_from_report_but_preserved_for_provider(self):
         cases = (
             ('https://fixture-user:fixture-password@host.example/v1', 'https://[REDACTED]@host.example/v1'),
@@ -133,6 +262,7 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
             ('https://fixture-user:fixture-password@[::1]:8090/v1', 'https://[REDACTED]@[::1]:8090/v1'),
             ('https://fixture-user%40name:fixture-password%3Aextra@host.example/v1', 'https://[REDACTED]@host.example/v1'),
             ('https://host.example?note=visible@label', 'https://host.example?note=visible@label'),
+            ('//fixture-user:fixture-password@host.example/v1#fixture-fragment', '[REDACTED]'),
         )
         for url, expected in cases:
             with self.subTest(url=url), tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
@@ -141,7 +271,9 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
                 config['llm_local']['base_url'] = url
                 before = copy.deepcopy(config);output = root/'report.json'
                 report = runner.run_manifest(manifest,str(output))
-                self.assertEqual(url,provider.call_args.kwargs['base_url'])
+                self.assertEqual(before['llm_local'],provider.call_args.args[0],
+                                 'the canonical client must receive the bound active profile')
+                self.assertEqual(url,provider.call_args.args[0]['base_url'])
                 self.assertEqual(before,config)
                 self.assertNotIn('fixture-user',output.read_text())
                 self.assertNotIn('fixture-password',output.read_text())

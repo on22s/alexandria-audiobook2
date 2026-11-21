@@ -84,7 +84,7 @@ class LocalPollCacheTests(unittest.TestCase):
 
     def test_concurrent_same_key_shares_fetch_and_returns_independent_snapshots(self):
         entered, release = threading.Event(), threading.Event()
-        def provider(*args):
+        def provider(*args, **kwargs):
             entered.set()
             if not release.wait(3):raise AssertionError('fixture not released')
             return {'runtime': 'llama.cpp', 'nested': {'rows': [1]}}
@@ -109,9 +109,112 @@ class LocalPollCacheTests(unittest.TestCase):
             self.assertNotIn('first-secret', repr(settings._remote_status_cache))
             self.assertNotIn('second-secret', repr(settings._remote_status_cache))
 
+    def test_explicit_non_bearer_authorization_reaches_cached_and_live_probes(self):
+        from llm_provider import get_effective_authorization
+        profile = {'api_key': 'sk-unused-fixture',
+                   'provider_headers': {'AUTHORIZATION': 'Token configured-fixture'}}
+        authorization = get_effective_authorization(profile)
+        self.assertEqual('Token configured-fixture', authorization)
+        with patch.object(settings, 'get_llama_cpp_status', return_value=None), \
+                patch.object(settings, 'get_lmstudio_endpoint_status',
+                             return_value={'available': True}) as endpoint, \
+                patch.object(settings, 'get_lmstudio_management_binding',
+                             return_value=(False, None, 'fixture')):
+            cached = [settings.get_current_status('local', BASE, 'm', use_cache=True,
+                    cache_local=True, api_key='sk-unused-fixture',
+                    authorization=authorization) for _ in range(2)]
+            cached_probes = endpoint.call_count
+            live = settings.get_current_status('local', BASE, 'm',
+                    api_key='sk-unused-fixture', authorization=authorization)
+            live_probes = endpoint.call_count - cached_probes
+        self.assertEqual(1, cached_probes, 'both cached polls must share one probe')
+        self.assertEqual(1, live_probes, 'the uncached poll must probe live')
+        for call in endpoint.call_args_list:
+            self.assertEqual('sk-unused-fixture', call.args[2])
+            self.assertEqual(authorization, call.kwargs['authorization'])
+        self.assertEqual(cached[0], cached[1])
+        self.assertTrue(live['available'])
+        self.assertNotIn('configured-fixture', repr(settings._remote_status_cache))
+        self.assertNotIn('sk-unused-fixture', repr(settings._remote_status_cache))
+
+    def test_resolved_opaque_env_header_reaches_cached_and_live_probes_verbatim(self):
+        from llm_provider import get_effective_authorization, resolve_probe_api_key
+        profile = {"base_url": "https://hosted.invalid/v1",
+                   "provider_headers": {"Authorization": "env:AA2_OPAQUE_FIXTURE"}}
+        with patch.dict(os.environ,
+                        {"AA2_OPAQUE_FIXTURE": "env:opaque-secret-fixture"}, clear=True):
+            effective = get_effective_authorization(profile)
+            with patch.object(settings, 'get_llama_cpp_status', return_value=None) as props, \
+                    patch.object(settings, 'get_lmstudio_endpoint_status',
+                                 return_value={'available': True}) as native:
+                settings.get_current_status('remote', BASE, 'm', use_cache=True,
+                    api_key=None, authorization=effective)
+                settings.get_current_status('remote', BASE, 'm',
+                    api_key=resolve_probe_api_key({'api_key': 'env:AA2_OPAQUE_FIXTURE',
+                                                   'base_url': 'https://hosted.invalid/v1'}),
+                    authorization=effective)
+        for call in list(props.call_args_list) + list(native.call_args_list):
+            self.assertEqual('env:opaque-secret-fixture', call.kwargs['authorization'])
+        self.assertNotIn('opaque-secret-fixture', repr(settings._remote_status_cache))
+
+    def test_unset_env_reference_sends_no_native_or_props_credential(self):
+        with patch.dict(os.environ, {}, clear=True), \
+                patch.object(settings, 'get_llama_cpp_status', return_value=None) as props, \
+                patch.object(settings, 'get_lmstudio_endpoint_status',
+                             return_value={'available': True}) as native:
+            settings.get_current_status('remote', BASE, 'm', use_cache=True,
+                api_key='env:AA2_UNSET_FIXTURE')
+            settings.get_current_status('remote', BASE, 'm',
+                api_key='env:AA2_UNSET_FIXTURE')
+        calls = list(props.call_args_list) + list(native.call_args_list)
+        self.assertTrue(calls)
+        for call in calls:
+            self.assertIsNone(call.kwargs.get('authorization'))
+            sent_key = (call.args[2] if len(call.args) > 2
+                        else call.kwargs.get('api_key'))
+            self.assertIsNone(sent_key,
+                              'a raw env: reference must not become a bearer header')
+
+    def test_llama_props_probe_receives_effective_authorization_cached_and_live(self):
+        native = {'runtime': 'llama.cpp', 'loaded': True, 'context_length': 8192}
+        with patch.object(settings, 'get_llama_cpp_status', return_value=native) as props:
+            settings.get_current_status('local', BASE, 'm', use_cache=True,
+                cache_local=True, api_key='sk-unused-fixture',
+                authorization='Token configured-fixture')
+            settings.get_current_status('local', BASE, 'm', use_cache=True,
+                cache_local=True, api_key='sk-unused-fixture',
+                authorization='Token configured-fixture')
+            cached_probes = props.call_count
+            settings.get_current_status('local', BASE, 'm',
+                api_key='sk-unused-fixture', authorization='Token configured-fixture')
+        self.assertEqual(1, cached_probes)
+        self.assertEqual(2, props.call_count)
+        for call in props.call_args_list:
+            self.assertEqual('sk-unused-fixture', call.kwargs['api_key'])
+            self.assertEqual('Token configured-fixture', call.kwargs['authorization'])
+
+    def test_cache_identity_separates_credentials_and_remote_cached_api_forwards(self):
+        with patch.object(settings, 'get_llama_cpp_status', return_value=None), \
+                patch.object(settings, 'get_lmstudio_endpoint_status',
+                             return_value={'available': True}) as endpoint, \
+                patch.object(settings, 'get_lmstudio_management_binding',
+                             return_value=(False, None, 'fixture')):
+            for authorization in ('Token first-fixture', 'Token second-fixture', None):
+                settings.get_current_status('local', BASE, 'm', use_cache=True,
+                    cache_local=True, api_key='sk-unused-fixture',
+                    authorization=authorization)
+            settings.get_remote_runtime_status_cached(
+                BASE, 'fixture-alias', 'm', api_key='sk-unused-fixture',
+                authorization='Token third-fixture')
+        self.assertEqual(4, endpoint.call_count,
+                         'a changed credential must not reuse another probe')
+        self.assertEqual('Token third-fixture', endpoint.call_args.kwargs['authorization'])
+        for secret in ('first-fixture', 'second-fixture', 'third-fixture', 'sk-unused-fixture'):
+            self.assertNotIn(secret, repr(settings._remote_status_cache))
+
     def test_invalidated_inflight_result_is_returned_but_cannot_repopulate_cache(self):
         entered, release = threading.Event(), threading.Event()
-        def provider(*args):
+        def provider(*args, **kwargs):
             entered.set()
             if not release.wait(3):raise AssertionError('fixture not released')
             return {'context_length': 8192}

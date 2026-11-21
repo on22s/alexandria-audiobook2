@@ -277,7 +277,8 @@ function renderEditorLineInspector() {
         ? t('editor.review.inspector.source-mapping', '{kind}: {entries}', {kind: editorReviewFresh ? t('editor.review.inspector.source-saved', 'Saved mapping') : t('editor.review.inspector.source-loaded', 'Last loaded mapping; refresh review'), entries: sources.map(value => value + 1).join(', ')})
         : t('editor.review.inspector.source-none', 'Source-entry mapping not recorded in the loaded chunk.'));
     const audio = row.querySelector('.chunk-audio');
-    document.getElementById('editor-line-play').disabled = !audio?.getAttribute('src') || (fact && fact.audio === 'missing');
+    document.getElementById('editor-line-play').disabled = !chunk.audio_path
+        || !audio?.getAttribute('src') || (fact && fact.audio === 'missing');
     document.getElementById('editor-line-generate').disabled = chunk.status === 'generating';
     window.applyWordTimingInspector?.();
     window.applySpeechVerificationInspector?.(); window.applyTakeHistoryInspector?.(); window.applyNarrationMarkupInspector?.();

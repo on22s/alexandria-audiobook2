@@ -68,7 +68,7 @@ class IntegrationCorpusTests(OwnedCorpusFixture):
                  "llm": {"base_url": "http://localhost:1234/v1", "model_name": "model"}}), \
              patch.object(integration_runner, "ensure_ideal_settings",
                           return_value=(False, {"context_length": 8192}, "ready")), \
-             patch.object(integration_runner, "OpenAI"), \
+             patch.object(integration_runner, "make_llm_client"), \
              patch.object(integration_runner, "process_chunk", side_effect=process):
             output = str(Path(tmp, "report.json"))
             report = integration_runner.run_manifest(manifest, output)
@@ -94,7 +94,7 @@ class IntegrationRunnerBoundaryTests(OwnedCorpusFixture):
                 with patch.object(integration_runner, 'load_app_config', return_value={}), \
                      patch.object(integration_runner, 'ensure_ideal_settings',
                                   return_value=(False, {}, 'ready')), \
-                     patch.object(integration_runner, 'OpenAI'), \
+                     patch.object(integration_runner, 'make_llm_client'), \
                      patch.object(integration_runner, 'process_chunk') as process, \
                      contextlib.redirect_stdout(io.StringIO()) as stdout:
                     self.assertEqual(0, integration_runner.main([
@@ -122,12 +122,15 @@ class IntegrationRunnerBoundaryTests(OwnedCorpusFixture):
                 with patch.object(integration_runner, 'load_app_config', return_value=config), \
                      patch.object(integration_runner, 'ensure_ideal_settings',
                                   return_value=(False, {}, 'ready')) as ensure, \
-                     patch.object(integration_runner, 'OpenAI') as provider, \
+                     patch.object(integration_runner, 'make_llm_client') as provider, \
                      patch.object(integration_runner, 'process_chunk', return_value=[{
                          'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}]) as process:
-                    integration_runner.run_manifest(manifest, str(output))
-                self.assertEqual(profile['base_url'], provider.call_args.kwargs['base_url'])
-                self.assertEqual(profile['api_key'], provider.call_args.kwargs['api_key'])
+                     integration_runner.run_manifest(manifest, str(output))
+                self.assertEqual(profile, provider.call_args.args[0])
+                self.assertEqual(integration_runner.llm_timeout_seconds(),
+                                 provider.call_args.args[1])
+                self.assertEqual(f"Bearer {profile['api_key']}",
+                                 ensure.call_args.kwargs['authorization'])
                 self.assertEqual((mode, profile['base_url'], profile['model_name']), ensure.call_args.args)
                 self.assertEqual('fixture-ssh', ensure.call_args.kwargs['ssh_alias'])
                 self.assertEqual(profile['model_name'], process.call_args.args[1])
@@ -136,6 +139,26 @@ class IntegrationRunnerBoundaryTests(OwnedCorpusFixture):
                 self.assertEqual(profile['model_name'], report['model'])
                 self.assertEqual(1, report['summary']['passed'])
                 self.assertEqual(original, config)
+
+
+    def test_explicit_header_and_unused_key_reach_preflight_and_canonical_client(self):
+        profile = {'base_url': 'https://hosted.invalid/v1',
+                   'model_name': 'fixture-model', 'api_key': 'sk-unused-fixture',
+                   'provider_headers': {'Authorization': 'Token configured-fixture'}}
+        config = {'llm_mode': 'remote', 'llm_remote': profile}
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp, 'report.json')
+            with patch.object(integration_runner, 'load_app_config', return_value=config), \
+                 patch.object(integration_runner, 'ensure_ideal_settings',
+                              return_value=(False, {}, 'ready')) as ensure, \
+                 patch.object(integration_runner, 'make_llm_client') as make:
+                integration_runner.run_manifest({'books': []}, str(output))
+            report = output.read_text()
+        self.assertEqual('Token configured-fixture', ensure.call_args.kwargs['authorization'])
+        self.assertEqual(profile, make.call_args.args[0],
+                         'the canonical client must receive the same profile as preflight')
+        self.assertNotIn('sk-unused-fixture', report)
+        self.assertNotIn('configured-fixture', report)
 
 
 class IntegrationAdapterProvenanceTests(OwnedCorpusFixture):
@@ -157,13 +180,14 @@ class IntegrationAdapterProvenanceTests(OwnedCorpusFixture):
                 with patch.object(integration_runner, 'load_app_config', return_value=config), \
                      patch.object(integration_runner, 'ensure_ideal_settings',
                                   return_value=(False, {}, 'ready')), \
-                     patch.object(integration_runner, 'OpenAI'), \
+                     patch.object(integration_runner, 'make_llm_client'), \
                      patch.object(attribution_adapter, 'served_adapters', return_value=served) as probe, \
                      patch.object(integration_runner, 'process_chunk', return_value=[{
                          'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}]), \
                      contextlib.redirect_stdout(io.StringIO()) as stdout:
                     report = integration_runner.run_manifest(manifest, str(output))
-                probe.assert_called_once_with('http://fixture/v1', api_key='local')
+                probe.assert_called_once_with('http://fixture/v1', api_key='local',
+                                              authorization='Bearer local')
                 evidence = json.loads(output.read_text())['attribution_adapter']
                 self.assertIs(expected, evidence['verified'])
                 self.assertEqual(attribution_adapter.describe(config), evidence['expected'])
@@ -185,7 +209,7 @@ class IntegrationAdapterProvenanceTests(OwnedCorpusFixture):
                  patch.object(attribution_adapter, 'served_adapters', return_value=[]), \
                  patch.object(integration_runner, 'ensure_ideal_settings',
                               return_value=(False, {}, 'ready')) as ensure, \
-                 patch.object(integration_runner, 'OpenAI') as provider, \
+                 patch.object(integration_runner, 'make_llm_client') as provider, \
                  patch.object(integration_runner, 'process_chunk') as process:
                 with self.assertRaises(attribution_adapter.AdapterError):
                     integration_runner.run_manifest({'books': []}, str(output))
@@ -209,7 +233,7 @@ class IntegrationAdapterAfterHealTests(OwnedCorpusFixture):
             with patch.object(integration_runner, 'load_app_config', return_value=config), \
                  patch.object(integration_runner, 'ensure_ideal_settings', side_effect=heal), \
                  patch.object(attribution_adapter, 'served_adapters', side_effect=lambda _url, **_kwargs: list(served)), \
-                 patch.object(integration_runner, 'OpenAI'), \
+                 patch.object(integration_runner, 'make_llm_client'), \
                  contextlib.redirect_stdout(io.StringIO()):
                 integration_runner.run_manifest({'books': []}, str(output))
             evidence = json.loads(output.read_text())['attribution_adapter']

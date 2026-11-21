@@ -697,6 +697,41 @@ class ReviewSourceBindingTests(unittest.TestCase):
                 self.assertFalse(Path(str(source) + '.review_checkpoint.json').exists())
                 self.assertTrue(Path(str(source) + '.review_completed.json').exists())
 
+    def test_cli_fingerprints_keyless_manual_and_omitted_legacy_keys(self):
+        from llm_provider import resolve_client_api_key
+        profiles = (
+            ('manual', {'transport': 'manual', 'model_name': 'fixture',
+                        'base_url': 'https://api.example.invalid/v1'}),
+            ('http', {'model_name': 'fixture', 'base_url': 'https://legacy.example.invalid/v1'}),
+        )
+        for transport, profile in profiles:
+            with self.subTest(transport=transport), tempfile.TemporaryDirectory() as directory:
+                self.assertEqual(
+                    'manual' if transport == 'manual' else 'local',
+                    resolve_client_api_key(profile))
+                source = Path(directory, 'fixture.json')
+                source.write_text(json.dumps([row('The gate opens.')]), encoding='utf-8')
+                client, calls = client_for([([row('The gate opens.')], 'stop')])
+                config = {'llm_mode': 'remote', 'llm_remote': profile,
+                          'generation': {'review_batch_size': 25}}
+                with ExitStack() as stack:
+                    stack.enter_context(redirect_stdout(io.StringIO()))
+                    stack.enter_context(patch.object(review.sys, 'argv',
+                                                     ['review', '--input', str(source)]))
+                    for name, value in (('get_runtime_data_dir', directory), ('load_app_config', config),
+                                        ('ensure_ideal_settings', (True, {}, 'fixture')),
+                                        ('get_active_llm_config', profile),
+                                        ('make_run_client', client),
+                                        ('ensure_cached_or_benchmarked_concurrency', 1),
+                                        ('get_current_status', {'loaded': False})):
+                        stack.enter_context(patch.object(review, name, return_value=value))
+                    stack.enter_context(patch.object(review, 'wait_for_vram_headroom',
+                                                     side_effect=AssertionError('No GPU calls')))
+                    review.main()
+                self.assertEqual(1, len(calls))
+                self.assertTrue(Path(str(source) + '.review_completed.json').exists(),
+                                'a profile the client accepts must be able to write a receipt')
+
     def test_cli_publishes_portion_reassignment_in_sequential_and_contextual_modes(self):
         from tests.test_review_source_spans import create_book
         for context_window, nested_narrators in ((0, False), (1, False), (0, True), (1, True)):

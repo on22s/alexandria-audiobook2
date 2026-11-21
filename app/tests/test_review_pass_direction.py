@@ -14,9 +14,10 @@ import review_script as review
 from generate_script import LLMGenParams
 
 
-# Computed from origin/main (REVIEW_ALGORITHM_VERSION 11). The default/forward
-# identity must stay byte-identical after adding the backward-only direction key.
-PINNED_FORWARD_FINGERPRINT = "4cb3c229a895de055a9320ce8363ee32a648f7e538bd6f213e2f172482cb6da4"
+# Pinned for the versioned wire-auth identity (REVIEW_ALGORITHM_VERSION 11).
+# The default/forward identity must stay byte-identical after adding the
+# backward-only direction key.
+PINNED_FORWARD_FINGERPRINT = "b31763ab45d090b0adab3faa519d1d69062295b63ea0a3f8282fb3186c542e66"
 CLEAN = ['Review complete: 2 -> 2 entries', 'Total changes: 0']
 
 

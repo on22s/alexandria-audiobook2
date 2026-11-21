@@ -3,6 +3,7 @@ import copy
 from contextlib import ExitStack, redirect_stdout
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -48,14 +49,14 @@ def get_config(mode):
     return config
 
 
-def run_native_benchmark(target='local', mode=True, reply=None, runner_module=runner):
+def run_native_benchmark(target='local', mode=True, reply=None, runner_module=runner, config=None):
     """Use actual runner, review, worker and SDK request bodies with CPU fixtures."""
     with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
         root = Path(directory)
         source = root / 'fixture.json'
         source.write_text(json.dumps(SOURCE))
         config_path = root / 'config.json'
-        config_path.write_text(json.dumps(get_config(mode)))
+        config_path.write_text(json.dumps(config or get_config(mode)))
         manifest = build_script_review_manifest(
             [{'path': str(source), 'entry_starts': [1]}], directory, targets=[target])
         manifest['settings'] = {'remote_root': '/fixture worker',
@@ -117,6 +118,60 @@ class BenchmarkReviewModeTests(unittest.TestCase):
             "import benchmark_core as core; assert core.get_stage_registry()['script_review']['gpu'] is True"],
             cwd=Path(__file__).parent.parent, capture_output=True, text=True, timeout=10)
         self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_thunder_preflight_and_worker_share_the_keyless_loopback_profile(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory, 'fixture.json')
+            source.write_text(json.dumps(SOURCE))
+            manifest = build_script_review_manifest(
+                [{'path': str(source), 'entry_starts': [1]}], directory, targets=['thunder'])
+            config = {'llm_mode': 'local', 'llm_remote_ssh': 'fixture-host',
+                      'llm_remote': {'base_url': 'https://instance.thundercompute.net:1234/v1',
+                                     'model_name': 'fixture-remote'},
+                      'generation': {'max_tokens': 1000}}
+            with patch.dict('os.environ', {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False), \
+                    patch.object(routes, 'check_global_gpu_lock'), \
+                    patch.object(routes, 'collect_thunder_environment',
+                                 return_value=core.build_environment_fingerprint(
+                                     'thunder', ENVIRONMENT)):
+                result = routes._build_benchmark_preflight(SimpleNamespace(manifest=manifest),
+                                                           config=config)
+            self.assertEqual('ready', result['benchmark_state'])
+            worker = runner.get_remote_llm_worker_profile(
+                core.get_benchmark_llm_config(config, 'thunder'))
+            self.assertEqual('http://localhost:1234/v1', worker['base_url'])
+            self.assertEqual('local', worker['api_key'],
+                             'the worker and preflight agree on the loopback placeholder')
+            self.assertNotIn('sk-synthetic', json.dumps(result))
+
+    def test_thunder_blank_key_still_dispatches_the_loopback_worker(self):
+        config = get_config(True)
+        config['llm_remote']['base_url'] = 'https://instance.thundercompute.net:1234/v1'
+        config['llm_remote']['api_key'] = ''
+        with patch.dict('os.environ', {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+            result = run_native_benchmark(target='thunder', config=config)
+        self.assertEqual(1, len(result['envelopes']))
+        envelope = result['envelopes'][0]
+        worker_profile = envelope['payload']['llm_config']
+        self.assertEqual('http://localhost:1234/v1', worker_profile['base_url'])
+        self.assertEqual('local', worker_profile['api_key'])
+        self.assertEqual(1, len(result['requests']), 'the mocked worker must issue a real request')
+        self.assertEqual('passed', result['report']['cases'][0]['status'])
+        self.assertNotIn('sk-synthetic', json.dumps(envelope))
+
+    def test_rtt_probe_uses_safe_profile_and_skips_when_unavailable(self):
+        llm = {'base_url': 'https://instance.thundercompute.net:1234/v1',
+               'model_name': 'fixture-remote', 'api_key': ''}
+        with patch.dict('os.environ', {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+            profile = runner._rtt_probe_profile(llm)
+        self.assertEqual('local', profile['api_key'])
+        self.assertEqual(llm['base_url'], profile['base_url'],
+                         'the probe must still measure the public URL')
+        self.assertNotIn('sk-synthetic', json.dumps(profile))
+        with patch.object(runner, 'make_llm_client',
+                          side_effect=llm_provider.MissingAPIKeyError('unavailable')):
+            self.assertIsNone(runner._rtt_probe_seconds(llm))
 
     def assert_labels_request(self, result):
         self.assertEqual('passed', result['report']['cases'][0]['status'])
@@ -347,3 +402,122 @@ class BenchmarkReviewModeTests(unittest.TestCase):
                 config = get_config(mode); before = copy.deepcopy(config)
                 self.assertEqual(mode is True, get_review_labels_only(config))
                 self.assertEqual(before, config)
+
+
+class ThunderLegacyReportResumeTests(unittest.TestCase):
+    """An old Thunder report may be resumed only when dispatch did not change."""
+
+    def _pre_fix_digest(self, manifest, config):
+        """The report digest as the pre-fix code hashed it (public profile)."""
+        from completed_review_receipt import (REVIEW_ALGORITHM_VERSION,
+                                              REVIEW_SOURCE_SPAN_ALGORITHM_VERSION)
+        from llm_provider import resolve_historical_api_key
+        public = core.get_benchmark_llm_config(config, 'thunder')
+        omitted = {'concurrency', 'concurrency_for', 'concurrency_environment', 'concurrency_revision'}
+        identity = {'version': 1, 'stage': manifest['stage'],
+                    'ssh_alias': config.get('llm_remote_ssh'),
+                    'profile': {key: value for key, value in public.items() if key not in omitted},
+                    'resolved_api_key': resolve_historical_api_key(public.get('api_key'))}
+        generation = config.get('generation') or {}
+        identity['generation'] = {key: generation.get(key) for key in (
+            'max_tokens', 'temperature', 'top_p', 'top_k', 'min_p', 'presence_penalty', 'banned_tokens')}
+        prompts = config.get('prompts') or {}
+        identity['prompts'] = {key: prompts.get(key) for key in (
+            'review_system_prompt', 'review_user_prompt')}
+        if get_review_labels_only(config):
+            identity['prompts']['review_labels_only'] = True
+        identity['review_algorithm'] = REVIEW_ALGORITHM_VERSION
+        identity['review_source_span_algorithm'] = REVIEW_SOURCE_SPAN_ALGORITHM_VERSION
+        return core._stable_hash(identity)
+
+    def _case(self, config):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'fixture.json'
+            source.write_text(json.dumps(SOURCE))
+            manifest = build_script_review_manifest(
+                [{'path': str(source), 'entry_starts': [1]}], tmp, targets=['thunder'])
+            base = core.build_environment_fingerprint('thunder', ENVIRONMENT)
+            return manifest, core.get_benchmark_execution_environment(
+                manifest, base, config)
+
+    def test_literal_key_thunder_report_resumes_without_mutating_canonical_identity(self):
+        config = get_config(True)
+        manifest, current = self._case(config)
+        self.assertNotIn('legacy_sha256', current['details'],
+                         'the compatibility digest must stay out of canonical identity')
+        old = copy.deepcopy(current)
+        old['details']['execution_sha256'] = self._pre_fix_digest(manifest, config)
+        old['sha256'] = core._stable_hash({'target': 'thunder', 'details': old['details']})
+        self.assertEqual(current['legacy_sha256'], old['sha256'],
+                         'the offered legacy digest must be the historical one')
+        report = core.build_benchmark_report(manifest, current)
+        report['environment'] = old
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'report.json'
+            core.save_benchmark_report(path, report)
+            resumed = core.load_resumable_benchmark_report(path, manifest, current)
+        self.assertEqual([], resumed['cases'])
+        self.assertEqual(current['sha256'], resumed['environment']['sha256'],
+                         'a legacy resume must republish the canonical digest')
+
+    def test_changed_profile_and_keyless_public_profile_refuse_legacy_resume(self):
+        config = get_config(True)
+        manifest, current = self._case(config)
+        old = copy.deepcopy(current)
+        old['details']['execution_sha256'] = self._pre_fix_digest(manifest, config)
+        old['sha256'] = core._stable_hash({'target': 'thunder', 'details': old['details']})
+        report = core.build_benchmark_report(manifest, current)
+        report['environment'] = old
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'report.json'
+            core.save_benchmark_report(path, report)
+            changed = copy.deepcopy(config)
+            changed['llm_remote']['api_key'] = 'changed-fixture'
+            _, changed_environment = self._case(changed)
+            with self.assertRaisesRegex(ValueError, 'environment changed'):
+                core.load_resumable_benchmark_report(path, manifest, changed_environment)
+            keyless = copy.deepcopy(config)
+            keyless['llm_remote']['api_key'] = ''
+            with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+                _, keyless_environment = self._case(keyless)
+            self.assertNotIn('legacy_sha256', keyless_environment,
+                             'a keyless public profile changed the worker credential')
+            with self.assertRaisesRegex(ValueError, 'environment changed'):
+                core.load_resumable_benchmark_report(path, manifest, keyless_environment)
+
+    def test_ambiguous_authorization_headers_refuse_thunder_legacy_resume(self):
+        for headers in ({'Authorization': ''},
+                        {'authorization': 'Token first-fixture',
+                         'AUTHORIZATION': 'Token first-fixture'}):
+            with self.subTest(headers=headers):
+                config = get_config(True)
+                config['llm_remote']['provider_headers'] = headers
+                _, environment = self._case(config)
+                self.assertNotIn('legacy_sha256', environment,
+                                 'an unverifiable historical wire identity must not be offered')
+
+    def test_explicit_header_over_unused_key_compares_effective_authorization(self):
+        config = get_config(True)
+        config['llm_remote']['api_key'] = 'sk-unused-fixture'
+        config['llm_remote']['provider_headers'] = {'Authorization': 'Token configured-fixture'}
+        manifest, current = self._case(config)
+        old = copy.deepcopy(current)
+        old['details']['execution_sha256'] = self._pre_fix_digest(manifest, config)
+        old['sha256'] = core._stable_hash({'target': 'thunder', 'details': old['details']})
+        self.assertEqual(current['legacy_sha256'], old['sha256'],
+                         'the header, not the unused key, decides dispatch equivalence')
+        report = core.build_benchmark_report(manifest, current)
+        report['environment'] = old
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'report.json'
+            core.save_benchmark_report(path, report)
+            resumed = core.load_resumable_benchmark_report(path, manifest, current)
+            core.save_benchmark_report(path, resumed)
+            canonical = core.load_resumable_benchmark_report(path, manifest, current)
+            self.assertEqual(current['sha256'], canonical['environment']['sha256'],
+                             'the resumed report must be saved with the canonical digest')
+            changed = copy.deepcopy(config)
+            changed['llm_remote']['provider_headers'] = {'Authorization': 'Token changed-fixture'}
+            _, changed_environment = self._case(changed)
+            with self.assertRaisesRegex(ValueError, 'environment changed'):
+                core.load_resumable_benchmark_report(path, manifest, changed_environment)

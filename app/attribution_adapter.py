@@ -72,7 +72,8 @@ def adapter_config(config):
     if not isinstance(config, dict):
         return None
     from lmstudio_settings import get_active_llm_config
-    from llm_provider import resolve_api_key
+    from llm_provider import (MissingAPIKeyError, get_effective_authorization,
+                              resolve_client_api_key)
     block = get_active_llm_config(config)
     spec = block.get("attribution_adapter")
     if not isinstance(spec, dict):
@@ -80,25 +81,42 @@ def adapter_config(config):
     path = str(spec.get("path") or "").strip()
     if not path:
         return None
+    # Resolve through the client helpers so an explicit Authorization header
+    # wins and an unused api_key never becomes a bearer here. A genuinely
+    # keyless hosted profile is a config failure, not a silent base-quality run:
+    # carry it to check_adapter so a required adapter can refuse as AdapterError.
+    try:
+        api_key = resolve_client_api_key(block)
+        authorization = get_effective_authorization(block)
+        key_error = None
+    except MissingAPIKeyError as error:
+        api_key, authorization, key_error = "", None, str(error)
     return {"path": path,
             "scale": spec.get("scale", 1.0),
-            "api_key": resolve_api_key(block.get("api_key", "local")),
+            "api_key": api_key,
+            "authorization": authorization,
+            "key_error": key_error,
             "expect": bool(spec.get("require", False))}
 
 
-def served_adapters(base_url, timeout=10, api_key=None):
+def served_adapters(base_url, timeout=10, api_key=None, authorization=None):
     """-> list of adapters llama.cpp reports, or None if it cannot be asked.
 
     None means UNKNOWN, not absent. An endpoint that does not implement
     /lora-adapters - LM Studio, Ollama - is not evidence that the adapter is
     missing, and treating it as such would cry wolf on every non-llama.cpp
-    setup.
+    setup. `authorization` is the profile's effective credential and wins over
+    a derived bearer when present.
     """
     root = (base_url or "").rstrip("/")
     if root.endswith("/v1"):
         root = root[:-3]
     try:
-        headers = {'Authorization': f'Bearer {api_key}'} if api_key else {}
+        headers = {}
+        if authorization:
+            headers['Authorization'] = authorization
+        elif api_key:
+            headers['Authorization'] = f'Bearer {api_key}'
         request = urllib.request.Request(root + "/lora-adapters", headers=headers)
         opener = urllib.request.build_opener(_AdapterRedirectHandler())
         with opener.open(request, timeout=timeout) as fh:
@@ -120,10 +138,26 @@ def check_adapter(config, base_url, require=None):
     also when no adapter is configured at all - that is a valid choice, not a
     fault.
     """
+    from lmstudio_settings import get_active_llm_config
+    if (get_active_llm_config(config) or {}).get("transport") == "manual":
+        # Manual has no HTTP endpoint to probe. A retained hosted URL or a
+        # legacy require flag cannot turn a human-in-the-loop run into an
+        # outbound /lora-adapters request; required adapters stay fail-closed
+        # for transports that really speak HTTP.
+        return True, "attribution adapter not probed: Manual transport has no HTTP endpoint"
+    from diagnostics import sanitize_url_for_display
+    safe_url = sanitize_url_for_display(str(base_url or ""))
     spec = adapter_config(config)
     if spec is None:
         return True, "no attribution adapter configured"
     require = spec["expect"] if require is None else require
+
+    if spec["key_error"]:
+        msg = (f"cannot verify attribution adapter {spec['path']}: "
+               f"{spec['key_error']}")
+        if require:
+            raise AdapterError(msg)
+        return False, msg
 
     try:
         configured_scale = get_finite_adapter_scale(spec['scale'])
@@ -135,9 +169,10 @@ def check_adapter(config, base_url, require=None):
             raise AdapterError(msg)
         return False, msg
 
-    served = served_adapters(base_url, api_key=spec['api_key'])
+    served = served_adapters(base_url, api_key=spec['api_key'],
+                             authorization=spec['authorization'])
     if served is None:
-        msg = (f"cannot verify the attribution adapter: {base_url} does not "
+        msg = (f"cannot verify the attribution adapter: {safe_url} does not "
                f"answer /lora-adapters. Expected {spec['path']} "
                f"at scale {spec['scale']}.")
         if require:
