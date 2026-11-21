@@ -17,7 +17,7 @@ from types import SimpleNamespace
 from urllib.parse import urlparse
 
 import httpx2
-from openai import OpenAI
+from openai import OpenAI as _SDKOpenAI
 from lmstudio_settings import is_local_llm_endpoint
 from manual_llm_context import (ManualRequestCancelled, apply_manual_cancellation,
                                 ensure_manual_request_active)
@@ -31,6 +31,26 @@ class MissingAPIKeyError(ValueError):
     """A non-local endpoint has no configured key, so no bearer token may be
     invented for it. OPENAI_API_KEY belongs only to the official OpenAI host.
     """
+
+
+class _DeterministicErrorOpenAI(_SDKOpenAI):
+    """SDK transport retries are for transient failures only.
+
+    The SDK honours a provider's ``x-should-retry: true`` even on 401/403/404,
+    which would repeat a deterministic failure before the app ever classifies
+    it. Those three statuses are terminal here; 429, 5xx, timeouts and every
+    other SDK-retryable condition keep their normal recovery.
+    """
+
+    def _should_retry(self, response):
+        if getattr(response, "status_code", None) in (401, 403, 404):
+            return False
+        return super()._should_retry(response)
+
+
+# One client constructor for the whole app, so the retry policy above cannot be
+# bypassed by a caller reaching for the bare SDK class. Tests patch this name.
+OpenAI = _DeterministicErrorOpenAI
 
 
 def is_api_key_reference(configured):
@@ -90,6 +110,42 @@ def resolve_api_key(configured, base_url=None):
     raise MissingAPIKeyError(
         f"No API key configured for {host}. Set api_key in the profile "
         "(OPENAI_API_KEY is only used for the official OpenAI endpoint).")
+
+
+def has_explicit_authorization_header(llm_config):
+    """True when a profile explicitly configures a nonempty Authorization header.
+
+    Header names are case-insensitive, so `authorization` and `Authorization`
+    are one credential. Such a header authenticates the request itself: the SDK
+    still needs an api_key argument, but it must be a harmless placeholder and
+    no unrelated environment key may be attached.
+    """
+    return any(str(name).lower() == "authorization" and str(value).strip()
+               for name, value in get_provider_headers(llm_config).items())
+
+
+def resolve_client_api_key(llm_config):
+    """The api_key the HTTP client for this profile actually uses.
+
+    Single source for client construction and profile fingerprints. A Manual
+    profile has no SDK key at all; an OMITTED key keeps the legacy "local"
+    placeholder exactly as make_llm_client has always defaulted it; an
+    explicitly blank key goes through resolve_api_key, except on a hosted
+    profile that carries its own Authorization header, where a harmless
+    placeholder keeps the SDK from inventing a bearer token. MissingAPIKeyError
+    still propagates for a genuinely keyless hosted profile - the real client
+    must refuse it too.
+    """
+    llm_config = llm_config or {}
+    if llm_config.get("transport") == "manual":
+        return "manual"
+    configured = llm_config.get("api_key", "local")
+    try:
+        return resolve_api_key(configured, llm_config.get("base_url", ""))
+    except MissingAPIKeyError:
+        if has_explicit_authorization_header(llm_config):
+            return "local"
+        raise
 
 
 def is_openai_reasoning_model(model_name):
@@ -396,7 +452,7 @@ class FailoverClient:
                     status = get_current_status(
                         self._pair[1][2], config.get("base_url", ""), self.secondary_model,
                         ssh_alias=self._ssh_alias,
-                        api_key=resolve_api_key(config.get("api_key"), config.get("base_url", "")))
+                        api_key=resolve_client_api_key(config))
                 except Exception as error:
                     status = {"available": False, "loaded": False,
                               "runtime_error": f"{type(error).__name__}: {error}"}
@@ -795,8 +851,7 @@ def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
         return ConfiguredOpenAI(client, get_provider_extra_body(llm_config), limits=limits) if limits else client
     client = OpenAI(
         base_url=llm_config.get("base_url", "http://localhost:11434/v1"),
-        api_key=resolve_api_key(llm_config.get("api_key", "local"),
-                                llm_config.get("base_url", "")),
+        api_key=resolve_client_api_key(llm_config),
         timeout=(get_profile_timeout(llm_config, timeout)
                  if respect_profile_timeout else timeout),
         default_headers=get_provider_headers(llm_config) or None,

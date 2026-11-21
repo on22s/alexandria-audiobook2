@@ -812,16 +812,16 @@ def _run_llm_test(profile: dict) -> dict:
     """
     from llm_provider import make_llm_client
     base_url = profile.get("base_url", "")
-    api_key = profile.get("api_key", "local")
     model_name = profile.get("model_name", "")
     try:
         _validate_local_llm_base_url(base_url)
     except LLMConfigError as e:
         return {"ok": False, "step": "validate", "error": str(e)}
 
-    client = make_llm_client(
-        {**profile, "api_key": api_key or "local"}, timeout=30,
-        respect_profile_timeout=False)
+    # Let make_llm_client resolve omitted and blank keys exactly as generation
+    # does: a blank official-OpenAI key may inherit OPENAI_API_KEY, and nothing
+    # should be forced to "local" before that decision.
+    client = make_llm_client(profile, timeout=30, respect_profile_timeout=False)
     # Step 1: list models (cheap reachability + model-id check)
     try:
         models = [m.id for m in client.models.list().data]
@@ -867,7 +867,7 @@ async def llm_models(request: LlmModelsRequest):
         from llm_provider import make_llm_client
         profile = request.model_dump()
         profile["base_url"] = url
-        profile["api_key"] = _resolve_redacted_api_key(request.api_key, url) or "local"
+        profile["api_key"] = _resolve_redacted_api_key(request.api_key, url)
         profile["provider_headers"] = _resolve_redacted_provider_headers(
             profile.get("provider_headers"), url)
         client = make_llm_client(profile, timeout=10, respect_profile_timeout=False)

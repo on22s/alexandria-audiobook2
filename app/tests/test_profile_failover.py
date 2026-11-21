@@ -135,6 +135,24 @@ class RetryLoopFailoverTests(unittest.TestCase):
                 self.assertEqual(1, len(seen_p))
                 self.assertEqual([], seen_s, "the billed secondary must not receive the prompt")
 
+    def test_actual_predispatch_context_budget_calls_neither_configured_provider(self):
+        cfg = {'llm_failover': True, 'llm_mode': 'local',
+               'llm_local': {**BASE, 'model_name': 'primary'},
+               'llm_remote': {**REMOTE, 'model_name': 'secondary'}}
+        seen_primary, seen_secondary = [], []
+        with patch('llm_provider.make_llm_client',
+                   side_effect=[_fake([], seen_primary), _fake([], seen_secondary)]):
+            client = make_run_client(cfg, cfg['llm_local'], 30)
+        params = self._params(api_retry_limit=3)
+        params.context_length = 1
+        with tempfile.TemporaryDirectory() as tmp, patch.object(gs, 'REPO', tmp, create=True):
+            out = gs.call_llm_for_entries(client, 'primary', 'sys', 'user', params,
+                                          log_name='t.log', label='T', max_retries=0)
+        self.assertEqual([], out)
+        self.assertEqual([], seen_primary, "the primary must not be called before sizing")
+        self.assertEqual([], seen_secondary, "a local sizing failure must not reach a billed provider")
+        self.assertFalse(client.switched)
+
     def test_auth_and_not_found_stop_retrying_but_still_fail_over(self):
         for error, category in ((UNAUTHORIZED("invalid api key"), "auth"),
                                 (NOT_FOUND("model not found"), "not_found")):

@@ -17,12 +17,13 @@ import sys
 import tempfile
 from urllib.parse import urlparse
 
-from llm_provider import make_llm_client, resolve_api_key
+from llm_provider import make_llm_client
 
 from benchmark_worker_protocol import (get_benchmark_worker_result,
                                       get_benchmark_failure_message,
                                       is_benchmark_worker_infrastructure_failure)
-from benchmark_core import (get_benchmark_llm_config, load_resumable_benchmark_report,
+from benchmark_core import (get_benchmark_llm_config, get_thunder_worker_base_url,
+                            get_thunder_worker_profile, load_resumable_benchmark_report,
                             save_benchmark_report)
 from benchmark_fixtures import _hash_entries, get_normalized_source_chunks
 from benchmark_validation import (validate_persona_speakers, get_benchmark_file_path,
@@ -1186,21 +1187,15 @@ def _pending_fixtures_with_repetitions(fixtures, repetitions, completed):
 
 
 def _remote_llm_base_url(llm):
-    """The URL llm_benchmark_worker.py should use FROM the remote host
-    itself - localhost, not the public forwarding URL. Reusing the
-    forwarding URL here would route the worker's calls back out through the
-    internet a second time, defeating the entire point of running it on
-    Thunder in the first place (see docs/guides/THUNDER_COMPUTE.md's network_rtt_seconds
-    confound)."""
-    port = urlparse(llm.get("base_url") or "").port or 1234
-    return f"http://localhost:{port}/v1"
+    """The loopback URL the worker uses on the Thunder host (see
+    benchmark_core.get_thunder_worker_base_url, the single source)."""
+    return get_thunder_worker_base_url(llm)
 
 
 def get_remote_llm_worker_profile(llm):
-    """Copy the active profile, resolving its key on the orchestrating host."""
-    worker_base_url = _remote_llm_base_url(llm)
-    return {**llm, "base_url": worker_base_url,
-            "api_key": resolve_api_key(llm.get("api_key", "local"), worker_base_url)}
+    """The effective profile preflight fingerprints and the worker dispatches
+    with; both use benchmark_core.get_thunder_worker_profile."""
+    return get_thunder_worker_profile(llm)
 
 
 def get_llm_worker_params(params):
