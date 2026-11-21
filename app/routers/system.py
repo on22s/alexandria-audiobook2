@@ -1434,23 +1434,22 @@ def get_config_to_save(config: AppConfig, existing: dict) -> AppConfig:
     return normalized_config
 
 
-def _reject_nonfinite_request(value):
-    """Return a controlled 4xx for non-finite JSON numbers in a submission.
+# Leave room for the config model and profile around a nested provider body.
+_MAX_SETTINGS_JSON_DEPTH = 250
 
-    Checking the raw payload before pydantic keeps an Inf/NaN out of a
-    ValidationError, whose error serialization would otherwise fail with 500.
-    The message carries no field path or submitted value.
-    """
-    if isinstance(value, bool) or value is None:
-        return
+
+def _validate_settings_json(value, depth=0):
+    """Reject depth and number errors before validation can echo input."""
+    if depth > _MAX_SETTINGS_JSON_DEPTH:
+        refuse_invalid_request_body()
     if isinstance(value, float) and not math.isfinite(value):
         raise HTTPException(status_code=400, detail="Settings contain a non-finite JSON number; use finite values only.")
     if isinstance(value, dict):
         for item in value.values():
-            _reject_nonfinite_request(item)
+            _validate_settings_json(item, depth + 1)
     elif isinstance(value, (list, tuple)):
         for item in value:
-            _reject_nonfinite_request(item)
+            _validate_settings_json(item, depth + 1)
 
 
 def refuse_invalid_request_body():
@@ -1472,11 +1471,11 @@ def validate_authoritative_raw(profile):
         refuse_invalid_request_body()
     try:
         parsed = json.loads(raw)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, RecursionError):
         refuse_invalid_request_body()
     if not isinstance(parsed, dict):
         refuse_invalid_request_body()
-    _reject_nonfinite_request(parsed)
+    _validate_settings_json(parsed, depth=2)
 
 
 def validate_submitted_raw_sections(payload):
@@ -1490,7 +1489,7 @@ async def preview_config(proposed: Any = Body(...)):
     """Compare supported saved settings with the normalized Save proposal."""
     if not isinstance(proposed, dict):
         raise HTTPException(status_code=400, detail="Preview requires a settings object.")
-    _reject_nonfinite_request(proposed)
+    _validate_settings_json(proposed)
     validate_submitted_raw_sections(proposed)
     try:
         config = AppConfig.model_validate(proposed)
@@ -1642,7 +1641,7 @@ async def ensure_finite_settings_body(request: Request):
         payload = await request.json()
     except (ValueError, UnicodeDecodeError):
         return
-    _reject_nonfinite_request(payload)
+    _validate_settings_json(payload)
     validate_submitted_raw_sections(payload)
 
 

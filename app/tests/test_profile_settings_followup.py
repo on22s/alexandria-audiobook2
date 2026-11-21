@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi import FastAPI
@@ -1362,13 +1363,15 @@ class AuthoritativeRawShapeTests(unittest.TestCase):
     def test_every_invalid_raw_shape_is_redacted_on_both_routes(self):
         secret, auth = "SYNTHETIC_SECRET_KEY_888", "SYNTHETIC_AUTH_777"
         shapes = {"array": ["x"], "null": None, "whitespace": "   ",
-                  "missing": object(), "number": 42}
+                  "missing": object(), "number": 42,
+                  "deep": '{"hidden":' + "[" * 300 + "true" + "]" * 300 + "}",
+                  "decoder_limit": '{"hidden":' + "[" * 1100 + "NaN" + "]" * 1100 + "}"}
         for name, raw in shapes.items():
             with self.subTest(shape=name), tempfile.TemporaryDirectory() as tmp:
                 profile = dict(LOW, api_key="saved-legacy")
                 path = _seed(tmp, {"llm_mode": "local", "llm": dict(profile),
                                    "llm_local": dict(profile), "tts": {}, "generation": {}})
-                before = _load(path)
+                before = Path(path).read_bytes()
                 app = FastAPI()
                 app.include_router(system_module.router)
                 client = TestClient(app, raise_server_exceptions=True)
@@ -1388,11 +1391,11 @@ class AuthoritativeRawShapeTests(unittest.TestCase):
                     saved = client.post("/api/config", json=form)
                     self.assertEqual(200, client.get("/api/config").status_code)
                 text = preview.text + saved.text
-                for value in (secret, auth, "SYNTHETIC", "authorization"):
+                for value in (secret, auth, "SYNTHETIC", "authorization", "hidden", "NaN"):
                     self.assertNotIn(value, text)
                 self.assertEqual(400, preview.status_code)
                 self.assertEqual(400, saved.status_code)
-                self.assertEqual(before, _load(path))
+                self.assertEqual(before, Path(path).read_bytes())
 
     def test_unmarked_auxiliary_text_never_blocks_structured_input(self):
         for raw in ('{"v":1e310}', '{bad'):
@@ -1445,36 +1448,45 @@ class MirrorAbsentBodyBaselineTests(unittest.TestCase):
 
 class DeepTypeSwapTests(unittest.TestCase):
     def test_changes_beyond_display_caps_still_render_distinctly(self):
-        from config_change_preview import _json_types, _type_tree
+        from config_change_preview import _json_types
         late = {"x": [{"v": True} for _ in range(9)]}
         late_edited = json.loads(json.dumps(late))
         late_edited["x"][8]["v"] = 1
-        deep = {"a": {"b": {"c": {"d": {"e": {"v": True}}}}}}
-        deep_edited = json.loads(json.dumps(deep))
-        deep_edited["a"]["b"]["c"]["d"]["e"]["v"] = 1
+        deep, deep_edited = {"v": True}, {"v": 1}
+        for _ in range(25):
+            deep, deep_edited = {"nested": [deep]}, {"nested": [deep_edited]}
         for before, after in ((late, late_edited), (deep, deep_edited)):
-            self.assertNotEqual(_type_tree(before), _type_tree(after))
-            self.assertLessEqual(len(_json_types(before)), 160)
+            self.assertEqual(_json_types(before), _json_types(after))
+            self.assertTrue(config_change_preview._has_json_type_change(before, after))
+        self.assertFalse(config_change_preview._has_json_type_change(
+            {"x": [{"old": True}]}, {"x": [{"new": True}]}))
+        wide = True
+        for _ in range(5):
+            wide = [wide] * 6
+        self.assertLessEqual(len(_json_types({"x": wide})), 160)
 
     def test_preview_marks_hidden_type_change_without_names_or_values(self):
         from config_settings import AppConfig, load_app_config_result
-        body = {"x": [{"v": True} for _ in range(9)]}
+        body, changed, renamed = {"private_old": True}, {"private_old": 1}, {"private_new": True}
+        for _ in range(25):
+            body, changed, renamed = ({"private_branch": [node]}
+                                      for node in (body, changed, renamed))
         with tempfile.TemporaryDirectory() as tmp:
             profile = dict(LOW, provider_extra_body=body)
             path = _seed(tmp, {"llm_mode": "local", "llm": dict(profile),
                                "llm_local": dict(profile), "tts": {}, "generation": {}})
             existing = load_app_config_result(path)
             document = _get(tmp)
-            document["llm_local"]["provider_extra_body"] = {
-                "x": [{"v": True} for _ in range(8)] + [{"v": 1}]}
-            preview = config_change_preview.get_config_change_preview(
-                existing, AppConfig.model_validate(document),
-                system_module.get_config_local_profile, exists=True)
-            rows = [row for row in preview["changes"]
-                    if row["path"] == "llm_local.provider_extra_body"]
-            self.assertEqual(1, len(rows))
-            self.assertNotEqual(rows[0]["before"], rows[0]["after"])
-            self.assertNotIn("v", rows[0]["before"] + rows[0]["after"])
+            for edit, signal in ((changed, True), (renamed, False)):
+                document["llm_local"]["provider_extra_body"] = edit
+                preview = config_change_preview.get_config_change_preview(
+                    existing, AppConfig.model_validate(document),
+                    system_module.get_config_local_profile, exists=True)
+                rows = [row for row in preview["changes"]
+                        if row["path"] == "llm_local.provider_extra_body"]
+                self.assertEqual(1, len(rows))
+                self.assertEqual(signal, rows[0]["before"] != rows[0]["after"])
+                self.assertNotIn("private_", rows[0]["before"] + rows[0]["after"])
 
 
 if __name__ == "__main__":

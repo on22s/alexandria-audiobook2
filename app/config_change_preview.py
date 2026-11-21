@@ -106,49 +106,54 @@ def _count_dropped_unmanaged(saved, after, config):
     return count
 
 
-def _json_types(value, depth=0):
-    """Bounded, position-aware type signature; no property names or values.
-
-    Comparing types at each position keeps a leaf flip visible even when the
-    aggregate set of types is unchanged, while 1 and 1.0 share one signature.
-    """
-    if depth >= 5:
-        return 'value'
-    if isinstance(value, dict):
-        parts = [_json_types(item, depth + 1) for _, item in sorted(value.items())][:6]
-        return 'object[' + ','.join(parts) + (',…' if len(value) > 6 else '') + ']'
-    if isinstance(value, list):
-        parts = [_json_types(item, depth + 1) for item in value][:6]
-        return 'list[' + ','.join(parts) + (',…' if len(value) > 6 else '') + ']'
-    if isinstance(value, bool):
-        return 'boolean'
-    if isinstance(value, (int, float)):
-        return 'number'
-    if isinstance(value, str):
-        return 'text'
-    if value is None:
-        return 'blank'
-    return 'value'
+_JSON_TYPES = {dict: 'object', list: 'list', bool: 'boolean', int: 'number',
+               float: 'number', str: 'text', type(None): 'blank'}
 
 
-def _type_tree(value, depth=0):
-    """Full positional type structure for detecting changes past display caps."""
-    if depth >= 20:
-        return ('deep',)
-    if isinstance(value, bool):
-        return ('boolean',)
-    if isinstance(value, (int, float)):
-        return ('number',)
-    if isinstance(value, str):
-        return ('text',)
-    if value is None:
-        return ('blank',)
-    if isinstance(value, dict):
-        return ('object', tuple((key, _type_tree(item, depth + 1))
-                                for key, item in sorted(value.items())))
-    if isinstance(value, list):
-        return ('array', tuple(_type_tree(item, depth + 1) for item in value))
-    return ('value',)
+def _json_type(value):
+    return _JSON_TYPES.get(type(value), 'value')
+
+
+def _json_types(value):
+    """Describe the first few positions without including names or values."""
+    remaining = 12
+
+    def describe(item, depth):
+        nonlocal remaining
+        remaining -= 1
+        if depth >= 5:
+            return 'value'
+        label = _json_type(item)
+        if isinstance(item, dict):
+            children = (item[key] for key in sorted(item)[:6])
+        elif isinstance(item, list):
+            children = iter(item[:6])
+        else:
+            return label
+        parts = []
+        for child in children:
+            if remaining == 0:
+                break
+            parts.append(describe(child, depth + 1))
+        if len(parts) < len(item):
+            parts.append('…')
+        return label + '[' + ','.join(parts) + ']'
+
+    return describe(value, 0)
+
+
+def _has_json_type_change(before, after):
+    """Compare types at shared keys and positions beyond the display budget."""
+    pending = [(before, after)]
+    while pending:
+        left, right = pending.pop()
+        if _json_type(left) != _json_type(right):
+            return True
+        if isinstance(left, dict):
+            pending.extend((left[key], right[key]) for key in left if key in right)
+        elif isinstance(left, list):
+            pending.extend(zip(left, right))
+    return False
 
 
 def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
@@ -191,7 +196,7 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
             # edit and must be visible without exposing any values.
             if structured and isinstance(before, dict) and isinstance(new, dict):
                 left, right = _json_types(before), _json_types(new)
-                if left == right and _type_tree(before) != _type_tree(new):
+                if left == right and _has_json_type_change(before, new):
                     # The change lies beyond the bounded display; still show a
                     # distinct, value-free signal rather than an unchanged row.
                     left += ' …'
