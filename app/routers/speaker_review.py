@@ -20,6 +20,7 @@ from generation_checkpoint_deltas import load_generation_delta_checkpoint
 from lmstudio_settings import get_active_llm_config
 from routers.scripts_library import _build_saved_scripts_list, _require_saved_book_name
 from speaker_identity import get_validated_alias_graph
+from alias_registry_apply import alias_task_lease
 from speaker_review import (SCHEMA, SOURCE_REVISION, PROMPT, MODES, MAX_PAIRS, MAX_ATTEMPTS,
     WARNING, digest, validate_entries, get_checkpoint_prefix, get_candidates,
     get_profile_settings, get_native_entries, require_prompt_capacity, review_key, require_alias_pair,
@@ -492,39 +493,30 @@ def _cancel(run_id):
 
 
 def _apply(run_id, request):
-    with core._gpu_lock:
-        if core.is_task_running(TASK):
-            raise HTTPException(status_code=409, detail='Wait for the speaker review to finish before applying')
-        # Registry changes must not race generation/review or nickname discovery.
-        busy = [name for name in core.LLM_TASKS if core.is_task_running(name)]
-        if busy:
-            raise HTTPException(status_code=409, detail='Wait for model tasks to finish before saving an alias')
-        try:
-            lease = core.acquire_task_lease(core.DATA_DIR, TASK, core.LLM_TASKS)
-        except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail='Another app worker owns a model task; wait before saving an alias') from exc
-        with contextlib.closing(lease):
-            with file_lock(_run_path(run_id), timeout=0):
-                record = _read_run(run_id)
-                with _inputs_locked(record['selection']['reference_name']):
-                    captured = _capture_locked(record['selection'])
-                    if (request.snapshot != record['snapshot'] or captured['public']['snapshot'] != record['snapshot']
-                            or record['status'] != 'completed' or record.get('applied')):
-                        raise HTTPException(status_code=409, detail='This review changed or is stale; preview and review again')
-                    candidate = next((item for item in captured['public']['candidates']
-                                      if item['id'] == request.candidate_id), None)
-                    if candidate is None:
-                        raise HTTPException(status_code=409, detail='The selected candidate is no longer relevant')
-                    updated = require_alias_pair(candidate, record['reviews'], request.alias,
-                                                 request.canonical, captured['aliases'])
-                    # Same graph validator, registry lock and atomic write as the native alias
-                    # editor, with all book/evidence checks still inside their shared locks.
-                    atomic_json_write(updated, core.CHARACTER_ALIASES_PATH, allow_nonatomic_fallback=False)
-                    record['applied'] = [candidate['id']]
-                    record['status'] = 'stale'
-                    _write_run(record)
-                    return {'status': 'saved', 'alias': request.alias, 'canonical': request.canonical,
-                            'run_id': run_id, 'applied': record['applied']}
+    # Shared applied-alias admission: refuse while any model task owns the GPU
+    # or endpoint, then hold the lease through the run and book/file fences.
+    with alias_task_lease(core.DATA_DIR):
+        with file_lock(_run_path(run_id), timeout=0):
+            record = _read_run(run_id)
+            with _inputs_locked(record['selection']['reference_name']):
+                captured = _capture_locked(record['selection'])
+                if (request.snapshot != record['snapshot'] or captured['public']['snapshot'] != record['snapshot']
+                        or record['status'] != 'completed' or record.get('applied')):
+                    raise HTTPException(status_code=409, detail='This review changed or is stale; preview and review again')
+                candidate = next((item for item in captured['public']['candidates']
+                                  if item['id'] == request.candidate_id), None)
+                if candidate is None:
+                    raise HTTPException(status_code=409, detail='The selected candidate is no longer relevant')
+                updated = require_alias_pair(candidate, record['reviews'], request.alias,
+                                             request.canonical, captured['aliases'])
+                # Same graph validator, registry lock and atomic write as the native alias
+                # editor, with all book/evidence checks still inside their shared locks.
+                atomic_json_write(updated, core.CHARACTER_ALIASES_PATH, allow_nonatomic_fallback=False)
+                record['applied'] = [candidate['id']]
+                record['status'] = 'stale'
+                _write_run(record)
+                return {'status': 'saved', 'alias': request.alias, 'canonical': request.canonical,
+                        'run_id': run_id, 'applied': record['applied']}
 
 
 async def _dispatch(function, *args):

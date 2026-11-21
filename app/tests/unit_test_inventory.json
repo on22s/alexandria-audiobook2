@@ -8601,9 +8601,11 @@
     , "tests.test_manual_activity_js.ManualActivityTests.test_speaker_merge_stage_replaces_the_finished_review_batch_count"
   ]
   , "test_manual_alias_validation": [
-    "tests.test_manual_alias_validation.ManualAliasValidationTests.test_identity_case_fixes_chains_and_blank_editor_rows_keep_existing_contract"
+    "tests.test_manual_alias_validation.ManualAliasValidationTests.test_alias_save_refuses_while_a_model_task_runs"
+    , "tests.test_manual_alias_validation.ManualAliasValidationTests.test_identity_case_fixes_chains_and_blank_editor_rows_keep_existing_contract"
     , "tests.test_manual_alias_validation.ManualAliasValidationTests.test_invalid_graphs_and_oversized_registry_preserve_native_saved_bytes"
     , "tests.test_manual_alias_validation.ManualAliasValidationTests.test_long_chain_reuses_validated_roots_without_quadratic_identity_checks"
+    , "tests.test_manual_alias_validation.ManualAliasValidationTests.test_protected_merges_are_refused_but_legacy_edges_stay_readable"
     , "tests.test_manual_alias_validation.ManualAliasValidationTests.test_shared_reader_policy_has_same_limits_without_mutating_inputs"
   ]
   , "test_manual_llm": [

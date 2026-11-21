@@ -1,4 +1,5 @@
 from book_state_transaction import ensure_saved_book_state
+from script_recovery_guard import (RECOVERY_CAST_INVALIDATED, is_script_recovery_cast_invalidated)
 from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
@@ -38,7 +39,8 @@ from fastapi.responses import FileResponse, StreamingResponse
 from review_startup import ReviewStartupTrace, CURRENT as REVIEW_STARTUP, read_trace, get_failure_log_path
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
-from speaker_identity import get_validated_alias_graph
+from speaker_identity import get_validated_alias_graph, get_saveable_alias_graph
+from alias_registry_apply import alias_registry_admission
 from diagnostics import redact_text
 from llm_provider import (MANUAL_DATA_DIR_ENV, manual_llm_dir, is_manual_request_owner_alive,
                           read_manual_pending_locked)
@@ -2899,6 +2901,10 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             raise HTTPException(status_code=409, detail=(
                 "The cast list this run started with is missing or changed, so it cannot "
                 "resume; start a new run."))
+        if is_script_recovery_cast_invalidated(DATA_DIR):
+            raise HTTPException(status_code=409, detail=(
+                "The approved cast changed since this run started, so it cannot resume; "
+                "start a new run. The saved checkpoint was preserved."))
         cast_source = None
     else:
         cast_source = get_existing_cast_list(input_file)
@@ -2996,6 +3002,9 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             if isinstance(state, dict):
                 # Retry reads these instead of the current form. Otherwise a
                 # changed checkbox would invalidate the resume fingerprint.
+                # A fresh run establishes a new cast baseline, clearing any
+                # stale-recovery flag left by a roster approval.
+                state.pop(RECOVERY_CAST_INVALIDATED, None)
                 state["script_generation_options"] = options
                 state["script_generation_input_file"] = input_file
                 if original is not None:
@@ -3739,13 +3748,14 @@ async def get_character_aliases():
 @router.post("/api/character_aliases")
 async def save_character_aliases(aliases: Dict[str, str]):
     """Overwrite the alias map (lets the user correct discovered nicknames before review)."""
-    cleaned = {k: v for k, v in aliases.items() if k.strip() and v.strip()}
-    try:
-        cleaned = get_validated_alias_graph(cleaned)
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    with file_lock(CHARACTER_ALIASES_PATH):
-        atomic_json_write(cleaned, CHARACTER_ALIASES_PATH, allow_nonatomic_fallback=False)
+    with alias_registry_admission(DATA_DIR):
+        cleaned = {k: v for k, v in aliases.items() if k.strip() and v.strip()}
+        try:
+            cleaned = get_saveable_alias_graph(cleaned)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        with file_lock(CHARACTER_ALIASES_PATH):
+            atomic_json_write(cleaned, CHARACTER_ALIASES_PATH, allow_nonatomic_fallback=False)
     return {"status": "saved", "count": len(cleaned)}
 
 

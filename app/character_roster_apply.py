@@ -18,6 +18,7 @@ from project_scope_admission import ensure_scope_admission, is_scope_admitted, _
 from project_scope_files import capture_scope_file
 from source_evidence import _require_keys
 from utils import file_lock
+from script_recovery_guard import get_stale_recovery_state
 import json
 
 MAX_UNDO_BYTES = 16 * 1024**2
@@ -79,8 +80,15 @@ def apply_character_roster(root, proposal, expected_revision, imported_roster=No
         raise ValueError('Book or source changed before character publication; review again')
     replacements = {snapshot['paths'][key]: raw for key, raw in after.items() if raw != before[key]}
     replacements[UNDO] = undo_bytes
+    recovery_retired = False
+    if plan['cast_changed']:
+        flagged = get_stale_recovery_state(root, get_roster_digest(after['cast']))
+        if flagged is not None:
+            replacements['state.json'] = get_roster_json_bytes(flagged, MAX_UNDO_BYTES)
+            recovery_retired = True
     apply_book_state_locked(root, replacements, [])
-    return {'approved': True, 'cast_changed': plan['cast_changed'], 'undo_available': True}
+    return {'approved': True, 'cast_changed': plan['cast_changed'],
+            'undo_available': True, 'recovery_retired': recovery_retired}
 
 
 def _get_character_undo(root, *, require_cast_lock=True):

@@ -297,6 +297,21 @@ def get_validated_alias_graph(value):
     return mapping
 
 
+def get_saveable_alias_graph(value):
+    """Validate an alias graph for publication, refusing protected merges.
+
+    Reads stay permissive (get_validated_alias_graph, get_resolved_speaker_merge_map)
+    so a legacy registry holding an UNKNOWN edge remains readable and never folds
+    that edge. Only a write that introduces a protected narrator/UNKNOWN/group
+    merge is refused, on either side of the pair.
+    """
+    mapping = get_validated_alias_graph(value)
+    for variant, canonical in mapping.items():
+        if not is_speaker_merge_allowed(variant, canonical):
+            raise ValueError(f"protected speaker mapping '{variant}' -> '{canonical}' cannot be saved")
+    return mapping
+
+
 def get_resolved_speaker_merge_map(mapping):
     """Flatten alias chains; omit cycles and every alias leading into one.
 

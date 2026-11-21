@@ -5,6 +5,8 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+from fastapi import HTTPException
+
 from cast_list import get_cast_list_path
 from character_roster_apply import (ensure_character_roster_admission, apply_character_roster,
     get_character_roster_undo_status, discard_character_roster_undo)
@@ -49,9 +51,16 @@ class CharacterRosterGenerationTests(unittest.TestCase):
             current = Path(self.list_path).read_bytes()
             self.assertNotEqual(initial, current)
             self.assertEqual(initial, frozen.read_bytes())
-            self.start(recovery=True)
+            self.assertEqual(initial_hash, self.stored_options()['cast_sha256'])
+            # Approval with a changed cast retires Retry instead of silently
+            # resuming with the pre-approval cast; run evidence is preserved.
+            with self.assertRaises(HTTPException) as caught:
+                self.start(recovery=True)
+            self.assertEqual(409, caught.exception.status_code)
+            self.assertIn('approved cast changed', caught.exception.detail)
             self.assertEqual(initial, frozen.read_bytes())
             self.assertEqual(initial_hash, self.stored_options()['cast_sha256'])
+            self.assertTrue(frozen.exists())
             self.start()
             self.assertEqual(current, frozen.read_bytes())
             updated_hash = hashlib.sha256(current).hexdigest()
