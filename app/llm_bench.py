@@ -273,6 +273,12 @@ def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, mo
         config = load_app_config(config_path)
     profile = config.get(profile_key) or {}
     observed_state = _concurrency_cache_state(profile)
+    observed_identity = lmstudio_settings.get_benchmark_identity_key(config, profile_key)
+    # The client was built from this run profile before this function was
+    # called. Identity must describe the requests that client actually sends,
+    # not a config edit that landed after binding (Rule 15: one answer).
+    bound_identity = lmstudio_settings.get_benchmark_identity_key(
+        config, profile_key, profile=llm_config, ssh_alias=ssh_alias, llm_mode=llm_mode)
     if status is None:
         status = lmstudio_settings.get_current_status(
             llm_mode, base_url, model_name, ssh_alias=ssh_alias, api_key=profile.get("api_key"))
@@ -304,8 +310,14 @@ def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, mo
     environment = get_concurrency_environment(
         base_url, model_name, is_remote, ssh_alias, hostname, gpu_name, backend, status)
     cached_concurrency = profile.get("concurrency")
+    cached_identity = profile.get(lmstudio_settings.BENCHMARK_IDENTITY_KEY)
+    if cached_identity is None and lmstudio_settings.has_valid_benchmark_environment(profile):
+        # Legacy entries predate the persisted identity; their own qualified
+        # section is the only identity evidence they carry.
+        cached_identity = lmstudio_settings.get_benchmark_identity_key(config, profile_key)
     if (profile.get("concurrency_for") == cache_key
             and profile.get("concurrency_environment") == environment
+            and (cached_identity is None or cached_identity == bound_identity)
             and isinstance(cached_concurrency, int) and not isinstance(cached_concurrency, bool)
             and cached_concurrency > 0):
         concurrency = min(cached_concurrency, effective_max)
@@ -344,12 +356,14 @@ def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, mo
         with file_lock(config_path):
             config = load_app_config(config_path, for_update=True)
             profile = dict(config.get(profile_key) or {})
-            if _concurrency_cache_state(profile) != observed_state:
+            if (_concurrency_cache_state(profile) != observed_state
+                    or lmstudio_settings.get_benchmark_identity_key(config, profile_key) != observed_identity):
                 return concurrency
             profile["concurrency"] = concurrency
             profile["concurrency_for"] = cache_key
             profile["concurrency_environment"] = environment
             profile["concurrency_revision"] = uuid.uuid4().hex
+            profile[lmstudio_settings.BENCHMARK_IDENTITY_KEY] = bound_identity
             config[profile_key] = profile
             atomic_json_write(config, config_path, allow_nonatomic_fallback=False)
     except (OSError, TimeoutError, TypeError, ValueError):

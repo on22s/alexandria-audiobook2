@@ -1,9 +1,13 @@
 """Bounded, credential-safe summaries of supported configuration changes."""
+import json
 from typing import Literal, get_args, get_origin
 
 from fastapi.encoders import jsonable_encoder
 
 from config_settings import AppConfig, GenerationConfig, LLMConfig, PromptConfig, TTSConfig
+from lmstudio_settings import (BENCHMARK_CACHE_KEYS, BENCHMARK_IDENTITY_KEY,
+                               get_benchmark_identity_key, get_document_with_retained_cache,
+                               has_valid_benchmark_environment, is_benchmark_digest)
 
 _ABSENT = object()
 _MODELS = {'llm_local': LLMConfig, 'llm_remote': LLMConfig, 'tts': TTSConfig,
@@ -51,12 +55,62 @@ def get_preview_value(value, key, section='', allowed=frozenset()):
     return 'Contents hidden'
 
 
+def _receipt_signature(block, config, section):
+    """Identity of a whole receipt, not of one field that another may share."""
+    if not has_valid_benchmark_environment(block):
+        return None
+    digest = block.get(BENCHMARK_IDENTITY_KEY)
+    if not is_benchmark_digest(digest):
+        digest = get_benchmark_identity_key(config or {}, section)
+    return (digest, json.dumps(block["concurrency_environment"], sort_keys=True, default=str),
+            block.get("concurrency_revision"))
+
+
+def _carried_forward(key, value, after, section, signature):
+    """Whether a saved unknown field survives at its destination after Save.
+
+    A cache field counts as migrated only when the *same receipt* (identity and
+    measured environment) is present at the destination. An unrelated receipt
+    with an equal concurrency number is not retained evidence. Every other
+    unknown field must still be in the section that held it.
+    """
+    sections = ("llm", "llm_local", "llm_remote") if key in BENCHMARK_CACHE_KEYS else (section,)
+    for name in sections:
+        block = after.get(name)
+        if not (isinstance(block, dict) and key in block and block[key] == value):
+            continue
+        if key in BENCHMARK_CACHE_KEYS and (
+                signature is None or _receipt_signature(block, after, name) != signature):
+            continue
+        return True
+    return False
+
+
+def _count_dropped_unmanaged(saved, after, config):
+    """Count unknown fields Save actually drops, counting each saved section once.
+
+    A legacy-only config has no llm_local block: falling back to the mirror
+    would count its fields twice. Only a receipt that actually migrated to a
+    named slot is credited as retained.
+    """
+    count = len(set(saved) - set(AppConfig.model_fields))
+    for section, model in {**_MODELS, 'llm': LLMConfig}.items():
+        old = saved.get(section)
+        if not isinstance(old, dict):
+            continue
+        signature = _receipt_signature(old, config, section)
+        for key in set(old) - set(model.model_fields):
+            if not _carried_forward(key, old[key], after, section, signature):
+                count += 1
+    return count
+
+
 def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
     """Read schema defaults; never change the supplied document or model."""
     saved = jsonable_encoder(existing.data)
-    after = proposal.model_dump(mode='json')
+    after = get_document_with_retained_cache(proposal.model_dump(mode='json'), existing.data)
     changes, defaults = [], []
-    unmanaged = len(set(saved) - set(AppConfig.model_fields))
+    unmanaged = _count_dropped_unmanaged(saved, after, existing.data)
 
     def append_row(section, key, old, new, default=_ABSENT, absent=False, field=None):
         before = default if old is _ABSENT else old
@@ -80,7 +134,6 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
             continue
         old = old if isinstance(old, dict) else {}
         new = new if isinstance(new, dict) else {}
-        unmanaged += len(set(old) - set(model.model_fields))
         for key, field in model.model_fields.items():
             default = _ABSENT if field.is_required() else field.get_default(call_default_factory=True)
             append_row(section, key, old.get(key, _ABSENT), new.get(key, _ABSENT),
