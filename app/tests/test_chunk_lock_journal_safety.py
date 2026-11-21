@@ -1,5 +1,6 @@
 """Lock ordering, receipt snapshots and path-free journal error mapping."""
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, ExitStack
 import copy
 import hashlib
@@ -23,6 +24,7 @@ from book_state_transaction import (BookTransactionError, BOOK_STATE_BUSY_DETAIL
     BOOK_STORAGE_FAILURE_DETAIL, BOOK_JOURNAL_MIGRATION_DETAIL,
     BOOK_JOURNAL_UNCERTAIN_DETAIL, BOOK_EXCHANGE_DIVERGED_DETAIL)
 import core
+import task_ownership
 from project import ProjectManager
 from routers import (editor, script, scripts_library as library,
                      speaker_review as speaker_routes, system,
@@ -721,6 +723,48 @@ class CancelLocalClaimRaceTests(unittest.TestCase):
                 states['audio']['cancel'] = False
                 if 'handle' in lease:
                     lease['handle'].close()
+
+    def test_local_audio_claim_holding_admission_is_cancelled(self):
+        with editor_http_fixture() as (_root, _pm, states, client), ThreadPoolExecutor(2) as pool:
+            fence_started = threading.Event()
+            lease_acquired = threading.Event()
+            fence_timed_out = threading.Event()
+            real_fence = editor.ensure_startup_recovery
+            real_save_resources = task_ownership._save_task_resources
+
+            def save_resources(lease, paths):
+                lease_acquired.set()
+                self.assertTrue(fence_timed_out.wait(4))
+                return real_save_resources(lease, paths)
+
+            @contextmanager
+            def startup_fence(*args, **kwargs):
+                fence_started.set()
+                self.assertTrue(lease_acquired.wait(4))
+                try:
+                    with real_fence(*args, **kwargs) as idle:
+                        yield idle
+                except TimeoutError:
+                    fence_timed_out.set()
+                    raise
+
+            def reserve_audio():
+                self.assertTrue(fence_started.wait(4))
+                return core.reserve_background_task('audio', cpu_only=True)
+
+            with patch.object(task_ownership, '_save_task_resources', save_resources), \
+                    patch.object(editor, 'ensure_startup_recovery', startup_fence):
+                reservation = pool.submit(reserve_audio)
+                cancellation = pool.submit(client.post, '/api/cancel_audio')
+                claim_id = reservation.result(timeout=6)
+                try:
+                    response = cancellation.result(timeout=6)
+                    self.assertTrue(fence_timed_out.is_set())
+                    self.assertEqual(200, response.status_code, response.text)
+                    self.assertEqual({'status': 'cancelling'}, response.json())
+                    self.assertTrue(states['audio']['cancel'])
+                finally:
+                    core.release_gpu_task_claim('audio', claim_id)
 
 
 class FencedSettingsLockOrderTests(unittest.TestCase):

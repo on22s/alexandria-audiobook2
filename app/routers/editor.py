@@ -3081,7 +3081,17 @@ def _apply_audio_cancel():
     # audio claims by holding the claim mutex across the reset.
     reset_count = 0
     try:
-        with ensure_startup_recovery(DATA_DIR, timeout=0) as idle:
+        with ExitStack() as admission:
+            try:
+                idle = admission.enter_context(ensure_startup_recovery(DATA_DIR, timeout=0))
+            except TimeoutError:
+                # A local claimant holds the GPU mutex until its lease is
+                # registered. The failed admission attempt owns no lock here.
+                with _gpu_lock:
+                    outcome = request_owned_cancel()
+                if outcome is not None:
+                    return outcome
+                raise
             if not idle:
                 # A local audio claim may have landed between the fast check
                 # above and this fence. Recheck local ownership under the GPU

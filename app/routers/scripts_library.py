@@ -134,9 +134,14 @@ def _raise_book_fault(error, fallback):
 
 def _raise_publication_book_fault(error):
     """Map a dedicated journal outcome, preserving storage/contention contracts."""
-    if isinstance(error, (BookTransactionError, BookJournalMigrationRequired,
-                          BookJournalPublicationUncertain, BookExchangeDiverged)):
-        _raise_book_fault(error, '')
+    journal_error = error
+    if type(error) is ValueError and isinstance(error.__cause__, BookExchangeDiverged):
+        # A rollback refusal can wrap the original exchange outcome.
+        journal_error = error.__cause__
+    if isinstance(journal_error, (BookTransactionError, BookJournalMigrationRequired,
+                                  BookJournalPublicationUncertain, BookExchangeDiverged)):
+        fault = get_book_fault_response(journal_error)
+        raise HTTPException(status_code=fault.status_code, detail=fault.detail) from error
     raise error
 
 

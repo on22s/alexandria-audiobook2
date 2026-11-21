@@ -732,6 +732,7 @@
     "fault.detail",
     "fault.detail",
     "fault.detail",
+    "fault.detail",
     "fault.detail if fault else 'Task admission is busy; retry cancellation'",
     "fault.detail if fault else fallback",
     "fault.detail if fault else str(error)",
