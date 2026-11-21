@@ -1366,10 +1366,14 @@ class ProjectManager:
         if raw is None:
             return None
         try:
-            return json.loads(raw.decode('utf-8'))
+            value = json.loads(raw.decode('utf-8'))
         except (UnicodeDecodeError, ValueError) as error:
             logger.warning("Corrupted/unreadable JSON at %s, using default: %s", "chunks.json", error)
             return None
+        # A well-formed but over-nested standalone snapshot is a controlled
+        # conflict, not corruption: never back it up or regenerate over it.
+        _ensure_supported_depth(value, "snapshot")
+        return value
 
     def _read_chunks(self):
         """Read chunks.json, regenerating from script if missing or corrupted.
@@ -1385,9 +1389,13 @@ class ProjectManager:
         journal_path = get_chunk_status_journal_path(self.chunks_path)
         if is_book_placeholder(journal_path):
             raise BookSwitchPlaceholderError(switching)
-        if os.path.exists(journal_path):
+        if os.path.lexists(journal_path):
+            if os.path.islink(journal_path):
+                raise ValueError(
+                    "Chunk status journal link needs inspection; saved progress was preserved")
             # A placeholder landing after the check fails to parse: an error,
-            # never a write.
+            # never a write. lexists (not exists) so a dangling link is refused
+            # rather than silently treated as an absent journal.
             return self._get_status_journal_locked().get_rows()
         file_version = self._get_chunks_file_version()
         raw, read_identity = self._read_chunks_snapshot()
@@ -3841,9 +3849,14 @@ class ProjectManager:
     def preview_chapter_filenames(self, fmt="mp3", per_chunk_chapters=False,
                                   template=DEFAULT_CHAPTER_TEMPLATE, padding=2,
                                   book_name="", series_name="", volume_number="",
-                                  chapters=None, changed_only=False, mastering=None):
-        """Preview selected chapter files that export would write, excluding reuse."""
-        book = self.load_chunks()
+                                  chapters=None, changed_only=False, mastering=None, rows=None):
+        """Preview selected chapter files that export would write, excluding reuse.
+
+        `rows` lets a request reuse the rows it already admitted under a
+        non-recovering book lock, so a source switch between stages cannot make
+        this reader regenerate rows for the new book.
+        """
+        book = rows if rows is not None else self.load_chunks()
         chunks = [chunk for chunk in book if self.is_chunk_audio_available(chunk)]
         options = {"format": fmt, "per_chunk_chapters": per_chunk_chapters,
                    "template": template, "padding": padding, "book_name": book_name,

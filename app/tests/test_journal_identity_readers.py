@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import app as application
 import book_state_transaction
+import core
 from book_state_transaction import apply_book_input_selection
 from chunk_status_journal import ChunkStatusJournal, get_chunk_status_journal_path
 from export_publication import ExportSourceSnapshot
@@ -93,6 +94,11 @@ class JournalIdentityCases(unittest.TestCase):
         header, _ = path.read_bytes().split(b"\n", 1)
         path.write_bytes(header + b'\n{"type":"update","sequence":1,"uid":"line-0",'
             b'"changes":{"error":' + nested + b'}}\n')
+
+    def write_pending_journal(self, root):
+        journal = root / ".active_book_transaction.json"
+        journal.write_text(json.dumps({"version": 4, "phase": "pending"}))
+        return journal
 
 
 class SelectionJournalIdentityTests(JournalIdentityCases):
@@ -463,6 +469,138 @@ class JournalRecoveryBoundaryTests(JournalIdentityCases):
                 response = client.post("/api/export_audacity")
                 scheduled.assert_not_called()
             self.assertEqual(409, response.status_code, response.text)
+
+
+class JournalReadBoundaryFollowupTests(JournalIdentityCases):
+    def test_deeply_nested_standalone_snapshot_is_a_controlled_conflict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            Path(get_chunk_status_journal_path(root / "chunks.json")).unlink()
+            snapshot = root / "chunks.json"
+            nested = b"[" * 500 + b"0" + b"]" * 500
+            raw = (b'[{"id":0,"uid":"line-0","status":"done",'
+                   b'"audio_path":"line-0.wav","error":' + nested + b'}]')
+            snapshot.write_bytes(raw)
+            with patch.object(application, "DATA_DIR", tmp), \
+                 patch.object(application, "project_manager", ProjectManager(tmp)):
+                application._recover_startup_state()
+            self.assertEqual(raw, snapshot.read_bytes())
+            self.assertFalse(list(root.glob("chunks.json.corrupt*")))
+            client = self.http_client(root, state=self.export_state())
+            with patch.object(editor, "schedule_claimed_background_task") as scheduled:
+                responses = [client.get("/api/chunks"),
+                             client.get("/api/editor/integrity"),
+                             client.post("/api/merge")]
+                scheduled.assert_not_called()
+            for response in responses:
+                self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(raw, snapshot.read_bytes())
+
+    def test_pending_transaction_journal_at_entry_refuses_all_export_stages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            prior = root / "audiobook.m4b"
+            prior.write_bytes(b"previous complete M4B export")
+            before = {p.name: p.read_bytes() for p in root.iterdir()
+                      if p.is_file() and p.name != prior.name}
+            journal = self.write_pending_journal(root)
+            journal_before = journal.read_bytes()
+            client = self.http_client(root, state=self.export_state())
+            with patch.object(editor, "schedule_claimed_background_task") as scheduled:
+                responses = [client.post("/api/merge_m4b", json={}),
+                             client.get("/api/export_chapters/preview")]
+                scheduled.assert_not_called()
+            for response in responses:
+                self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(journal_before, journal.read_bytes())
+            self.assertEqual(b"previous complete M4B export", prior.read_bytes())
+            for name, raw in before.items():
+                self.assertEqual(raw, (root / name).read_bytes(), name)
+
+    def test_pending_transaction_journal_appearing_late_refuses_before_schedule(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            prior = root / "audiobook.m4b"
+            prior.write_bytes(b"previous complete M4B export")
+            before = {p.name: p.read_bytes() for p in root.iterdir()
+                      if p.is_file() and p.name != prior.name}
+            client = self.http_client(root, state=self.export_state())
+            def publish_journal(*args, **kwargs):
+                self.write_pending_journal(root)
+                return []
+            with patch.object(editor, "get_unready_export_speakers",
+                    side_effect=publish_journal), \
+                 patch.object(editor, "schedule_claimed_background_task") as scheduled:
+                response = client.post("/api/merge_m4b", json={"require_ready": True})
+                scheduled.assert_not_called()
+            self.assertEqual(409, response.status_code, response.text)
+            journal = root / ".active_book_transaction.json"
+            self.assertTrue(journal.exists())
+            self.assertEqual(b"previous complete M4B export", prior.read_bytes())
+            for name, raw in before.items():
+                self.assertEqual(raw, (root / name).read_bytes(), name)
+
+    def test_source_lstat_eio_aborts_selection_and_duplicate_upload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, source, _rows, _identity = self.make_published_book(tmp)
+            before = {p.name: p.read_bytes() for p in root.iterdir() if p.is_file()}
+            real_absent = project_scope_files._confined_absent
+            def flaky(path):
+                if path.name == source.name:
+                    raise OSError(errno.EIO, "injected lstat I/O error")
+                return real_absent(path)
+            client = self.http_client(root, raise_server_exceptions=False)
+            with patch.object(project_scope_files, "_confined_absent", side_effect=flaky):
+                response = self.select(client)
+            self.assertEqual(500, response.status_code, response.text)
+            with patch.object(project_scope_files, "_confined_absent", side_effect=flaky):
+                with self.assertRaises(OSError):
+                    apply_book_input_selection(str(root), str(source), "source")
+            for name, raw in before.items():
+                self.assertEqual(raw, (root / name).read_bytes(), name)
+            retry = self.select(client)
+            self.assertEqual(200, retry.status_code, retry.text)
+            self.assertNotIn("script_selection_pending", self.state(root))
+
+    def test_verified_same_source_backfills_legacy_uidless_done_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, source, _rows, _identity = self.make_published_book(tmp)
+            Path(get_chunk_status_journal_path(root / "chunks.json")).unlink()
+            (root / "chunks.json").write_text(json.dumps([{
+                "id": 0, "text": "Synthetic line.", "speaker": "N",
+                "status": "done", "audio_path": "line-0.wav"}]))
+            client = self.http_client(root)
+            response = self.select(client)
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertFalse(list(root.glob("chunks.json.stale-*")))
+            saved = json.loads((root / "chunks.json").read_text())
+            self.assertEqual(1, len(saved))
+            self.assertEqual(12, len(saved[0]["uid"]))
+            self.assertEqual("done", saved[0]["status"])
+            self.assertEqual("line-0.wav", saved[0]["audio_path"])
+
+    def test_dangling_journal_link_refuses_editor_and_startup_preserves_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            snapshot = root / "chunks.json"
+            before = snapshot.read_bytes()
+            journal = Path(get_chunk_status_journal_path(snapshot))
+            journal.unlink()
+            journal.symlink_to(root / "missing-target.jsonl")
+            with patch.object(application, "DATA_DIR", tmp), \
+                 patch.object(application, "project_manager", ProjectManager(tmp)):
+                application._recover_startup_state()
+            self.assertEqual(before, snapshot.read_bytes())
+            self.assertTrue(journal.is_symlink())
+            client = self.http_client(root, state=self.export_state())
+            with patch.object(editor, "schedule_claimed_background_task") as scheduled:
+                responses = [client.get("/api/chunks"),
+                             client.get("/api/editor/integrity"),
+                             client.post("/api/merge")]
+                scheduled.assert_not_called()
+            for response in responses:
+                self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(before, snapshot.read_bytes())
 
 
 if __name__ == "__main__":

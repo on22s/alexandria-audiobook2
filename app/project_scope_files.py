@@ -9,6 +9,19 @@ MAX_SCOPE_METADATA_BYTES = 64 * 1024**2
 MAX_SCRIPT_BYTES = 512 * 1024**2
 
 
+def _confined_absent(path):
+    """Whether a confined path is genuinely absent.
+
+    An EIO or other lookup failure must abort the caller instead of being
+    mistaken for a missing source or script.
+    """
+    try:
+        path.lstat()
+    except (FileNotFoundError, NotADirectoryError):
+        return True
+    return False
+
+
 def capture_scope_file(root, relative_path, *, limit=MAX_SCOPE_METADATA_BYTES,
                        include_bytes=False, cancel_check=None):
     """Read one confined file; callers own project/task admission separately.
@@ -29,9 +42,11 @@ def capture_scope_file(root, relative_path, *, limit=MAX_SCOPE_METADATA_BYTES,
         raise ValueError('Scope authority requires an existing project directory.')
     path = _ensure_plain_path(root / relative_path, root)
     _check_cancelled(cancel_check)
-    if not os.path.lexists(path):
+    if _confined_absent(path):
         return {'path': relative_path, 'exists': False, 'file_version': None,
                 'sha256': None, 'size': None}, None
+    # Any other lookup error (e.g. EIO) is a real read failure: let it abort
+    # the selection instead of masquerading as an absent source/script.
     stream, before = _open_regular(path, root, limit, allow_empty=True)
     with stream:
         if include_bytes:

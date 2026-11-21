@@ -5780,7 +5780,36 @@ def _published_binding_for_selection_locked(data_dir, state, previous_token, pre
         return None, previous_digest
 
 
-def _plan_selection_chunk_snapshot_locked(data_dir, previous_identity, same_bytes):
+def _backfill_legacy_snapshot_uids(snapshot_bytes):
+    """Give verified UID-less legacy rows the native stable UIDs, keeping progress.
+
+    Returns None for anything that is not a plain list of objects, so the caller
+    still retires unreadable evidence instead of publishing a derived guess.
+    """
+    from chunk_status_journal import _decode_json, _ensure_supported_depth
+    from take_retention import get_retained_book_bytes
+    try:
+        rows = _decode_json(snapshot_bytes, "snapshot")
+        _ensure_supported_depth(rows, "snapshot")
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            return None
+        from project import _new_chunk_uid
+        seen = set()
+        for row in rows:
+            uid = row.get("uid")
+            if uid in seen:
+                return None
+            if not isinstance(uid, str) or not uid:
+                row["uid"] = _new_chunk_uid()
+            seen.add(row["uid"])
+        get_retained_book_bytes(rows)
+        return rows
+    except (ValueError, OSError, RecursionError):
+        return None
+
+
+def _plan_selection_chunk_snapshot_locked(data_dir, previous_identity, same_bytes,
+                                          *, verified=False):
     """Reconcile the chunk journal with the generation a selection publishes.
 
     Caller holds the book state lock, the state file lock and the chunks file
@@ -5810,6 +5839,12 @@ def _plan_selection_chunk_snapshot_locked(data_dir, previous_identity, same_byte
                 snapshot_bytes, journal_bytes)
         except (ValueError, OSError, RecursionError):
             rows = None
+    if (rows is None and verified and same_bytes and journal_bytes is None
+            and snapshot_bytes is not None):
+        # A standalone legacy snapshot with no UIDs cannot pass native journal
+        # validation, but verified byte-identical source still earns the same
+        # stable-UID backfill the loader applies - without losing done/audio.
+        rows = _backfill_legacy_snapshot_uids(snapshot_bytes)
     torn = False
     if journal_bytes is not None:
         complete = journal_bytes[:journal_bytes.rfind(b"\n") + 1]
@@ -5921,7 +5956,8 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
                 # to the new generation.
                 with file_lock(chunks_path):
                     chunk_replacements, chunk_removals = _plan_selection_chunk_snapshot_locked(
-                        data_dir, previous_identity, same_bytes)
+                        data_dir, previous_identity, same_bytes,
+                        verified=rebound_binding is not None)
                     return publish(chunk_replacements, chunk_removals)
             return publish({}, [])
 
