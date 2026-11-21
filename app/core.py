@@ -2237,10 +2237,13 @@ def _format_pass_summary(label: str, totals: dict, aliases: List[dict], show_ali
     if totals["batches_failed"] or totals["batches_skipped_vram"]:
         lines.append(f"  Batches failed: {totals['batches_failed']}, skipped (VRAM): {totals['batches_skipped_vram']}")
     if totals.get("review_incomplete"):
-        if totals.get("post_processing_abort"):
+        if totals.get("unreviewed_entries"):
+            stopped = "; final checks stopped" if totals.get("post_processing_abort") else ""
+            lines.append(f"  Review incomplete: {totals['unreviewed_entries']} unreviewed entries{stopped}")
+        elif totals.get("post_processing_abort"):
             lines.append("  Review incomplete: all rows reviewed; final checks stopped")
         else:
-            lines.append(f"  Review incomplete: {totals.get('unreviewed_entries', 0)} unreviewed entries")
+            lines.append("  Review incomplete: unresolved rows remain")
     if totals.get("final_check_aborted"):
         lines.append(f"  Final checks stopped for {totals['final_check_aborted']} book(s); unreviewed rows: {totals.get('unreviewed_entries', 0)}")
     if get_review_accounting_warning(totals):
@@ -2299,7 +2302,11 @@ def _markdown_heads_up_lines(stats: dict) -> List[str]:
         lines.append(f"- {stats['batches_skipped_vram']} section(s) were skipped because the "
                       f"graphics card was running low on memory. Running the review again may "
                       f"catch these.")
-    if stats.get("post_processing_abort"):
+    if stats.get("post_processing_abort") and stats.get("unreviewed_entries"):
+        lines.append(f"- Final checks stopped on some book(s), and {stats['unreviewed_entries']} "
+                     "entries were left unreviewed. Re-run to finish them when a verified "
+                     "checkpoint is available.")
+    elif stats.get("post_processing_abort"):
         lines.append("- All entries were reviewed, but the review stopped during final checks. "
                      "Re-run to finish those checks when a verified checkpoint is available.")
     elif stats.get("review_incomplete") and stats.get("unreviewed_entries"):
@@ -2601,8 +2608,9 @@ def _get_deterministic_review_summary(stats: dict, incomplete: bool) -> str:
             details.append(f"{failed} section(s) failed")
         if skipped:
             details.append(f"{skipped} section(s) were skipped for VRAM safety")
-        if stats.get('final_check_aborted', 0) and stats.get('unreviewed_entries', 0):
-            reason = (f"{stats['final_check_aborted']} book(s) stopped in final checks and "
+        if (stats.get('final_check_aborted', 0) or stats.get('post_processing_abort')) and stats.get('unreviewed_entries', 0):
+            books = stats.get('final_check_aborted', 0) or 1
+            reason = (f"{books} book(s) stopped in final checks and "
                       f"{stats['unreviewed_entries']} entries were left unreviewed")
         else:
             reason = ("; ".join(details) or
@@ -2665,11 +2673,12 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
         f"**{stats['entries_after']}** lines.",
     ]
 
-    if stats.get("batches_skipped_vram"):
+    incomplete = _review_is_incomplete(stats)
+    if incomplete and stats.get("batches_skipped_vram"):
         intro += ["", f"**Note:** this script was only partially reviewed — the GPU ran low "
                        f"on memory and {stats['batches_skipped_vram']} section(s) were skipped. "
                        "Re-run the review to finish the rest."]
-    elif stats.get("review_incomplete"):
+    elif incomplete:
         if stats.get("post_processing_abort"):
             reason = "all entries were reviewed but final checks did not finish"
         elif stats.get("unreviewed_entries"):
@@ -2710,7 +2719,6 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
         lines += _markdown_failed_sections_lines(failures)
         lines += density_lines
 
-    incomplete = _review_is_incomplete(stats)
     lines = _insert_llm_summary(lines, len(intro), stats, incomplete=incomplete)
 
     try:

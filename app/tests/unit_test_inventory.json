@@ -12397,6 +12397,17 @@
     , "tests.test_review_checkpoint_deltas.ReviewResumeCoordinateTests.test_failed_batch_rewind_truncates_recorded_source_offsets"
     , "tests.test_review_checkpoint_deltas.ReviewResumeCoordinateTests.test_source_and_published_output_resume_in_their_own_coordinate_spaces"
   ]
+  , "test_review_checkpoint_disposition": [
+    "tests.test_review_checkpoint_disposition.DispositionTextTests.test_batch_failure_plus_headroom_abort_never_claims_all_rows"
+    , "tests.test_review_checkpoint_disposition.DispositionTextTests.test_live_and_markdown_mixed_summary_keeps_both_facts"
+    , "tests.test_review_checkpoint_disposition.DispositionTextTests.test_saved_report_respects_explicit_complete_and_keeps_fallback"
+    , "tests.test_review_checkpoint_disposition.LegacyResumeTests.test_contextual_skip_keeps_the_same_safe_boundary"
+    , "tests.test_review_checkpoint_disposition.LegacyResumeTests.test_noncontextual_skip_rewinds_before_unresolved_batch"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_all_writes_fail_never_claims_a_verified_checkpoint"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_compact_failure_keeps_same_input_deltas_but_not_changed_input"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_failed_section_marker_ordinal_matches_next_model_call"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_retry_batch_uses_window_ordinal_not_batch_size_division"
+  ]
   , "test_review_checkpoint_summary": [
     "tests.test_review_checkpoint_summary.ReviewCheckpointSummaryTests.test_actual_http_listing_skips_file_removed_at_stat_and_keeps_other_checkpoint"
     , "tests.test_review_checkpoint_summary.ReviewCheckpointSummaryTests.test_actual_listing_preserves_summary_fields_sort_order_and_live_status"
