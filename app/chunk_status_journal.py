@@ -52,6 +52,21 @@ def _get_json_bytes(value):
     return json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
 
 
+def _decode_json(raw, what):
+    """One decoder boundary: malformed or deeply nested data is a ValueError.
+
+    JSON decoding of a hostile record can raise RecursionError (a deeply
+    nested object) or UnicodeDecodeError as well as JSONDecodeError. Readers
+    of this journal all map ValueError to an actionable conflict, so every
+    decode must converge here instead of leaking RecursionError into FastAPI
+    startup or a route.
+    """
+    try:
+        return json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+        raise ValueError(f"Chunk status {what} is invalid") from error
+
+
 class ChunkStatusJournal:
     """Cache only a verified snapshot plus fsynced transitions, bound to a book."""
     def __init__(self, chunks_path, book_identity):
@@ -89,7 +104,7 @@ class ChunkStatusJournal:
         return copy.deepcopy(self._rows)
 
     def _load_bytes(self, raw, journal):
-        rows = json.loads(raw)
+        rows = _decode_json(raw, "snapshot")
         if (not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows)
                 or any(not isinstance(row.get("uid"), str) or not row["uid"] for row in rows)
                 or len({row["uid"] for row in rows}) != len(rows)):
@@ -101,7 +116,7 @@ class ChunkStatusJournal:
             lines = complete.splitlines()
             if not lines:
                 raise ValueError("Chunk status journal has no committed header")
-            records = [json.loads(line) for line in lines]
+            records = [_decode_json(line, "journal record") for line in lines]
             header = records.pop(0)
             if (not isinstance(header, dict) or header.get("version") != 1
                     or header.get("book_identity") != self.book_identity):

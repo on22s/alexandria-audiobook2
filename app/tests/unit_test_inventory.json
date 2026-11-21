@@ -7405,13 +7405,17 @@
   ]
   , "test_japanese_text_boundary": []
   , "test_journal_identity_readers": [
-    "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_other_source_selection_retires_old_snapshot"
-    , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_same_source_selection_keeps_validated_progress_and_chunks_readable"
-    , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_selection_over_already_stale_journal_preserves_raw_evidence"
-    , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_torn_tail_is_backed_up_and_journal_retired_with_progress"
-    , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_editor_integrity_and_merge_report_actionable_conflict"
-    , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_exports_refuse_before_enqueue_and_preview_reports_conflict"
-    , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_startup_recovery_survives_a_stale_journal"
+    "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_changed_bytes_under_same_filename_never_reuse_rows"
+    , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_fifo_snapshot_and_journal_refuse_promptly_and_release_locks"
+    , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_missing_snapshot_retains_orphan_journal"
+    , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_retained_stale_pair_replays_the_saved_progress"
+    , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_same_bytes_upload_preserves_verified_binding_and_retained_progress"
+    , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_transient_io_error_refuses_without_deleting_valid_progress"
+    , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_deeply_nested_journal_reports_actionable_conflict_on_all_routes"
+    , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_export_capture_enforces_published_selection_fence"
+    , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_export_preflight_is_read_only_and_distinguishes_absent_snapshot"
+    , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_merge_m4b_preflights_journal_before_optional_readiness"
+    , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_startup_lifespan_survives_deeply_nested_journal"
   ]
   , "test_judge_reason_contract": [
     "tests.test_judge_reason_contract.JudgeReasonContractTests.test_existing_speaker_gate_still_rejects_even_with_evidence"

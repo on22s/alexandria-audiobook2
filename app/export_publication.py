@@ -80,6 +80,12 @@ class ExportSourceSnapshot:
         ensure_audio_export_active(cancel_check)
         state_path = os.path.join(self.root, 'state.json')
         with _ensure_export_capture(self.root):
+            # A retained script from an older selection must never certify this
+            # capture. The request-time preflight checks the same fence, but the
+            # shared capture is also entered by workers and other exporters, so
+            # enforce it here where the rows and audio paths are actually taken.
+            from script_selection_binding import require_published_selection
+            require_published_selection(self.root)
             metadata_versions = {path: _get_source_version(path)
                 for path in (state_path, manager.script_path, manager.config_path)}
             self.book = _get_book_identity(self.root)

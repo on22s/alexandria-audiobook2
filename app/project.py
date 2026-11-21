@@ -1216,6 +1216,16 @@ class ProjectManager:
         with self._chunks_lock, file_lock(self.chunks_path):
             return self._get_saved_chunks_locked()
 
+    def read_saved_chunk_rows(self):
+        """Read snapshot/journal rows verbatim; never regenerate, backfill or repair.
+
+        Unlike get_saved_chunks this does not enforce Editor's identity
+        validation, so legacy rows a loader would repair are still readable.
+        Its contract is only to refuse an unreadable or torn saved book.
+        """
+        with self._chunks_lock, file_lock(self.chunks_path):
+            return self._get_saved_chunk_rows_locked()
+
     def _get_saved_chunks_locked(self):
         """Caller holds the existing thread and kernel chunk locks."""
         chunks = self._get_saved_chunk_rows_locked()
