@@ -153,7 +153,7 @@ from core import (
     process_state,
     run_process,
 )
-from review_script import (clear_checkpoint, get_review_batching, get_review_entry_windows,
+from review_script import (get_review_batching, get_review_entry_windows,
                            get_validated_context_setting, CONTEXT_MODE_CHARS, CONTEXT_MODE_ENTRIES,
                            DEFAULT_CONTEXT_ENTRIES)
 from utils import atomic_json_write, backup_file_with_timestamp, safe_load_json, secure_filename

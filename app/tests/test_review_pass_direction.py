@@ -78,13 +78,10 @@ class BidirectionalCheckpointTests(unittest.TestCase):
             book.write_text(original)
             checkpoint = Path(review._checkpoint_path(str(book)))
             state = {'batch_review': {'running': False, 'cancel': False}}
-            clear_calls = []
+            discard_calls = []
             seen_flags = []
-            original_clear = script.clear_checkpoint
-
-            def record_clear(path):
-                clear_calls.append(path)
-                return original_clear(path)
+            def record_discard(path):
+                discard_calls.append(path)
 
             def write_stale_checkpoint():
                 # Stand in for a forward child that wrote a batch checkpoint and
@@ -126,7 +123,7 @@ class BidirectionalCheckpointTests(unittest.TestCase):
                  patch.object(core, 'acquire_gpu_lock', return_value=None), \
                  patch.object(core, 'llm_is_on_this_gpu', return_value=True), \
                  patch.object(script, '_init_task_log', return_value=str(root / 'task.log')), \
-                 patch.object(script, 'clear_checkpoint', side_effect=record_clear), \
+                 patch.object(script, 'discard_review_progress', side_effect=record_discard), \
                  patch.object(script, '_stream_subprocess_to_logs', side_effect=stream), \
                  patch.object(script, '_insert_llm_summary', side_effect=lambda lines, *a, **k: lines), \
                  patch.object(script, '_run_claimed_background_task', side_effect=lambda name, work: work()), \
@@ -137,21 +134,21 @@ class BidirectionalCheckpointTests(unittest.TestCase):
                 self.assertEqual(200, response.status_code, response.text)
             self.assertFalse(state['batch_review']['running'])
             self.assertEqual(original, book.read_text())
-            return clear_calls, seen_flags, [str(book)]
+            return discard_calls, seen_flags, [str(book)]
 
     def test_failed_forward_preserves_checkpoint_and_skips_backward_child(self):
-        clear_calls, seen_flags, paths = self._run_batch(bidirectional=True, fwd_rc=1)
-        self.assertEqual([], clear_calls)
+        discard_calls, seen_flags, paths = self._run_batch(bidirectional=True, fwd_rc=1)
+        self.assertEqual([], discard_calls)
         self.assertEqual([('fwd', False, False)], seen_flags)
 
     def test_clean_forward_preserves_checkpoint_and_marks_backward_child(self):
-        clear_calls, seen_flags, paths = self._run_batch(bidirectional=True, fwd_rc=0)
-        self.assertEqual([], clear_calls)
+        discard_calls, seen_flags, paths = self._run_batch(bidirectional=True, fwd_rc=0)
+        self.assertEqual([], discard_calls)
         self.assertEqual([('fwd', False, False), ('bwd', True, True)], seen_flags)
 
     def test_single_direction_review_keeps_default_behaviour(self):
-        clear_calls, seen_flags, paths = self._run_batch(bidirectional=False, fwd_rc=1)
-        self.assertEqual([], clear_calls)
+        discard_calls, seen_flags, paths = self._run_batch(bidirectional=False, fwd_rc=1)
+        self.assertEqual([], discard_calls)
         self.assertEqual([('fwd', False, False)], seen_flags)
 
 

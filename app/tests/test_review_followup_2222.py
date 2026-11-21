@@ -54,30 +54,28 @@ class BatchPassCheckpointTests(unittest.TestCase):
                 patch.object(script, '_init_task_log', return_value=str(root / 'task.log')),
                 patch.object(script, '_stream_subprocess_to_logs', side_effect=stream),
                 patch.object(script, '_insert_llm_summary', side_effect=lambda text, *_a, **_k: text),
-                patch.object(script, 'clear_checkpoint'),
                 patch.object(script, 'discard_review_progress'),
                 patch.object(script, '_run_claimed_background_task', side_effect=lambda name, work: work()),
                 TestClient(app),
             ]
             with ExitStack() as stack:
                 entered = [stack.enter_context(item) for item in patchers]
-                clear, discard, client = entered[-4], entered[-3], entered[-1]
+                discard, client = entered[-3], entered[-1]
                 response = client.post('/api/review_script/batch/start', json={
                     'script_names': ['book'], 'dedupe_speakers': True,
                     'find_nicknames': True, 'bidirectional': bidirectional,
                     'start_over': start_over})
             return (response, calls, checkpoint_bytes == checkpoint.read_bytes(),
-                    state['batch_review'], clear.call_count, discard.call_count,
+                    state['batch_review'], discard.call_count,
                     [task.get('status') for task in state['batch_review'].get('tasks', [])],
                     [item.read_text() for item in reports.glob('*.md')], str(book))
 
     def test_incomplete_forward_keeps_checkpoint_and_skips_hindsight(self):
-        response, calls, kept, state, clear, discard, statuses, reports, book = self.run_batch(INCOMPLETE)
+        response, calls, kept, state, discard, statuses, reports, book = self.run_batch(INCOMPLETE)
         self.assertEqual(200, response.status_code, response.text)
         self.assertEqual(['review'], [kind for kind, _ in calls if kind == 'review'])
         self.assertEqual('fwd', next(phase for kind, phase in calls if kind == 'review'))
         self.assertTrue(kept)
-        self.assertEqual(0, clear)
         self.assertEqual(0, discard)
         self.assertEqual(['incomplete'], statuses)
         self.assertFalse(Path(get_review_receipt_path(book)).exists())
@@ -85,18 +83,18 @@ class BatchPassCheckpointTests(unittest.TestCase):
         self.assertIn('only partially reviewed', reports[0])
 
     def test_clean_forward_keeps_checkpoint_and_runs_hindsight(self):
-        response, calls, kept, state, clear, discard, statuses, reports, _book = self.run_batch(CLEAN)
+        response, calls, kept, state, discard, statuses, reports, _book = self.run_batch(CLEAN)
         self.assertEqual(200, response.status_code, response.text)
         self.assertEqual(['review', 'review'], [kind for kind, _ in calls if kind == 'review'])
         self.assertEqual(['fwd', 'bwd'], [phase for kind, phase in calls if kind == 'review'])
         self.assertTrue(kept)
-        self.assertEqual((0, 0), (clear, discard))
+        self.assertEqual(0, discard)
         self.assertEqual(['done'], statuses)
 
     def test_explicit_restart_discards_progress(self):
-        response, _calls, _kept, state, clear, discard, _statuses, _reports, _book = self.run_batch(CLEAN, start_over=True)
+        response, _calls, _kept, state, discard, _statuses, _reports, _book = self.run_batch(CLEAN, start_over=True)
         self.assertEqual(200, response.status_code, response.text)
-        self.assertEqual((0, 2), (clear, discard))
+        self.assertEqual(2, discard)
 
 
 class InheritedSpanResumeTests(unittest.TestCase):
