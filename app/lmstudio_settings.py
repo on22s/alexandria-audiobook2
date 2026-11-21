@@ -194,9 +194,18 @@ def normalize_llm_endpoint(base_url):
     candidate = base_url.strip()
     try:
         parsed = urlparse(candidate)
-        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        host = parsed.hostname
+        if parsed.scheme not in ("http", "https") or not host:
             return None
-        parsed.port  # raises ValueError on an out-of-range or non-numeric port
+        # urlparse strips tabs/newlines from the netloc before exposing it, so
+        # check the raw authority as written rather than the parsed one.
+        scheme_at = candidate.find("://")
+        authority = candidate[scheme_at + 3:].split("/", 1)[0] if scheme_at >= 0 else candidate
+        if any(character.isspace() or ord(character) < 33 for character in authority):
+            return None
+        # A parser-valid host can still carry an unusable explicit port.
+        if parsed.port == 0:
+            return None
     except ValueError:
         return None
     return candidate
@@ -256,6 +265,7 @@ def get_active_llm_config(config):
 _PROFILE_CREDENTIAL_KEYS = frozenset(("api_key", "provider_headers", "provider_extra_body"))
 BENCHMARK_IDENTITY_KEY = "benchmark_identity"
 BENCHMARK_IDENTITY_VERSION = 1
+_BENCHMARK_DIGEST_PATTERN = re.compile(r"^v[0-9]+:[0-9a-f]{64}$")
 _BENCHMARK_SSH_ALIAS = object()
 BENCHMARK_CACHE_KEYS = frozenset(("concurrency", "concurrency_for", "concurrency_environment",
                                   "concurrency_revision", BENCHMARK_IDENTITY_KEY))
@@ -327,7 +337,8 @@ def is_executable_failover_profile(block):
             and bool(str(block.get("model_name") or "").strip()))
 
 
-def get_benchmark_identity(config, section, *, profile=None, ssh_alias=_BENCHMARK_SSH_ALIAS):
+def get_benchmark_identity(config, section, *, profile=None, ssh_alias=_BENCHMARK_SSH_ALIAS,
+                           llm_mode=None):
     """Nonsecret identity of the requests a concurrency measurement belongs to.
 
     One answer for the benchmark writer, reader and Setup retention (Rule 15).
@@ -346,7 +357,9 @@ def get_benchmark_identity(config, section, *, profile=None, ssh_alias=_BENCHMAR
     A bound profile already carries the ceiling captured when its client was
     built, so inheriting again here would describe a later config edit rather
     than the requests that client actually sends (including an absent ceiling).
-    `ssh_alias` overrides the management alias for the same reason.
+    `ssh_alias` overrides the management alias for the same reason, and
+    `llm_mode` overrides the toggle: a Setup switch after the client was bound
+    must not change the remote classification of that client's requests.
     """
     config = config if isinstance(config, dict) else {}
     bound = profile is not None
@@ -370,17 +383,25 @@ def get_benchmark_identity(config, section, *, profile=None, ssh_alias=_BENCHMAR
     identity["provider_extra_body"] = get_provider_extra_body(effective)
     if ssh_alias is _BENCHMARK_SSH_ALIAS:
         ssh_alias = config.get("llm_remote_ssh")
-    if is_remote_llm(config.get("llm_mode") or "local", identity.get("base_url", "")):
+    mode = llm_mode if llm_mode is not None else (config.get("llm_mode") or "local")
+    if is_remote_llm(mode, identity.get("base_url", "")):
         identity["ssh_alias"] = ssh_alias
     return identity
 
 
 def _canonical_identity_value(value):
-    """JSON round-trips turn int defaults into floats; compare numerically."""
+    """Normalize integral floats without collapsing distinct large integers.
+
+    Casting every number to float made adjacent provider-body seeds either side
+    of 2^53 produce the same receipt. Integers keep their full precision; an
+    integral float (a JSON round-trip of an int default) folds back to an int.
+    """
     if value is None or isinstance(value, bool):
         return value
-    if isinstance(value, (int, float)):
-        return float(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else value
     if isinstance(value, dict):
         return {key: _canonical_identity_value(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
@@ -388,7 +409,8 @@ def _canonical_identity_value(value):
     return value
 
 
-def get_benchmark_identity_key(config, section, *, profile=None, ssh_alias=_BENCHMARK_SSH_ALIAS):
+def get_benchmark_identity_key(config, section, *, profile=None, ssh_alias=_BENCHMARK_SSH_ALIAS,
+                               llm_mode=None):
     """A versioned digest of the effective request identity.
 
     The canonical JSON is hashed rather than persisted: a raw identity carried
@@ -397,13 +419,23 @@ def get_benchmark_identity_key(config, section, *, profile=None, ssh_alias=_BENC
     changed. The version makes a future identity-schema change explicit rather
     than silently reinterpreting old receipts.
     """
-    identity = get_benchmark_identity(config, section, profile=profile, ssh_alias=ssh_alias)
+    identity = get_benchmark_identity(config, section, profile=profile, ssh_alias=ssh_alias,
+                                      llm_mode=llm_mode)
     if identity is None:
         return None
     canonical = json.dumps({key: _canonical_identity_value(value) for key, value in identity.items()},
                            sort_keys=True, default=str)
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     return f"v{BENCHMARK_IDENTITY_VERSION}:{digest}"
+
+
+def is_benchmark_digest(value):
+    """Whether a stored receipt identity is a generated digest, not raw JSON.
+
+    Pre-digest receipts carried provider body values verbatim; reusing one as
+    an identity key would keep a retired value on disk after a request edit.
+    """
+    return isinstance(value, str) and bool(_BENCHMARK_DIGEST_PATTERN.fullmatch(value))
 
 
 def get_benchmark_destination(profile):
@@ -478,21 +510,25 @@ def get_document_with_retained_cache(document, existing):
     result = dict(document)
     before_map = existing if isinstance(existing, dict) else {}
     qualified = {}
-    legacy_key = None
     # Named slots first: a structurally valid named receipt is the authority
     # for its own identity. The mirror is only a fallback source, never a way
-    # to overwrite newer named evidence for the same endpoint.
+    # to overwrite newer named evidence for the same endpoint. A receipt is
+    # identified by its stored digest, not by a digest recomputed from the
+    # surrounding profile, which a later edit can change without the receipt
+    # itself changing. A pre-digest receipt gets a fresh nonsecret one.
     for section in ("llm_local", "llm_remote", "llm"):
         before = before_map.get(section)
         if not is_qualified_concurrency_cache(before) or not has_valid_benchmark_environment(before):
             continue
-        key = get_benchmark_identity_key(before_map, section)
+        stored = before.get(BENCHMARK_IDENTITY_KEY)
+        key = (stored if is_benchmark_digest(stored)
+               else get_benchmark_identity_key(before_map, section))
+        if key is None:
+            continue
         entry = {name: before[name] for name in BENCHMARK_CACHE_KEYS if name in before}
-        entry.setdefault(BENCHMARK_IDENTITY_KEY, key)
+        entry[BENCHMARK_IDENTITY_KEY] = key
         if key not in qualified:
             qualified[key] = entry
-            if section == "llm":
-                legacy_key = key
     for section in ("llm", "llm_local", "llm_remote"):
         after = result.get(section)
         if not isinstance(after, dict):
@@ -501,10 +537,15 @@ def get_document_with_retained_cache(document, existing):
         if entry:
             result[section] = {**after, **entry}
     target = get_benchmark_target_slot(result)
-    legacy_entry = qualified.get(legacy_key) if legacy_key is not None else None
     after = result.get(target)
-    if legacy_entry and isinstance(after, dict) and not is_qualified_concurrency_cache(after):
-        result[target] = {**after, **legacy_entry}
+    # The mirror is the active proposed request. Only a receipt for that exact
+    # request may land in the benchmark's slot, whether it came from the legacy
+    # mirror or a named slot hydrated to a neutral stub. A retired receipt from
+    # a body/model/mode edit must not be carried forward.
+    proposed_key = get_benchmark_identity_key(result, "llm")
+    receipt = qualified.get(proposed_key) if proposed_key is not None else None
+    if receipt and isinstance(after, dict) and not is_qualified_concurrency_cache(after):
+        result[target] = {**after, **receipt}
     return result
 
 

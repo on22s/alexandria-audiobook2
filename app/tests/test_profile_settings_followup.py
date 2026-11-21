@@ -557,5 +557,167 @@ class PreviewCountRegressionTests(unittest.TestCase):
             self.assertEqual(2, preview["unmanaged_fields"], preview["unmanaged_fields"])
 
 
+class SetupHydrationRoundTripTests(unittest.TestCase):
+    def test_neutral_active_slot_round_trips_shared_endpoint_in_both_modes(self):
+        endpoint = "http://127.0.0.1:7878/v1"
+        for mode in ("local", "remote"):
+            for key_kind, key in (("stored", "legacy-fixture-key"),
+                                  ("env", "env:FIXTURE_ENV_KEY"),
+                                  ("blank", "")):
+                with self.subTest(mode=mode, key_kind=key_kind), tempfile.TemporaryDirectory() as tmp:
+                    legacy = {"base_url": endpoint, "api_key": key, "model_name": "legacy-model",
+                              "provider_headers": {"x-legacy-fixture": "legacy-header"}}
+                    inactive = {"base_url": endpoint, "api_key": "inactive-fixture-key",
+                                "model_name": "inactive-model",
+                                "provider_headers": {"x-inactive-fixture": "inactive-header"}}
+                    neutral = LLMConfig(base_url="", api_key="", model_name="").model_dump()
+                    active_section = f"llm_{mode}"
+                    inactive_section = "llm_remote" if mode == "local" else "llm_local"
+                    _seed(tmp, {"llm_mode": mode, "llm": dict(legacy),
+                                active_section: dict(neutral), inactive_section: dict(inactive),
+                                "tts": {"mode": "local"}, "generation": {}})
+
+                    hydrated = _get(tmp)
+                    self.assertEqual(endpoint, hydrated[active_section]["base_url"])
+                    self.assertIn("changes", _preview(tmp, _form(hydrated)))
+                    saved = _save(tmp, _form(hydrated))
+
+                    self.assertEqual(key, saved[active_section]["api_key"])
+                    self.assertEqual("legacy-header",
+                                     saved[active_section]["provider_headers"]["x-legacy-fixture"])
+                    self.assertEqual("inactive-fixture-key", saved[inactive_section]["api_key"])
+                    self.assertEqual("inactive-header",
+                                     saved[inactive_section]["provider_headers"]["x-inactive-fixture"])
+
+
+class LegacyReceiptSanitizationTests(unittest.TestCase):
+    def _predigest_receipt(self, profile, marker):
+        entry = _entry(_environment(profile["base_url"], profile["model_name"], remote=True),
+                       profile)
+        entry[settings.BENCHMARK_IDENTITY_KEY] = json.dumps(
+            {"base_url": profile["base_url"],
+             "provider_extra_body": {"marker": marker}})
+        return entry
+
+    def test_hydrated_output_carries_no_receipt_fields_or_raw_identity(self):
+        marker = "fixture-retired-body-value"
+        hosted = {"base_url": HOSTED, "api_key": "fixture", "model_name": "hosted-model",
+                  "provider_extra_body": {"marker": marker}}
+        neutral = LLMConfig(base_url="", api_key="", model_name="").model_dump()
+        with tempfile.TemporaryDirectory() as tmp:
+            _seed(tmp, {"llm_mode": "local", "llm": dict(hosted, **self._predigest_receipt(hosted, marker)),
+                        "llm_local": dict(neutral), "tts": {"mode": "local"}, "generation": {}})
+            hydrated = _get(tmp)
+            for section in ("llm", "llm_local"):
+                for key in settings.BENCHMARK_CACHE_KEYS:
+                    self.assertNotIn(key, hydrated[section], (section, key))
+
+    def test_predigest_identity_is_replaced_and_retired_body_value_dropped(self):
+        marker = "fixture-retired-body-value"
+        hosted = {"base_url": HOSTED, "api_key": "fixture", "model_name": "hosted-model",
+                  "provider_extra_body": {"marker": marker}}
+        with tempfile.TemporaryDirectory() as tmp:
+            _seed(tmp, {"llm_mode": "local", "llm": dict(hosted, **self._predigest_receipt(hosted, marker)),
+                        "llm_local": dict(hosted), "tts": {"mode": "local"}, "generation": {}})
+            document = _form(_get(tmp))
+            document["llm_local"]["provider_extra_body"] = {"marker": "fixture-new-body-value"}
+            saved = _save(tmp, document)
+            self.assertNotIn(marker, json.dumps(saved))
+            for section in ("llm", "llm_local"):
+                stored = saved[section].get(settings.BENCHMARK_IDENTITY_KEY)
+                if stored is not None:
+                    self.assertTrue(settings.is_benchmark_digest(stored), stored)
+
+
+class ReceiptQualificationTests(unittest.TestCase):
+    def test_only_receipt_matching_the_proposed_request_migrates(self):
+        hosted = {"base_url": HOSTED, "api_key": "fixture", "model_name": "hosted-model"}
+        stale = _entry(_environment(HOSTED, "old-model", remote=True),
+                       dict(hosted, model_name="old-model"))
+        with tempfile.TemporaryDirectory() as tmp:
+            _seed(tmp, {"llm_mode": "local", "llm": dict(hosted, **stale),
+                        "llm_local": dict(hosted), "tts": {"mode": "local"}, "generation": {}})
+            saved = _save(tmp, _form(_get(tmp)))
+            self.assertNotIn(settings.BENCHMARK_IDENTITY_KEY, saved.get("llm_remote", {}))
+            self.assertNotIn("concurrency", saved.get("llm_remote", {}))
+
+
+class BoundModeDigestTests(unittest.TestCase):
+    def test_bound_mode_drives_digest_and_slot_after_a_setup_switch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _seed(tmp, {"llm_mode": "remote", "llm": dict(LOW), "llm_local": dict(LOW),
+                               "llm_remote": dict(LOW), "llm_remote_ssh": None,
+                               "tts": {"mode": "local"}, "generation": {}})
+            config = _load(path)
+            bound = settings.get_benchmark_identity_key(
+                config, "llm_local", profile=dict(LOW), llm_mode="local", ssh_alias=None)
+            switched = settings.get_benchmark_identity_key(
+                config, "llm_local", profile=dict(LOW), llm_mode="remote", ssh_alias=None)
+            self.assertNotEqual(bound, switched)
+
+            with _patches()[0], _patches()[1], patch.object(
+                    llm_bench, "find_optimal_concurrency", side_effect=_find(3)):
+                llm_bench.ensure_cached_or_benchmarked_concurrency(
+                    path, "local", LOW["base_url"], LOW["model_name"], object(),
+                    status=STATUS, llm_config=dict(LOW))
+            saved = _load(path)
+            self.assertEqual(3, saved["llm_local"]["concurrency"])
+            self.assertEqual(bound, saved["llm_local"][settings.BENCHMARK_IDENTITY_KEY])
+            self.assertNotIn("concurrency", saved.get("llm_remote", {}))
+
+    def test_adjacent_large_integer_seeds_have_distinct_digests(self):
+        first = dict(LOW, provider_extra_body={"seed": 9007199254740992})
+        second = dict(LOW, provider_extra_body={"seed": 9007199254740993})
+        first_key = settings.get_benchmark_identity_key(
+            {"llm_mode": "local", "llm": first}, "llm", profile=first)
+        second_key = settings.get_benchmark_identity_key(
+            {"llm_mode": "local", "llm": second}, "llm", profile=second)
+        self.assertNotEqual(first_key, second_key)
+
+    def test_malformed_hosts_and_zero_port_rejected_ipv6_preserved(self):
+        for bad in ("http://bad host:1234/v1", "http://host:0/v1", "http://\thost/v1"):
+            self.assertFalse(settings.is_usable_llm_endpoint(bad), bad)
+            self.assertFalse(is_executable_failover_profile(
+                {"base_url": bad, "model_name": MODEL}), bad)
+        for good in ("http://[::1]:1234/v1", "  http://127.0.0.1:1234/v1  "):
+            self.assertTrue(settings.is_usable_llm_endpoint(good), good)
+        self.assertEqual("http://[::1]:1234/v1",
+                         settings.normalize_llm_endpoint("  http://[::1]:1234/v1 "))
+
+
+class PreviewReceiptAccountingTests(unittest.TestCase):
+    def test_equal_field_from_another_receipt_does_not_hide_a_drop(self):
+        first = {"base_url": "http://127.0.0.1:7575/v1", "api_key": "fixture", "model_name": "model-a"}
+        second = {"base_url": "http://127.0.0.1:7676/v1", "api_key": "fixture", "model_name": "model-b"}
+        first_receipt = _entry(_environment(first["base_url"], "model-a"), first)
+        second_receipt = _entry(_environment(second["base_url"], "model-b"), second)
+        second_receipt["concurrency"] = first_receipt["concurrency"]
+        with tempfile.TemporaryDirectory() as tmp:
+            _seed(tmp, {"llm_mode": "local", "llm": dict(first),
+                        "llm_local": dict(first, **first_receipt),
+                        "llm_remote": dict(second, **second_receipt),
+                        "tts": {"mode": "local"}, "generation": {}})
+            document = _form(_get(tmp))
+            document["llm_local"]["reasoning_effort"] = "high"
+            preview = _preview(tmp, document)
+            self.assertGreaterEqual(preview["unmanaged_fields"], len(settings.BENCHMARK_CACHE_KEYS))
+
+
+class AdapterOnlyPrecedenceTests(unittest.TestCase):
+    def test_named_adapter_only_profile_beats_complete_legacy_http_in_both_modes(self):
+        from attribution_adapter import AdapterError, adapter_config, check_adapter
+        for mode in ("local", "remote"):
+            with self.subTest(mode=mode):
+                cfg = {"llm_mode": mode,
+                       "llm": {"base_url": "http://localhost:1234/v1", "api_key": "fixture",
+                               "model_name": "legacy-model"},
+                       f"llm_{mode}": {"attribution_adapter": {
+                           "path": "/fixture/adapter.gguf", "require": True}}}
+                self.assertEqual("/fixture/adapter.gguf", adapter_config(cfg)["path"])
+                with patch("attribution_adapter.served_adapters", return_value=[]), \
+                        self.assertRaises(AdapterError):
+                    check_adapter(cfg, "http://x/v1", require=True)
+
+
 if __name__ == "__main__":
     unittest.main()

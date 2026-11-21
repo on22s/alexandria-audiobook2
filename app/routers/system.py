@@ -380,6 +380,29 @@ def get_saved_profile_for_endpoint(base_url, existing=None, *, section=None, llm
     return None
 
 
+def get_endpoint_credential_source(section, endpoint, saved, existing, llm_mode):
+    """The one saved profile whose credentials/headers belong to `endpoint`.
+
+    GET hydration, Preview and Save all use this answer. A neutral named slot
+    has no saved endpoint: Setup filled it from the active runtime profile,
+    which may be the legacy mirror even when another named profile shares that
+    endpoint with its own key and headers. Resolving by role alone cannot tell
+    those apart, so the runtime profile is the provenance in that case.
+    """
+    saved = saved if isinstance(saved, dict) else {}
+    saved_endpoint = get_api_key_endpoint(saved.get("base_url"))
+    if not endpoint or endpoint == saved_endpoint:
+        return saved
+    bound = get_saved_profile_for_endpoint(endpoint, existing, section=section, llm_mode=llm_mode)
+    if bound is not None:
+        return bound
+    runtime = get_active_llm_config(existing) if isinstance(existing, dict) else {}
+    if (section in ("llm", f"llm_{llm_mode}")
+            and get_api_key_endpoint(runtime.get("base_url")) == endpoint):
+        return runtime
+    return None
+
+
 def _resolve_redacted_api_key(api_key, base_url, existing=None):
     """The Setup tab's key field holds the GET sentinel for a stored key, and
     the Test / Load-models buttons send that field as-is. Map the sentinel
@@ -428,14 +451,11 @@ def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
         endpoint = get_api_key_endpoint(getattr(incoming, "base_url", None))
         saved_endpoint = get_api_key_endpoint(saved.get("base_url"))
         # One endpoint-bound provenance decision per section, shared by the
-        # credential and the headers. GET hydrates a neutral active slot from
-        # the runtime profile whose secret lives in another saved section, and
-        # two named profiles may share an endpoint: the shared resolver picks
-        # the owner by section/active role so GET, Preview and Save agree.
-        bound = (get_saved_profile_for_endpoint(endpoint, existing, section=section,
-                                                llm_mode=config.llm_mode)
-                 if endpoint and endpoint != saved_endpoint else None)
-        source = bound if bound is not None else saved
+        # credential and the headers. GET, Preview and Save all call the same
+        # helper, so a neutral slot hydrated from the legacy mirror resolves to
+        # that mirror rather than to another named profile at the endpoint.
+        source = get_endpoint_credential_source(section, endpoint, saved, existing,
+                                                config.llm_mode)
         changes = {}
         if getattr(incoming, "api_key", None) == _REDACTED_SECRET:
             inactive = "llm_remote" if config.llm_mode == "local" else "llm_local"
@@ -446,7 +466,7 @@ def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
             unchanged_manual_blank = (saved.get("transport") == "manual" and not endpoint
                                       and not saved_endpoint and bool(saved.get("api_key")))
             needs_explicit_key = (
-                (endpoint != saved_endpoint and not (bound is not None and bound.get("api_key")))
+                (endpoint != saved_endpoint and source is None)
                 or (endpoint == saved_endpoint and not endpoint
                     and not unchanged_inactive_blank and not unchanged_manual_blank)
             )
@@ -458,9 +478,9 @@ def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
             # field being a sentinel: a typed key or an env reference keeps its
             # sentinelled headers, and a header with no stored counterpart is
             # dropped rather than sent as the literal placeholder.
-            header_source = source if get_api_key_endpoint(source.get("base_url")) == endpoint else {}
-            restored = _restore_provider_headers(incoming.provider_headers,
-                                                 header_source.get("provider_headers"))
+            restored = _restore_provider_headers(
+                incoming.provider_headers,
+                source.get("provider_headers") if isinstance(source, dict) else None)
             if restored != incoming.provider_headers:
                 changes["provider_headers"] = restored
         if changes:
@@ -1181,11 +1201,20 @@ async def get_config():
     inactive_section = "llm_local" if active_section == "llm_remote" else "llm_remote"
     runtime = get_active_llm_config(config)
     runtime_endpoint = get_api_key_endpoint(runtime.get("base_url")) if runtime else None
-    bound_credential = (get_saved_profile_for_endpoint(runtime_endpoint, loaded_config,
-                                                       section="llm", llm_mode=config["llm_mode"])
-                        if runtime_endpoint else None)
-    saved_credential = bound_credential is not None and bool(bound_credential.get("api_key"))
-    runtime_safe = _redact_config_secrets({"llm": runtime})["llm"] if runtime else None
+    bound_credential = (get_endpoint_credential_source(
+        "llm", runtime_endpoint, loaded_config.get("llm"), loaded_config, config["llm_mode"])
+        if runtime_endpoint else None)
+    # A stored blank key is intentional and must survive hydration; only the
+    # complete absence of a saved source calls for a public placeholder.
+    saved_credential = bound_credential is not None
+    runtime_safe = None
+    if isinstance(runtime, dict):
+        # Strip machine receipts BEFORE building the browser-safe copy. A
+        # pre-digest receipt carried provider body values in plain text, which
+        # otherwise leaked into the hydrated active slot again.
+        public_runtime = {key: value for key, value in runtime.items()
+                          if key not in BENCHMARK_CACHE_KEYS}
+        runtime_safe = _redact_config_secrets({"llm": public_runtime})["llm"]
     if runtime_safe is not None and not saved_credential:
         # Synthesized public placeholder, not a saved credential: a sentinel
         # here would make first setup unsaveable.

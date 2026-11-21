@@ -278,7 +278,7 @@ def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, mo
     # called. Identity must describe the requests that client actually sends,
     # not a config edit that landed after binding (Rule 15: one answer).
     bound_identity = lmstudio_settings.get_benchmark_identity_key(
-        config, profile_key, profile=llm_config, ssh_alias=ssh_alias)
+        config, profile_key, profile=llm_config, ssh_alias=ssh_alias, llm_mode=llm_mode)
     if status is None:
         status = lmstudio_settings.get_current_status(
             llm_mode, base_url, model_name, ssh_alias=ssh_alias, api_key=profile.get("api_key"))
