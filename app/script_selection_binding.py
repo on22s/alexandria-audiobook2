@@ -109,6 +109,17 @@ def _source_digest(path, *, owning_root=None):
     return _read_source_snapshot(path, owning_root=owning_root)[0]
 
 
+def require_unchanged_source(source_path, expected_sha256, *, owning_root=None):
+    """Refuse publication when the selected source changed after capture.
+
+    Re-verifies the confined source digest at the publication boundary. Shared
+    by the legacy completion publisher and the three-pass publisher so a source
+    edited or swapped mid-run can never publish a script for stale text.
+    """
+    if _source_digest(source_path, owning_root=owning_root) != _digest(expected_sha256):
+        raise ValueError('Source input changed during generation; preserving prior output')
+
+
 def _read_selection_state(data_dir, *, required):
     """Read bounded state; the caller is responsible for operation admission."""
     from project_scope_files import capture_scope_file

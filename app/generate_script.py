@@ -220,10 +220,10 @@ def publish_completed_generation(output_path, entries, manifest, input_path, inp
     # Re-verify the INPUT through the confined digest seam that bound
     # it, not a plain hash: an aliased/hardlinked source must refuse
     # before any output/manifest write, matching binding admission.
-    # (Output artifact hashing below stays generic/plain.)
-    from script_selection_binding import _source_digest
-    if _source_digest(input_path) != input_sha256:
-        raise ValueError('Source input changed during generation; preserving prior output')
+    # (Output artifact hashing below stays generic/plain.) The same guard
+    # protects the three-pass publication boundary.
+    from script_selection_binding import require_unchanged_source
+    require_unchanged_source(input_path, input_sha256)
     atomic_json_write(entries, output_path, allow_nonatomic_fallback=False)
     save_generation_quality_manifest(output_path, {
         **manifest, 'status': 'complete',

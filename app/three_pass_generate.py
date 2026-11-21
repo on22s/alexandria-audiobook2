@@ -2490,7 +2490,8 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
                            attribute_prompt_texts=None, cast_sha256=None,
                            attribution_votes=1, vote_temperature=0.3,
                            first_person_narrator=None, speaker_traits=False,
-                           attribute_target_chars=0, instruct_target_chars=0, instruct_context_chars=0):
+                           attribute_target_chars=0, instruct_target_chars=0, instruct_context_chars=0,
+                           keep_scope="line"):
     digest = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
     settings = {
         "model_name": model_name, "chunk_size": chunk_size,
@@ -2500,6 +2501,11 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         # anything 'keep' adds is flagged attribution_unchecked in the output.
         "endpoint": endpoint,
         "on_exhaustion": "fail" if on_exhaustion == "keep" else on_exhaustion,
+        # #2156: keep scope changes exhaustion behavior (a whole rejected batch
+        # retained vs subdivided), so 'batch' is a distinct semantic identity.
+        # The default 'line' is omitted so checkpoints written before this knob
+        # existed keep their identity and resume unchanged.
+        **({"pass2_keep_scope": keep_scope} if keep_scope not in (None, "line") else {}),
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
         "collect_all_failures": collect_all_failures,
@@ -2819,7 +2825,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         attribution_votes=attribution_votes, vote_temperature=vote_temperature,
         first_person_narrator=narrator, speaker_traits=speaker_traits,
         attribute_target_chars=attribute_target_chars, instruct_target_chars=instruct_target_chars,
-        instruct_context_chars=instruct_context_chars)
+        instruct_context_chars=instruct_context_chars, keep_scope=keep_scope)
     initial_binding = get_run_model_binding(client, model_name)
     if initial_binding["failover_model"] is not None:
         fingerprint["model_binding"] = initial_binding
@@ -3328,13 +3334,13 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             raise RuntimeError(str(exc)) from exc
         raise
     elapsed_s["attribute"] = attr_base + time.time() - attr_start
+    unchecked_entries = sum(
+        1 for entry in named if entry and entry.get("attribution_unchecked"))
     passes["attribute"] = {"elapsed_s": round(elapsed_s["attribute"], 3),
                            "status": ("incomplete" if any(
                                f["pass"] == "attribute" for f in diagnostic_failures)
                                else "complete"),
-                           "unchecked_entries": sum(
-                               1 for entry in named
-                               if entry and entry.get("attribution_unchecked"))}
+                           "unchecked_entries": unchecked_entries}
     # Pass 3 uses the same duplicate-free scheduling so ambiguous heads cannot
     # slip through there either (finding #5).
     annotated.extend([None] * (len(named) - len(annotated)))
@@ -3505,7 +3511,10 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         from literal_policy import bind_literal_policy
         annotated = bind_literal_policy(source_text, annotated)
     save("done")
-    emit_manifest("incomplete" if diagnostic_failures or unavailable_passes
+    # #2158: a kept, quality-rejected attribution is flagged, not verified.
+    # Keep it out of the published script while preserving the checkpoint,
+    # manifest and diagnostic evidence for review/resume.
+    emit_manifest("incomplete" if diagnostic_failures or unavailable_passes or unchecked_entries
                   else "publishing" if defer_final_publication else "complete")
     return [entry for entry in annotated if isinstance(entry, dict)]
 
@@ -3822,6 +3831,29 @@ def get_output_paths(data_dir, requested_output=None):
             os.path.join(data_dir, "chunks.json"))
 
 
+def get_three_pass_publication_blocker(manifest):
+    """Why a finished three-pass manifest must not be published, or None.
+
+    Publication requires a run that actually finished in a publishable state
+    and no quality-rejected (``attribution_unchecked``) kept attributions.
+    Checking at the publication boundary also refuses a stale manifest left by
+    a resumed run written under an older policy. A manifest with no status is
+    allowed for compatibility with checkpoints recorded before statuses existed.
+    """
+    status = manifest.get("status")
+    if status is not None and status not in ("publishing", "complete"):
+        return f"generation status is {status!r}"
+    unchecked = sum(
+        pass_info["unchecked_entries"]
+        for pass_info in (manifest.get("passes") or {}).values()
+        if isinstance(pass_info, dict)
+        and isinstance(pass_info.get("unchecked_entries"), int)
+        and pass_info["unchecked_entries"] > 0)
+    if unchecked:
+        return f"{unchecked} quality-rejected attribution(s) remain unchecked"
+    return None
+
+
 def get_prepared_source(path, strip_front_matter=True, report=lambda message: None,
                         expected_source_sha256=None, owning_root=None):
     """-> (text, unicode_report): the source exactly as generation sees it.
@@ -3980,11 +4012,11 @@ def main():
     # HTTP generation (active-book identity present) runs with the known
     # owning book root; an explicit CLI source keeps its parent authority.
     owning_root = data_dir if args.active_book_token is not None else None
-    input_source_sha256 = None
-    if args.literal_source_preserving:
-        from script_selection_binding import _read_source_snapshot
-        input_source_sha256, _ = _read_source_snapshot(
-            args.input_file, owning_root=owning_root)
+    # Capture the raw source digest for every run: it is the identity checked
+    # again at the publication boundary (not just the literal-mode branch).
+    from script_selection_binding import _read_source_snapshot
+    input_source_sha256, _ = _read_source_snapshot(
+        args.input_file, owning_root=owning_root)
     try:
         expected_source_sha256 = (args.active_source_sha256
                                   if args.active_book_token is not None
@@ -4176,12 +4208,21 @@ def main():
         sys.exit(1)
 
     manifest = safe_load_json(three_pass_manifest_path(output_path), {})
-    if manifest.get("status") == "incomplete":
+    blocker = get_three_pass_publication_blocker(manifest)
+    if blocker:
         partial_path = output_path + ".partial.json"
         atomic_json_write(entries, partial_path, allow_nonatomic_fallback=False)
-        print(f"Diagnostic run found {len(manifest.get('diagnostic_failures', []))} "
-              f"failure(s); wrote {len(entries)} successful entries to {partial_path}")
+        print(f"Refusing publication: {blocker}; "
+              f"wrote {len(entries)} entries to {partial_path}")
         sys.exit(1)
+    # #2157: re-verify source identity at the actual publication boundary,
+    # shared with the legacy publisher, so a source edited after preparation
+    # cannot publish a script for stale text.
+    from script_selection_binding import require_unchanged_source
+    require_unchanged_source(
+        args.input_file,
+        args.active_source_sha256 if args.active_book_token is not None else input_source_sha256,
+        owning_root=owning_root)
     if args.literal_source_preserving:
         from literal_policy import bind_literal_policy
         from script_selection_binding import _source_digest

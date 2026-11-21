@@ -12,6 +12,7 @@ import contextlib
 import json
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import three_pass_generate as tp
 from generate_script import LLMGenParams
@@ -137,6 +138,10 @@ class KeepExhaustedAnswerTests(unittest.TestCase):
         self.assertEqual(["spoken_not_named"], hands[0]["attribution_unchecked"])
         self.assertGreater(calls["attribute"], 1)                # it was retried first
         self.assertEqual(1, manifest["passes"]["attribute"]["unchecked_entries"])
+        # #2158: a quality-rejected kept attribution is not publishable as a
+        # complete script, while its checkpoint/manifest/partial evidence stay.
+        self.assertEqual("incomplete", manifest["status"])
+        self.assertIsNotNone(tp.get_three_pass_publication_blocker(manifest))
 
 
 
@@ -199,11 +204,30 @@ class BatchKeepScopeTests(unittest.TestCase):
         out = _attribute(BATCH, self.ANSWER, "keep", BATCH_SOURCE, keep_scope="batch")
         self.assertNotIn("SILAS DURGAN", tp.attested_new_speakers(out, set(), BATCH_SOURCE))
 
-    def test_scope_does_not_change_the_checkpoint_identity(self):
-        """A run may resume under either scope: everything either one saves is
-        valid output and anything kept is flagged."""
-        import inspect
-        self.assertNotIn("keep_scope", inspect.signature(tp.three_pass_fingerprint).parameters)
+    def test_scope_is_part_of_checkpoint_identity_but_line_keeps_legacy(self):
+        """#2156: 'batch' retains whole rejected batches while 'line' subdivides,
+        so the two must not resume into one another. The default 'line' stays
+        byte-identical to the pre-knob fingerprint so existing books resume."""
+        fp = lambda scope="line": tp.three_pass_fingerprint("text", "m", 6000,
+                                                             keep_scope=scope)
+        self.assertEqual(tp.three_pass_fingerprint("text", "m", 6000), fp())
+        self.assertEqual(fp("line"), fp())
+        self.assertNotEqual(fp("batch"), fp("line"))
+
+    def test_run_three_pass_binds_keep_scope_into_the_fingerprint(self):
+        """#2156: the live run option must reach the fingerprint, not just
+        manifest telemetry, or a failed run can resume with changed semantics."""
+        seen = {}
+
+        def stop(*args, **kwargs):
+            seen.update(kwargs)
+            raise RuntimeError('fingerprint reached')
+
+        with patch.object(tp, 'three_pass_fingerprint', side_effect=stop):
+            with self.assertRaisesRegex(RuntimeError, 'fingerprint reached'):
+                tp.run_three_pass(None, "m", "Some source text.", _params(),
+                                  chunk_size=6000, keep_scope="batch")
+        self.assertEqual("batch", seen.get("keep_scope"))
 
     def test_the_setup_switch_selects_the_scope(self):
         on = tp.resolve_three_pass_generation_settings(
