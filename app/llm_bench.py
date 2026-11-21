@@ -274,6 +274,11 @@ def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, mo
     profile = config.get(profile_key) or {}
     observed_state = _concurrency_cache_state(profile)
     observed_identity = lmstudio_settings.get_benchmark_identity_key(config, profile_key)
+    # The client was built from this run profile before this function was
+    # called. Identity must describe the requests that client actually sends,
+    # not a config edit that landed after binding (Rule 15: one answer).
+    bound_identity = lmstudio_settings.get_benchmark_identity_key(
+        config, profile_key, profile=llm_config)
     if status is None:
         # The probe must use the credentials of the profile bound to this
         # client/endpoint, not a different profile that happens to be in the
@@ -311,8 +316,14 @@ def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, mo
     environment = get_concurrency_environment(
         base_url, model_name, is_remote, ssh_alias, hostname, gpu_name, backend, status)
     cached_concurrency = profile.get("concurrency")
+    cached_identity = profile.get(lmstudio_settings.BENCHMARK_IDENTITY_KEY)
+    if cached_identity is None and lmstudio_settings.has_valid_benchmark_environment(profile):
+        # Legacy entries predate the persisted identity; their own qualified
+        # section is the only identity evidence they carry.
+        cached_identity = lmstudio_settings.get_benchmark_identity_key(config, profile_key)
     if (profile.get("concurrency_for") == cache_key
             and profile.get("concurrency_environment") == environment
+            and (cached_identity is None or cached_identity == bound_identity)
             and isinstance(cached_concurrency, int) and not isinstance(cached_concurrency, bool)
             and cached_concurrency > 0):
         concurrency = min(cached_concurrency, effective_max)
@@ -358,6 +369,7 @@ def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, mo
             profile["concurrency_for"] = cache_key
             profile["concurrency_environment"] = environment
             profile["concurrency_revision"] = uuid.uuid4().hex
+            profile[lmstudio_settings.BENCHMARK_IDENTITY_KEY] = bound_identity
             config[profile_key] = profile
             atomic_json_write(config, config_path, allow_nonatomic_fallback=False)
     except (OSError, TimeoutError, TypeError, ValueError):

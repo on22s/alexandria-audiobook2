@@ -52,12 +52,39 @@ def get_preview_value(value, key, section='', allowed=frozenset()):
     return 'Contents hidden'
 
 
+def _carried_forward(key, value, after):
+    """Whether a saved unknown field survives anywhere in the save document."""
+    for section in ("llm", "llm_local", "llm_remote"):
+        block = after.get(section)
+        if isinstance(block, dict) and key in block and block[key] == value:
+            return True
+    return False
+
+
+def _count_dropped_unmanaged(saved, after, get_local_profile):
+    """Count unknown fields Save actually drops, including the legacy mirror.
+
+    A field carried into a named slot by migration, or retained as qualified
+    cache evidence, is not dropped and must not inflate the warning count.
+    Visible profile rows are built separately and are unchanged by this count.
+    """
+    count = len(set(saved) - set(AppConfig.model_fields))
+    for section, model in {**_MODELS, 'llm': LLMConfig}.items():
+        old = get_local_profile(saved) if section == 'llm_local' else saved.get(section)
+        if not isinstance(old, dict):
+            continue
+        for key in set(old) - set(model.model_fields):
+            if not _carried_forward(key, old[key], after):
+                count += 1
+    return count
+
+
 def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
     """Read schema defaults; never change the supplied document or model."""
     saved = jsonable_encoder(existing.data)
     after = get_document_with_retained_cache(proposal.model_dump(mode='json'), existing.data)
     changes, defaults = [], []
-    unmanaged = len(set(saved) - set(AppConfig.model_fields))
+    unmanaged = _count_dropped_unmanaged(saved, after, get_local_profile)
 
     def append_row(section, key, old, new, default=_ABSENT, absent=False, field=None):
         before = default if old is _ABSENT else old
@@ -81,10 +108,6 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
             continue
         old = old if isinstance(old, dict) else {}
         new = new if isinstance(new, dict) else {}
-        # A field Save retains (a still-qualified measurement) is not dropped,
-        # so it must not be reported as one. Cache evidence is the only
-        # non-schema field the shared retention can carry back into `after`.
-        unmanaged += len((set(old) - set(model.model_fields)) - set(new))
         for key, field in model.model_fields.items():
             default = _ABSENT if field.is_required() else field.get_default(call_default_factory=True)
             append_row(section, key, old.get(key, _ABSENT), new.get(key, _ABSENT),
