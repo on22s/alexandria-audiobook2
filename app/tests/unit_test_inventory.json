@@ -12454,6 +12454,13 @@
     , "tests.test_review_dedupe_progress.MergeStageHintTests.test_stage_hint_recognises_the_merge_line_under_a_batch_log_prefix"
     , "tests.test_review_dedupe_progress.MergeStageHintTests.test_stage_hint_still_prefers_the_review_batch_while_reviewing"
   ]
+  , "test_review_duplex_retry": [
+    "tests.test_review_duplex_retry.TwoPassRetryTests.test_changed_book_or_companion_forces_forward"
+    , "tests.test_review_duplex_retry.TwoPassRetryTests.test_missing_or_invalid_evidence_forces_forward"
+    , "tests.test_review_duplex_retry.TwoPassRetryTests.test_second_run_skips_forward_and_resumes_backward_only"
+    , "tests.test_review_duplex_retry.TwoPassRetryTests.test_start_over_removes_evidence_and_runs_forward"
+    , "tests.test_review_duplex_retry.TwoPassRetryTests.test_two_books_dispatch_independently"
+  ]
   , "test_review_failure_message": [
     "tests.test_review_failure_message.ReviewFailureMarkerTests.test_fatal_cli_path_emits_the_marker_and_reraises"
     , "tests.test_review_failure_message.ReviewFailureMarkerTests.test_js_start_over_decision_uses_the_kind_literal_from_python"

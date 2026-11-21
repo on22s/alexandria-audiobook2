@@ -2512,6 +2512,27 @@ def main():
                                                        model_name, review_source_text, entries=entries)
     legacy_fingerprints = (() if legacy_fingerprint in (None, receipt_fingerprint)
                            else (legacy_fingerprint,))
+    if getattr(args, 'review_pass', 'forward') == 'forward' and not args.force_review:
+        existing = safe_load_json(get_review_receipt_path(output_path), default=None)
+        if isinstance(existing, dict) and existing.get('review_pass') == 'backward':
+            try:
+                published = _entries_fingerprint(json.loads(open(output_path, 'rb').read()))
+                bound = published == existing.get('output_sha256')
+            except (OSError, ValueError, TypeError):
+                bound = False
+            if bound:
+                print('Backward review evidence is still bound to this book; forward pass skipped.')
+                print(f'Review complete: {len(entries)} -> {len(entries)} entries')
+                for label in ('Text changed', 'Speaker changed', 'Instruct changed',
+                              'Annotations changed', 'Entries changed', 'Entries added',
+                              'Entries removed', 'Narrators merged', 'Speakers merged',
+                              'Total changes'):
+                    print(f'  {label}: 0')
+                print('Task review completed successfully.')
+                close = getattr(client, 'close', None)
+                if close:
+                    close()
+                return
     matched, receipt_reason = get_completed_review_match(
         script_path, output_path, source_sha256, receipt_fingerprint, legacy_fingerprints)
     if matched and not args.force_review:
@@ -2956,6 +2977,21 @@ def main():
     post_processing_abort = bool(vram_aborted and not failed_batches and not unreviewed_entries)
     publication_withheld = not review_complete and (active_review or saved_review)
 
+    if review_complete and getattr(args, 'review_pass', 'forward') == 'forward':
+        evidence = {
+            'version': 1,
+            'input_path': os.path.abspath(script_path),
+            'output_path': os.path.abspath(output_path),
+            'input_sha256': source_sha256,
+            'output_sha256': output_sha256,
+            'fingerprint': receipt_fingerprint,
+            'aliases': get_review_sidecar_identity(args.alias_registry),
+            'voice': get_review_sidecar_identity(args.remap_voice_config),
+            'stats': {key: total_stats.get(key, 0) for key in REVIEW_EDIT_COUNTERS},
+        }
+        atomic_json_write(evidence, output_path + '.review_forward_evidence.json',
+                          allow_nonatomic_fallback=False)
+
     # An incomplete review never publishes: the resumable checkpoint holds the
     # completed work, while the script, bindings, voice settings, alias registry
     # and audio stay exactly as they were. Explicit --output keeps its legacy
@@ -3007,8 +3043,9 @@ def main():
     # full review (and any post-processing) has finished successfully.
     if review_complete:
         save_completed_review_receipt(script_path, output_path, source_sha256,
-            _entries_fingerprint(output_entries), get_completed_review_fingerprint(
-                config, llm_config, gen_params, args, client, model_name, review_source_text, entries=entries))
+            output_sha256, get_completed_review_fingerprint(
+                config, llm_config, gen_params, args, client, model_name, review_source_text, entries=entries),
+            review_pass=getattr(args, 'review_pass', 'forward'))
         clear_checkpoint(output_path)
 
     # Delete chunks.json so editor regenerates — only when we reviewed the

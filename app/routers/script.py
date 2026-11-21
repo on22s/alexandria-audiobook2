@@ -3580,6 +3580,41 @@ def _get_review_startup_path(task_name):
     return os.path.join(os.path.dirname(_task_log_path(task_name)), task_name + '-startup.log')
 
 
+def _verified_forward_evidence(script_path, alias_path, voice_path):
+    """Read durable forward-completion evidence bound to the current book.
+
+    A receipt or checkpoint alone cannot prove the forward pass succeeded:
+    both are overwritten by the backward pass. This sidecar is written only
+    by a completed forward review and is re-validated against the current
+    script bytes and companion identities before the parent may skip a
+    forward child. Execution/direction identity is still enforced by the
+    child when it resumes the backward pass.
+    """
+    from completed_review_receipt import (get_review_entries_fingerprint,
+                                          get_review_sidecar_identity)
+    evidence = safe_load_json(script_path + '.review_forward_evidence.json', default=None)
+    if (not isinstance(evidence, dict) or evidence.get('version') != 1
+            or evidence.get('input_path') != os.path.abspath(script_path)
+            or evidence.get('output_path') != os.path.abspath(script_path)):
+        return None
+    try:
+        with open(script_path, 'rb') as stream:
+            current = get_review_entries_fingerprint(json.loads(stream.read()))
+    except (OSError, ValueError, TypeError):
+        return None
+    if evidence.get('output_sha256') != current or evidence.get('input_sha256') != current:
+        return None
+    for key, expected in (('aliases', alias_path), ('voice', voice_path)):
+        recorded = evidence.get(key)
+        if recorded != get_review_sidecar_identity(expected):
+            return None
+    stats = evidence.get('stats')
+    if (not isinstance(stats, dict)
+            or any(type(value) is not int or value < 0 for value in stats.values())):
+        return None
+    return stats
+
+
 def _with_review_startup(task_name, callback, *args):
     path = _get_review_startup_path(task_name)
     return ReviewStartupTrace(path).call('admission', callback, *args)
@@ -3670,6 +3705,9 @@ def discard_review_progress(output_path):
             remove_generation_shard_checkpoint(checkpoint_path, locked=True)
             checkpoint_discarded = True
             remove_completed_review_receipt(output_path)
+            evidence_path = output_path + '.review_forward_evidence.json'
+            if os.path.lexists(evidence_path):
+                os.remove(evidence_path)
     except Exception as error:
         event('checkpoint_discard_failed', error=error)
         if checkpoint_discarded:
@@ -4040,6 +4078,19 @@ def _start_batch_review(request, background_tasks):
             state["logs"].append(f"--- [{i+1}/{total}]{tag} Reviewing '{name}' ---")
             if script_path not in source_paths:
                 source_paths.append(script_path)
+
+            if state.get("bidirectional") and tag != " [bwd]" and not request.start_over:
+                companion = os.path.join(SCRIPTS_DIR, f"{safe_name}.voice_config.json")
+                forward_stats = _verified_forward_evidence(
+                    script_path, registry_path if dedupe else None,
+                    companion if os.path.exists(companion) else None)
+                if forward_stats is not None:
+                    state["logs"].append(
+                        f"[{i+1}]{tag} Reusing verified forward completion; no forward inference needed.")
+                    state["tasks"][i]["status"] = "done"
+                    state["tasks"][i]["stats_fwd"] = {
+                        **_new_review_totals(), **forward_stats, "books_done": 1}
+                    return True
 
             # Optional nickname discovery first, accumulating into the shared series registry
             if discover and registry_path:
