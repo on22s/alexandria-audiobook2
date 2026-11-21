@@ -8623,9 +8623,14 @@
                 // keeps the old take listenable. Only a cleared path removes it.
                 const existingAudio = actionContainer.querySelector('audio.chunk-audio');
                 if (chunk.audio_path) {
-                    const newSrc = encodeURI(`/${chunk.audio_path}`) + `?t=${encodeURIComponent(chunk.audio_revision || Date.now())}`;
+                    const path = encodeURI(`/${chunk.audio_path}`);
+                    const currentSrc = existingAudio?.getAttribute?.('src');
+                    // Legacy rows have no revision. Keep their original cache
+                    // buster while the audio path remains the same.
+                    const newSrc = !chunk.audio_revision && currentSrc?.startsWith(`${path}?t=`)
+                        ? currentSrc : `${path}?t=${encodeURIComponent(chunk.audio_revision || Date.now())}`;
                     if (existingAudio) {
-                        if (existingAudio.getAttribute?.('src') !== newSrc) {
+                        if (currentSrc !== newSrc) {
                             existingAudio.src = newSrc;
                             existingAudio.load?.();
                         }
@@ -9811,11 +9816,13 @@
                     const confirmed = cachedChunks.find(chunk => chunk.id === id && chunk.uid === uid);
                     if (confirmed && activeRow && typeof updateChunkRow === 'function') { updateChunkRow(confirmed); }
                 } catch (error) {
-                    // A reply for a replaced row must not install an error (or
-                    // an integrity barrier) on the book that replaced it.
-                    if (!isCurrentChunkEditRow(id, uid, bookToken)) { return; }
-                    setFailedChunkEdits(key, id, uid, bookToken, fields, error, order);
-                    const activeRow = getCurrentChunkEditRow(id, uid, bookToken);
+                    // A refusal belongs to the saved UID even if it moved.
+                    // A different book or a removed UID has no row to mark.
+                    if (bookToken !== chunkSnapshotBookToken) { return; }
+                    const current = cachedChunks.find(chunk => chunk.uid === uid);
+                    if (!current) { return; }
+                    setFailedChunkEdits(key, current.id, uid, bookToken, fields, error, order);
+                    const activeRow = getCurrentChunkEditRow(current.id, uid, bookToken);
                     syncChunkRowFailureMarker(activeRow, key);
                     throw error;
                 } finally {
@@ -9995,8 +10002,11 @@
                 // Optimistic UI update
                 if (tr) {
                     const statusBadge = tr.querySelector('.badge');
-                    statusBadge.className = 'badge bg-warning';
-                    statusBadge.innerText = t('core.editor.status.generating', 'generating');
+                    if (statusBadge) {
+                        statusBadge.className = 'badge bg-warning chunk-status-label';
+                        statusBadge.setAttribute?.('data-status', 'generating');
+                        statusBadge.innerText = typeof chunkStatusLabel === 'function' ? chunkStatusLabel('generating') : t('core.editor.status.generating', 'generating');
+                    }
 
                     // Replace button with progress bar
                     const container = tr.querySelector('.d-flex');

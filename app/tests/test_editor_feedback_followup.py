@@ -404,6 +404,32 @@ assert.equal(status.querySelectorAll('.ui-safety-secondary').length,1,'authored 
  finished=true;})().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
+    def test_late_refusal_after_reorder_belongs_to_the_moved_line(self):
+        self.run_barrier(r'''
+(async()=>{
+ const a=client();const marks=new Set(),replacementMarks=new Set();
+ a.row.classList={toggle:(name,on)=>on?marks.add(name):marks.delete(name)};
+ const pending=a.context.applyChunkEdits(7,{text:'refused draft'});
+ await tick();assert.strictEqual(a.gates.length,1);
+ a.row.dataset.id='3';
+ const replacement={dataset:{id:'7',uid:'replacement',bookToken:'book-token'},
+  classList:{toggle:(name,on)=>on?replacementMarks.add(name):replacementMarks.delete(name)}};
+ a.context.document.querySelector=selector=>selector.includes('data-id="3"')?a.row:replacement;
+ vm.runInContext('cachedChunks=[{id:3,uid:"row-7",text:"saved"}, {id:7,uid:"replacement",text:"another line"}];',a.context);
+ a.setFail(true);a.gates.shift()();
+ await assert.rejects(pending,/fixture row write failed/);
+ assert.match(a.context.getEditorFailedEditsSummary(),/Line 4.*fixture row write failed/);
+ assert(marks.has('text-danger'));
+ assert(!replacementMarks.has('text-danger'));
+ await assert.rejects(a.context.flushChunkEdits(),/fixture row write failed/);
+ a.context.API.post=async()=>({text:'corrected'});
+ await a.context.applyChunkEdits(3,{text:'corrected'});
+ assert.strictEqual(a.context.getEditorFailedEditsSummary(),'');
+ assert(!marks.has('text-danger'));
+ finished=true;
+})().catch(e=>{console.error(e);process.exitCode=1;});
+''')
+
     def test_row_failure_marker_derived_on_unrelated_success_and_retry(self):
         self.run_barrier(r'''
 (async()=>{
@@ -447,9 +473,14 @@ const row=document.querySelector('#chunks-table-body tr[data-id="1"]');
 row.children.filter(c=>c.classList.contains('chunk-audio')).forEach(c=>c.remove());
 row.appendChild(new Element('span',{class:'badge bg-secondary chunk-status-label','data-status':'done'}));
 const actions=row.appendChild(new Element('div',{class:'chunk-actions'}));
-const player=actions.appendChild(new Element('audio',{class:'chunk-audio',src:'/one.wav?t=r1','data-id':'1'}));
+const player=actions.appendChild(new Element('audio',{class:'chunk-audio',src:'/one.wav?t=100','data-id':'1'}));
 let loads=0;player.load=()=>{loads++;};player.pause=()=>{};
 await context.refreshEditorReview();context.selectEditorReviewLineById(1);
+context.API.post=async(url,data)=>({status:'done',error:null,audio_path:'one.wav',audio_revision:null,...data});
+await context.applyChunkEdits(1,{pause_after:200});
+assert.strictEqual(actions.querySelector('audio.chunk-audio'),player);
+assert.strictEqual(loads,0,'unchanged legacy audio without a revision must not reload');
+player.setAttribute('src','/one.wav?t=r1');
 context.API.post=async(url,data)=>({status:'done',error:null,audio_path:'one.wav',audio_revision:'r1',...data});
 await context.applyChunkEdits(1,{pause_after:300});
 assert.strictEqual(actions.querySelectorAll('audio.chunk-audio').length,1);
@@ -503,6 +534,28 @@ vm.runInContext("uiCatalogs.set('es-419',{meta:{review_status:{all:'human-review
 vm.runInContext("applyUiLocale('es-419')",context);
 context.renderVoiceLocaleChrome();
 assert.strictEqual(badge.textContent,'hecho',badge.textContent);
+''')
+
+    def test_single_line_render_badge_repaints_after_locale_change(self):
+        self.run_barrier(r'''
+(async()=>{
+ const a=client();a.setHold(false);
+ const badge={className:'badge chunk-status-label',status:'pending',
+  setAttribute(name,value){assert.strictEqual(name,'data-status');this.status=value;},
+  getAttribute(name){assert.strictEqual(name,'data-status');return this.status;}};
+ const find=a.row.querySelector;a.row.querySelector=selector=>selector==='.badge'?badge:find(selector);
+ a.context.document.querySelectorAll=selector=>selector==='.chunk-status-label'&&badge.className.includes('chunk-status-label')?[badge]:[];
+ for(const [start,end] of [['function chunkStatusLabel(','// The Script tab'],['function renderVoiceLocaleChrome(','function getVoiceSectionStorageKey(']]){
+  vm.runInContext(source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start))),a.context);
+ }
+ await a.context.generateChunk(7);
+ assert.strictEqual(a.batches.length,1);
+ assert.strictEqual(badge.getAttribute('data-status'),'generating');
+ a.context.t=(key,english)=>key==='core.editor.status.generating'?'Generando':english;
+ a.context.renderVoiceLocaleChrome();
+ assert.strictEqual(badge.textContent,'Generando');
+ finished=true;
+})().catch(e=>{console.error(e);process.exitCode=1;});
 ''')
 
 
