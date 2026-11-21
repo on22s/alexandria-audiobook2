@@ -1168,6 +1168,7 @@
   ]
   , "test_batch_completion_js": [
     "tests.test_batch_completion_js.BatchCompletionJsTests.test_actual_review_callback_reports_counts_and_preserves_recovery_controls"
+    , "tests.test_batch_completion_js.BatchCompletionJsTests.test_batch_option_checkboxes_keep_merge_and_discovery_consistent"
     , "tests.test_batch_completion_js.BatchCompletionJsTests.test_pending_start_and_done_chunks_do_not_finish_before_worker_stops"
     , "tests.test_batch_completion_js.BatchCompletionJsTests.test_terminal_partial_results_count_pending_skipped_missing_and_cancelled"
     , "tests.test_batch_completion_js.BatchCompletionJsTests.test_unavailable_status_rejects_poll_and_manual_cancel_does_not_show_success"
@@ -1286,7 +1287,11 @@
     , "tests.test_batch_result_shape.VramNoneRenderingTests.test_run_sweep_keeps_none_as_null_in_artifact_and_prints_na"
   ]
   , "test_batch_review_pass_status": [
-    "tests.test_batch_review_pass_status.BatchReviewPassStatusTests.test_actual_batch_route_and_report_keep_both_passes_completion_requirements"
+    "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_contradictions_are_refused_before_gpu_or_task_claim"
+    , "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_effective_flags_keep_legacy_omitted_default_behavior"
+    , "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_pending_run_does_not_reuse_previous_results"
+    , "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_valid_defaults_start_and_report_effective_flags"
+    , "tests.test_batch_review_pass_status.BatchReviewPassStatusTests.test_actual_batch_route_and_report_keep_both_passes_completion_requirements"
   ]
   , "test_batch_review_task_snapshots": [
     "tests.test_batch_review_task_snapshots.BatchReviewTaskSnapshotTests.test_legacy_generic_only_state_keeps_existing_response"
@@ -12486,9 +12491,6 @@
     , "tests.test_review_final_boundaries.StageAndReportTests.test_contextual_abort_counts_all_untouched_rows"
     , "tests.test_review_final_boundaries.StageAndReportTests.test_explicit_complete_suppresses_historical_warnings"
     , "tests.test_review_final_boundaries.StageAndReportTests.test_mixed_aggregate_reason_is_not_blanket_all_reviewed"
-    , "tests.test_review_partial_retention.IncompletePublicationTests.test_active_incomplete_keeps_bytes_and_resume_publishes"
-    , "tests.test_review_partial_retention.IncompletePublicationTests.test_old_checkpoint_still_resumes"
-    , "tests.test_review_partial_retention.IncompletePublicationTests.test_saved_incomplete_keeps_bytes_and_resume_publishes"
   ]
   , "test_review_followup_2222": [
     "tests.test_review_followup_2222.BatchPassCheckpointTests.test_clean_forward_keeps_checkpoint_and_runs_hindsight"
@@ -12503,9 +12505,6 @@
     , "tests.test_review_followup_2222.RunHistoryOutcomeTests.test_helper_derives_terminal_and_child_outcomes"
     , "tests.test_review_followup_2222.VerifiedCheckpointTests.test_cli_does_not_promise_resume_for_obsolete_checkpoint"
     , "tests.test_review_followup_2222.VerifiedCheckpointTests.test_only_current_bound_checkpoint_promises_resume"
-    , "tests.test_review_partial_retention.IncompletePublicationTests.test_active_incomplete_keeps_bytes_and_resume_publishes"
-    , "tests.test_review_partial_retention.IncompletePublicationTests.test_old_checkpoint_still_resumes"
-    , "tests.test_review_partial_retention.IncompletePublicationTests.test_saved_incomplete_keeps_bytes_and_resume_publishes"
   ]
   , "test_review_followup_2222_more": [
     "tests.test_review_followup_2222_more.MarkerAndBoundaryTests.test_explicit_complete_marker_beats_historical_counters"
@@ -12513,9 +12512,6 @@
     , "tests.test_review_followup_2222_more.MarkerAndBoundaryTests.test_legacy_boundary_survives_abort_and_resume"
     , "tests.test_review_followup_2222_more.MarkerAndBoundaryTests.test_mixed_two_book_aggregate_separates_final_check_aborts"
     , "tests.test_review_followup_2222_more.NotificationOutcomeJsTests.test_incomplete_has_distinct_notification_outcome"
-    , "tests.test_review_partial_retention.IncompletePublicationTests.test_active_incomplete_keeps_bytes_and_resume_publishes"
-    , "tests.test_review_partial_retention.IncompletePublicationTests.test_old_checkpoint_still_resumes"
-    , "tests.test_review_partial_retention.IncompletePublicationTests.test_saved_incomplete_keeps_bytes_and_resume_publishes"
   ]
   , "test_review_force_js": [
     "tests.test_review_force_js.ReviewForceJsTests.test_all_review_handlers_forward_checkbox"

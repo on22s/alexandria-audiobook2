@@ -204,6 +204,29 @@ class BatchReviewRequest(ReviewRequest):
                                        # discovery seeded with full-series hindsight (requires find_nicknames)
 
 
+def _resolve_batch_review_options(request):
+    """Resolve effective batch flags, refusing only explicitly contradictory input.
+
+    Omitted fields keep their legacy defaults and their legacy reduction: with
+    ``dedupe_speakers=False`` and discovery omitted, discovery stays off rather
+    than becoming a contradiction the caller never asked for.
+    """
+    sent = getattr(request, 'model_fields_set', set())
+    dedupe = bool(request.dedupe_speakers)
+    find = bool(request.find_nicknames)
+    two_pass = bool(request.bidirectional)
+    if find and not dedupe and 'find_nicknames' in sent and 'dedupe_speakers' in sent:
+        raise AppError(422,
+            'Nickname discovery requires character-name merging. Enable merging or turn off discovery.',
+            key='error.review.batch.discover_requires_dedupe')
+    discover = find and dedupe
+    if two_pass and not discover:
+        raise AppError(422,
+            'Two-pass review requires nickname discovery and character-name merging. '
+            'Enable both or turn off the two-pass option.',
+            key='error.review.batch.two_pass_requires_discover')
+    return dedupe, discover, two_pass and discover
+
 
 def get_review_force_args(force_review, backward=False):
     """Build the review-child flags; a backward pass always reruns with its own direction identity."""
@@ -3964,20 +3987,25 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
 
 
 def _start_batch_review(request, background_tasks):
+    dedupe, discover, bidirectional = _resolve_batch_review_options(request)
+    effective_options = {"bidirectional": bidirectional,
+                         "find_nicknames": discover, "dedupe_speakers": dedupe}
     check_global_gpu_lock("batch_review")
     if not request.script_names:
         raise HTTPException(status_code=400, detail="No scripts selected.")
 
     _, window = get_validated_context_setting(
         CONTEXT_MODE_ENTRIES, request.context_window, 0, minimum=0)
-    dedupe = bool(request.dedupe_speakers)
-    discover = bool(request.find_nicknames) and dedupe
-    # A backward pass only adds value when discovery is on (it re-scans early books with the
-    # now-complete registry as hindsight context). With discovery off it would be a pure re-apply.
-    bidirectional = bool(request.bidirectional) and discover
 
     names = list(request.script_names)
     total = len(names)
+    pending = {
+        "tasks": [{"name": name, "status": "pending"} for name in names],
+        "current_task_idx": -1, "current_pass": None,
+        "totals_fwd": _new_review_totals(), "totals_bwd": _new_review_totals(),
+        "aliases_fwd": [], "aliases_bwd": [], "diff_pool": {"text": [], "speaker": []},
+        "logs": [], "artifacts": [], "start_time": None, "run_id": None,
+    }
 
     def _run():
         with ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR):
@@ -3986,13 +4014,7 @@ def _start_batch_review(request, background_tasks):
         prefix = "bidirectional " if bidirectional else ""
         _init_batch_state(state,
                           [f"Starting {prefix}batch review of {total} script(s)..."],
-                          [{"name": n, "status": "pending"} for n in names])
-        state["bidirectional"] = bidirectional
-        state["totals_fwd"] = _new_review_totals()
-        state["totals_bwd"] = _new_review_totals()
-        state["aliases_fwd"] = []
-        state["aliases_bwd"] = []
-        state["diff_pool"] = {"text": [], "speaker": []}
+                          pending["tasks"])
 
         # One full on-disk log for the whole batch (in-memory list is a capped tail)
         log_path = _init_task_log("batch_review")
@@ -4235,7 +4257,10 @@ def _start_batch_review(request, background_tasks):
     except BaseException:
         release_gpu_task_claim('batch_review', claim_id, pending_only=True)
         raise
-    return {"status": "started", "task_count": total, "bidirectional": bidirectional}
+    # BackgroundTasks starts after the response. Publish one coherent new-run
+    # view here so polling cannot pair new options with the previous tasks.
+    process_state["batch_review"].update(pending, **effective_options)
+    return {"status": "started", "task_count": total, **effective_options}
 
 
 

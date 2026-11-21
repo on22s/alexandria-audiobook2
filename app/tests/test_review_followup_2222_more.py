@@ -9,7 +9,7 @@ from unittest.mock import patch
 import core
 import review_script as review
 from completed_review_receipt import get_review_entries_fingerprint
-from tests.test_review_partial_retention import SOURCE, IncompletePublicationTests
+from tests import test_review_partial_retention as partial_retention
 
 INCOMPLETE = ['Review incomplete: 1 -> 1 entries', 'Total changes: 0']
 
@@ -63,8 +63,8 @@ class MarkerAndBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             script_path = root / 'annotated_script.json'
-            script_path.write_text(json.dumps(SOURCE))
-            log = IncompletePublicationTests().run_review(root, script_path,
+            script_path.write_text(json.dumps(partial_retention.SOURCE))
+            log = partial_retention.IncompletePublicationTests().run_review(root, script_path,
                                                           vram_ok=False, dedupe=False)
             self.assertIn('3 entries were left unreviewed', log)
             marker = json.loads(next(line.split(': ', 1)[1] for line in log.splitlines()

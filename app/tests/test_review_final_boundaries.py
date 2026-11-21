@@ -8,7 +8,7 @@ from unittest.mock import patch
 import core
 import review_script as review
 from completed_review_receipt import get_review_entries_fingerprint
-from tests.test_review_partial_retention import SOURCE, IncompletePublicationTests
+from tests import test_review_partial_retention as partial_retention
 
 
 class LegacyBoundaryTests(unittest.TestCase):
@@ -69,12 +69,12 @@ class StageAndReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             script_path = root / 'annotated_script.json'
-            script_path.write_text(json.dumps(SOURCE))
-            log = IncompletePublicationTests().run_review(
+            script_path.write_text(json.dumps(partial_retention.SOURCE))
+            log = partial_retention.IncompletePublicationTests().run_review(
                 root, script_path, vram_ok=False, dedupe=True)
             marker = json.loads(next(line.split(': ', 1)[1] for line in log.splitlines()
                                      if line.startswith('REVIEW_DISPOSITION_JSON: ')))
-            self.assertEqual(len(SOURCE), marker['unreviewed_entries'])
+            self.assertEqual(len(partial_retention.SOURCE), marker['unreviewed_entries'])
             self.assertEqual('vram_rows', marker['abort_stage'])
             self.assertFalse(marker['post_processing_abort'])
             self.assertEqual('vram_rows', core._extract_review_stats(log.splitlines())['abort_stage'])

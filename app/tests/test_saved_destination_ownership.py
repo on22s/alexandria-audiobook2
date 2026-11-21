@@ -68,7 +68,11 @@ class SavedDestinationOwnershipTests(unittest.TestCase):
             self.assertEqual(200, response.status_code, response.text)
             self.assertEqual((root / 'annotated_script.json').read_bytes(),
                              (root / 'scripts/distinct.json').read_bytes())
-            self.assertNotIn('tasks', states['batch_review'], 'scope must exist before worker initialization')
+            state = states['batch_review']
+            self.assertIsNone(state['start_time'], 'scope must exist before worker initialization')
+            self.assertEqual(len(names), len(state['tasks']))
+            for name, task in zip(names, state['tasks']):
+                self.assertEqual({'name': name, 'status': 'pending'}, task)
 
     def test_loaded_review_and_cancellation_preserve_family_until_exact_worker_exit(self):
         for cancelled in (False, True):
@@ -291,8 +295,7 @@ except lib.HTTPException as error:print(json.dumps({'status':error.status_code})
                 self.assertEqual(before, {name: value for name, value in helper.artifacts(root).items()
                                           if not name.startswith('distinct.')})
                 return 0, CLEAN
-            with patch.object(script, 'clear_checkpoint'), \
-                    patch.object(script, '_stream_subprocess_to_logs', side_effect=stream):
+            with patch.object(script, '_stream_subprocess_to_logs', side_effect=stream):
                 asyncio.run(background())
             self.assertEqual([409, 200], observed)
 
