@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from routers import script
+from routers import editor, script
 
 
 CLEAN = ['Review complete: 2 -> 2 entries', 'Total changes: 0']
@@ -104,3 +104,130 @@ class BatchReviewPassStatusTests(unittest.TestCase):
                 self.assertEqual(1,sum(phase=='fwd' and kind=='review' for phase,kind in calls) if not nick_failure else sum(phase=='fwd' and kind=='nickname' for phase,kind in calls))
                 self.assertEqual(int(bidirectional),sum(phase=='bwd' and kind=='review' for phase,kind in calls))
                 self.assertEqual(1,len(list(reports.glob('*.md'))))
+
+
+class BatchOptionAdmissionTests(unittest.TestCase):
+    def test_effective_flags_keep_legacy_omitted_default_behavior(self):
+        req = script.BatchReviewRequest(script_names=['book'])
+        self.assertEqual((True, True, False), script._resolve_batch_review_options(req))
+        req = script.BatchReviewRequest(script_names=['book'], dedupe_speakers=False)
+        self.assertEqual((False, False, False), script._resolve_batch_review_options(req))
+        req = script.BatchReviewRequest(script_names=['book'], find_nicknames=False,
+                                        dedupe_speakers=False, bidirectional=False)
+        self.assertEqual((False, False, False), script._resolve_batch_review_options(req))
+
+    def test_contradictions_are_refused_before_gpu_or_task_claim(self):
+        payloads = (
+            {'dedupe_speakers': False, 'find_nicknames': True},
+            {'find_nicknames': False, 'bidirectional': True},
+            {'dedupe_speakers': False, 'bidirectional': True},
+            {'dedupe_speakers': True, 'find_nicknames': False, 'bidirectional': True},
+        )
+        for payload in payloads:
+            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                scripts = root / 'scripts'; scripts.mkdir()
+                (scripts / 'book.json').write_text('[]')
+                state = {'batch_review': {'running': False, 'cancel': False}}
+                app = FastAPI(); app.include_router(script.router)
+                app.add_exception_handler(core.AppError, core.handle_app_error)
+                with patch.object(script, 'SCRIPTS_DIR', str(scripts)), \
+                     patch.object(script, 'process_state', state), \
+                     patch.object(core, 'process_state', state), \
+                     patch.object(script, 'check_global_gpu_lock') as check, \
+                     patch.object(core, 'claim_gpu_task') as claim, \
+                     TestClient(app) as client:
+                    response = client.post('/api/review_script/batch/start',
+                                           json={'script_names': ['book'], **payload})
+                self.assertEqual(422, response.status_code, response.text)
+                body = response.json()
+                self.assertIn('message_key', body)
+                self.assertTrue(body['message_key'].startswith('error.review.batch.'))
+                check.assert_not_called()
+                claim.assert_not_called()
+
+    def test_valid_defaults_start_and_report_effective_flags(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scripts = root / 'scripts'; scripts.mkdir()
+            (scripts / 'book.json').write_text('[]')
+            state = {'batch_review': {'running': False, 'cancel': False}}
+            app = FastAPI(); app.include_router(script.router)
+            with patch.multiple(script, DATA_DIR=str(root), SCRIPTS_DIR=str(scripts),
+                                CHARACTER_ALIASES_PATH=str(root / 'aliases.json'),
+                                REPORTS_DIR=str(root / 'reports'), ROOT_DIR=str(root),
+                                process_state=state), \
+                 patch.multiple(core, DATA_DIR=str(root), process_state=state,
+                                _task_claims={}, _gpu_leases={}), \
+                 patch.object(core, 'acquire_gpu_lock', return_value=None), \
+                 patch.object(core, 'llm_is_on_this_gpu', return_value=True), \
+                 patch.object(script, 'check_global_gpu_lock') as check, \
+                 patch.object(core, 'claim_gpu_task', wraps=core.claim_gpu_task) as claim, \
+                 patch.object(script, '_init_task_log', return_value=str(root / 'task.log')), \
+                 patch.object(script, '_stream_subprocess_to_logs', return_value=(0, CLEAN)), \
+                 patch.object(script, '_insert_llm_summary', side_effect=lambda lines, *_a, **_k: lines), \
+                 patch.object(script, '_run_claimed_background_task', side_effect=lambda name, work: work()), \
+                 TestClient(app) as client:
+                keys = ('dedupe_speakers', 'find_nicknames', 'bidirectional')
+                runs = (({}, (True, True, False)),
+                        ({'bidirectional': True}, (True, True, True)),
+                        ({'dedupe_speakers': False}, (False, False, False)))
+                for options, expected in runs:
+                    with self.subTest(options=options):
+                        response = client.post('/api/review_script/batch/start',
+                                               json={'script_names': ['book'], **options})
+                        self.assertEqual(200, response.status_code, response.text)
+                        status = client.get('/api/status/batch_review')
+                        self.assertEqual(200, status.status_code, status.text)
+                        self.assertEqual(expected, tuple(response.json()[key] for key in keys))
+                        self.assertEqual(expected, tuple(status.json()[key] for key in keys))
+            self.assertEqual(3, check.call_count)
+            self.assertEqual(3, claim.call_count)
+
+    def test_pending_run_does_not_reuse_previous_results(self):
+        state = {"batch_review": {
+            "running": False, "bidirectional": True, "current_task_idx": 0, "current_pass": "bwd",
+            "tasks": [{"name": "finished", "status": "done",
+                       "stats_fwd": {"total_changes": 2}, "stats_bwd": {"total_changes": 3}}],
+            "totals_fwd": {"total_changes": 2}, "totals_bwd": {"total_changes": 3},
+            "logs": ["Previous batch finished."], "run_id": "previous-run",
+        }}
+        app = FastAPI()
+        app.include_router(script.router)
+        app.include_router(editor.router)
+
+        def reserve(*args, **kwargs):
+            state["batch_review"]["running"] = True
+            return "new-claim"
+
+        with patch.object(script, "process_state", state), \
+             patch.object(editor, "process_state", state), \
+             patch.object(editor, "_get_review_checkpoint_snapshot", return_value=([], "fixture")), \
+             patch.object(script, "check_global_gpu_lock"), \
+             patch.object(script, "reserve_background_task", side_effect=reserve), \
+             patch.object(script, "register_claimed_background_task") as registered, \
+             TestClient(app) as client:
+            before = client.get("/api/status/batch_review").json()
+            self.assertEqual(5, before["tasks"][0]["stats"]["total_changes"])
+            start = client.post("/api/review_script/batch/start", json={
+                "script_names": ["next"], "dedupe_speakers": False,
+            })
+            self.assertEqual(200, start.status_code, start.text)
+            status = client.get("/api/status/batch_review")
+            checkpoints = client.get("/api/review/checkpoints")
+        registered.assert_called_once()  # The new worker has not started yet.
+        self.assertEqual(200, status.status_code, status.text)
+        pending = status.json()
+        self.assertEqual([{"name": "next", "status": "pending"}], pending["tasks"])
+        for option in ("bidirectional", "find_nicknames", "dedupe_speakers"):
+            self.assertEqual(start.json()[option], pending[option])
+        for pass_name in ("totals_fwd", "totals_bwd"):
+            self.assertEqual(core._new_review_totals(), pending[pass_name])
+        self.assertEqual(-1, pending["current_task_idx"])
+        self.assertIsNone(pending["current_pass"])
+        self.assertEqual(200, checkpoints.status_code, checkpoints.text)
+        live = checkpoints.json()["live"]
+        self.assertIsNone(live["current_pass"])
+        self.assertEqual(pending["tasks"], live["tasks"])
+        self.assertEqual([], pending["logs"])
+        self.assertIsNone(pending["run_id"])

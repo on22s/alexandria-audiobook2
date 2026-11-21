@@ -2765,7 +2765,7 @@
                         </div>
 
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="review-dedupe-speakers" checked>
+                            <input class="form-check-input" type="checkbox" id="review-dedupe-speakers" checked onchange="syncBatchReviewOptions(this)">
                             <label class="form-check-label small" for="review-dedupe-speakers">
                                 <span data-i18n="script.review.dedupe.before-examples">Merge duplicate character names &mdash; unify aliases of the same character (e.g.</span> <em><span data-i18n="script.review.dedupe.examples">"Kenji" / "Kenji Sato" / "the boy"</span></em> &rarr; <span data-i18n="script.review.dedupe.after-examples">one voice). In Batch Mode names stay consistent across the whole series.</span>
                             </label>
@@ -2835,13 +2835,14 @@
                                 <i class="fas fa-info-circle me-1"></i><strong data-i18n="script.review.batch.title">Batch Review:</strong> <span data-i18n="script.review.batch.intro">Select saved scripts to review in sequence. Each is reviewed and saved back in place. With character-name merging on, canonical names are kept consistent across every selected book.</span>
                             </div>
                             <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="review-batch-find-nicknames" checked>
+                                <input class="form-check-input" type="checkbox" id="review-batch-find-nicknames" checked onchange="syncBatchReviewOptions(this)">
                                 <label data-i18n="script.review.batch.discover-nicknames" class="form-check-label small" for="review-batch-find-nicknames">Discover nicknames first (per book, shared across the series) before merging</label>
                             </div>
                             <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="review-batch-bidirectional">
+                                <input class="form-check-input" type="checkbox" id="review-batch-bidirectional" onchange="syncBatchReviewOptions(this)">
                                 <label data-i18n="script.review.batch.two-pass" class="form-check-label small" for="review-batch-bidirectional">Two-pass (forward + backward) — after reading-order discovery, re-scan from the end so early books pick up names that only make sense later. Needs nickname discovery; ~2× the time.</label>
                             </div>
+                            <small data-i18n="script.review.batch.option_requirement" class="text-muted d-block mb-2">Discovering nicknames also turns on character-name merging; two-pass also turns on discovery.</small>
                             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                                 <div class="input-group input-group-sm" style="width:auto;">
                                     <label data-i18n="script.review.context-window.label" class="input-group-text" for="review-batch-context-window">Context Window</label>
