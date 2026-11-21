@@ -46,10 +46,13 @@ function isSpeechVerificationTaskActive() {
 function getSpeechVerificationTargetIdentity(target) {
     return target && JSON.stringify([chunkSnapshotBookToken,target.chunk.uid,
         getChunkAudioIdentity(target.chunk),
-        target.chunk.speech_verification?.input_digest
-            || target.chunk.speech_verification_historical?.input_digest,
         target.chunk.text,target.chunk.instruct,target.chunk.speaker,target.chunk.take,
         target.chunk.voice_revision,target.chunk.pronunciation_rules]);
+}
+
+function getSpeechVerificationEvidenceDigest(target) {
+    return target?.chunk.speech_verification?.input_digest
+        || target?.chunk.speech_verification_historical?.input_digest || null;
 }
 
 window.applySpeechVerificationInspector = () => {
@@ -86,6 +89,7 @@ async function recheckEditorSpeech() {
         showToast(t('editor.speech.choose-take', 'Choose a saved take with recorded synthesis input. Takes without recorded input must be regenerated with speech checks enabled.'),'warning');return;
     }
     const identity=getSpeechVerificationTargetIdentity(target);
+    const priorDigest=getSpeechVerificationEvidenceDigest(target);
     const book=chunkSnapshotBookToken;
     speechVerificationBusy=true;window.applySpeechVerificationInspector();
     document.getElementById('editor-line-speech-status').textContent=t('editor.speech.rechecking', 'Rechecking this take with cached CPU models. Audio stays selected; checks can take time.');
@@ -104,7 +108,10 @@ async function recheckEditorSpeech() {
         if (identity !== getSpeechVerificationTargetIdentity(getEditorReviewTarget()) || isEditorEditPending()) { return; }
         await refreshEditorReview();
         if (identity !== getSpeechVerificationTargetIdentity(getEditorReviewTarget()) || isEditorEditPending()) { return; }
-        document.getElementById('editor-line-speech-status').textContent=editorReviewFresh
+        const targetAfter=getEditorReviewTarget();
+        const concurrentEvidence=priorDigest !== null
+            && priorDigest !== getSpeechVerificationEvidenceDigest(targetAfter);
+        document.getElementById('editor-line-speech-status').textContent=editorReviewFresh && !concurrentEvidence
             ? t('editor.speech.recorded', 'Speech recheck recorded. Review the evidence and listen before accepting the take.')
             : formatUiSafetyText('safety.editor.speech.snapshot-changed', 'Speech recheck recorded, but the review snapshot changed. Refresh review for current evidence.');
     } catch (error) {

@@ -60,6 +60,17 @@ dirty=false;const retry=context.loadEditorTakeSnapshots();gets[1].reject(Error('
 assert.equal(errors.length,1);assert.equal(selected.chunk.audio_revision,'r1');assert.equal(posts.length,0);
 ''')
 
+    def test_failed_load_replaces_stale_count_status_and_clears_committed_identity(self):
+        self.run_js(r'''
+const first=context.loadEditorTakeSnapshots();await tick();gets[0].resolve(result());await first;
+const status=document.getElementById('editor-take-status');assert(status.textContent.includes('saved snapshots in this view'));
+assert(vm.runInContext('takeHistoryIdentity',context));
+const failed=context.loadEditorTakeSnapshots();await tick();gets[1].reject(Error('Archive unavailable'));await failed;
+assert.equal(errors.length,1);assert.equal(document.getElementById('editor-take-list').children.length,0);
+assert(status.textContent.includes('could not be loaded'));assert(status.textContent.includes('list is empty'));
+assert.equal(vm.runInContext('takeHistoryIdentity',context),null);
+''')
+
     def test_candidate_evidence_is_labelled_historical_missing_or_unavailable(self):
         self.run_js(r'''
 const records=[{...sample(),speech_evidence:{state:'historical',status:'review',reason:'<script>not HTML</script>'}},
