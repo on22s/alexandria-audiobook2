@@ -598,22 +598,38 @@ def _assert_export_admission_locked(token):
         raise ValueError("The selected book changed during export admission")
 
 
-def _assert_export_admission(token):
-    try:
-        with ensure_book_state(DATA_DIR, recover=False):
-            _assert_export_admission_locked(token)
-    except (ValueError, OSError, RecursionError) as error:
-        raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
-
-
 def _chapter_preview_with_rows(admitted_rows, admitted_token, **options):
-    """Complete a chapter preview under the same non-recovering read contract."""
-    try:
-        with ensure_book_state(DATA_DIR, recover=False):
+    """Validate identity and consume admitted rows under one read-only admission."""
+    def checked():
+        try:
             _assert_export_admission_locked(admitted_token)
-    except (ValueError, OSError, RecursionError) as error:
-        raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
-    return project_manager.preview_chapter_filenames(rows=admitted_rows, **options)
+        except (ValueError, OSError, RecursionError) as error:
+            raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
+    with ensure_book_state(DATA_DIR, recover=False):
+        checked()
+        result = project_manager.preview_chapter_filenames(rows=admitted_rows, **options)
+        checked()
+        return result
+
+
+def _reserve_export_task(background_tasks, task_name, admitted_token, callback):
+    """Verify identity, then reserve under the held book lock (book before GPU).
+
+    The reservation's verify hook runs while that admission is still held and
+    reuses it, so a completed switch cannot slip between the last check and the
+    claim. The worker verifies its source again independently.
+    """
+    with ensure_book_state(DATA_DIR, recover=False):
+        _assert_export_admission_locked(admitted_token)
+        def verify():
+            with reuse_book_state(DATA_DIR):
+                _assert_export_admission_locked(admitted_token)
+        try:
+            return schedule_claimed_background_task(
+                background_tasks, task_name, callback, verify=verify)
+        except ValueError as error:
+            raise HTTPException(status_code=409,
+                                detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
 
 
 def _ensure_editor_chunks():
@@ -1586,7 +1602,6 @@ async def export_audacity_endpoint(background_tasks: BackgroundTasks):
     # audacity_export is a NON_GPU_TASK, so this only guards against self-double-start.
 
     _admitted_rows, admitted_token = await asyncio.to_thread(_require_export_chunks)
-    await asyncio.to_thread(_assert_export_admission, admitted_token)
 
     def task():
         process_state["audacity_export"]["logs"] = ["Starting Audacity export..."]
@@ -1610,7 +1625,8 @@ async def export_audacity_endpoint(background_tasks: BackgroundTasks):
         finally:
             process_state["audacity_export"]["running"] = False
 
-    schedule_claimed_background_task(background_tasks, "audacity_export", task)
+    await asyncio.to_thread(_reserve_export_task, background_tasks,
+                            "audacity_export", admitted_token, task)
     process_state["audacity_export"]["result"] = None
     return {"status": "started"}
 
@@ -1678,9 +1694,18 @@ def get_unready_export_speakers():
 async def validate_export_readiness(require_ready, token=None):
     def check():
         with ensure_book_state(DATA_DIR, recover=False):
-            _ensure_editor_selection()
+            # Validate the admitted book before reading readiness: a completed
+            # switch must never report another book's unready speakers.
+            if token is not None:
+                _assert_export_admission_locked(token)
+            else:
+                _ensure_editor_selection()
             if require_ready:
                 missing = get_unready_export_speakers()
+                # Validate before reporting anything computed for a different
+                # book: B's unready speakers must never mask an A→B switch.
+                if token is not None:
+                    _assert_export_admission_locked(token)
                 if missing:
                     raise HTTPException(status_code=409, detail={
                         "message": "Mark every speaker ready before exporting.", "speakers": missing})
@@ -1779,7 +1804,6 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
     # readiness, which would otherwise mask it with an unrelated speaker list.
     _admitted_rows, admitted_token = await asyncio.to_thread(_require_export_chunks)
     await validate_export_readiness(request.require_ready, admitted_token)
-    await asyncio.to_thread(_assert_export_admission, admitted_token)
     # Atomic check-and-set on the request thread (closes the double-start TOCTOU
     # where two rapid POSTs both pass a plain running check before either sets it).
 
@@ -1817,7 +1841,8 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
         finally:
             process_state["m4b_export"]["running"] = False
 
-    schedule_claimed_background_task(background_tasks, "m4b_export", task)
+    await asyncio.to_thread(_reserve_export_task, background_tasks,
+                            "m4b_export", admitted_token, task)
     process_state["m4b_export"]["result"] = None
     return {"status": "started"}
 
@@ -1884,7 +1909,6 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
             chapters = get_chapter_selection(chapters, {row["number"] - 1 for row in preview})
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-    await asyncio.to_thread(_assert_export_admission, admitted_token)
     state = process_state["chapter_export"]
 
     def task():
@@ -1913,7 +1937,8 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
             state["running"] = False
             state["cancel"] = False
 
-    schedule_claimed_background_task(background_tasks, "chapter_export", task)
+    await asyncio.to_thread(_reserve_export_task, background_tasks,
+                            "chapter_export", admitted_token, task)
     state["result"] = None
     return {"status": "started"}
 

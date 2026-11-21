@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import app as application
 import book_state_transaction
+import core
 from book_state_transaction import apply_book_input_selection
 from chunk_status_journal import ChunkStatusJournal, get_chunk_status_journal_path
 from export_publication import ExportSourceSnapshot
@@ -101,6 +102,20 @@ class JournalIdentityCases(unittest.TestCase):
         journal = root / ".active_book_transaction.json"
         journal.write_text(json.dumps({"version": 4, "phase": "pending"}))
         return journal
+
+    def switch_to_published_b(self, root, book_b):
+        for name in ("state.json", "annotated_script.json", "voice_config.json",
+                     BINDING_NAME, "chunks.json"):
+            shutil.copyfile(book_b / name, root / name)
+        journal_a = Path(get_chunk_status_journal_path(root / "chunks.json"))
+        journal_b = Path(get_chunk_status_journal_path(book_b / "chunks.json"))
+        if journal_a.exists():
+            journal_a.unlink()
+        if journal_b.exists():
+            shutil.copyfile(journal_b, journal_a)
+        state = self.state(root)
+        state["book_generation"] = uuid.uuid4().hex
+        (root / "state.json").write_text(json.dumps(state))
 
 
 class SelectionJournalIdentityTests(JournalIdentityCases):
@@ -606,17 +621,6 @@ class JournalReadBoundaryFollowupTests(JournalIdentityCases):
 
 
 class ExportAdmissionIdentityTests(JournalIdentityCases):
-    def _switch_to_published_b(self, root, book_b):
-        for name in ("state.json", "annotated_script.json", "voice_config.json",
-                     BINDING_NAME, "chunks.json"):
-            shutil.copyfile(book_b / name, root / name)
-        journal_a = Path(get_chunk_status_journal_path(root / "chunks.json"))
-        journal_b = Path(get_chunk_status_journal_path(book_b / "chunks.json"))
-        if journal_a.exists():
-            journal_a.unlink()
-        if journal_b.exists():
-            shutil.copyfile(journal_b, journal_a)
-
     def test_completed_switch_after_admission_refuses_export_stages(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "a"
@@ -634,10 +638,7 @@ class ExportAdmissionIdentityTests(JournalIdentityCases):
             untouched.write_bytes(b"previous complete Audacity export")
 
             def publish_b(*args, **kwargs):
-                self._switch_to_published_b(root, book_b)
-                state = self.state(root)
-                state["book_generation"] = uuid.uuid4().hex
-                (root / "state.json").write_text(json.dumps(state))
+                self.switch_to_published_b(root, book_b)
                 return []
 
             client = self.http_client(root, state=self.export_state())
@@ -710,6 +711,100 @@ class ExportAdmissionIdentityTests(JournalIdentityCases):
             self.assertEqual(1, len(regenerated))
             self.assertEqual("pending", regenerated[0]["status"])
             self.assertEqual(1, len(list(root.glob("chunks.json.corrupt*"))))
+
+
+class ExportBoundaryFinalTests(JournalIdentityCases):
+    def two_books(self, tmp):
+        root, book_b = Path(tmp) / "a", Path(tmp) / "b"
+        root.mkdir()
+        book_b.mkdir()
+        self.make_published_book(root, book_id="source")
+        self.make_published_book(book_b, book_id="other",
+                                 source_bytes=b"A different published source.\n")
+        return root, book_b
+
+    def test_duplicate_upload_fresh_verification_eio_aborts_route(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, source, _rows, _identity = self.make_published_book(tmp)
+            watched = [root / "state.json", root / "chunks.json",
+                       Path(get_chunk_status_journal_path(root / "chunks.json")),
+                       root / BINDING_NAME, root / "annotated_script.json", source]
+            before = {path: path.read_bytes() for path in watched}
+            client = self.http_client(root, raise_server_exceptions=False)
+            real_capture = script.capture_scope_file
+            def eio_capture(root_path, relative, **kwargs):
+                if relative == source.name:
+                    raise OSError(errno.EIO, "injected fresh verification lstat EIO")
+                return real_capture(root_path, relative, **kwargs)
+            with patch.object(script, "capture_scope_file", side_effect=eio_capture):
+                response = client.post("/api/upload",
+                    files={"file": ("again.txt", self.SOURCE, "text/plain")})
+            self.assertEqual(500, response.status_code, response.text)
+            for path, raw in before.items():
+                self.assertEqual(raw, path.read_bytes(), path.name)
+            retry = client.post("/api/upload",
+                files={"file": ("again.txt", self.SOURCE, "text/plain")})
+            self.assertEqual(200, retry.status_code, retry.text)
+            self.assertTrue(retry.json().get("reused"))
+
+    def test_readiness_validates_admission_before_reporting_other_book(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, book_b = self.two_books(tmp)
+            (root / "voice_config.json").write_text(json.dumps({"N": {"ready": True}}))
+            (book_b / "voice_config.json").write_text(json.dumps({"N": {"ready": False}}))
+            routes = (
+                ("post", "/api/merge_m4b", {"json": {"require_ready": True}}),
+                ("post", "/api/export_chapters", {"json": {"require_ready": True}}),
+                ("get", "/api/export_chapters/preview", {"params": {"require_ready": "true"}}),
+            )
+            for method, path, options in routes:
+                with self.subTest(route=path):
+                    def switch_and_unready(*args, **kwargs):
+                        self.switch_to_published_b(root, book_b)
+                        return ["N"]
+                    client = self.http_client(root, state=self.export_state())
+                    with patch.object(editor, "get_unready_export_speakers",
+                            side_effect=switch_and_unready):
+                        response = getattr(client, method)(path, **options)
+                    self.assertEqual(409, response.status_code, response.text)
+                    self.assertEqual(editor.CHUNK_SNAPSHOT_CONFLICT_DETAIL,
+                                     response.json()["detail"])
+
+    def test_scheduler_boundary_switch_refuses_all_three_exports(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, book_b = self.two_books(tmp)
+            real_claim = core.claim_gpu_task
+            def switch_at_claim(*args, **kwargs):
+                self.switch_to_published_b(root, book_b)
+                return real_claim(*args, **kwargs)
+            routes = (
+                ("post", "/api/export_audacity", {}),
+                ("post", "/api/merge_m4b", {"json": {}}),
+                ("post", "/api/export_chapters", {"json": {}}),
+            )
+            for method, path, options in routes:
+                with self.subTest(route=path):
+                    before_claims = set(core._task_claims)
+                    client = self.http_client(root, state=self.export_state())
+                    with patch.object(core, "claim_gpu_task", side_effect=switch_at_claim), \
+                         patch.object(core, "register_claimed_background_task") as registered:
+                        response = getattr(client, method)(path, **options)
+                    self.assertEqual(409, response.status_code, response.text)
+                    registered.assert_not_called()
+                    self.assertEqual(before_claims, set(core._task_claims))
+
+    def test_preview_guards_identity_after_consuming_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, book_b = self.two_books(tmp)
+            client = self.http_client(root, state=self.export_state())
+            real_preview = editor.project_manager.preview_chapter_filenames
+            def switch_during_preview(*args, **kwargs):
+                self.switch_to_published_b(root, book_b)
+                return real_preview(*args, **kwargs)
+            with patch.object(editor.project_manager, "preview_chapter_filenames",
+                    side_effect=switch_during_preview):
+                response = client.get("/api/export_chapters/preview")
+            self.assertEqual(409, response.status_code, response.text)
 
 
 if __name__ == "__main__":
