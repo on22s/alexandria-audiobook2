@@ -1590,8 +1590,10 @@
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_production_cli_keeps_configured_mode_and_explicit_cli_override"
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_remote_stdin_replay_keeps_selected_mode_and_actual_worker_schema"
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_report_resume_refuses_completed_cases_from_the_other_mode_without_writing"
+    , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_rtt_probe_uses_safe_profile_and_skips_when_unavailable"
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_selected_mode_keeps_index_and_label_validation"
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_shared_mode_read_does_not_mutate_or_treat_raw_truthy_values_as_true"
+    , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_thunder_blank_key_still_dispatches_the_loopback_worker"
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_thunder_preflight_and_worker_share_the_keyless_loopback_profile"
   ]
   , "test_benchmark_runner": [
@@ -3725,6 +3727,7 @@
   ]
   , "test_completed_review_receipt": [
     "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_key_covers_prompts_parameters_profiles_context_and_sidecars"
+    , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_manual_receipt_written_with_main_fingerprint_still_matches"
     , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_native_transport_repeat_force_and_failed_rerun_receipts"
     , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_otherwise_valid_receipt_rejects_unsupported_or_noninteger_version"
     , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_receipt_verifies_separate_input_output_settings_and_checkpoint"
@@ -7865,11 +7868,14 @@
     , "tests.test_llm_provider.ApiKeyReferenceTests.test_implicit_openai_key_is_scoped_to_the_official_endpoint"
     , "tests.test_llm_provider.ApiKeyReferenceTests.test_setup_page_shows_a_reference_but_redacts_a_secret"
     , "tests.test_llm_provider.CredentialProfilePolicyTests.test_canonical_openai_urls_are_accepted_by_validation_and_resolution"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_deterministic_4xx_terminal_transient_retryable"
     , "tests.test_llm_provider.CredentialProfilePolicyTests.test_effective_key_preserves_omitted_blank_manual_and_header_profiles"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_explicit_authorization_wins_over_unused_keys_in_both_spellings"
     , "tests.test_llm_provider.CredentialProfilePolicyTests.test_hosted_authorization_header_profile_sends_only_the_configured_bearer"
     , "tests.test_llm_provider.CredentialProfilePolicyTests.test_sdk_retries_are_terminal_for_deterministic_statuses_only"
     , "tests.test_llm_provider.CredentialProfilePolicyTests.test_sdk_transport_keeps_timeout_recovery"
     , "tests.test_llm_provider.CredentialProfilePolicyTests.test_setup_test_and_models_resolve_blank_official_openai_key"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_setup_test_config_failure_has_no_outbound_request_and_redacts"
     , "tests.test_llm_provider.ProviderRequestSettingsTest.test_client_sends_profile_headers_and_body_on_completions"
     , "tests.test_llm_provider.ProviderRequestSettingsTest.test_context_rejections_are_distinct_from_other_bad_requests"
     , "tests.test_llm_provider.ProviderRequestSettingsTest.test_error_classification_and_backoff_are_deterministic"

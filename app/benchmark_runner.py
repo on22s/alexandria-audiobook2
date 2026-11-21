@@ -919,10 +919,13 @@ def run_persona_generation_benchmark(manifest, environment, report_path, state,
     target = manifest["targets"][0]
     config = load_app_config(config_path)
     llm, status = _get_llm_benchmark_target(config, target)
-    client = get_cancellable_benchmark_client(
-        make_llm_client(llm, timeout=llm_timeout_seconds()))
+    client = None
+    if target != "thunder":
+        client = get_cancellable_benchmark_client(
+            make_llm_client(llm, timeout=llm_timeout_seconds()))
     report = load_resumable_benchmark_report(report_path, manifest, environment)
-    report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
+    report["network_rtt_seconds"] = (_measure_llm_network_rtt(client)
+                                     if client is not None else _rtt_probe_seconds(llm))
     save_benchmark_report(report_path, report)
     for fixture in manifest["fixtures"]:
         _validate_persona_fixture(fixture)
@@ -983,12 +986,15 @@ def run_nickname_detection_benchmark(manifest, environment, report_path, state,
     target = manifest["targets"][0]
     config = load_app_config(config_path)
     llm, status = _get_llm_benchmark_target(config, target)
-    client = get_cancellable_benchmark_client(
-        make_llm_client(llm, timeout=llm_timeout_seconds()))
+    client = None
+    if target != "thunder":
+        client = get_cancellable_benchmark_client(
+            make_llm_client(llm, timeout=llm_timeout_seconds()))
     context_length = status.get("context_length") or 4096
     concurrency = status.get("parallel") or 1
     report = load_resumable_benchmark_report(report_path, manifest, environment)
-    report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
+    report["network_rtt_seconds"] = (_measure_llm_network_rtt(client)
+                                     if client is not None else _rtt_probe_seconds(llm))
     save_benchmark_report(report_path, report)
     for fixture in manifest["fixtures"]:
         _validate_nickname_fixture(fixture)
@@ -1198,6 +1204,39 @@ def get_remote_llm_worker_profile(llm):
     return get_thunder_worker_profile(llm)
 
 
+def _rtt_probe_profile(llm):
+    """A keyless-safe copy of the profile for the OPTIONAL network-RTT probe.
+
+    Thunder's public forwarding URL is legitimately configured without an
+    api_key (the worker resolves its key against loopback). Constructing the
+    real client from that public URL would raise MissingAPIKeyError before the
+    loopback worker ever starts. The probe only measures wire latency, so keep
+    the public URL and any explicit Authorization header and substitute a
+    harmless local placeholder when no key can be resolved.
+    """
+    profile = dict(llm or {})
+    from llm_provider import MissingAPIKeyError, resolve_client_api_key
+    try:
+        resolve_client_api_key(profile)
+    except MissingAPIKeyError:
+        profile["api_key"] = "local"
+    return profile
+
+
+def _rtt_probe_seconds(llm):
+    """Measure the public endpoint's RTT, or skip the diagnostic on any error.
+
+    This is an optional baseline for short remote cases, never a gate: a
+    profile the probe cannot build must not stop the benchmark dispatch.
+    """
+    try:
+        client = get_cancellable_benchmark_client(
+            make_llm_client(_rtt_probe_profile(llm), timeout=llm_timeout_seconds()))
+    except Exception:
+        return None
+    return _measure_llm_network_rtt(client)
+
+
 def get_llm_worker_params(params):
     """Serialize request settings without process-local capability/admission state."""
     return {field.name: getattr(params, field.name)
@@ -1293,10 +1332,13 @@ def run_script_generation_benchmark(manifest, environment, report_path, state,
         presence_penalty=generation.get("presence_penalty", 0.0),
         banned_tokens=generation.get("banned_tokens", []),
         context_length=status.get("context_length"))
-    client = get_cancellable_benchmark_client(
-        make_llm_client(llm, timeout=llm_timeout_seconds()))
+    client = None
+    if target != "thunder":
+        client = get_cancellable_benchmark_client(
+            make_llm_client(llm, timeout=llm_timeout_seconds()))
     report = load_resumable_benchmark_report(report_path, manifest, environment)
-    report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
+    report["network_rtt_seconds"] = (_measure_llm_network_rtt(client)
+                                     if client is not None else _rtt_probe_seconds(llm))
     save_benchmark_report(report_path, report)
     max_retries = manifest.get("settings", {}).get("max_retries", 0)
     if not isinstance(max_retries, int) or max_retries < 0:
@@ -1393,10 +1435,13 @@ def run_script_review_benchmark(manifest, environment, report_path, state,
         banned_tokens=generation.get("banned_tokens", []),
         context_length=status.get("context_length"),
         review_labels_only=get_review_labels_only(config))
-    client = get_cancellable_benchmark_client(
-        make_llm_client(llm, timeout=llm_timeout_seconds()))
+    client = None
+    if target != "thunder":
+        client = get_cancellable_benchmark_client(
+            make_llm_client(llm, timeout=llm_timeout_seconds()))
     report = load_resumable_benchmark_report(report_path, manifest, environment)
-    report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
+    report["network_rtt_seconds"] = (_measure_llm_network_rtt(client)
+                                     if client is not None else _rtt_probe_seconds(llm))
     save_benchmark_report(report_path, report)
     max_retries = manifest.get("settings", {}).get("max_retries", 0)
     thresholds = manifest.get("quality_thresholds") or {}

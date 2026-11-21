@@ -35,8 +35,16 @@ def get_review_receipt_path(output_path):
     return get_review_progress_paths(output_path)[1]
 
 
-def get_completed_review_match(input_path, output_path, input_sha256, fingerprint):
-    """Return a reason on a cache miss; never change output or checkpoint."""
+def get_completed_review_match(input_path, output_path, input_sha256, fingerprint,
+                               legacy_fingerprints=()):
+    """Return a reason on a cache miss; never change output or checkpoint.
+
+    `legacy_fingerprints` are additional digests accepted only when the caller
+    has verified the effective settings are unchanged (e.g. Manual transport);
+    a receipt for any other profile still fails.
+    """
+    acceptable = {fingerprint}
+    acceptable.update(item for item in legacy_fingerprints if isinstance(item, str))
     path = get_review_receipt_path(output_path)
     try:
         with open(path, encoding='utf-8') as stream:
@@ -46,7 +54,7 @@ def get_completed_review_match(input_path, output_path, input_sha256, fingerprin
             return False, 'unsupported completed-review receipt'
         if (receipt.get('input_path') != os.path.abspath(input_path)
                 or receipt.get('output_path') != os.path.abspath(output_path)
-                or receipt.get('fingerprint') != fingerprint):
+                or receipt.get('fingerprint') not in acceptable):
             return False, 'completed-review settings changed'
         with open(output_path, encoding='utf-8') as stream:
             output = json.load(stream)

@@ -1005,10 +1005,14 @@ def get_lmstudio_management_binding(base_url, ssh_alias=None):
         return False, None, "CLI management binding could not be verified"
 
 
-def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False, api_key=None, cache_local=False):
+def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False, api_key=None,
+                       cache_local=False, authorization=None):
     """Read runtime without reloads; cache_local opts the UI into bounded caching.
 
-    Existing local worker reads stay live even when use_cache=True.
+    Existing local worker reads stay live even when use_cache=True. An explicit
+    `authorization` is the profile's effective credential and is used verbatim
+    by the native endpoint probe (a profile may authenticate by header rather
+    than by api_key).
     """
     remote = is_remote_llm(llm_mode, base_url)
     if use_cache and (remote or cache_local):
@@ -1016,7 +1020,8 @@ def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache
     native = get_llama_cpp_status(base_url, model_name)
     if native is not None:
         return native
-    endpoint = get_lmstudio_endpoint_status(base_url, model_name, api_key)
+    endpoint = get_lmstudio_endpoint_status(base_url, model_name, api_key,
+                                            authorization=authorization)
     if endpoint is None:
         return {"runtime": "unknown", "available": False, "loaded": False,
                 "context_length": None, "parallel": None, "optimized": False,

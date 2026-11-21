@@ -810,7 +810,7 @@ def _run_llm_test(profile: dict) -> dict:
     Returns a dict describing each step. On failure, writes a log file and
     includes its path so the user can hand it back for debugging.
     """
-    from llm_provider import make_llm_client
+    from llm_provider import MissingAPIKeyError, make_llm_client
     base_url = profile.get("base_url", "")
     model_name = profile.get("model_name", "")
     try:
@@ -820,8 +820,13 @@ def _run_llm_test(profile: dict) -> dict:
 
     # Let make_llm_client resolve omitted and blank keys exactly as generation
     # does: a blank official-OpenAI key may inherit OPENAI_API_KEY, and nothing
-    # should be forced to "local" before that decision.
-    client = make_llm_client(profile, timeout=30, respect_profile_timeout=False)
+    # should be forced to "local" before that decision. A configuration error
+    # here happens before any request, so report it as a redacted config step
+    # (no log file, no outbound call) and let the caller release the claim.
+    try:
+        client = make_llm_client(profile, timeout=30, respect_profile_timeout=False)
+    except (MissingAPIKeyError, ValueError) as e:
+        return {"ok": False, "step": "config", "error": redact_text(str(e))}
     # Step 1: list models (cheap reachability + model-id check)
     try:
         models = [m.id for m in client.models.list().data]

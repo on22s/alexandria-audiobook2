@@ -191,3 +191,49 @@ class CompletedReviewReceiptTests(unittest.TestCase):
                 voices.write_text('{"ANN":"new voice"}'); self.assertNotEqual(baseline, key()); voices.write_text('{}')
             with patch.dict('os.environ', RECEIPT_TEST_KEY='second-secret'):
                 self.assertNotEqual(baseline, key())
+
+    def test_manual_receipt_written_with_main_fingerprint_still_matches(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        import completed_review_receipt as receipts
+        import review_script as review
+        from generate_script import LLMGenParams
+        with tempfile.TemporaryDirectory() as tmp:
+            source, output = Path(tmp) / 'source.json', Path(tmp) / 'output.json'
+            entries = [{'speaker': 'ANN', 'text': 'The gate opens.', 'instruct': ''}]
+            source.write_text(json.dumps(entries)); output.write_text(json.dumps(entries))
+            sha = receipts.get_review_entries_fingerprint(entries)
+            args = SimpleNamespace(context_window=0, dedupe_speakers=False,
+                                   alias_registry=None, remap_voice_config=None)
+            params = LLMGenParams(system_prompt='sys', user_prompt_template='{batch}')
+            config = {'generation': {'review_batch_size': 25}, 'llm_mode': 'local'}
+            manual = {'transport': 'manual', 'model_name': 'fixture',
+                      'base_url': 'https://hosted.invalid/v1', 'api_key': 'local'}
+            current = review.get_completed_review_fingerprint(
+                config, manual, params, args, object(), 'fixture')
+            main_fingerprint = review.get_completed_review_fingerprint(
+                config, manual, params, args, object(), 'fixture', legacy=True)
+            self.assertNotEqual(current, main_fingerprint,
+                                'fixture must discriminate the pre-fix digest')
+            legacy = review.get_legacy_review_fingerprint(
+                config, manual, params, args, object(), 'fixture')
+            self.assertEqual(main_fingerprint, legacy)
+
+            receipts.save_completed_review_receipt(str(source), str(output), sha, sha, main_fingerprint)
+            self.assertFalse(receipts.get_completed_review_match(
+                str(source), str(output), sha, current)[0])
+            self.assertTrue(receipts.get_completed_review_match(
+                str(source), str(output), sha, current, (legacy,))[0],
+                'an unchanged Manual receipt from the previous release must still match')
+            other = review.get_completed_review_fingerprint(
+                config, {**manual, 'base_url': 'https://other.invalid/v1'}, params, args,
+                object(), 'fixture', legacy=True)
+            self.assertFalse(receipts.get_completed_review_match(
+                str(source), str(output), sha, current, (other,))[0],
+                'a legacy digest from another endpoint must not be reused')
+
+            http = {'base_url': 'https://hosted.invalid/v1', 'model_name': 'fixture', 'api_key': 'local'}
+            secondary = {'base_url': 'http://secondary/v1', 'model_name': 's', 'api_key': 'local'}
+            with patch.object(review, 'get_failover_llm_config', return_value=secondary):
+                self.assertIsNone(review.get_legacy_review_fingerprint(
+                    config, http, params, args, object(), 'fixture'))

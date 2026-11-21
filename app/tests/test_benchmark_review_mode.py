@@ -48,14 +48,14 @@ def get_config(mode):
     return config
 
 
-def run_native_benchmark(target='local', mode=True, reply=None, runner_module=runner):
+def run_native_benchmark(target='local', mode=True, reply=None, runner_module=runner, config=None):
     """Use actual runner, review, worker and SDK request bodies with CPU fixtures."""
     with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
         root = Path(directory)
         source = root / 'fixture.json'
         source.write_text(json.dumps(SOURCE))
         config_path = root / 'config.json'
-        config_path.write_text(json.dumps(get_config(mode)))
+        config_path.write_text(json.dumps(config or get_config(mode)))
         manifest = build_script_review_manifest(
             [{'path': str(source), 'entry_starts': [1]}], directory, targets=[target])
         manifest['settings'] = {'remote_root': '/fixture worker',
@@ -143,6 +143,34 @@ class BenchmarkReviewModeTests(unittest.TestCase):
             self.assertEqual('local', worker['api_key'],
                              'the worker and preflight agree on the loopback placeholder')
             self.assertNotIn('sk-synthetic', json.dumps(result))
+
+    def test_thunder_blank_key_still_dispatches_the_loopback_worker(self):
+        config = get_config(True)
+        config['llm_remote']['base_url'] = 'https://instance.thundercompute.net:1234/v1'
+        config['llm_remote']['api_key'] = ''
+        with patch.dict('os.environ', {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+            result = run_native_benchmark(target='thunder', config=config)
+        self.assertEqual(1, len(result['envelopes']))
+        envelope = result['envelopes'][0]
+        worker_profile = envelope['payload']['llm_config']
+        self.assertEqual('http://localhost:1234/v1', worker_profile['base_url'])
+        self.assertEqual('local', worker_profile['api_key'])
+        self.assertEqual(1, len(result['requests']), 'the mocked worker must issue a real request')
+        self.assertEqual('passed', result['report']['cases'][0]['status'])
+        self.assertNotIn('sk-synthetic', json.dumps(envelope))
+
+    def test_rtt_probe_uses_safe_profile_and_skips_when_unavailable(self):
+        llm = {'base_url': 'https://instance.thundercompute.net:1234/v1',
+               'model_name': 'fixture-remote', 'api_key': ''}
+        with patch.dict('os.environ', {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+            profile = runner._rtt_probe_profile(llm)
+        self.assertEqual('local', profile['api_key'])
+        self.assertEqual(llm['base_url'], profile['base_url'],
+                         'the probe must still measure the public URL')
+        self.assertNotIn('sk-synthetic', json.dumps(profile))
+        with patch.object(runner, 'make_llm_client',
+                          side_effect=llm_provider.MissingAPIKeyError('unavailable')):
+            self.assertIsNone(runner._rtt_probe_seconds(llm))
 
     def assert_labels_request(self, result):
         self.assertEqual('passed', result['report']['cases'][0]['status'])
