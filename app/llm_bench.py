@@ -273,6 +273,7 @@ def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, mo
         config = load_app_config(config_path)
     profile = config.get(profile_key) or {}
     observed_state = _concurrency_cache_state(profile)
+    observed_identity = lmstudio_settings.get_benchmark_identity_key(config, profile_key)
     if status is None:
         # The probe must use the credentials of the profile bound to this
         # client/endpoint, not a different profile that happens to be in the
@@ -350,7 +351,8 @@ def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, mo
         with file_lock(config_path):
             config = load_app_config(config_path, for_update=True)
             profile = dict(config.get(profile_key) or {})
-            if _concurrency_cache_state(profile) != observed_state:
+            if (_concurrency_cache_state(profile) != observed_state
+                    or lmstudio_settings.get_benchmark_identity_key(config, profile_key) != observed_identity):
                 return concurrency
             profile["concurrency"] = concurrency
             profile["concurrency_for"] = cache_key

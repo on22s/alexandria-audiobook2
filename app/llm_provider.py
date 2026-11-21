@@ -596,8 +596,24 @@ class FailoverClient:
             return None
         with self._runtime_lock:
             if self._runtime_state["profile"] is None:
-                from lmstudio_settings import get_current_status, is_remote_llm
                 config = self._secondary_config
+                if config.get("transport") == "manual":
+                    # A manual secondary has no HTTP runtime to interrogate.
+                    # Never probe a saved endpoint on its behalf: use declared
+                    # limits and one slot so human answers stay serial.
+                    from llm_request_budget import get_request_limits
+                    context = get_request_limits(config, None)["context_length"]
+                    if not isinstance(context, int) or isinstance(context, bool) or context < 1:
+                        context = 4096
+                    self._runtime_state["semaphore"] = threading.BoundedSemaphore(1)
+                    self._runtime_state["profile"] = {
+                        "config": config,
+                        "status": {"available": False, "loaded": False,
+                                   "manual": True, "runtime": "manual"},
+                        "context_length": context, "is_remote": False,
+                    }
+                    return deepcopy(self._runtime_state["profile"])
+                from lmstudio_settings import get_current_status, is_remote_llm
                 try:
                     status = get_current_status(
                         self._pair[1][2], config.get("base_url", ""), self.secondary_model,

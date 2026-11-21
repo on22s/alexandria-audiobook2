@@ -33,7 +33,8 @@ from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_
                                get_failover_llm_config,
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
                                get_active_llm_config, get_current_status,
-                               get_saved_llm_profile, is_active_llm_remote)
+                               get_saved_llm_profile, is_active_llm_remote,
+                               get_document_with_retained_cache)
 
 from core import (
     get_task_lifecycle,
@@ -424,7 +425,12 @@ def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
             inactive = "llm_remote" if config.llm_mode == "local" else "llm_local"
             unchanged_inactive_blank = (section == inactive and not endpoint and not saved_endpoint
                                         and isinstance((existing or {}).get(section), dict))
-            if endpoint != saved_endpoint or (not endpoint and not unchanged_inactive_blank):
+            # A URL-less manual profile has no endpoint to bind a key to; its
+            # sentinel still means "keep this profile's own stored key".
+            unchanged_manual_blank = (saved.get("transport") == "manual" and not endpoint
+                                      and not saved_endpoint and bool(saved.get("api_key")))
+            if (endpoint != saved_endpoint
+                    or (not endpoint and not unchanged_inactive_blank and not unchanged_manual_blank)):
                 raise HTTPException(status_code=400, detail=f"Enter an API key for the changed {section} endpoint, or clear the key field.")
             changes["api_key"] = saved.get("api_key", "")
         if section in _LLM_PROFILE_SECTIONS:
@@ -1102,14 +1108,41 @@ async def get_config():
                               "tts_modes": get_tts_capability_modes()}
 
     safe = _redact_config_secrets(config)
-    # The public local placeholder was synthesized, not loaded from storage;
-    # sending a saved-key sentinel here would make first setup unsaveable.
-    if not loaded_config.get("llm"):
-        safe["llm"]["api_key"] = default_config["llm"]["api_key"]
-        safe["llm"]["api_key_configured"] = False
-        if not loaded_config.get("llm_local"):
-            safe["llm_local"]["api_key"] = default_config["llm"]["api_key"]
-            safe["llm_local"]["api_key_configured"] = False
+
+    def _has_postable_identity(value):
+        # Blank profiles are valid (an unused inactive slot keeps empty
+        # strings and its own key); only a profile missing the required keys
+        # cannot be POSTed back.
+        return isinstance(value, dict) and all(
+            key in value for key in ("base_url", "api_key", "model_name"))
+
+    def _is_url_less_manual(value):
+        return (isinstance(value, dict) and value.get("transport") == "manual"
+                and not str(value.get("base_url") or "").strip())
+
+    def _fill_partial_profile(section, saved):
+        # An empty or key-only profile cannot be POSTed back as-is. Fill the
+        # missing required fields from the public template so GET -> Save
+        # round-trips, keeping a stored key only when its endpoint is still
+        # identifiable; a key with no endpoint is dropped, never guessed.
+        template = dict(default_config["llm"])
+        endpoint_bound = isinstance(saved, dict) and bool(str(saved.get("base_url") or "").strip())
+        if endpoint_bound:
+            template.update(safe.get(section) or {})
+        safe[section] = template
+        safe[section]["api_key_configured"] = bool(endpoint_bound and saved.get("api_key"))
+        if not endpoint_bound:
+            safe[section]["api_key"] = template["api_key"]
+
+    legacy = loaded_config.get("llm")
+    if _is_url_less_manual(config.get("llm")) or _has_postable_identity(legacy):
+        return safe
+    _fill_partial_profile("llm", legacy)
+    local_saved = loaded_config.get("llm_local")
+    if not isinstance(local_saved, dict):
+        local_saved = legacy  # GET seeds an absent local slot from the legacy profile.
+    if not _is_url_less_manual(config.get("llm_local")) and not _has_postable_identity(local_saved):
+        _fill_partial_profile("llm_local", local_saved)
     return safe
 
 @router.get("/api/default_prompts")
@@ -1211,9 +1244,11 @@ def get_config_to_save(config: AppConfig, existing: dict) -> AppConfig:
 
     # Normalize/validate whichever profiles were sent. The local/remote profiles
     # are persisted side-by-side so toggling never loses the other one's settings.
-    if normalized_config.llm_local is not None and normalized_config.llm_local.base_url.strip():
+    if (normalized_config.llm_local is not None and normalized_config.llm_local.base_url.strip()
+            and normalized_config.llm_local.transport != "manual"):
         normalized_config.llm_local = _normalize_and_validate_llm(normalized_config.llm_local)
-    if normalized_config.llm_remote is not None and normalized_config.llm_remote.base_url.strip():
+    if (normalized_config.llm_remote is not None and normalized_config.llm_remote.base_url.strip()
+            and normalized_config.llm_remote.transport != "manual"):
         normalized_config.llm_remote = _normalize_and_validate_llm(normalized_config.llm_remote)
 
     # Pick the active profile from the toggle, then mirror it into `llm` - the
@@ -1233,7 +1268,11 @@ def get_config_to_save(config: AppConfig, existing: dict) -> AppConfig:
         normalized_config, {**existing, 'llm': saved_active})
     active = (normalized_config.llm_remote if normalized_config.llm_mode == "remote"
               else normalized_config.llm_local)
-    normalized_config.llm = _normalize_and_validate_llm(active)
+    # Manual transport has no endpoint to normalize or validate: every request
+    # is handed to the operator instead of sent over HTTP, and a URL-less
+    # profile is a deliberate, round-trippable configuration.
+    normalized_config.llm = (active.model_copy(deep=True) if active.transport == "manual"
+                             else _normalize_and_validate_llm(active))
     # The active attribution preset decides the variant the run uses;
     # derive the generation key from it (after the merge, so a preset the
     # client did not resend is still found) so the CLI agrees with Setup,
@@ -1276,32 +1315,6 @@ def _get_config_preview_sync(config):
                                          exists=os.path.isfile(CONFIG_PATH))
 
 
-_CONCURRENCY_CACHE_KEYS = ("concurrency", "concurrency_for", "concurrency_environment", "concurrency_revision")
-
-
-def _carry_concurrency_cache(document, existing):
-    """Return a save document carrying a still-valid measured cache.
-
-    llm_bench binds each measurement to an endpoint and model, so only a save
-    that leaves both unchanged keeps the cache. A changed identity drops it
-    and the next run re-measures instead of inheriting a stale result.
-    Credentials are never part of this merge.
-    """
-    result = dict(document)
-    for section in ("llm", "llm_local", "llm_remote"):
-        before = (existing or {}).get(section)
-        after = result.get(section)
-        if not isinstance(before, dict) or not isinstance(after, dict):
-            continue
-        if (before.get("base_url"), before.get("model_name")) != (
-                after.get("base_url"), after.get("model_name")):
-            continue
-        kept = {key: before[key] for key in _CONCURRENCY_CACHE_KEYS if key in before}
-        if kept:
-            result[section] = {**after, **kept}
-    return result
-
-
 def apply_config_save(existing, normalized_config):
     """The caller holds the config lock; preserve existing damaged-file backup policy."""
     if existing.needs_backup:
@@ -1310,7 +1323,7 @@ def apply_config_save(existing, normalized_config):
         except OSError as exc:
             raise HTTPException(status_code=500,
                                 detail=f"Could not preserve damaged config before saving: {exc}") from exc
-    document = _carry_concurrency_cache(normalized_config.model_dump(), existing.data)
+    document = get_document_with_retained_cache(normalized_config.model_dump(), existing.data)
     atomic_json_write(document, CONFIG_PATH, allow_nonatomic_fallback=False)
 
 

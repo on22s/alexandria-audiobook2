@@ -4,6 +4,7 @@ from typing import Literal, get_args, get_origin
 from fastapi.encoders import jsonable_encoder
 
 from config_settings import AppConfig, GenerationConfig, LLMConfig, PromptConfig, TTSConfig
+from lmstudio_settings import get_document_with_retained_cache
 
 _ABSENT = object()
 _MODELS = {'llm_local': LLMConfig, 'llm_remote': LLMConfig, 'tts': TTSConfig,
@@ -54,7 +55,7 @@ def get_preview_value(value, key, section='', allowed=frozenset()):
 def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
     """Read schema defaults; never change the supplied document or model."""
     saved = jsonable_encoder(existing.data)
-    after = proposal.model_dump(mode='json')
+    after = get_document_with_retained_cache(proposal.model_dump(mode='json'), existing.data)
     changes, defaults = [], []
     unmanaged = len(set(saved) - set(AppConfig.model_fields))
 
@@ -80,7 +81,10 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
             continue
         old = old if isinstance(old, dict) else {}
         new = new if isinstance(new, dict) else {}
-        unmanaged += len(set(old) - set(model.model_fields))
+        # A field Save retains (a still-qualified measurement) is not dropped,
+        # so it must not be reported as one. Cache evidence is the only
+        # non-schema field the shared retention can carry back into `after`.
+        unmanaged += len((set(old) - set(model.model_fields)) - set(new))
         for key, field in model.model_fields.items():
             default = _ABSENT if field.is_required() else field.get_default(call_default_factory=True)
             append_row(section, key, old.get(key, _ABSENT), new.get(key, _ABSENT),

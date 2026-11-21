@@ -221,24 +221,147 @@ def get_active_llm_config(config):
 
 
 _PROFILE_CREDENTIAL_KEYS = frozenset(("api_key", "provider_headers", "provider_extra_body"))
+BENCHMARK_CACHE_KEYS = frozenset(("concurrency", "concurrency_for",
+                                  "concurrency_environment", "concurrency_revision"))
+# A scheduling hint, not a request setting: changing it must not retire a
+# measurement of the endpoint's own throughput.
+_BENCHMARK_IDENTITY_EXCLUDED = _PROFILE_CREDENTIAL_KEYS | BENCHMARK_CACHE_KEYS | frozenset(("on_this_gpu",))
+
+
+def get_profile_neutral_values():
+    """Schema defaults for every LLMConfig field.
+
+    A profile that passed through Setup carries every field, including its
+    defaults. Comparing against these keeps a normalized blank stub from
+    looking like a configured profile.
+    """
+    from config_settings import LLMConfig
+    neutral = {}
+    for name, field in LLMConfig.model_fields.items():
+        if field.is_required():
+            neutral[name] = "" if field.annotation is str else None
+        else:
+            neutral[name] = field.get_default(call_default_factory=True)
+    return neutral
+
+
+def get_profile_settings(block):
+    """Profile fields describing a configuration, not credentials or cache."""
+    if not isinstance(block, dict):
+        return {}
+    excluded = _PROFILE_CREDENTIAL_KEYS | BENCHMARK_CACHE_KEYS
+    return {key: value for key, value in block.items() if key not in excluded}
 
 
 def is_profile_configured(block):
-    """Whether a saved LLM profile is more than a credentials-only stub.
+    """Whether a saved LLM profile carries a real, non-default setting.
 
-    A partial primary (say, just an api_key) must not shadow a complete legacy
-    `llm` profile: make_llm_client would otherwise dial its localhost default
-    with an empty model. Manual transport is complete on its own, and a
-    profile carrying any other non-empty setting is a real configuration -
-    endpoint-only, model-only and adapter-only profiles all predate or sit
-    outside the Setup form and stay valid. Credentials alone are never enough.
+    Credentials alone never make a profile usable, and a normalized blank
+    stub (every schema field at its default) or a cache-only slot must not
+    shadow a complete legacy `llm` profile. Manual transport is intentional
+    on its own and needs no URL; partial HTTP profiles (endpoint-, model- or
+    adapter-only) predate Setup and stay valid as the active profile, which
+    Setup fills in before a run.
     """
-    if not isinstance(block, dict) or not block:
+    settings = get_profile_settings(block)
+    if settings.get("transport") == "manual":
+        return True
+    neutral = get_profile_neutral_values()
+    return any(key in neutral and value != neutral[key] for key, value in settings.items())
+
+
+def is_executable_failover_profile(block):
+    """Whether the secondary can actually serve a run if the primary fails.
+
+    The primary may be partial because Setup completes it; a failover target
+    is dialled as saved, so an HTTP secondary needs both an endpoint and a
+    model. Manual transport stays opt-in and serial, without a URL.
+    """
+    if not is_profile_configured(block):
         return False
     if block.get("transport") == "manual":
         return True
-    return any(key not in _PROFILE_CREDENTIAL_KEYS and value not in (None, "", {}, [])
-               for key, value in block.items())
+    return bool(block.get("base_url")) and bool(block.get("model_name"))
+
+
+def get_benchmark_identity(config, section):
+    """Config-defined identity a concurrency measurement belongs to.
+
+    The benchmark writer/reader and Setup retention use this one answer
+    (Rule 15). Credentials, cache metadata and the scheduling hint are not
+    part of it; transport, request pacing/reasoning, limits, retry settings
+    and the applicable management SSH alias are. Missing fields take schema
+    defaults, so a compact legacy profile compares equal to the same settings
+    normalized by Setup.
+    """
+    config = config if isinstance(config, dict) else {}
+    block = config.get(section)
+    if not isinstance(block, dict):
+        return None
+    neutral = get_profile_neutral_values()
+    identity = {key: neutral[key] for key in neutral if key not in _BENCHMARK_IDENTITY_EXCLUDED}
+    identity.update({key: value for key, value in block.items() if key in identity})
+    if section == "llm_remote" or (section == "llm" and (config.get("llm_mode") or "local") == "remote"):
+        identity["ssh_alias"] = config.get("llm_remote_ssh")
+    return identity
+
+
+def _canonical_identity_value(value):
+    """JSON round-trips turn int defaults into floats; compare numerically."""
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, dict):
+        return {key: _canonical_identity_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_canonical_identity_value(item) for item in value]
+    return value
+
+
+def get_benchmark_identity_key(config, section):
+    identity = get_benchmark_identity(config, section)
+    if identity is None:
+        return None
+    return json.dumps({key: _canonical_identity_value(value) for key, value in identity.items()},
+                      sort_keys=True, default=str)
+
+
+def is_qualified_concurrency_cache(profile):
+    """Whether a profile carries a real measurement bound to its own endpoint."""
+    if not isinstance(profile, dict):
+        return False
+    concurrency = profile.get("concurrency")
+    return (isinstance(concurrency, int) and not isinstance(concurrency, bool) and concurrency > 0
+            and profile.get("concurrency_for") == f"{profile.get('base_url', '')}::{profile.get('model_name', '')}")
+
+
+def get_document_with_retained_cache(document, existing):
+    """Return a save document carrying still-valid measured evidence.
+
+    A measurement belongs to the config identity that produced it, so only a
+    section with that exact identity keeps it. The legacy `llm` mirror is one
+    such section, not a separate cache: a qualified entry there is copied
+    into whichever named slot the benchmark actually reads. Credentials and
+    every other posted field come from `document` unchanged.
+    """
+    result = dict(document)
+    before_map = existing if isinstance(existing, dict) else {}
+    qualified = {}
+    for section in ("llm", "llm_local", "llm_remote"):
+        before = before_map.get(section)
+        if not is_qualified_concurrency_cache(before):
+            continue
+        key = get_benchmark_identity_key(before_map, section)
+        qualified[key] = {name: before[name] for name in BENCHMARK_CACHE_KEYS if name in before}
+    for section in ("llm", "llm_local", "llm_remote"):
+        after = result.get(section)
+        if not isinstance(after, dict):
+            continue
+        entry = qualified.get(get_benchmark_identity_key(result, section))
+        if entry:
+            result[section] = {**after, **entry}
+    return result
 
 
 def get_saved_llm_profile(config, *, require_complete=False):
@@ -267,7 +390,7 @@ def get_failover_llm_config(config):
         return {}
     other = "remote" if (config.get("llm_mode") or "local") == "local" else "local"
     block = config.get(f"llm_{other}")
-    if not is_profile_configured(block):
+    if not is_executable_failover_profile(block):
         return {}
     from llm_request_budget import get_inherited_profile_limits
     return get_inherited_profile_limits(block, config.get("generation") or {})
