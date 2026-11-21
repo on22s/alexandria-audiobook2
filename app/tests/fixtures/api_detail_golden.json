@@ -587,6 +587,7 @@
     "'zips_dir is not configured. Set it in Voice Lab settings.'",
     "CHUNK_SNAPSHOT_CONFLICT_DETAIL",
     "CHUNK_SNAPSHOT_CONFLICT_DETAIL",
+    "CHUNK_SNAPSHOT_CONFLICT_DETAIL",
     "INVALID_STATE_DETAIL",
     "INVALID_STATE_DETAIL",
     "SWITCH_IN_PROGRESS",

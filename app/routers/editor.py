@@ -571,14 +571,19 @@ def _require_export_chunks():
     journal conflict is meant to protect. A genuinely absent snapshot is not a
     conflict; any other unreadable state is.
     """
-    with ensure_book_state(DATA_DIR):
-        _ensure_editor_selection()
-        try:
-            project_manager.read_saved_chunk_rows()
-        except FileNotFoundError:
-            return
-        except (ValueError, OSError, RecursionError) as error:
-            raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
+    try:
+        with ensure_book_state(DATA_DIR, recover=False):
+            _ensure_editor_selection()
+            try:
+                project_manager.read_saved_chunk_rows()
+            except FileNotFoundError:
+                return
+            except (ValueError, OSError, RecursionError) as error:
+                raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
+    except ValueError as error:
+        # Non-recovering admission refuses a pending book transaction without
+        # mutating its staged publication artifacts.
+        raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
 
 
 def _ensure_editor_chunks():
@@ -1126,7 +1131,13 @@ class MergeRequest(BaseModel):
 
 
 def _ensure_editor_integrity_locked():
-    """Caller holds book state; native chunk loading may initialize missing rows."""
+    """Caller holds book state; fence the selection before reading any rows.
+
+    Without the fence a source switch can leave a pending publication whose
+    old compacted rows - or rows regenerated from the retained old script -
+    would otherwise be certified as belonging to the newly selected book.
+    """
+    _ensure_editor_selection()
     try:
         chunks = project_manager.load_chunks()
     except (ValueError, OSError) as error:
