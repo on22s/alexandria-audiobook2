@@ -33,7 +33,8 @@ from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_
                                apply_remote_lmstudio_settings, is_local_llm_endpoint,
                                get_active_llm_config, get_current_status,
                                get_saved_llm_profile, is_active_llm_remote,
-                               get_document_with_retained_cache)
+                               get_document_with_retained_cache, is_billed_http_profile)
+
 
 from core import (
     get_task_lifecycle,
@@ -428,8 +429,16 @@ def _restore_redacted_secrets(config: AppConfig, existing: dict) -> AppConfig:
             # sentinel still means "keep this profile's own stored key".
             unchanged_manual_blank = (saved.get("transport") == "manual" and not endpoint
                                       and not saved_endpoint and bool(saved.get("api_key")))
-            if (endpoint != saved_endpoint
-                    or (not endpoint and not unchanged_inactive_blank and not unchanged_manual_blank)):
+            if endpoint != saved_endpoint:
+                # GET hydrates a neutral active slot from the runtime profile,
+                # whose credential still lives in another saved section. Bind
+                # by endpoint through the shared resolver before refusing.
+                bound = get_saved_profile_for_endpoint(endpoint, existing) if endpoint else None
+                if bound is not None and bound.get("api_key"):
+                    saved = bound
+                else:
+                    raise HTTPException(status_code=400, detail=f"Enter an API key for the changed {section} endpoint, or clear the key field.")
+            elif not endpoint and not unchanged_inactive_blank and not unchanged_manual_blank:
                 raise HTTPException(status_code=400, detail=f"Enter an API key for the changed {section} endpoint, or clear the key field.")
             changes["api_key"] = saved.get("api_key", "")
         if section in _LLM_PROFILE_SECTIONS:
@@ -690,6 +699,11 @@ async def lmstudio_status():
     llm_cfg = get_active_llm_config(full_cfg)
     base_url = llm_cfg.get("base_url", "")
     model_name = llm_cfg.get("model_name")
+    if llm_cfg.get("transport") == "manual":
+        # Manual transport hands every request to the operator; there is no
+        # HTTP endpoint to probe (and a stored URL may be malformed).
+        return {"available": False, "loaded": False, "context_length": None,
+                "parallel": None, "optimized": False, "model": None, "manual": True}
     if not model_name:
         return {"available": False, "loaded": False, "context_length": None,
                 "parallel": None, "optimized": False, "model": None}
@@ -1086,7 +1100,8 @@ async def get_config():
     # billed endpoint without the user having chosen it as active.
     other = get_failover_llm_config(config)
     other_mode = "remote" if config["llm_mode"] == "local" else "local"
-    config["failover_is_remote"] = bool(other) and is_remote_llm(other_mode, other.get("base_url", ""))
+    config["failover_is_remote"] = (is_billed_http_profile(other)
+                                    and is_remote_llm(other_mode, other.get("base_url", "")))
     config["config_warnings"] = [
         {"field": warning.field, "message": warning.message}
         for warning in load_result.warnings
@@ -1111,29 +1126,94 @@ async def get_config():
         return (isinstance(value, dict) and value.get("transport") == "manual"
                 and not str(value.get("base_url") or "").strip())
 
-    def _fill_partial_profile(section, saved):
-        # An empty or key-only profile cannot be POSTed back as-is. Fill the
-        # missing required fields from the public template so GET -> Save
-        # round-trips, keeping a stored key only when its endpoint is still
+    def _has_endpoint(value):
+        return isinstance(value, dict) and bool(str(value.get("base_url") or "").strip())
+
+    def _fill_partial_profile(section, saved, source=None):
+        # An empty, neutral or key-only profile cannot be POSTed back as-is.
+        # Fill the missing required fields from the public template so GET ->
+        # Save round-trips, keeping a stored key only when its endpoint is
         # identifiable; a key with no endpoint is dropped, never guessed.
+        # `source` supplies browser-safe values from the active runtime profile.
         template = dict(default_config["llm"])
-        endpoint_bound = isinstance(saved, dict) and bool(str(saved.get("base_url") or "").strip())
-        if endpoint_bound:
-            template.update(safe.get(section) or {})
+        endpoint_bound = _has_endpoint(saved)
+        values = safe.get(section) if source is None else source
+        if isinstance(values, dict):
+            template.update(values)
         safe[section] = template
-        safe[section]["api_key_configured"] = bool(endpoint_bound and saved.get("api_key"))
-        if not endpoint_bound:
+        configured = bool(endpoint_bound and saved.get("api_key")) or (
+            source is not None and source.get("api_key") == _REDACTED_SECRET)
+        safe[section]["api_key_configured"] = configured
+        if not endpoint_bound and source is None:
             safe[section]["api_key"] = template["api_key"]
 
-    legacy = loaded_config.get("llm")
-    if _is_url_less_manual(config.get("llm")) or _has_postable_identity(legacy):
-        return safe
-    _fill_partial_profile("llm", legacy)
-    local_saved = loaded_config.get("llm_local")
-    if not isinstance(local_saved, dict):
-        local_saved = legacy  # GET seeds an absent local slot from the legacy profile.
-    if not _is_url_less_manual(config.get("llm_local")) and not _has_postable_identity(local_saved):
-        _fill_partial_profile("llm_local", local_saved)
+    def _is_hydrated(section):
+        value = safe.get(section)
+        if _is_url_less_manual(value):
+            return True
+        # A normalized blank stub has every required key but empty values; it
+        # must be hydrated even though it is postable by key name.
+        return (isinstance(value, dict) and "api_key" in value
+                and bool(str(value.get("base_url") or "").strip())
+                and bool(str(value.get("model_name") or "").strip()))
+
+    # Hydrate the mirror and the active named slot independently: the old early
+    # return for a complete legacy mirror left a neutral active slot blank, so
+    # the Setup form posted an unusable profile back. The inactive slot keeps
+    # its own destination (including a deliberate blank) and only gains missing
+    # required keys when it is a key-only stub.
+    active_section = "llm_remote" if (config.get("llm_mode") or "local") == "remote" else "llm_local"
+    inactive_section = "llm_local" if active_section == "llm_remote" else "llm_remote"
+    runtime = get_active_llm_config(config)
+    runtime_endpoint = get_api_key_endpoint(runtime.get("base_url")) if runtime else None
+    saved_credential = any(
+        _has_endpoint(loaded_config.get(section))
+        and get_api_key_endpoint(loaded_config[section].get("base_url")) == runtime_endpoint
+        for section in ("llm", "llm_local", "llm_remote"))
+    runtime_safe = _redact_config_secrets({"llm": runtime})["llm"] if runtime else None
+    if runtime_safe is not None and not saved_credential:
+        # Synthesized public placeholder, not a saved credential: a sentinel
+        # here would make first setup unsaveable.
+        runtime_safe["api_key"] = default_config["llm"]["api_key"]
+        runtime_safe["api_key_configured"] = False
+
+    if not _is_url_less_manual(safe.get("llm")) and not _is_hydrated("llm"):
+        saved = loaded_config.get("llm")
+        _fill_partial_profile("llm", saved,
+                              source=runtime_safe if not _has_endpoint(saved) else None)
+    if (isinstance(safe.get("llm"), dict) and not saved_credential
+            and safe["llm"].get("api_key") == _REDACTED_SECRET and runtime_safe is not None):
+        safe["llm"]["api_key"] = default_config["llm"]["api_key"]
+        safe["llm"]["api_key_configured"] = False
+
+    if (not saved_credential and _has_endpoint(safe.get(active_section))
+            and not _is_url_less_manual(safe.get(active_section))):
+        # The active slot was seeded from the default template, not from a
+        # stored profile; a sentinel here would make first setup unsaveable.
+        safe[active_section]["api_key"] = default_config["llm"]["api_key"]
+        safe[active_section]["api_key_configured"] = False
+
+    if (not _is_url_less_manual(safe.get(active_section))
+            and not _is_hydrated(active_section)):
+        saved = loaded_config.get(active_section)
+        if _has_endpoint(saved):
+            _fill_partial_profile(active_section, saved)
+        elif runtime_safe is not None:
+            _fill_partial_profile(active_section, runtime, source=runtime_safe)
+        else:
+            _fill_partial_profile(active_section, None)
+
+    inactive = safe.get(inactive_section)
+    if (isinstance(inactive, dict) and not _is_url_less_manual(inactive)
+            and not _has_postable_identity(inactive)):
+        had_endpoint = _has_endpoint(inactive)
+        for key in ("base_url", "api_key", "model_name"):
+            inactive.setdefault(key, default_config["llm"][key])
+        if not had_endpoint:
+            # A key with no endpoint cannot be bound to one: drop it rather
+            # than leave an unresolvable sentinel in a valid Setup form.
+            inactive["api_key"] = default_config["llm"]["api_key"]
+            inactive["api_key_configured"] = False
     return safe
 
 @router.get("/api/default_prompts")
@@ -1252,11 +1332,11 @@ def get_config_to_save(config: AppConfig, existing: dict) -> AppConfig:
             f"profile was provided - refusing to save a config where llm_mode "
             f"and the active llm profile would disagree."))
     # The form mirrors the newly selected profile into llm. Its stored key
-    # belongs to that named profile, not to the previously active mirror.
+    # belongs to that named profile, not to the previously active mirror;
+    # _restore_redacted_secrets resolves a sentinel by endpoint through the
+    # shared resolver when the mirror itself points somewhere else.
     normalized_config.llm = active.model_copy(deep=True)
-    saved_active = existing.get('llm_remote') if normalized_config.llm_mode == 'remote' else get_config_local_profile(existing)
-    normalized_config = _restore_redacted_secrets(
-        normalized_config, {**existing, 'llm': saved_active})
+    normalized_config = _restore_redacted_secrets(normalized_config, existing)
     active = (normalized_config.llm_remote if normalized_config.llm_mode == "remote"
               else normalized_config.llm_local)
     # Manual transport has no endpoint to normalize or validate: every request

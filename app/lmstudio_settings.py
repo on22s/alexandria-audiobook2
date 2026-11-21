@@ -161,10 +161,17 @@ _LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "::1", "")
 
 
 def is_local_llm_endpoint(base_url):
-    """Recognize local address spellings, without asserting runtime ownership."""
+    """Recognize local address spellings, without asserting runtime ownership.
+
+    An unparseable URL (a stored Manual profile may carry one) is not a local
+    endpoint; classification must not raise on it.
+    """
     if not base_url:
         return True
-    host = (urlparse(base_url).hostname or "").lower().removesuffix(".")
+    try:
+        host = (urlparse(base_url).hostname or "").lower().removesuffix(".")
+    except ValueError:
+        return False
     if host in _LOCAL_HOSTS:
         return True
     try:
@@ -173,6 +180,23 @@ def is_local_llm_endpoint(base_url):
         return False
     mapped = address.ipv4_mapped if isinstance(address, ipaddress.IPv6Address) else None
     return address.is_loopback or (mapped is not None and mapped.is_loopback)
+
+
+def is_usable_llm_endpoint(base_url):
+    """Whether a saved HTTP profile has an endpoint a client can dial."""
+    if not isinstance(base_url, str) or not base_url.strip():
+        return False
+    try:
+        parsed = urlparse(base_url.strip())
+    except ValueError:
+        return False
+    return parsed.scheme in ("http", "https") and bool(parsed.hostname)
+
+
+def is_billed_http_profile(profile):
+    """Whether this profile sends HTTP requests to a (possibly billed) host."""
+    return (isinstance(profile, dict) and profile.get("transport") != "manual"
+            and is_usable_llm_endpoint(profile.get("base_url")))
 
 
 def is_remote_llm(llm_mode, base_url):
@@ -216,8 +240,9 @@ def get_active_llm_config(config):
 
 
 _PROFILE_CREDENTIAL_KEYS = frozenset(("api_key", "provider_headers", "provider_extra_body"))
-BENCHMARK_CACHE_KEYS = frozenset(("concurrency", "concurrency_for",
-                                  "concurrency_environment", "concurrency_revision"))
+BENCHMARK_IDENTITY_KEY = "benchmark_identity"
+BENCHMARK_CACHE_KEYS = frozenset(("concurrency", "concurrency_for", "concurrency_environment",
+                                  "concurrency_revision", BENCHMARK_IDENTITY_KEY))
 # A scheduling hint, not a request setting: changing it must not retire a
 # measurement of the endpoint's own throughput.
 _BENCHMARK_IDENTITY_EXCLUDED = _PROFILE_CREDENTIAL_KEYS | BENCHMARK_CACHE_KEYS | frozenset(("on_this_gpu",))
@@ -276,27 +301,44 @@ def is_executable_failover_profile(block):
         return False
     if block.get("transport") == "manual":
         return True
-    return bool(block.get("base_url")) and bool(block.get("model_name"))
+    return (is_usable_llm_endpoint(block.get("base_url"))
+            and bool(str(block.get("model_name") or "").strip()))
 
 
-def get_benchmark_identity(config, section):
-    """Config-defined identity a concurrency measurement belongs to.
+def get_benchmark_identity(config, section, *, profile=None):
+    """Nonsecret identity of the requests a concurrency measurement belongs to.
 
-    The benchmark writer/reader and Setup retention use this one answer
-    (Rule 15). Credentials, cache metadata and the scheduling hint are not
-    part of it; transport, request pacing/reasoning, limits, retry settings
-    and the applicable management SSH alias are. Missing fields take schema
-    defaults, so a compact legacy profile compares equal to the same settings
-    normalized by Setup.
+    One answer for the benchmark writer, reader and Setup retention (Rule 15).
+    It is derived from the effective run profile - the one the client is bound
+    to - not from a later edit of the on-disk section: provider body options
+    are folded into their effective form (typed reasoning_effort merged into
+    the custom body), global token limits are inherited, and the management
+    SSH alias is included whenever the endpoint is remote rather than only
+    when the toggle says "remote" (a hosted legacy profile still runs with
+    llm_mode=local). Credentials, cache metadata and the scheduling hint are
+    excluded. Missing fields take schema defaults, so a compact legacy
+    profile compares equal to the same settings normalized by Setup.
+
+    `profile` lets the caller pass an already-bound run profile; when absent
+    the section's own config block is used.
     """
     config = config if isinstance(config, dict) else {}
-    block = config.get(section)
-    if not isinstance(block, dict):
+    if profile is None:
+        profile = config.get(section)
+    if not isinstance(profile, dict):
         return None
+    from llm_provider import get_provider_extra_body
+    from llm_request_budget import get_inherited_profile_limits
+    effective = get_inherited_profile_limits(profile, config.get("generation") or {})
     neutral = get_profile_neutral_values()
     identity = {key: neutral[key] for key in neutral if key not in _BENCHMARK_IDENTITY_EXCLUDED}
-    identity.update({key: value for key, value in block.items() if key in identity})
-    if section == "llm_remote" or (section == "llm" and (config.get("llm_mode") or "local") == "remote"):
+    identity.pop("reasoning_effort", None)
+    identity.update({key: value for key, value in effective.items() if key in identity})
+    # Fold after the raw profile copy: the effective body, not the raw JSON,
+    # is what the bound client sends, and a body-only spelling of the same
+    # option must therefore compare equal to the typed setting.
+    identity["provider_extra_body"] = get_provider_extra_body(effective)
+    if is_remote_llm(config.get("llm_mode") or "local", identity.get("base_url", "")):
         identity["ssh_alias"] = config.get("llm_remote_ssh")
     return identity
 
@@ -314,8 +356,8 @@ def _canonical_identity_value(value):
     return value
 
 
-def get_benchmark_identity_key(config, section):
-    identity = get_benchmark_identity(config, section)
+def get_benchmark_identity_key(config, section, *, profile=None):
+    identity = get_benchmark_identity(config, section, profile=profile)
     if identity is None:
         return None
     return json.dumps({key: _canonical_identity_value(value) for key, value in identity.items()},
@@ -331,13 +373,35 @@ def is_qualified_concurrency_cache(profile):
             and profile.get("concurrency_for") == f"{profile.get('base_url', '')}::{profile.get('model_name', '')}")
 
 
+def has_valid_benchmark_environment(profile):
+    """Whether a stored entry carries real measured-environment evidence."""
+    environment = profile.get("concurrency_environment") if isinstance(profile, dict) else None
+    return isinstance(environment, dict) and bool(environment)
+
+
+def get_benchmark_target_slot(config):
+    """The named slot the benchmark reads for this config's active endpoint.
+
+    The slot follows the endpoint, not the toggle: a hosted profile saved in
+    llm_local with llm_mode=local is still dialled remotely and measured into
+    llm_remote. Migration must land evidence there for the next run to reuse.
+    """
+    config = config if isinstance(config, dict) else {}
+    active = get_saved_llm_profile(config, require_complete=True) or config.get("llm") or {}
+    base_url = active.get("base_url", "") if isinstance(active, dict) else ""
+    return "llm_remote" if is_remote_llm(config.get("llm_mode") or "local", base_url) else "llm_local"
+
+
 def get_document_with_retained_cache(document, existing):
     """Return a save document carrying still-valid measured evidence.
 
-    A measurement belongs to the config identity that produced it, so only a
-    section with that exact identity keeps it. The legacy `llm` mirror is one
-    such section, not a separate cache: a qualified entry there is copied
-    into whichever named slot the benchmark actually reads. Credentials and
+    A measurement belongs to the requests that produced it, so a qualified
+    entry with real environment evidence is kept for the matching effective
+    identity. The legacy `llm` mirror is one such source, not a separate
+    cache: its entry is also placed in the slot the benchmark actually reads
+    (endpoint-based, so a hosted legacy profile with llm_mode=local migrates
+    into llm_remote). A blank or key-only named slot with an invalid
+    environment cannot displace qualified legacy evidence. Credentials and
     every other posted field come from `document` unchanged.
     """
     result = dict(document)
@@ -345,10 +409,13 @@ def get_document_with_retained_cache(document, existing):
     qualified = {}
     for section in ("llm", "llm_local", "llm_remote"):
         before = before_map.get(section)
-        if not is_qualified_concurrency_cache(before):
+        if not is_qualified_concurrency_cache(before) or not has_valid_benchmark_environment(before):
             continue
         key = get_benchmark_identity_key(before_map, section)
-        qualified[key] = {name: before[name] for name in BENCHMARK_CACHE_KEYS if name in before}
+        entry = {name: before[name] for name in BENCHMARK_CACHE_KEYS if name in before}
+        entry.setdefault(BENCHMARK_IDENTITY_KEY, key)
+        if key not in qualified or section == "llm":
+            qualified[key] = entry
     for section in ("llm", "llm_local", "llm_remote"):
         after = result.get(section)
         if not isinstance(after, dict):
@@ -356,6 +423,11 @@ def get_document_with_retained_cache(document, existing):
         entry = qualified.get(get_benchmark_identity_key(result, section))
         if entry:
             result[section] = {**after, **entry}
+    target = get_benchmark_target_slot(result)
+    legacy_entry = qualified.get(get_benchmark_identity_key(result, "llm"))
+    after = result.get(target)
+    if legacy_entry and isinstance(after, dict) and not is_qualified_concurrency_cache(after):
+        result[target] = {**after, **legacy_entry}
     return result
 
 
@@ -405,8 +477,10 @@ def is_active_llm_remote(config):
     cannot pass the mirror by accident.
     """
     config = config if isinstance(config, dict) else {}
-    return is_remote_llm(config.get("llm_mode") or "local",
-                         get_active_llm_config(config).get("base_url", ""))
+    active = get_active_llm_config(config)
+    if not is_billed_http_profile(active):
+        return False
+    return is_remote_llm(config.get("llm_mode") or "local", active.get("base_url", ""))
 
 
 def find_lms_binary():

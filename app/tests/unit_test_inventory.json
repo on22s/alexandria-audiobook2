@@ -10167,6 +10167,22 @@
     , "tests.test_profile_failover.RetryLoopFailoverTests.test_rate_limit_exhaustion_switches_and_the_request_completes_on_the_other_profile"
     , "tests.test_profile_failover.RetryLoopFailoverTests.test_when_both_profiles_fail_the_chunk_is_given_up_once"
   ]
+  , "test_profile_settings_followup": [
+    "tests.test_profile_settings_followup.BoundBenchmarkIdentityTests.test_body_only_effective_change_drops_cache"
+    , "tests.test_profile_settings_followup.BoundBenchmarkIdentityTests.test_edit_before_entry_is_published_as_bound_identity"
+    , "tests.test_profile_settings_followup.BoundBenchmarkIdentityTests.test_edit_during_sweep_still_refuses_publication"
+    , "tests.test_profile_settings_followup.BoundBenchmarkIdentityTests.test_equivalent_body_spelling_keeps_the_measurement"
+    , "tests.test_profile_settings_followup.BoundBenchmarkIdentityTests.test_unrelated_save_keeps_reuse"
+    , "tests.test_profile_settings_followup.FailoverEndpointValidationTests.test_predicate_requires_usable_endpoint_and_trimmed_model"
+    , "tests.test_profile_settings_followup.FailoverEndpointValidationTests.test_save_get_client_rejects_blank_model_and_keeps_valid_secondary"
+    , "tests.test_profile_settings_followup.HostedLegacyMigrationTests.test_hosted_legacy_cache_migrates_to_benchmark_slot"
+    , "tests.test_profile_settings_followup.HostedLegacyMigrationTests.test_invalid_named_environment_does_not_displace_legacy_evidence"
+    , "tests.test_profile_settings_followup.ManualClassificationTests.test_manual_is_not_probed_or_billed_even_with_malformed_url"
+    , "tests.test_profile_settings_followup.PreviewDroppedFieldTests.test_migrated_cache_is_not_counted_but_unknown_fields_are"
+    , "tests.test_profile_settings_followup.PreviewDroppedFieldTests.test_truly_dropped_named_unknown_field_is_counted"
+    , "tests.test_profile_settings_followup.SetupSlotHydrationTests.test_complete_legacy_hydrates_neutral_slots_in_both_modes"
+    , "tests.test_profile_settings_followup.SetupSlotHydrationTests.test_key_only_inactive_slot_and_explicit_destination"
+  ]
   , "test_profile_settings_integrity": [
     "tests.test_profile_settings_integrity.BenchmarkIdentityTests.test_cold_benchmark_and_unrelated_save_both_survive"
     , "tests.test_profile_settings_integrity.BenchmarkIdentityTests.test_cold_benchmark_rejects_publication_after_changed_identity_save"
