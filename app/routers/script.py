@@ -2,7 +2,9 @@ from book_state_transaction import ensure_saved_book_state
 from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
-                                    apply_book_state_locked, get_book_operation_token)
+                                     apply_book_state_locked, get_book_operation_token,
+                                     get_book_fault_response)
+
 import asyncio
 import contextlib
 import copy
@@ -3013,6 +3015,22 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
     return {"status": "resuming" if require_recovery else "started"}
 
 
+async def _start_script_generation_for_route(background_tasks, input_file, request,
+                                             require_recovery=False):
+    """Report every book recovery class like the Editor, without local paths."""
+    try:
+        if require_recovery:
+            return await asyncio.to_thread(
+                start_script_generation, background_tasks, input_file, request,
+                require_recovery=True)
+        return await asyncio.to_thread(start_script_generation, background_tasks, input_file, request)
+    except (TimeoutError, OSError, ValueError) as error:
+        fault = get_book_fault_response(error)
+        if fault is not None:
+            raise HTTPException(status_code=fault.status_code, detail=fault.detail) from error
+        raise
+
+
 @router.post("/api/generate_script")
 async def generate_script(background_tasks: BackgroundTasks,
                            request: Optional[GenerateScriptRequest] = None):
@@ -3027,7 +3045,7 @@ async def generate_script(background_tasks: BackgroundTasks,
     if not input_file:
          raise HTTPException(status_code=400, detail="No input file found in state")
 
-    return await asyncio.to_thread(start_script_generation, background_tasks, input_file, request)
+    return await _start_script_generation_for_route(background_tasks, input_file, request)
 
 
 def ensure_script_recovery_response(include_detail=False):
@@ -3396,8 +3414,8 @@ async def retry_generate_script(background_tasks: BackgroundTasks,
         except (TypeError, ValueError) as exc:
             raise HTTPException(status_code=409,
                                 detail="Saved recovery settings are invalid; start a new run.") from exc
-    return await asyncio.to_thread(start_script_generation, background_tasks, input_file, request,
-                                   require_recovery=True)
+    return await _start_script_generation_for_route(background_tasks, input_file, request,
+                                                    require_recovery=True)
 
 @router.post("/api/generate_script/cancel")
 async def generate_script_cancel():

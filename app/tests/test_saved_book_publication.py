@@ -93,7 +93,7 @@ class SavedBookPublicationTests(unittest.TestCase):
                 editor._apply_chunk_edit(operation)
         self.assertEqual(['published'], changed)
         self.assertEqual(409, raised.exception.status_code)
-        self.assertIn('check the line before retrying', raised.exception.detail)
+        self.assertIn('retry in a moment', raised.exception.detail)
         self.assertFalse(core._gpu_lock.locked())
 
     def test_chunk_edit_does_not_wait_indefinitely_for_book_under_task_mutex(self):

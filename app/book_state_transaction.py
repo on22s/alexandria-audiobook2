@@ -29,6 +29,18 @@ _held_books = ContextVar('held_book_state_scopes', default=())
 logger = logging.getLogger(__name__)
 
 
+class BookTransactionError(ValueError):
+    """A damaged, foreign or contended book journal needs recovery, not a
+    client content conflict. Subclasses ValueError so existing recovery callers
+    that classify every validation refusal as ValueError keep working; routes
+    catch it first to report it as a server-side condition."""
+
+    DETAIL = 'The book transaction journal is damaged; the log has the details.'
+
+
+BOOK_STATE_BUSY_DETAIL = 'The book is busy; retry in a moment.'
+
+
 class BookJournalPublicationUncertain(ValueError):
     """Journal replacement may have occurred; preserve transaction evidence."""
 
@@ -63,6 +75,47 @@ class BookExchangeParked(_BookExchangeOutcome, BookJournalPublicationUncertain):
 
 class BookJournalMigrationRequired(ValueError):
     """A well-formed legacy v1 journal: only an explicit migration may act on it."""
+
+
+BOOK_JOURNAL_MIGRATION_DETAIL = (
+    'The saved book journal needs explicit migration; inspect it with the book recovery tool before continuing.')
+BOOK_JOURNAL_UNCERTAIN_DETAIL = (
+    'The book journal could not be confirmed and its evidence was preserved; inspect it with the book recovery tool before retrying.')
+BOOK_EXCHANGE_DIVERGED_DETAIL = (
+    'The book journal names changed during an exchange; inspect it with the book recovery tool before retrying.')
+BOOK_STORAGE_FAILURE_DETAIL = 'Book storage could not be accessed; check the server log and retry.'
+
+
+@dataclass(frozen=True)
+class BookFaultResponse:
+    """One route-level answer for a book admission, recovery or storage fault."""
+
+    status_code: int
+    detail: str
+
+
+def get_book_fault_response(error):
+    """-> BookFaultResponse for a book fault, or None for an ordinary refusal.
+
+    Every route that can surface book admission uses this one mapping so a
+    recovery class gets the same actionable, path-free JSON answer whether it
+    arrived during an Editor edit, a script start, a retry or a saved-book
+    mutation. Plain ValueError stays a caller-owned content refusal; its own
+    message is already path-free and is reported unchanged by the caller.
+    """
+    if isinstance(error, TimeoutError):
+        return BookFaultResponse(409, BOOK_STATE_BUSY_DETAIL)
+    if isinstance(error, BookTransactionError):
+        return BookFaultResponse(500, BookTransactionError.DETAIL)
+    if isinstance(error, BookJournalMigrationRequired):
+        return BookFaultResponse(409, BOOK_JOURNAL_MIGRATION_DETAIL)
+    if isinstance(error, BookJournalPublicationUncertain):
+        return BookFaultResponse(409, BOOK_JOURNAL_UNCERTAIN_DETAIL)
+    if isinstance(error, BookExchangeDiverged):
+        return BookFaultResponse(409, BOOK_EXCHANGE_DIVERGED_DETAIL)
+    if isinstance(error, (OSError, RecursionError)):
+        return BookFaultResponse(409, BOOK_STORAGE_FAILURE_DETAIL)
+    return None
 
 
 def _get_book_scope_owner():
@@ -1245,15 +1298,21 @@ def is_book_state_admitted(data_dir):
 
 
 @contextlib.contextmanager
-def reuse_book_state(data_dir, timeout=10):
-    """Reuse only this live task/thread/process's actual kernel admission."""
+def reuse_book_state(data_dir, timeout=10, *, recover=True):
+    """Reuse only this live task/thread/process's actual kernel admission.
+
+    recover=False is preserved on both branches: an already-admitted scope
+    refuses while a journal is pending, and a fresh admission never auto-recovers
+    one. Markup preview/apply/replay rely on this to keep their deliberate
+    read-only recovery posture even when they share an outer admission.
+    """
     root, _identity = _direct_book_root(data_dir)
     if is_book_state_admitted(root):
         if os.path.lexists(root / JOURNAL):
             raise ValueError('Book transaction must finish before reusing its state.')
         yield root
     else:
-        with ensure_book_state(data_dir, timeout=timeout) as root:
+        with ensure_book_state(data_dir, timeout=timeout, recover=recover) as root:
             yield root
 
 
@@ -4672,15 +4731,37 @@ def book_operator_locked(data_dir, timeout=10):
 
 
 @contextlib.contextmanager
-def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None):
-    """Serialize book operations and recover pending switches before use."""
+def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None,
+                      guard=None, pending_detail=None):
+    """Serialize book operations and recover pending switches before use.
+
+    guard() runs under the book-operation lock before any recovery, so a caller
+    that nests the GPU mutex and its task check can refuse first without
+    mutating a pending journal. pending_detail customizes the refusal for a
+    non-migration pending journal (e.g. Apply's own wording).
+    """
     with book_operator_locked(data_dir, timeout=timeout) as (root, identity):
+        if guard is not None:
+            guard()
         if recover:
-            recover_book_state_locked(
-                root, cancel_check=cancel_check, expected_root=root,
-                expected_root_identity=identity)
+            try:
+                recover_book_state_locked(
+                    root, cancel_check=cancel_check, expected_root=root,
+                    expected_root_identity=identity)
+            except ValueError as refusal:
+                # Only plain validation refusals are journal damage; dedicated
+                # outcomes (migration required, publication uncertain, exchange
+                # diverged) keep their own class so callers can classify them.
+                if type(refusal) is ValueError:
+                    # Keep the validation failure's own cause (often an OSError
+                    # from a pinned descriptor); only the outer class changes.
+                    raise BookTransactionError(str(refusal)) from refusal.__cause__
+                raise
         elif os.path.lexists(root / JOURNAL):
-            raise ValueError("Book recovery is required before previewing saved state")
+            if get_book_journal_status(root) == 'legacy':
+                raise BookJournalMigrationRequired(
+                    'Legacy active-book transaction requires explicit recovery inspection')
+            raise ValueError(pending_detail or "Book recovery is required before previewing saved state")
         # Recovery may have taken time; refuse admission if the named root was
         # replaced while the operation lock was held.
         admitted_root, admitted_identity = _direct_book_root(root)

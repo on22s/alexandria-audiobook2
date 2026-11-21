@@ -58,6 +58,32 @@ class AnchoredExchangeTests(unittest.TestCase):
         self.assertEqual((b'replacement', b'original'), (self.target.read_bytes(), self.staged.read_bytes()))
         self.assertEqual((replacement, original), (os.lstat(self.target).st_ino, os.lstat(self.staged).st_ino))
 
+    def test_saved_delete_reports_diverged_exchange_when_rollback_refuses(self):
+        from tests.test_chunk_lock_journal_safety import bypass_routes_fixture
+
+        with bypass_routes_fixture() as (root, client, _states, _run_id):
+            target = root / 'scripts' / 'book_b.json'
+            aside = root / 'original-aside'
+            original = target.read_bytes()
+            real_exchange = uploads.exchange_source_upload_names
+
+            def exchange_with_concurrent_edit(source, destination, **kwargs):
+                if os.path.basename(source) == target.name and not aside.exists():
+                    target.rename(aside)
+                    target.write_bytes(b'new contents')
+                return real_exchange(source, destination, **kwargs)
+
+            with patch.object(uploads, 'exchange_source_upload_names', exchange_with_concurrent_edit):
+                response = client.delete('/api/scripts/book_b')
+
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual({'detail': books.BOOK_EXCHANGE_DIVERGED_DETAIL}, response.json())
+            self.assertEqual(b'new contents', target.read_bytes())
+            self.assertEqual(original, aside.read_bytes())
+            journal = root / 'scripts' / books.JOURNAL
+            self.assertTrue(journal.is_file())
+            self.assertTrue(list(journal.parent.glob('.book-switch-*')))
+
     def test_a_name_that_no_longer_holds_its_object_is_refused_before_anything_moves(self):
         expect = holds(self.target)
         # Keep the original's inode alive: a deleted file's inode number can be
