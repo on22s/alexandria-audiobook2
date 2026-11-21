@@ -2240,8 +2240,11 @@ def _format_pass_summary(label: str, totals: dict, aliases: List[dict], show_ali
         if totals.get("unreviewed_entries"):
             stopped = "; final checks stopped" if totals.get("post_processing_abort") else ""
             lines.append(f"  Review incomplete: {totals['unreviewed_entries']} unreviewed entries{stopped}")
-        elif totals.get("post_processing_abort"):
+        elif totals.get("post_processing_abort") and not totals.get("batches_failed"):
             lines.append("  Review incomplete: all rows reviewed; final checks stopped")
+        elif totals.get("batches_failed"):
+            lines.append(f"  Review incomplete: {totals['batches_failed']} section(s) failed; "
+                         "rows remain unresolved")
         else:
             lines.append("  Review incomplete: unresolved rows remain")
     if totals.get("final_check_aborted"):
@@ -2306,7 +2309,7 @@ def _markdown_heads_up_lines(stats: dict) -> List[str]:
         lines.append(f"- Final checks stopped on some book(s), and {stats['unreviewed_entries']} "
                      "entries were left unreviewed. Re-run to finish them when a verified "
                      "checkpoint is available.")
-    elif stats.get("post_processing_abort"):
+    elif stats.get("post_processing_abort") and not stats.get("batches_failed"):
         lines.append("- All entries were reviewed, but the review stopped during final checks. "
                      "Re-run to finish those checks when a verified checkpoint is available.")
     elif stats.get("review_incomplete") and stats.get("unreviewed_entries"):

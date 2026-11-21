@@ -229,8 +229,15 @@ def _resolve_batch_review_options(request):
 
 
 def get_review_force_args(force_review, backward=False):
-    """Build the review-child flags; a backward pass always reruns with its own direction identity."""
-    args = ["--force-review"] if force_review or backward else []
+    """Build the review-child flags.
+
+    Direction is part of the child's execution identity, so a backward pass has
+    its own completion proof. It is not forced unconditionally: an ordinary
+    retry of the same batch must be able to honour a verified backward receipt
+    for a book that already finished. An explicit force or Start over still
+    reruns both directions.
+    """
+    args = ["--force-review"] if force_review else []
     if backward:
         args += ["--review-pass", "backward"]
     return args
@@ -4096,7 +4103,7 @@ def _start_batch_review(request, background_tasks):
             # execution and input identity (including --review-pass) before
             # resuming, and discards a checkpoint it cannot bind. Only an
             # explicit Start over retires progress before model work.
-            if request.start_over:
+            if request.start_over and tag != " [bwd]":
                 discard_review_progress(script_path)
 
             cmd = [

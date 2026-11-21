@@ -12369,6 +12369,16 @@
     , "tests.test_review_active_prompt_validation.ActiveReviewPromptStartTests.test_invalid_active_prompt_stops_before_client_creation"
     , "tests.test_review_active_prompt_validation.ActiveReviewPromptStartTests.test_labels_only_ignores_the_active_prompt"
   ]
+  , "test_review_bidirectional_resume": [
+    "tests.test_review_bidirectional_resume.AcceptedBoundaryTests.test_failed_batch_makes_aggregate_wording_independent_of_final_checks"
+    , "tests.test_review_bidirectional_resume.AcceptedBoundaryTests.test_split_source_never_invents_output_lengths_and_resumes_after_split"
+    , "tests.test_review_bidirectional_resume.DirectionalResumeTests.test_changed_companion_or_input_invalidates_proof"
+    , "tests.test_review_bidirectional_resume.DirectionalResumeTests.test_force_executes_forward_and_keeps_old_fact_until_success"
+    , "tests.test_review_bidirectional_resume.DirectionalResumeTests.test_forward_and_backward_facts_survive_and_third_run_reuses"
+    , "tests.test_review_bidirectional_resume.DirectionalResumeTests.test_legacy_forward_proof_is_persisted_before_backward_runs"
+    , "tests.test_review_bidirectional_resume.DirectionalResumeTests.test_legacy_forward_receipt_resolves_with_unknown_counts"
+    , "tests.test_review_bidirectional_resume.DirectionalResumeTests.test_malformed_fact_never_yields_completion"
+  ]
   , "test_review_change_accounting": [
     "tests.test_review_change_accounting.ReviewAccountingTests.test_actual_frontend_displays_supplied_warning_and_escapes_live_totals"
     , "tests.test_review_change_accounting.ReviewAccountingTests.test_actual_separate_input_repeated_rewind_counts_one_edit_once_in_both_modes"
@@ -12494,7 +12504,7 @@
   ]
   , "test_review_followup_2222": [
     "tests.test_review_followup_2222.BatchPassCheckpointTests.test_clean_forward_keeps_checkpoint_and_runs_hindsight"
-    , "tests.test_review_followup_2222.BatchPassCheckpointTests.test_explicit_restart_discards_progress"
+    , "tests.test_review_followup_2222.BatchPassCheckpointTests.test_explicit_restart_discards_progress_once_per_book"
     , "tests.test_review_followup_2222.BatchPassCheckpointTests.test_incomplete_forward_keeps_checkpoint_and_skips_hindsight"
     , "tests.test_review_followup_2222.DispositionTests.test_legacy_stats_fall_back_to_counters"
     , "tests.test_review_followup_2222.DispositionTests.test_post_processing_abort_reports_all_rows_and_withheld_publication"

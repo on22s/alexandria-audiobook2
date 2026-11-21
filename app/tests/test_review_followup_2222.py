@@ -91,10 +91,10 @@ class BatchPassCheckpointTests(unittest.TestCase):
         self.assertEqual(0, discard)
         self.assertEqual(['done'], statuses)
 
-    def test_explicit_restart_discards_progress(self):
+    def test_explicit_restart_discards_progress_once_per_book(self):
         response, _calls, _kept, state, discard, _statuses, _reports, _book = self.run_batch(CLEAN, start_over=True)
         self.assertEqual(200, response.status_code, response.text)
-        self.assertEqual(2, discard)
+        self.assertEqual(1, discard)
 
 
 class InheritedSpanResumeTests(unittest.TestCase):

@@ -74,10 +74,14 @@ def get_completed_review_match(input_path, output_path, input_sha256, fingerprin
 
 
 def save_completed_review_receipt(input_path, output_path, input_sha256, output_sha256, fingerprint, review_pass='forward'):
-    atomic_json_write({'version': VERSION, 'input_path': os.path.abspath(input_path),
+    payload = {'version': VERSION, 'input_path': os.path.abspath(input_path),
         'output_path': os.path.abspath(output_path), 'input_sha256': input_sha256,
         'output_sha256': output_sha256, 'fingerprint': fingerprint,
-        'review_pass': review_pass}, get_review_receipt_path(output_path), allow_nonatomic_fallback=False)
+        'review_pass': review_pass}
+    existing = load_review_receipt_document(output_path)
+    if isinstance(existing, dict) and isinstance(existing.get('facts'), dict) and existing['facts']:
+        payload['facts'] = existing['facts']
+    atomic_json_write(payload, get_review_receipt_path(output_path), allow_nonatomic_fallback=False)
 
 
 def remove_completed_review_receipt(output_path):
@@ -85,3 +89,152 @@ def remove_completed_review_receipt(output_path):
         os.remove(get_review_receipt_path(output_path))
     except FileNotFoundError:
         pass
+
+
+# ── Durable directional proof ────────────────────────────────────────────────
+# A bidirectional run publishes twice. A single flat receipt cannot hold both
+# passes' completion, and a separate sidecar collides with saved-book names.
+# Both passes therefore keep their proof under "facts" in the one reserved
+# receipt. Only the child computes identity (get_completed_review_fingerprint);
+# these readers just validate what the child wrote, read-only.
+
+REVIEW_SUMMARY_FIELDS = (
+    'text_changed', 'speaker_changed', 'instruct_changed', 'annotations_changed',
+    'entries_changed', 'entries_added', 'entries_removed', 'narrators_merged',
+    'speakers_merged', 'batches_failed', 'batches_skipped_vram', 'total_changes',
+)
+REVIEW_DIRECTIONS = ('forward', 'backward')
+REVIEW_COMPANION_KEYS = ('aliases', 'voice')
+
+
+def is_sha256(value):
+    return (isinstance(value, str) and len(value) == 64
+            and all(char in '0123456789abcdef' for char in value))
+
+
+def load_review_receipt_document(output_path):
+    try:
+        with open(get_review_receipt_path(output_path), encoding='utf-8') as stream:
+            document = json.load(stream)
+    except (OSError, ValueError, TypeError):
+        return None
+    return document if isinstance(document, dict) else None
+
+
+def get_durable_review_fact(document, direction):
+    """Return a strict-validated forward/backward fact, else None.
+
+    A malformed fact never yields completion: every identity/summary field must
+    be present and well typed. Unknown keys are tolerated so a future writer can
+    add fields without invalidating older readers.
+    """
+    if not isinstance(document, dict) or direction not in REVIEW_DIRECTIONS:
+        return None
+    facts = document.get('facts')
+    if not isinstance(facts, dict):
+        return None
+    fact = facts.get(direction)
+    if not isinstance(fact, dict):
+        return None
+    if (fact.get('direction') != direction
+            or fact.get('input_path') != os.path.abspath(fact.get('input_path') or '')
+            or fact.get('output_path') != os.path.abspath(fact.get('output_path') or '')):
+        return None
+    if not all(is_sha256(fact.get(key)) for key in
+               ('fingerprint', 'input_sha256', 'output_sha256')):
+        return None
+    companions = fact.get('companions')
+    if not isinstance(companions, dict):
+        return None
+    for key, identity in companions.items():
+        if key not in REVIEW_COMPANION_KEYS:
+            return None
+        if identity is not None and not isinstance(identity, dict):
+            return None
+        if isinstance(identity, dict):
+            if not isinstance(identity.get('path'), str):
+                return None
+            sha = identity.get('sha256')
+            if sha is not None and not is_sha256(sha):
+                return None
+    summary = fact.get('summary')
+    if not isinstance(summary, dict):
+        return None
+    if any(type(summary.get(key)) is not int or summary[key] < 0
+           for key in REVIEW_SUMMARY_FIELDS):
+        return None
+    if type(summary.get('accounting_unverified')) is not bool:
+        return None
+    return fact
+
+
+def read_durable_review_fact(output_path, direction):
+    return get_durable_review_fact(load_review_receipt_document(output_path), direction)
+
+
+def build_review_fact(input_path, output_path, input_sha256, output_sha256, fingerprint,
+                      companions, summary):
+    """Build one durable fact. Callers pass post-publication bytes/companions."""
+    return {
+        'direction': None,
+        'input_path': os.path.abspath(input_path),
+        'output_path': os.path.abspath(output_path),
+        'input_sha256': input_sha256,
+        'output_sha256': output_sha256,
+        'fingerprint': fingerprint,
+        'companions': dict(companions),
+        'summary': {key: summary.get(key, 0) for key in REVIEW_SUMMARY_FIELDS}
+                   | {'accounting_unverified': bool(summary.get('accounting_unverified'))},
+    }
+
+
+def save_durable_review_fact(output_path, direction, fact, *, top_level=None):
+    """Store one direction's fact without destroying the other's.
+
+    The flat fields are updated too so the flat matcher and older readers keep
+    working for single-pass reviews; the durable facts stay authoritative for
+    bidirectional reuse.
+    """
+    path = get_review_receipt_path(output_path)
+    document = load_review_receipt_document(output_path)
+    if document is None or type(document.get('version')) is not int or document['version'] != VERSION:
+        document = {'version': VERSION}
+    if top_level:
+        document.update(top_level)
+    facts = document.get('facts')
+    if not isinstance(facts, dict):
+        facts = document['facts'] = {}
+    stored = dict(fact)
+    stored['direction'] = direction
+    facts[direction] = stored
+    atomic_json_write(document, path, allow_nonatomic_fallback=False)
+
+
+def invalidate_flat_review_receipt(output_path, direction='forward'):
+    """Retire prior completion for a new run.
+
+    A new forward run supersedes any earlier completion, so its whole receipt
+    is removed. A backward run runs after a completed forward pass and must
+    retain the forward proof: only the stale flat fields are retired.
+    """
+    if direction == 'forward':
+        remove_completed_review_receipt(output_path)
+        return
+    document = load_review_receipt_document(output_path)
+    if isinstance(document, dict) and isinstance(document.get('facts'), dict) and document['facts']:
+        atomic_json_write({'version': VERSION, 'facts': document['facts']},
+                          get_review_receipt_path(output_path), allow_nonatomic_fallback=False)
+    else:
+        remove_completed_review_receipt(output_path)
+
+
+def resolve_legacy_review_fact(input_path, output_path, input_sha256, output_sha256,
+                               fingerprint, direction):
+    """A validated flat receipt becomes a durable fact with unknown counters.
+
+    The original counters were never stored, so they are reported as zero with
+    ``accounting_unverified`` set rather than presented as measured values.
+    """
+    return build_review_fact(input_path, output_path, input_sha256, output_sha256,
+        fingerprint, {}, {key: 0 for key in REVIEW_SUMMARY_FIELDS}
+        | {'accounting_unverified': True})

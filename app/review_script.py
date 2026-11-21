@@ -41,7 +41,9 @@ from llm_provider import (make_llm_client, make_run_client, get_run_model_bindin
 from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SPAN_ALGORITHM_VERSION,
     get_review_entries_fingerprint, get_review_sidecar_identity, get_completed_review_match,
     get_review_progress_paths, get_review_receipt_path, save_completed_review_receipt,
-    remove_completed_review_receipt)
+    remove_completed_review_receipt, REVIEW_SUMMARY_FIELDS, load_review_receipt_document,
+    get_durable_review_fact, read_durable_review_fact, build_review_fact,
+    save_durable_review_fact, resolve_legacy_review_fact, invalidate_flat_review_receipt)
 from llm_bench import ensure_cached_or_benchmarked_concurrency
 from review_prompts import (REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT,
                             REVIEW_TEMPLATE_FIELDS, validate_active_review_user_prompt)
@@ -525,7 +527,105 @@ def get_legacy_review_fingerprint(config, llm_config, params, args, client, mode
 
 
 REVIEW_EDIT_COUNTERS = ('text_changed', 'speaker_changed', 'instruct_changed', 'annotations_changed',
-                       'entries_changed', 'entries_added', 'entries_removed')
+                        'entries_changed', 'entries_added', 'entries_removed')
+
+
+def get_review_companion_identity(args):
+    """Post-publication identity of the shared registry/voice companions."""
+    return {
+        'aliases': get_review_sidecar_identity(getattr(args, 'alias_registry', None)),
+        'voice': get_review_sidecar_identity(getattr(args, 'remap_voice_config', None)),
+    }
+
+
+def get_current_output_fingerprint(output_path):
+    """Digest of the bytes currently published at the output path."""
+    try:
+        with open(output_path, encoding='utf-8') as stream:
+            published = json.load(stream)
+        if isinstance(published, list) and published:
+            return get_review_entries_fingerprint(published)
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
+def get_reusable_review_completion(input_path, output_path, input_sha256, output_sha256,
+                                   fingerprint, legacy_fingerprints, direction, companions,
+                                   backward_fingerprint=None):
+    """Return (matched, reason, summary, unverified, legacy_fact) from the receipt.
+
+    The child is the only authority on execution identity. A durable fact is
+    accepted only when it is strict-valid, bound to this exact input/output and
+    current published bytes/companions, and not superseded by an active
+    same-direction checkpoint. Legacy flat receipts convert to a fact with
+    unknown counters. A forward pass is also preserved when a validated
+    backward fact proves the current shared-registry state was reviewed.
+    """
+    acceptable = {fingerprint, *(item for item in legacy_fingerprints if isinstance(item, str))}
+    in_place = os.path.abspath(input_path) == os.path.abspath(output_path)
+    document = load_review_receipt_document(output_path)
+    checkpoint_path = get_review_progress_paths(output_path)[0]
+
+    def read_checkpoint():
+        try:
+            with open(checkpoint_path, encoding='utf-8') as stream:
+                document_on_disk = json.load(stream)
+            return document_on_disk if isinstance(document_on_disk, dict) else None
+        except (OSError, ValueError, TypeError):
+            return None
+
+    def fact_ok(fact, *, check_identity=True, check_payload=True, checkpoint=None,
+                identity=None):
+        if not isinstance(fact, dict):
+            return False
+        if (fact.get('input_path') != os.path.abspath(input_path)
+                or fact.get('output_path') != os.path.abspath(output_path)):
+            return False
+        checkpoint = read_checkpoint() if checkpoint is None else checkpoint
+        identity = acceptable if identity is None else identity
+        if checkpoint is not None and checkpoint.get('execution_sha256') in identity:
+            return False
+        if check_identity and fact.get('fingerprint') not in identity:
+            return False
+        if check_payload:
+            if fact.get('output_sha256') != output_sha256:
+                return False
+            if not in_place and fact.get('input_sha256') != input_sha256:
+                return False
+            if fact.get('companions') != companions:
+                return False
+        return True
+
+    checkpoint = read_checkpoint()
+    fact = get_durable_review_fact(document, direction)
+    if fact is not None and fact_ok(fact, checkpoint=checkpoint):
+        return True, f'verified {direction} review is still bound to this book', fact['summary'], \
+            fact['summary']['accounting_unverified'], None
+    if direction == 'forward' and fact is not None and fact_ok(
+            fact, check_identity=False, check_payload=False, checkpoint=checkpoint):
+        backward = get_durable_review_fact(document, 'backward')
+        backward_proven = (backward is not None and backward_fingerprint is not None
+                           and fact_ok(backward, checkpoint=checkpoint,
+                                       identity={backward_fingerprint}))
+        if not backward_proven and backward_fingerprint is not None and checkpoint is not None:
+            backward_proven = (checkpoint.get('execution_sha256') == backward_fingerprint
+                               and checkpoint.get('source_sha256') == input_sha256)
+        if backward_proven:
+            return True, 'verified backward checkpoint binds the current registry to this book', \
+                fact['summary'], fact['summary']['accounting_unverified'], None
+
+    facts = document.get('facts') if isinstance(document, dict) else None
+    if not isinstance(facts, dict) or not facts:
+        matched, reason = get_completed_review_match(
+            input_path, output_path, input_sha256, fingerprint, legacy_fingerprints)
+        recorded_direction = document.get('review_pass', 'forward') if isinstance(document, dict) else None
+        if matched and recorded_direction == direction:
+            resolved = resolve_legacy_review_fact(
+                input_path, output_path, input_sha256, output_sha256 or '', fingerprint, direction)
+            return True, reason + ' (legacy proof; original counts unavailable)', \
+                resolved['summary'], True, resolved
+    return False, 'no verified completion for this direction', None, False, None
 
 
 def get_review_edit_counts(stats, *, required=True):
@@ -766,10 +866,12 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
     failed_batches = sorted(data["failed_batches"])
     batch_lengths = data["batch_lengths"]
     completed_batches = data["completed_batches"]
-    if failed_batches and len(batch_lengths) != completed_batches:
-        # A legacy checkpoint can lack per-batch lengths. Rebuild them from the
-        # persisted consumed-input offsets; otherwise the rewind below would
-        # resume past a failed/skipped batch and drop its retained correction.
+    if len(batch_lengths) != completed_batches:
+        # Consumed-input offsets are NOT output lengths: one source entry can
+        # split into several corrected entries. Only rebuild when the offsets
+        # sum to the verified accepted output prefix; a split makes that check
+        # fail and the real source-offset boundary remains authoritative.
+        data.setdefault('accepted_output_count', len(data['all_corrected']))
         offsets = data.get("source_offsets")
         if (isinstance(offsets, list) and len(offsets) == completed_batches
                 and all(type(value) is int and 0 <= value <= len(input_rows)
@@ -2568,27 +2670,42 @@ def main():
                                                        model_name, review_source_text, entries=entries)
     legacy_fingerprints = (() if legacy_fingerprint in (None, receipt_fingerprint)
                            else (legacy_fingerprint,))
-    matched, receipt_reason = get_completed_review_match(
-        script_path, output_path, source_sha256, receipt_fingerprint, legacy_fingerprints)
+    direction = getattr(args, 'review_pass', 'forward')
+    current_output_sha = get_current_output_fingerprint(output_path)
+    companions = get_review_companion_identity(args)
+    backward_fingerprint = None
+    if direction == 'forward':
+        backward_args = copy.copy(args)
+        backward_args.review_pass = 'backward'
+        backward_fingerprint = get_completed_review_fingerprint(
+            config, llm_config, gen_params, backward_args, client, model_name,
+            review_source_text, entries=entries)
+    matched, receipt_reason, reused_summary, reused_unverified, legacy_fact = get_reusable_review_completion(
+        script_path, output_path, source_sha256, current_output_sha, receipt_fingerprint,
+        legacy_fingerprints, direction, companions, backward_fingerprint=backward_fingerprint)
     if matched and not args.force_review:
+        if legacy_fact is not None:
+            save_durable_review_fact(output_path, direction, legacy_fact,
+                                     top_level=load_review_receipt_document(output_path))
         print(receipt_reason)
         print(f"Review complete: {len(entries)} -> {len(entries)} entries")
-        for label in ('Text changed', 'Speaker changed', 'Instruct changed', 'Annotations changed', 'Entries changed',
-                      'Entries added', 'Entries removed', 'Narrators merged', 'Speakers merged', 'Total changes'):
-            print(f"  {label}: 0")
+        for label, key in (
+                ('Text changed', 'text_changed'), ('Speaker changed', 'speaker_changed'),
+                ('Instruct changed', 'instruct_changed'), ('Annotations changed', 'annotations_changed'),
+                ('Entries changed', 'entries_changed'), ('Entries added', 'entries_added'),
+                ('Entries removed', 'entries_removed'), ('Narrators merged', 'narrators_merged'),
+                ('Speakers merged', 'speakers_merged'), ('Batches failed', 'batches_failed'),
+                ('Batches skipped (low GPU VRAM)', 'batches_skipped_vram'),
+                ('Total changes', 'total_changes')):
+            print(f"  {label}: {reused_summary[key]}")
+        if reused_unverified:
+            _emit_json_marker('REVIEW_ACCOUNTING_JSON', {'inherited_unverified': True})
+            print('WARNING: ' + get_review_accounting_warning({'accounting_unverified': True}))
         print("Task review completed successfully.")
         close = getattr(client, 'close', None)
         if close:
             close()
         return
-    if (getattr(args, 'review_pass', 'forward') == 'forward' and not args.force_review
-            and isinstance(safe_load_json(get_review_receipt_path(output_path), default=None), dict)):
-        existing = safe_load_json(get_review_receipt_path(output_path), default={})
-        if existing.get('review_pass') == 'backward':
-            raise ValueError(
-                'A verified backward review is still recorded for this book; '
-                'forward work cannot safely replace it. Preserve the artifacts and '
-                'retry with an explicit Start over or force decision.')
     print('Completed-review reuse: ' + ('forced rerun' if args.force_review else receipt_reason))
     if review_source_text is not None:
         entries = get_review_source_entries(entries, review_source_text)
@@ -2629,7 +2746,10 @@ def main():
         raise
     checkpoint_writer = GenerationCheckpointDeltas(
         _checkpoint_path(output_path), reset=checkpoint is None)
-    remove_completed_review_receipt(output_path)
+    if direction == 'forward':
+        remove_completed_review_receipt(output_path)
+    else:
+        invalidate_flat_review_receipt(output_path, direction)
 
     startup_event('concurrency_setup_started')
     wave_size = ensure_cached_or_benchmarked_concurrency(
@@ -3085,10 +3205,29 @@ def main():
     # Checkpoint is only needed while a run is incomplete; clear it once the
     # full review (and any post-processing) has finished successfully.
     if review_complete:
+        completion_fingerprint = get_completed_review_fingerprint(
+            config, llm_config, gen_params, args, client, model_name, review_source_text, entries=entries)
         save_completed_review_receipt(script_path, output_path, source_sha256,
-            output_sha256, get_completed_review_fingerprint(
-                config, llm_config, gen_params, args, client, model_name, review_source_text, entries=entries),
-            review_pass=getattr(args, 'review_pass', 'forward'))
+            output_sha256, completion_fingerprint, review_pass=direction)
+        prior_forward = read_durable_review_fact(output_path, 'forward') if direction == 'backward' else None
+        provenance_sha = prior_forward['input_sha256'] if prior_forward else source_sha256
+        published_sha = get_current_output_fingerprint(output_path) or output_sha256
+        fact_total_changes = (total_stats["text_changed"] + total_stats["speaker_changed"]
+            + total_stats["instruct_changed"] + total_stats["annotations_changed"]
+            + total_stats["entries_added"] + total_stats["entries_removed"]
+            + narrator_merges + speakers_merged)
+        summary = {key: total_stats.get(key, 0) for key in REVIEW_SUMMARY_FIELDS}
+        summary.update(narrators_merged=narrator_merges, speakers_merged=speakers_merged,
+                       total_changes=fact_total_changes,
+                       accounting_unverified=bool(
+                           (accounting.get('metadata') or {}).get('inherited_unverified')))
+        save_durable_review_fact(output_path, direction,
+            build_review_fact(script_path, output_path, provenance_sha, published_sha,
+                              completion_fingerprint, get_review_companion_identity(args), summary),
+            top_level={'version': 1, 'input_path': os.path.abspath(script_path),
+                       'output_path': os.path.abspath(output_path), 'input_sha256': source_sha256,
+                       'output_sha256': output_sha256, 'fingerprint': completion_fingerprint,
+                       'review_pass': direction})
         clear_checkpoint(output_path)
 
     # Delete chunks.json so editor regenerates — only when we reviewed the
@@ -3160,13 +3299,17 @@ def main():
     if diff_highlights["text_rewrites"] or diff_highlights["speaker_changes"]:
         _emit_json_marker('DIFF_PREVIEW_JSON', diff_highlights)
 
-    if post_processing_abort and not unreviewed_entries:
+    if post_processing_abort and not unreviewed_entries and not failed_sections:
         print("Stopped after all rows were reviewed: final checks did not finish.")
         print("Re-run to finish those checks when a verified checkpoint is available.")
     elif vram_aborted:
         print("Stopped early: GPU VRAM stayed too high to safely continue.")
-        print(f"{unreviewed_entries} entries were left unreviewed. Free up VRAM "
-              "(e.g. close other GPU apps) and re-run to review the rest.")
+        if checkpoint_saved:
+            print(f"{unreviewed_entries} entries were left unreviewed. Free up VRAM "
+                  "(e.g. close other GPU apps) and re-run to review the rest.")
+        else:
+            print(f"{unreviewed_entries} entries were left unreviewed; no verified "
+                  "checkpoint holds the work - re-run the review from the start.")
     elif not review_complete:
         print("Review remains incomplete; unresolved batches will retry on resume.")
     elif accounting_unverified:
@@ -3185,10 +3328,13 @@ def main():
                   "the review from the start.")
     else:
         print(f"Output saved to: {output_path}")
-    if post_processing_abort and not unreviewed_entries:
+    if post_processing_abort and not unreviewed_entries and not failed_sections:
         print("Task review completed with final checks unfinished - all rows were reviewed.")
     elif vram_aborted:
-        print("Task review completed with an early VRAM-abort - some entries were saved unreviewed.")
+        if publication_withheld:
+            print("Task review completed with an early VRAM-abort - some entries were left unreviewed.")
+        else:
+            print("Task review completed with an early VRAM-abort - some entries were saved unreviewed.")
     elif total_stats["batches_failed"] > 0:
         print(f"Task review completed with {total_stats['batches_failed']} unresolved batch(es) - complete review remains pending.")
     elif not review_complete:

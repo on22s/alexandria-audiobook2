@@ -49,7 +49,7 @@ class BatchReviewPassStatusTests(unittest.TestCase):
                     calls.append((phase,'nickname' if nickname else 'review'))
                     if nickname:
                         return (1,['fixture discovery crashed']) if nick_failure and phase == 'fwd' else (0,[])
-                    self.assertEqual(phase == 'bwd' or label == 'single_forced', '--force-review' in command)
+                    self.assertEqual(label == 'single_forced', '--force-review' in command)
                     return (fwd_rc,fwd_lines) if phase == 'fwd' else (bwd_rc,bwd_lines)
 
                 def summary(lines, _insert, _totals, incomplete):
