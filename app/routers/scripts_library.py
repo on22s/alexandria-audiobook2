@@ -609,13 +609,16 @@ def _load_script_sync(request: ScriptLoadRequest):
     # Task admission stays kernel-held (hold_task_mutex=False), but the GPU
     # mutex is taken only AFTER every book/journal wait: an edit holds the
     # book journal while waiting for that mutex, so holding it here first
-    # deadlocks the load into a 409 and blocks the editor meanwhile.
-    with (ensure_book_switch_allowed(hold_task_mutex=False),
+    # deadlocks the load into a 409 and blocks the editor meanwhile. Release
+    # kernel admission before waking local claimants waiting on the GPU mutex.
+    with (contextlib.ExitStack() as task_mutex,
+          ensure_book_switch_allowed(hold_task_mutex=False),
           ensure_book_state(DATA_DIR, timeout=0.25),
           ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR, timeout=0.25),
           file_lock(src, timeout=0.25), file_lock(SCRIPT_PATH, timeout=0.25),
           file_lock(VOICE_CONFIG_PATH, timeout=0.25), file_lock(CHUNKS_PATH, timeout=0.25),
-          file_lock(os.path.join(DATA_DIR, BINDING_NAME), timeout=0.25), _gpu_lock):
+          file_lock(os.path.join(DATA_DIR, BINDING_NAME), timeout=0.25)):
+        task_mutex.enter_context(_gpu_lock)
         if not os.path.isfile(src):
             raise HTTPException(status_code=404, detail=f"Saved script '{request.name}' not found.")
         _require_saved_book_idle()

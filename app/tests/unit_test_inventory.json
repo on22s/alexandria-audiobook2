@@ -1912,6 +1912,7 @@
     , "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_an_undo_that_cannot_be_proven_parks_without_touching_more"
     , "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_directories_exchange_across_parents_with_a_recorded_chain"
     , "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_one_name_twice_or_one_object_twice_is_refused"
+    , "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_saved_delete_reports_diverged_exchange_when_rollback_refuses"
     , "tests.test_book_state_1660_anchored_exchange.AnchoredExchangeTests.test_unsupported_exchange_moves_nothing"
   ]
   , "test_book_state_1660_auto_quarantine": [
@@ -3248,6 +3249,35 @@
     , "tests.test_chunk_generation_identity.ChunkGenerationIdentityTests.test_single_and_native_batch_preserve_identity_after_insert_delete_or_conversion_edit"
     , "tests.test_chunk_generation_identity.ChunkGenerationIdentityTests.test_single_and_parallel_failure_do_not_reset_changed_target"
     , "tests.test_chunk_generation_identity.ChunkGenerationIdentityTests.test_unrelated_edits_survive_final_publication"
+  ]
+  , "test_chunk_lock_journal_safety": [
+    "tests.test_chunk_lock_journal_safety.CancelLocalClaimRaceTests.test_local_audio_claim_at_fence_is_cancelled_not_refused"
+    , "tests.test_chunk_lock_journal_safety.CancelLocalClaimRaceTests.test_local_audio_claim_holding_admission_is_cancelled"
+    , "tests.test_chunk_lock_journal_safety.CancelLockOrderTests.test_bounded_edit_cancel_race_resets_the_stale_row"
+    , "tests.test_chunk_lock_journal_safety.CancelLockOrderTests.test_foreign_audio_lease_leaves_the_generating_row_intact"
+    , "tests.test_chunk_lock_journal_safety.ChunkEditLockOrderTests.test_edit_enters_book_journal_before_gpu_mutex"
+    , "tests.test_chunk_lock_journal_safety.ChunkEditLockOrderTests.test_operation_reuses_the_outer_book_admission"
+    , "tests.test_chunk_lock_journal_safety.DeferredEditRecoveryTests.test_busy_refused_edit_preserves_committed_journal_and_recovers_when_allowed"
+    , "tests.test_chunk_lock_journal_safety.DeletedChunkReceiptsTests.test_deletion_writer_uses_the_receipt_leaf_lock"
+    , "tests.test_chunk_lock_journal_safety.DeletedChunkReceiptsTests.test_reader_snapshots_while_writers_resize_the_dict"
+    , "tests.test_chunk_lock_journal_safety.FencedSettingsLockOrderTests.test_cache_clear_waits_for_book_without_gpu_mutex"
+    , "tests.test_chunk_lock_journal_safety.FencedSettingsLockOrderTests.test_occurrence_rules_take_book_before_gpu"
+    , "tests.test_chunk_lock_journal_safety.InsertRouteStorageFaultTests.test_directory_at_lock_path_is_a_path_free_storage_failure"
+    , "tests.test_chunk_lock_journal_safety.InsertRouteStorageFaultTests.test_held_state_lock_is_a_distinct_path_free_409"
+    , "tests.test_chunk_lock_journal_safety.JournalErrorMappingTests.test_damaged_journal_is_a_path_free_500"
+    , "tests.test_chunk_lock_journal_safety.JournalErrorMappingTests.test_generate_route_maps_the_same_journal_errors"
+    , "tests.test_chunk_lock_journal_safety.JournalErrorMappingTests.test_lock_timeout_is_a_path_free_409"
+    , "tests.test_chunk_lock_journal_safety.JournalErrorMappingTests.test_recovery_validation_failure_becomes_book_transaction_error"
+    , "tests.test_chunk_lock_journal_safety.JournalFaultBypassRouteTests.test_uncertain_and_diverged_map_identically_on_every_bypass_route"
+    , "tests.test_chunk_lock_journal_safety.JournalFaultBypassRouteTests.test_valid_v1_journal_maps_identically_for_cancel_and_delete"
+    , "tests.test_chunk_lock_journal_safety.MarkupSharedAdmissionTests.test_pending_journal_refuses_preview_apply_and_replay_without_recovery"
+    , "tests.test_chunk_lock_journal_safety.MarkupSharedAdmissionTests.test_preview_apply_replay_share_one_admission"
+    , "tests.test_chunk_lock_journal_safety.RecoveryClassRouteTests.test_uncertain_publication_maps_identically_and_reserves_no_task"
+    , "tests.test_chunk_lock_journal_safety.RecoveryClassRouteTests.test_valid_v1_migration_maps_identically_and_reserves_no_task"
+    , "tests.test_chunk_lock_journal_safety.SavedBookDeletePublicationFaultTests.test_uncertain_and_diverged_at_publication_map_identically"
+    , "tests.test_chunk_lock_journal_safety.SavedBookLoadLockOrderTests.test_load_waits_for_book_without_gpu_mutex_while_insert_proceeds"
+    , "tests.test_chunk_lock_journal_safety.SpeakerReviewApplyJournalTests.test_committed_journal_and_live_lease_refuse_apply_without_mutation"
+    , "tests.test_chunk_lock_journal_safety.SpeakerReviewApplyPendingTests.test_genuine_pending_journal_gets_apply_specific_text"
   ]
   , "test_chunk_outlier_check": [
     "tests.test_chunk_outlier_check.OutlierEvidenceTests.test_actual_cancel_callback_prevents_any_evidence_write"
@@ -5932,7 +5962,7 @@
     , "tests.test_export_publication.ExportPublicationTests.test_supplied_stale_uid_and_changed_rows_during_capture_are_refused"
   ]
   , "test_export_publication_transaction": [
-    "tests.test_export_publication_transaction.PublicationTransactionTests.test_actual_editor_waits_outside_book_during_owner_aware_transaction"
+    "tests.test_export_publication_transaction.PublicationTransactionTests.test_actual_editor_takes_book_before_gpu_during_owner_aware_transaction"
     , "tests.test_export_publication_transaction.PublicationTransactionTests.test_live_lease_identity_thread_lifetime_and_cleanup_are_scoped"
     , "tests.test_export_publication_transaction.PublicationTransactionTests.test_whole_set_scoped_admission_refuses_contention_and_changed_retained_file"
   ]
