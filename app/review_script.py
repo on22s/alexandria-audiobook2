@@ -1584,22 +1584,54 @@ def is_review_literal_source(text, policy):
             and get_word_identity([selected]) == policy['source_words'])
 
 
-def _retained_source_boundary(text, words, scope, parent_entries=None):
-    """Raw offset after the excluded region, by verified partition when present."""
-    start = scope['start_word']
-    if parent_entries is not None:
-        parent_policy = get_literal_policy(parent_entries)
-        cursor = (parent_policy['scope_source']['start_word']
-                  if parent_policy and parent_policy['boundary'] == 'selected_source_words_v1' else 0)
-        boundary = 0
-        for row in parent_entries:
-            span = row.get('source_span')
-            count = sum(1 for _ in iter_literal_words(row['text']))
-            if count and cursor + count <= start and isinstance(span, (list, tuple)):
-                boundary = max(boundary, span[1])
-            cursor += count
-        return boundary
-    return words[start - 1][2] if start else 0
+def _retained_parent_regions(scope, parent_entries):
+    """Raw intervals of parent rows that remain in the child's selection."""
+    from literal_policy import get_literal_policy as read_policy
+    parent_policy = read_policy(parent_entries)
+    cursor = (parent_policy['scope_source']['start_word']
+              if parent_policy and parent_policy['boundary'] == 'selected_source_words_v1' else 0)
+    ranges = []
+    for row in parent_entries:
+        span = row.get('source_span')
+        count = sum(1 for _ in iter_literal_words(row['text']))
+        ranges.append((cursor, cursor + count, span))
+        cursor += count
+    regions = []
+    for start_word, end_word, span in ranges:
+        if (isinstance(span, (list, tuple)) and len(span) == 2
+                and (end_word > scope['start_word'] or start_word == end_word)):
+            regions.append(span)
+    return regions
+
+
+def _direct_leading_region(text, scope, entries):
+    """Unique raw region of wordless rows before the first retained word."""
+    from dialogue_spans import _normalize, _normalize_with_offsets
+    if not scope['start_word']:
+        return None
+    first = next((index for index, entry in enumerate(entries)
+                  if any(True for _ in iter_literal_words(entry['text']))), None)
+    if first is None or not first:
+        return None
+    anchor = entries[first].get('source_span')
+    if (not isinstance(anchor, (list, tuple)) or len(anchor) != 2
+            or any(type(value) is not int for value in anchor)):
+        raise ValueError('First retained row has no verified span')
+    needle = _normalize(' '.join(entry['text'] for entry in entries[:first + 1]))
+    normalized, offsets = _normalize_with_offsets(text)
+    matches = []
+    cursor = 0
+    while True:
+        position = normalized.find(needle, cursor)
+        if position < 0:
+            break
+        raw_start = offsets[position]
+        if _normalize(text[raw_start:anchor[1]]) == needle:
+            matches.append((raw_start, anchor[1]))
+        cursor = position + 1
+    if len(matches) != 1:
+        raise ValueError('Retained leading sequence is not uniquely located')
+    return matches[0]
 
 
 def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=None):
@@ -1609,20 +1641,25 @@ def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=No
     if scope['total_words'] != len(words) or scope['end_word'] != len(words):
         raise ValueError('Scoped source word count differs')
     expected = words[scope['start_word']:]
-    excluded_end = _retained_source_boundary(text, words, scope, parent_entries)
+    regions = (_retained_parent_regions(scope, parent_entries)
+               if parent_entries is not None else None)
+    leading = _direct_leading_region(text, scope, entries) if regions is None else None
+    first_word = next((position for position, item in enumerate(entries)
+                       if any(True for _ in iter_literal_words(item['text']))), len(entries))
     cursor = 0
-    for entry in entries:
+    for index, entry in enumerate(entries):
         span = entry.get('source_span')
         if (not isinstance(span, (list, tuple)) or len(span) != 2
                 or any(type(value) is not int for value in span)
                 or not 0 <= span[0] < span[1] <= len(text)):
             raise ValueError('Scoped row has no verified source span')
-        if span[0] < excluded_end:
-            raise ValueError('Scoped row span starts in excluded source words')
-        row_words = list(iter_literal_words(entry['text']))
-        if not row_words and span[0] > 0 and not text[span[0] - 1].isspace():
-            raise ValueError('Wordless row has no unambiguous retained boundary')
-        for word, _, _ in row_words:
+        if regions is not None and not any(
+                region[0] <= span[0] and span[1] <= region[1] for region in regions):
+            raise ValueError('Scoped row span is outside the parent retained partition')
+        if (leading is not None and index < first_word
+                and not (leading[0] <= span[0] and span[1] <= leading[1])):
+            raise ValueError('Leading row span is outside the retained sequence')
+        for word, _, _ in iter_literal_words(entry['text']):
             if cursor >= len(expected) or expected[cursor][0] != word:
                 raise ValueError('Scoped rows do not match the selected source words')
             word_start, word_end = expected[cursor][1], expected[cursor][2]

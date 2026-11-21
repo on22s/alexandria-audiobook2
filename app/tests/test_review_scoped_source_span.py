@@ -794,3 +794,108 @@ class FinalAstraFindingsTests(unittest.TestCase):
         self.assertEqual(expected, digest)
         self.assertLess(peak, 16 * 1024 * 1024)
         self.assertEqual([('x', 0, 1)], list(iter_literal_words('x')))
+
+
+class OwnershipAndCompositionTests(unittest.TestCase):
+    """Final Astra pass: punctuation ownership and combining-mark composition."""
+
+    def build_contrasts(self, lead):
+        rows = [row(lead, 'NARRATOR'), row('!', 'NARRATOR'),
+                row('Keep the line.', 'NARRATOR'), *copy.deepcopy(RAW_ROWS[5:])]
+        raw = '\n\n'.join(entry['text'] for entry in rows)
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        whole = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
+        chunks = bind_literal_chunks(
+            [{'text': lead, 'uid': 'first'}, {'text': '! Keep the line.', 'uid': 'second'},
+             *[{'text': entry['text'], 'uid': f'z{index}'}
+               for index, entry in enumerate(whole[3:])]], get_literal_policy(whole))
+        child = get_literal_scope(raw, whole, chunks, 1, 1, input_sha256=digest)
+        return raw, whole, child
+
+    def publish(self, directory, script, batch, *, expected):
+        saved, stdout, _, _ = run_cli_at(directory, script, [self.split(batch)])
+        published = NEW_SPEAKER in [entry['speaker'] for entry in saved]
+        receipt = Path(str(script) + '.review_completed.json').exists()
+        self.assertEqual(expected, published, stdout[-800:])
+        self.assertEqual(expected, receipt, stdout[-800:])
+        return saved
+
+    def split(self, batch):
+        index = next(i for i, entry in enumerate(batch) if '\n\n' in entry['text'])
+        narrator = {key: value for key, value in batch[index].items()
+                    if key not in ('text', SCRIPT_POLICY_KEY)}
+        paragraphs = batch[index]['text'].split('\n\n')
+        reply = [{key: value for key, value in entry.items()
+                  if key not in ('source_span', SCRIPT_POLICY_KEY)} for entry in batch[:index]]
+        reply += [{**narrator, 'text': '\n\n'.join(paragraphs[:-1])},
+                  {**narrator, 'speaker': NEW_SPEAKER, 'text': paragraphs[-1],
+                   'instruct': 'Startled shout.', **ANNOTATIONS}]
+        reply += [{key: value for key, value in entry.items()
+                   if key not in ('source_span', SCRIPT_POLICY_KEY)} for entry in batch[index + 1:]]
+        return reply
+
+    def test_whitespace_does_not_transfer_excluded_punctuation(self):
+        for lead, wrong, right in (('Exclude me!', [10, 11], [13, 14]),
+                                   ('Exclude me !', [11, 12], [14, 15])):
+            raw, whole, child = self.build_contrasts(lead)
+            self.assertEqual('!', raw[wrong[0]:wrong[1]])
+            self.assertEqual('!', raw[right[0]:right[1]])
+            for path, parent in (('direct', None), ('whole-parent', whole),
+                                 ('scoped-parent', copy.deepcopy(child))):
+                with self.subTest(lead=lead, path=path):
+                    valid = copy.deepcopy(child)
+                    with tempfile.TemporaryDirectory() as directory:
+                        script = (create_book(directory, raw=raw, source=valid)[0] if parent is None
+                                  else make_saved_hop(directory, raw=raw, original_rows=parent,
+                                                      active_rows=valid)[0])
+                        saved = self.publish(directory, script, valid, expected=True)
+                        self.assertEqual(right, saved[0]['source_span'])
+                    tampered = copy.deepcopy(child)
+                    tampered[0]['source_span'] = list(wrong)
+                    with tempfile.TemporaryDirectory() as directory:
+                        script = (create_book(directory, raw=raw, source=tampered)[0] if parent is None
+                                  else make_saved_hop(directory, raw=raw, original_rows=parent,
+                                                      active_rows=tampered)[0])
+                        self.publish(directory, script, tampered, expected=False)
+
+    def test_adjacent_retained_word_and_punctuation_is_valid(self):
+        rows = [row(text, 'NARRATOR') for text in ('Excluded.', 'Stay', '!', 'Keep the line.')]
+        rows += copy.deepcopy(RAW_ROWS[5:])
+        raw = '\n\n'.join(entry['text'] for entry in rows).replace('Stay\n\n!', 'Stay!')
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        whole = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
+        chunks = bind_literal_chunks(
+            [{'text': 'Excluded.', 'uid': 'first'},
+             {'text': 'Stay! Keep the line.', 'uid': 'second'},
+             *[{'text': entry['text'], 'uid': str(index)}
+               for index, entry in enumerate(whole[4:])]], get_literal_policy(whole))
+        child = get_literal_scope(raw, whole, chunks, 1, 1, input_sha256=digest)
+        self.assertEqual([11, 15], child[0]['source_span'])
+        self.assertEqual([15, 16], child[1]['source_span'])
+        for path, parent in (('direct', None), ('saved', whole)):
+            with self.subTest(path=path), tempfile.TemporaryDirectory() as directory:
+                script = (create_book(directory, raw=raw, source=child)[0] if parent is None
+                          else make_saved_hop(directory, raw=raw, original_rows=parent,
+                                              active_rows=child)[0])
+                saved = self.publish(directory, script, child, expected=True)
+                self.assertEqual([15, 16], saved[1]['source_span'])
+
+    def test_combining_sequences_keep_legacy_digest_and_raw_offsets(self):
+        for word, expected_span in (('a\u0327\u0301', [11, 14]), ('\u00e1\u0327', [11, 13])):
+            with self.subTest(word=word):
+                expected_digest = get_word_identity([word])['sha256']
+                self.assertEqual(expected_digest, get_word_identity(
+                    [unicodedata.normalize('NFC', word)])['sha256'])
+                self.assertEqual(expected_span[1] - expected_span[0], len(word))
+                rows = [row('Excluded.', 'NARRATOR'), row(word, 'NARRATOR'),
+                        *copy.deepcopy(RAW_ROWS[5:])]
+                raw = '\n\n'.join(entry['text'] for entry in rows)
+                retained, _ = build_scoped_rows(raw, rows, 1)
+                self.assertEqual(expected_span, retained[0]['source_span'])
+                with tempfile.TemporaryDirectory() as directory:
+                    script, _, entries = create_book(directory, raw=raw, source=retained)
+                    self.assertEqual(raw, review.get_review_source_text(
+                        directory, str(script), script.read_bytes(), entries))
+                    saved = self.publish(directory, script, retained, expected=True)
+                    self.assertEqual(word, saved[0]['text'])
+                    self.assertEqual(expected_span, saved[0]['source_span'])

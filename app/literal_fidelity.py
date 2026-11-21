@@ -42,20 +42,12 @@ def _normalized_with_offsets(text):
         sequences.append(sequence)
     pieces = []
     for sequence in sequences:
-        ordered = [sequence[0]] + sorted(sequence[1:],
-                                        key=lambda item: unicodedata.combining(item[0]))
-        built, composed = '', []
-        for char, raw_start, raw_end in ordered:
-            candidate = unicodedata.normalize('NFC', built + char)
-            if len(candidate) <= len(built):
-                preceding = composed[-1]
-                composed[-1] = (candidate[-1], preceding[1], raw_end)
-            else:
-                for output in candidate[len(built):]:
-                    composed.append((output, raw_start, raw_end))
-            built = candidate
-        pieces.extend(composed)
-    normalized = ''.join(piece[0] for piece in pieces).replace('’', "'")
+        composed = unicodedata.normalize('NFC', ''.join(item[0] for item in sequence))
+        raw_start = min(item[1] for item in sequence)
+        raw_end = max(item[2] for item in sequence)
+        for output in composed.replace('’', "'"):
+            pieces.append((output, raw_start, raw_end))
+    normalized = ''.join(piece[0] for piece in pieces)
     baseline = unicodedata.normalize('NFC', text).replace('’', "'")
     if normalized != baseline:
         raise ValueError('Literal NFC offset alignment differs from whole-string NFC')
