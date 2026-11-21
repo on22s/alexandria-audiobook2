@@ -7,6 +7,7 @@ independent full-output admission; worker success alone is not publication.
 """
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import threading
@@ -21,6 +22,39 @@ from pcm_mux_worker_request import get_pcm_mux_worker_request, MAX_REQUEST_BYTES
 from pcm_worker_contract import MAX_PCM_BYTES, get_pcm_worker_error_context
 from project_scope_files import capture_scope_file
 from export_staging import get_encoder_staging_source_root
+
+
+def iter_mux_packets(native, output_format):
+    packets = native.demux(audio=0)
+    if output_format != 'mp3':
+        yield from packets
+        return
+
+    # FFmpeg 23fccd65 (Lavf 63.5.101, released in 9.1) sums consecutive
+    # trailing discard counts. The pinned PyAV muxer (Lavf 62.3.100) writes
+    # just the last count into Xing, as do native releases through 9.0.
+    writer = re.fullmatch(r'Lavf(\d+)\.(\d+)\.(\d+)', native.metadata.get('encoder', ''))
+    if not writer:
+        raise ValueError('Missing native MP3 transport writer version')
+    if tuple(map(int, writer.groups())) < (63, 5, 101):
+        yield from packets
+        return
+
+    trailing_discard = 0
+    for packet in packets:
+        if packet.size and packet.has_sidedata('skip_samples'):
+            side = packet.get_sidedata('skip_samples')
+            data = bytearray(side)
+            discard = int.from_bytes(data[4:8], 'little')
+            if trailing_discard and discard:
+                discard += trailing_discard
+                data[4:8] = discard.to_bytes(4, 'little')
+                side.update(data)
+                packet.set_sidedata(side, move=True)
+            trailing_discard = discard
+        else:
+            trailing_discard = 0
+        yield packet
 
 
 def run_pcm_mux_worker(directory):
@@ -89,7 +123,7 @@ def run_pcm_mux_worker(directory):
                         or len(native.streams.audio[0].codec_context.layout.channels) != request.output_channels):
                     raise ValueError('Unexpected native PCM encoder streams')
                 audio = mux.add_stream_from_template(native.streams.audio[0])
-                for packet in native.demux(audio=0):
+                for packet in iter_mux_packets(native, request.format):
                     if packet.size:
                         if packet.pts is None or packet.dts is None:
                             raise ValueError('Native PCM packet is missing its source clock')
