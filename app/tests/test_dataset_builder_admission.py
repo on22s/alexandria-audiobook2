@@ -52,7 +52,7 @@ class DatasetBuilderAdmissionTests(unittest.TestCase):
 
     def test_actual_asgi_can_ping_while_single_sample_worker_is_held_and_publishes_exact_pcm(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);work=root/'voice';work.mkdir();(work/'state.json').write_text(json.dumps({'samples':[{'text':'Old','emotion':'calm','status':'pending'}]}))
+            root=Path(tmp);work=root/'voice';work.mkdir();stored={'samples':[{'text':'Old','emotion':'calm','status':'pending'}]};(work/'state.json').write_text(json.dumps(stored))
             source=root/'source.wav';sf.write(source,np.full(240,.125),24000);expected_audio=source.read_bytes()
             entered=threading.Event();release=threading.Event();states={'dataset_builder':{'running':False,'logs':[]}};threads=[]
             def claim(task, *, resources):states[task]['running']=True;threads.append(('claim',threading.get_ident()));return 'fixture'
@@ -62,7 +62,7 @@ class DatasetBuilderAdmissionTests(unittest.TestCase):
             timer=threading.Timer(.5,release.set);timer.start()
             async def exercise():
                 async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.api()),base_url='http://fixture') as client:
-                    task=asyncio.create_task(client.post('/api/dataset_builder/generate_sample',json={'dataset_name':'voice','sample_index':0,'description':'Warm','text':'Known','seed':0}))
+                    task=asyncio.create_task(client.post('/api/dataset_builder/generate_sample',json={'dataset_name':'voice','sample_index':0,'description':'Warm','text':'Known','seed':0,'expected_count':1,'expected_revision':routes.get_dataset_row_revision(stored['samples'][0])}))
                     try:
                         self.assertTrue(await asyncio.to_thread(entered.wait,2))
                         response=await asyncio.wait_for(client.get('/ping'),.2)

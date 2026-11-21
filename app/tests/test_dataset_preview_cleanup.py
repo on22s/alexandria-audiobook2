@@ -44,10 +44,10 @@ class DatasetPreviewCleanupTests(unittest.TestCase):
             def release(name, token, **kwargs):
                 self.assertEqual('owned-fixture', token)
                 states[name]['running'] = False
-            def start(name, token, worker):
+            def start(name, token, worker, resolved=None):
                 self.assertEqual('owned-fixture', token)
                 try:
-                    worker()
+                    worker(resolved)
                 finally:
                     release(name, token)
             for name, value in (('DATASET_BUILDER_DIR', str(work.parent)), ('process_state', states),

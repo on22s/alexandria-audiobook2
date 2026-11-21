@@ -637,6 +637,7 @@ for (const fail of [false, true]) {
         let resolve, reject;
         context.API.post = () => new Promise((yes, no) => { resolve = yes; reject = no; });
         const pending = context.dsbGenSample(0);
+        await new Promise(resolve => setImmediate(resolve));
         assert.strictEqual(run('dsbRows[0].status'), 'generating');
         if (change === 'project') {
             run("dsbCurrentProject = 'B'; dsbRows = [{text:'other',status:'pending'}];");

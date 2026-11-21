@@ -494,12 +494,21 @@
         window.dsbGenSample = async (index) => {
             if (!ensureDatasetRowsEditable()) { return; }
             const name = dsbCurrentProject;
-            const rootDesc = document.getElementById('dsb-description').value.trim();
             if (!name) { showToast(t('workbench.error.no-project', 'Select or create a project first.'), 'warning'); return; }
-            if (!rootDesc) { showToast(t('workbench.error.no-root-description', 'Enter a root voice description first.'), 'warning'); return; }
-
             const row = dsbRows[index];
             if (!row || !row.text.trim()) { showToast(t('workbench.error.row-no-text', 'This row has no text.'), 'warning'); return; }
+            const sequence = dsbBatchStartSequence;
+            try {
+                await Promise.all([dsbSaveRowsQueue?.flush(), dsbSaveMetaQueue?.flush()]);
+            } catch (error) {
+                _toastSaveError('rows', error);
+                return;
+            }
+            if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name)
+                || dsbRows[index] !== row || !ensureDatasetRowsEditable()) { return; }
+            const rootDesc = document.getElementById('dsb-description').value.trim();
+            if (!rootDesc) { showToast(t('workbench.error.no-root-description', 'Enter a root voice description first.'), 'warning'); return; }
+
             const definition = JSON.stringify(getDatasetRowDefinition(row));
             const isCurrent = () => isDatasetProjectSelected(name) && dsbRows[index] === row
                 && JSON.stringify(getDatasetRowDefinition(row)) === definition;
@@ -516,23 +525,32 @@
                 seed = inheritSeed ? globalSeed : lineSeed;
             } catch (e) { showToast(e.message, 'error'); return; }
 
+            const tokens = ensureDatasetRowSaveState(name).tokens;
+            const expectedRevision = tokens?.[index];
+            const request = {
+                description,
+                text: getDatasetRowDefinition(row).text,
+                dataset_name: name,
+                sample_index: index,
+                seed,
+                inherit_seed: inheritSeed,
+                expected_count: dsbRows.length,
+            };
+            if (/^[0-9a-f]{64}$/.test(expectedRevision || '')) { request.expected_revision = expectedRevision; }
+
             // Optimistic UI
             dsbRows[index].status = 'generating';
             dsbRows[index].error = '';
             dsbRenderTable();
 
             try {
-                const result = await API.post('/api/dataset_builder/generate_sample', {
-                    description,
-                    text: row.text.trim(),
-                    dataset_name: name,
-                    sample_index: index,
-                    seed,
-                    inherit_seed: inheritSeed,
-                });
+                const result = await API.post('/api/dataset_builder/generate_sample', request);
                 if (!isCurrent()) { return; }
                 dsbRows[index].status = 'done';
                 dsbRows[index].audio_url = result.audio_url;
+                if (/^[0-9a-f]{64}$/.test(result.row_revision || '') && tokens?.[index]) {
+                    tokens[index] = result.row_revision;
+                }
             } catch (e) {
                 if (!isCurrent()) { return; }
                 dsbRows[index].status = 'error';
@@ -579,15 +597,30 @@
 
             try {
                 await Promise.all([dsbSaveRowsQueue?.flush(), dsbSaveMetaQueue?.flush()]);
-                if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name)) { return; }
-                await API.post('/api/dataset_builder/generate_batch', {
+                if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name)
+                    || dsbRows !== rows) { return; }
+                const tokens = ensureDatasetRowSaveState(name).tokens;
+                const revisions = {};
+                let complete = true;
+                for (const index of indices) {
+                    const revision = tokens?.[index];
+                    if (/^[0-9a-f]{64}$/.test(revision || '')) { revisions[index] = revision; }
+                    else { complete = false; }
+                }
+                const request = {
                     name,
                     description: rootDesc,
-                    samples: dsbRows.map(r => ({ emotion: r.emotion || '', text: r.text || '' })),
+                    samples: dsbRows.map(r => {
+                        const definition = getDatasetRowDefinition(r);
+                        return { emotion: definition.emotion, text: definition.text };
+                    }),
                     indices,
                     global_seed: globalSeed,
                     seeds: perSeeds,
-                });
+                    expected_count: dsbRows.length,
+                };
+                if (complete) { request.expected_revisions = revisions; }
+                await API.post('/api/dataset_builder/generate_batch', request);
 
                 if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name)) { return; }
                 dsbPendingStart = null;

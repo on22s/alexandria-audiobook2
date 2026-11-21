@@ -4215,6 +4215,17 @@
     "tests.test_dataset_builder_foreign_ownership.DatasetBuilderForeignOwnershipTests.test_mutations_refuse_foreign_generation_and_preserve_project_bytes"
     , "tests.test_dataset_builder_foreign_ownership.DatasetBuilderForeignOwnershipTests.test_unrelated_project_metadata_stays_editable_during_foreign_generation"
   ]
+  , "test_dataset_builder_generation_revision": [
+    "tests.test_dataset_builder_generation_revision.DatasetGenerationRevisionTests.test_cross_process_project_lease_fences_row_edits_only_for_that_project"
+    , "tests.test_dataset_builder_generation_revision.DatasetGenerationRevisionTests.test_first_run_batch_creates_rows_without_revisions"
+    , "tests.test_dataset_builder_generation_revision.DatasetGenerationRevisionTests.test_legacy_generation_uses_persisted_text_and_voice_definition"
+    , "tests.test_dataset_builder_generation_revision.DatasetGenerationRevisionTests.test_partial_or_countless_binding_is_controlled_4xx"
+    , "tests.test_dataset_builder_generation_revision.DatasetGenerationRevisionTests.test_repeated_valid_generation_consumes_each_returned_revision"
+    , "tests.test_dataset_builder_generation_revision.DatasetGenerationRevisionTests.test_stale_single_snapshot_is_refused_before_claim_tts_or_files"
+    , "tests.test_dataset_builder_generation_revision.DatasetGenerationRevisionTests.test_whole_batch_refuses_when_one_row_is_stale"
+    , "tests.test_dataset_builder_generation_revision.DatasetGenerationRevisionTests.test_write_between_batch_preflight_and_lease_releases_pending_claim"
+    , "tests.test_dataset_builder_generation_revision.DatasetGenerationRevisionTests.test_write_between_single_preflight_and_lease_releases_owned_claim"
+  ]
   , "test_dataset_builder_ownership": [
     "tests.test_dataset_builder_ownership.DatasetBuilderOwnershipTests.test_active_project_delete_refuses_and_keeps_its_complete_working_state"
     , "tests.test_dataset_builder_ownership.DatasetBuilderOwnershipTests.test_batch_setup_failure_releases_only_the_unstarted_reservation"

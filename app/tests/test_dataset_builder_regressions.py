@@ -208,7 +208,9 @@ class DatasetBuilderRegressionTests(unittest.TestCase):
         engine = SimpleNamespace(generate_voice_design=Mock(return_value=(str(wav), None)))
         manager = SimpleNamespace(get_engine=lambda: engine)
         request = dataset_builder.DatasetSampleGenRequest(
-            dataset_name="voice", sample_index=0, description="new voice", text="New text", seed=9)
+            dataset_name="voice", sample_index=0, description="new voice", text="New text", seed=9,
+            expected_count=1,
+            expected_revision=dataset_builder.get_dataset_row_revision(self.original))
         with patch.object(dataset_builder, "project_manager", manager), \
              patch.object(dataset_builder, "check_global_gpu_lock"), \
              patch.object(dataset_builder, "claim_gpu_task") as claim:
@@ -338,7 +340,10 @@ class GeneratedSampleSeedTests(unittest.TestCase):
              patch.object(dataset_builder.project_manager, "get_engine", return_value=engine):
             for seed in (123, 0, -1):
                 with self.subTest(seed=seed):
-                    request = {"dataset_name": "voice", "sample_index": 0, "description": "warm, calm", "text": " A new line. ", "seed": seed}
+                    request = {"dataset_name": "voice", "sample_index": 0, "description": "warm, calm", "text": " A new line. ", "seed": seed,
+                               "expected_count": 1,
+                               "expected_revision": dataset_builder.get_dataset_row_revision(
+                                   dataset_builder._load_builder_state("voice")["samples"][0])}
                     before = copy.deepcopy(request)
                     source.write_bytes(original)
                     response = client.post("/api/dataset_builder/generate_sample", json=request)
@@ -422,7 +427,8 @@ class DatasetBenchmarkThreadTests(unittest.TestCase):
             return response
         def start_thread(*args, **kwargs):
             worker = real_thread(*args, **kwargs)
-            threads.append(worker)
+            if getattr(kwargs.get("target"), "__name__", "") == "_run_owned_background_task":
+                threads.append(worker)
             return worker
         with tempfile.TemporaryDirectory() as tmp:
             wav = Path(tmp) / "source.wav"
