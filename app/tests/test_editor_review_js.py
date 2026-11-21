@@ -403,6 +403,28 @@ assert(document.getElementById('editor-line-speech-status').textContent.includes
 assert(!document.getElementById('editor-line-speech-status').textContent.includes('different selection'));
 ''')
 
+    def test_first_recheck_without_current_digest_installs_evidence_and_refreshes(self):
+        self.run_js(r'''
+vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-speech-verification.js'),'utf8'),context);
+context.getChunkAudioIdentity=chunk=>chunk.audio_revision;context.isEditorEditPending=()=>false;
+const chunk=context.cachedChunks[1];chunk.audio_revision='selected';chunk.audio_path='one.wav';
+chunk.speech_verification_historical={book_token:context.chunkSnapshotBookToken,uid:chunk.uid,audio_revision:'selected',status:'no_content_candidate',expected_text:'Historical input',audio:{sha256:'e'.repeat(64)}};
+chunk.speech_verification_historical_reason='legacy';delete chunk.speech_verification;
+assert.equal(run('getSpeechVerificationEvidenceDigest(getEditorReviewTarget())'),null);
+let serverRevision=context.chunkSnapshotRevision,refreshes=0;
+context.ensureEditorRenderSnapshot=async()=>[context.cachedChunks[0],context.cachedChunks[1]];
+context.ensureChunkRefresh=async()=>{refreshes++;context.cachedChunks[1]={...chunk,speech_verification:{...chunk.speech_verification_historical,status:'review',input_digest:'f'.repeat(64)}};delete context.cachedChunks[1].speech_verification_historical;serverRevision='c'.repeat(64);context.chunkSnapshotRevision=serverRevision;return context.cachedChunks;};
+context.API.get=async()=>{const data=facts();data.revision=serverRevision;data.rows[1].speech=context.cachedChunks[1].speech_verification?.status||'not_checked';return data;};
+context.API.post=async()=>({book_token:context.chunkSnapshotBookToken,uid:chunk.uid,receipt:{audio_revision:'selected'}});
+await context.refreshEditorReview();context.selectEditorReviewLineById(1);
+assert.equal(document.getElementById('editor-line-speech-recheck').disabled,false);
+await context.recheckEditorSpeech();
+assert.equal(refreshes,1);assert.equal(run('editorReviewFresh'),true);
+assert.equal(context.cachedChunks[1].speech_verification.status,'review');
+assert(document.getElementById('editor-line-speech-status').textContent.includes('recorded'));
+assert(!document.getElementById('editor-line-speech-status').textContent.includes('different selection'));
+''')
+
     def test_speech_recheck_requires_proven_input_and_cancel_uses_owned_endpoint(self):
         self.run_js(r'''
 vm.runInContext(fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'app-speech-verification.js'),'utf8'),context);
