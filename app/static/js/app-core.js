@@ -4050,6 +4050,17 @@
             const cb = document.getElementById('review-dedupe-speakers');
             return cb ? cb.checked : true;
         }
+        window.syncBatchReviewOptions = (changed) => {
+            if (!document.getElementById('review-batch-mode')?.checked) { return; }
+            const merge = document.getElementById('review-dedupe-speakers');
+            const discover = document.getElementById('review-batch-find-nicknames');
+            const twoPass = document.getElementById('review-batch-bidirectional');
+            if (!merge || !discover || !twoPass) { return; }
+            if (changed === twoPass && twoPass.checked) { discover.checked = true; }
+            if ((changed === discover || changed === twoPass) && discover.checked) { merge.checked = true; }
+            if (!merge.checked) { discover.checked = false; }
+            if (!discover.checked) { twoPass.checked = false; }
+        };
         function _isReviewForceChecked() {
             const cb = document.getElementById('review-force-rerun');
             return cb ? cb.checked : false;
@@ -4312,7 +4323,7 @@
             document.getElementById('review-single-area').style.display = isBatch ? 'none' : 'block';
             document.getElementById('review-batch-area').style.display = isBatch ? 'block' : 'none';
             document.getElementById('btn-review-batch-start').style.display = isBatch ? 'inline-block' : 'none';
-            if (isBatch) { loadReviewBatchScripts(); }
+            if (isBatch) { syncBatchReviewOptions(); loadReviewBatchScripts(); }
             refreshReviewRestart();
         };
 
