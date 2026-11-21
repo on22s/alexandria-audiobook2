@@ -1168,6 +1168,7 @@
   ]
   , "test_batch_completion_js": [
     "tests.test_batch_completion_js.BatchCompletionJsTests.test_actual_review_callback_reports_counts_and_preserves_recovery_controls"
+    , "tests.test_batch_completion_js.BatchCompletionJsTests.test_batch_option_checkboxes_keep_merge_and_discovery_consistent"
     , "tests.test_batch_completion_js.BatchCompletionJsTests.test_pending_start_and_done_chunks_do_not_finish_before_worker_stops"
     , "tests.test_batch_completion_js.BatchCompletionJsTests.test_terminal_partial_results_count_pending_skipped_missing_and_cancelled"
     , "tests.test_batch_completion_js.BatchCompletionJsTests.test_unavailable_status_rejects_poll_and_manual_cancel_does_not_show_success"
@@ -1286,7 +1287,11 @@
     , "tests.test_batch_result_shape.VramNoneRenderingTests.test_run_sweep_keeps_none_as_null_in_artifact_and_prints_na"
   ]
   , "test_batch_review_pass_status": [
-    "tests.test_batch_review_pass_status.BatchReviewPassStatusTests.test_actual_batch_route_and_report_keep_both_passes_completion_requirements"
+    "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_contradictions_are_refused_before_gpu_or_task_claim"
+    , "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_effective_flags_keep_legacy_omitted_default_behavior"
+    , "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_pending_run_does_not_reuse_previous_results"
+    , "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_valid_defaults_start_and_report_effective_flags"
+    , "tests.test_batch_review_pass_status.BatchReviewPassStatusTests.test_actual_batch_route_and_report_keep_both_passes_completion_requirements"
   ]
   , "test_batch_review_task_snapshots": [
     "tests.test_batch_review_task_snapshots.BatchReviewTaskSnapshotTests.test_legacy_generic_only_state_keeps_existing_response"
@@ -12583,7 +12588,11 @@
     , "tests.test_review_prompt_presets.ReviewPresetModelTests.test_old_configs_load_unchanged_and_default_to_default"
   ]
   , "test_review_scoped_source_span": [
-    "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_child_range_widening_is_refused_without_split_or_receipt"
+    "tests.test_review_scoped_source_span.FinalAstraFindingsTests.test_attached_exclamation_in_saved_child_is_not_a_retained_row"
+    , "tests.test_review_scoped_source_span.FinalAstraFindingsTests.test_attached_exclamation_is_not_a_retained_row"
+    , "tests.test_review_scoped_source_span.FinalAstraFindingsTests.test_legacy_tibetan_digest_and_pre_upgrade_policy_publication"
+    , "tests.test_review_scoped_source_span.FinalAstraFindingsTests.test_word_only_path_stays_allocation_light_and_exact"
+    , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_child_range_widening_is_refused_without_split_or_receipt"
     , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_decomposed_hangul_row_keeps_two_character_offset"
     , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_legacy_parent_keeps_both_valid_strip_choices"
     , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_native_grandchild_keeps_publication"

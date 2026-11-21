@@ -12,33 +12,54 @@ class UnverifiableLexeme(ValueError):
     pass
 
 def _normalized_with_offsets(text):
-    """NFC text with each output character's original raw character interval.
+    """Whole-string NFC text with each output character's raw interval.
 
-    One pending segment is composed at a time, so a combining mark or a
-    composable starter (including Hangul Jamo) keeps the raw span of the whole
-    segment while a non-composing starter closes it. This is the same NFC
-    policy as the word tokenizer, never a second approximation of it.
+    Raw characters are decomposed first, so a character whose canonical
+    decomposition begins with a nonstarter (Tibetan U+0F73, for example) joins
+    the preceding combining sequence even though its own combining class is
+    zero. Canonical ordering and composition are then applied per sequence and
+    the result is checked against the exact whole-string NFC baseline.
     """
-    normalized, spans = [], []
-    buffer, buffer_start, buffer_end = '', 0, 0
+    decomposed = []
     for index, char in enumerate(text):
-        if buffer:
-            previous = unicodedata.normalize('NFC', buffer)
-            combined = unicodedata.normalize('NFC', buffer + char)
-            if unicodedata.combining(char) or len(combined) <= len(previous):
-                buffer += char
-                buffer_end = index + 1
+        for piece in unicodedata.normalize('NFD', char):
+            decomposed.append((piece, index, index + 1))
+    sequences, sequence, built = [], [], ''
+    for item in decomposed:
+        char = item[0]
+        if sequence:
+            candidate = unicodedata.normalize('NFC', built + char)
+            if (len(candidate) <= len(built) or unicodedata.combining(char)
+                    or unicodedata.combining(unicodedata.normalize('NFD', char)[0])):
+                sequence.append(item)
+                built = candidate
                 continue
-            for output in previous.replace('’', "'"):
-                normalized.append(output)
-                spans.append((buffer_start, buffer_end))
-            buffer = ''
-        buffer, buffer_start, buffer_end = char, index, index + 1
-    if buffer:
-        for output in unicodedata.normalize('NFC', buffer).replace('’', "'"):
-            normalized.append(output)
-            spans.append((buffer_start, buffer_end))
-    return ''.join(normalized), spans
+            sequences.append(sequence)
+            sequence, built = [], ''
+        sequence = [item]
+        built = unicodedata.normalize('NFC', char)
+    if sequence:
+        sequences.append(sequence)
+    pieces = []
+    for sequence in sequences:
+        ordered = [sequence[0]] + sorted(sequence[1:],
+                                        key=lambda item: unicodedata.combining(item[0]))
+        built, composed = '', []
+        for char, raw_start, raw_end in ordered:
+            candidate = unicodedata.normalize('NFC', built + char)
+            if len(candidate) <= len(built):
+                preceding = composed[-1]
+                composed[-1] = (candidate[-1], preceding[1], raw_end)
+            else:
+                for output in candidate[len(built):]:
+                    composed.append((output, raw_start, raw_end))
+            built = candidate
+        pieces.extend(composed)
+    normalized = ''.join(piece[0] for piece in pieces).replace('’', "'")
+    baseline = unicodedata.normalize('NFC', text).replace('’', "'")
+    if normalized != baseline:
+        raise ValueError('Literal NFC offset alignment differs from whole-string NFC')
+    return normalized, [(piece[1], piece[2]) for piece in pieces]
 
 
 def _word_spans(value):
@@ -76,13 +97,19 @@ def _word_spans(value):
 
 def iter_literal_words(text):
     """The single literal tokenizer, yielding (word, raw_start, raw_end)."""
+    if text.isascii():
+        yield from _word_spans(text)
+        return
     normalized, spans = _normalized_with_offsets(text)
     for word, start, end in _word_spans(normalized):
-        yield word, spans[start][0], spans[end - 1][1]
+        yield (word, min(span[0] for span in spans[start:end]),
+               max(span[1] for span in spans[start:end]))
 
 
 def _words(text):
-    for word, _, _ in iter_literal_words(text):
+    """Word-only path: whole-string NFC, no per-character offset vector."""
+    value = unicodedata.normalize('NFC', text).replace('’', "'")
+    for word, _, _ in _word_spans(value):
         yield word
 
 def audit_literal_words(source_text, entries):

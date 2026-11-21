@@ -1584,14 +1584,32 @@ def is_review_literal_source(text, policy):
             and get_word_identity([selected]) == policy['source_words'])
 
 
-def verify_review_scoped_source_rows(text, entries, policy):
+def _retained_source_boundary(text, words, scope, parent_entries=None):
+    """Raw offset after the excluded region, by verified partition when present."""
+    start = scope['start_word']
+    if parent_entries is not None:
+        parent_policy = get_literal_policy(parent_entries)
+        cursor = (parent_policy['scope_source']['start_word']
+                  if parent_policy and parent_policy['boundary'] == 'selected_source_words_v1' else 0)
+        boundary = 0
+        for row in parent_entries:
+            span = row.get('source_span')
+            count = sum(1 for _ in iter_literal_words(row['text']))
+            if count and cursor + count <= start and isinstance(span, (list, tuple)):
+                boundary = max(boundary, span[1])
+            cursor += count
+        return boundary
+    return words[start - 1][2] if start else 0
+
+
+def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=None):
     """Bind inherited row spans to ordered words in the selected suffix."""
     scope = policy['scope_source']
     words = list(iter_literal_words(text))
     if scope['total_words'] != len(words) or scope['end_word'] != len(words):
         raise ValueError('Scoped source word count differs')
     expected = words[scope['start_word']:]
-    excluded_end = words[scope['start_word'] - 1][2] if scope['start_word'] else 0
+    excluded_end = _retained_source_boundary(text, words, scope, parent_entries)
     cursor = 0
     for entry in entries:
         span = entry.get('source_span')
@@ -1601,7 +1619,10 @@ def verify_review_scoped_source_rows(text, entries, policy):
             raise ValueError('Scoped row has no verified source span')
         if span[0] < excluded_end:
             raise ValueError('Scoped row span starts in excluded source words')
-        for word in (item[0] for item in iter_literal_words(entry['text'])):
+        row_words = list(iter_literal_words(entry['text']))
+        if not row_words and span[0] > 0 and not text[span[0] - 1].isspace():
+            raise ValueError('Wordless row has no unambiguous retained boundary')
+        for word, _, _ in row_words:
             if cursor >= len(expected) or expected[cursor][0] != word:
                 raise ValueError('Scoped rows do not match the selected source words')
             word_start, word_end = expected[cursor][1], expected[cursor][2]
@@ -1728,7 +1749,8 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
                     raise ValueError('Inherited literal source identity differs from the original source')
             resolved = get_review_source_entries(entries, text)
             if policy and policy['boundary'] == 'selected_source_words_v1':
-                verify_review_scoped_source_rows(text, resolved, policy)
+                verify_review_scoped_source_rows(
+                    text, resolved, policy, parent_entries=source_entries)
             choices = set(original.get('strip_choices', (False, True)))
             if source_policy is not None and 'strip_front_matter' in source_policy:
                 parent_choice = source_policy['strip_front_matter']

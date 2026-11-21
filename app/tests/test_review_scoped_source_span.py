@@ -681,3 +681,116 @@ class ResidualAstraFindingsTests(unittest.TestCase):
             script, _, entries = create_book(directory, raw=raw, source=retained)
             self.assertEqual(raw, review.get_review_source_text(
                 directory, str(script), script.read_bytes(), entries))
+
+
+class FinalAstraFindingsTests(unittest.TestCase):
+    """Third Astra pass: attached punctuation, legacy NFC, and word-only memory."""
+
+    LEGACY_TIBETAN_DIGEST = 'e57601c64aec392c11e07b6eba00d786014343760613090dd0669bee9f02b442'
+
+    def punctuation_book(self, lead, kept):
+        rows = [row(lead, 'NARRATOR'), row(kept, 'NARRATOR'),
+                row('Keep the line.', 'NARRATOR'), *copy.deepcopy(RAW_ROWS[5:])]
+        raw = '\n\n'.join(entry['text'] for entry in rows)
+        return raw, rows
+
+    def publish(self, directory, script, batch, *, expected):
+        saved, stdout, _, _ = run_cli_at(directory, script, [self.split(batch)])
+        published = NEW_SPEAKER in [entry['speaker'] for entry in saved]
+        receipt = Path(str(script) + '.review_completed.json').exists()
+        self.assertEqual(expected, published, stdout[-900:])
+        self.assertEqual(expected, receipt, stdout[-900:])
+        return saved
+
+    def split(self, batch):
+        index = next(i for i, entry in enumerate(batch) if '\n\n' in entry['text'])
+        narrator = {key: value for key, value in batch[index].items()
+                    if key not in ('text', SCRIPT_POLICY_KEY)}
+        paragraphs = batch[index]['text'].split('\n\n')
+        reply = [{key: value for key, value in entry.items()
+                  if key not in ('source_span', SCRIPT_POLICY_KEY)} for entry in batch[:index]]
+        reply += [{**narrator, 'text': '\n\n'.join(paragraphs[:-1])},
+                  {**narrator, 'speaker': NEW_SPEAKER, 'text': paragraphs[-1],
+                   'instruct': 'Startled shout.', **ANNOTATIONS}]
+        reply += [{key: value for key, value in entry.items()
+                   if key not in ('source_span', SCRIPT_POLICY_KEY)} for entry in batch[index + 1:]]
+        return reply
+
+    def test_attached_exclamation_is_not_a_retained_row(self):
+        raw, rows = self.punctuation_book('Exclude me!', '!')
+        retained, _ = build_scoped_rows(raw, rows, 1)
+        self.assertEqual('!', raw[10:11])
+        self.assertEqual('!', raw[13:14])
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=retained)
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+        tampered = copy.deepcopy(retained)
+        tampered[0]['source_span'] = [10, 11]
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=tampered)
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+            self.publish(directory, script, tampered, expected=False)
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=retained)
+            saved = self.publish(directory, script, retained, expected=True)
+            self.assertEqual([13, 14], saved[0]['source_span'])
+
+    def test_attached_exclamation_in_saved_child_is_not_a_retained_row(self):
+        raw, rows = self.punctuation_book('Exclude me!', '!')
+        parent_rows, _ = build_scoped_rows(raw, rows, 1)
+        parent = get_literal_policy(parent_rows)
+        child_rows, _ = build_scoped_rows(raw, rows, 1, ancestor=parent)
+        with tempfile.TemporaryDirectory() as directory:
+            active, _, _ = make_saved_hop(
+                directory, raw=raw, original_rows=parent_rows, active_rows=child_rows)
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(active), active.read_bytes(), child_rows))
+        tampered = copy.deepcopy(child_rows)
+        tampered[0]['source_span'] = [10, 11]
+        with tempfile.TemporaryDirectory() as directory:
+            active, _, _ = make_saved_hop(
+                directory, raw=raw, original_rows=parent_rows, active_rows=tampered)
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(active), active.read_bytes(), tampered))
+            self.publish(directory, active, tampered, expected=False)
+        with tempfile.TemporaryDirectory() as directory:
+            active, _, _ = make_saved_hop(
+                directory, raw=raw, original_rows=parent_rows, active_rows=child_rows)
+            saved = self.publish(directory, active, child_rows, expected=True)
+            self.assertEqual([13, 14], saved[0]['source_span'])
+
+    def test_legacy_tibetan_digest_and_pre_upgrade_policy_publication(self):
+        token = '\u0f40\u0f74\u0f73'
+        self.assertEqual(['\u0f40\u0f71\u0f72\u0f74'], list(_words(token)))
+        self.assertEqual(self.LEGACY_TIBETAN_DIGEST,
+                         get_word_identity([token])['sha256'])
+        self.assertEqual(self.LEGACY_TIBETAN_DIGEST,
+                         get_word_identity([unicodedata.normalize('NFC', token)])['sha256'])
+        rows = [row('Excluded.', 'NARRATOR'), row(token, 'NARRATOR'),
+                *copy.deepcopy(RAW_ROWS[5:])]
+        raw = '\n\n'.join(entry['text'] for entry in rows)
+        retained, _ = build_scoped_rows(raw, rows, 1)
+        self.assertEqual([11, 14], retained[0]['source_span'])
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=retained)
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+            saved = self.publish(directory, script, retained, expected=True)
+            self.assertEqual(raw[11:14], saved[0]['text'])
+            self.assertEqual([11, 14], saved[0]['source_span'])
+
+    def test_word_only_path_stays_allocation_light_and_exact(self):
+        import tracemalloc
+        text = ('The quick brown fox jumps over the lazy dog. ' * 24000)[:1_000_000]
+        expected = '62e28bf5e571396901d071a689c6685a5377f9a400c572fd7516aa74af076f2f'
+        tracemalloc.start()
+        try:
+            digest = get_word_identity([text])['sha256']
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        self.assertEqual(expected, digest)
+        self.assertLess(peak, 16 * 1024 * 1024)
+        self.assertEqual([('x', 0, 1)], list(iter_literal_words('x')))
