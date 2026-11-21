@@ -59,6 +59,7 @@ _HEADER_CREDENTIAL = re.compile(
 # mistaken for secrets. Residual limitation: an unformatted opaque secret with no
 # recognizable prefix under an innocent key can still pass — the config summary
 # is whitelisted precisely so real credentials never reach this text path.
+# Token characters are ASCII; adjacent Unicode text is a boundary.
 _SECRET_TOKENS = re.compile(
     r"\b("
     r"sk-[A-Za-z0-9_-]{16,}"                            # OpenAI / Anthropic
@@ -66,7 +67,7 @@ _SECRET_TOKENS = re.compile(
     r"|xox[baprs]-[A-Za-z0-9-]{10,}"                     # Slack
     r"|AKIA[0-9A-Z]{16}"                                 # AWS access key id
     r"|eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}"  # JWT
-    r")\b")
+    r")\b", re.ASCII)
 _BEARER_TOKEN = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{16,}")
 # Common home-directory shapes across platforms.
 _HOME_PATTERNS = (
