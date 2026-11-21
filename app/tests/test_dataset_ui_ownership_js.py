@@ -62,6 +62,133 @@ assert.strictEqual(run('ensureDatasetRowSaveState("A").tokens[0]'),t3);
 assert.strictEqual(run('dsbRows[0].text'),'Edited');
 ''')
 
+    def test_pending_full_save_owns_rows_across_a_metadata_ack(self):
+        self.run_scenario(r'''
+const a='a'.repeat(64),b='b'.repeat(64);
+run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'old',emotion:'',seed:'',status:'pending'}];applyDatasetRowRevisions('A',['a'.repeat(64)],1)");
+let giveMeta;const updates=[];
+context._toastSaveError=()=>{};
+context.API.post=async(url,body)=>{
+ if(url.endsWith('update_meta')){return new Promise(resolve=>giveMeta=resolve);}
+ if(url.endsWith('update_rows')){updates.push(body.rows.map(row=>row.text));return {row_revisions:body.rows.map(()=>b)};}
+ throw Error(url);};
+context.dsbSaveForm();const meta=run('dsbSaveMetaQueue.flush()');await new Promise(resolve=>setImmediate(resolve));
+context.dsbAddRow('soft','important new line',0);
+giveMeta({samples:[{text:'old',emotion:'',seed:'',status:'pending'}],row_revisions:[a]});
+await meta;
+assert.strictEqual(run('dsbRows.length'),2);
+await run('dsbSaveRowsQueue.flush()');
+assert.deepStrictEqual(plain(updates),[['old','important new line']]);
+''')
+
+    def test_metadata_definition_change_renders_but_a_draft_keeps_its_base(self):
+        self.run_scenario(r'''
+run(source.slice(source.indexOf('function dsbRenderTable('),source.indexOf('window.dsbUpdateRow')));
+const b='b'.repeat(64),warnings=[];
+context.showToast=(...args)=>warnings.push(args);context._toastSaveError=()=>{};
+run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'old',emotion:'',seed:'',status:'pending'}];applyDatasetRowRevisions('A',['a'.repeat(64)],1)");
+const tbody=context.document.getElementById('dsb-table-body');tbody.children=[];run('dsbRenderTable()');
+assert(tbody.innerHTML.includes('>old</textarea>'));
+context.API.post=async()=>({samples:[{text:'external',emotion:'',seed:'',status:'pending'}],row_revisions:[b]});
+context.dsbSaveForm();await run('dsbSaveMetaQueue.flush()');
+assert.strictEqual(run('dsbRows[0].text'),'external');assert(tbody.innerHTML.includes('>external</textarea>'));
+assert.strictEqual(run("ensureDatasetRowSaveState('A').tokens[0]"),b);
+run("dsbUpdateRow(0,'text','my draft')");
+const oldToken=run("ensureDatasetRowSaveState('A').tokens[0]");
+context.API.post=async()=>({samples:[{text:'other external',emotion:'',seed:'',status:'pending'}],row_revisions:['c'.repeat(64)]});
+context.dsbSaveForm();await run('dsbSaveMetaQueue.flush()');
+assert.strictEqual(run('dsbRows[0].text'),'my draft');
+assert.strictEqual(run("ensureDatasetRowSaveState('A').tokens[0]"),oldToken);
+assert(warnings.some(args=>String(args[0]).includes('elsewhere')));
+''')
+
+    def test_stale_metadata_ack_is_ignored_after_a_newer_row_ack(self):
+        self.run_scenario(r'''
+const a='a'.repeat(64),b='b'.repeat(64);context._toastSaveError=()=>{};context.showToast=()=>{};
+run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'old',emotion:'',seed:'',status:'pending'}];applyDatasetRowRevisions('A',['a'.repeat(64)],1)");
+let giveMeta;
+context.API.post=async(url,body)=>{
+ if(url.endsWith('update_meta')){return new Promise(resolve=>giveMeta=resolve);}
+ if(url.endsWith('edit_rows')){return {row_revisions:{0:b}};}
+ throw Error(url);};
+context.dsbSaveForm();const meta=run('dsbSaveMetaQueue.flush()');await new Promise(resolve=>setImmediate(resolve));
+context.dsbUpdateRow(0,'text','draft');await run('dsbSaveRowsQueue.flush()');
+assert.strictEqual(run("ensureDatasetRowSaveState('A').tokens[0]"),b);
+giveMeta({samples:[{text:'old',emotion:'',seed:'',status:'pending'}],row_revisions:[a]});
+await meta;
+assert.strictEqual(run('dsbRows[0].text'),'draft');
+assert.strictEqual(run("ensureDatasetRowSaveState('A').tokens[0]"),b);
+''')
+
+    def test_single_object_ack_is_applied_by_index_and_retry_uses_it(self):
+        self.run_scenario(r'''
+const a='a'.repeat(64),b='b'.repeat(64),c='c'.repeat(64);
+context.showToast=()=>{};
+context.document.getElementById('dsb-description').value='root';
+run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'first',emotion:'',seed:'',status:'pending'},{text:'second',emotion:'',seed:'',status:'pending'}];applyDatasetRowRevisions('A',['a'.repeat(64),'a'.repeat(64)],2)");
+run('dsbProbeSent=[];dsbProbePhase=0;API.post=async(url,body)=>{dsbProbeSent.push(body);if(dsbProbePhase++===0){const error=Error("provider failed");error.status=500;error.detail={message:"provider failed",row_revision:"'+b+'",row:{text:"second",emotion:"",seed:"",status:"error"}};throw error;}return {status:"done",audio_url:"/ok.wav",row_revision:"'+c+'",row:{text:"second",emotion:"",seed:"",status:"done",audio_url:"/ok.wav"}};};');
+await context.dsbGenSample(1);await context.dsbGenSample(1);
+const sent=run('dsbProbeSent');
+assert.deepStrictEqual(plain(sent).map(x=>x.expected_revision),[a,b]);
+assert.strictEqual(sent[1].sample_index,1);
+assert.strictEqual(run('dsbRows[0].text'),'first');
+assert.strictEqual(run('dsbRows[1].status'),'done');
+assert.strictEqual(run("ensureDatasetRowSaveState('A').tokens[1]"),c);
+''')
+
+    def test_batch_abort_clears_pending_start_and_allows_retry(self):
+        self.run_scenario(r'''
+const a='a'.repeat(64),b='b'.repeat(64);context.showToast=()=>{};context._toastSaveError=()=>{};
+context.document.getElementById('dsb-description').value='root';
+run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'one',emotion:'',seed:'',status:'pending'}];applyDatasetRowRevisions('A',['a'.repeat(64)],1)");
+run('dsbStartPolling=()=>{}');
+let appended=false;
+context.API.post=async(url,body)=>{
+ if(url.endsWith('update_meta') && !appended){appended=true;return {samples:[{text:'one',emotion:'',seed:'',status:'pending'},{text:'appended',emotion:'',seed:'',status:'pending'}],row_revisions:[a,b]};}
+ if(url.endsWith('generate_batch')){throw new Error('generation must not start');}
+ return {status:'ok'};};
+context.dsbSaveForm();
+const first=context.dsbGenerateAll();await first;
+assert.strictEqual(run('dsbBatchRunning'),false);
+assert.strictEqual(run('dsbPendingStart'),null);
+assert.strictEqual(run('dsbRows.length'),2);
+let posted=0;
+context.API.post=async(url)=>{if(url.endsWith('generate_batch')){posted++;}return {status:'started'};};
+await context.dsbGenerateAll();assert.strictEqual(posted,1);
+''')
+
+    def test_batch_recomputes_eligible_indices_after_the_flush(self):
+        self.run_scenario(r'''
+const b='b'.repeat(64),c='c'.repeat(64);context.showToast=()=>{};context._toastSaveError=()=>{};
+run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'one',emotion:'',seed:'',status:'done',audio_url:'/ok.wav'},{text:'two',emotion:'',seed:'',status:'pending'}];applyDatasetRowRevisions('A',['a'.repeat(64),'b'.repeat(64)],2)");
+let request;
+context.API.post=async(url,body)=>{
+ if(url.endsWith('update_meta')){return {samples:[{text:'one',emotion:'',seed:'',status:'pending'},{text:'two',emotion:'',seed:'',status:'pending'}],row_revisions:[b,c]};}
+ if(url.endsWith('generate_batch')){request=body;return {status:'started'};}
+ return {status:'ok'};};
+run('dsbStartPolling=()=>{}');
+context.document.getElementById('dsb-description').value='changed voice';
+context.dsbSaveForm();await context.dsbGenerateAll();
+assert.deepStrictEqual(plain(request.indices),[0,1]);
+assert.strictEqual(request.expected_revisions['0'],b);
+assert.strictEqual(request.expected_revisions['1'],c);
+''')
+
+    def test_empty_emotion_is_preserved_through_metadata_and_edit(self):
+        self.run_scenario(r'''
+const a='a'.repeat(64),b='b'.repeat(64);context._toastSaveError=()=>{};
+const committed={text:'old',seed:0,emotion:'',description:'root',status:'done'};
+run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'old',seed:0,emotion:'',description:'root',status:'done'}];applyDatasetRowRevisions('A',['a'.repeat(64)],1)");
+let edit;
+context.API.post=async(url,body)=>{
+ if(url.endsWith('update_meta')){return {samples:[committed],row_revisions:[b]};}
+ edit=body;return {row_revisions:{0:'c'.repeat(64)}};};
+context.dsbSaveForm();await run('dsbSaveMetaQueue.flush()');
+context.dsbUpdateRow(0,'text','new line');await run('dsbSaveRowsQueue.flush()');
+assert.strictEqual(edit.edits[0].row.emotion,'');
+assert.strictEqual(edit.edits[0].row.text,'new line');
+''')
+
     def test_scientific_seed_values_reach_generation_and_export_without_truncation(self):
         self.run_scenario(r'''
 const errors=[];context.showToast=(...args)=>errors.push(args);context.document.getElementById('dsb-description').value='voice';const global=context.document.getElementById('dsb-global-seed');let packet,exported;

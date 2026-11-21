@@ -396,11 +396,12 @@ class DatasetGenerationRevisionTests(unittest.TestCase):
         body = {'name': 'voice', 'description': 'warm', 'expected_count': 2,
                 'samples': [{'text': 'One'}], 'indices': [0],
                 'expected_revisions': {'0': revisions[0], '2': revisions[1]}}
+        original = state.read_bytes()
         with patch.object(routes, 'reserve_background_task') as reserve, TestClient(self.app) as client:
             response = client.post('/api/dataset_builder/generate_batch', json=body)
         self.assertEqual(400, response.status_code, response.text)
         reserve.assert_not_called()
-        self.assertEqual(state.read_bytes(), state.read_bytes())
+        self.assertEqual(original, state.read_bytes())
 
     def test_failure_detail_is_redacted_and_retry_uses_committed_token(self):
         self.save(self.state([{'text': 'Saved', 'seed': 0, 'status': 'pending'}]))
@@ -449,6 +450,169 @@ class DatasetGenerationRevisionTests(unittest.TestCase):
         row = self.load()['samples'][0]
         self.assertEqual(('Recovered', 'warm, calm'), (row['text'], row['description']))
         self.assertEqual('done', row['status'])
+
+
+    def test_nonregular_and_corrupt_state_fail_without_writes_or_reservation(self):
+        self.save(self.state([{'text': 'One'}]))
+        state_path = self.builder / 'voice/state.json'
+        state_path.unlink()
+        state_path.mkdir()
+        with patch.object(routes, 'claim_gpu_task') as claim, \
+             patch.object(routes, 'reserve_background_task') as reserve, \
+             TestClient(self.app) as client:
+            for route, body in (
+                ('generate_sample', {'dataset_name': 'voice', 'sample_index': 0,
+                                     'description': 'warm', 'text': 'One', 'seed': 0}),
+                ('generate_batch', {'name': 'voice', 'description': 'warm',
+                                    'samples': [{'text': 'One'}], 'indices': [0]}),
+                ('update_meta', {'name': 'voice', 'description': 'new', 'global_seed': '1'}),
+                ('update_rows', {'name': 'voice', 'rows': [{'text': 'One'}]}),
+                ('edit_rows', {'name': 'voice', 'expected_count': 1, 'edits': [
+                    {'index': 0, 'expected_revision': '0' * 64,
+                     'row': {'text': 'One', 'emotion': '', 'seed': ''}}]}),
+            ):
+                with self.subTest(route=route):
+                    response = client.post('/api/dataset_builder/' + route, json=body)
+                    self.assertEqual(500, response.status_code, response.text)
+                    self.assertIn('could not be read', response.json()['detail'])
+        claim.assert_not_called()
+        reserve.assert_not_called()
+        self.assertTrue(state_path.is_dir())
+        state_path.rmdir()
+        state_path.write_text('{"samples":[', encoding='utf-8')
+        with TestClient(self.app) as client:
+            response = client.post('/api/dataset_builder/update_meta',
+                                   json={'name': 'voice', 'description': 'new', 'global_seed': '1'})
+        self.assertEqual(500, response.status_code)
+        self.assertEqual('{"samples":[', state_path.read_text())
+
+    def test_bootstrap_eligibility_is_carried_after_the_lease(self):
+        self.save(self.state([{'text': 'Only row'}]))
+        body = {'name': 'voice', 'description': 'warm',
+                'samples': [{'text': 'Only row'}], 'indices': [0]}
+
+        def interleave(*args, **kwargs):
+            self.save(self.state([]))
+            return 'pending-claim'
+
+        with patch.object(routes, 'reserve_background_task', side_effect=interleave) as reserve, \
+             patch.object(routes, 'release_gpu_task_claim') as release, \
+             patch.object(routes, 'start_claimed_task_thread') as start, \
+             TestClient(self.app) as client:
+            response = client.post('/api/dataset_builder/generate_batch', json=body)
+        self.assertEqual(409, response.status_code, response.text)
+        reserve.assert_called_once()
+        release.assert_called_once_with('dataset_builder', 'pending-claim', pending_only=True)
+        start.assert_not_called()
+        self.assertEqual([], self.load()['samples'])
+
+    def test_bound_nonexistent_row_is_refused_on_an_empty_saved_project(self):
+        self.save(self.state([]))
+        body = {'name': 'voice', 'description': 'warm', 'samples': [{'text': 'Injected'}],
+                'indices': [0], 'expected_count': 0, 'expected_revisions': {'0': 'a' * 64}}
+        with patch.object(routes, 'reserve_background_task') as reserve, TestClient(self.app) as client:
+            response = client.post('/api/dataset_builder/generate_batch', json=body)
+        self.assertEqual(409, response.status_code, response.text)
+        reserve.assert_not_called()
+        self.assertEqual([], self.load()['samples'])
+
+    def test_legacy_saved_description_is_kept_until_root_is_configured(self):
+        self.save({'description': '', 'global_seed': '', 'samples': [
+            {'text': 'Real', 'emotion': 'calm', 'seed': 7,
+             'description': 'original voice, calm', 'status': 'done'}]})
+        body = self.single_request('Real')
+        with patch.object(routes, 'claim_gpu_task'), \
+             patch.object(routes, 'release_gpu_task_claim'), \
+             TestClient(self.app) as client:
+            first = client.post('/api/dataset_builder/generate_sample', json=body)
+            self.assertEqual(200, first.status_code, first.text)
+            self.assertEqual('original voice, calm',
+                             self.engine.generate_voice_design.call_args.kwargs['description'])
+            client.post('/api/dataset_builder/update_meta',
+                        json={'name': 'voice', 'description': 'new root', 'global_seed': '7'})
+            renewed = client.post('/api/dataset_builder/generate_sample',
+                                  json=self.single_request('Real'))
+        self.assertEqual(200, renewed.status_code, renewed.text)
+        self.assertEqual('new root, calm',
+                         self.engine.generate_voice_design.call_args.kwargs['description'])
+
+    def test_first_run_initializes_metadata_and_inherited_seed(self):
+        captured = {}
+
+        def start(*args, **kwargs):
+            captured['task'], captured['resolved'] = args[2], args[3]
+            captured['definitions'] = args[4]
+            return SimpleNamespace()
+
+        with patch.object(routes, 'reserve_background_task', return_value='owned'), \
+             patch.object(routes, 'apply_builder_task_owner'), \
+             patch.object(routes, 'start_claimed_task_thread', side_effect=start), \
+             patch.object(routes, 'release_gpu_task_claim'), \
+             TestClient(self.app) as client:
+            client.post('/api/dataset_builder/create', json={'name': 'fresh'})
+            response = client.post('/api/dataset_builder/generate_batch', json={
+                'name': 'fresh', 'description': 'original voice',
+                'samples': [{'text': 'Real', 'emotion': 'calm'}],
+                'indices': [0], 'global_seed': 123})
+            self.assertEqual(200, response.status_code, response.text)
+            captured['task'](captured['resolved'], captured['definitions'])
+        state = self.load('fresh')
+        self.assertEqual(('original voice', 123), (state['description'], state['global_seed']))
+        self.assertEqual('original voice, calm', state['samples'][0]['description'])
+        self.assertEqual(123, self.engine.generate_voice_design.call_args.kwargs['seed'])
+
+    def test_single_placeholder_recovery_uses_requested_text(self):
+        self.save(self.state([{'status': 'pending'}]))
+        body = self.single_request('Recovered line')
+        with patch.object(routes, 'claim_gpu_task'), \
+             patch.object(routes, 'release_gpu_task_claim'), \
+             TestClient(self.app) as client:
+            response = client.post('/api/dataset_builder/generate_sample', json=body)
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual('Recovered line',
+                         self.engine.generate_voice_design.call_args.kwargs['sample_text'])
+        self.assertEqual('Recovered line', self.load()['samples'][0]['text'])
+
+    def test_integral_scientific_notation_is_normalized_for_both_seed_levels(self):
+        self.save(self.state([{'text': 'One', 'seed': '1e3', 'status': 'pending'}]))
+        with patch.object(routes, 'claim_gpu_task'), \
+             patch.object(routes, 'release_gpu_task_claim'), \
+             TestClient(self.app) as client:
+            first = client.post('/api/dataset_builder/generate_sample', json=self.single_request('One'))
+            self.assertEqual(200, first.status_code, first.text)
+            self.assertEqual(1000, self.engine.generate_voice_design.call_args.kwargs['seed'])
+            edited = client.post('/api/dataset_builder/edit_rows', json={
+                'name': 'voice', 'expected_count': 1, 'edits': [{
+                    'index': 0, 'expected_revision': first.json()['row_revision'],
+                    'row': {'text': 'One', 'emotion': '', 'seed': ''}}]})
+            self.assertEqual(200, edited.status_code, edited.text)
+            client.post('/api/dataset_builder/update_meta',
+                        json={'name': 'voice', 'description': 'warm', 'global_seed': '2e3'})
+            second = client.post('/api/dataset_builder/generate_sample',
+                                 json=self.single_request('One'))
+        self.assertEqual(200, second.status_code, second.text)
+        self.assertEqual(2000, self.engine.generate_voice_design.call_args.kwargs['seed'])
+
+    def test_successful_retry_drops_obsolete_provider_diagnostic(self):
+        self.save(self.state([{'text': 'Saved', 'seed': 0, 'status': 'pending'}]))
+        body = self.single_request('Saved')
+        render = self.engine.generate_voice_design.side_effect
+        self.engine.generate_voice_design.side_effect = RuntimeError('SYNTHETIC-DETAIL')
+        with patch.object(routes, 'claim_gpu_task'), \
+             patch.object(routes, 'release_gpu_task_claim'), \
+             patch.object(logging.getLogger('AlexandriaUI'), 'exception'), \
+             TestClient(self.app) as client:
+            failed = client.post('/api/dataset_builder/generate_sample', json=body)
+            self.engine.generate_voice_design.side_effect = render
+            retry = dict(body, expected_revision=failed.json()['detail']['row_revision'])
+            succeeded = client.post('/api/dataset_builder/generate_sample', json=retry)
+            meta = client.post('/api/dataset_builder/update_meta',
+                               json={'name': 'voice', 'description': 'warm', 'global_seed': '0'})
+        self.assertEqual(200, succeeded.status_code, succeeded.text)
+        self.assertNotIn('SYNTHETIC-DETAIL', succeeded.text)
+        self.assertNotIn('SYNTHETIC-DETAIL', meta.text)
+        self.assertNotIn('error', self.load()['samples'][0])
+        self.assertNotIn('error', succeeded.json()['row'])
 
 
 if __name__ == '__main__':
