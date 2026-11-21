@@ -7,8 +7,8 @@ from fastapi.encoders import jsonable_encoder
 from config_settings import AppConfig, GenerationConfig, LLMConfig, PromptConfig, TTSConfig
 from lmstudio_settings import (BENCHMARK_CACHE_KEYS, BENCHMARK_IDENTITY_KEY,
                                get_benchmark_identity_key, get_document_with_retained_cache,
-                               has_valid_benchmark_environment, is_benchmark_digest,
-                               json_values_equal)
+                               get_hydrated_profile_source, has_valid_benchmark_environment,
+                               is_benchmark_digest, json_values_equal)
 
 _ABSENT = object()
 _MODELS = {'llm_local': LLMConfig, 'llm_remote': LLMConfig, 'tts': TTSConfig,
@@ -107,14 +107,19 @@ def _count_dropped_unmanaged(saved, after, config):
 
 
 def _json_types(value, depth=0):
-    """Bounded type-only summary; never echo a property name or a value."""
-    if depth >= 3:
+    """Bounded, position-aware type signature; no property names or values.
+
+    Comparing types at each position keeps a leaf flip visible even when the
+    aggregate set of types is unchanged, while 1 and 1.0 share one signature.
+    """
+    if depth >= 5:
         return 'value'
-    if isinstance(value, dict) or isinstance(value, list):
-        items = value.values() if isinstance(value, dict) else value
-        kinds = sorted({_json_types(item, depth + 1) for item in items})
-        label = 'object' if isinstance(value, dict) else 'list'
-        return label + (f' of {", ".join(kinds)}' if kinds else '')
+    if isinstance(value, dict):
+        parts = [_json_types(item, depth + 1) for _, item in sorted(value.items())][:6]
+        return 'object[' + ','.join(parts) + (',…' if len(value) > 6 else '') + ']'
+    if isinstance(value, list):
+        parts = [_json_types(item, depth + 1) for item in value][:6]
+        return 'list[' + ','.join(parts) + (',…' if len(value) > 6 else '') + ']'
     if isinstance(value, bool):
         return 'boolean'
     if isinstance(value, (int, float)):
@@ -133,21 +138,19 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
     changes, defaults = [], []
     unmanaged = _count_dropped_unmanaged(saved, after, existing.data)
 
-    def body_baseline(section, old_profile, new_profile):
+    def body_baseline(section, old_profile):
         """GET hydrates a neutral slot from the legacy mirror; compare against it.
 
         Otherwise an unchanged round trip would report the body as changed even
         though the exact value survived the save.
         """
-        body = old_profile.get('provider_extra_body', _ABSENT)
-        legacy = saved.get('llm') if isinstance(saved.get('llm'), dict) else {}
-        if (section in ('llm_local', 'llm_remote') and isinstance(body, dict) and not body
-                and isinstance(legacy.get('provider_extra_body'), dict)
-                and legacy.get('provider_extra_body')
-                and (not old_profile.get('base_url')
-                     or legacy.get('base_url') == new_profile.get('base_url'))):
-            return legacy['provider_extra_body']
-        return body
+        source = get_hydrated_profile_source(saved, section)
+        if source != section:
+            persisted = saved.get(source)
+            if isinstance(persisted, dict) and isinstance(
+                    persisted.get('provider_extra_body'), dict):
+                return persisted['provider_extra_body']
+        return old_profile.get('provider_extra_body', _ABSENT)
 
     def append_row(section, key, old, new, default=_ABSENT, absent=False, field=None):
         before = default if old is _ABSENT else old
@@ -180,7 +183,7 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
         new = new if isinstance(new, dict) else {}
         for key, field in model.model_fields.items():
             default = _ABSENT if field.is_required() else field.get_default(call_default_factory=True)
-            prior = body_baseline(section, old, new) if key == 'provider_extra_body' \
+            prior = body_baseline(section, old) if key == 'provider_extra_body' \
                 else old.get(key, _ABSENT)
             append_row(section, key, prior, new.get(key, _ABSENT),
                        default, key not in old, field)

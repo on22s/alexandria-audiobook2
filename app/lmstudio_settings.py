@@ -616,6 +616,23 @@ def get_saved_llm_profile(config, *, require_complete=False):
     return block if isinstance(block, dict) else {}
 
 
+def get_hydrated_profile_source(config, section):
+    """The persisted profile GET used to fill `section` before the form posts.
+
+    The active named slot is filled from the complete legacy mirror when it is
+    not itself configured; an inactive slot keeps its own saved values. Preview
+    uses this same decision to establish a baseline instead of guessing from
+    equal endpoints or bodies.
+    """
+    config = config if isinstance(config, dict) else {}
+    mode = config.get("llm_mode") or "local"
+    if section == f"llm_{mode}":
+        block = config.get(section)
+        if not isinstance(block, dict) or not is_profile_configured(block):
+            return "llm" if isinstance(config.get("llm"), dict) else section
+    return section
+
+
 def get_failover_llm_config(config):
     """The profile a run switches to when `llm_failover` is on: whichever of
     llm_local / llm_remote is NOT active. {} when failover is off or the other

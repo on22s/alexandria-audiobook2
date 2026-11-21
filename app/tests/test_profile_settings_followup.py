@@ -963,7 +963,7 @@ class ExplicitBodyRepresentationTests(unittest.TestCase):
                     form[section]["provider_extra_body"] = {"flag": 3}
                     form[section]["provider_extra_body_json"] = "{not json"
                     form[section]["provider_extra_body_raw"] = True
-                self.assertEqual(422, client.post("/api/config", json=form).status_code)
+                self.assertEqual(400, client.post("/api/config", json=form).status_code)
             self.assertEqual({"flag": 2}, _load(path)["llm_local"]["provider_extra_body"])
 
 
@@ -1102,7 +1102,7 @@ class ProviderBodyValidationTests(unittest.TestCase):
                     form[section]["provider_extra_body_json"] = "{bad"
                     form[section]["provider_extra_body_raw"] = True
                 self.assertEqual(400, client.post("/api/config/preview", json=form).status_code)
-                self.assertEqual(422, client.post("/api/config", json=form).status_code)
+                self.assertEqual(400, client.post("/api/config", json=form).status_code)
             self.assertEqual(before, _load(path))
 
     def test_preview_shows_json_type_change_but_not_numeric_equivalence(self):
@@ -1122,8 +1122,8 @@ class ProviderBodyValidationTests(unittest.TestCase):
                         if row["path"] == "llm_local.provider_extra_body"]
                 self.assertEqual(expected, len(rows))
                 if expected:
-                    self.assertEqual("object of boolean", rows[0]["before"])
-                    self.assertEqual("object of number", rows[0]["after"])
+                    self.assertEqual("object[boolean]", rows[0]["before"])
+                    self.assertEqual("object[number]", rows[0]["after"])
                     self.assertNotIn("flag", rows[0]["before"] + rows[0]["after"])
 
 
@@ -1242,6 +1242,115 @@ class PreviewBaselineAndTypeTests(unittest.TestCase):
                 system_module.get_config_local_profile, exists=True)
             self.assertEqual([], [row for row in preview["changes"]
                                   if row["path"] == "llm_local.provider_extra_body"])
+
+
+class SaveRedactionTests(unittest.TestCase):
+    def test_invalid_provider_json_never_echoes_submitted_fields(self):
+        secret = "SYNTHETIC_SECRET_KEY_ZZZ"
+        auth = "SYNTHETIC_AUTH_HEADER_QQQ"
+        raw = '{"deep":{"nested":[{"exp":1e310}]}}'
+        for variant in ("raw", "structured", "stale_aux"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as tmp:
+                profile = dict(LOW, api_key="saved-legacy",
+                               provider_headers={"authorization": "saved-header"})
+                path = _seed(tmp, {"llm_mode": "local", "llm": dict(profile),
+                                   "llm_local": dict(profile), "tts": {}, "generation": {}})
+                before = _load(path)
+                app = FastAPI()
+                app.include_router(system_module.router)
+                client = TestClient(app, raise_server_exceptions=True)
+                with patch.object(system_module, "CONFIG_PATH", path), \
+                        patch.object(system_module.project_manager, "engine", None), \
+                        patch.object(system_module.project_manager, "invalidate_config_cache"):
+                    form = _form(_get(tmp))
+                    for section in ("llm", "llm_local"):
+                        form[section]["api_key"] = secret
+                        form[section]["provider_headers"] = {"authorization": auth}
+                        if variant == "raw":
+                            form[section]["provider_extra_body_json"] = raw
+                            form[section]["provider_extra_body_raw"] = True
+                        elif variant == "structured":
+                            form[section]["provider_extra_body"] = {"deep": {"v": 1e310}}
+                        else:
+                            form[section]["provider_extra_body"] = {"valid": 1}
+                            form[section]["provider_extra_body_json"] = raw
+                    preview = _post_unsafe(client, "/api/config/preview", form)
+                    saved = _post_unsafe(client, "/api/config", form)
+                    self.assertEqual(200, client.get("/api/config").status_code)
+                text = preview.text + saved.text
+                for value in (secret, auth, "deep", "1e310"):
+                    self.assertNotIn(value, text)
+                if variant == "stale_aux":
+                    self.assertEqual(200, preview.status_code)
+                else:
+                    self.assertIn(preview.status_code, (400, 422))
+                self.assertIn(saved.status_code, (400, 422))
+                self.assertEqual(before, _load(path))
+
+
+class SharedHydrationBaselineTests(unittest.TestCase):
+    def test_baseline_follows_get_hydration_source_in_both_modes(self):
+        from config_settings import AppConfig, load_app_config_result
+        legacy_body = {"nested": {"flag": True}, "big": 2 ** 53 + 1}
+        for mode in ("local", "remote"):
+            active = f"llm_{mode}"
+            inactive = "llm_remote" if mode == "local" else "llm_local"
+            legacy = dict(LOW, provider_extra_body=legacy_body, api_key="legacy-fixture")
+            neutral = LLMConfig(base_url="", api_key="", model_name="").model_dump()
+            for case in ("active_omitted", "inactive_empty", "inactive_edit"):
+                with self.subTest(mode=mode, case=case), tempfile.TemporaryDirectory() as tmp:
+                    saved_inactive = dict(LOW, provider_extra_body={}, api_key="inactive-fixture",
+                                          model_name="other-model")
+                    path = _seed(tmp, {"llm_mode": mode, "llm": dict(legacy),
+                                       active: dict(neutral), inactive: saved_inactive,
+                                       "tts": {}, "generation": {}})
+                    existing = load_app_config_result(path)
+                    document = _get(tmp)
+                    if case == "inactive_edit":
+                        document[inactive]["provider_extra_body"] = legacy_body
+                    preview = config_change_preview.get_config_change_preview(
+                        existing, AppConfig.model_validate(document),
+                        system_module.get_config_local_profile, exists=True)
+                    rows = [row for row in preview["changes"]
+                            if "provider_extra_body" in row["path"]]
+                    if case == "inactive_edit":
+                        self.assertEqual([inactive + ".provider_extra_body"],
+                                         [row["path"] for row in rows])
+                    else:
+                        self.assertEqual([], rows)
+
+
+class PositionalTypeSignatureTests(unittest.TestCase):
+    def test_identical_aggregate_types_still_show_a_leaf_change(self):
+        from config_change_preview import _json_types
+        for before, after in (({"x": [True, 1]}, {"x": [1, 1]}),
+                              ({"x": 1, "y": True}, {"x": 1, "y": 1}),
+                              ({"rows": [{"v": True}, {"v": 1}]},
+                               {"rows": [{"v": 1}, {"v": 1}]})):
+            self.assertNotEqual(_json_types(before), _json_types(after))
+            self.assertEqual(_json_types(before), _json_types(json.loads(json.dumps(before))))
+        self.assertEqual(_json_types({"v": 1}), _json_types({"v": 1.0}))
+        large = {"v": list(range(50))}
+        self.assertLessEqual(len(_json_types(large)), 120)
+
+    def test_preview_position_signature_for_nested_leaf_swap(self):
+        from config_settings import AppConfig, load_app_config_result
+        with tempfile.TemporaryDirectory() as tmp:
+            profile = dict(LOW, provider_extra_body={"rows": [{"v": True}, {"v": 1}]})
+            path = _seed(tmp, {"llm_mode": "local", "llm": dict(profile),
+                               "llm_local": dict(profile), "tts": {}, "generation": {}})
+            existing = load_app_config_result(path)
+            document = _get(tmp)
+            document["llm_local"]["provider_extra_body"] = {"rows": [{"v": 1}, {"v": 1}]}
+            preview = config_change_preview.get_config_change_preview(
+                existing, AppConfig.model_validate(document),
+                system_module.get_config_local_profile, exists=True)
+            rows = [row for row in preview["changes"]
+                    if row["path"] == "llm_local.provider_extra_body"]
+            self.assertEqual(1, len(rows))
+            self.assertNotEqual(rows[0]["before"], rows[0]["after"])
+            self.assertNotIn("rows", rows[0]["before"] + rows[0]["after"])
+            self.assertNotIn("v", rows[0]["before"] + rows[0]["after"])
 
 
 if __name__ == "__main__":

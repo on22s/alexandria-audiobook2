@@ -36,7 +36,7 @@ from lmstudio_settings import (get_lmstudio_status, apply_lmstudio_settings, is_
                                get_active_llm_config, get_current_status,
                                get_saved_llm_profile, is_active_llm_remote,
                                get_document_with_retained_cache, is_billed_http_profile,
-                               BENCHMARK_CACHE_KEYS)
+                               get_hydrated_profile_source, BENCHMARK_CACHE_KEYS)
 
 
 from core import (
@@ -1268,7 +1268,10 @@ async def get_config():
         if _has_endpoint(saved):
             _fill_partial_profile(active_section, saved)
         elif runtime_safe is not None:
-            _fill_partial_profile(active_section, runtime, source=runtime_safe)
+            # Preview derives its baseline from this same source decision.
+            source_profile = loaded_config.get(
+                get_hydrated_profile_source(loaded_config, active_section)) or runtime
+            _fill_partial_profile(active_section, source_profile, source=runtime_safe)
         else:
             _fill_partial_profile(active_section, None)
 
@@ -1596,12 +1599,33 @@ def apply_pronunciation_config_change(config, manager):
 
 
 async def ensure_finite_settings_body(request: Request):
-    """Reject non-finite JSON before pydantic embeds it in an error response."""
+    """Reject non-finite JSON before pydantic embeds it in an error response.
+
+    Raw editor text is a JSON string at this point, so its contents are parsed
+    here too. The refusal is field-independent: no submitted key, header, body
+    value or property name can reach the response or a traceback.
+    """
     try:
         payload = await request.json()
     except (ValueError, UnicodeDecodeError):
         return
     _reject_nonfinite_request(payload)
+    if not isinstance(payload, dict):
+        return
+    for section in _LLM_PROFILE_SECTIONS:
+        profile = payload.get(section)
+        if not isinstance(profile, dict):
+            continue
+        raw = profile.get("provider_extra_body_json")
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            if profile.get("provider_extra_body_raw") is True:
+                raise HTTPException(status_code=400, detail="Settings contain invalid request-body JSON; no settings were applied.")
+            continue
+        _reject_nonfinite_request(parsed)
 
 
 @router.post("/api/config", dependencies=[Depends(ensure_finite_settings_body)])
