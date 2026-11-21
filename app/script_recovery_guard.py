@@ -6,11 +6,21 @@ generation route can use it without importing each other's heavier modules.
 """
 from pathlib import Path
 
-from script_recovery_facts import get_saved_script_recovery_manifest, three_pass_manifest_path
+from script_recovery_facts import (get_saved_script_recovery_manifest, has_selected_source_checkpoint,
+                                   has_selected_source_state, three_pass_manifest_path)
 from utils import safe_load_json
 
 RECOVERY_CAST_INVALIDATED = 'script_generation_roster_cast_invalidated'
+RECOVERY_CAST_INVALIDATED_DETAIL = (
+    'The approved cast changed since this run started, so it cannot resume; '
+    'start a new run. The saved checkpoint was preserved.')
 SCRIPT_PATH_NAME = 'annotated_script.json'
+
+
+def get_recovery_fence_status():
+    """Actionable status for a fenced recovery candidate (Start over is the cure)."""
+    return {'recoverable': False, 'fenced': True, 'start_over_required': True,
+            'detail': RECOVERY_CAST_INVALIDATED_DETAIL}
 
 
 def is_script_recovery_cast_invalidated(root):
@@ -20,10 +30,24 @@ def is_script_recovery_cast_invalidated(root):
 
 
 def has_selected_source_recovery(root):
-    """True when the selected source has a saved checkpoint Retry could resume."""
+    """True when the selected source has a saved checkpoint a launcher could resume.
+
+    A manifest is not required: the worker checkpoints accepted pass-1 work
+    before the first manifest is written. Both candidates are checked under the
+    same selected-source policy so a different source or a run with no
+    checkpoint at all is never fenced.
+    """
     root = Path(root)
-    return get_saved_script_recovery_manifest(
-        str(root), three_pass_manifest_path(str(root / SCRIPT_PATH_NAME))) is not None
+    script_path = root / SCRIPT_PATH_NAME
+    if get_saved_script_recovery_manifest(
+            str(root), three_pass_manifest_path(str(script_path))) is not None:
+        return True
+    if not has_selected_source_state(str(root)):
+        return False
+    selected = safe_load_json(str(root / 'state.json'), {})
+    selection = selected.get('script_generation_selection') if isinstance(selected, dict) else None
+    selected_sha256 = selection.get('source_sha256') if isinstance(selection, dict) else None
+    return has_selected_source_checkpoint(str(root), str(script_path), selected_sha256)
 
 
 def get_stale_recovery_state(root, cast_sha256):

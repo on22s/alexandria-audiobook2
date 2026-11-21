@@ -11,9 +11,14 @@ from fastapi import HTTPException
 
 import book_state_transaction as books
 import core
+from generate_script import LLMGenParams
 from routers import script
-from script_recovery_guard import get_stale_recovery_state, is_script_recovery_cast_invalidated
+from script_recovery_guard import (RECOVERY_CAST_INVALIDATED, RECOVERY_CAST_INVALIDATED_DETAIL,
+                                   get_stale_recovery_state, is_script_recovery_cast_invalidated)
 from tests.test_script_recovery import SOURCE, _write_failed_run
+from three_pass_generate import (_save_three_pass_checkpoint, run_three_pass,
+                                  three_pass_checkpoint_path, three_pass_fingerprint,
+                                  three_pass_manifest_path)
 from utils import atomic_json_write
 
 
@@ -58,6 +63,9 @@ class RecoveryCastBaselineTests(unittest.TestCase):
         return script.GenerateScriptRequest(
             legacy_checkpoint_token=script.get_script_recovery_token(checkpoint),
             legacy_book_token=books.get_book_operation_token(str(root)))
+
+    def _attempt_generate(self, source):
+        return script.start_script_generation(script.BackgroundTasks(), str(source), None)
 
     def _set_cast(self, root, value):
         state = json.loads((root / 'state.json').read_text())
@@ -119,3 +127,112 @@ class RecoveryCastBaselineTests(unittest.TestCase):
             result = self._attempt_retry(root, source)
             self.assertEqual({'status': 'resuming'}, result)
             self.assertEqual(1, len(scheduled))
+
+    def _write_worker_first_checkpoint(self, script_path):
+        """A real worker pass-1 checkpoint, saved before the first manifest."""
+        checkpoint = Path(three_pass_checkpoint_path(str(script_path)))
+        manifest = Path(three_pass_manifest_path(str(script_path)))
+        checkpoint.unlink(missing_ok=True)
+        manifest.unlink(missing_ok=True)
+        _save_three_pass_checkpoint(
+            str(script_path), three_pass_fingerprint(SOURCE, 'fixture-model', 1000),
+            'segment', [{'type': 'NARRATOR', 'text': 'Chapter one.'}], 1, [], [])
+        self.assertTrue(checkpoint.is_file())
+        self.assertFalse(manifest.exists())
+        return checkpoint, manifest
+
+    def test_worker_first_checkpoint_without_manifest_survives_approval_and_undo(self):
+        with self.fixture() as (root, script_path, source, scheduled):
+            checkpoint, manifest = self._write_worker_first_checkpoint(script_path)
+            self._fence(root, 'a' * 64)
+            checkpoint_bytes = checkpoint.read_bytes()
+            with self.assertRaises(HTTPException) as approved_refusal:
+                self._attempt_generate(source)
+            self.assertEqual(409, approved_refusal.exception.status_code)
+            self.assertEqual(RECOVERY_CAST_INVALIDATED_DETAIL, approved_refusal.exception.detail)
+            undone = get_stale_recovery_state(str(root), None)
+            self.assertIsNotNone(undone)
+            atomic_json_write(undone, root / 'state.json')
+            self.assertTrue(is_script_recovery_cast_invalidated(str(root)))
+            with self.assertRaises(HTTPException) as undo_refusal:
+                self._attempt_generate(source)
+            self.assertEqual(approved_refusal.exception.detail, undo_refusal.exception.detail)
+            self.assertEqual([], scheduled)
+            self.assertEqual(checkpoint_bytes, checkpoint.read_bytes())
+            self.assertFalse(manifest.exists())
+
+    def test_no_checkpoint_and_different_source_are_not_fenced(self):
+        with self.fixture() as (root, script_path, source, scheduled):
+            checkpoint, manifest = self._write_worker_first_checkpoint(script_path)
+            checkpoint.unlink()
+            self.assertIsNone(get_stale_recovery_state(str(root), 'b' * 64))
+            fingerprint = three_pass_fingerprint(SOURCE, 'fixture-model', 1000)
+            fingerprint['source_sha256'] = 'f' * 64
+            _save_three_pass_checkpoint(
+                str(script_path), fingerprint, 'segment',
+                [{'type': 'NARRATOR', 'text': 'Chapter one.'}], 1, [], [])
+            state = json.loads((root / 'state.json').read_text())
+            state['script_generation_selection'] = {'source_sha256': 'e' * 64}
+            atomic_json_write(state, root / 'state.json')
+            self.assertIsNone(get_stale_recovery_state(str(root), 'b' * 64))
+
+    def test_recovery_get_retry_skip_and_inject_all_report_the_fence(self):
+        with self.fixture() as (root, script_path, source, scheduled):
+            checkpoint = Path(three_pass_checkpoint_path(str(script_path)))
+            manifest = Path(three_pass_manifest_path(str(script_path)))
+            self._fence(root, 'c' * 64)
+            before = {path: path.read_bytes() for path in (checkpoint, manifest)}
+            response = script.ensure_script_recovery_response(include_detail=True)
+            self.assertFalse(response['recoverable'])
+            self.assertTrue(response['start_over_required'])
+            self.assertEqual(RECOVERY_CAST_INVALIDATED_DETAIL, response['detail'])
+            for act in (lambda: script.apply_manual_recovery([], 'skip'),
+                        lambda: script.apply_manual_recovery([], 'inject')):
+                with self.assertRaises(HTTPException) as caught:
+                    act()
+                self.assertEqual(409, caught.exception.status_code)
+                self.assertEqual(RECOVERY_CAST_INVALIDATED_DETAIL, caught.exception.detail)
+            with self.assertRaises(HTTPException) as caught:
+                self._attempt_retry(root, source)
+            self.assertEqual(RECOVERY_CAST_INVALIDATED_DETAIL, caught.exception.detail)
+            self.assertEqual([], scheduled)
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+
+    def test_normal_recovery_after_start_over_clears_the_fence(self):
+        with self.fixture() as (root, _script_path, source, scheduled):
+            self._fence(root, 'd' * 64)
+            state = json.loads((root / 'state.json').read_text())
+            state.pop(RECOVERY_CAST_INVALIDATED, None)
+            atomic_json_write(state, root / 'state.json')
+            self.assertTrue(script.ensure_script_recovery_response()['recoverable'])
+            self.assertEqual({'status': 'resuming'}, self._attempt_retry(root, source))
+            self.assertEqual(1, len(scheduled))
+
+    def test_loader_fence_refuses_real_cli_without_publication_or_alteration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            output = data_dir / 'annotated_script.json'
+            checkpoint, _manifest = self._write_worker_first_checkpoint(output)
+            state = {'input_file_path': str(data_dir / 'book.txt'),
+                     'script_generation_input_file': str(data_dir / 'book.txt'),
+                     'script_generation_roster_cast_invalidated': {'run_cast_sha256': None}}
+            atomic_json_write(state, data_dir / 'state.json')
+            source_file = data_dir / 'book.txt'
+            source_file.write_text(SOURCE, encoding='utf-8')
+            before = checkpoint.read_bytes()
+            called = []
+            from unittest.mock import patch
+            import three_pass_generate as three_pass
+            with patch.object(three_pass, 'segment_chunk_adaptively',
+                              side_effect=lambda *a, **k: called.append(True)):
+                with self.assertRaises(RuntimeError) as caught:
+                    run_three_pass(object(), 'fixture-model', SOURCE, LLMGenParams(), 1000,
+                                   output_path=str(output))
+            self.assertEqual(RECOVERY_CAST_INVALIDATED_DETAIL, str(caught.exception))
+            self.assertEqual([], called)
+            self.assertEqual(before, checkpoint.read_bytes())
+            self.assertFalse(Path(three_pass_manifest_path(str(output))).exists())
+            self.assertFalse(output.exists())
+            from three_pass_generate import _refuse_fenced_active_checkpoint
+            batch = data_dir / 'batch.json'
+            _refuse_fenced_active_checkpoint(str(batch))

@@ -11413,8 +11413,13 @@
   , "test_recovery_cast_baseline": [
     "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_absent_baseline_fails_closed_with_valid_legacy_tokens"
     , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_castless_approved_cast_is_not_a_change"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_loader_fence_refuses_real_cli_without_publication_or_alteration"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_no_checkpoint_and_different_source_are_not_fenced"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_normal_recovery_after_start_over_clears_the_fence"
     , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_null_baseline_fails_closed_with_valid_legacy_tokens"
     , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_proven_unchanged_cast_keeps_a_legitimate_retry"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_recovery_get_retry_skip_and_inject_all_report_the_fence"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_worker_first_checkpoint_without_manifest_survives_approval_and_undo"
   ]
   , "test_recovery_fence_races": [
     "tests.test_recovery_fence_races.RecoveryFenceRaceTests.test_a_book_with_a_list_generates_from_a_frozen_copy"
@@ -11931,6 +11936,8 @@
   , "test_reserved_edge_dedupe": [
     "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_bulk_dedupe_writes_no_protected_terminal_alias_or_script_edit"
     , "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_proposal_roots_stop_at_reserved_edges"
+    , "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_spelling_variant_dedupe_writes_no_protected_terminal_alias"
+    , "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_spelling_variants_cannot_launder_a_reserved_edge"
     , "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_valid_unprotected_chain_is_still_accepted"
   ]
   , "test_residency_diagnostics": [

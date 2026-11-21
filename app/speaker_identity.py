@@ -248,10 +248,16 @@ def is_group_speaker_label(name):
 
 
 def is_speaker_merge_allowed(variant, canonical):
-    """Protect narration and groups, allowing the same group's spelling."""
-    protected_labels = {"NARRATOR", "NARRATION", "NARRATIVE", "UNKNOWN"}
-    if (variant.strip().upper() in protected_labels
-            or canonical.strip().upper() in protected_labels):
+    """Protect narration and groups, allowing the same group's spelling.
+
+    Protected labels are compared by the same NFC/casefold/word identity the
+    alias index uses, so ``UN-KNOWN``/``un known`` cannot be used as a spelling
+    variant to launder a merge into UNKNOWN (#2203-adjacent reserved-edge bug).
+    """
+    protected_keys = {_identity_key(name) for name in (
+        "NARRATOR", "NARRATION", "NARRATIVE", "UNKNOWN")}
+    if (_identity_key(variant) in protected_keys
+            or _identity_key(canonical) in protected_keys):
         return False
     if is_group_speaker_label(variant) or is_group_speaker_label(canonical):
         first = " ".join(unicodedata.normalize("NFC", variant).casefold().split())
@@ -282,10 +288,11 @@ def _get_alias_roots(mapping, *, allowed_edge=None):
                 break
             seen.add(current)
             canonical = mapping[current]
-            if allowed_edge is not None and not allowed_edge(current, canonical):
-                roots.update((alias, canonical) for alias in seen)
-                break
             following = index.get(_identity_key(canonical))
+            terminal = following if following is not None else canonical
+            if allowed_edge is not None and not allowed_edge(current, terminal):
+                roots.update((alias, terminal) for alias in seen)
+                break
             if following is None or following == current:
                 roots.update((alias, canonical) for alias in seen)
                 break

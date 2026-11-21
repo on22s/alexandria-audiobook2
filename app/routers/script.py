@@ -1,5 +1,6 @@
 from book_state_transaction import ensure_saved_book_state
-from script_recovery_guard import (RECOVERY_CAST_INVALIDATED, is_script_recovery_cast_invalidated)
+from script_recovery_guard import (RECOVERY_CAST_INVALIDATED, RECOVERY_CAST_INVALIDATED_DETAIL,
+                                   get_recovery_fence_status, is_script_recovery_cast_invalidated)
 from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
@@ -39,7 +40,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from review_startup import ReviewStartupTrace, CURRENT as REVIEW_STARTUP, read_trace, get_failure_log_path
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
-from speaker_identity import get_validated_alias_graph, get_saveable_alias_graph
+from speaker_identity import get_saveable_alias_graph
 from alias_registry_apply import alias_registry_admission
 from diagnostics import redact_text
 from llm_provider import (MANUAL_DATA_DIR_ENV, manual_llm_dir, is_manual_request_owner_alive,
@@ -2904,9 +2905,7 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             # Start Over discards progress and a truly new baseline has no
             # checkpoint, so neither is blocked and both still clear the marker.
             if (require_recovery or resumes_checkpoint) and is_script_recovery_cast_invalidated(DATA_DIR):
-                raise HTTPException(status_code=409, detail=(
-                    "The approved cast changed since this run started, so it cannot resume; "
-                    "start a new run. The saved checkpoint was preserved."))
+                raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
             if require_recovery:
                 stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
                 stored = (stored.get("script_generation_options") or {}) if isinstance(stored, dict) else {}
@@ -3052,10 +3051,12 @@ async def generate_script(background_tasks: BackgroundTasks,
 
 def ensure_script_recovery_response(include_detail=False):
     """Read metadata and optional failed-unit detail under one book guard."""
-    with ensure_book_state(DATA_DIR):
+    with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
         manifest = get_script_recovery_manifest()
         if manifest is None:
             return {"recoverable": False}
+        if is_script_recovery_cast_invalidated(DATA_DIR):
+            return get_recovery_fence_status()
         failures = manifest.get("diagnostic_failures") or []
         response = {
             "recoverable": True,
@@ -3066,21 +3067,20 @@ def ensure_script_recovery_response(include_detail=False):
         }
         state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), {})
         if isinstance(state, dict) and state.get('script_generation_selection') is None:
-            with file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
-                try:
-                    checkpoint = get_current_generation_checkpoint(locked=True)
-                except HTTPException:
-                    # Metadata remains useful when the checkpoint is corrupt;
-                    # do not offer confirmation without a readable checkpoint.
-                    checkpoint = None
-                if isinstance(checkpoint, dict):
-                    from book_state_transaction import get_book_operation_token
-                    response['legacy_confirmation'] = {
-                        'checkpoint_token': get_script_recovery_token(checkpoint),
-                        'book_token': get_book_operation_token(DATA_DIR),
-                    }
+            try:
+                checkpoint = get_current_generation_checkpoint(locked=True)
+            except HTTPException:
+                # Metadata remains useful when the checkpoint is corrupt;
+                # do not offer confirmation without a readable checkpoint.
+                checkpoint = None
+            if isinstance(checkpoint, dict):
+                from book_state_transaction import get_book_operation_token
+                response['legacy_confirmation'] = {
+                    'checkpoint_token': get_script_recovery_token(checkpoint),
+                    'book_token': get_book_operation_token(DATA_DIR),
+                }
         if include_detail:
-            checkpoint = _load_failed_checkpoint()
+            checkpoint = _load_failed_checkpoint(locked=True)
             response["detail"] = ({"recoverable": True, **build_recovery_detail(checkpoint)}
                                   if checkpoint is not None else None)
         return response
@@ -3196,6 +3196,8 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
     default-instruct rows, which are validated and stored in off mode even for
     a directed run; an injected row always uses the failed run's direction."""
     with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+        if is_script_recovery_cast_invalidated(DATA_DIR):
+            raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
         if is_task_running("script", process_state):
             raise HTTPException(status_code=409, detail="Script generation is running.")
         checkpoint = _load_failed_checkpoint(locked=True)
