@@ -325,7 +325,7 @@ TTS 约 3.4 GB 加批处理余量；同一张卡上的 LLM 需要自己的空间
 
 ## API 参考
 
-见英文页 [API reference](README.md#api-reference)：可选的 HTTP Basic 认证、核心流程的 curl / Python / JavaScript 示例，以及按路由文件生成的 181 条路由表。交互式文档在 `/docs`，schema 在 `/openapi.json`。`GET /api/book/recovery` 只读地报告待处理的书切换、已移开的证据和可用的恢复命令。
+见英文页 [API reference](README.md#api-reference)：可选的 HTTP Basic 认证、核心流程的 curl / Python / JavaScript 示例，以及按路由文件生成的完整路由表。交互式文档在 `/docs`，schema 在 `/openapi.json`。`GET /api/book/recovery` 只读地报告待处理的书切换、已移开的证据和可用的恢复命令。
 
 ## 推荐的 LLM 模型
 

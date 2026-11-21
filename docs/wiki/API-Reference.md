@@ -10,9 +10,10 @@ reload and review the current book before retrying. Never obtain fresh guards
 merely to submit a payload created for an earlier book.
 
 Everything the web interface does is an HTTP call, so the app can be scripted. This page shows
-the common tasks with examples. The **complete list of all 181 routes**, generated from the
-code, is in the README's [API reference](../../README.md#api-reference); the interactive docs are
-at `/docs` and the OpenAPI schema at `/openapi.json` on a running app.
+the common tasks with examples. The **generated API inventory**, built from
+`app/api_contract/routes.json` and the route docstrings, is in the README's
+[API reference](../../README.md#api-reference); the interactive docs are at `/docs` and the
+OpenAPI schema at `/openapi.json` on a running app.
 
 ## Basics
 

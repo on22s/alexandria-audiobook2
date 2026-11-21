@@ -4,7 +4,7 @@
 
 [中文主页](Home-CN.md) · [English](API-Reference.md)
 
-Web 界面做的每一件事都是一次 HTTP 调用，所以应用可以被脚本驱动。本页用示例展示常见任务。**全部 181 条路由的完整列表**由代码生成，见 README 的 [API 参考](../../README.md#api-reference)；运行中的应用在 `/docs` 有交互式文档，`/openapi.json` 是 schema。
+Web 界面做的每一件事都是一次 HTTP 调用，所以应用可以被脚本驱动。本页用示例展示常见任务。**由代码生成的完整 API 清单**来自 `app/api_contract/routes.json` 和路由 docstring，见 README 的 [API 参考](../../README.md#api-reference)；运行中的应用在 `/docs` 有交互式文档，`/openapi.json` 是 schema。
 
 ## 基础
 

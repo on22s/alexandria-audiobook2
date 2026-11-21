@@ -691,8 +691,8 @@ In the order you meet them in the app:
 - **Attribution adapters** served through `llama-server --lora`, trained on rights-clean
   data, and released on Hugging Face with cards that say what was and was not measured.
 - **Measurement discipline**: `GOALS.md`, `RECIPES.md`, a results index that is rebuilt
-  rather than merged, provenance on every artifact, a release verifier, and about 3,400
-  unit tests.
+  rather than merged, provenance on every artifact, a release verifier, and a checked-in
+  [unit-test inventory](app/tests/unit_test_inventory.json) that `ready.sh` refreshes.
 
 ## How it works
 
@@ -944,11 +944,20 @@ reaches the speech engine (goal 5.1).
 
 ## Output files
 
-Everything is stored under the app directory (or `ALEXANDRIA_DATA_DIR` if set):
+The mutable data root is the **repository root**, not `app/`: `DATA_DIR =
+get_runtime_data_dir(ROOT_DIR)` in `app/core.py`. With `ALEXANDRIA_DATA_DIR` unset, the
+scripts, exports, render state and operational records below are written next to the
+checkout. Setting `ALEXANDRIA_DATA_DIR` relocates all of them under that directory.
+Two paths keep their historical `app/` placement only while the data root is the
+repository root — `app/config.json` and `app/uploads/` — and move under a configured
+data root too (`app/utils.py:get_app_storage_path`).
+
+Paths below are relative to the data root unless noted:
 
 | path | contents |
 |---|---|
-| `uploads/` | the books you uploaded (reusable) |
+| `uploads/` (`app/uploads/` by default) | the books you uploaded (reusable) |
+| `config.json` (`app/config.json` by default) | saved settings; a legacy `app/` location only when no data root is configured |
 | `annotated_script.json`, `voice_config.json`, `character_aliases.json` | the active book, its voices and its aliases |
 | `scripts/<name>.json` + `<name>.voice_config.json` | the saved-script library |
 | `voice_library.json` | casts |
@@ -960,7 +969,10 @@ Everything is stored under the app directory (or `ALEXANDRIA_DATA_DIR` if set):
 | `manual_llm/pending.json` / `response.json` | the manual-transport mailbox |
 | `lora_models/`, `lora_datasets/`, `designed_voices/`, `clone_voices/`, `builtin_lora/` | model assets (built-in adapters ship read-only in the repo) |
 | `logs/api/`, `logs/review_responses.log`, `reports/` | operational records; run history is served by `/api/runs` |
-| `ab_test_runtime/experiments/` | every measurement artifact, indexed in `RESULTS_INDEX.md` |
+| `ab_test_runtime/experiments/` (repository root, not the data root) | every measurement artifact, indexed in `RESULTS_INDEX.md` |
+
+With the default data root, that puts `scripts/`, `cloned_audiobook.mp3`, `audiobook.m4b`,
+`chapter_exports/` and `voicelines/` at the repository root.
 
 ## Prompt customization
 
@@ -1127,10 +1139,10 @@ state and exit code.
 ## API reference
 
 <details>
-<summary>Advanced: HTTP examples, authentication, and the full 181-route reference</summary>
+<summary>Advanced: HTTP examples, authentication, and the full HTTP route reference</summary>
 
 Every action in the interface is an HTTP call. The route tables below are generated from
-the route decorators in `app/routers/` (181 routes).
+the checked-in API contract in `app/api_contract/routes.json` and the route docstrings.
 
 ### Authentication (optional)
 
@@ -1226,19 +1238,25 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 (`new_only`, …), `LibrarySaveRequest`, and so on. The OpenAPI schema is at
 `GET /openapi.json`, and interactive docs are at `/docs`.
 
+<!-- api-reference-start -->
 ### Routes
+
+353 API operations across 19 router modules. Generated from `app/api_contract/routes.json` and the route docstrings in `app/routers/` by `app/update_readme_api_reference.py`; regenerate after changing a route. Framework routes (`/openapi.json`, `/docs`, `/redoc`) and static mounts are in the contract but are not application endpoints.
 
 #### System, config and status (`app/routers/system.py`)
 
 | method | path | what it does |
 |---|---|---|
+| `GET` | `/api/tts/diagnostics` | Read bounded operational observations without initializing a model. |
+| `POST` | `/api/tts/external-capabilities` | get tts external capabilities |
 | `POST` | `/api/prompts/attribution_preview` | The exact system message and user message pass 2 would send for one |
 | `GET` | `/api/runs` | get run history |
 | `GET` | `/api/runs/{run_id}` | get run history entry |
-| `GET` | `/api/status/version` | What git commit is this running process actually executing |
-| `GET` | `/api/system/stats` | Return GPU memory, disk, and basic hardware statistics |
-| `GET` | `/api/status/eta` | Return progress/ETA for the most relevant currently-running task, if any |
+| `GET` | `/api/status/version` | Current checkout/build identity, including observed uncommitted edits. |
+| `GET` | `/api/system/stats` | Return GPU memory, disk, and basic hardware statistics. |
+| `GET` | `/api/status/eta` | Return progress/ETA for the most relevant currently-running task, if any. |
 | `GET` | `/api/lmstudio/status` | Report whether the loaded model is using ideal settings (VRAM-safe |
+| `POST` | `/api/logs/browser-failure` | record browser failure |
 | `POST` | `/api/lmstudio/optimize` | Toggle the loaded model between VRAM-safe/best settings and LM Studio's |
 | `POST` | `/api/llm/models` | The model ids the endpoint advertises (OpenAI-compatible /models), so the |
 | `POST` | `/api/llm/test` | Test LLM connectivity. Uses the posted profile if given (so the Setup tab |
@@ -1246,7 +1264,9 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 | `GET` | `/favicon.ico` | read favicon |
 | `GET` | `/api/config` | get config |
 | `GET` | `/api/default_prompts` | get default prompts |
+| `POST` | `/api/config/preview` | Compare supported saved settings with the normalized Save proposal. |
 | `POST` | `/api/config` | save config |
+| `POST` | `/api/tts/recovery/clear` | clear synthesis recovery |
 
 #### Script generation and review (`app/routers/script.py`)
 
@@ -1254,29 +1274,52 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 |---|---|---|
 | `GET` | `/api/uploads` | list reusable uploads |
 | `POST` | `/api/uploads/select` | select existing upload |
+| `GET` | `/api/script/ingest-status` | get script ingest status |
+| `GET` | `/api/single-narrator/source-preview` | get single narrator source preview |
+| `GET` | `/api/uploads/docx-retained` | get docx retained uploads |
+| `GET` | `/api/uploads/epub-retained` | get epub retained uploads |
 | `POST` | `/api/upload` | upload file |
+| `GET` | `/api/calibre/config` | get calibre config |
+| `POST` | `/api/calibre/config` | save calibre config |
+| `POST` | `/api/calibre/browse-root` | calibre browse root |
+| `POST` | `/api/calibre/browse-next` | calibre browse next |
+| `GET` | `/api/calibre/preview` | calibre preview |
+| `POST` | `/api/calibre/review/approve` | calibre review approve |
+| `POST` | `/api/calibre/capture` | calibre capture |
+| `GET` | `/api/calibre/capture/status` | calibre capture status |
+| `POST` | `/api/calibre/capture/cancel` | calibre capture cancel |
+| `POST` | `/api/calibre/capture/discard` | calibre capture discard |
+| `POST` | `/api/calibre/import` | calibre import |
+| `POST` | `/api/generate_script/preflight` | book preflight |
+| `GET` | `/api/generate_script/preflight/{job_id}` | book preflight status |
+| `POST` | `/api/generate_script/preflight/{job_id}/cancel` | book preflight cancel |
 | `POST` | `/api/generate_script/snapshot` | Save the finished part of the running generation to the library |
 | `POST` | `/api/generate_script` | generate script |
-| `GET` | `/api/generate_script/recovery` | Expose only recovery metadata; source text remains in the local checkpoint |
-| `GET` | `/api/generate_script/recovery/detail` | The failed chunk in full: attempts, source, prompt, retry profile |
+| `GET` | `/api/generate_script/recovery` | Return metadata by default; opt in to the validated failed-unit detail. |
+| `GET` | `/api/generate_script/recovery/detail` | The failed chunk in full: attempts, source, prompt, retry profile. |
 | `POST` | `/api/generate_script/inject` | Manual output injection (#522 s4.4): a pasted [{type, text}] |
 | `POST` | `/api/generate_script/skip` | 'Skip' that loses nothing. Pass 1: the chunk goes in split only at its |
-| `POST` | `/api/generate_script/retry` | Resume the current failed three-pass run from its durable checkpoint |
+| `POST` | `/api/generate_script/retry` | Resume the current failed three-pass run from its durable checkpoint. |
 | `POST` | `/api/generate_script/cancel` | generate script cancel |
 | `POST` | `/api/generate_script/pause` | generate script pause |
 | `POST` | `/api/generate_script/resume` | generate script resume |
-| `POST` | `/api/review_script` | Review the current annotated script. Accepts empty POST or JSON body |
+| `POST` | `/api/review_script` | Review the current annotated script. Accepts empty POST or JSON body. |
 | `POST` | `/api/review_script_contextual` | review script contextual |
 | `POST` | `/api/review_script/cancel` | review script cancel |
 | `POST` | `/api/review_script/pause` | review script pause |
 | `POST` | `/api/review_script/resume` | review script resume |
-| `POST` | `/api/find_nicknames` | Scan the working script for character nicknames/aliases and write character_aliases.json |
+| `POST` | `/api/find_nicknames` | Scan the working script for character nicknames/aliases and write character_aliases.json. |
 | `POST` | `/api/find_nicknames/cancel` | find nicknames cancel |
 | `POST` | `/api/find_nicknames/pause` | find nicknames pause |
 | `POST` | `/api/find_nicknames/resume` | find nicknames resume |
-| `GET` | `/api/character_aliases` | Return the current alias map { alias: canonical } |
-| `POST` | `/api/character_aliases` | Overwrite the alias map (lets the user correct discovered nicknames before review) |
-| `POST` | `/api/review_script/batch/start` | Review multiple saved scripts from the Scripts library, in place |
+| `GET` | `/api/character_aliases` | Return the current alias map { alias: canonical }. |
+| `POST` | `/api/character_aliases` | Overwrite the alias map (lets the user correct discovered nicknames before review). |
+| `POST` | `/api/cast_list/build` | Ask the model for everyone who speaks in the selected book, unnamed people |
+| `POST` | `/api/cast_list/cancel` | cast list cancel |
+| `GET` | `/api/cast_list` | The selected book's cast list, or {"cast": null} when it has none. |
+| `POST` | `/api/cast_list` | Save a hand-edited list. Refused, and nothing written, if generation |
+| `DELETE` | `/api/cast_list` | delete cast list |
+| `POST` | `/api/review_script/batch/start` | Review multiple saved scripts from the Scripts library, in place. |
 | `POST` | `/api/review_script/batch/cancel` | review script batch cancel |
 | `POST` | `/api/review_script/batch/pause` | review script batch pause |
 | `POST` | `/api/review_script/batch/resume` | review script batch resume |
@@ -1285,29 +1328,41 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 | `POST` | `/api/generate_script/batch/cancel` | generate script batch cancel |
 | `POST` | `/api/generate_script/batch/pause` | generate script batch pause |
 | `POST` | `/api/generate_script/batch/resume` | generate script batch resume |
-| `GET` | `/api/annotated_script` | Return the current working annotated_script.json |
-| `GET` | `/api/annotated_script/diff` | Word-level differences between the saved source and the active script |
+| `GET` | `/api/annotated_script` | Return the current working annotated_script.json. |
+| `GET` | `/api/annotated_script/diff` | get annotated script diff |
+| `GET` | `/api/status` | Discover registered tasks without serializing logs or live process handles. |
 | `GET` | `/api/status/{task_name}` | get status |
-| `GET` | `/api/manual_llm/pending` | The prompt to copy for the request the run is waiting on (issue #593) |
+| `GET` | `/api/manual_llm/pending` | The prompt to copy for the request the run is waiting on (issue #593). |
 | `POST` | `/api/manual_llm/response` | The user's (or their script's) answer to the pending request. Whether |
 | `GET` | `/api/logs/{task_name}` | Serve the complete on-disk log for a task (the in-memory status only keeps a |
+| `GET` | `/api/annotated_script/delivery_review` | get delivery review |
+| `POST` | `/api/annotated_script/delivery_review/retry` | retry delivery review |
+| `POST` | `/api/annotated_script/delivery_review/cancel` | cancel delivery review |
+| `GET` | `/api/annotated_script/delivery_review/status/{claim_id}` | get delivery retry status |
 
-#### Saved scripts (`app/routers/scripts_library.py`)
+#### Speaker review (`app/routers/speaker_review.py`)
 
 | method | path | what it does |
 |---|---|---|
-| `GET` | `/api/scripts` | List saved scripts without blocking the FastAPI event loop on disk I/O |
-| `POST` | `/api/scripts/save` | Save the current annotated_script.json (and voice_config.json) under a name |
-| `POST` | `/api/scripts/load` | Load a saved script, replacing the current annotated_script.json and chunks |
-| `POST` | `/api/scripts/{name}/preflight` | Audit a saved script and optional uploaded source without changing either |
-| `POST` | `/api/scripts/{name}/repair/deterministic/preview` | Preview only source-proven Unicode and adjacent-duplicate repairs |
-| `POST` | `/api/scripts/{name}/repair/deterministic/apply` | Apply an unchanged preview, preserving the original in a timestamped backup |
-| `GET` | `/api/scripts/{name}/repair/speakers/preview` | preview speaker repair |
-| `POST` | `/api/scripts/{name}/repair/speakers/apply` | apply speaker repair |
-| `GET` | `/api/scripts/{name}/repair/content/preview` | preview content repair |
-| `POST` | `/api/scripts/{name}/repair/content/apply` | apply content repair |
-| `DELETE` | `/api/scripts/{name}` | Delete a saved script |
-| `GET` | `/api/book/recovery` | Read-only: an interrupted book switch, set-aside evidence, and the commands that help (#1660) |
+| `GET` | `/api/speaker_review/options` | options |
+| `POST` | `/api/speaker_review/preview` | preview |
+| `POST` | `/api/speaker_review/start` | start |
+| `GET` | `/api/speaker_review/{run_id}` | get run |
+| `POST` | `/api/speaker_review/{run_id}/cancel` | cancel |
+| `POST` | `/api/speaker_review/{run_id}/apply` | apply |
+
+#### Character roster (`app/routers/character_roster.py`)
+
+| method | path | what it does |
+|---|---|---|
+| `GET` | `/api/character_roster` | get character roster |
+| `GET` | `/api/character_roster/source` | get character source |
+| `POST` | `/api/character_roster/preview` | preview character roster |
+| `POST` | `/api/character_roster/source` | find character source |
+| `POST` | `/api/character_roster/apply` | approve character roster |
+| `GET` | `/api/character_roster/undo` | get character undo |
+| `POST` | `/api/character_roster/undo` | undo character roster |
+| `POST` | `/api/character_roster/discard_undo` | discard character undo |
 
 #### Voices, personas, aliases (`app/routers/voices.py`)
 
@@ -1315,6 +1370,7 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 |---|---|---|
 | `GET` | `/api/voices` | get voices |
 | `POST` | `/api/voices/{speaker}/versions` | save voice version |
+| `DELETE` | `/api/voices/{speaker}/versions/{version_id}` | remove voice version |
 | `POST` | `/api/voices/{speaker}/versions/{version_id}/select` | select voice version |
 | `POST` | `/api/voices/{speaker}/candidates` | add voice candidate |
 | `POST` | `/api/voices/{speaker}/candidates/{candidate_id}/select` | select voice candidate |
@@ -1323,127 +1379,282 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 | `POST` | `/api/narrator/strategy` | save narrator strategy |
 | `POST` | `/api/narrator/preview` | preview narrator |
 | `POST` | `/api/voices/{speaker}/style_timeline` | From this line on, the character sounds like `character_style` (an |
+| `GET` | `/api/voices/{speaker}/design_lines` | The speaker's or state's lines for the card design picker, in-range first (#1232). |
+| `GET` | `/api/voices/{speaker}/state_timeline` | The suggested voice timeline for a character whose settled gender/age |
+| `POST` | `/api/voices/{speaker}/version_timeline` | Apply a character's voice timeline. Every version must exist, or |
+| `DELETE` | `/api/voices/{speaker}/version_timeline` | clear version timeline |
 | `DELETE` | `/api/voices/{speaker}/style_timeline/{from_index}` | remove style point |
-| `POST` | `/api/voices/{speaker}/approval` | Set persona and voice approval independently for a character |
-| `POST` | `/api/voices/{speaker}/persona-voice-audit` | Allow a user to correct the provenance note for an assignment |
-| `POST` | `/api/generate_personas` | Generate LLM-derived voice persona descriptions and VoiceDesign previews |
+| `POST` | `/api/voices/{speaker}/approval` | Set persona and voice approval independently for a character. |
+| `POST` | `/api/voices/{speaker}/persona-voice-audit` | Allow a user to correct the provenance note for an assignment. |
+| `POST` | `/api/generate_personas` | Generate LLM-derived voice persona descriptions and VoiceDesign previews. |
 | `POST` | `/api/cancel_persona` | cancel persona |
-| `POST` | `/api/persona/recover` | Validate and save one externally generated persona without rerunning the batch |
-| `POST` | `/api/save_voice_config` | legacy raw-map save; requires originating snapshot `revision` and `book_token` query parameters; prefer `/api/voice_config/save` |
+| `POST` | `/api/persona/recover` | Validate and save one externally generated persona without rerunning the batch. |
+| `POST` | `/api/save_voice_config` | Accept legacy raw maps only with explicitly supplied snapshot query guards. |
+| `GET` | `/api/voice_config/snapshot` | get guarded voice snapshot |
+| `POST` | `/api/voice_config/save` | save guarded voice config |
+| `POST` | `/api/voice_config/single-voice-preview` | preview single voice |
+| `POST` | `/api/voice_config/seed_unseeded` | apply voice seed repair |
 | `POST` | `/api/suggest_voices` | Suggest the best-matching downloaded LoRA voice for each character based on |
 | `POST` | `/api/suggest_voices/apply` | apply voice suggestion |
 | `POST` | `/api/suggest_voices/apply_bulk` | apply voice suggestions bulk |
-
-#### Voice library and casts (`app/routers/voice_library.py`)
-
-| method | path | what it does |
-|---|---|---|
-| `GET` | `/api/voice_library` | Return the full library plus the current book's characters with line counts |
-| `POST` | `/api/voice_library/casts` | voice library create cast |
-| `POST` | `/api/voice_library/favorites/{adapter_id}` | Star or unstar one adapter; suggestions prefer compatible favorites |
-| `DELETE` | `/api/voice_library/casts/{cast}` | voice library delete cast |
-| `DELETE` | `/api/voice_library/casts/{cast}/members/{key}` | voice library delete member |
-| `POST` | `/api/voice_library/save` | Save selected current-book characters into a cast (NARRATOR -> shared by default) |
-| `POST` | `/api/voice_library/match` | Fuzzy-match the current book's characters against a cast (+shared pool) |
-| `POST` | `/api/voice_library/match_bulk` | Fuzzy-match the union of characters across several saved books against a |
-| `POST` | `/api/voice_library/apply` | Apply confirmed cast members onto the current voice_config by the given mapping |
-| `POST` | `/api/voice_library/apply_bulk` | Apply confirmed cast members onto several saved books' voice_config.json |
-
-#### Voice Designer and clone references (`app/routers/voice_design.py`)
-
-| method | path | what it does |
-|---|---|---|
-| `POST` | `/api/voice_design/preview` | Generate a preview voice from a text description |
-| `POST` | `/api/voice_design/save` | Save a preview voice as a permanent designed voice |
-| `GET` | `/api/voice_design/list` | List all saved designed voices |
-| `DELETE` | `/api/voice_design/{voice_id}` | Delete a saved designed voice |
-| `GET` | `/api/clone_voices/list` | List all uploaded clone voices |
-| `POST` | `/api/clone_voices/upload` | clone voices upload |
-| `DELETE` | `/api/clone_voices/{voice_id}` | Delete an uploaded clone voice |
 
 #### Chunks, rendering, merge and export (`app/routers/editor.py`)
 
 | method | path | what it does |
 |---|---|---|
+| `POST` | `/api/chunks/{index}/word_timing` | create chunk word timing |
+| `GET` | `/api/chunks/{index}/word_timing/audio` | get word timing audio |
+| `GET` | `/api/take_history_policy` | get take history policy endpoint |
+| `POST` | `/api/take_history_policy` | change take history policy endpoint |
+| `POST` | `/api/chunks/{index}/take_restore` | restore take snapshot |
+| `POST` | `/api/chunks/{index}/take_snapshots` | save take snapshot |
+| `GET` | `/api/take_snapshots` | list take snapshots |
+| `POST` | `/api/take_snapshots/action` | change take snapshot |
+| `GET` | `/api/take_snapshots/{version}/audio` | audition take snapshot |
+| `POST` | `/api/word_timing/cancel` | cancel word timing |
+| `POST` | `/api/chunks/{index}/speech_verification` | recheck chunk speech |
+| `POST` | `/api/speech_verification/cancel` | cancel speech verification |
+| `GET` | `/api/chunks/repair_options` | get audio repair options endpoint |
+| `POST` | `/api/chunks/repair_preview` | get audio repair preview endpoint |
 | `GET` | `/api/audiobook` | get audiobook |
+| `HEAD` | `/api/audiobook` | get audiobook |
+| `GET` | `/api/chunks/playback_plan` | get playback plan |
+| `GET` | `/api/chunks/playback_gap` | get playback gap |
 | `GET` | `/api/chunks` | get chunks |
-| `POST` | `/api/chunks/restore` | Re-insert a previously deleted chunk at a specific index |
+| `GET` | `/api/audio/estimate` | get audio estimate |
+| `GET` | `/api/chunks/status` | get chunk status snapshot |
+| `GET` | `/api/chunks/quality` | get editor quality |
+| `GET` | `/api/chunks/{index}/gap_suggestion` | get gap suggestion endpoint |
+| `POST` | `/api/chunks/{index}/gap_suggestion` | apply gap suggestion endpoint |
+| `POST` | `/api/chunks/restore` | Re-insert a previously deleted chunk at a specific index. |
 | `POST` | `/api/chunks/drift_check` | Score done chunks against their speaker's reference voice (ECAPA cosine, |
+| `POST` | `/api/chunks/outlier_check` | outlier check endpoint |
+| `POST` | `/api/chunks/outlier_check/cancel` | cancel outlier check |
 | `POST` | `/api/chunks/{index}` | update chunk |
-| `POST` | `/api/chunks/{index}/insert` | Insert an empty chunk after the given index |
-| `DELETE` | `/api/chunks/{index}` | Delete a chunk at the given index |
+| `POST` | `/api/chunks/{index}/insert` | Insert an empty chunk after the given index. |
+| `POST` | `/api/chunks/{index}/narration-markup/preview` | preview narration markup |
+| `POST` | `/api/chunks/{index}/narration-markup/apply` | apply narration markup |
+| `DELETE` | `/api/chunks/{index}` | Delete a chunk at the given index. |
 | `POST` | `/api/chunks/{index}/generate` | generate chunk endpoint |
+| `GET` | `/api/editor/integrity` | get editor integrity |
+| `GET` | `/api/export_quality` | get export quality |
+| `GET` | `/api/export_mastering` | get export mastering |
+| `POST` | `/api/abs/config` | save abs config |
+| `GET` | `/api/abs/config` | get abs config |
+| `GET` | `/api/abs/libraries` | list abs libraries |
+| `POST` | `/api/abs/preview` | preview abs send |
+| `POST` | `/api/abs/send` | send abs export |
+| `GET` | `/api/abs/deliveries` | list abs deliveries |
+| `POST` | `/api/abs/reconcile` | reconcile abs delivery |
+| `GET` | `/api/abs/progress` | get abs progress |
+| `POST` | `/api/abs/cancel` | cancel abs send |
 | `POST` | `/api/merge` | merge audio endpoint |
 | `POST` | `/api/export_audacity` | export audacity endpoint |
-| `GET` | `/api/export_zip` | One zip of whatever exported audio exists (MP3, M4B); 404 when nothing does |
+| `GET` | `/api/export_zip` | export zip |
 | `GET` | `/api/export_audacity` | get audacity export |
+| `GET` | `/api/m4b_publication` | preview m4b publication |
+| `GET` | `/api/m4b_cover/preview` | preview uploaded m4b cover |
+| `POST` | `/api/m4b_publication/resolve` | resolve m4b publication |
 | `POST` | `/api/merge_m4b` | merge m4b endpoint |
-| `POST` | `/api/export_chapters` | Write chapters as separate MP3/WAV files (CPU only, no GPU lock) |
+| `POST` | `/api/merge_m4b/cancel` | cancel m4b export |
+| `POST` | `/api/export_chapters` | Write chapters as separate MP3/WAV files (CPU only, no GPU lock). |
 | `POST` | `/api/export_chapters/cancel` | cancel chapter export |
-| `GET` | `/api/export_chapters/preview` | The filenames an export would produce, without decoding any audio |
+| `GET` | `/api/export_chapters/preview` | The selected filenames an export would write after existing-file reuse. |
 | `GET` | `/api/chapter_exports` | list chapter exports |
 | `GET` | `/api/chapter_exports/file/{name}` | download chapter |
-| `GET` | `/api/chapter_exports/zip` | All exported chapters, or the comma-separated `names`, in one zip |
+| `GET` | `/api/chapter_exports/zip` | download chapters zip |
+| `GET` | `/api/readaloud_epub/capability` | Bounded, non-inference timing capability + effective policy. |
+| `POST` | `/api/readalong/sidecar` | build readalong sidecar endpoint |
+| `POST` | `/api/readalong/sidecar/cancel` | cancel readalong sidecar |
+| `GET` | `/api/readalong/sidecar` | download readalong sidecar |
+| `GET` | `/api/readalong/sidecar/audio` | download readalong sidecar audio |
+| `GET` | `/api/readalong/player` | download readalong player |
+| `POST` | `/api/readaloud_epub` | build readaloud epub endpoint |
+| `POST` | `/api/readaloud_epub/cancel` | cancel readaloud epub |
+| `GET` | `/api/readaloud_epub` | download readaloud epub |
+| `GET` | `/api/readaloud_epub/audio` | download readaloud epub audio |
 | `GET` | `/api/audiobook_m4b` | get audiobook m4b |
-| `POST` | `/api/m4b_cover` | Upload a cover image for M4B export |
-| `DELETE` | `/api/m4b_cover` | Remove the uploaded cover image |
-| `POST` | `/api/generate_batch` | Generate multiple chunks in parallel using configured worker count |
-| `POST` | `/api/generate_batch_fast` | Generate multiple chunks using batch TTS API with single seed. Faster but less flexible |
-| `POST` | `/api/cancel_audio` | Cancel ongoing audio generation and reset in-progress chunks |
-| `GET` | `/api/reports` | List all generated review reports in the reports/ directory, newest first |
-| `GET` | `/api/reports/{filename}` | Return the raw Markdown contents of a generated report |
+| `POST` | `/api/m4b_cover` | Upload a cover image for M4B export. |
+| `DELETE` | `/api/m4b_cover` | Remove the uploaded cover image. |
+| `POST` | `/api/generate_batch` | Generate multiple chunks in parallel using configured worker count. |
+| `POST` | `/api/generate_batch_fast` | Render chunks in batches using saved voice seeds unless a batch seed overrides them. |
+| `POST` | `/api/cancel_audio` | cancel audio |
+| `GET` | `/api/reports` | list reports |
+| `GET` | `/api/reports/{filename}` | get report |
+| `POST` | `/api/reports/{filename}/explain` | explain report |
+| `POST` | `/api/reports/explanation/cancel` | cancel report explanation |
 | `GET` | `/api/review/checkpoints` | List saved review checkpoints (what's done + where a re-run resumes), plus |
+
+#### Sound design (`app/routers/sound_design.py`)
+
+| method | path | what it does |
+|---|---|---|
+| `POST` | `/api/sound_design/assets/import` | import sound asset |
+| `GET` | `/api/sound_design/assets` | list sound assets |
+| `POST` | `/api/sound_design/assets/{asset_id}/purge_incomplete` | purge incomplete sound asset |
+| `GET` | `/api/sound_design/assets/{asset_id}/audition` | audition sound asset |
+| `GET` | `/api/sound_design/cues` | get sound design cues |
+| `GET` | `/api/sound_design/cues/anchor` | get sound design cue anchor |
+| `POST` | `/api/sound_design/cues/revise` | revise sound design cue |
+| `POST` | `/api/sound_design/cues/select` | select sound design cue |
+| `POST` | `/api/sound_design/candidates/render` | render sound candidate |
+| `GET` | `/api/sound_design/candidates/{stage}/audition` | audition sound candidate |
+| `POST` | `/api/sound_design/candidates/{stage}/approve` | approve sound candidate |
+| `GET` | `/api/sound_design/candidates` | get sound candidates |
+| `POST` | `/api/sound_design/candidates/{stage}/discard` | discard sound candidate endpoint |
+| `POST` | `/api/sound_design/candidates/{stage}/source_review` | get sound source review endpoint |
+| `POST` | `/api/sound_design/candidates/{stage}/deliver` | deliver sound candidate |
+| `GET` | `/api/sound_design/delivery/{format_name}/download` | download sound delivery |
+| `GET` | `/api/sound_design/renditions` | list sound renditions |
+| `POST` | `/api/sound_design/renditions/record` | record sound rendition |
+| `POST` | `/api/sound_design/renditions/keep` | keep sound rendition |
+| `POST` | `/api/sound_design/renditions/consume` | consume sound rendition |
+| `POST` | `/api/sound_design/renditions/cleanup_preview` | preview sound rendition cleanup |
+| `POST` | `/api/sound_design/renditions/cleanup` | cleanup sound renditions |
+
+#### Pronunciation panel (`app/routers/pronunciation_panel.py`)
+
+| method | path | what it does |
+|---|---|---|
+| `GET` | `/api/pronunciation` | get pronunciation endpoint |
+| `POST` | `/api/pronunciation/save` | save pronunciation endpoint |
+| `POST` | `/api/pronunciation/preview` | get pronunciation preview endpoint |
+| `POST` | `/api/pronunciation/audition` | generate pronunciation audition endpoint |
+| `POST` | `/api/pronunciation/occurrences` | get occurrence editor endpoint |
+| `POST` | `/api/pronunciation/occurrences/candidates` | get occurrence candidates endpoint |
+| `POST` | `/api/pronunciation/occurrences/preview` | get occurrence preview endpoint |
+| `POST` | `/api/pronunciation/occurrences/homographs` | get homograph candidates endpoint |
+| `POST` | `/api/pronunciation/occurrences/save` | save occurrence rules endpoint |
+| `GET` | `/api/pronunciation/date_order` | get date order endpoint |
+| `POST` | `/api/pronunciation/date_order` | save date order endpoint |
+
+#### Saved scripts (`app/routers/scripts_library.py`)
+
+| method | path | what it does |
+|---|---|---|
+| `GET` | `/api/scripts` | List saved scripts without blocking the FastAPI event loop on disk I/O. |
+| `GET` | `/api/workspace` | Summarize selected-book progress without initializing chunks or generating audio. |
+| `GET` | `/api/book/recovery` | Read-only: an interrupted book switch, set-aside evidence, and the commands that help (#1660). |
+| `POST` | `/api/collection/overview` | Project script/review/voice/render/export state for selected saved books. |
+| `POST` | `/api/scripts/save` | Save the current annotated_script.json (and voice_config.json) under a name. |
+| `POST` | `/api/scripts/load` | Load a saved script, replacing the current annotated_script.json and chunks. |
+| `POST` | `/api/scripts/{name}/preflight` | Audit a saved script and optional uploaded source without changing either. |
+| `POST` | `/api/scripts/{name}/repair/deterministic/preview` | Preview only source-proven Unicode and adjacent-duplicate repairs. |
+| `POST` | `/api/scripts/{name}/repair/deterministic/apply` | Apply an unchanged preview, preserving the original in a timestamped backup. |
+| `GET` | `/api/scripts/{name}/repair/speakers/preview` | preview speaker repair |
+| `POST` | `/api/scripts/{name}/repair/speakers/apply` | apply speaker repair |
+| `GET` | `/api/scripts/{name}/repair/content/preview` | preview content repair |
+| `POST` | `/api/scripts/{name}/repair/content/apply` | apply content repair |
+| `DELETE` | `/api/scripts/{name}` | Delete a saved script. |
+
+#### Project scope (`app/routers/project_scope.py`)
+
+| method | path | what it does |
+|---|---|---|
+| `POST` | `/api/project/scope/preview` | preview source scope |
+| `GET` | `/api/project/scope/entries` | get scope entries |
+| `POST` | `/api/project/scope/apply` | apply scope |
+| `GET` | `/api/project/scope/undo` | get scope undo |
+| `POST` | `/api/project/scope/undo` | undo scope |
+| `POST` | `/api/project/scope/discard_undo` | discard scope undo |
+
+#### Voice library and casts (`app/routers/voice_library.py`)
+
+| method | path | what it does |
+|---|---|---|
+| `GET` | `/api/voice_library` | Return the full library plus the current book's characters with line counts. |
+| `POST` | `/api/voice_library/casts` | voice library create cast |
+| `POST` | `/api/voice_library/catalog_member` | voice library catalog member |
+| `POST` | `/api/voice_library/favorites/{adapter_id}` | Star or unstar one adapter; suggestions prefer compatible favorites. |
+| `DELETE` | `/api/voice_library/casts/{cast}` | voice library delete cast |
+| `DELETE` | `/api/voice_library/casts/{cast}/members/{key}` | voice library delete member |
+| `POST` | `/api/voice_library/save` | Save selected current-book characters into a cast (NARRATOR -> shared by default). |
+| `POST` | `/api/voice_library/match` | Fuzzy-match the current book's characters against a cast (+shared pool). |
+| `POST` | `/api/voice_library/match_bulk` | Fuzzy-match the union of characters across several saved books against a |
+| `POST` | `/api/voice_library/apply` | Apply confirmed cast members onto the current voice_config by the given mapping. |
+| `POST` | `/api/voice_library/apply_bulk` | Apply confirmed cast members onto several saved books' voice_config.json |
+
+#### Casting (`app/routers/casting.py`)
+
+| method | path | what it does |
+|---|---|---|
+| `GET` | `/api/casting/voices` | casting voices |
+| `POST` | `/api/casting/marks` | casting mark |
+| `POST` | `/api/casting/marks/batch` | casting marks batch |
+| `POST` | `/api/casting/lifecycle/batch` | casting lifecycle batch |
+| `GET` | `/api/casting/clone_config` | casting clone config |
+
+#### Voice Designer and clone references (`app/routers/voice_design.py`)
+
+| method | path | what it does |
+|---|---|---|
+| `POST` | `/api/voice_design/preview` | Generate a preview voice from a text description. |
+| `POST` | `/api/voice_design/save` | Save a preview voice as a permanent designed voice. |
+| `GET` | `/api/voice_design/list` | List all saved designed voices. |
+| `DELETE` | `/api/voice_design/{voice_id}` | Delete a saved designed voice. |
+| `POST` | `/api/clone_voices/cleanup/prepare` | cleanup prepare |
+| `GET` | `/api/clone_voices/cleanup/{token}/audio` | cleanup audio |
+| `POST` | `/api/clone_voices/cleanup/accept` | cleanup accept |
+| `DELETE` | `/api/clone_voices/cleanup/{token}` | cleanup reject |
+| `POST` | `/api/audio_channels/stage` | stage audio channels |
+| `GET` | `/api/audio_channels/preview` | preview audio channel |
+| `DELETE` | `/api/audio_channels/stage/{token}` | delete audio channel stage |
+| `GET` | `/api/clone_voices/list` | List all uploaded clone voices. |
+| `POST` | `/api/clone_voices/upload` | Import a reference clip for voice cloning. |
+| `DELETE` | `/api/clone_voices/{voice_id}` | Delete an uploaded clone voice. |
 
 #### LoRA training and adapters (`app/routers/lora.py`)
 
 | method | path | what it does |
 |---|---|---|
-| `POST` | `/api/lora/upload_dataset` | Upload a ZIP containing WAV files and metadata.jsonl |
-| `GET` | `/api/lora/datasets` | List uploaded LoRA training datasets |
-| `DELETE` | `/api/lora/datasets/{dataset_id}` | Delete an uploaded dataset |
+| `POST` | `/api/lora/upload_dataset` | Upload a ZIP containing WAV files and metadata.jsonl. |
+| `GET` | `/api/lora/datasets` | List uploaded LoRA training datasets without blocking request handling. |
+| `DELETE` | `/api/lora/datasets/{dataset_id}` | Delete an uploaded dataset. |
 | `POST` | `/api/lora/train/cancel` | Cancel a running LoRA training subprocess (it holds the global GPU lock for |
-| `POST` | `/api/lora/train` | Start LoRA training as a subprocess |
-| `GET` | `/api/lora/models` | List all LoRA adapters (built-in + user-trained) |
-| `GET` | `/api/lora/backups` | Report rollback-backup storage and host free-space pressure |
-| `GET` | `/api/lora/models/{adapter_id}/comparison` | Return validated, paired evaluation audio for a retained candidate |
-| `POST` | `/api/lora/models/{adapter_id}/review/session` | Open a blind A/B human-review session (identities hidden until submit) |
-| `GET` | `/api/lora/models/{adapter_id}/review/session/{session_id}/audio/{label}/{probe_id}` | Stream one blind sample (A/B) without revealing which side it is |
-| `POST` | `/api/lora/models/{adapter_id}/review/session/{session_id}` | Record a human listening decision; rejects if evidence changed. Never promotes |
-| `GET` | `/api/lora/models/{adapter_id}/reviews` | Return this adapter's bounded human-review history, newest first |
-| `POST` | `/api/lora/models/{adapter_id}/reviews/cleanup` | Delete this adapter's human-review history, reporting count and space freed |
-| `POST` | `/api/lora/models/{adapter_id}/promote` | Promote the evaluated recommendation while preserving production for rollback |
-| `POST` | `/api/lora/models/{adapter_id}/rollback-promotion` | Restore the production checkpoint preserved by the last promotion |
-| `POST` | `/api/lora/models/{adapter_id}/recover-checkpoint-swap` | Restore production after a process interruption left a swap journal |
-| `DELETE` | `/api/lora/models/{adapter_id}/rollback-backup` | Delete the preserved production checkpoint after explicit confirmation |
-| `DELETE` | `/api/lora/models/{adapter_id}` | Delete a trained LoRA adapter. Built-in adapters cannot be deleted |
-| `POST` | `/api/lora/download/{adapter_id}` | Download a built-in LoRA adapter from HuggingFace |
-| `POST` | `/api/lora/test` | Generate test audio using a LoRA adapter (built-in or user-trained) |
-| `POST` | `/api/lora/preview/{adapter_id}` | Generate or return cached preview audio for a LoRA adapter |
+| `POST` | `/api/lora/train` | Start LoRA training as a subprocess. |
+| `GET` | `/api/lora/models` | List all LoRA adapters without blocking request handling. |
+| `GET` | `/api/lora/backups` | Report rollback-backup storage and host free-space pressure. |
+| `GET` | `/api/lora/models/{adapter_id}/comparison` | Return validated, paired evaluation audio for a retained candidate. |
+| `POST` | `/api/lora/models/{adapter_id}/review/session` | Open a blind A/B human-review session (identities hidden until submit). |
+| `GET` | `/api/lora/models/{adapter_id}/review/session/{session_id}/audio/{label}/{probe_id}` | Stream one blind sample (A/B) without revealing which side it is. |
+| `POST` | `/api/lora/models/{adapter_id}/review/session/{session_id}` | Record a human listening decision; rejects if evidence changed. Never promotes. |
+| `GET` | `/api/lora/models/{adapter_id}/reviews` | Return this adapter's bounded human-review history, newest first. |
+| `POST` | `/api/lora/models/{adapter_id}/reviews/cleanup` | Delete this adapter's human-review history, reporting count and space freed. |
+| `POST` | `/api/lora/models/{adapter_id}/promote` | Promote the evaluated recommendation while preserving production for rollback. |
+| `POST` | `/api/lora/models/{adapter_id}/rollback-promotion` | Restore the production checkpoint preserved by the last promotion. |
+| `POST` | `/api/lora/models/{adapter_id}/recover-checkpoint-swap` | Restore production after a process interruption left a swap journal. |
+| `DELETE` | `/api/lora/models/{adapter_id}/rollback-backup` | Delete the preserved production checkpoint after explicit confirmation. |
+| `DELETE` | `/api/lora/models/{adapter_id}` | Delete a trained LoRA adapter. Built-in adapters cannot be deleted. |
+| `POST` | `/api/lora/download/{adapter_id}` | Download a built-in LoRA adapter from HuggingFace. |
+| `POST` | `/api/lora/test` | Generate test audio without blocking request handling. |
+| `POST` | `/api/lora/preview/{adapter_id}` | Generate or return cached preview audio without blocking request handling. |
 
 #### Dataset Builder (`app/routers/dataset_builder.py`)
 
 | method | path | what it does |
 |---|---|---|
-| `GET` | `/api/dataset_builder/list` | List existing dataset builder projects |
-| `POST` | `/api/dataset_builder/create` | Create a new dataset builder project |
-| `POST` | `/api/dataset_builder/update_meta` | Update project description and global seed without touching samples |
-| `POST` | `/api/dataset_builder/update_rows` | Update row definitions, preserving existing generation status/audio |
-| `POST` | `/api/dataset_builder/generate_sample` | Generate a single dataset sample using VoiceDesign |
-| `POST` | `/api/dataset_builder/generate_batch` | Batch generate dataset samples as a background task |
-| `POST` | `/api/dataset_builder/cancel` | Cancel ongoing batch dataset generation |
-| `GET` | `/api/dataset_builder/status/{name}` | Get per-sample generation status for a dataset builder project |
-| `POST` | `/api/dataset_builder/save` | Finalize dataset builder project as a training dataset |
-| `DELETE` | `/api/dataset_builder/{name}` | Discard a dataset builder working project |
+| `GET` | `/api/dataset_builder/list` | List existing dataset builder projects. |
+| `POST` | `/api/dataset_builder/create` | Create a new dataset builder project. |
+| `POST` | `/api/dataset_builder/update_meta` | dataset builder update meta |
+| `POST` | `/api/dataset_builder/update_rows` | dataset builder update rows |
+| `POST` | `/api/dataset_builder/edit_rows` | dataset builder edit rows |
+| `POST` | `/api/dataset_builder/generate_sample` | Generate a sample without blocking the API loop; worker owns its claim. |
+| `POST` | `/api/dataset_builder/generate_batch` | Batch generate dataset samples as a background task. |
+| `POST` | `/api/dataset_builder/cancel` | Cancel the requested project's worker; unnamed callers target the active job. |
+| `GET` | `/api/dataset_builder/status/{name}` | Get per-sample generation status for a dataset builder project. |
+| `POST` | `/api/dataset_builder/save` | dataset builder save |
+| `DELETE` | `/api/dataset_builder/{name}` | dataset builder delete |
 
 #### Preparer (`app/routers/preparer.py`)
 
 | method | path | what it does |
 |---|---|---|
-| `POST` | `/api/preparer/start` | preparer start |
+| `POST` | `/api/preparer/start` | Upload audio (and optionally a source EPUB/TXT) and run the preparer |
 | `POST` | `/api/preparer/cancel` | preparer cancel |
-| `GET` | `/api/preparer/list` | List completed dataset ZIP files available for download |
-| `GET` | `/api/preparer/download/{filename:path}` | Download a generated dataset ZIP |
-| `POST` | `/api/preparer/batch/start` | Process multiple audio files sequentially through the preparer script |
+| `GET` | `/api/preparer/list` | List completed dataset ZIP files available for download. |
+| `GET` | `/api/preparer/download/{filename:path}` | Download a generated dataset ZIP. |
+| `POST` | `/api/preparer/batch/start` | Process previously uploaded audio files sequentially. |
+| `POST` | `/api/preparer/batch/upload_start` | Reserve the batch before staging and publishing selected files. |
 | `POST` | `/api/preparer/batch/cancel` | preparer batch cancel |
 
 #### Voice Lab (`app/routers/voicelab.py`)
@@ -1453,10 +1664,10 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 | `GET` | `/api/voicelab/health` | voicelab health |
 | `GET` | `/api/voicelab/diagnostics` | voicelab diagnostics |
 | `POST` | `/api/voicelab/preflight` | voicelab preflight |
-| `GET` | `/api/voicelab/config` | Return the pipeline paths plus whether each resolves on this machine |
+| `GET` | `/api/voicelab/config` | Return the pipeline paths plus whether each resolves on this machine. |
 | `POST` | `/api/voicelab/config` | voicelab save config |
-| `GET` | `/api/voicelab/inspect` | Preview what a dedup input folder contains so the UI can show readiness |
-| `POST` | `/api/voicelab/start` | Run the selected pipeline stages in sequence as one cancel/pausable job |
+| `GET` | `/api/voicelab/inspect` | Preview what a dedup input folder contains so the UI can show readiness. |
+| `POST` | `/api/voicelab/start` | Run the selected pipeline stages in sequence as one cancel/pausable job. |
 | `POST` | `/api/voicelab/cancel` | voicelab cancel |
 | `POST` | `/api/voicelab/pause` | voicelab pause |
 | `POST` | `/api/voicelab/resume` | voicelab resume |
@@ -1469,6 +1680,18 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 | `POST` | `/api/benchmark/start` | benchmark start |
 | `POST` | `/api/benchmark/cancel` | benchmark cancel |
 | `GET` | `/api/benchmark/status` | benchmark status |
+
+#### Translated edition (`app/routers/translated_edition.py`)
+
+| method | path | what it does |
+|---|---|---|
+| `GET` | `/api/translated_edition/pairs` | get translated edition pairs |
+| `POST` | `/api/translated_edition/proposals` | create translated edition proposal |
+| `GET` | `/api/translated_edition/latest-proposal` | get translated edition latest proposal |
+| `GET` | `/api/translated_edition/proposals/{proposal_id}` | get translated edition proposal |
+| `POST` | `/api/translated_edition/proposals/{cancel_token}/cancel` | Request a stop after the current row for one in-flight preview. |
+
+<!-- api-reference-end -->
 
 </details>
 
@@ -1483,7 +1706,7 @@ alexandria-audiobook2/
 │   ├── app.py                       # FastAPI app: routers, auth, static mount
 │   ├── routers/                     # system, script, scripts_library, voices, voice_library,
 │   │                                #   voice_design, editor, lora, dataset_builder, preparer,
-│   │                                #   voicelab, benchmark  (181 routes)
+│   │                                #   voicelab, benchmark  (see the API reference above)
 │   ├── core.py                      # process_state, GPU lock, ETA, run bookkeeping
 │   ├── three_pass_generate.py       # pass 1 split · pass 2 attribute · pass 3 instruct
 │   ├── attribution_prompt_variants.py, default_prompts*.txt, review_prompts.txt
@@ -1495,7 +1718,7 @@ alexandria-audiobook2/
 │   ├── train_lora.py, voice_reference.py, speaker_identity.py
 │   ├── experiments/                 # ~290 measurement scripts (lora_serving_eval, voice_drift,
 │   │                                #   aligned_japanese_accent, quote_segmenter, …)
-│   ├── tests/                       # ~3,400 unit tests + unit_test_inventory.json
+│   ├── tests/                       # unit tests; inventory in unit_test_inventory.json
 │   ├── static/index.html            # the single-page app (no build step)
 │   ├── static/js/app-*.js           # core, scripts, workbench, training, voicelab, reports
 │   └── requirements.txt, torch-constraints.txt

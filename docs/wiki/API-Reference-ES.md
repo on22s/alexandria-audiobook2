@@ -12,8 +12,10 @@ recarga y revisa el libro actual antes de reintentar. Nunca obtengas guardas nue
 solo para enviar una carga creada para un libro anterior.
 
 Todo lo que hace la interfaz web es una llamada HTTP, así que la app se puede programar. Esta página muestra
-las tareas habituales con ejemplos. La **lista completa de las 181 rutas**, generada a partir del
-código, está en la [referencia de la API](../../README_ES.md#referencia-de-la-api) del README; la documentación interactiva está
+las tareas habituales con ejemplos. La **lista generada de la API**, construida a partir de
+`app/api_contract/routes.json`, está en la
+[referencia de la API](../../README.md#api-reference) del README en inglés (y en la
+[referencia de la API](../../README_ES.md#referencia-de-la-api) del README en español); la documentación interactiva está
 en `/docs` y el esquema OpenAPI en `/openapi.json` en una app en ejecución.
 
 ## Fundamentos
