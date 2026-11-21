@@ -163,7 +163,8 @@ class IntegrationAdapterProvenanceTests(OwnedCorpusFixture):
                          'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}]), \
                      contextlib.redirect_stdout(io.StringIO()) as stdout:
                     report = integration_runner.run_manifest(manifest, str(output))
-                probe.assert_called_once_with('http://fixture/v1', api_key='local')
+                probe.assert_called_once_with('http://fixture/v1', api_key='local',
+                                              authorization='Bearer local')
                 evidence = json.loads(output.read_text())['attribution_adapter']
                 self.assertIs(expected, evidence['verified'])
                 self.assertEqual(attribution_adapter.describe(config), evidence['expected'])
