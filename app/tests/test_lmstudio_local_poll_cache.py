@@ -137,6 +137,24 @@ class LocalPollCacheTests(unittest.TestCase):
         self.assertNotIn('configured-fixture', repr(settings._remote_status_cache))
         self.assertNotIn('sk-unused-fixture', repr(settings._remote_status_cache))
 
+    def test_unset_env_reference_sends_no_native_or_props_credential(self):
+        with patch.dict(os.environ, {}, clear=True), \
+                patch.object(settings, 'get_llama_cpp_status', return_value=None) as props, \
+                patch.object(settings, 'get_lmstudio_endpoint_status',
+                             return_value={'available': True}) as native:
+            settings.get_current_status('remote', BASE, 'm', use_cache=True,
+                api_key='env:AA2_UNSET_FIXTURE')
+            settings.get_current_status('remote', BASE, 'm',
+                api_key='env:AA2_UNSET_FIXTURE')
+        calls = list(props.call_args_list) + list(native.call_args_list)
+        self.assertTrue(calls)
+        for call in calls:
+            self.assertIsNone(call.kwargs.get('authorization'))
+            sent_key = (call.args[2] if len(call.args) > 2
+                        else call.kwargs.get('api_key'))
+            self.assertIsNone(sent_key,
+                              'a raw env: reference must not become a bearer header')
+
     def test_llama_props_probe_receives_effective_authorization_cached_and_live(self):
         native = {'runtime': 'llama.cpp', 'loaded': True, 'context_length': 8192}
         with patch.object(settings, 'get_llama_cpp_status', return_value=native) as props:

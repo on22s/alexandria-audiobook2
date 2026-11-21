@@ -22,7 +22,8 @@ from external_tts_client import ExternalTTSClient, get_external_tts_urls, get_ex
 from external_tts_capabilities import make_unknown_capability_report, UNAVAILABLE_ERROR
 
 from default_prompts import load_default_prompts, load_instruct_prompts, load_segment_prompts
-from llm_provider import get_effective_authorization, is_api_key_reference
+from llm_provider import (get_effective_authorization, is_api_key_reference,
+                          resolve_probe_api_key)
 from device_utils import get_available_gpu_device, normalize_device
 from review_prompts import load_review_prompts
 from diagnostics import redact_text
@@ -691,7 +692,7 @@ async def lmstudio_status():
     ssh_alias = (full_cfg.get("llm_remote_ssh") or "").strip()
     status = dict(await asyncio.to_thread(
         get_current_status, llm_mode, base_url, model_name, ssh_alias,
-        use_cache=True, api_key=llm_cfg.get("api_key"), cache_local=True,
+        use_cache=True, api_key=resolve_probe_api_key(llm_cfg), cache_local=True,
         authorization=get_effective_authorization(llm_cfg), llm_config=llm_cfg,
     ))
     status["model"] = model_name

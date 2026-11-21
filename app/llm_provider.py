@@ -161,19 +161,47 @@ def is_authorization_header_unambiguous(llm_config):
     return isinstance(value, str) and bool(value.strip())
 
 
-def get_explicit_authorization(llm_config):
-    """The one configured Authorization header value (names case-insensitive).
+def resolve_authorization_value(value):
+    """Resolve one credential value; an unset env reference is None, not text.
 
-    None means the profile has no explicit Authorization header. This is the
-    credential the request actually carries, so probes and the SDK must use it
-    verbatim rather than deriving a bearer from an unrelated api_key. Conflicting
-    case spellings are ambiguous about what the transport sends, so they are
-    rejected here rather than resolved differently by each caller.
+    Bare legacy header values are returned verbatim. `env:NAME` / `${NAME}` are
+    references: when the variable is unset the answer is authoritatively no
+    credential, never the literal reference sent on the wire or used as a token.
     """
-    values = {value for _, value in _raw_authorization_headers(llm_config)}
+    if value is None or not isinstance(value, str):
+        return value
+    text = value.strip()
+    if text.startswith("env:"):
+        return os.environ.get(text[4:].strip()) or None
+    match = _ENV_REF.match(text)
+    if match:
+        return os.environ.get(match.group(1)) or None
+    return text or None
+
+
+def get_explicit_authorization(llm_config):
+    """The one resolved Authorization header value (names case-insensitive).
+
+    None means the profile has no usable explicit Authorization header. Probes
+    and the SDK must use the resolved value rather than deriving a bearer from
+    an unrelated api_key. Conflicting case spellings are ambiguous about what
+    the transport sends, so they are rejected here rather than resolved
+    differently by each caller.
+    """
+    raw = _raw_authorization_headers(llm_config)
+    values = {resolved for _, value in raw
+              if (resolved := resolve_authorization_value(value)) is not None}
     if len(values) > 1:
         raise ValueError("ambiguous Authorization header: conflicting case spellings")
     return next(iter(values)) if values else None
+
+
+def resolve_probe_api_key(llm_config):
+    """The resolved key a status probe may use, or None when intentionally absent."""
+    try:
+        return resolve_client_api_key(llm_config) or None
+    except MissingAPIKeyError:
+        return None
 
 
 def has_explicit_authorization_header(llm_config):
@@ -546,7 +574,8 @@ class FailoverClient:
                         self._pair[1][2], config.get("base_url", ""), self.secondary_model,
                         ssh_alias=self._ssh_alias,
                         api_key=resolve_client_api_key(config),
-                        authorization=get_effective_authorization(config))
+                        authorization=get_effective_authorization(config),
+                        llm_config=config)
                 except Exception as error:
                     status = {"available": False, "loaded": False,
                               "runtime_error": f"{type(error).__name__}: {error}"}

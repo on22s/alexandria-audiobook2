@@ -138,6 +138,15 @@ def check_adapter(config, base_url, require=None):
     also when no adapter is configured at all - that is a valid choice, not a
     fault.
     """
+    from lmstudio_settings import get_active_llm_config
+    if (get_active_llm_config(config) or {}).get("transport") == "manual":
+        # Manual has no HTTP endpoint to probe. A retained hosted URL or a
+        # legacy require flag cannot turn a human-in-the-loop run into an
+        # outbound /lora-adapters request; required adapters stay fail-closed
+        # for transports that really speak HTTP.
+        return True, "attribution adapter not probed: Manual transport has no HTTP endpoint"
+    from diagnostics import redact_text
+    safe_url = redact_text(str(base_url or ""))
     spec = adapter_config(config)
     if spec is None:
         return True, "no attribution adapter configured"
@@ -163,7 +172,7 @@ def check_adapter(config, base_url, require=None):
     served = served_adapters(base_url, api_key=spec['api_key'],
                              authorization=spec['authorization'])
     if served is None:
-        msg = (f"cannot verify the attribution adapter: {base_url} does not "
+        msg = (f"cannot verify the attribution adapter: {safe_url} does not "
                f"answer /lora-adapters. Expected {spec['path']} "
                f"at scale {spec['scale']}.")
         if require:

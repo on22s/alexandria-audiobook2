@@ -112,6 +112,23 @@ class RuntimeProfileBindingTests(unittest.TestCase):
             secondary_config=config or {'base_url': 'http://local.invalid/v1', 'model_name': 'local',
                                         'api_key': 'fixture'})
 
+    def test_manual_secondary_runtime_profile_never_probes_http(self):
+        config = {'transport': 'manual', 'base_url': 'https://hosted.invalid/v1',
+                  'model_name': 'manual', 'api_key': 'sk-retained-fixture',
+                  'provider_headers': {'Authorization': 'Token retained-fixture'},
+                  'context_length': 16384}
+        client = self.client(config=config)
+        client.failover({'category': 'rate_limited'})
+        import lmstudio_settings as settings
+        def forbidden(*args, **kwargs):
+            raise AssertionError('Manual secondary must not probe HTTP')
+        with patch.object(settings, 'get_llama_cpp_status', side_effect=forbidden), \
+                patch.object(settings, 'get_lmstudio_endpoint_status', side_effect=forbidden):
+            profile = client.ensure_active_runtime_profile()
+        self.assertEqual('manual', profile['status']['runtime'])
+        self.assertEqual(16384, profile['context_length'])
+        self.assertEqual(1, profile['status']['parallel'])
+
     def test_secondary_request_options_replace_primary_without_mutating_inputs(self):
         config = {'base_url': 'http://local.invalid/v1', 'model_name': 'local', 'api_key': 'fixture',
                   'provider_extra_body': {'secondary_only': False}, 'structured_output': 'off',

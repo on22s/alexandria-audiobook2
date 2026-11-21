@@ -12,6 +12,7 @@ Setup tab has been wrong on every load since the project moved to llama.cpp.
 """
 import io
 import json
+import os
 import unittest
 import urllib.error
 from unittest.mock import patch
@@ -177,6 +178,21 @@ class LlamaCppStatusTests(unittest.TestCase):
             self.assertTrue(ls.get_llama_cpp_status('http://fixture/v1', 'qwen3-14b')['loaded'])
         self.assertEqual(2, probe.call_count)
 
+
+    def test_unset_env_reference_sends_no_props_authorization(self):
+        seen = []
+        def probe(sent, timeout=None):
+            seen.append(sent.headers.get('Authorization'))
+            return _Ctx(json.dumps(PROPS).encode())
+        with patch.dict(os.environ, {}, clear=True), \
+                patch.object(ls, 'open_no_redirect', probe):
+            status = ls.get_llama_cpp_status(
+                'http://fixture/v1', 'qwen3-14b', api_key='env:AA2_UNSET_FIXTURE')
+            self.assertTrue(ls.get_llama_cpp_status(
+                'http://other/v1', 'qwen3-14b',
+                authorization='${AA2_UNSET_FIXTURE}')['loaded'])
+        self.assertTrue(status['loaded'])
+        self.assertEqual([None, None], seen)
 
     def test_authenticated_props_uses_no_redirect_transport_and_accepts_valid_response(self):
         import urllib.request

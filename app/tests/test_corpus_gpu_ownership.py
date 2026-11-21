@@ -126,6 +126,38 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
                 self.assertNotIn('script',core._task_claims)
                 self.assertEqual(b'prior report',output.read_bytes())
 
+    def test_optional_adapter_miss_report_sanitizes_url_and_retains_lease(self):
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            lock = root / 'gpu.lock'
+            text = 'one two three four five'
+            manifest = {'books': [{'name': 'book.txt', 'passages': [{
+                'category': 'opening', 'text': text, 'sha256': 'fixture'}]}]}
+            url = 'https://fixture-user:fixture-password@host.example/v1'
+            config = {'llm_mode': 'local', 'llm_local': {
+                'base_url': url, 'model_name': 'fixture',
+                'attribution_adapter': {'path': '/optional.gguf', 'scale': 1}}}
+            stack.enter_context(patch.object(core, 'acquire_gpu_lock',
+                side_effect=lambda: acquire_gpu_lock(str(lock))))
+            stack.enter_context(patch.object(runner, 'load_app_config', return_value=config))
+            stack.enter_context(patch.object(runner, 'ensure_ideal_settings',
+                return_value=(False, {}, 'ready')))
+            stack.enter_context(patch('attribution_adapter.served_adapters', return_value=None))
+            stack.enter_context(patch.object(runner, 'make_llm_client'))
+            stack.enter_context(patch.object(runner, 'process_chunk', return_value=[{
+                'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}]))
+            output = root / 'report.json'
+            report = runner.run_manifest(manifest, str(output))
+            body = output.read_text()
+            self.assertFalse(gpu_is_busy(str(lock)))
+            self.assertNotIn('script', core._task_claims)
+            self.assertNotIn('fixture-password', body)
+            self.assertNotIn('fixture-user', body)
+            self.assertIn('[REDACTED]', report['attribution_adapter']['message'])
+            self.assertFalse(report['attribution_adapter']['verified'])
+            self.assertEqual(1, report['summary']['passed'])
+            self.assertEqual(report, json.loads(body))
+
     def test_credentials_are_removed_from_report_but_preserved_for_provider(self):
         cases = (
             ('https://fixture-user:fixture-password@host.example/v1', 'https://[REDACTED]@host.example/v1'),

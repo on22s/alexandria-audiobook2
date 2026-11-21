@@ -568,6 +568,40 @@ class CredentialProfilePolicyTests(unittest.TestCase):
                 self.assertNotIn("sk-unused-fixture", str(seen))
                 self.assertNotIn("sk-env-fixture", str(seen))
 
+    def test_status_route_resolves_unset_env_key_to_none(self):
+        import asyncio
+        from routers import system as routes
+        profile = {'base_url': 'https://hosted.invalid/v1', 'model_name': 'm',
+                   'api_key': 'env:AA2_UNSET_FIXTURE'}
+        with patch.dict("os.environ", {}, clear=True), \
+                patch.object(routes, 'load_app_config',
+                             return_value={'llm_mode': 'remote', 'llm_remote': profile}), \
+                patch.object(routes, 'get_current_status',
+                             return_value={'available': True}) as status:
+            asyncio.run(routes.lmstudio_status())
+        self.assertIsNone(status.call_args.kwargs['api_key'],
+                          'an unset env reference must not be sent as a raw bearer')
+        self.assertIsNone(status.call_args.kwargs['authorization'])
+
+    def test_unset_env_reference_resolves_to_authoritative_none(self):
+        with patch.dict("os.environ", {"AA2_SET_FIXTURE": "sk-resolved-fixture"}, clear=True):
+            self.assertIsNone(llm_provider.resolve_authorization_value("env:AA2_UNSET_FIXTURE"))
+            self.assertIsNone(llm_provider.resolve_authorization_value("${AA2_UNSET_FIXTURE}"))
+            self.assertEqual("sk-resolved-fixture",
+                llm_provider.resolve_authorization_value("env:AA2_SET_FIXTURE"))
+            self.assertEqual("Bearer bare-legacy-fixture",
+                llm_provider.resolve_authorization_value("Bearer bare-legacy-fixture"))
+            unset_header = {"base_url": "https://hosted.invalid/v1",
+                            "provider_headers": {"Authorization": "env:AA2_UNSET_FIXTURE"}}
+            self.assertIsNone(llm_provider.get_explicit_authorization(unset_header),
+                              "a raw env: string must never become an Authorization value")
+            self.assertEqual({"Authorization": "sk-resolved-fixture"},
+                llm_provider.get_provider_headers(
+                    {"provider_headers": {"authorization": "env:AA2_SET_FIXTURE"}}))
+            self.assertIsNone(llm_provider.resolve_probe_api_key(
+                {"base_url": "https://hosted.invalid/v1",
+                 "api_key": "env:AA2_UNSET_FIXTURE"}))
+
     def test_manual_profile_has_no_wire_credential(self):
         profile = {'transport': 'manual', 'base_url': 'https://hosted.invalid/v1',
                    'api_key': 'sk-retained-fixture',

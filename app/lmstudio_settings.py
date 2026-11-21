@@ -27,6 +27,10 @@ from urllib.parse import urlparse
 from utils import run_rocm_smi_json
 from lmstudio_endpoint import get_lmstudio_endpoint_status, open_no_redirect
 
+# Distinguishes an omitted legacy argument from an explicitly resolved None:
+# None is authoritative ("send no credential"), omission is just old-call shape.
+_STATUS_UNSET = object()
+
 IDEAL_SETTINGS = {"context_length": 8192, "parallel": 1, "gpu": "max"}
 DEFAULT_SETTINGS = {"context_length": 4096, "parallel": 4, "gpu": "max"}
 
@@ -667,6 +671,9 @@ def get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name, api_key
     a non-Bearer header must not inherit a probe made with an unrelated api_key.
     Only a digest is stored, never the header value itself.
     """
+    from llm_provider import resolve_authorization_value
+    api_key = resolve_authorization_value(api_key)
+    authorization = resolve_authorization_value(authorization)
     remote = is_remote_llm(llm_mode, base_url)
     key = (ssh_alias, model_name, base_url,
            hashlib.sha256(repr((type(api_key).__name__, api_key,
@@ -916,6 +923,9 @@ def get_llama_cpp_status(base_url, model_name, timeout=5, api_key=None, authoriz
     # gateway every poll was a fresh GET /props answered 404 - hundreds in a
     # row in one user's proxy log (2026-09-17). Remember the miss per URL for
     # a while instead of asking again on every poll.
+    from llm_provider import resolve_authorization_value
+    api_key = resolve_authorization_value(api_key)
+    authorization = resolve_authorization_value(authorization)
     miss_key = _props_miss_key(root, api_key, authorization)
     with _props_miss_lock:
         missed_at = _props_miss.get(miss_key)
@@ -1044,8 +1054,9 @@ def get_manual_runtime_status(llm_config):
             "management_reason": "Manual transport has no runtime to configure"}
 
 
-def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False, api_key=None,
-                       cache_local=False, authorization=None, llm_config=None):
+def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False,
+                       api_key=_STATUS_UNSET, cache_local=False,
+                       authorization=_STATUS_UNSET, llm_config=None):
     """Read runtime without reloads; cache_local opts the UI into bounded caching.
 
     Existing local worker reads stay live even when use_cache=True. An explicit
@@ -1053,6 +1064,11 @@ def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache
     by the native endpoint probe (a profile may authenticate by header rather
     than by api_key).
     """
+    from llm_provider import resolve_authorization_value
+    api_key = (None if api_key is _STATUS_UNSET
+               else resolve_authorization_value(api_key))
+    authorization = (None if authorization is _STATUS_UNSET
+                     else resolve_authorization_value(authorization))
     if (llm_config or {}).get("transport") == "manual":
         return get_manual_runtime_status(llm_config)
     remote = is_remote_llm(llm_mode, base_url)
