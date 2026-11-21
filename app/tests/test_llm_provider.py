@@ -568,6 +568,23 @@ class CredentialProfilePolicyTests(unittest.TestCase):
                 self.assertNotIn("sk-unused-fixture", str(seen))
                 self.assertNotIn("sk-env-fixture", str(seen))
 
+    def test_resolved_opaque_env_value_is_sent_verbatim_not_reparsed(self):
+        with patch.dict("os.environ",
+                        {"AA2_OPAQUE_FIXTURE": "env:opaque-secret-fixture"}, clear=True):
+            profile = {"base_url": "https://hosted.invalid/v1",
+                       "provider_headers": {"Authorization": "env:AA2_OPAQUE_FIXTURE"}}
+            effective = llm_provider.get_effective_authorization(profile)
+            self.assertEqual("env:opaque-secret-fixture", effective)
+            self.assertEqual("env:opaque-secret-fixture",
+                llm_provider.resolve_authorization_value(effective),
+                "a resolved value starting with env: must not be looked up again")
+            self.assertEqual("env:opaque-secret-fixture",
+                llm_provider.resolve_probe_api_key(
+                    {"base_url": "https://hosted.invalid/v1",
+                     "api_key": "env:AA2_OPAQUE_FIXTURE"}))
+            self.assertEqual("env:opaque-secret-fixture",
+                llm_provider.get_provider_headers(profile)["Authorization"])
+
     def test_status_route_resolves_unset_env_key_to_none(self):
         import asyncio
         from routers import system as routes

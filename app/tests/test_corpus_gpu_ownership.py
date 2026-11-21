@@ -158,6 +158,42 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
             self.assertEqual(1, report['summary']['passed'])
             self.assertEqual(report, json.loads(body))
 
+    def test_query_token_and_fragment_are_absent_from_report_and_log(self):
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
+            root = Path(tmp)
+            lock = root / 'gpu.lock'
+            text = 'one two three four five'
+            manifest = {'books': [{'name': 'book.txt', 'passages': [{
+                'category': 'opening', 'text': text, 'sha256': 'fixture'}]}]}
+            url = ('https://fixture-user:fixture-password@host.example/v1'
+                   '?access_token=synthetic-query-secret&note=kept#frag-secret')
+            config = {'llm_mode': 'local', 'llm_local': {
+                'base_url': url, 'model_name': 'fixture',
+                'attribution_adapter': {'path': '/optional.gguf', 'scale': 1}}}
+            stack.enter_context(patch.object(core, 'acquire_gpu_lock',
+                side_effect=lambda: acquire_gpu_lock(str(lock))))
+            stack.enter_context(patch.object(runner, 'load_app_config', return_value=config))
+            stack.enter_context(patch.object(runner, 'ensure_ideal_settings',
+                return_value=(False, {}, 'ready')))
+            stack.enter_context(patch('attribution_adapter.served_adapters', return_value=None))
+            stack.enter_context(patch.object(runner, 'make_llm_client'))
+            stack.enter_context(patch.object(runner, 'process_chunk', return_value=[{
+                'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}]))
+            output = root / 'report.json'
+            log = io.StringIO()
+            with contextlib.redirect_stdout(log):
+                report = runner.run_manifest(manifest, str(output))
+            body = output.read_text() + log.getvalue()
+            for secret in ('fixture-password', 'synthetic-query-secret', 'frag-secret'):
+                self.assertNotIn(secret, body)
+            self.assertIn('[REDACTED]@host.example/v1', report['base_url'])
+            self.assertIn('note=kept', report['base_url'])
+            self.assertFalse(report['attribution_adapter']['verified'])
+            self.assertFalse(gpu_is_busy(str(lock)))
+            self.assertNotIn('script', core._task_claims)
+
     def test_credentials_are_removed_from_report_but_preserved_for_provider(self):
         cases = (
             ('https://fixture-user:fixture-password@host.example/v1', 'https://[REDACTED]@host.example/v1'),

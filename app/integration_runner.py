@@ -14,7 +14,7 @@ from chunk_quality import validate_chunk_quality
 from config_settings import load_app_config
 from core import (CONFIG_PATH, claim_gpu_task, llm_timeout_seconds,
                   release_gpu_task_claim)
-from diagnostics import redact_text
+from diagnostics import sanitize_url_for_display
 from generate_script import LLMGenParams, process_chunk
 from lmstudio_settings import ensure_ideal_settings, get_active_llm_config
 from utils import atomic_json_write
@@ -89,7 +89,7 @@ def run_manifest(manifest, output_path, limit=None):
                  for passage in book.get("passages", [])]
         if limit is not None:
             cases = cases[:limit]
-        report = {"schema_version": 1, "model": model, "base_url": redact_text(base_url),
+        report = {"schema_version": 1, "model": model, "base_url": sanitize_url_for_display(base_url),
                   "attribution_adapter": adapter_evidence,
                   "lmstudio_status": status, "settings_message": heal_message, "cases": [],
                   "summary": summarize_cases([])}

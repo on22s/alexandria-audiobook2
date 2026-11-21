@@ -12,6 +12,7 @@ Pinokio's native Get Help / session bundle for complete logs.
 import datetime
 import json
 import re
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 SCHEMA_VERSION = 1
 
@@ -111,6 +112,32 @@ def redact_text(value, home_dir=None):
     if len(result) > MAX_STRING_CHARS:
         result = result[:MAX_STRING_CHARS] + STRING_TRUNCATION_MARKER
     return result
+
+
+def sanitize_url_for_display(value):
+    """Display-only URL: no userinfo, query credentials or fragment.
+
+    Network dispatch must keep using the original URL; only artifacts, messages
+    and logs may use this form. Ordinary query parameters are preserved so a
+    redacted URL still explains which endpoint was configured.
+    """
+    if not isinstance(value, str) or "://" not in value:
+        return get_redacted_credentials(value)
+    try:
+        parts = urlsplit(value)
+        if not parts.scheme or not parts.netloc:
+            return get_redacted_credentials(value)
+        netloc = parts.netloc
+        if "@" in netloc:
+            netloc = REDACTED + "@" + netloc.rsplit("@", 1)[1]
+        pairs = parse_qsl(parts.query, keep_blank_values=True)
+        query = parts.query
+        if any(_key_is_sensitive(key) for key, _ in pairs):
+            query = urlencode([(key, REDACTED if _key_is_sensitive(key) else val)
+                               for key, val in pairs])
+        return urlunsplit((parts.scheme, netloc, parts.path, query, ""))
+    except (ValueError, TypeError):
+        return get_redacted_credentials(value)
 
 
 def redact(obj, home_dir=None):

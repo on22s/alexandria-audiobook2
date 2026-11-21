@@ -35,8 +35,9 @@ from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config, get_review_labels_only
 from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
                           get_run_fingerprint_identity, get_effective_authorization,
-                          get_explicit_authorization, is_authorization_header_unambiguous,
-                          resolve_client_api_key, resolve_historical_api_key)
+                          get_explicit_authorization, has_unresolved_authorization_reference,
+                          is_authorization_header_unambiguous, resolve_client_api_key,
+                          resolve_historical_api_key)
 from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SPAN_ALGORITHM_VERSION,
     get_review_entries_fingerprint, get_review_sidecar_identity, get_completed_review_match,
     get_review_progress_paths, get_review_receipt_path, save_completed_review_receipt,
@@ -372,6 +373,16 @@ def get_review_remaining_windows(review_windows, entries, resume_offset):
     return [bounds for bounds in review_windows if bounds[0] >= resume_offset]
 
 
+def _wire_authorization_digest(profile):
+    """Versioned digest of the credential actually sent, never its plaintext."""
+    if (profile or {}).get("transport") == "manual":
+        return "manual-v1"
+    return get_review_entries_fingerprint({
+        "version": 1,
+        "authorization": get_effective_authorization(profile),
+    })
+
+
 def get_completed_review_fingerprint(config, llm_config, params, args, client, model_name, source_text=None,
                                       *, entries=(), legacy=False):
     generation_config = config.get('generation') or {}
@@ -423,6 +434,15 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         identity['algorithm'] = REVIEW_SOURCE_SPAN_ALGORITHM_VERSION
         identity['review_source_sha256'] = (get_review_entries_fingerprint(source_text)
                                             if source_text is not None else None)
+    if not legacy:
+        # Bind the current identity to the credential that actually goes on the
+        # wire. Rotating a referenced secret must invalidate receipts and
+        # checkpoints, even when the profile config text did not change. The
+        # historical digest keeps the old shape so pre-fix evidence can still be
+        # matched when equivalence is provable.
+        identity['wire_authorization_digest_v1'] = [
+            _wire_authorization_digest(p)
+            for p in (llm_config, get_failover_llm_config(config))]
     # Store only a digest, never profile credentials or private headers.
     return get_review_entries_fingerprint(get_run_fingerprint_identity(identity))
 
@@ -439,6 +459,8 @@ def _legacy_dispatch_is_equivalent(profile):
     """
     profile = profile or {}
     if not is_authorization_header_unambiguous(profile):
+        return False
+    if has_unresolved_authorization_reference(profile):
         return False
     if profile.get("transport") == "manual":
         return True

@@ -179,6 +179,22 @@ class LlamaCppStatusTests(unittest.TestCase):
         self.assertEqual(2, probe.call_count)
 
 
+    def test_resolved_opaque_env_header_is_sent_verbatim_by_probes(self):
+        from llm_provider import get_effective_authorization
+        profile = {"base_url": "https://hosted.invalid/v1",
+                   "provider_headers": {"Authorization": "env:AA2_OPAQUE_FIXTURE"}}
+        with patch.dict(os.environ,
+                        {"AA2_OPAQUE_FIXTURE": "env:opaque-secret-fixture"}, clear=True):
+            effective = get_effective_authorization(profile)
+            seen = []
+            def probe(sent, timeout=None):
+                seen.append(sent.headers.get('Authorization'))
+                return _Ctx(json.dumps(PROPS).encode())
+            with patch.object(ls, 'open_no_redirect', probe):
+                self.assertTrue(ls.get_llama_cpp_status(
+                    'http://fixture/v1', 'qwen3-14b', authorization=effective)['loaded'])
+        self.assertEqual(['env:opaque-secret-fixture'], seen)
+
     def test_unset_env_reference_sends_no_props_authorization(self):
         seen = []
         def probe(sent, timeout=None):

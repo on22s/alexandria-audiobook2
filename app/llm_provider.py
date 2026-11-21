@@ -33,6 +33,15 @@ class MissingAPIKeyError(ValueError):
     """
 
 
+class ResolvedCredential(str):
+    """A value already resolved from its reference; transports must not re-parse it.
+
+    An opaque resolved value may itself start with `env:` (a real secret can
+    contain those characters). Parsing it again would silently replace that
+    credential with another environment lookup, so resolved values are tagged.
+    """
+
+
 _DETERMINISTIC_ERROR_STATUSES = frozenset({400, 401, 403, 404, 405, 410, 413, 422})
 
 
@@ -170,6 +179,8 @@ def resolve_authorization_value(value):
     """
     if value is None or not isinstance(value, str):
         return value
+    if isinstance(value, ResolvedCredential):
+        return value
     text = value.strip()
     if text.startswith("env:"):
         return os.environ.get(text[4:].strip()) or None
@@ -194,6 +205,23 @@ def get_explicit_authorization(llm_config):
     if len(values) > 1:
         raise ValueError("ambiguous Authorization header: conflicting case spellings")
     return next(iter(values)) if values else None
+
+
+def has_unresolved_authorization_reference(llm_config):
+    """True when a profile's Authorization header is still an env reference.
+
+    Historical transports sent that literal reference on the wire while the
+    modern resolver sends the referenced value, so such a profile cannot prove
+    historical/wire equivalence for legacy evidence matching.
+    """
+    headers = (llm_config or {}).get("provider_headers") or {}
+    for name, value in headers.items():
+        if str(name).lower() != "authorization":
+            continue
+        text = str(value or "").strip()
+        if text.startswith("env:") or _ENV_REF.match(text):
+            return True
+    return False
 
 
 def resolve_probe_api_key(llm_config):
@@ -229,11 +257,12 @@ def resolve_client_api_key(llm_config):
     """
     llm_config = llm_config or {}
     if llm_config.get("transport") == "manual":
-        return "manual"
+        return ResolvedCredential("manual")
     if has_explicit_authorization_header(llm_config):
-        return "local"
+        return ResolvedCredential("local")
     configured = llm_config.get("api_key", "local")
-    return resolve_api_key(configured, llm_config.get("base_url", ""))
+    resolved = resolve_api_key(configured, llm_config.get("base_url", ""))
+    return ResolvedCredential(resolved) if resolved else ""
 
 
 def get_effective_authorization(llm_config):
@@ -250,9 +279,9 @@ def get_effective_authorization(llm_config):
         return None
     explicit = get_explicit_authorization(llm_config)
     if explicit is not None:
-        return explicit
+        return ResolvedCredential(explicit)
     key = resolve_client_api_key(llm_config)
-    return f"Bearer {key}" if key else None
+    return ResolvedCredential(f"Bearer {key}") if key else None
 
 
 def is_openai_reasoning_model(model_name):

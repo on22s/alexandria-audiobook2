@@ -237,8 +237,12 @@ class CompletedReviewReceiptTests(unittest.TestCase):
             http = {'base_url': 'https://hosted.invalid/v1', 'model_name': 'fixture', 'api_key': 'local'}
             secondary = {'base_url': 'http://secondary/v1', 'model_name': 's', 'api_key': 'local'}
             with patch.object(review, 'get_failover_llm_config', return_value=secondary):
-                self.assertIsNone(review.get_legacy_review_fingerprint(
-                    config, http, params, args, object(), 'fixture'))
+                http_legacy = review.get_legacy_review_fingerprint(
+                    config, http, params, args, object(), 'fixture')
+                self.assertEqual(review.get_completed_review_fingerprint(
+                    config, http, params, args, object(), 'fixture', legacy=True), http_legacy,
+                    'an unchanged HTTP profile with an equivalent secondary still reuses')
+                self.assertNotEqual(current, http_legacy)
 
 
 class LegacyReceiptContextTests(unittest.TestCase):
@@ -366,6 +370,65 @@ class LegacyReceiptContextTests(unittest.TestCase):
                       'llm_mode': 'local', 'llm_local': clean}
             self.assertIsNotNone(review.get_legacy_review_fingerprint(
                 config, clean, params, args, object(), 'fixture'))
+
+    def test_rotated_referenced_credential_refuses_receipt_and_checkpoint(self):
+        import review_script as review
+        import completed_review_receipt as receipts
+        from types import SimpleNamespace
+        from generate_script import LLMGenParams
+        params = LLMGenParams(system_prompt='sys', user_prompt_template='{batch}')
+        args = SimpleNamespace(context_window=0, dedupe_speakers=False,
+                               alias_registry=None, remap_voice_config=None)
+        config = {'generation': {'review_batch_size': 2}, 'llm_mode': 'local',
+                  'llm_local': {'api_key': 'env:AA2_ROTATE_FIXTURE',
+                                'base_url': 'https://hosted.invalid/v1',
+                                'model_name': 'fixture'}}
+        profile = config['llm_local']
+        with patch.dict(os.environ, {'AA2_ROTATE_FIXTURE': 'sk-old-fixture'}, clear=True):
+            old = review.get_completed_review_fingerprint(
+                config, profile, params, args, object(), 'fixture')
+        with patch.dict(os.environ, {'AA2_ROTATE_FIXTURE': 'sk-new-fixture'}, clear=True):
+            new = review.get_completed_review_fingerprint(
+                config, profile, params, args, object(), 'fixture')
+            legacy_new = review.get_legacy_review_fingerprint(
+                config, profile, params, args, object(), 'fixture')
+        self.assertNotEqual(old, new, 'rotating a referenced secret must change identity')
+        self.assertNotIn('sk-old-fixture', new)
+        self.assertNotIn('sk-new-fixture', new)
+        with tempfile.TemporaryDirectory() as tmp:
+            source, output = Path(tmp) / 'source.json', Path(tmp) / 'out.json'
+            entries = [{'speaker': 'ANN', 'text': 'A line.'}]
+            source.write_text(json.dumps(entries)); output.write_text(json.dumps(entries))
+            sha = receipts.get_review_entries_fingerprint(entries)
+            receipts.save_completed_review_receipt(str(source), str(output), sha, sha, old)
+            self.assertFalse(receipts.get_completed_review_match(
+                str(source), str(output), sha, new,
+                () if legacy_new is None else (legacy_new,))[0],
+                'a rotated credential must not reuse the old receipt')
+            stats = {key: 0 for key in review.REVIEW_EDIT_COUNTERS}
+            review.save_checkpoint(str(output), 1, 2, 2, 0, entries, stats, entries[-1:],
+                                   [1], [], sha, execution_sha256=old)
+            resumed = review._load_resume_state(str(output), 2, 2, 0, entries, [], stats,
+                execution_sha256=new,
+                legacy_execution_sha256=() if legacy_new is None else (legacy_new,))
+            self.assertEqual(0, resumed[6],
+                             'a rotated credential must not resume the old checkpoint')
+
+    def test_unresolved_header_reference_refuses_legacy_matching(self):
+        from types import SimpleNamespace
+        from generate_script import LLMGenParams
+        import review_script as review
+        params = LLMGenParams(system_prompt='sys', user_prompt_template='{batch}')
+        args = SimpleNamespace(context_window=0, dedupe_speakers=False,
+                               alias_registry=None, remap_voice_config=None)
+        profile = {'transport': 'manual', 'api_key': '',
+                   'base_url': 'https://hosted.invalid/v1', 'model_name': 'fixture',
+                   'provider_headers': {'Authorization': 'env:AA2_HEADER_FIXTURE'}}
+        config = {'generation': {'review_batch_size': 2},
+                  'llm_mode': 'local', 'llm_local': profile}
+        self.assertIsNone(review.get_legacy_review_fingerprint(
+            config, profile, params, args, object(), 'fixture'),
+            'a raw env reference cannot prove historical wire equivalence')
 
     def test_pre_pr_manual_checkpoint_with_offset_resumes_only_with_legacy_digest(self):
         import review_script as review

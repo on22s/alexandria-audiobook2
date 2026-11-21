@@ -137,6 +137,26 @@ class LocalPollCacheTests(unittest.TestCase):
         self.assertNotIn('configured-fixture', repr(settings._remote_status_cache))
         self.assertNotIn('sk-unused-fixture', repr(settings._remote_status_cache))
 
+    def test_resolved_opaque_env_header_reaches_cached_and_live_probes_verbatim(self):
+        from llm_provider import get_effective_authorization, resolve_probe_api_key
+        profile = {"base_url": "https://hosted.invalid/v1",
+                   "provider_headers": {"Authorization": "env:AA2_OPAQUE_FIXTURE"}}
+        with patch.dict(os.environ,
+                        {"AA2_OPAQUE_FIXTURE": "env:opaque-secret-fixture"}, clear=True):
+            effective = get_effective_authorization(profile)
+            with patch.object(settings, 'get_llama_cpp_status', return_value=None) as props, \
+                    patch.object(settings, 'get_lmstudio_endpoint_status',
+                                 return_value={'available': True}) as native:
+                settings.get_current_status('remote', BASE, 'm', use_cache=True,
+                    api_key=None, authorization=effective)
+                settings.get_current_status('remote', BASE, 'm',
+                    api_key=resolve_probe_api_key({'api_key': 'env:AA2_OPAQUE_FIXTURE',
+                                                   'base_url': 'https://hosted.invalid/v1'}),
+                    authorization=effective)
+        for call in list(props.call_args_list) + list(native.call_args_list):
+            self.assertEqual('env:opaque-secret-fixture', call.kwargs['authorization'])
+        self.assertNotIn('opaque-secret-fixture', repr(settings._remote_status_cache))
+
     def test_unset_env_reference_sends_no_native_or_props_credential(self):
         with patch.dict(os.environ, {}, clear=True), \
                 patch.object(settings, 'get_llama_cpp_status', return_value=None) as props, \

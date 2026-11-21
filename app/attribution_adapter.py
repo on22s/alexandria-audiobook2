@@ -145,8 +145,8 @@ def check_adapter(config, base_url, require=None):
         # outbound /lora-adapters request; required adapters stay fail-closed
         # for transports that really speak HTTP.
         return True, "attribution adapter not probed: Manual transport has no HTTP endpoint"
-    from diagnostics import redact_text
-    safe_url = redact_text(str(base_url or ""))
+    from diagnostics import sanitize_url_for_display
+    safe_url = sanitize_url_for_display(str(base_url or ""))
     spec = adapter_config(config)
     if spec is None:
         return True, "no attribution adapter configured"
