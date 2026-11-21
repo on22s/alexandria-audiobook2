@@ -492,21 +492,26 @@ def _cancel(run_id):
 
 
 def _apply(run_id, request):
-    with core._gpu_lock:
-        if core.is_task_running(TASK):
-            raise HTTPException(status_code=409, detail='Wait for the speaker review to finish before applying')
-        # Registry changes must not race generation/review or nickname discovery.
-        busy = [name for name in core.LLM_TASKS if core.is_task_running(name)]
-        if busy:
-            raise HTTPException(status_code=409, detail='Wait for model tasks to finish before saving an alias')
-        try:
-            lease = core.acquire_task_lease(core.DATA_DIR, TASK, core.LLM_TASKS)
-        except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail='Another app worker owns a model task; wait before saving an alias') from exc
-        with contextlib.closing(lease):
-            with file_lock(_run_path(run_id), timeout=0):
-                record = _read_run(run_id)
-                with _inputs_locked(record['selection']['reference_name']):
+    reference_name = _read_run(run_id)['selection']['reference_name']
+    # The book admission comes before the GPU mutex, as in every other caller
+    # that nests them; _inputs_locked owns the native book/saved-book order.
+    with _inputs_locked(reference_name):
+        with core._gpu_lock:
+            if core.is_task_running(TASK):
+                raise HTTPException(status_code=409, detail='Wait for the speaker review to finish before applying')
+            # Registry changes must not race generation/review or nickname discovery.
+            busy = [name for name in core.LLM_TASKS if core.is_task_running(name)]
+            if busy:
+                raise HTTPException(status_code=409, detail='Wait for model tasks to finish before saving an alias')
+            try:
+                lease = core.acquire_task_lease(core.DATA_DIR, TASK, core.LLM_TASKS)
+            except RuntimeError as exc:
+                raise HTTPException(status_code=409, detail='Another app worker owns a model task; wait before saving an alias') from exc
+            with contextlib.closing(lease):
+                with file_lock(_run_path(run_id), timeout=0):
+                    record = _read_run(run_id)
+                    if record['selection']['reference_name'] != reference_name:
+                        raise HTTPException(status_code=409, detail='This review changed or is stale; preview and review again')
                     captured = _capture_locked(record['selection'])
                     if (request.snapshot != record['snapshot'] or captured['public']['snapshot'] != record['snapshot']
                             or record['status'] != 'completed' or record.get('applied')):

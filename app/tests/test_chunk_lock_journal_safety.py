@@ -1,6 +1,11 @@
 """Lock ordering, receipt snapshots and path-free journal error mapping."""
 import asyncio
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
+import copy
+import hashlib
+import json
+import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -9,12 +14,20 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
+from tests.test_support import use_private_cpu_fixture_lock
 
 import book_state_transaction as books
-from book_state_transaction import BookTransactionError, BOOK_STATE_BUSY_DETAIL
+from book_state_transaction import (BookTransactionError, BOOK_STATE_BUSY_DETAIL,
+    BOOK_STORAGE_FAILURE_DETAIL, BOOK_JOURNAL_MIGRATION_DETAIL,
+    BOOK_JOURNAL_UNCERTAIN_DETAIL)
+import core
 from project import ProjectManager
 from routers import editor, script
+from tests import test_narration_markup as markup_fixtures
+import utils
+from utils import file_lock
 
 
 class ChunkEditLockOrderTests(unittest.TestCase):
@@ -192,6 +205,301 @@ class JournalErrorMappingTests(unittest.TestCase):
                         pass
             self.assertEqual('Invalid active-book transaction', str(raised.exception))
             self.assertIsInstance(raised.exception, ValueError)
+
+
+@contextmanager
+def editor_http_fixture(rows=None):
+    """Real disposable book routed through the Editor router and its locks."""
+    with tempfile.TemporaryDirectory() as folder, ExitStack() as stack:
+        root = Path(folder)
+        source = root / 'source.txt'
+        source.write_text('“Synthetic sentence.”', encoding='utf-8')
+        config = root / 'config.json'
+        config.write_text('{}')
+        state = root / 'state.json'
+        state.write_text(json.dumps({'active_book_id': 'synthetic-book',
+            'book_generation': 'generation-a', 'input_file_path': str(source)}))
+        (root / 'annotated_script.json').write_text(json.dumps([
+            {'speaker': 'A', 'text': 'Synthetic sentence.'}]))
+        (root / 'voice_config.json').write_text(json.dumps({'A': {'voice': 'Ryan'}}))
+        pm = ProjectManager(folder)
+        pm.save_chunks(rows if rows is not None else [
+            {'id': 0, 'uid': 'line-0', 'speaker': 'A', 'text': 'Synthetic sentence.',
+             'status': 'pending'}])
+        states = copy.deepcopy(core.process_state)
+        for value in states.values():
+            value['running'] = False
+        for obj, name, value in ((editor, 'project_manager', pm),
+                (editor, 'SCRIPT_PATH', str(root / 'annotated_script.json')),
+                (editor, 'DATA_DIR', str(root)), (editor, 'CONFIG_PATH', str(config)),
+                (core, 'DATA_DIR', str(root)), (core, 'CONFIG_PATH', str(config)),
+                (core, 'process_state', states), (editor, 'process_state', states),
+                (core, '_task_claims', {}), (core, '_gpu_leases', {})):
+            stack.enter_context(patch.object(obj, name, value))
+        private_lock = use_private_cpu_fixture_lock()
+        private_lock.__enter__()
+        stack.callback(private_lock.__exit__, None, None, None)
+        api = FastAPI()
+        api.include_router(editor.router)
+        client = TestClient(api)
+        stack.callback(client.close)
+        yield root, pm, states, client
+
+
+def book_artifacts(root):
+    return {path.relative_to(root).as_posix(): path.read_bytes()
+            for path in root.rglob('*') if path.is_file()
+            and not path.name.endswith('.lock')
+            and '.task_ownership' not in path.parts}
+
+
+class MarkupSharedAdmissionTests(unittest.TestCase):
+    """The markup routes share the Editor's one book admission, recover=False."""
+
+    def setUp(self):
+        markup_fixtures.NarrationMarkupEditTests.setUp(self)
+        states = copy.deepcopy(core.process_state)
+        for state in states.values():
+            state['running'] = False
+        self.stack = ExitStack()
+        self.addCleanup(self.stack.close)
+        for obj, name, value in ((editor, 'project_manager', self.pm),
+                (editor, 'SCRIPT_PATH', str(self.root / 'annotated_script.json')),
+                (editor, 'DATA_DIR', str(self.root)),
+                (core, 'DATA_DIR', str(self.root)),
+                (core, 'process_state', states), (editor, 'process_state', states),
+                (core, '_task_claims', {}), (core, '_gpu_leases', {})):
+            self.stack.enter_context(patch.object(obj, name, value))
+        private_lock = use_private_cpu_fixture_lock()
+        private_lock.__enter__()
+        self.addCleanup(private_lock.__exit__, None, None, None)
+        api = FastAPI()
+        api.include_router(editor.router)
+        self.client = TestClient(api)
+        self.addCleanup(self.client.close)
+
+    def post(self, action, **fields):
+        return self.client.post('/api/chunks/0/narration-markup/' + action,
+            json=dict(expected_book_token=fields.pop('expected_book_token', self.token),
+                      expected_uid=fields.pop('expected_uid', 'line-a'), **fields))
+
+    def preview(self):
+        response = self.post('preview')
+        self.assertEqual(200, response.status_code, response.text)
+        return response.json()
+
+    def apply(self, report, choice='keep'):
+        return self.post('apply', binding=report['binding'], decision=choice)
+
+    def test_preview_apply_replay_share_one_admission(self):
+        report = self.preview()
+        started = time.monotonic()
+        response = self.apply(report)
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual('applied', response.json()['status'])
+        self.assertLess(time.monotonic() - started, 2, 'apply re-acquired the held book lock')
+        response = self.apply(report)
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual('already_applied', response.json()['status'])
+
+    def test_pending_journal_refuses_preview_apply_and_replay_without_recovery(self):
+        report = self.preview()
+        self.assertEqual(200, self.apply(report).status_code)
+        (self.root / books.JOURNAL).write_text(json.dumps({
+            'version': 1, 'phase': 'recovered', 'workspace': '.book-switch-' + 'a' * 32,
+            'entries': []}), encoding='utf-8')
+        before = book_artifacts(self.root)
+        for action, fields in (('preview', {}),
+                               ('apply', {'binding': report['binding'], 'decision': 'keep'})):
+            with self.subTest(action=action):
+                response = self.post(action, **fields)
+                self.assertEqual(409, response.status_code, response.text)
+                detail = response.json()['detail']
+                self.assertNotIn('/', detail)
+                self.assertNotIn(str(self.root), detail)
+        self.assertEqual(before, book_artifacts(self.root))
+
+
+class InsertRouteStorageFaultTests(unittest.TestCase):
+    """Real filesystem failures on /api/chunks/0/insert stay path-free."""
+
+    def test_held_state_lock_is_a_distinct_path_free_409(self):
+        with editor_http_fixture() as (root, _pm, _states, client):
+            before = book_artifacts(root)
+            real_lock = utils.file_lock
+            def bounded(path, *args, **kwargs):
+                kwargs.setdefault('timeout', 0.2)
+                return real_lock(path, *args, **kwargs)
+            with file_lock(str(root / 'state.json'), timeout=3), \
+                    patch.object(utils, 'file_lock', bounded):
+                response = client.post('/api/chunks/0/insert')
+            self.assertEqual(409, response.status_code, response.text)
+            detail = response.json()['detail']
+            self.assertEqual(BOOK_STATE_BUSY_DETAIL, detail)
+            self.assertNotIn('/', detail)
+            self.assertNotIn(str(root), detail)
+            self.assertEqual(before, book_artifacts(root))
+
+    def test_directory_at_lock_path_is_a_path_free_storage_failure(self):
+        for lock_name in ('state.json.lock', books.JOURNAL + '.lock'):
+            with self.subTest(lock_name=lock_name), editor_http_fixture() as (root, _pm, _states, client):
+                before = book_artifacts(root)
+                blocked = root / lock_name
+                blocked.mkdir()
+                try:
+                    response = client.post('/api/chunks/0/insert')
+                finally:
+                    blocked.rmdir()
+                self.assertEqual(409, response.status_code, response.text)
+                detail = response.json()['detail']
+                self.assertEqual(BOOK_STORAGE_FAILURE_DETAIL, detail)
+                self.assertNotIn('/', detail)
+                self.assertNotIn(str(root), detail)
+                self.assertEqual(before, book_artifacts(root))
+
+
+class CancelLockOrderTests(unittest.TestCase):
+    """Idle cancel takes the book before the GPU mutex; foreign leases stay owned."""
+
+    def test_bounded_edit_cancel_race_resets_the_stale_row(self):
+        rows = [{'id': 0, 'uid': 'line-0', 'speaker': 'A', 'text': 'Synthetic sentence.',
+                 'status': 'generating'}]
+        with editor_http_fixture(rows) as (root, pm, _states, _client):
+            entered, release = threading.Event(), threading.Event()
+            def edit():
+                with books.ensure_book_state(str(root)):
+                    entered.set()
+                    release.wait(3)
+            holder = threading.Thread(target=edit, daemon=True)
+            holder.start()
+            self.assertTrue(entered.wait(2))
+            result = []
+            cancel = threading.Thread(target=lambda: result.append(editor._apply_audio_cancel()),
+                                      daemon=True)
+            cancel.start()
+            try:
+                time.sleep(0.05)
+                self.assertTrue(cancel.is_alive(), 'cancel finished while the book was held')
+                self.assertFalse(editor._gpu_lock.locked(),
+                    'cancel held the GPU mutex while waiting for the book journal')
+            finally:
+                release.set()
+            cancel.join(2)
+            holder.join(2)
+            self.assertFalse(cancel.is_alive())
+            self.assertFalse(holder.is_alive())
+            self.assertEqual({'status': 'not_running', 'reset_chunks': 1}, result[0])
+            self.assertEqual('pending', pm.load_chunks()[0]['status'])
+
+    def test_foreign_audio_lease_leaves_the_generating_row_intact(self):
+        owner = ('import pathlib,sys,time\nimport core\n'
+                 'core.DATA_DIR=sys.argv[1]\ncore.acquire_gpu_lock=lambda:None\n'
+                 'from task_ownership import acquire_task_lease\n'
+                 'lease=acquire_task_lease(sys.argv[1],"audio",set())\n'
+                 '(pathlib.Path(sys.argv[1])/"lease-ready").write_text("ok")\n'
+                 'while not (pathlib.Path(sys.argv[1])/"release-lease").exists(): time.sleep(.01)\n'
+                 'lease.close()\n')
+        rows = [{'id': 0, 'uid': 'line-0', 'speaker': 'A', 'text': 'Synthetic sentence.',
+                 'status': 'generating'}]
+        with editor_http_fixture(rows) as (root, pm, _states, _client):
+            env = dict(os.environ)
+            env.pop('PYTHONPATH', None)
+            env.pop('LD_LIBRARY_PATH', None)
+            process = subprocess.Popen([sys.executable, '-c', owner, str(root)],
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+            try:
+                ready = time.monotonic() + 5
+                while not (root / 'lease-ready').exists() and time.monotonic() < ready:
+                    time.sleep(0.01)
+                self.assertTrue((root / 'lease-ready').exists(), 'foreign lease never started')
+                before = book_artifacts(root)
+                with self.assertRaises(HTTPException) as refused:
+                    editor._apply_audio_cancel()
+                self.assertEqual(409, refused.exception.status_code)
+                self.assertIn('owning server', refused.exception.detail)
+                self.assertEqual(before, book_artifacts(root))
+                self.assertEqual('generating', pm.load_chunks()[0]['status'])
+            finally:
+                (root / 'release-lease').write_text('ok')
+                process.wait(timeout=5)
+
+
+class RecoveryClassRouteTests(unittest.TestCase):
+    """Each recovery class gets one actionable path-free JSON answer per route."""
+
+    @contextmanager
+    def fixture(self):
+        with tempfile.TemporaryDirectory() as folder, ExitStack() as stack:
+            root = Path(folder)
+            source = root / 'source.txt'
+            source.write_text('“Synthetic sentence.”', encoding='utf-8')
+            config = root / 'config.json'
+            config.write_text('{}')
+            state = root / 'state.json'
+            state.write_text(json.dumps({'input_file_path': str(source),
+                                         'active_book_id': 'synthetic-book'}))
+            (root / 'annotated_script.json').write_text('[]')
+            states = copy.deepcopy(core.process_state)
+            for value in states.values():
+                value['running'] = False
+            for obj, name, value in ((core, 'DATA_DIR', folder), (script, 'DATA_DIR', folder),
+                    (script, 'SCRIPT_PATH', str(root / 'annotated_script.json')),
+                    (script, 'CONFIG_PATH', str(config)),
+                    (core, 'process_state', states), (script, 'process_state', states),
+                    (core, '_task_claims', {}), (core, '_gpu_leases', {})):
+                stack.enter_context(patch.object(obj, name, value))
+            stack.enter_context(patch.object(core, 'acquire_gpu_lock', return_value=None))
+            stack.enter_context(patch.object(script, 'get_active_reasoning_effort', return_value=None))
+            stack.enter_context(patch.object(script, 'three_pass_refusal', return_value=None))
+            stack.enter_context(patch.object(script, 'get_existing_cast_list', return_value=None))
+            stack.enter_context(patch.object(script, 'build_generate_script_command', return_value=[]))
+            stack.enter_context(patch.object(script, 'ensure_script_recovery_manifest',
+                                             return_value={'status': 'failed'}))
+            yield root, source, state
+
+    def _route_refusals(self, root, source):
+        with patch.object(editor, 'SCRIPT_PATH', str(root / 'annotated_script.json')), \
+                patch.object(editor, 'DATA_DIR', str(root)):
+            with self.assertRaises(HTTPException) as edit:
+                editor._apply_chunk_edit(lambda: None)
+        with self.assertRaises(HTTPException) as started:
+            asyncio.run(script._start_script_generation_for_route(object(), str(source), None))
+        with self.assertRaises(HTTPException) as retried:
+            asyncio.run(script._start_script_generation_for_route(
+                object(), str(source), None, require_recovery=True))
+        return edit.exception, started.exception, retried.exception
+
+    def test_valid_v1_migration_maps_identically_and_reserves_no_task(self):
+        with self.fixture() as (root, source, state):
+            (root / books.JOURNAL).write_text(json.dumps({
+                'version': 1, 'phase': 'recovered', 'workspace': '.book-switch-' + 'a' * 32,
+                'entries': [{'path': 'state.json', 'existed': True,
+                    'old_sha256': hashlib.sha256(b'synthetic').hexdigest(),
+                    'new_sha256': None}]}), encoding='utf-8')
+            before = book_artifacts(root)
+            edit, started, retried = self._route_refusals(root, source)
+            for refusal in (edit, started, retried):
+                self.assertEqual(409, refusal.status_code)
+                self.assertEqual(BOOK_JOURNAL_MIGRATION_DETAIL, refusal.detail)
+                self.assertNotIn('/', refusal.detail)
+                self.assertNotIn(str(root), refusal.detail)
+            self.assertEqual(before, book_artifacts(root))
+            self.assertEqual({}, core._task_claims)
+
+    def test_uncertain_publication_maps_identically_and_reserves_no_task(self):
+        from book_state_transaction import BookJournalPublicationUncertain
+        with self.fixture() as (root, source, state):
+            before = book_artifacts(root)
+            with patch.object(books, 'recover_book_state_locked',
+                    side_effect=BookJournalPublicationUncertain('injected uncertain publication')):
+                edit, started, retried = self._route_refusals(root, source)
+            for refusal in (edit, started, retried):
+                self.assertEqual(409, refusal.status_code)
+                self.assertEqual(BOOK_JOURNAL_UNCERTAIN_DETAIL, refusal.detail)
+                self.assertNotIn('/', refusal.detail)
+                self.assertNotIn(str(root), refusal.detail)
+            self.assertEqual(before, book_artifacts(root))
+            self.assertEqual({}, core._task_claims)
 
 
 if __name__ == '__main__':

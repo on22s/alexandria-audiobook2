@@ -4,7 +4,7 @@ from pathlib import Path
 from review_report import get_review_report_info, apply_review_report_explanation
 from completed_review_receipt import get_review_progress_paths
 from book_state_transaction import (ensure_book_state, reuse_book_state,
-    BookTransactionError, BOOK_STATE_BUSY_DETAIL, get_book_operation_identity)
+    get_book_fault_response, get_book_operation_identity)
 from task_ownership import ensure_startup_recovery
 import asyncio
 import copy
@@ -552,7 +552,9 @@ def _ensure_editor_selection():
         from script_selection_binding import require_published_selection
         require_published_selection(os.path.dirname(SCRIPT_PATH))
     except (ValueError, OSError, RecursionError) as error:
-        raise HTTPException(status_code=409, detail=str(error)) from error
+        fault = get_book_fault_response(error)
+        raise HTTPException(status_code=fault.status_code if fault else 409,
+                            detail=fault.detail if fault else str(error)) from error
 
 
 def _ensure_editor_chunks():
@@ -836,23 +838,25 @@ class ChunkRestoreRequest(BaseModel):
     at_index: int
     undo_token: Optional[str] = Field(default=None, max_length=64)
 
-def _apply_chunk_edit(operation, *args):
+def _apply_chunk_edit(operation, *args, recover=True):
     """Book lock then GPU mutex — the one order for edits and generation start.
 
     start_script_generation holds the book journal across its task claim, so
     taking the GPU mutex first here inverts that order and stalls both paths.
     The book admission is re-used by the operation's own reuse_book_state, and
-    no local lock path is ever exposed in a user-visible detail.
+    no local lock path is ever exposed in a user-visible detail. Markup passes
+    recover=False so its preview/apply/replay never auto-recovers a pending
+    journal on the caller's behalf.
     """
     try:
-        with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25), _gpu_lock:
+        with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25,
+                               recover=recover), _gpu_lock:
             check_global_gpu_lock("audio")
             return operation(*args)
-    except TimeoutError as error:
-        raise HTTPException(status_code=409, detail=BOOK_STATE_BUSY_DETAIL) from error
-    except BookTransactionError as error:
-        raise HTTPException(status_code=500, detail=BookTransactionError.DETAIL) from error
-    except (ValueError, OSError) as error:
+    except (TimeoutError, OSError, ValueError) as error:
+        fault = get_book_fault_response(error)
+        if fault is not None:
+            raise HTTPException(status_code=fault.status_code, detail=fault.detail) from error
         raise HTTPException(status_code=409, detail=str(error)) from error
 
 @router.post("/api/chunks/restore")
@@ -1017,7 +1021,9 @@ async def preview_narration_markup(index: int, request: NarrationMarkupSelection
         return await asyncio.to_thread(get_saved_narration_markup_preview,
             project_manager, index, request.expected_book_token, request.expected_uid)
     except (TimeoutError, ValueError, OSError) as error:
-        raise HTTPException(status_code=409, detail=str(error)) from error
+        fault = get_book_fault_response(error)
+        raise HTTPException(status_code=fault.status_code if fault else 409,
+                            detail=fault.detail if fault else str(error)) from error
 
 
 @router.post("/api/chunks/{index}/narration-markup/apply")
@@ -1025,7 +1031,7 @@ async def apply_narration_markup(index: int, request: NarrationMarkupApplication
     from narration_markup_edit import apply_saved_narration_markup
     return await asyncio.to_thread(_apply_chunk_edit, apply_saved_narration_markup,
         project_manager, index, request.expected_book_token, request.expected_uid,
-        request.binding, request.decision)
+        request.binding, request.decision, recover=False)
 
 
 @router.delete("/api/chunks/{index}")
@@ -3047,22 +3053,36 @@ async def cancel_audio():
 
 def _apply_audio_cancel():
     """Cancel ongoing audio generation and reset in-progress chunks."""
-    # Keep the idle decision and disk reset atomic with new audio claims.
-    with _gpu_lock:
+    def request_owned_cancel():
         if is_task_running("audio", process_state):
             process_state["audio"]["cancel"] = True
             process_state["audio"]["logs"].append("[CANCEL] Cancellation requested")
             return {"status": "cancelling"}
+        return None
 
-        # A foreign server may own the render even when our local flag is idle.
-        # Hold admission closed through recovery and update only still-generating
-        # UIDs, never replace a full snapshot over newer journal completions.
-        reset_count = 0
-        try:
-            with ensure_startup_recovery(DATA_DIR, timeout=0) as idle:
-                if not idle:
-                    raise HTTPException(status_code=409, detail="Another worker owns an active task; cancel it on its owning server")
-                with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
+    # An owned active task needs only the claim mutex: flag it immediately,
+    # never wait on a book journal that an edit may be holding.
+    with _gpu_lock:
+        outcome = request_owned_cancel()
+        if outcome is not None:
+            return outcome
+
+    # Idle: book journal before the GPU mutex, the same order as edits and
+    # generation start. Keep the idle decision and disk reset atomic with new
+    # audio claims by holding the claim mutex across the reset.
+    reset_count = 0
+    try:
+        with ensure_startup_recovery(DATA_DIR, timeout=0) as idle:
+            if not idle:
+                raise HTTPException(status_code=409, detail="Another worker owns an active task; cancel it on its owning server")
+            with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
+                with _gpu_lock:
+                    outcome = request_owned_cancel()
+                    if outcome is not None:
+                        return outcome
+                    # A foreign server may own the render even when our local
+                    # flag is idle. Update only still-generating UIDs, never
+                    # replace a full snapshot over newer journal completions.
                     for chunk in project_manager.load_chunks():
                         if chunk.get("status") == "generating":
                             updated = project_manager._update_chunk_fields_by_uid(
@@ -3070,9 +3090,9 @@ def _apply_audio_cancel():
                                 required_status="generating", status="pending")
                             if updated is not None:
                                 reset_count += 1
-        except TimeoutError as exc:
-            raise HTTPException(status_code=409, detail="Task admission is busy; retry cancellation") from exc
-        return {"status": "not_running", "reset_chunks": reset_count}
+    except TimeoutError as exc:
+        raise HTTPException(status_code=409, detail="Task admission is busy; retry cancellation") from exc
+    return {"status": "not_running", "reset_chunks": reset_count}
 
 ## ── Saved Scripts ──────────────────────────────────────────────
 

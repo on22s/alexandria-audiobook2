@@ -3,7 +3,7 @@ from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
                                      apply_book_state_locked, get_book_operation_token,
-                                     BookTransactionError, BOOK_STATE_BUSY_DETAIL)
+                                     get_book_fault_response)
 
 import asyncio
 import contextlib
@@ -3017,17 +3017,18 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
 
 async def _start_script_generation_for_route(background_tasks, input_file, request,
                                              require_recovery=False):
-    """Report journal contention and damage like the Editor, without local paths."""
+    """Report every book recovery class like the Editor, without local paths."""
     try:
         if require_recovery:
             return await asyncio.to_thread(
                 start_script_generation, background_tasks, input_file, request,
                 require_recovery=True)
         return await asyncio.to_thread(start_script_generation, background_tasks, input_file, request)
-    except TimeoutError as error:
-        raise HTTPException(status_code=409, detail=BOOK_STATE_BUSY_DETAIL) from error
-    except BookTransactionError as error:
-        raise HTTPException(status_code=500, detail=BookTransactionError.DETAIL) from error
+    except (TimeoutError, OSError, ValueError) as error:
+        fault = get_book_fault_response(error)
+        if fault is not None:
+            raise HTTPException(status_code=fault.status_code, detail=fault.detail) from error
+        raise
 
 
 @router.post("/api/generate_script")

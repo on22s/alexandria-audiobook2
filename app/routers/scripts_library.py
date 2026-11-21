@@ -124,12 +124,12 @@ def _validate_sound_destination(root, relative, *, limit):
 
 @contextlib.contextmanager
 def _saved_mutation_admission():
-    """Do not wait for a book lock while holding the task mutex."""
+    """Book locks then the task mutex: never wait on a journal under the GPU lock."""
     with contextlib.ExitStack() as admission:
         try:
-            admission.enter_context(_gpu_lock)
             admission.enter_context(ensure_book_state(DATA_DIR, timeout=0.25))
             admission.enter_context(ensure_saved_book_state(DATA_DIR, SCRIPTS_DIR, timeout=0.25))
+            admission.enter_context(_gpu_lock)
         except TimeoutError as error:
             raise HTTPException(status_code=409, detail='Book is busy; try again.') from error
         yield
