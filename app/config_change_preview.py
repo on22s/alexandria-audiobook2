@@ -62,7 +62,8 @@ def _receipt_signature(block, config, section):
     digest = block.get(BENCHMARK_IDENTITY_KEY)
     if not is_benchmark_digest(digest):
         digest = get_benchmark_identity_key(config or {}, section)
-    return digest, json.dumps(block["concurrency_environment"], sort_keys=True, default=str)
+    return (digest, json.dumps(block["concurrency_environment"], sort_keys=True, default=str),
+            block.get("concurrency_revision"))
 
 
 def _carried_forward(key, value, after, section, signature):

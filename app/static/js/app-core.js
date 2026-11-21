@@ -2105,7 +2105,8 @@
             document.getElementById('llm-context-length').value = p.context_length ?? '';
             document.getElementById('llm-max-input-tokens').value = p.max_input_tokens ?? '';
             document.getElementById('llm-max-output-tokens').value = p.max_output_tokens ?? '';
-            document.getElementById('llm-key').value = p.api_key || 'local';
+            // An explicitly saved blank key is a choice, not a missing value.
+            document.getElementById('llm-key').value = p.api_key ?? 'local';
             document.getElementById('llm-model').value = p.model_name || '';
             document.getElementById('llm-request-timeout').value =
                 p.request_timeout_seconds ?? '';
@@ -2123,8 +2124,10 @@
             document.getElementById('llm-retry-jitter').value = p.retry_jitter ?? 0.2;
             document.getElementById('llm-provider-headers').value =
                 JSON.stringify(p.provider_headers || {}, null, 2);
+            // JSON.parse in the browser rounds integers beyond 2^53, so the
+            // server sends the exact JSON text alongside the parsed object.
             document.getElementById('llm-provider-extra-body').value =
-                JSON.stringify(p.provider_extra_body || {}, null, 2);
+                p.provider_extra_body_json ?? JSON.stringify(p.provider_extra_body || {}, null, 2);
             document.getElementById('llm-reasoning-effort').value = p.reasoning_effort || '';
             document.getElementById('llm-on-this-gpu').value = (p.on_this_gpu === true || p.on_this_gpu === false) ? String(p.on_this_gpu) : '';
             document.getElementById('llm-transport').value = p.transport || 'http';
@@ -2169,6 +2172,7 @@
                 retry_jitter: getOptionalNumberInput('llm-retry-jitter', 'Backoff jitter') ?? 0.2,
                 provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
                 provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body'),
+                provider_extra_body_json: document.getElementById('llm-provider-extra-body').value,
                 reasoning_effort: document.getElementById('llm-reasoning-effort').value || null,
                 on_this_gpu: getOnThisGpuInput(),
                 transport: document.getElementById('llm-transport').value || 'http'
