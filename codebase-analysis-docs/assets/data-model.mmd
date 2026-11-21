@@ -1,0 +1,88 @@
+erDiagram
+    STATE {
+        string active_book_id
+        string input_file_path
+    }
+    ACTIVE_BOOK {
+        string book_token
+        string source_sha256
+    }
+    SCRIPT {
+        json entries
+        string fingerprint
+    }
+    VOICE_CONFIG {
+        json speakers
+    }
+    CHUNK {
+        string uid
+        int id
+        string speaker
+        string text
+        string audio_path
+        string status
+    }
+    TAKE {
+        string uid
+        string audio_path
+        string receipt
+    }
+    RECEIPT {
+        string book_token
+        string chunk_uid
+        string audio_sha256
+    }
+    SAVED_BOOK {
+        string name
+        string book_id
+    }
+    VOICE_LIBRARY {
+        json shared
+        json casts
+    }
+    CAST {
+        string name
+    }
+    CAST_MEMBER {
+        string identity
+        json config
+    }
+    ADAPTER {
+        string id
+        string path
+        string generation_sha256
+    }
+    RUN {
+        string id
+        string task
+        string status
+    }
+    ARTIFACT {
+        string path
+        string sha256
+    }
+    EXPORT {
+        string format
+        string path
+    }
+    QUALITY_REPORT {
+        string plan_digest
+        string output_sha256
+    }
+
+    STATE ||--|| ACTIVE_BOOK : selects
+    ACTIVE_BOOK ||--|| SCRIPT : has
+    ACTIVE_BOOK ||--|| VOICE_CONFIG : has
+    ACTIVE_BOOK ||--|| CHUNK : has
+    SCRIPT ||--o{ CHUNK : "grouped into"
+    VOICE_CONFIG ||--o{ CAST_MEMBER : "per speaker"
+    CHUNK ||--o{ TAKE : "retains"
+    CHUNK ||--o{ RECEIPT : "verified by"
+    ACTIVE_BOOK ||--o{ SAVED_BOOK : "snapshots"
+    SAVED_BOOK ||--|| SCRIPT : includes
+    SAVED_BOOK ||--|| VOICE_CONFIG : includes
+    VOICE_LIBRARY ||--o{ CAST : contains
+    CAST ||--o{ CAST_MEMBER : contains
+    CAST_MEMBER ||--|| ADAPTER : "may use"
+    RUN ||--o{ ARTIFACT : records
+    EXPORT ||--o{ QUALITY_REPORT : produces

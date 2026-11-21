@@ -409,7 +409,7 @@ def _fsync_copied_file(path):
 
 def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trailing_newline=False,
                       newline=None, allow_nonatomic_fallback=True, return_written_bytes=False,
-                      encoder=None):
+                      encoder=None, before_replace=None):
     """Atomically write JSON data using a temp file and os.replace.
 
     Includes retry logic with exponential backoff for Windows file locking
@@ -430,6 +430,9 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
     return_written_bytes captures the actual staged bytes before publication,
     so callers can bind the write without rereading a mutable destination.
     encoder optionally selects a JSONEncoder without changing atomic publication.
+    before_replace, when supplied, is called at the start of every replacement
+    attempt (including retries) so a caller can revalidate evidence that may
+    have changed while the staged bytes were being written.
     """
     if not isinstance(max_retries, int) or max_retries < 1:
         raise ValueError("max_retries must be a positive integer")
@@ -451,6 +454,8 @@ def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trai
                 written_bytes = f.buffer.read()
 
         for attempt in range(max_retries):
+            if before_replace is not None:
+                before_replace()
             try:
                 os.replace(tmp_path, target_path)
                 # Also fsync the directory so the rename itself is durable across

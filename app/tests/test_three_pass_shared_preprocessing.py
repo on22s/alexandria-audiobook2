@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import generate_script as gs
 import three_pass_generate as tp
+from tests.test_support import write_three_pass_completion_manifest
 
 if os.environ.get('THREE_PASS_PREPROCESS_SOURCE'):
     spec = importlib.util.spec_from_file_location('tp_preprocess_saved', os.environ['THREE_PASS_PREPROCESS_SOURCE'])
@@ -66,6 +67,44 @@ class SharedPreprocessingCliTests(unittest.TestCase):
             self.assertEqual(before, source.read_bytes())
         self.assertTrue(calls)
         return entries, manifest, expected
+
+    def test_source_changed_after_preparation_refuses_publication(self):
+        """#2157: a source edited mid-run must not publish a stale script; the
+        prior accepted output stays on disk. Exercises main()'s publication
+        boundary, not just the digest helper."""
+        raw = 'A shareable source paragraph.'
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()) as transcript:
+            root = Path(tmp)
+            source = root / 'book.txt'
+            source.write_text(raw, encoding='utf-8')
+            output = root / 'out.json'
+            prior = b'[{"speaker":"NARRATOR","text":"prior accepted script","instruct":"Neutral."}]'
+            output.write_bytes(prior)
+            config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                      'generation': {'max_tokens': 4096}}
+
+            def fake_run(client, model, source_text, params, chunk_size, **kwargs):
+                entries = [{'speaker': 'NARRATOR', 'text': 'new script',
+                            'instruct': 'Neutral.'}]
+                write_three_pass_completion_manifest(
+                    tp.three_pass_manifest_path(kwargs['output_path']), entries,
+                    status='complete', run_id=kwargs.get('run_id'),
+                    fingerprint=tp.three_pass_fingerprint(source_text, model, chunk_size))
+                source.write_text('Different words published by an editor.', encoding='utf-8')
+                return entries
+
+            with patch.dict(os.environ, {'ALEXANDRIA_DATA_DIR': tmp}), \
+                 patch.object(tp.sys, 'argv', ['generator', str(source), '--output', str(output)]), \
+                 patch.object(tp, 'load_app_config', return_value=config), \
+                 patch.object(tp, 'ensure_ideal_settings', return_value=(False, {'context_length': 32768}, 'fixture')), \
+                 patch.object(tp, 'make_run_client', return_value=object()), \
+                 patch.object(tp, 'run_three_pass', side_effect=fake_run), \
+                 patch.object(tp, 'DEFAULT_MODEL_PROFILES_PATH',
+                              str(Path(__file__).parent.parent / 'three_pass_model_profiles.json')):
+                with self.assertRaisesRegex(ValueError, 'changed during generation'):
+                    tp.main()
+            self.assertEqual(prior, output.read_bytes())
+            self.assertFalse((Path(str(output) + '.partial.json')).exists())
 
     def test_homoglyph_repair_reaches_both_actual_cli_outputs_and_source_fingerprints(self):
         raw = ('The patient gardener carefully watered the tall flowers beside the old stone wall. ' * 5

@@ -672,8 +672,8 @@ En el orden en que los encuentras en la app:
 - **Adaptadores de atribución** servidos mediante `llama-server --lora`, entrenados con datos
   de derechos limpios y publicados en Hugging Face con fichas que dicen qué se midió y qué no.
 - **Disciplina de medición**: `GOALS.md`, `RECIPES.md`, un índice de resultados que se reconstruye
-  en lugar de combinarse, procedencia en cada artefacto, un verificador de release y unas 3,400
-  pruebas unitarias.
+  en lugar de combinarse, procedencia en cada artefacto, un verificador de release y un
+  [inventario de pruebas unitarias](app/tests/unit_test_inventory.json) que `ready.sh` actualiza.
 
 ## Cómo funciona
 
@@ -921,11 +921,20 @@ llega al motor de voz (objetivo 5.1).
 
 ## Archivos de salida
 
-Todo se guarda bajo el directorio de la app (o `ALEXANDRIA_DATA_DIR` si está definido):
+La raíz de datos mutable es la **raíz del repositorio**, no `app/`: `DATA_DIR =
+get_runtime_data_dir(ROOT_DIR)` en `app/core.py`. Con `ALEXANDRIA_DATA_DIR` sin definir, los
+guiones, exportaciones, estados de renderizado y registros operativos de abajo se escriben
+junto al checkout. Si defines `ALEXANDRIA_DATA_DIR`, todos pasan a estar bajo ese directorio.
+Dos rutas conservan su ubicación histórica en `app/` solo mientras la raíz de datos sea la del
+repositorio — `app/config.json` y `app/uploads/` — y también se trasladan cuando se configura
+una raíz de datos (`app/utils.py:get_app_storage_path`).
+
+Las rutas de abajo son relativas a la raíz de datos salvo indicación contraria:
 
 | ruta | contenido |
 |---|---|
-| `uploads/` | los libros que subiste (reutilizables) |
+| `uploads/` (`app/uploads/` por defecto) | los libros que subiste (reutilizables) |
+| `config.json` (`app/config.json` por defecto) | ajustes guardados; ubicación heredada en `app/` solo cuando no se configura una raíz de datos |
 | `annotated_script.json`, `voice_config.json`, `character_aliases.json` | el libro activo, sus voces y sus alias |
 | `scripts/<name>.json` + `<name>.voice_config.json` | la biblioteca de guiones guardados |
 | `voice_library.json` | repartos |
@@ -937,7 +946,10 @@ Todo se guarda bajo el directorio de la app (o `ALEXANDRIA_DATA_DIR` si está de
 | `manual_llm/pending.json` / `response.json` | el buzón del transporte manual |
 | `lora_models/`, `lora_datasets/`, `designed_voices/`, `clone_voices/`, `builtin_lora/` | recursos de modelos (los adaptadores integrados vienen de solo lectura en el repo) |
 | `logs/api/`, `logs/review_responses.log`, `reports/` | registros operativos; el historial de ejecuciones lo sirve `/api/runs` |
-| `ab_test_runtime/experiments/` | todos los artefactos de medición, indexados en `RESULTS_INDEX.md` |
+| `ab_test_runtime/experiments/` (raíz del repositorio, no la raíz de datos) | todos los artefactos de medición, indexados en `RESULTS_INDEX.md` |
+
+Con la raíz de datos por defecto, `scripts/`, `cloned_audiobook.mp3`, `audiobook.m4b`,
+`chapter_exports/` y `voicelines/` quedan en la raíz del repositorio.
 
 ## Personalización de prompts
 
@@ -1103,10 +1115,12 @@ de fallo y los códigos de salida.
 ## Referencia de la API
 
 <details>
-<summary>Avanzado: ejemplos HTTP, autenticación y la referencia completa de 181 rutas</summary>
+<summary>Avanzado: ejemplos HTTP, autenticación y la referencia de la API</summary>
 
-Cada acción de la interfaz es una llamada HTTP. Las tablas de rutas de abajo se generan a partir de
-los decoradores de ruta de `app/routers/` (181 rutas).
+Cada acción de la interfaz es una llamada HTTP. La lista completa y generada está en la
+[referencia de la API](README.md#api-reference) del README en inglés, construida a partir de
+`app/api_contract/routes.json` y las docstrings de `app/routers/`. Las tablas de abajo son un
+extracto en español para consulta rápida; no son la lista autoritativa.
 
 ### Autenticación (opcional)
 
@@ -1459,7 +1473,7 @@ alexandria-audiobook2/
 │   ├── app.py                       # FastAPI app: routers, auth, static mount
 │   ├── routers/                     # system, script, scripts_library, voices, voice_library,
 │   │                                #   voice_design, editor, lora, dataset_builder, preparer,
-│   │                                #   voicelab, benchmark  (181 routes)
+│   │                                #   voicelab, benchmark  (see README API reference)
 │   ├── core.py                      # process_state, GPU lock, ETA, run bookkeeping
 │   ├── three_pass_generate.py       # pass 1 split · pass 2 attribute · pass 3 instruct
 │   ├── attribution_prompt_variants.py, default_prompts*.txt, review_prompts.txt
@@ -1471,7 +1485,7 @@ alexandria-audiobook2/
 │   ├── train_lora.py, voice_reference.py, speaker_identity.py
 │   ├── experiments/                 # ~290 measurement scripts (lora_serving_eval, voice_drift,
 │   │                                #   aligned_japanese_accent, quote_segmenter, …)
-│   ├── tests/                       # ~3,400 unit tests + unit_test_inventory.json
+│   ├── tests/                       # unit tests; inventory in unit_test_inventory.json
 │   ├── static/index.html            # the single-page app (no build step)
 │   ├── static/js/app-*.js           # core, scripts, workbench, training, voicelab, reports
 │   └── requirements.txt, torch-constraints.txt

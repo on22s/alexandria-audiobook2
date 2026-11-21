@@ -18,7 +18,7 @@ import pronunciation
 from audio_validation import validate_generated_audio
 from book_state_transaction import ensure_book_state, get_book_operation_token
 from core import (project_manager, run_claimed_task_worker, process_state, ensure_book_switch_allowed,
-                  is_task_running)
+                  is_task_running, _gpu_lock)
 from routers.editor import (check_chunk_identity, SCRIPT_PATH, _ensure_editor_chunks,
                             get_editor_book_identity, get_snapshot_digest)
 from project import get_speaker, get_occurrence_speech_projection
@@ -391,8 +391,8 @@ async def get_homograph_candidates_endpoint(request: PronunciationHomographQuery
 
 
 def _save_occurrence_rules_admitted(request):
-    with ensure_book_switch_allowed(operation='save occurrence rules'):
-        with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
+    with ensure_book_switch_allowed(operation='save occurrence rules', hold_task_mutex=False):
+        with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25), _gpu_lock:
             settings = project_manager.get_pronunciation_preview_settings()
             voices = project_manager.get_voice_config_for_update()
             with project_manager._chunks_lock, file_lock(project_manager.chunks_path):

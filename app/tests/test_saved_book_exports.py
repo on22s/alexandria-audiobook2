@@ -1,6 +1,6 @@
 """Book loading must invalidate exports and exclude running/starting exporters."""
 import asyncio
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 import json
 from pathlib import Path
 import tempfile
@@ -114,16 +114,34 @@ class SavedBookExportTests(unittest.TestCase):
         self.assertTrue(core.release_gpu_task_claim("audacity_export",owner))
 
     def test_export_reservation_waits_until_book_switch_finishes(self):
-        copying, release_copy, attempted, reserved = (threading.Event() for _ in range(4))
+        copying = threading.Event()
+        release_copy = threading.Event()
+        attempted = threading.Event()
+        try_reserve = threading.Event()
+        fence_exiting = threading.Event()
+        release_fence = threading.Event()
         mutex = threading.Lock()
+        real_switch = library.ensure_book_switch_allowed
+
         class ObservedLock:
             def __enter__(self):
                 if threading.current_thread().name == "export-reservation":
                     attempted.set()
+                    if not try_reserve.wait(3):
+                        raise RuntimeError("test did not release export reservation")
                 mutex.acquire()
             def __exit__(self, *args):
                 mutex.release()
         lock = ObservedLock()
+
+        @contextmanager
+        def pause_fence_exit(**kwargs):
+            with real_switch(**kwargs):
+                yield
+                fence_exiting.set()
+                if not release_fence.wait(3):
+                    raise RuntimeError("test did not release task admission")
+
         def pause_before_active(target):
             if Path(target) == self.active:
                 copying.set()
@@ -140,12 +158,12 @@ class SavedBookExportTests(unittest.TestCase):
                 owner=core.claim_gpu_task("audacity_export")
                 try:
                     observations.append((self.active.read_text(), self.exports[0].exists()))
-                    reserved.set()
                 finally:core.release_gpu_task_claim("audacity_export",owner)
             except Exception as error:
                 errors.append(error)
         with patch.object(core, "_gpu_lock", lock), \
              patch.object(library, "_gpu_lock", lock, create=True), \
+             patch.object(library, "ensure_book_switch_allowed", pause_fence_exit), \
              intercept_book_publications(book_transaction, before=pause_before_active):
             loader = threading.Thread(target=load)
             exporter = threading.Thread(target=reserve, name="export-reservation")
@@ -154,9 +172,14 @@ class SavedBookExportTests(unittest.TestCase):
                 self.assertTrue(copying.wait(2))
                 exporter.start()
                 self.assertTrue(attempted.wait(2))
-                self.assertFalse(reserved.wait(0.1), "export reserved during book switch")
+                self.assertTrue(mutex.locked(), "book switch did not hold the task mutex during publication")
+                release_copy.set()
+                self.assertTrue(fence_exiting.wait(2))
+                self.assertTrue(mutex.locked(), "task mutex released before kernel admission")
             finally:
                 release_copy.set()
+                try_reserve.set()
+                release_fence.set()
                 loader.join(3)
                 if exporter.ident is not None:
                     exporter.join(3)

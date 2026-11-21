@@ -2,7 +2,7 @@
 import copy
 import hashlib
 
-from book_state_transaction import ensure_book_state, get_book_snapshot, get_book_operation_token
+from book_state_transaction import reuse_book_state, get_book_snapshot, get_book_operation_token
 from editor_poll_snapshot import get_snapshot_digest
 from narration_markup import FORMAT, RECEIPT_KEY, get_narration_markup_preview
 from project import SOURCE_FACT_FIELDS, get_chapter_text_digest, get_chunk_chapter_start, is_smart_chapter_text
@@ -80,7 +80,7 @@ def _get_result_digest(chunk):
 
 
 def get_saved_narration_markup_preview(manager, index, expected_book_token, expected_uid):
-    with ensure_book_state(manager.root_dir, recover=False):
+    with reuse_book_state(manager.root_dir, recover=False):
         inputs = _get_inputs(manager)
         if inputs["book_token"] != expected_book_token:
             raise ValueError("Selected book changed; reload Editor before previewing markup")
@@ -96,7 +96,7 @@ def apply_saved_narration_markup(manager, index, expected_book_token, expected_u
                                 binding, decision):
     if decision not in ("apply", "keep", "replace"):
         raise ValueError("Choose how to resolve the proposed pause")
-    with ensure_book_state(manager.root_dir, recover=False), admit_take_history_edit(manager.root_dir):
+    with reuse_book_state(manager.root_dir, recover=False), admit_take_history_edit(manager.root_dir):
         with manager._chunks_lock, file_lock(manager.chunks_path):
             inputs = _get_inputs(manager)
             if inputs["book_token"] != expected_book_token:

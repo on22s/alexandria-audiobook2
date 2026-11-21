@@ -783,7 +783,8 @@ with intercept_book_publications(books,after=die):
             Path(tp.three_pass_checkpoint_path(output)).write_text(json.dumps(checkpoint))
             with patch.object(tp, 'segment_chunk') as segment, patch.object(tp, 'instruct_batch') as instruct:
                 result = tp.run_three_pass(delivery_client(), 'fixture', text, params, 3000,
-                    output_path=output, require_matching_checkpoint=True, defer_final_publication=True)
+                    output_path=output, require_matching_checkpoint=True,
+                    defer_final_publication=True, run_id='f' * 32)
             segment.assert_not_called(); instruct.assert_not_called()
             self.assertEqual('publishing', json.loads(Path(tp.three_pass_manifest_path(output)).read_text())['status'])
             publish_generated_script(str(root), captured['book_token'], str(source), captured['source_sha256'],

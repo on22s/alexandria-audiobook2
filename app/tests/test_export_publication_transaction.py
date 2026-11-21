@@ -19,7 +19,7 @@ class PublicationTransactionTests(unittest.TestCase):
     def test_live_lease_identity_thread_lifetime_and_cleanup_are_scoped(self):
         self.run_bounded(LIFETIME_PROBE)
 
-    def test_actual_editor_waits_outside_book_during_owner_aware_transaction(self):
+    def test_actual_editor_takes_book_before_gpu_during_owner_aware_transaction(self):
         self.run_bounded(EDITOR_PROBE)
 
     def test_whole_set_scoped_admission_refuses_contention_and_changed_retained_file(self):
@@ -145,12 +145,16 @@ with tempfile.TemporaryDirectory() as tmp,ExitStack() as stack:
  with ensure_audio_generation_owner(AudioGenerationOwner(claim,lambda **kw:core._ensure_audio_task_owner(claim,task_name='chapter_export',**kw))):
   with snapshot.ensure_publication_transaction({}) as admit:
    with admit():pass
-   worker=threading.Thread(target=edit);worker.start();assert attempted.wait(1)
-   assert not edit_book_entered.is_set()
+   worker=threading.Thread(target=edit);worker.start();assert edit_book_entered.wait(1)
+   # One documented order: the edit reaches the book journal before the GPU
+   # mutex. The owner-aware transaction uses a zero-timeout book try-lock and
+   # releases its owner lease before retrying, so neither side can deadlock.
    start=time.monotonic();assert not is_audio_generation_cancelled()
    with admit():pass
    duration=time.monotonic()-start
+  assert attempted.wait(1)
   worker.join(1);assert not worker.is_alive()
- assert edit_book_entered.is_set();assert not errors,errors
- result={'second_admission_and_owner_aware_callback_seconds':duration,'edit_waited_outside_book':True,'edit_completed_after_transaction':True,'edit_errors':errors}
+  assert edit_book_entered.is_set();assert not errors,errors
+  result={'second_admission_and_owner_aware_callback_seconds':duration,'edit_entered_book_before_gpu':True,'edit_completed_after_transaction':True,'edit_errors':errors}
+
 '''

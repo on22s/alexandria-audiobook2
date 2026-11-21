@@ -492,6 +492,21 @@ endpoint is local, and treats a config-read failure as on-GPU (conservative).
   annotate while the card renders audio, and an audio job can run while that
   LLM annotates.
 
+**Lock order: book transaction lock, then GPU mutex (`core._gpu_lock`).**
+`start_script_generation` holds `ensure_book_state(DATA_DIR)` across its
+`reserve_background_task("script")` claim, so any path that needs both must
+take the book journal first. Chunk edits do this in `editor._apply_chunk_edit`;
+their per-row operations re-enter the already-held admission through
+`book_state_transaction.reuse_book_state` rather than taking the journal again
+(`file_lock` is not re-entrant). Never acquire `_gpu_lock` and then wait on a
+book journal — that inverts the two paths and stalls generation until the
+edit's book-lock timeout. `_deleted_chunk_receipts` uses its own leaf RLock,
+held only around the dict itself, so readers snapshot it without taking either
+ordered lock. Book contention and damaged journals are reported without local
+paths: `TimeoutError` is a retryable 409 (`BOOK_STATE_BUSY_DETAIL`), while
+`BookTransactionError` is a server-side 500 (`BookTransactionError.DETAIL`);
+the deliberate `recover=False` refusal stays a 409.
+
 ### Voice Lab pipeline
 "Voice Lab" (audiobook → named LoRA voice). The stage scripts live in
 `tools/voice_lab/`. Stages: preparer (UI tab) → dedup
