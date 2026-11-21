@@ -557,6 +557,22 @@ def _ensure_editor_selection():
                             detail=fault.detail if fault else str(error)) from error
 
 
+CHUNK_SNAPSHOT_CONFLICT_DETAIL = (
+    "Saved book state is unreadable. Reload or switch books before continuing; "
+    "saved progress and audio have been preserved."
+)
+
+
+def _require_export_chunks():
+    """Request-time export admission: refuse before a worker is enqueued."""
+    with ensure_book_state(DATA_DIR):
+        _ensure_editor_selection()
+        try:
+            project_manager.load_chunks()
+        except (ValueError, OSError) as error:
+            raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
+
+
 def _ensure_editor_chunks():
     """Load rows without inventing IDs or discarding persisted progress."""
     try:
@@ -1103,7 +1119,10 @@ class MergeRequest(BaseModel):
 
 def _ensure_editor_integrity_locked():
     """Caller holds book state; native chunk loading may initialize missing rows."""
-    chunks = project_manager.load_chunks()
+    try:
+        chunks = project_manager.load_chunks()
+    except (ValueError, OSError) as error:
+        raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
     state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
     try:
         script_bytes = Path(SCRIPT_PATH).read_bytes()
@@ -1515,7 +1534,7 @@ async def export_audacity_endpoint(background_tasks: BackgroundTasks):
     # where two rapid POSTs both pass a plain running check before either sets it).
     # audacity_export is a NON_GPU_TASK, so this only guards against self-double-start.
 
-    await asyncio.to_thread(_ensure_editor_selection)
+    await asyncio.to_thread(_require_export_chunks)
 
     def task():
         process_state["audacity_export"]["logs"] = ["Starting Audacity export..."]
@@ -1692,6 +1711,7 @@ class M4bExportRequest(BaseModel):
 @router.post("/api/merge_m4b")
 async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: BackgroundTasks):
     await validate_export_readiness(request.require_ready)
+    await asyncio.to_thread(_require_export_chunks)
     # Atomic check-and-set on the request thread (closes the double-start TOCTOU
     # where two rapid POSTs both pass a plain running check before either sets it).
 
@@ -1781,6 +1801,7 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
     if request.format not in ("mp3", "wav"):
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
     await validate_export_readiness(request.require_ready)
+    await asyncio.to_thread(_require_export_chunks)
     chapters = request.chapters
     if chapters is not None:
         try:
@@ -1844,6 +1865,7 @@ async def preview_chapter_filenames(format: str = "mp3", per_chunk_chapters: boo
     if not 0 <= padding <= 6:
         raise HTTPException(status_code=400, detail="padding must be 0-6 digits")
     await validate_export_readiness(require_ready)
+    await asyncio.to_thread(_require_export_chunks)
     try:
         mastering_options = MasteringOptions.model_validate_json(mastering).model_dump() if mastering is not None else None
     except ValueError as exc:

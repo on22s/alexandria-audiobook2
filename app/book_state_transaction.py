@@ -5724,6 +5724,52 @@ def require_book_snapshot_current(data_dir, snapshot):
 
 
 
+def _plan_selection_chunk_snapshot_locked(data_dir, previous_identity, same_source):
+    """Reconcile the chunk journal with the generation a selection publishes.
+
+    Caller holds the book state lock, the state file lock and the chunks file
+    lock. The journal is replayed under the identity it was written against
+    before any of its rows are kept: only a coherent same-source journal is
+    compacted into the new snapshot. A foreign, stale or torn journal is
+    retired with its raw bytes retained as evidence, matching the saved-book
+    load transition. Returns (replacements, removals) relative to data_dir for
+    the enclosing book transaction.
+    """
+    from chunk_status_journal import ChunkStatusJournal, get_chunk_status_journal_path
+    chunks_path = Path(data_dir) / "chunks.json"
+    journal_path = Path(get_chunk_status_journal_path(chunks_path))
+    replacements, removals = {}, []
+    try:
+        snapshot_bytes = chunks_path.read_bytes()
+        journal_bytes = journal_path.read_bytes()
+    except OSError:
+        snapshot_bytes = journal_bytes = None
+    rows = None
+    if snapshot_bytes is not None:
+        try:
+            rows = ChunkStatusJournal(chunks_path, previous_identity).get_rows_from_bytes(
+                snapshot_bytes, journal_bytes)
+        except (ValueError, OSError, RecursionError):
+            rows = None
+    if rows is not None and same_source:
+        # Same source, verified journal: keep its transitions in the snapshot
+        # and retire the generation-bound journal in the same book transaction.
+        replacements["chunks.json"] = json.dumps(
+            rows, ensure_ascii=False, indent=2, allow_nan=False).encode("utf-8")
+        removals.append(os.path.basename(journal_path))
+        complete = journal_bytes[:journal_bytes.rfind(b"\n") + 1]
+        if complete != journal_bytes:
+            replacements[os.path.basename(journal_path) + ".torn-" + uuid.uuid4().hex] = journal_bytes
+    else:
+        # A different source starts a new book context. Only keep raw evidence
+        # when coherence could not be proven; a readable foreign journal is
+        # retired exactly like a saved-book load retires the chunk snapshot.
+        if rows is None and journal_bytes is not None:
+            replacements[os.path.basename(journal_path) + ".stale-" + uuid.uuid4().hex] = journal_bytes
+        removals.extend(["chunks.json", os.path.basename(journal_path)])
+    return replacements, removals
+
+
 def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, before_publication=None):
     """Select an input under the same book-operation contract as load/jobs.
 
@@ -5734,9 +5780,12 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
     from utils import safe_load_json
     from sound_design_registry import ACTIVE_CUES
     from sound_design_renditions import ACTIVE_RENDITIONS, capture_sound_design_companions
+    from chunk_status_journal import get_chunk_status_journal_path
     with ensure_book_state(data_dir, timeout=timeout) as root:
         data_dir = root
         state_path = Path(data_dir) / "state.json"
+        chunks_path = Path(data_dir) / "chunks.json"
+        journal_exists = os.path.lexists(get_chunk_status_journal_path(chunks_path))
         with file_lock(str(state_path)):
             state = safe_load_json(str(state_path), default={})
             if not isinstance(state, dict):
@@ -5744,6 +5793,12 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
             if input_path is None:
                 input_path = state.get("input_file_path")
             previous_book_id = state.get('active_book_id')
+            previous_path = state.get("input_file_path")
+            previous_identity = {"active_book_id": previous_book_id,
+                                 "book_generation": state.get("book_generation")}
+            same_source = (book_id == previous_book_id and isinstance(previous_path, str)
+                           and bool(previous_path)
+                           and os.path.realpath(str(input_path)) == os.path.realpath(previous_path))
             state.update(input_file_path=input_path, active_book_id=book_id,
                          book_generation=uuid.uuid4().hex)
             # Selecting a source does not replace the previous script. Keep it
@@ -5761,15 +5816,23 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
             if companions:
                 capture_sound_design_companions(data_dir, ACTIVE_CUES, ACTIVE_RENDITIONS,
                                                 expected_book_id=previous_book_id)
-            if before_publication is not None:
-                before_publication()
-            if companions:
-                apply_book_state_locked(data_dir, {
-                    'state.json': json.dumps(state, ensure_ascii=False, indent=2).encode('utf-8')},
-                    companions)
-            else:
-                save_adapter_publication_bytes(str(state_path), json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8"))
-            return get_book_operation_token(data_dir)
+            state_bytes = json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8")
+            def publish(chunk_replacements, chunk_removals):
+                if before_publication is not None:
+                    before_publication()
+                if companions or chunk_replacements or chunk_removals:
+                    apply_book_state_locked(data_dir,
+                        {'state.json': state_bytes, **chunk_replacements},
+                        list(companions) + list(chunk_removals))
+                else:
+                    save_adapter_publication_bytes(str(state_path), state_bytes)
+                return get_book_operation_token(data_dir)
+            if journal_exists:
+                with file_lock(chunks_path):
+                    chunk_replacements, chunk_removals = _plan_selection_chunk_snapshot_locked(
+                        data_dir, previous_identity, same_source)
+                    return publish(chunk_replacements, chunk_removals)
+            return publish({}, [])
 
 
 
