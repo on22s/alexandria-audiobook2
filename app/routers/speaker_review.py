@@ -500,6 +500,11 @@ def _cancel(run_id):
     return {'status': 'interrupted' if record['status'] == 'running' else record['status']}
 
 
+def _refuse_stale_apply():
+    """The one stale applied-review refusal, shared by both pre-write guards."""
+    raise HTTPException(status_code=409, detail='This review changed or is stale; preview and review again')
+
+
 def _apply(run_id, request):
     reference_name = _read_run(run_id)['selection']['reference_name']
     # The book admission comes before nested lease/file locks, as in every other
@@ -515,11 +520,11 @@ def _apply(run_id, request):
             with file_lock(_run_path(run_id), timeout=0):
                 record = _read_run(run_id)
                 if record['selection']['reference_name'] != reference_name:
-                    raise HTTPException(status_code=409, detail='This review changed or is stale; preview and review again')
+                    _refuse_stale_apply()
                 captured = _capture_locked(record['selection'])
                 if (request.snapshot != record['snapshot'] or captured['public']['snapshot'] != record['snapshot']
                         or record['status'] != 'completed' or record.get('applied')):
-                    raise HTTPException(status_code=409, detail='This review changed or is stale; preview and review again')
+                    _refuse_stale_apply()
                 candidate = next((item for item in captured['public']['candidates']
                                   if item['id'] == request.candidate_id), None)
                 if candidate is None:

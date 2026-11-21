@@ -2742,6 +2742,11 @@ def get_recovery_admission():
         return _read_recovery_admission()
 
 
+def _refuse_cast_invalidated_recovery():
+    """The one 409 for every admission point that refuses a fenced run."""
+    raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
+
+
 def completed_script_prefix(checkpoint):
     """The entries a running three-pass has fully finished (all three passes),
     in order, stopping at the first one that has not - the snapshot #600
@@ -2938,7 +2943,7 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             # Start Over discards progress and a truly new baseline has no
             # checkpoint, so neither is blocked and both still clear the marker.
             if (require_recovery or resumes_checkpoint) and get_fenced_recovery_status(DATA_DIR) is not None:
-                raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
+                _refuse_cast_invalidated_recovery()
             if require_recovery:
                 stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
                 stored = (stored.get("script_generation_options") or {}) if isinstance(stored, dict) else {}
@@ -3256,7 +3261,7 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
     a directed run; an injected row always uses the failed run's direction."""
     with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
         if get_fenced_recovery_status(DATA_DIR) is not None:
-            raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
+            _refuse_cast_invalidated_recovery()
         if is_task_running("script", process_state):
             raise HTTPException(status_code=409, detail="Script generation is running.")
         checkpoint = _load_failed_checkpoint(locked=True)
@@ -3357,7 +3362,7 @@ class SkipChunkRequest(BaseModel):
 def _require_failed_unit(chunk):
     fenced, checkpoint = get_recovery_admission()
     if fenced is not None:
-        raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
+        _refuse_cast_invalidated_recovery()
     if checkpoint is None:
         raise HTTPException(status_code=409,
                             detail="No failed generation unit is waiting for recovery.")
