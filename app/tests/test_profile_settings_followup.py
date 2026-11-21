@@ -84,6 +84,12 @@ def _save_preview(tmp, document):
             return error.status_code
 
 
+def _post_unsafe(client, url, payload):
+    """Send a payload Python can hold but strict JSON encoders refuse (Inf)."""
+    return client.post(url, content=json.dumps(payload, allow_nan=True),
+                       headers={"content-type": "application/json"})
+
+
 def _form(document):
     """The production JS posts these whole profile objects back unchanged."""
     form = {key: document[key] for key in
@@ -988,19 +994,20 @@ const src=fs.readFileSync(0,'utf8');
 const input=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
 const el=()=>({value:'',checked:false});
 const context={document:{getElementById:el}, llmProfiles:input.profiles, currentLlmMode:input.mode,
-  promptPresetPayload:()=>({active:'default',own:[]}), passPromptDefaults:{},
-  getPassPromptPresetPayload:()=>({active:'default',own:[]}),
+  promptPresetPayload:()=>({active:'default',own:[]}), passPromptDefaults:{pass1:{},pass3:{}},
+  getPassPromptPresetPayload:()=>({active:'default',own:input.preset?[input.preset]:[]}),
   getNumFieldValue:(id,d)=>d, getOptionalTokenInput:()=>null, getIntListInput:()=>[],
   legacyChunkSize:3000, getDesignTextRangeInput:()=>({}), selectedPromptPreset:()=>null,
   getSynthesisWindowConfig:()=>({}), getSynthesisRecoveryConfig:()=>({}), getSpeechVerificationConfig:()=>({})};
 vm.createContext(context); vm.runInContext(src,context);
 const payload=vm.runInContext('buildConfigPayload(2)',context);
 process.stdout.write(JSON.stringify({llm:payload.llm,llm_local:payload.llm_local,
-                                     llm_remote:payload.llm_remote,llm_mode:payload.llm_mode}));
+                                     llm_remote:payload.llm_remote,llm_mode:payload.llm_mode,
+                                     prompts:payload.prompts}));
 """
 
 
-def _payload_via_js(tmp, document, mode):
+def _payload_via_js(tmp, document, mode, preset=None):
     source = open(os.path.join(os.path.dirname(os.path.dirname(__file__)), "static/js/app-core.js"),
                   encoding="utf-8").read()
     start = source.index("        function buildConfigPayload(")
@@ -1016,11 +1023,14 @@ def _payload_via_js(tmp, document, mode):
     fixture = os.path.join(tmp, "payload-profiles.json")
     with open(fixture, "w", encoding="utf-8") as handle:
         json.dump({"profiles": {"local": document["llm_local"],
-                                "remote": document["llm_remote"]}, "mode": mode}, handle)
+                                "remote": document["llm_remote"]}, "mode": mode,
+                   "preset": preset}, handle)
     result = subprocess.run(["node", "-e", PAYLOAD_JS, fixture],
                             input=source[start:end], text=True, check=True,
                             capture_output=True, timeout=20)
-    return {**document, **json.loads(result.stdout)}
+    built = json.loads(result.stdout)
+    prompts = {**(document.get("prompts") or {}), **built.pop("prompts", {})}
+    return {**document, **built, "prompts": prompts}
 
 
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
@@ -1067,8 +1077,9 @@ class ProviderBodyValidationTests(unittest.TestCase):
                     for section in ("llm", "llm_local"):
                         form[section]["provider_extra_body_json"] = raw
                         form[section]["provider_extra_body_raw"] = True
-                    self.assertEqual(400, client.post("/api/config/preview", json=form).status_code)
-                    self.assertEqual(422, client.post("/api/config", json=form).status_code)
+                    self.assertIn(_post_unsafe(client, "/api/config/preview", form).status_code,
+                                  (400, 422))
+                    self.assertIn(_post_unsafe(client, "/api/config", form).status_code, (400, 422))
                     self.assertEqual(200, client.get("/api/config").status_code)
                 self.assertEqual(before, _load(path))
 
@@ -1111,8 +1122,126 @@ class ProviderBodyValidationTests(unittest.TestCase):
                         if row["path"] == "llm_local.provider_extra_body"]
                 self.assertEqual(expected, len(rows))
                 if expected:
-                    self.assertEqual("flag: boolean", rows[0]["before"])
-                    self.assertEqual("flag: number", rows[0]["after"])
+                    self.assertEqual("object of boolean", rows[0]["before"])
+                    self.assertEqual("object of number", rows[0]["after"])
+                    self.assertNotIn("flag", rows[0]["before"] + rows[0]["after"])
+
+
+class StructuredNonfiniteTests(unittest.TestCase):
+    def test_structured_only_nonfinite_is_refused_without_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _seed(tmp, {"llm_mode": "local", "llm": dict(LOW),
+                               "llm_local": dict(LOW), "tts": {}, "generation": {}})
+            before = _load(path)
+            app = FastAPI()
+            app.include_router(system_module.router)
+            client = TestClient(app, raise_server_exceptions=True)
+            with patch.object(system_module, "CONFIG_PATH", path), \
+                    patch.object(system_module.project_manager, "engine", None), \
+                    patch.object(system_module.project_manager, "invalidate_config_cache"):
+                form = _form(_get(tmp))
+                for section in ("llm", "llm_local"):
+                    form[section]["provider_extra_body"] = {"nested": {"exp": 1e310}}
+                self.assertIn(_post_unsafe(client, "/api/config/preview", form).status_code,
+                              (400, 422))
+                self.assertIn(_post_unsafe(client, "/api/config", form).status_code, (400, 422))
+                self.assertEqual(200, client.get("/api/config").status_code)
+            self.assertEqual(before, _load(path))
+
+
+@unittest.skipUnless(shutil.which("node"), "node is not installed")
+class InlinePresetPayloadTests(unittest.TestCase):
+    def test_inline_pass1_edit_survives_production_payload_and_save(self):
+        preset = {"name": "fixture-inline", "user_prompt": "EDITED_PASS1_TEXT"}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _seed(tmp, {"llm_mode": "local", "llm": dict(LOW), "llm_local": dict(LOW),
+                               "tts": {}, "generation": {},
+                               "prompts": {"system_prompt": "", "user_prompt": "",
+                                           "pass1_preset": "fixture-inline",
+                                           "pass1_prompt_presets": []}})
+            document = _get(tmp)
+            payload = _payload_via_js(tmp, document, "local", preset=preset)
+            self.assertIn(preset, payload["prompts"]["pass1_prompt_presets"])
+            self.assertEqual(200, _save_preview(tmp, payload))
+            saved = _save(tmp, payload)
+            self.assertTrue(any(item.get("name") == preset["name"]
+                                and item.get("user_prompt") == preset["user_prompt"]
+                                for item in saved["prompts"]["pass1_prompt_presets"]))
+
+
+@unittest.skipUnless(shutil.which("node"), "node is not installed")
+class BlankBodyTextareaTests(unittest.TestCase):
+    def test_blank_textarea_submits_explicit_empty_object(self):
+        blank_js = FORM_JS.replace(
+            'populateLlmInputs("local"); getEditedLlmProfile();',
+            'populateLlmInputs("local"); document.getElementById("llm-provider-extra-body").value="   "; getEditedLlmProfile();')
+        with tempfile.TemporaryDirectory() as tmp:
+            body = {"fixture": 1}
+            profile = dict(LOW, provider_extra_body=body)
+            _seed(tmp, {"llm_mode": "local", "llm": dict(profile),
+                        "llm_local": dict(profile), "tts": {}, "generation": {}})
+            document = _get(tmp)
+            result = subprocess.run(["node", "-e", blank_js],
+                                    input=json.dumps({"local": document["llm_local"]}),
+                                    text=True, check=True, capture_output=True, timeout=20)
+            posted = json.loads(result.stdout)
+            self.assertEqual("{}", posted["provider_extra_body_json"])
+            form = {**_form(document), "llm": posted, "llm_local": posted}
+            self.assertEqual(200, _save_preview(tmp, form))
+            self.assertEqual({}, _save(tmp, form)["llm_local"]["provider_extra_body"])
+
+
+class PreviewBaselineAndTypeTests(unittest.TestCase):
+    def test_hydrated_baseline_and_nested_type_summary(self):
+        from config_settings import AppConfig, load_app_config_result
+        for mode in ("local", "remote"):
+            body = {"nested": {"flag": True}, "big": 2 ** 53 + 1}
+            profile = dict(LOW, provider_extra_body=body)
+            active = f"llm_{mode}"
+            neutral = LLMConfig(base_url="", api_key="", model_name="").model_dump()
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                path = _seed(tmp, {"llm_mode": mode, "llm": dict(profile),
+                                   active: dict(neutral), "tts": {}, "generation": {}})
+                existing = load_app_config_result(path)
+                document = _get(tmp)
+                unchanged = config_change_preview.get_config_change_preview(
+                    existing, AppConfig.model_validate(document),
+                    system_module.get_config_local_profile, exists=True)
+                self.assertEqual([], [row for row in unchanged["changes"]
+                                      if "provider_extra_body" in row["path"]])
+
+                for flag, expected_rows in ((1, 1), (1.0, 1)):
+                    edited = json.loads(json.dumps(document))
+                    edited[active]["provider_extra_body"] = {"nested": {"flag": flag},
+                                                              "big": 2 ** 53 + 1}
+                    preview = config_change_preview.get_config_change_preview(
+                        existing, AppConfig.model_validate(edited),
+                        system_module.get_config_local_profile, exists=True)
+                    rows = [row for row in preview["changes"]
+                            if row["path"] == active + ".provider_extra_body"]
+                    self.assertEqual(expected_rows, len(rows))
+                    if expected_rows == 0:
+                        continue
+                    text = rows[0]["before"] + rows[0]["after"]
+                    self.assertIn("boolean", rows[0]["before"])
+                    self.assertIn("number", rows[0]["after"])
+                    self.assertNotIn("flag", text)
+                    self.assertNotIn("9007199254740993", text)
+
+    def test_numeric_equivalence_keeps_no_row(self):
+        from config_settings import AppConfig, load_app_config_result
+        with tempfile.TemporaryDirectory() as tmp:
+            profile = dict(LOW, provider_extra_body={"nested": {"flag": 1}})
+            path = _seed(tmp, {"llm_mode": "local", "llm": dict(profile),
+                               "llm_local": dict(profile), "tts": {}, "generation": {}})
+            existing = load_app_config_result(path)
+            document = _get(tmp)
+            document["llm_local"]["provider_extra_body"] = {"nested": {"flag": 1.0}}
+            preview = config_change_preview.get_config_change_preview(
+                existing, AppConfig.model_validate(document),
+                system_module.get_config_local_profile, exists=True)
+            self.assertEqual([], [row for row in preview["changes"]
+                                  if row["path"] == "llm_local.provider_extra_body"])
 
 
 if __name__ == "__main__":

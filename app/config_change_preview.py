@@ -106,12 +106,15 @@ def _count_dropped_unmanaged(saved, after, config):
     return count
 
 
-def _json_shape(value):
-    """Bounded, value-free description of a JSON object's scalar types."""
-    if isinstance(value, dict):
-        items = ', '.join(f'{name}: {_json_shape(item)}'
-                          for name, item in list(value.items())[:4])
-        return items or 'empty object'
+def _json_types(value, depth=0):
+    """Bounded type-only summary; never echo a property name or a value."""
+    if depth >= 3:
+        return 'value'
+    if isinstance(value, dict) or isinstance(value, list):
+        items = value.values() if isinstance(value, dict) else value
+        kinds = sorted({_json_types(item, depth + 1) for item in items})
+        label = 'object' if isinstance(value, dict) else 'list'
+        return label + (f' of {", ".join(kinds)}' if kinds else '')
     if isinstance(value, bool):
         return 'boolean'
     if isinstance(value, (int, float)):
@@ -120,8 +123,6 @@ def _json_shape(value):
         return 'text'
     if value is None:
         return 'blank'
-    if isinstance(value, list):
-        return 'list'
     return 'value'
 
 
@@ -131,6 +132,22 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
     after = get_document_with_retained_cache(proposal.model_dump(mode='json'), existing.data)
     changes, defaults = [], []
     unmanaged = _count_dropped_unmanaged(saved, after, existing.data)
+
+    def body_baseline(section, old_profile, new_profile):
+        """GET hydrates a neutral slot from the legacy mirror; compare against it.
+
+        Otherwise an unchanged round trip would report the body as changed even
+        though the exact value survived the save.
+        """
+        body = old_profile.get('provider_extra_body', _ABSENT)
+        legacy = saved.get('llm') if isinstance(saved.get('llm'), dict) else {}
+        if (section in ('llm_local', 'llm_remote') and isinstance(body, dict) and not body
+                and isinstance(legacy.get('provider_extra_body'), dict)
+                and legacy.get('provider_extra_body')
+                and (not old_profile.get('base_url')
+                     or legacy.get('base_url') == new_profile.get('base_url'))):
+            return legacy['provider_extra_body']
+        return body
 
     def append_row(section, key, old, new, default=_ABSENT, absent=False, field=None):
         before = default if old is _ABSENT else old
@@ -148,8 +165,8 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
             # Python treats True and 1 as equal; a JSON type change is a real
             # edit and must be visible without exposing any values.
             if structured and isinstance(before, dict) and isinstance(new, dict):
-                row['before'] = _json_shape(before)
-                row['after'] = _json_shape(new)
+                row['before'] = _json_types(before)
+                row['after'] = _json_types(new)
             changes.append(row)
         elif absent and new is not _ABSENT:
             defaults.append(row)
@@ -163,7 +180,9 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
         new = new if isinstance(new, dict) else {}
         for key, field in model.model_fields.items():
             default = _ABSENT if field.is_required() else field.get_default(call_default_factory=True)
-            append_row(section, key, old.get(key, _ABSENT), new.get(key, _ABSENT),
+            prior = body_baseline(section, old, new) if key == 'provider_extra_body' \
+                else old.get(key, _ABSENT)
+            append_row(section, key, prior, new.get(key, _ABSENT),
                        default, key not in old, field)
     for key in ('llm_mode', 'llm_failover', 'llm_remote_ssh', 'prompt_presets'):
         field = AppConfig.model_fields[key]

@@ -2154,6 +2154,7 @@
         }
 
         function getEditedLlmProfile() {
+            const bodyText = document.getElementById('llm-provider-extra-body').value;
             return {
                 context_length: getOptionalTokenInput('llm-context-length', 'Total context budget'),
                 max_input_tokens: getOptionalTokenInput('llm-max-input-tokens', 'Input ceiling'),
@@ -2174,7 +2175,7 @@
                 provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body'),
                 // The editor's text is the authoritative representation: a
                 // browser number cannot hold integers beyond 2^53 exactly.
-                provider_extra_body_json: document.getElementById('llm-provider-extra-body').value,
+                provider_extra_body_json: bodyText.trim() ? bodyText : '{}',
                 provider_extra_body_raw: true,
                 reasoning_effort: document.getElementById('llm-reasoning-effort').value || null,
                 on_this_gpu: getOnThisGpuInput(),
@@ -2717,7 +2718,7 @@
             for (const pass of Object.keys(passPromptDefaults)) {
                 const payload = getPassPromptPresetPayload(pass);
                 passPayload[pass + '_preset'] = payload.active;
-                passPayload[pass + '_prompt_preset'] = payload.own;
+                passPayload[pass + '_prompt_presets'] = payload.own;
             }
             // An untouched slot comes straight from the browser-parsed GET
             // response, whose numbers may already be rounded. Its exact text

@@ -443,6 +443,7 @@
     "'Selected cover is unavailable or changed. Refresh cover options.'",
     "'Selected reference must be a completed, available sample'",
     "'Selected source changed before generation started.'",
+    "'Settings contain a non-finite JSON number; use finite values only.'",
     "'Settings could not be applied safely. Check saved book/config files and retry; affected lines may require regeneration.'",
     "'Settings could not be applied safely. Check saved book/config files and retry; affected lines may require regeneration.'",
     "'Settings preview did not pass Save validation. Check the model profiles, prompt presets, number ranges and JSON fields; no settings were applied.'",

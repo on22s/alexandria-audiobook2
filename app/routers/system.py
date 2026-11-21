@@ -2,6 +2,7 @@ import asyncio
 import copy
 import json
 import logging
+import math
 import os
 import threading
 import time
@@ -1430,11 +1431,31 @@ def get_config_to_save(config: AppConfig, existing: dict) -> AppConfig:
     return normalized_config
 
 
+def _reject_nonfinite_request(value):
+    """Return a controlled 4xx for non-finite JSON numbers in a submission.
+
+    Checking the raw payload before pydantic keeps an Inf/NaN out of a
+    ValidationError, whose error serialization would otherwise fail with 500.
+    The message carries no field path or submitted value.
+    """
+    if isinstance(value, bool) or value is None:
+        return
+    if isinstance(value, float) and not math.isfinite(value):
+        raise HTTPException(status_code=400, detail="Settings contain a non-finite JSON number; use finite values only.")
+    if isinstance(value, dict):
+        for item in value.values():
+            _reject_nonfinite_request(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _reject_nonfinite_request(item)
+
+
 @router.post("/api/config/preview")
 async def preview_config(proposed: Any = Body(...)):
     """Compare supported saved settings with the normalized Save proposal."""
     if not isinstance(proposed, dict):
         raise HTTPException(status_code=400, detail="Preview requires a settings object.")
+    _reject_nonfinite_request(proposed)
     try:
         config = AppConfig.model_validate(proposed)
         return await asyncio.to_thread(_get_config_preview_sync, config)
@@ -1574,7 +1595,16 @@ def apply_pronunciation_config_change(config, manager):
             return True
 
 
-@router.post("/api/config")
+async def ensure_finite_settings_body(request: Request):
+    """Reject non-finite JSON before pydantic embeds it in an error response."""
+    try:
+        payload = await request.json()
+    except (ValueError, UnicodeDecodeError):
+        return
+    _reject_nonfinite_request(payload)
+
+
+@router.post("/api/config", dependencies=[Depends(ensure_finite_settings_body)])
 async def save_config(config: AppConfig):
     reset = await asyncio.to_thread(save_config_document, config)
     if not reset:

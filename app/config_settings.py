@@ -376,9 +376,6 @@ class AppConfig(BaseModel):
             profile = data.get(section)
             if not isinstance(profile, dict):
                 continue
-            if not any(key in profile for key in
-                       ("provider_extra_body_json", "provider_extra_body_raw")):
-                continue
             updated = {key: value for key, value in profile.items()
                        if key not in ("provider_extra_body_json", "provider_extra_body_raw")}
             if profile.get("provider_extra_body_raw") is True:
