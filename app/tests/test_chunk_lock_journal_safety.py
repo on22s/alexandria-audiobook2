@@ -21,10 +21,11 @@ from tests.test_support import use_private_cpu_fixture_lock
 import book_state_transaction as books
 from book_state_transaction import (BookTransactionError, BOOK_STATE_BUSY_DETAIL,
     BOOK_STORAGE_FAILURE_DETAIL, BOOK_JOURNAL_MIGRATION_DETAIL,
-    BOOK_JOURNAL_UNCERTAIN_DETAIL)
+    BOOK_JOURNAL_UNCERTAIN_DETAIL, BOOK_EXCHANGE_DIVERGED_DETAIL)
 import core
 from project import ProjectManager
-from routers import editor, script
+from routers import (editor, script, scripts_library as library,
+                     speaker_review as speaker_routes)
 from tests import test_narration_markup as markup_fixtures
 import utils
 from utils import file_lock
@@ -500,6 +501,197 @@ class RecoveryClassRouteTests(unittest.TestCase):
                 self.assertNotIn(str(root), refusal.detail)
             self.assertEqual(before, book_artifacts(root))
             self.assertEqual({}, core._task_claims)
+
+
+@contextmanager
+def bypass_routes_fixture():
+    """One disposable book shared by the Editor, saved-book and speaker-review routers."""
+    with tempfile.TemporaryDirectory() as folder, ExitStack() as stack:
+        root = Path(folder)
+        scripts = root / 'scripts'
+        scripts.mkdir()
+        (scripts / 'book_b.json').write_text(json.dumps([
+            {'speaker': 'B', 'text': 'Loaded book sentence.'}]), encoding='utf-8')
+        source = root / 'source.txt'
+        source.write_text('Synthetic sentence.', encoding='utf-8')
+        (root / 'annotated_script.json').write_text(json.dumps([
+            {'speaker': 'A', 'text': 'Synthetic sentence.'}]), encoding='utf-8')
+        (root / 'config.json').write_text('{}', encoding='utf-8')
+        (root / 'state.json').write_text(json.dumps({
+            'active_book_id': 'book-a', 'book_generation': 'g-a',
+            'input_file_path': str(source)}), encoding='utf-8')
+        pm = ProjectManager(folder)
+        pm.save_chunks([{'id': 0, 'uid': 'line-0', 'speaker': 'A',
+                         'text': 'Synthetic sentence.', 'status': 'pending'}])
+        run_id = 'a' * 64
+        runs = root / '.speaker_review'
+        runs.mkdir(mode=0o700)
+        record = {'schema': speaker_routes.SCHEMA, 'run_id': run_id, 'snapshot': run_id,
+                  'attempts': 0, 'cache': {}, 'reviews': [], 'status': 'completed',
+                  'selection': {'source': 'current', 'reference_name': 'book_b',
+                                'max_pairs': 20, 'allow_partial': False}}
+        (runs / (run_id + '.json')).write_text(json.dumps(record), encoding='utf-8')
+        states = copy.deepcopy(core.process_state)
+        for value in states.values():
+            value['running'] = False
+        shared = (
+            (core, 'DATA_DIR', folder), (core, 'SCRIPTS_DIR', str(scripts)),
+            (core, 'SCRIPT_PATH', str(root / 'annotated_script.json')),
+            (core, 'VOICE_CONFIG_PATH', str(root / 'voice_config.json')),
+            (core, 'CHUNKS_PATH', str(root / 'chunks.json')),
+            (core, 'CONFIG_PATH', str(root / 'config.json')),
+            (core, 'CHARACTER_ALIASES_PATH', str(root / 'character_aliases.json')),
+            (core, 'process_state', states), (core, '_task_claims', {}),
+            (core, '_gpu_leases', {}),
+            (library, 'DATA_DIR', folder), (library, 'SCRIPTS_DIR', str(scripts)),
+            (library, 'SCRIPT_PATH', str(root / 'annotated_script.json')),
+            (library, 'VOICE_CONFIG_PATH', str(root / 'voice_config.json')),
+            (library, 'CHUNKS_PATH', str(root / 'chunks.json')),
+            (library, 'AUDIOBOOK_PATH', str(root / 'cloned_audiobook.mp3')),
+            (library, 'M4B_PATH', str(root / 'audiobook.m4b')),
+            (library, 'process_state', states),
+            (editor, 'DATA_DIR', folder),
+            (editor, 'SCRIPT_PATH', str(root / 'annotated_script.json')),
+            (editor, 'CONFIG_PATH', str(root / 'config.json')),
+            (editor, 'process_state', states), (editor, 'project_manager', pm),
+        )
+        for obj, name, value in shared:
+            stack.enter_context(patch.object(obj, name, value))
+        private_lock = use_private_cpu_fixture_lock()
+        private_lock.__enter__()
+        stack.callback(private_lock.__exit__, None, None, None)
+        api = FastAPI()
+        api.include_router(editor.router)
+        api.include_router(library.router)
+        api.include_router(speaker_routes.router)
+        client = TestClient(api)
+        stack.callback(client.close)
+        yield root, client, states, run_id
+
+
+class SpeakerReviewApplyJournalTests(unittest.TestCase):
+    def test_committed_journal_and_live_lease_refuse_apply_without_mutation(self):
+        with bypass_routes_fixture() as (root, client, states, run_id):
+            (root / books.JOURNAL).write_text(json.dumps({
+                'version': 1, 'phase': 'committed',
+                'workspace': '.book-switch-' + 'b' * 32,
+                'entries': [{'path': 'state.json', 'existed': True,
+                    'old_sha256': hashlib.sha256(b'old').hexdigest(),
+                    'new_sha256': hashlib.sha256(b'new').hexdigest()}]}), encoding='utf-8')
+            lease = core.acquire_task_lease(core.DATA_DIR, speaker_routes.TASK, core.LLM_TASKS)
+            try:
+                states[speaker_routes.TASK]['running'] = True
+                before = book_artifacts(root)
+                response = client.post('/api/speaker_review/' + run_id + '/apply', json={
+                    'snapshot': run_id, 'candidate_id': 'c' * 64,
+                    'alias': 'ALICE', 'canonical': 'AL'})
+            finally:
+                states[speaker_routes.TASK]['running'] = False
+                lease.close()
+            self.assertEqual(409, response.status_code, response.text)
+            detail = response.json()['detail']
+            self.assertEqual('Book recovery is required before previewing saved state', detail)
+            self.assertNotIn('/', detail)
+            self.assertNotIn(str(root), detail)
+            self.assertEqual(before, book_artifacts(root))
+            self.assertEqual({}, core._task_claims)
+
+
+class SavedBookLoadLockOrderTests(unittest.TestCase):
+    def test_load_waits_for_book_without_gpu_mutex_while_insert_proceeds(self):
+        with bypass_routes_fixture() as (root, client, _states, _run_id):
+            real_gpu = library._gpu_lock
+            insert_has_book, allow_insert = threading.Event(), threading.Event()
+
+            class PausingGpu:
+                def __enter__(self):
+                    insert_has_book.set()
+                    allow_insert.wait(3)
+                    return real_gpu.__enter__()
+
+                def __exit__(self, *args):
+                    return real_gpu.__exit__(*args)
+
+            results = {}
+
+            def do_insert():
+                results['insert'] = client.post('/api/chunks/0/insert')
+
+            def do_load():
+                results['load'] = client.post('/api/scripts/load', json={'name': 'book_b'})
+
+            with patch.object(editor, '_gpu_lock', PausingGpu()):
+                insert_thread = threading.Thread(target=do_insert, daemon=True)
+                load_thread = None
+                try:
+                    insert_thread.start()
+                    self.assertTrue(insert_has_book.wait(2), 'insert never held the book journal')
+                    load_thread = threading.Thread(target=do_load, daemon=True)
+                    load_thread.start()
+                    time.sleep(0.05)
+                    self.assertTrue(load_thread.is_alive(), 'load did not wait for the book journal')
+                    self.assertFalse(real_gpu.locked(),
+                                     'load held the GPU mutex while waiting for the book journal')
+                finally:
+                    allow_insert.set()
+                    insert_thread.join(3)
+                    if load_thread is not None:
+                        load_thread.join(3)
+            self.assertFalse(insert_thread.is_alive())
+            self.assertEqual(200, results['insert'].status_code, results['insert'].text)
+            self.assertEqual(200, results['load'].status_code, results['load'].text)
+            self.assertEqual([{'speaker': 'B', 'text': 'Loaded book sentence.'}],
+                             json.loads((root / 'annotated_script.json').read_text()))
+            self.assertEqual(core._get_saved_book_id('book_b'),
+                             json.loads((root / 'state.json').read_text())['active_book_id'])
+
+
+class JournalFaultBypassRouteTests(unittest.TestCase):
+    def test_valid_v1_journal_maps_identically_for_cancel_and_delete(self):
+        with bypass_routes_fixture() as (root, client, _states, _run_id):
+            (root / books.JOURNAL).write_text(json.dumps({
+                'version': 1, 'phase': 'recovered',
+                'workspace': '.book-switch-' + 'a' * 32,
+                'entries': [{'path': 'state.json', 'existed': True,
+                    'old_sha256': hashlib.sha256(b'synthetic').hexdigest(),
+                    'new_sha256': None}]}), encoding='utf-8')
+            before = book_artifacts(root)
+            responses = (client.post('/api/cancel_audio'),
+                         client.delete('/api/scripts/book_b'))
+            for response in responses:
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertEqual(BOOK_JOURNAL_MIGRATION_DETAIL, response.json()['detail'])
+                self.assertNotIn('/', response.json()['detail'])
+                self.assertNotIn(str(root), response.json()['detail'])
+            self.assertEqual(before, book_artifacts(root))
+            self.assertEqual({}, core._task_claims)
+
+    def test_uncertain_and_diverged_map_identically_on_every_bypass_route(self):
+        from book_state_transaction import (BookJournalPublicationUncertain,
+                                            BookExchangeDiverged)
+        cases = (
+            (BookJournalPublicationUncertain('injected uncertain'), BOOK_JOURNAL_UNCERTAIN_DETAIL),
+            (BookExchangeDiverged('injected diverged'), BOOK_EXCHANGE_DIVERGED_DETAIL),
+        )
+        with bypass_routes_fixture() as (root, client, _states, run_id):
+            before = book_artifacts(root)
+            for error, detail in cases:
+                with self.subTest(error=type(error).__name__):
+                    with patch.object(editor, 'ensure_book_state', side_effect=error):
+                        cancel = client.post('/api/cancel_audio')
+                    with patch.object(library, 'ensure_book_state', side_effect=error):
+                        delete = client.delete('/api/scripts/book_b')
+                    with patch.object(speaker_routes, '_apply', side_effect=error):
+                        applied = client.post('/api/speaker_review/' + run_id + '/apply', json={
+                            'snapshot': run_id, 'candidate_id': 'c' * 64,
+                            'alias': 'ALICE', 'canonical': 'AL'})
+                    for response in (cancel, delete, applied):
+                        self.assertEqual(409, response.status_code, response.text)
+                        self.assertEqual(detail, response.json()['detail'])
+                        self.assertNotIn('/', response.json()['detail'])
+                        self.assertNotIn(str(root), response.json()['detail'])
+                    self.assertEqual(before, book_artifacts(root))
+                    self.assertEqual({}, core._task_claims)
 
 
 if __name__ == '__main__':

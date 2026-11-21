@@ -14,7 +14,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field, StrictBool, StrictInt
 
 import core
-from book_state_transaction import ensure_book_state
+from book_state_transaction import ensure_book_state, get_book_fault_response
 from config_settings import load_app_config
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
 from lmstudio_settings import get_active_llm_config
@@ -97,9 +97,15 @@ def _sha(raw):
 
 
 @contextlib.contextmanager
-def _inputs_locked(reference_name=None):
-    """Match native book/saved-book order; hold compare-and-swap through alias write."""
-    with ensure_book_state(core.DATA_DIR), ensure_book_state(core.SCRIPTS_DIR), contextlib.ExitStack() as locks:
+def _inputs_locked(reference_name=None, *, recover=True):
+    """Match native book/saved-book order; hold compare-and-swap through alias write.
+
+    Apply passes recover=False: a pending journal must never be recovered (and
+    the workspace mutated) before the busy checks under the GPU mutex run.
+    """
+    with (ensure_book_state(core.DATA_DIR, recover=recover),
+          ensure_book_state(core.SCRIPTS_DIR, recover=recover),
+          contextlib.ExitStack() as locks):
         # Match voice edits: chunks before voices. A checkpoint reader is told it is locked.
         paths = [core.SCRIPT_PATH, core.CHUNKS_PATH, core.VOICE_CONFIG_PATH,
                  core.CHARACTER_ALIASES_PATH, core.CONFIG_PATH, _checkpoint_path()]
@@ -495,7 +501,9 @@ def _apply(run_id, request):
     reference_name = _read_run(run_id)['selection']['reference_name']
     # The book admission comes before the GPU mutex, as in every other caller
     # that nests them; _inputs_locked owns the native book/saved-book order.
-    with _inputs_locked(reference_name):
+    # Non-recovering: a pending committed journal is refused with no mutation
+    # before the live-review checks under the GPU mutex are reached.
+    with _inputs_locked(reference_name, recover=False):
         with core._gpu_lock:
             if core.is_task_running(TASK):
                 raise HTTPException(status_code=409, detail='Wait for the speaker review to finish before applying')
@@ -535,9 +543,12 @@ def _apply(run_id, request):
 async def _dispatch(function, *args):
     try:
         return await asyncio.to_thread(function, *args)
-    except TimeoutError as exc:
-        raise HTTPException(status_code=409, detail='Book or review is busy; retry after the current operation') from exc
-    except (ValueError, OSError) as exc:
+    except (TimeoutError, ValueError, OSError, RecursionError) as exc:
+        fault = get_book_fault_response(exc)
+        if fault is not None:
+            raise HTTPException(status_code=fault.status_code, detail=fault.detail) from exc
+        if isinstance(exc, TimeoutError):
+            raise HTTPException(status_code=409, detail='Book or review is busy; retry after the current operation') from exc
         # Input validation errors are our own bounded messages; I/O paths stay private.
         detail = str(exc) if isinstance(exc, ValueError) and not isinstance(exc, json.JSONDecodeError) else 'Review input is unavailable or invalid'
         raise HTTPException(status_code=409, detail=detail) from exc

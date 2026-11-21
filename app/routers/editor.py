@@ -3090,8 +3090,10 @@ def _apply_audio_cancel():
                                 required_status="generating", status="pending")
                             if updated is not None:
                                 reset_count += 1
-    except TimeoutError as exc:
-        raise HTTPException(status_code=409, detail="Task admission is busy; retry cancellation") from exc
+    except (TimeoutError, OSError, ValueError) as error:
+        fault = get_book_fault_response(error)
+        raise HTTPException(status_code=fault.status_code if fault else 409,
+                            detail=fault.detail if fault else "Task admission is busy; retry cancellation") from error
     return {"status": "not_running", "reset_chunks": reset_count}
 
 ## ── Saved Scripts ──────────────────────────────────────────────
