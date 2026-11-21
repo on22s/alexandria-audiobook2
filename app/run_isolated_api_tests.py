@@ -32,10 +32,17 @@ def run_isolated_server():
 
 def get_isolated_server_port(data_path):
     try:
-        with open(data_path / "server_port.json", encoding="utf-8") as handle:
-            metadata = json.load(handle)
+        handle = open(data_path / "server_port.json", encoding="utf-8")
     except FileNotFoundError:
         return None
+    except PermissionError:
+        # Windows can expose the renamed receipt before the rename handle closes.
+        # Let the caller's existing readiness deadline bound the next open.
+        if sys.platform == "win32":
+            return None
+        raise
+    with handle:
+        metadata = json.load(handle)
     port = metadata.get("port") if isinstance(metadata, dict) else None
     if type(port) is not int or not 1 <= port <= 65535:
         raise ValueError("Isolated server published an invalid port")

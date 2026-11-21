@@ -1,4 +1,5 @@
 """Assigned port receipt comes from the socket the disposable server retains."""
+import errno
 import json
 import os
 from pathlib import Path
@@ -6,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 import run_isolated_api_tests as runner
 
 
@@ -55,6 +56,49 @@ print('PORT_OWNERSHIP='+json.dumps({'port':runner.get_isolated_server_port(Path(
                 self.assertEqual(value,runner.get_isolated_server_port(root))
             receipt.write_text('{invalid')
             with self.assertRaises(json.JSONDecodeError):runner.get_isolated_server_port(root)
+
+    def test_windows_receipt_open_denial_retries_until_readable_or_deadline(self):
+        for persistent in (False, True):
+            with self.subTest(persistent=persistent):
+                server = MagicMock()
+                server.poll.return_value = None
+
+                def launch(command, **kwargs):
+                    receipt = Path(kwargs['env']['ALEXANDRIA_DATA_DIR']) / 'server_port.json'
+                    receipt.write_text('{"port": 18765}', encoding='utf-8')
+                    return server
+
+                attempts = []
+
+                def open_receipt(path, **kwargs):
+                    attempts.append(path)
+                    if persistent or len(attempts) == 1:
+                        raise PermissionError(errno.EACCES, 'Permission denied', str(path))
+                    return path.open(**kwargs)
+
+                with patch.object(runner.sys, 'platform', 'win32'), \
+                     patch.object(runner, 'start_owned_subprocess', side_effect=launch), \
+                     patch.object(runner, 'open', side_effect=open_receipt, create=True), \
+                     patch.object(runner.time, 'monotonic', side_effect=[0, 0, 0.1, 20]), \
+                     patch.object(runner.time, 'sleep') as sleep, \
+                     patch.object(runner, 'urlopen') as ready, \
+                     patch.object(runner.subprocess, 'run') as suite, \
+                     patch.object(runner, 'stop_owned_subprocess') as stop:
+                    if persistent:
+                        with self.assertRaisesRegex(RuntimeError, 'within 20 seconds'):
+                            runner.main([])
+                        ready.assert_not_called()
+                        suite.assert_not_called()
+                    else:
+                        suite.return_value.returncode = 0
+                        self.assertEqual(0, runner.main([]))
+                        ready.assert_called_once()
+                        self.assertIn('http://127.0.0.1:18765', suite.call_args.args[0])
+                    self.assertEqual(2, len(attempts))
+                    self.assertEqual(2, server.poll.call_count)
+                    self.assertEqual([call(0.1)] * (2 if persistent else 1), sleep.call_args_list)
+                    self.assertFalse(attempts[0].parent.exists())
+                    stop.assert_called_once_with(server, timeout=10, force_after_grace=True)
 
     def test_parent_failure_and_timeout_stop_only_owned_child_and_remove_state(self):
         for mode in ('timeout','invalid','exited'):
