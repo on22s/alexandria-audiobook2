@@ -166,6 +166,9 @@ def _run_change(books, data_dir, wait, command, seen):
         before = seen['report'] = books.inspect_book_recovery_state(root)
         if not before['journal'].get('present'):
             return EXIT_OK, 'No book switch is pending.', before
+        if before['journal'].get('error'):
+            return (EXIT_REFUSED, 'The pending journal could not be read; no change was made. '
+                    'Run inspect and resolve the storage failure.', before)
         journal_status = books.get_book_journal_status(root)
         legacy = journal_status == 'legacy'
         if command == 'migrate-legacy':

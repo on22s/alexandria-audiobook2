@@ -7552,6 +7552,11 @@
     , "tests.test_journal_identity_readers.StorageAdmissionBoundaryTests.test_selection_state_read_failure_preserves_published_book_and_progress"
     , "tests.test_journal_identity_readers.StorageAdmissionBoundaryTests.test_unknown_snapshot_version_never_authorizes_cached_legacy_rows"
     , "tests.test_journal_identity_readers.StorageAdmissionBoundaryTests.test_unreadable_pending_marker_refuses_fresh_and_reused_admission"
+    , "tests.test_journal_identity_readers.StorageBoundaryFollowupTests.test_journal_stat_eio_refuses_chunk_write_before_any_mutation"
+    , "tests.test_journal_identity_readers.StorageBoundaryFollowupTests.test_oversize_emitted_state_is_refused_before_publication"
+    , "tests.test_journal_identity_readers.StorageBoundaryFollowupTests.test_post_read_snapshot_stat_eio_refuses_without_regenerating"
+    , "tests.test_journal_identity_readers.StorageBoundaryFollowupTests.test_readiness_uses_admitted_rows_without_a_second_storage_read"
+    , "tests.test_journal_identity_readers.StorageBoundaryFollowupTests.test_unreadable_pending_marker_refuses_recovery_change"
   ]
   , "test_judge_reason_contract": [
     "tests.test_judge_reason_contract.JudgeReasonContractTests.test_existing_speaker_gate_still_rejects_even_with_evidence"

@@ -14,6 +14,7 @@ from pathlib import Path
 
 _DIGEST = re.compile(r'^[0-9a-f]{64}$')
 MAX_BINDING_BYTES = 4096
+MAX_SELECTION_STATE_BYTES = 4 * 1024**2
 BINDING_NAME = 'annotated_script.selection_binding.json'
 STALE_SOURCE_MESSAGE = 'Selected source changed during generation; preserving prior output'
 
@@ -124,7 +125,7 @@ def require_unchanged_source(source_path, expected_sha256, *, owning_root=None):
 def _read_selection_state(data_dir, *, required):
     """Read bounded state; the caller is responsible for operation admission."""
     from project_scope_files import capture_scope_file
-    _, raw = capture_scope_file(data_dir, 'state.json', limit=4 * 1024**2, include_bytes=True)
+    _, raw = capture_scope_file(data_dir, 'state.json', limit=MAX_SELECTION_STATE_BYTES, include_bytes=True)
     if raw is None:
         if required:
             raise ValueError('Selected source state is missing')
@@ -331,7 +332,7 @@ def _staged_registry_path(data_dir, staging):
         raise ValueError('Review alias registry collides with a book artifact')
     for key in ('before', 'after'):
         value = staging[key]
-        if value is not None and (not isinstance(value, bytes) or len(value) > 4 * 1024**2):
+        if value is not None and (not isinstance(value, bytes) or len(value) > MAX_SELECTION_STATE_BYTES):
             raise ValueError('Invalid staged alias registry bytes')
     return Path(path)
 
@@ -340,7 +341,7 @@ def _add_staged_registry(data_dir, staging, registry, replacements):
     if registry is None:
         return
     from project_scope_files import capture_scope_file
-    _, raw = capture_scope_file(data_dir, registry.name, limit=4 * 1024**2, include_bytes=True)
+    _, raw = capture_scope_file(data_dir, registry.name, limit=MAX_SELECTION_STATE_BYTES, include_bytes=True)
     if raw != staging['before']:
         raise ValueError('Alias registry changed during review; edits were preserved')
     from speaker_identity import get_validated_alias_graph

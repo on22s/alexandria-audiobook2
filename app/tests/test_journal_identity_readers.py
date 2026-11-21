@@ -14,6 +14,7 @@ import uuid
 from unittest.mock import patch
 
 import app as application
+import book_state_recovery
 import book_state_transaction
 import core
 from book_state_transaction import apply_book_input_selection
@@ -1003,6 +1004,145 @@ class ExportLateBoundaryTests(JournalIdentityCases):
             self.assertEqual(before_claims, set(core._task_claims))
 
 
+class StorageBoundaryFollowupTests(JournalIdentityCases):
+    def test_post_read_snapshot_stat_eio_refuses_without_regenerating(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            snapshot = root / "chunks.json"
+            rows = json.loads(snapshot.read_text())
+            rows[0]["old_revision"] = "legacy-metadata"
+            snapshot.write_text(json.dumps(rows, indent=2))
+            journal = Path(get_chunk_status_journal_path(snapshot))
+            journal.unlink()
+            watched = (snapshot, root / "line-0.wav", root / "state.json")
+            before = {path: path.read_bytes() for path in watched}
+            real_lstat = os.lstat
+            calls = []
+            def fail_second(path, *args, **kwargs):
+                if os.fspath(path) == str(snapshot):
+                    calls.append(path)
+                    if len(calls) == 2:
+                        raise OSError(errno.EIO, "injected post-read stat failure")
+                return real_lstat(path, *args, **kwargs)
+            manager = ProjectManager(str(root))
+            with patch.object(os, "lstat", side_effect=fail_second):
+                with self.assertRaises(ValueError):
+                    manager.load_chunks()
+            self.assertEqual(before, {path: path.read_bytes() for path in watched})
+            self.assertFalse(list(root.glob("chunks.json.corrupt*")))
+            healthy = manager.load_chunks()
+            self.assertEqual([("line-0", "legacy-metadata")],
+                             [(row["uid"], row["old_revision"]) for row in healthy])
+            snapshot.write_bytes(b"{corrupt saved rows")
+            self.assertEqual(1, len(manager.load_chunks()))
+            self.assertEqual(1, len(list(root.glob("chunks.json.corrupt*"))))
+
+    def test_journal_stat_eio_refuses_chunk_write_before_any_mutation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            snapshot = root / "chunks.json"
+            journal = Path(get_chunk_status_journal_path(snapshot))
+            watched = (snapshot, journal, root / "line-0.wav")
+            before = {path: path.read_bytes() for path in watched}
+            real_lstat = os.lstat
+            def fail_journal(path, *args, **kwargs):
+                if os.fspath(path) == str(journal):
+                    raise OSError(errno.EIO, "injected journal stat failure")
+                return real_lstat(path, *args, **kwargs)
+            manager = ProjectManager(str(root))
+            rows = [{"id": 0, "uid": "line-0", "text": "Synthetic line.",
+                     "speaker": "N", "status": "done", "audio_path": "line-0.wav"},
+                    {"id": 1, "uid": "line-1", "text": "Synthetic line two.",
+                     "speaker": "N", "status": "pending", "audio_path": None}]
+            with patch.object(os, "lstat", side_effect=fail_journal):
+                with self.assertRaises(ValueError):
+                    manager.save_chunks(rows)
+            self.assertEqual(before, {path: path.read_bytes() for path in watched})
+            manager.save_chunks(rows)
+            self.assertEqual(2, len(manager.read_saved_chunk_rows()))
+
+    def test_readiness_uses_admitted_rows_without_a_second_storage_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, source, _rows, _identity = self.make_published_book(tmp)
+            (root / "chunks.json").write_text(json.dumps([{
+                "id": 0, "uid": "line-0", "text": "Synthetic line.",
+                "speaker": "MIA", "status": "done", "audio_path": "line-0.wav"}]))
+            journal = Path(get_chunk_status_journal_path(root / "chunks.json"))
+            if journal.exists():
+                journal.unlink()
+            (root / "voice_config.json").write_text(json.dumps(
+                {"NARRATOR": {"ready": False}, "MIA": {"ready": True}}))
+            client = self.http_client(root, state=self.export_state())
+            reads = []
+            real_rows = editor.project_manager.read_saved_chunk_rows
+            def counted():
+                reads.append(True)
+                return real_rows()
+            with patch.object(editor.project_manager, "read_saved_chunk_rows", side_effect=counted), \
+                 patch.object(editor, "schedule_claimed_background_task") as scheduled:
+                response = client.post("/api/merge_m4b",
+                                       json={"require_ready": True})
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertEqual(1, len(reads))
+                scheduled.assert_called_once()
+            (root / "voice_config.json").write_text(json.dumps(
+                {"NARRATOR": {"ready": False}, "MIA": {"ready": False}}))
+            with patch.object(editor, "schedule_claimed_background_task") as scheduled:
+                unready = client.post("/api/merge_m4b", json={"require_ready": True})
+                scheduled.assert_not_called()
+            self.assertEqual(409, unready.status_code, unready.text)
+            self.assertEqual(["MIA"], unready.json()["detail"]["speakers"])
+
+    def test_oversize_emitted_state_is_refused_before_publication(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            state_path = root / "state.json"
+            state = self.state(root)
+            state["pad"] = "x" * (4 * 1024**2 - len(json.dumps(state)) - 4096)
+            state_path.write_text(json.dumps(state))
+            client = self.http_client(root)
+            self.assertEqual(200, self.select(client).status_code)
+            self.assertLessEqual(len(state_path.read_bytes()), 4 * 1024**2)
+            before = {path.name: path.read_bytes() for path in root.iterdir()
+                      if path.is_file()}
+            state = self.state(root)
+            state["pad"] = "x" * (4 * 1024**2)
+            state_path.write_text(json.dumps(state))
+            before[state_path.name] = state_path.read_bytes()
+            response = self.select(client)
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(before, {path.name: path.read_bytes() for path in root.iterdir()
+                                      if path.is_file()})
+
+    def test_unreadable_pending_marker_refuses_recovery_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            marker = root / ".active_book_transaction.json"
+            marker.write_bytes(b'{"version":4,"phase":"pending"}')
+            watched = {path.name: path.read_bytes() for path in root.iterdir()
+                       if path.is_file()}
+            real_lstat = os.lstat
+            def fail_marker(path, *args, **kwargs):
+                if os.fspath(path) == str(marker):
+                    raise OSError(errno.EIO, "injected marker lookup failure")
+                return real_lstat(path, *args, **kwargs)
+            with patch.object(os, "lstat", side_effect=fail_marker):
+                code, _message, report = book_state_recovery.run(
+                    book_state_recovery._get_parser().parse_args(
+                        ["--data-dir", str(root), "finish"]))
+                status = book_state_recovery.get_recovery_status(report, "invalid")
+            self.assertNotEqual(0, code)
+            self.assertTrue(report["journal"].get("error"))
+            self.assertEqual("unreadable", status)
+            self.assertEqual(watched, {path.name: path.read_bytes() for path in root.iterdir()
+                                       if path.is_file()})
+            marker.unlink()
+            clean, _message, _report = book_state_recovery.run(
+                book_state_recovery._get_parser().parse_args(
+                    ["--data-dir", str(root), "finish"]))
+            self.assertEqual(0, clean)
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -1045,8 +1185,14 @@ class StorageAdmissionBoundaryTests(JournalIdentityCases):
                     return read(path, *args, **kwargs)
                 return open_file
 
+            from project_scope_files import _open_regular as real_open_regular
+            def fail_confined(path, *args, **kwargs):
+                if not faults and os.fspath(path) == str(state):
+                    faults.append(path)
+                    raise OSError(errno.EIO, "injected selection state read failure")
+                return real_open_regular(path, *args, **kwargs)
             with patch.object(builtins, "open", side_effect=fail_read(builtins.open)), \
-                 patch.object(os, "open", side_effect=fail_read(os.open)):
+                 patch("project_scope_files._open_regular", side_effect=fail_confined):
                 response = self.select(client)
             self.assertTrue(faults)
             self.assertEqual(500, response.status_code, response.text)

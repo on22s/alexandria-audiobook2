@@ -1308,14 +1308,15 @@ class ProjectManager:
         """Publish rows and retain UID validation only for known-valid writes."""
         if (os.path.lexists(os.path.join(self.root_dir, TAKE_HISTORY_POLICY))
                 or any(row.get(RETAINED_TAKE_KEY) is not None for row in chunks)):
-            previous = self._get_saved_chunk_rows_locked() if os.path.exists(self.chunks_path) else []
+            previous = (self._get_saved_chunk_rows_locked()
+                        if get_chunk_state_file_version(self.chunks_path) is not None else [])
             preserve_retained_takes(self.root_dir, previous, chunks, updated_uid=retained_update_uid)
         written_bytes = None
         def save_snapshot(rows):
             nonlocal written_bytes
             options = {'return_written_bytes': True} if uids_backfilled and sys.platform == 'win32' else {}
             written_bytes = atomic_json_write(rows, self.chunks_path, **options, allow_nonatomic_fallback=False)
-        if os.path.exists(get_chunk_status_journal_path(self.chunks_path)):
+        if get_chunk_state_file_version(get_chunk_status_journal_path(self.chunks_path)) is not None:
             self._get_status_journal_locked().save_compacted(chunks, save_snapshot=save_snapshot)
             self._status_journal = None
         else:
@@ -1423,26 +1424,25 @@ class ProjectManager:
                                                if self._uids_backfilled else None)
                     self._uids_content_sha256 = content_sha256 if self._uids_backfilled else None
             return chunks
-        if os.path.exists(self.chunks_path):
+        if raw is not None:
             # Back the corrupted file up rather than deleting it - regenerating
             # resets every chunk to pending/no-audio, so keep a copy in case the
-            # user's generation progress can be salvaged from it.
-            # Only back up the object that was read and found corrupt: a
-            # switch's placeholder appearing since is not ours to rename.
-            try:
-                now = os.lstat(self.chunks_path)
-            except OSError:
-                now = None
+            # user's generation progress can be salvaged from it. Decide from
+            # the bytes actually read, not from a presence probe that would
+            # hide a post-read stat failure as absence and regenerate silently.
             if is_book_placeholder(self.chunks_path):
                 raise BookSwitchPlaceholderError(switching)
-            if now is None or (now.st_dev, now.st_ino) != read_identity:
-                # Identity alone can be fooled by a reused inode number; the
-                # placeholder check above does not depend on it.
+            current = get_chunk_state_file_version(self.chunks_path)
+            if current is None or current[:2] != read_identity:
                 raise ValueError("chunks.json changed while it was being read; "
                                  "nothing was renamed. Retry.")
             backup = self.chunks_path + ".corrupt"
             suffix = 0
-            while os.path.lexists(backup):
+            while True:
+                try:
+                    os.lstat(backup)
+                except FileNotFoundError:
+                    break
                 suffix += 1
                 backup = self.chunks_path + f".corrupt.{suffix}"
             logger.warning("chunks.json is corrupted; backing it up to %s and regenerating.", backup)
@@ -1511,7 +1511,7 @@ class ProjectManager:
         Invalidate before publishing voices: an interrupted save can require
         extra regeneration, but cannot leave changed voices with current audio.
         """
-        if not os.path.exists(self.chunks_path):
+        if get_chunk_state_file_version(self.chunks_path) is None:
             return []
         chunks = self._read_chunks()
         changed = [index for index, chunk in enumerate(chunks)
@@ -1785,7 +1785,8 @@ class ProjectManager:
                 raise SynthesisWorkspaceUnavailable('Registered publication book changed')
         with self._chunks_lock, file_lock(self.chunks_path):
             use_journal = (self._active_journal_identity is not None
-                           or os.path.exists(get_chunk_status_journal_path(self.chunks_path)))
+                           or get_chunk_state_file_version(
+                               get_chunk_status_journal_path(self.chunks_path)) is not None)
             journal = self._get_status_journal_locked() if use_journal else None
             chunks = None if journal else self._read_chunks()
             chunk = (journal.get_row(uid) if journal
@@ -3895,7 +3896,8 @@ class ProjectManager:
         finally:
             with admit_take_history_edit(self.root_dir), self._chunks_lock, file_lock(self.chunks_path):
                 try:
-                    if os.path.exists(get_chunk_status_journal_path(self.chunks_path)):
+                    if get_chunk_state_file_version(
+                            get_chunk_status_journal_path(self.chunks_path)) is not None:
                         self._save_chunks_locked(self._read_chunks(), uids_backfilled=True)
                 finally:
                     self._active_journal_identity = None

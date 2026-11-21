@@ -1671,8 +1671,14 @@ async def get_audacity_export():
     require_scope_export_current(DATA_DIR, zip_path)
     return ExportFileResponse(zip_path, filename="audacity_export.zip", media_type="application/zip")
 
-def get_unready_export_speakers():
-    """Read readiness without treating unusable state as an empty roster."""
+def get_unready_export_speakers(admitted_rows=None):
+    """Read readiness without treating unusable state as an empty roster.
+
+    Admitted rows are immutable evidence captured under the selection token;
+    never reread a different book's chunks for a request that already admitted
+    its rows. The legacy script fallback applies only to a genuinely absent
+    snapshot/journal pair, never to a storage read failure or an empty book.
+    """
     script = safe_load_json(SCRIPT_PATH)
     voices = safe_load_json(os.path.join(DATA_DIR, "voice_config.json"))
     if not isinstance(script, list):
@@ -1682,10 +1688,20 @@ def get_unready_export_speakers():
     for speaker, config in voices.items():
         if not isinstance(config, dict):
             raise HTTPException(status_code=503, detail=f"Export readiness unavailable: voice config for {speaker} must be an object")
-    chunks_path = os.path.join(DATA_DIR, "chunks.json")
-    chunks = safe_load_json(chunks_path) if os.path.exists(chunks_path) else None
-    if chunks is None and not any(config.get("version_timeline") for config in voices.values()):
-        chunks = script
+    chunks = admitted_rows
+    if not chunks:
+        from chunk_status_journal import get_chunk_state_file_version, get_chunk_status_journal_path
+        chunks_path = os.path.join(DATA_DIR, "chunks.json")
+        pair_absent = (get_chunk_state_file_version(chunks_path) is None
+                       and get_chunk_state_file_version(
+                           get_chunk_status_journal_path(chunks_path)) is None)
+        if pair_absent:
+            if not any(config.get("version_timeline") for config in voices.values()):
+                chunks = script
+        elif admitted_rows is None:
+            # A strict confined read: an EIO or a torn pair must refuse, not
+            # silently fall back to the script's speaker list.
+            chunks = project_manager.read_saved_chunk_rows()
     if not isinstance(chunks, list) or any(not isinstance(chunk, dict) for chunk in chunks):
         raise HTTPException(status_code=503, detail="Export readiness unavailable: rebuild the active chunks")
     missing = set()
@@ -1710,7 +1726,7 @@ def get_unready_export_speakers():
     return missing
 
 
-async def validate_export_readiness(require_ready, token=None):
+async def validate_export_readiness(require_ready, token=None, admitted_rows=None):
     def check():
         with ensure_book_state(DATA_DIR, recover=False):
             # Validate the admitted book before reading readiness: a completed
@@ -1720,7 +1736,7 @@ async def validate_export_readiness(require_ready, token=None):
             else:
                 _ensure_editor_selection()
             if require_ready:
-                missing = get_unready_export_speakers()
+                missing = get_unready_export_speakers(admitted_rows)
                 # Validate before reporting anything computed for a different
                 # book: B's unready speakers must never mask an A→B switch.
                 if token is not None:
@@ -1822,7 +1838,7 @@ async def merge_m4b_endpoint(request: M4bExportRequest, background_tasks: Backgr
     # Journal readability is authoritative: report a stale book before optional
     # readiness, which would otherwise mask it with an unrelated speaker list.
     _admitted_rows, admitted_token = await asyncio.to_thread(_require_export_chunks)
-    await validate_export_readiness(request.require_ready, admitted_token)
+    await validate_export_readiness(request.require_ready, admitted_token, _admitted_rows)
     # Atomic check-and-set on the request thread (closes the double-start TOCTOU
     # where two rapid POSTs both pass a plain running check before either sets it).
 
@@ -1914,7 +1930,7 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
     if request.format not in ("mp3", "wav"):
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
     admitted_rows, admitted_token = await asyncio.to_thread(_require_export_chunks)
-    await validate_export_readiness(request.require_ready, admitted_token)
+    await validate_export_readiness(request.require_ready, admitted_token, admitted_rows)
     chapters = request.chapters
     if chapters is not None:
         try:
@@ -1980,7 +1996,7 @@ async def preview_chapter_filenames(format: str = "mp3", per_chunk_chapters: boo
     if not 0 <= padding <= 6:
         raise HTTPException(status_code=400, detail="padding must be 0-6 digits")
     admitted_rows, admitted_token = await asyncio.to_thread(_require_export_chunks)
-    await validate_export_readiness(require_ready, admitted_token)
+    await validate_export_readiness(require_ready, admitted_token, admitted_rows)
     try:
         mastering_options = MasteringOptions.model_validate_json(mastering).model_dump() if mastering is not None else None
     except ValueError as exc:

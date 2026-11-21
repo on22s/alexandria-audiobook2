@@ -1298,9 +1298,17 @@ def is_book_state_admitted(data_dir):
 
 
 def _has_book_transaction(root):
-    """Distinguish an absent marker from a failed lookup at admission."""
-    from project_scope_files import _confined_absent
-    return not _confined_absent(root / JOURNAL)
+    """Distinguish an absent marker from a failed lookup at admission.
+
+    Uses only pathlib so the native launcher lifecycle bundles can import this
+    module without the app's scoped-file package. A no-follow lstat means a
+    dangling link is present; only a genuine not-found is absent.
+    """
+    try:
+        (Path(root) / JOURNAL).lstat()
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    return True
 
 
 @contextlib.contextmanager
@@ -4919,7 +4927,14 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES,
         journal_temporaries.append({'name': name, 'bytes': info.st_size})
     report['journal_temporaries'] = journal_temporaries
     journal = root / JOURNAL
-    if not os.path.lexists(journal):
+    try:
+        journal_present = _is_book_workspace_present(journal)
+    except (ValueError, OSError) as error:
+        # An unreadable marker is not absence: a workspace beside it may be
+        # live, so never label it orphan and never let a change claim clean.
+        report['journal'] = {'present': True, 'error': f'{type(error).__name__}: {error}'}
+        return report
+    if not journal_present:
         report['orphaned_staging'] = _get_leftover_staging_entries(
             root, staging_names, entry_limit)
         return report
@@ -5891,7 +5906,8 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
     from sound_design_registry import ACTIVE_CUES
     from sound_design_renditions import ACTIVE_RENDITIONS, capture_sound_design_companions
     from chunk_status_journal import get_chunk_status_journal_path
-    from script_selection_binding import BINDING_NAME, _read_selection_state
+    from script_selection_binding import (BINDING_NAME, _read_selection_state,
+        MAX_SELECTION_STATE_BYTES)
     with ensure_book_state(data_dir, timeout=timeout) as root:
         data_dir = root
         state_path = Path(data_dir) / "state.json"
@@ -5946,6 +5962,9 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
                 capture_sound_design_companions(data_dir, ACTIVE_CUES, ACTIVE_RENDITIONS,
                                                 expected_book_id=previous_book_id)
             state_bytes = json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8")
+            if len(state_bytes) > MAX_SELECTION_STATE_BYTES:
+                raise ValueError("Selected book state is too large to read back; "
+                                 "existing book files were preserved")
             def publish(chunk_replacements, chunk_removals):
                 replacements = dict(chunk_replacements)
                 if rebound_binding is not None:
