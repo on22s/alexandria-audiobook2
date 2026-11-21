@@ -1595,6 +1595,8 @@
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_shared_mode_read_does_not_mutate_or_treat_raw_truthy_values_as_true"
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_thunder_blank_key_still_dispatches_the_loopback_worker"
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_thunder_preflight_and_worker_share_the_keyless_loopback_profile"
+    , "tests.test_benchmark_review_mode.ThunderLegacyReportResumeTests.test_changed_profile_and_keyless_public_profile_refuse_legacy_resume"
+    , "tests.test_benchmark_review_mode.ThunderLegacyReportResumeTests.test_literal_key_thunder_report_resumes_without_mutating_canonical_identity"
   ]
   , "test_benchmark_runner": [
     "tests.test_benchmark_runner.BenchmarkRunnerTests.test_dedup_fixture_drift_is_rejected"
@@ -3733,6 +3735,10 @@
     , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_receipt_verifies_separate_input_output_settings_and_checkpoint"
     , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_standard_and_contextual_force_requests_reach_subprocess"
     , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_unchanged_in_place_review_dispatches_no_second_batch"
+    , "tests.test_completed_review_receipt.LegacyReceiptContextTests.test_manual_blank_hosted_key_matches_historical_ambient_digest_only_locally"
+    , "tests.test_completed_review_receipt.LegacyReceiptContextTests.test_pre_pr_manual_checkpoint_with_offset_resumes_only_with_legacy_digest"
+    , "tests.test_completed_review_receipt.LegacyReceiptContextTests.test_unused_empty_secondary_reproduces_historical_ambient_contribution"
+    , "tests.test_completed_review_receipt.LegacyReceiptContextTests.test_used_failover_and_changed_endpoint_refuse_historical_matching"
   ]
   , "test_compute_dtype": [
     "tests.test_compute_dtype.ComputeDtypeTests.test_amd_apus_load_in_fp32"
@@ -7867,6 +7873,7 @@
     , "tests.test_llm_provider.ApiKeyReferenceTests.test_failover_eligibility_keeps_provider_errors_and_stops_local_ones"
     , "tests.test_llm_provider.ApiKeyReferenceTests.test_implicit_openai_key_is_scoped_to_the_official_endpoint"
     , "tests.test_llm_provider.ApiKeyReferenceTests.test_setup_page_shows_a_reference_but_redacts_a_secret"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_authorization_case_variants_share_one_canonical_header"
     , "tests.test_llm_provider.CredentialProfilePolicyTests.test_canonical_openai_urls_are_accepted_by_validation_and_resolution"
     , "tests.test_llm_provider.CredentialProfilePolicyTests.test_deterministic_4xx_terminal_transient_retryable"
     , "tests.test_llm_provider.CredentialProfilePolicyTests.test_effective_key_preserves_omitted_blank_manual_and_header_profiles"
@@ -8090,8 +8097,10 @@
   ]
   , "test_lmstudio_local_poll_cache": [
     "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_actual_status_http_coalesces_props_cli_parse_and_live_vram"
+    , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_cache_identity_separates_credentials_and_remote_cached_api_forwards"
     , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_concurrent_same_key_shares_fetch_and_returns_independent_snapshots"
     , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_endpoint_model_credentials_and_remote_scope_have_distinct_cache_keys"
+    , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_explicit_non_bearer_authorization_reaches_cached_and_live_probes"
     , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_invalidated_inflight_result_is_returned_but_cannot_repopulate_cache"
     , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_local_reload_success_failure_and_unexpected_error_invalidate_ui_only"
     , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_local_ttl_uses_monotonic_time_despite_wall_clock_reversal"

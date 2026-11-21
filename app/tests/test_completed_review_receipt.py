@@ -1,8 +1,10 @@
 """A completed unchanged native review must not dispatch another batch."""
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 from tests import test_llm_review_regressions as fixtures
 
 class CompletedReviewReceiptTests(unittest.TestCase):
@@ -237,3 +239,137 @@ class CompletedReviewReceiptTests(unittest.TestCase):
             with patch.object(review, 'get_failover_llm_config', return_value=secondary):
                 self.assertIsNone(review.get_legacy_review_fingerprint(
                     config, http, params, args, object(), 'fixture'))
+
+
+class LegacyReceiptContextTests(unittest.TestCase):
+    def _case(self, *, base_url='https://hosted.invalid/v1', api_key='', failover=False):
+        from types import SimpleNamespace
+        from generate_script import LLMGenParams
+        import review_script as review
+        config = {'generation': {'review_batch_size': 2}, 'llm_mode': 'local'}
+        primary = {'transport': 'manual', 'api_key': api_key,
+                   'base_url': base_url, 'model_name': 'fixture'}
+        config['llm_local'] = primary
+        if failover:
+            config['llm_failover'] = True
+            config['llm_remote'] = {'base_url': 'http://127.0.0.1:1234/v1',
+                                    'model_name': 'secondary', 'api_key': ''}
+        params = LLMGenParams(system_prompt='sys', user_prompt_template='{batch}')
+        args = SimpleNamespace(context_window=0, dedupe_speakers=False,
+                               alias_registry=None, remap_voice_config=None)
+        return review, config, primary, params, args
+
+    def test_manual_blank_hosted_key_matches_historical_ambient_digest_only_locally(self):
+        review, config, primary, params, args = self._case()
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+            canonical = review.get_completed_review_fingerprint(
+                config, primary, params, args, object(), 'fixture')
+            legacy = review.get_legacy_review_fingerprint(
+                config, primary, params, args, object(), 'fixture')
+            with patch.object(review, 'resolve_historical_api_key',
+                              return_value='sk-different-fixture'):
+                altered = review.get_legacy_review_fingerprint(
+                    config, primary, params, args, object(), 'fixture')
+        self.assertIsNotNone(legacy)
+        self.assertNotEqual(canonical, legacy,
+                            'the blank Manual key must reproduce the historical digest')
+        self.assertNotEqual(legacy, altered,
+                            'the historical resolver must be the matching source')
+        for digest in (canonical, legacy, altered):
+            self.assertNotIn('sk-synthetic', digest)
+            self.assertNotIn('sk-different-fixture', digest)
+
+    def test_used_failover_and_changed_endpoint_refuse_historical_matching(self):
+        review, config, primary, params, args = self._case(failover=True)
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False), \
+                patch.object(review, 'get_run_model_binding',
+                             return_value={'primary_model': 'fixture',
+                                           'failover_model': 'secondary',
+                                           'failover_used': True}):
+            self.assertIsNone(review.get_legacy_review_fingerprint(
+                config, primary, params, args, object(), 'fixture'))
+        other, other_config, other_primary, _, _ = self._case(
+            base_url='https://other.invalid/v1')
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+            changed = other.get_legacy_review_fingerprint(
+                other_config, other_primary, params, args, object(), 'fixture')
+            unchanged = review.get_legacy_review_fingerprint(
+                config, primary, params, args, object(), 'fixture')
+        self.assertNotEqual(unchanged, changed,
+                            'a changed endpoint must not reuse the old receipt')
+
+    def test_unused_empty_secondary_reproduces_historical_ambient_contribution(self):
+        from types import SimpleNamespace
+        from generate_script import LLMGenParams
+        import review_script as review
+        config = {'generation': {'review_batch_size': 2}, 'llm_mode': 'local',
+                  'llm_failover': True,
+                  'llm_local': {'api_key': 'fixture-key',
+                                'base_url': 'https://hosted.invalid/v1',
+                                'model_name': 'fixture'},
+                  'llm_remote': {'api_key': '', 'base_url': 'http://127.0.0.1:1234/v1',
+                                 'model_name': 'secondary'}}
+        primary = config['llm_local']
+        params = LLMGenParams(system_prompt='sys', user_prompt_template='{batch}')
+        args = SimpleNamespace(context_window=0, dedupe_speakers=False,
+                               alias_registry=None, remap_voice_config=None)
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+            canonical = review.get_completed_review_fingerprint(
+                config, primary, params, args, object(), 'fixture')
+            legacy = review.get_legacy_review_fingerprint(
+                config, primary, params, args, object(), 'fixture')
+            with patch.object(review, 'resolve_historical_api_key', return_value='local'):
+                without_ambient = review.get_legacy_review_fingerprint(
+                    config, primary, params, args, object(), 'fixture')
+        self.assertIsNotNone(legacy,
+                             'an unused empty secondary must get a historical candidate')
+        self.assertNotEqual(canonical, legacy)
+        self.assertNotEqual(legacy, without_ambient,
+                            'the ambient contribution must come from the historical resolver')
+        self.assertNotIn('sk-synthetic', legacy)
+
+    def test_pre_pr_manual_checkpoint_with_offset_resumes_only_with_legacy_digest(self):
+        import review_script as review
+        review, config, primary, params, args = self._case()
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+            legacy = review.get_legacy_review_fingerprint(
+                config, primary, params, args, object(), 'fixture')
+        canonical = review.get_completed_review_fingerprint(
+            config, primary, params, args, object(), 'fixture')
+        entries = [{'speaker': 'ANN', 'text': text, 'instruct': 'Neutral.'}
+                   for text in ('First fixture line.', 'Second fixture line.', 'Tail fixture line.')]
+        corrected = entries[:2]
+        stats = {key: 0 for key in review.REVIEW_EDIT_COUNTERS}
+        with tempfile.TemporaryDirectory() as tmp:
+            output = str(Path(tmp) / 'reviewed.json')
+            review.save_checkpoint(output, 1, 2, 2, 0, corrected, stats, corrected[-2:],
+                                   [len(corrected)], [], review._entries_fingerprint(entries),
+                                   execution_sha256=legacy)
+            resumed = review._load_resume_state(output, 2, 2, 0, entries, [], stats,
+                execution_sha256=canonical, legacy_execution_sha256=(legacy,))
+            self.assertEqual(2, resumed[6], 'a genuine pre-PR checkpoint must resume at its offset')
+            fresh = review._load_resume_state(output, 2, 2, 0, entries, [], stats,
+                execution_sha256=canonical)
+            self.assertEqual(0, fresh[6], 'the canonical digest alone must refuse the old checkpoint')
+            changed_source = [{**row, 'text': row['text'] + ' edited'} for row in entries]
+            self.assertIsNone(review.load_checkpoint(output, 2, 2, 0, changed_source,
+                execution_sha256=canonical, legacy_execution_sha256=(legacy,)))
+            self.assertIsNone(review.load_checkpoint(output, 2, 3, 0, entries,
+                execution_sha256=canonical, legacy_execution_sha256=(legacy,)))
+            other, other_config, other_primary, _, _ = self._case(
+                base_url='https://other.invalid/v1')
+            with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+                other_legacy = other.get_legacy_review_fingerprint(
+                    other_config, other_primary, params, args, object(), 'fixture')
+            other_canonical = other.get_completed_review_fingerprint(
+                other_config, other_primary, params, args, object(), 'fixture')
+            self.assertNotEqual(legacy, other_legacy)
+            self.assertIsNone(review.load_checkpoint(output, 2, 2, 0, entries,
+                execution_sha256=other_canonical, legacy_execution_sha256=(other_legacy,)),
+                'a changed effective profile must refuse the old checkpoint')
+            review.save_checkpoint(output, 2, 2, 2, 0, entries, stats, entries[-2:],
+                                   [len(entries)], [], review._entries_fingerprint(entries),
+                                   execution_sha256=canonical)
+            written = json.loads(Path(review._checkpoint_path(output)).read_text())
+            self.assertEqual(canonical, written['execution_sha256'],
+                             'future writes must use the canonical digest')

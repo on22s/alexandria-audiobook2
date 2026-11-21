@@ -568,6 +568,38 @@ class CredentialProfilePolicyTests(unittest.TestCase):
                 self.assertNotIn("sk-unused-fixture", str(seen))
                 self.assertNotIn("sk-env-fixture", str(seen))
 
+    def test_authorization_case_variants_share_one_canonical_header(self):
+        seen, clients = [], []
+
+        def handler(request):
+            seen.append([(name, value) for name, value in request.headers.items()
+                         if name.lower() == "authorization"])
+            return self._completion()
+
+        profile = {"base_url": "https://hosted.invalid/v1",
+                   "api_key": "sk-unused-fixture",
+                   "provider_headers": {"authorization": "Token first-fixture",
+                                        "AUTHORIZATION": "Token first-fixture"}}
+        with patch("llm_provider.OpenAI", self._sdk_factory(handler, clients)):
+            client = make_llm_client(profile, timeout=5)
+            self.assertEqual({"Authorization": "Token first-fixture"},
+                             llm_provider.get_provider_headers(profile))
+            self.assertEqual("Token first-fixture", llm_provider.get_explicit_authorization(profile))
+            self.assertEqual("local", resolve_client_api_key(profile),
+                             "an explicit header must keep the unused key out of identity")
+            client.chat.completions.create(model="m", messages=[{"role": "user", "content": "hi"}])
+        self.assertEqual(1, len(seen[0]),
+                         "duplicate spellings must produce exactly one sent header")
+        self.assertEqual("authorization", seen[0][0][0].lower())
+        self.assertEqual("Token first-fixture", seen[0][0][1])
+        self.assertNotIn("sk-unused-fixture", str(seen))
+
+        profile["provider_headers"]["AUTHORIZATION"] = "Token other-fixture"
+        with self.assertRaises(ValueError):
+            llm_provider.get_explicit_authorization(profile)
+        with self.assertRaises(ValueError):
+            llm_provider.get_provider_headers(profile)
+
     def test_deterministic_4xx_terminal_transient_retryable(self):
         from types import SimpleNamespace
         terminal = (400, 405, 410, 413, 422)

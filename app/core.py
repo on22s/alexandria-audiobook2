@@ -2386,7 +2386,7 @@ def _make_llm_client(timeout: float = None):
     Validates that the base_url is local/trusted.
     Reuses cached client if config hasn't changed to avoid connection pool leaks.
     """
-    from llm_provider import make_llm_client
+    from llm_provider import get_effective_authorization, make_llm_client
     # None means "the shared answer", so this function stops being a second
     # opinion on how long a request may hang. An explicit argument still wins:
     # a caller that knows its request is quick may want a tighter bound.
@@ -2438,7 +2438,8 @@ def _llm_summarize_report(markdown_body: str) -> Optional[str]:
         status = get_current_status(
             full_cfg.get("llm_mode", "local"), llm_cfg.get("base_url", ""),
             model_name, (full_cfg.get("llm_remote_ssh") or "").strip(), use_cache=True,
-            api_key=llm_cfg.get("api_key"))
+            api_key=llm_cfg.get("api_key"),
+            authorization=get_effective_authorization(llm_cfg))
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,

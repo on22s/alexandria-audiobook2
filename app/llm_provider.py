@@ -117,17 +117,45 @@ def resolve_api_key(configured, base_url=None):
         "(OPENAI_API_KEY is only used for the official OpenAI endpoint).")
 
 
+def resolve_historical_api_key(configured):
+    """The pre-fix key resolution, for local fingerprint matching ONLY.
+
+    Historical receipts and checkpoints hashed an empty key against the ambient
+    OPENAI_API_KEY regardless of endpoint. Reproducing that value lets an
+    unchanged run reuse its evidence after an upgrade; it must never build a
+    request, because the ambient key may belong to a different provider.
+    """
+    value = str(configured or "").strip()
+    if value.startswith("env:"):
+        return os.environ.get(value[4:].strip(), "")
+    match = _ENV_REF.match(value)
+    if match:
+        return os.environ.get(match.group(1), "")
+    if not value:
+        return os.environ.get("OPENAI_API_KEY", "local")
+    return value
+
+
+def _raw_authorization_headers(llm_config):
+    """Non-blank Authorization headers, regardless of name spelling."""
+    headers = (llm_config or {}).get("provider_headers") or {}
+    return [(name, str(value).strip()) for name, value in headers.items()
+            if str(name).lower() == "authorization" and str(value).strip()]
+
+
 def get_explicit_authorization(llm_config):
-    """The configured Authorization header value (names are case-insensitive).
+    """The one configured Authorization header value (names case-insensitive).
 
     None means the profile has no explicit Authorization header. This is the
     credential the request actually carries, so probes and the SDK must use it
-    verbatim rather than deriving a bearer from an unrelated api_key.
+    verbatim rather than deriving a bearer from an unrelated api_key. Conflicting
+    case spellings are ambiguous about what the transport sends, so they are
+    rejected here rather than resolved differently by each caller.
     """
-    for name, value in get_provider_headers(llm_config).items():
-        if str(name).lower() == "authorization" and str(value).strip():
-            return str(value).strip()
-    return None
+    values = {value for _, value in _raw_authorization_headers(llm_config)}
+    if len(values) > 1:
+        raise ValueError("ambiguous Authorization header: conflicting case spellings")
+    return next(iter(values)) if values else None
 
 
 def has_explicit_authorization_header(llm_config):
@@ -222,9 +250,18 @@ def adapt_request_for_reasoning_model(kwargs):
 
 
 def get_provider_headers(llm_config):
-    """Return a copied, string-only header mapping from one LLM profile."""
-    headers = (llm_config or {}).get("provider_headers") or {}
-    return dict(headers)
+    """Return the copied headers the SDK sends, with one canonical credential.
+
+    Case variants of Authorization are the same header to an HTTP transport.
+    Collapsing them here - using the shared resolver - keeps the SDK, adapter
+    probes and status probes on the same value instead of relying on dict order.
+    """
+    headers = {name: value for name, value in ((llm_config or {}).get("provider_headers") or {}).items()
+               if str(name).lower() != "authorization"}
+    authorization = get_explicit_authorization(llm_config)
+    if authorization is not None:
+        headers["Authorization"] = authorization
+    return headers
 
 
 def get_provider_extra_body(llm_config):

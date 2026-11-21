@@ -166,6 +166,26 @@ def get_benchmark_execution_environment(manifest, environment, config):
     result = copy.deepcopy(environment)
     result.setdefault("details", {})["execution_sha256"] = _stable_hash(identity)
     result["sha256"] = _stable_hash({"target": target, "details": result["details"]})
+    if target == "thunder" and stage in {"script_generation", "script_review",
+                                         "persona_generation", "nickname_detection"}:
+        from llm_provider import resolve_historical_api_key
+        public = get_benchmark_llm_config(config, target)
+        historical_key = resolve_historical_api_key(public.get("api_key", "local"))
+        # Older reports fingerprinted the public profile while the worker has
+        # always dispatched against the rewritten loopback URL. Offer the old
+        # digest for resume only when both resolve the SAME credential: a
+        # keyless public profile used to inherit an ambient key the worker no
+        # longer sends, so that changed dispatch must never be treated as equal.
+        if get_thunder_worker_profile(public).get("api_key") == historical_key:
+            omitted = {"concurrency", "concurrency_for", "concurrency_environment",
+                       "concurrency_revision"}
+            legacy_identity = copy.deepcopy(identity)
+            legacy_identity["profile"] = {key: value for key, value in public.items()
+                                          if key not in omitted}
+            legacy_identity["resolved_api_key"] = historical_key
+            legacy_details = {**result["details"],
+                              "execution_sha256": _stable_hash(legacy_identity)}
+            result["legacy_sha256"] = _stable_hash({"target": target, "details": legacy_details})
     return result
 
 
@@ -232,6 +252,9 @@ def load_resumable_benchmark_report(path, manifest, environment):
         verified = build_environment_fingerprint(evidence["target"], evidence.get("details"))
         if evidence.get("sha256") != verified["sha256"]:
             raise ValueError("benchmark environment changed; refusing unsafe resume")
-    if stored_environment["sha256"] != environment["sha256"]:
+    accepted = {environment["sha256"]}
+    if isinstance(environment.get("legacy_sha256"), str):
+        accepted.add(environment["legacy_sha256"])
+    if stored_environment["sha256"] not in accepted:
         raise ValueError("benchmark environment changed; refusing unsafe resume")
     return report

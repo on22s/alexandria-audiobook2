@@ -15,7 +15,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from llm_provider import make_llm_client
+from llm_provider import get_effective_authorization, make_llm_client
 from core import llm_timeout_seconds
 
 import lmstudio_settings
@@ -275,7 +275,8 @@ def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, mo
     observed_state = _concurrency_cache_state(profile)
     if status is None:
         status = lmstudio_settings.get_current_status(
-            llm_mode, base_url, model_name, ssh_alias=ssh_alias, api_key=profile.get("api_key"))
+            llm_mode, base_url, model_name, ssh_alias=ssh_alias, api_key=profile.get("api_key"),
+            authorization=get_effective_authorization(profile))
     server_parallel = status.get("parallel") if status.get("available") else None
     effective_max = max(1, min(max_concurrency, server_parallel)) if server_parallel else max(1, max_concurrency)
     if not status.get("available"):
