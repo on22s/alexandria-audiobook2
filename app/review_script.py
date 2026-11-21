@@ -1555,6 +1555,34 @@ def get_review_source_span_finding(error, *, entry_number=None):
                         f'reason={error.reason_code}.')}
 
 
+def get_review_literal_source_digest(policy):
+    """Full prepared-source digest bound by a script's literal policy."""
+    if policy is None:
+        return None
+    if policy['boundary'] == 'selected_source_words_v1':
+        return policy['scope_source']['prepared_source_sha256']
+    return policy['source_sha256']
+
+
+def is_review_literal_source(text, policy):
+    """Verify a prepared source against a script's literal policy and scope."""
+    import hashlib
+    from literal_fidelity import _words
+    if policy is None:
+        return True
+    if hashlib.sha256(text.encode('utf-8')).hexdigest() != get_review_literal_source_digest(policy):
+        return False
+    if policy['boundary'] != 'selected_source_words_v1':
+        return True
+    scope = policy['scope_source']
+    words = list(_words(text))
+    if len(words) != scope['total_words']:
+        return False
+    selected = ' '.join(words[scope['start_word']:])
+    return (hashlib.sha256(selected.encode('utf-8')).hexdigest() == policy['source_sha256']
+            and get_word_identity([selected]) == policy['source_words'])
+
+
 def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _source_depth=0):
     snapshot = get_review_source_snapshot(data_dir, script_path, script_bytes, entries,
                                          _source_depth=_source_depth)
@@ -1622,7 +1650,6 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
         decoded, _encoding = get_decoded_source_text(raw)
         decoded = get_normalized_source_newlines(decoded)
         policy = get_literal_policy(entries)
-        expected = policy.get('source_sha256') if policy else None
         if Path(source_path).suffix.lower() == '.json':
             if _source_depth:
                 raise ValueError('Review source binding chain is not an original book source')
@@ -1631,7 +1658,7 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
                 raise ValueError('Selected saved source is not a script')
             original = get_review_source_snapshot(data_dir, source_path, raw, source_entries, _source_depth=1)
             text = original['text'] if original is not None else None
-            if text is None or expected is not None and hashlib.sha256(text.encode('utf-8')).hexdigest() != expected:
+            if text is None or not is_review_literal_source(text, policy):
                 raise ValueError('Selected saved source has no verified original coordinates')
             get_review_source_entries(entries, text)
             identity['sources'].extend(original['identity']['sources'])
@@ -1643,7 +1670,7 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
             prepared, _report = get_preprocessed_source(decoded, strip_front_matter=strip_front_matter)
             repaired, _report = prepare_source_text(prepared)
             for text in (prepared, repaired):
-                if expected is not None and hashlib.sha256(text.encode('utf-8')).hexdigest() != expected:
+                if not is_review_literal_source(text, policy):
                     continue
                 try:
                     get_review_source_entries(entries, text)
