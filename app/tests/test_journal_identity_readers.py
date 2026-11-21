@@ -1,9 +1,12 @@
 """Journal identity must stay coherent across selection, readers and exports."""
+import asyncio
 import errno
 import json
 import os
-from contextlib import ExitStack
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from threading import Event
 import shutil
 import tempfile
 import unittest
@@ -20,7 +23,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import project_scope_files
 from project import ProjectManager
-from routers import editor, script
+from routers import editor, script, scripts_library
 from script_selection_binding import (BINDING_NAME, capture_generation_selection,
     publish_generated_script)
 
@@ -80,6 +83,49 @@ class JournalIdentityCases(unittest.TestCase):
             item.start()
             self.addCleanup(item.stop)
         return TestClient(app, raise_server_exceptions=raise_server_exceptions)
+
+    def full_client(self, root, state=None):
+        app = FastAPI()
+        app.include_router(editor.router)
+        app.include_router(script.router)
+        app.include_router(scripts_library.router)
+        values = {
+            'DATA_DIR': str(root), 'SCRIPT_PATH': str(root / 'annotated_script.json'),
+            'VOICE_CONFIG_PATH': str(root / 'voice_config.json'),
+            'SCRIPTS_DIR': str(root / 'scripts'), 'CHUNKS_PATH': str(root / 'chunks.json'),
+            'UPLOADS_DIR': str(root / 'uploads'),
+            'AUDIOBOOK_PATH': str(root / 'audiobook.mp3'),
+            'M4B_PATH': str(root / 'audiobook.m4b'),
+        }
+        patches = []
+        for module in (application, core, script, editor, scripts_library):
+            for key, value in values.items():
+                if hasattr(module, key):
+                    patches.append(patch.object(module, key, value))
+        manager = ProjectManager(str(root))
+        for module in (core, editor, scripts_library):
+            if hasattr(module, 'project_manager'):
+                patches.append(patch.object(module, 'project_manager', manager))
+        patches.append(patch.object(editor, 'process_state',
+                        state if state is not None else self.export_state()))
+        for item in patches:
+            item.start()
+            self.addCleanup(item.stop)
+        return TestClient(app, raise_server_exceptions=False)
+
+    def two_books(self, tmp):
+        root, book_b = Path(tmp) / "a", Path(tmp) / "b"
+        root.mkdir()
+        book_b.mkdir()
+        self.make_published_book(root, book_id="source")
+        self.make_published_book(book_b, book_id="other",
+                                 source_bytes=b"A different published source.\n")
+        scripts = root / "scripts"
+        scripts.mkdir()
+        (scripts / "other.json").write_bytes((book_b / "annotated_script.json").read_bytes())
+        (scripts / "other.voice_config.json").write_bytes(
+            (book_b / "voice_config.json").read_bytes())
+        return root, book_b
 
     def select(self, client, filename="source.txt"):
         return client.post("/api/uploads/select", json={"filename": filename})
@@ -714,15 +760,6 @@ class ExportAdmissionIdentityTests(JournalIdentityCases):
 
 
 class ExportBoundaryFinalTests(JournalIdentityCases):
-    def two_books(self, tmp):
-        root, book_b = Path(tmp) / "a", Path(tmp) / "b"
-        root.mkdir()
-        book_b.mkdir()
-        self.make_published_book(root, book_id="source")
-        self.make_published_book(book_b, book_id="other",
-                                 source_bytes=b"A different published source.\n")
-        return root, book_b
-
     def test_duplicate_upload_fresh_verification_eio_aborts_route(self):
         with tempfile.TemporaryDirectory() as tmp:
             root, source, _rows, _identity = self.make_published_book(tmp)
@@ -805,6 +842,108 @@ class ExportBoundaryFinalTests(JournalIdentityCases):
                     side_effect=switch_during_preview):
                 response = client.get("/api/export_chapters/preview")
             self.assertEqual(409, response.status_code, response.text)
+
+
+class ExportLateBoundaryTests(JournalIdentityCases):
+    def test_real_published_load_at_reservation_boundary_returns_409(self):
+        routes = (("/api/export_audacity", {}, True),
+                  ("/api/merge_m4b", {}, False),
+                  ("/api/export_chapters", {"chapters": [0]}, False))
+        for path, payload, at_require in routes:
+            with self.subTest(route=path), tempfile.TemporaryDirectory() as tmp:
+                root, _book_b = self.two_books(tmp)
+                client = self.full_client(root, state=self.export_state())
+                before_claims = set(core._task_claims)
+                real_require = editor._require_export_chunks
+                real_ready = editor.validate_export_readiness
+                def do_load():
+                    result = client.post("/api/scripts/load", json={"name": "other"})
+                    self.assertEqual(200, result.status_code, result.text)
+                if at_require:
+                    def after_require():
+                        value = real_require()
+                        do_load()
+                        return value
+                    hook = patch.object(editor, "_require_export_chunks", after_require)
+                else:
+                    async def after_ready(*args, **kwargs):
+                        await real_ready(*args, **kwargs)
+                        do_load()
+                    hook = patch.object(editor, "validate_export_readiness", after_ready)
+                with hook, patch.object(core, "register_claimed_background_task") as registered:
+                    response = client.post(path, json=payload)
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertEqual(editor.CHUNK_SNAPSHOT_CONFLICT_DETAIL,
+                                 response.json()["detail"])
+                registered.assert_not_called()
+                self.assertEqual(before_claims, set(core._task_claims))
+
+    def test_late_pending_journal_at_admission_returns_stable_409(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            client = self.full_client(root, state=self.export_state())
+            journal = root / ".active_book_transaction.json"
+            raw = b'{"version":4,"phase":"pending"}'
+            async def ready_then_pending(*args, **kwargs):
+                journal.write_bytes(raw)
+            with patch.object(editor, "validate_export_readiness", ready_then_pending), \
+                 patch.object(core, "register_claimed_background_task") as registered:
+                preview = client.get("/api/export_chapters/preview")
+                started = client.post("/api/export_chapters", json={"chapters": [0]})
+                registered.assert_not_called()
+            real_require = editor._require_export_chunks
+            def require_then_pending():
+                value = real_require()
+                journal.write_bytes(raw)
+                return value
+            with patch.object(editor, "_require_export_chunks", require_then_pending), \
+                 patch.object(core, "register_claimed_background_task") as registered:
+                audacity = client.post("/api/export_audacity")
+                registered.assert_not_called()
+            for response in (preview, started, audacity):
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertEqual(editor.CHUNK_SNAPSHOT_CONFLICT_DETAIL,
+                                 response.json()["detail"])
+            self.assertEqual(raw, journal.read_bytes())
+
+    def test_reservation_and_load_lock_order_do_not_deadlock(self):
+        """An export and a saved-book load contend without blocking or leaking a claim."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _book_b = self.two_books(tmp)
+            client = self.full_client(root, state=self.export_state())
+            before_claims = set(core._task_claims)
+            real_schedule = editor.schedule_claimed_background_task
+            real_ensure = scripts_library.ensure_book_state
+            at_schedule, at_book, allow = Event(), Event(), Event()
+            def hold_before_claim(*args, **kwargs):
+                at_schedule.set()
+                self.assertTrue(allow.wait(3))
+                return real_schedule(*args, **kwargs)
+            @contextmanager
+            def observe_order(*args, **kwargs):
+                # On integrated main the load releases the GPU mutex before
+                # waiting on book admission, so only the book wait is observed.
+                at_book.set()
+                with real_ensure(*args, **kwargs) as admitted:
+                    yield admitted
+            with ThreadPoolExecutor(2) as pool, \
+                 patch.object(editor, "schedule_claimed_background_task", hold_before_claim), \
+                 patch.object(scripts_library, "ensure_book_state", observe_order):
+                exporting = pool.submit(client.post, "/api/export_audacity", json={})
+                self.assertTrue(at_schedule.wait(3))
+                switching = pool.submit(client.post, "/api/scripts/load",
+                                        json={"name": "other"})
+                self.assertTrue(at_book.wait(3))
+                allow.set()
+                switch_result = switching.result(timeout=5)
+                export_result = exporting.result(timeout=5)
+            self.assertIn(switch_result.status_code, (200, 409), switch_result.text)
+            # Integrated main lets the load win and cleanly refuses the export
+            # ("Task admission or startup recovery is in progress"); the
+            # pre-integration tree instead let the export win. Both are valid
+            # mutual-exclusion outcomes - neither deadlocks nor leaks a claim.
+            self.assertIn(export_result.status_code, (200, 400, 409), export_result.text)
+            self.assertEqual(before_claims, set(core._task_claims))
 
 
 if __name__ == "__main__":

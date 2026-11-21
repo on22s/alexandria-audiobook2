@@ -1670,6 +1670,7 @@
   "editor.word-timing.unavailable": "Timing is unavailable. Existing line audio is unchanged.",
   "editor.word-timing.wrong-take": "Timing result belongs to another saved take.",
   "error.book.busy_preview": "Book state is busy; retry the preview shortly.",
+  "error.book.chunk_snapshot_unreadable": "Saved book state is unreadable. Reload or switch books before continuing; saved progress and audio have been preserved.",
   "error.book.owned_by_batch_review": "This saved book is owned by batch review. Wait for it to finish or cancel it.",
   "error.book.owned_or_saving": "This saved book is owned by batch review or another save. Wait for it to finish or cancel it.",
   "error.book.snapshot_busy": "Book or saved snapshot is busy; retry shortly.",

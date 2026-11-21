@@ -41,6 +41,7 @@ from book_placeholder import is_book_placeholder, is_book_placeholder_stream
 from export_download import SWITCH_IN_PROGRESS
 from core import (
     _init_task_log,
+    AppError,
     AUDIOBOOK_PATH,
     CONFIG_PATH,
     DATA_DIR,
@@ -588,7 +589,7 @@ def _require_export_chunks():
     except (ValueError, OSError, RecursionError) as error:
         # Non-recovering admission refuses a pending book transaction without
         # mutating its staged publication artifacts.
-        raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
+        raise AppError(409, "Saved book state is unreadable. Reload or switch books before continuing; saved progress and audio have been preserved.", key='error.book.chunk_snapshot_unreadable') from error
 
 
 def _assert_export_admission_locked(token):
@@ -598,14 +599,32 @@ def _assert_export_admission_locked(token):
         raise ValueError("The selected book changed during export admission")
 
 
+class _ExportReadAdmission:
+    """Non-recovering admission whose *entry* conflict is an actionable 409.
+
+    Errors raised inside the scope (for example a malformed chapter request)
+    pass through unchanged so genuine content validation keeps its own codes.
+    """
+    def __enter__(self):
+        try:
+            self._context = ensure_book_state(DATA_DIR, recover=False)
+            return self._context.__enter__()
+        except (ValueError, OSError, RecursionError) as error:
+            raise AppError(409, "Saved book state is unreadable. Reload or switch books before continuing; saved progress and audio have been preserved.",
+                                key='error.book.chunk_snapshot_unreadable') from error
+
+    def __exit__(self, *exc_info):
+        return self._context.__exit__(*exc_info)
+
+
 def _chapter_preview_with_rows(admitted_rows, admitted_token, **options):
     """Validate identity and consume admitted rows under one read-only admission."""
     def checked():
         try:
             _assert_export_admission_locked(admitted_token)
         except (ValueError, OSError, RecursionError) as error:
-            raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
-    with ensure_book_state(DATA_DIR, recover=False):
+            raise AppError(409, "Saved book state is unreadable. Reload or switch books before continuing; saved progress and audio have been preserved.", key='error.book.chunk_snapshot_unreadable') from error
+    with _ExportReadAdmission():
         checked()
         result = project_manager.preview_chapter_filenames(rows=admitted_rows, **options)
         checked()
@@ -619,17 +638,17 @@ def _reserve_export_task(background_tasks, task_name, admitted_token, callback):
     reuses it, so a completed switch cannot slip between the last check and the
     claim. The worker verifies its source again independently.
     """
-    with ensure_book_state(DATA_DIR, recover=False):
-        _assert_export_admission_locked(admitted_token)
-        def verify():
-            with reuse_book_state(DATA_DIR):
-                _assert_export_admission_locked(admitted_token)
-        try:
+    try:
+        with ensure_book_state(DATA_DIR, recover=False):
+            _assert_export_admission_locked(admitted_token)
+            def verify():
+                with reuse_book_state(DATA_DIR):
+                    _assert_export_admission_locked(admitted_token)
             return schedule_claimed_background_task(
                 background_tasks, task_name, callback, verify=verify)
-        except ValueError as error:
-            raise HTTPException(status_code=409,
-                                detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
+    except (ValueError, OSError, RecursionError) as error:
+        raise AppError(409, "Saved book state is unreadable. Reload or switch books before continuing; saved progress and audio have been preserved.",
+                            key='error.book.chunk_snapshot_unreadable') from error
 
 
 def _ensure_editor_chunks():
@@ -1187,7 +1206,7 @@ def _ensure_editor_integrity_locked():
     try:
         chunks = project_manager.load_chunks()
     except (ValueError, OSError) as error:
-        raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
+        raise AppError(409, "Saved book state is unreadable. Reload or switch books before continuing; saved progress and audio have been preserved.", key='error.book.chunk_snapshot_unreadable') from error
     state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
     try:
         script_bytes = Path(SCRIPT_PATH).read_bytes()
@@ -1718,7 +1737,7 @@ async def validate_export_readiness(require_ready, token=None):
     try:
         await asyncio.to_thread(check)
     except ValueError as error:
-        raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
+        raise AppError(409, "Saved book state is unreadable. Reload or switch books before continuing; saved progress and audio have been preserved.", key='error.book.chunk_snapshot_unreadable') from error
 
 
 from m4b_metadata import PublicationCoverSelection
