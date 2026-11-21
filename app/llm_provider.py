@@ -606,10 +606,13 @@ class FailoverClient:
                     if not isinstance(context, int) or isinstance(context, bool) or context < 1:
                         context = 4096
                     self._runtime_state["semaphore"] = threading.BoundedSemaphore(1)
+                    # #2215's declared-limit Manual status supplies the serial
+                    # slot and runtime metadata; keep #2214's explicit flag.
+                    from lmstudio_settings import get_manual_runtime_status
+                    status = {**get_manual_runtime_status(config), "manual": True}
                     self._runtime_state["profile"] = {
                         "config": config,
-                        "status": {"available": False, "loaded": False,
-                                   "manual": True, "runtime": "manual"},
+                        "status": status,
                         "context_length": context, "is_remote": False,
                     }
                     return deepcopy(self._runtime_state["profile"])
