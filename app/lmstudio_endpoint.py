@@ -56,8 +56,12 @@ def get_native_model_status(document, model_name, version):
             'context_length': context, 'parallel': parallel, 'optimized': False}
 
 
-def get_lmstudio_endpoint_status(base_url, model_name, api_key=None, timeout=5):
-    """Return positively identified native status, or None on unknown/failure."""
+def get_lmstudio_endpoint_status(base_url, model_name, api_key=None, timeout=5, authorization=None):
+    """Return positively identified native status, or None on unknown/failure.
+
+    An explicit `authorization` is sent verbatim (it may be a non-Bearer scheme
+    configured on the profile); only when absent is a bearer built from api_key.
+    """
     try:
         url = urlsplit(base_url)
         if url.scheme not in ('http', 'https') or not url.hostname:
@@ -66,7 +70,9 @@ def get_lmstudio_endpoint_status(base_url, model_name, api_key=None, timeout=5):
         if path.endswith('/v1'):
             path = path[:-3]
         headers = {'Accept': 'application/json'}
-        if api_key:
+        if authorization:
+            headers['Authorization'] = authorization
+        elif api_key:
             headers['Authorization'] = 'Bearer ' + api_key
         opener = build_opener(_NoNativeRedirects())
         for version in (1, 0):

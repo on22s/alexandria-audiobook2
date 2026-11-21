@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import os
+from urllib.parse import urlparse
 
 from utils import atomic_json_write, safe_load_json
 
@@ -102,6 +103,30 @@ def get_benchmark_llm_config(config, target):
     return get_active_llm_config(selected)
 
 
+def get_thunder_worker_base_url(llm):
+    """The URL the worker uses FROM the Thunder host: loopback, not the
+    public forwarding URL. Reusing the forwarding URL would route every worker
+    call back out through the internet a second time.
+    """
+    port = urlparse((llm or {}).get("base_url") or "").port or 1234
+    return f"http://localhost:{port}/v1"
+
+
+def get_thunder_worker_profile(llm):
+    """The single effective profile for Thunder preflight AND dispatch.
+
+    The worker resolves its key against the rewritten loopback URL, so a
+    keyless profile gets the harmless local placeholder there. Preflight must
+    fingerprint that same profile instead of resolving against the public
+    forwarding hostname and rejecting a profile the worker happily accepts.
+    """
+    llm = llm or {}
+    worker_base_url = get_thunder_worker_base_url(llm)
+    from llm_provider import resolve_client_api_key
+    return {**llm, "base_url": worker_base_url,
+            "api_key": resolve_client_api_key({**llm, "base_url": worker_base_url})}
+
+
 def get_benchmark_execution_environment(manifest, environment, config):
     """Bind stage config to resume identity; publish only its digest."""
     stage = manifest["stage"]
@@ -111,11 +136,13 @@ def get_benchmark_execution_environment(manifest, environment, config):
         identity["ssh_alias"] = config.get("llm_remote_ssh")
     if stage in {"script_generation", "script_review", "persona_generation", "nickname_detection"}:
         profile = get_benchmark_llm_config(config, target)
+        if target == "thunder":
+            profile = get_thunder_worker_profile(profile)
         identity["profile"] = {key: value for key, value in profile.items()
                                if key not in {"concurrency", "concurrency_for", "concurrency_environment",
                                               "concurrency_revision"}}
-        from llm_provider import resolve_api_key
-        identity["resolved_api_key"] = resolve_api_key(profile.get("api_key"))
+        from llm_provider import resolve_client_api_key
+        identity["resolved_api_key"] = resolve_client_api_key(profile)
         # These two runners consume Setup sampling and prompt settings. The
         # persona/nickname runners use their production defaults instead.
         if stage in {"script_generation", "script_review"}:
@@ -139,6 +166,30 @@ def get_benchmark_execution_environment(manifest, environment, config):
     result = copy.deepcopy(environment)
     result.setdefault("details", {})["execution_sha256"] = _stable_hash(identity)
     result["sha256"] = _stable_hash({"target": target, "details": result["details"]})
+    if target == "thunder" and stage in {"script_generation", "script_review",
+                                         "persona_generation", "nickname_detection"}:
+        from llm_provider import (get_effective_authorization, get_explicit_authorization,
+                                  resolve_historical_api_key)
+        public = get_benchmark_llm_config(config, target)
+        historical_key = resolve_historical_api_key(public.get("api_key", "local"))
+        # Older reports fingerprinted the public profile while the worker has
+        # always dispatched against the rewritten loopback URL. What matters is
+        # the Authorization actually sent, not an api_key the profile never uses:
+        # an explicit header overrides an unused key in both eras. A keyless
+        # public profile used to inherit an ambient key the worker no longer
+        # sends, so that changed dispatch must never be treated as equal.
+        explicit = get_explicit_authorization(public)
+        historical_auth = explicit or (f'Bearer {historical_key}' if historical_key else None)
+        if get_effective_authorization(get_thunder_worker_profile(public)) == historical_auth:
+            omitted = {"concurrency", "concurrency_for", "concurrency_environment",
+                       "concurrency_revision"}
+            legacy_identity = copy.deepcopy(identity)
+            legacy_identity["profile"] = {key: value for key, value in public.items()
+                                          if key not in omitted}
+            legacy_identity["resolved_api_key"] = historical_key
+            legacy_details = {**result["details"],
+                              "execution_sha256": _stable_hash(legacy_identity)}
+            result["legacy_sha256"] = _stable_hash({"target": target, "details": legacy_details})
     return result
 
 
@@ -205,6 +256,14 @@ def load_resumable_benchmark_report(path, manifest, environment):
         verified = build_environment_fingerprint(evidence["target"], evidence.get("details"))
         if evidence.get("sha256") != verified["sha256"]:
             raise ValueError("benchmark environment changed; refusing unsafe resume")
-    if stored_environment["sha256"] != environment["sha256"]:
+    accepted = {environment["sha256"]}
+    if isinstance(environment.get("legacy_sha256"), str):
+        accepted.add(environment["legacy_sha256"])
+    if stored_environment["sha256"] not in accepted:
         raise ValueError("benchmark environment changed; refusing unsafe resume")
+    if stored_environment["sha256"] != environment["sha256"]:
+        # Resumed through the legacy digest: republish with the canonical
+        # environment so the next save cannot keep carrying the old identity.
+        report = copy.deepcopy(report)
+        report["environment"] = copy.deepcopy(environment)
     return report

@@ -16,6 +16,30 @@ class ReportCreationTests(unittest.TestCase):
         with patch('builtins.__import__',side_effect=import_without_provider):
             self.assertIsNone(core._llm_summarize_report('Review counts.'))
 
+    def test_healthy_client_receives_completion_and_effective_authorization(self):
+        from types import SimpleNamespace
+        profile = {'base_url': 'https://hosted.invalid/v1', 'api_key': 'sk-unused-fixture',
+                   'provider_headers': {'Authorization': 'Token configured-fixture'},
+                   'model_name': 'fixture-model'}
+        calls = []
+        def create(**kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content='  A friendly summary.  '))])
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        with patch.object(core, '_make_llm_client', return_value=(client, 'fixture-model')), \
+                patch.object(core, 'load_app_config',
+                             return_value={'llm_mode': 'remote', 'llm_remote': profile}), \
+                patch.object(core, 'get_active_llm_config', return_value=profile), \
+                patch.object(core, 'get_current_status',
+                             return_value={'context_length': 8192}) as status:
+            summary = core._llm_summarize_report('Review counts.')
+        self.assertEqual('A friendly summary.', summary)
+        self.assertEqual(1, len(calls))
+        self.assertEqual('fixture-model', calls[0]['model'])
+        self.assertEqual('Token configured-fixture', status.call_args.kwargs['authorization'])
+
     def test_both_report_writers_publish_without_calling_llm(self):
         stats=core._new_review_totals();stats.update(entries_before=2,entries_after=2,total_changes=0)
         state={'tasks':[{'name':'book','status':'done','stats_fwd':stats}], 'totals_fwd':stats}

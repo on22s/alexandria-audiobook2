@@ -2319,14 +2319,18 @@ def _validate_local_llm_base_url(base_url: str) -> None:
     if is_local_llm_endpoint(base_url):
         return
     from urllib.parse import urlparse
+    from llm_provider import is_official_openai_endpoint
+    # One OpenAI endpoint decision for validation and implicit-key resolution:
+    # the same normalized spellings are accepted by both (Rule 15).
+    if is_official_openai_endpoint(base_url):
+        return
     parsed = urlparse(base_url)
     hostname = (parsed.hostname or "").lower()
     # Thunder Compute forwards instance ports via *.thundercompute.net, so allow
     # that trusted remote host for running LM Studio on a Thunder GPU instance.
     if hostname == "thundercompute.net" or hostname.endswith(".thundercompute.net"):
         return
-    hosted_paths = {"api.deepseek.com": ("", "/v1"), "api.openai.com": ("/v1",),
-                    "openrouter.ai": ("/api/v1",)}
+    hosted_paths = {"api.deepseek.com": ("", "/v1"), "openrouter.ai": ("/api/v1",)}
     if hostname in hosted_paths:
         try:
             port = parsed.port
@@ -2423,6 +2427,7 @@ def _llm_summarize_report(markdown_body: str) -> Optional[str]:
     Validates that the configured base_url is local/trusted before sending data."""
     from manual_llm_context import ManualRequestCancelled
     try:
+        from llm_provider import get_effective_authorization
         client, model_name = _make_llm_client(timeout=60)
 
         messages = [
@@ -2434,7 +2439,8 @@ def _llm_summarize_report(markdown_body: str) -> Optional[str]:
         status = get_current_status(
             full_cfg.get("llm_mode", "local"), llm_cfg.get("base_url", ""),
             model_name, (full_cfg.get("llm_remote_ssh") or "").strip(), use_cache=True,
-            api_key=llm_cfg.get("api_key"))
+            api_key=llm_cfg.get("api_key"),
+            authorization=get_effective_authorization(llm_cfg))
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,

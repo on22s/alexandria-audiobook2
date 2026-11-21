@@ -1073,7 +1073,8 @@
     , "tests.test_audit_serving_metadata.ServingMetadataAuditTests.test_main_allows_a_directory_without_legacy_scout"
   ]
   , "test_auto_pause_on_api_exhaustion": [
-    "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_content_policy_never_pauses_even_in_pause_mode"
+    "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_auth_and_not_found_fail_instead_of_pausing_for_an_operator"
+    , "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_content_policy_never_pauses_even_in_pause_mode"
     , "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_fail_mode_gives_the_chunk_up_and_never_signals"
     , "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_pause_for_operator_prints_the_marker_the_app_watches_for"
     , "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_pause_mode_freezes_then_retries_with_a_fresh_budget"
@@ -1591,8 +1592,14 @@
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_production_cli_keeps_configured_mode_and_explicit_cli_override"
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_remote_stdin_replay_keeps_selected_mode_and_actual_worker_schema"
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_report_resume_refuses_completed_cases_from_the_other_mode_without_writing"
+    , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_rtt_probe_uses_safe_profile_and_skips_when_unavailable"
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_selected_mode_keeps_index_and_label_validation"
     , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_shared_mode_read_does_not_mutate_or_treat_raw_truthy_values_as_true"
+    , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_thunder_blank_key_still_dispatches_the_loopback_worker"
+    , "tests.test_benchmark_review_mode.BenchmarkReviewModeTests.test_thunder_preflight_and_worker_share_the_keyless_loopback_profile"
+    , "tests.test_benchmark_review_mode.ThunderLegacyReportResumeTests.test_changed_profile_and_keyless_public_profile_refuse_legacy_resume"
+    , "tests.test_benchmark_review_mode.ThunderLegacyReportResumeTests.test_explicit_header_over_unused_key_compares_effective_authorization"
+    , "tests.test_benchmark_review_mode.ThunderLegacyReportResumeTests.test_literal_key_thunder_report_resumes_without_mutating_canonical_identity"
   ]
   , "test_benchmark_runner": [
     "tests.test_benchmark_runner.BenchmarkRunnerTests.test_dedup_fixture_drift_is_rejected"
@@ -3731,11 +3738,16 @@
   ]
   , "test_completed_review_receipt": [
     "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_key_covers_prompts_parameters_profiles_context_and_sidecars"
+    , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_manual_receipt_written_with_main_fingerprint_still_matches"
     , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_native_transport_repeat_force_and_failed_rerun_receipts"
     , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_otherwise_valid_receipt_rejects_unsupported_or_noninteger_version"
     , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_receipt_verifies_separate_input_output_settings_and_checkpoint"
     , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_standard_and_contextual_force_requests_reach_subprocess"
     , "tests.test_completed_review_receipt.CompletedReviewReceiptTests.test_unchanged_in_place_review_dispatches_no_second_batch"
+    , "tests.test_completed_review_receipt.LegacyReceiptContextTests.test_changed_secondary_refuses_regardless_of_current_failover_flag"
+    , "tests.test_completed_review_receipt.LegacyReceiptContextTests.test_manual_blank_hosted_key_matches_historical_ambient_digest_only_locally"
+    , "tests.test_completed_review_receipt.LegacyReceiptContextTests.test_pre_pr_manual_checkpoint_with_offset_resumes_only_with_legacy_digest"
+    , "tests.test_completed_review_receipt.LegacyReceiptContextTests.test_secondary_credential_equivalence_decides_historical_matching"
   ]
   , "test_compute_dtype": [
     "tests.test_compute_dtype.ComputeDtypeTests.test_amd_apus_load_in_fp32"
@@ -7150,7 +7162,9 @@
     "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_llama_cpp_endpoint_is_left_alone"
     , "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_real_lm_studio_endpoint_still_gets_configured"
     , "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_remote_endpoint_is_unaffected_by_the_local_probe"
+    , "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_explicit_non_bearer_authorization_reaches_the_status_probe"
     , "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_the_message_does_not_warn_about_a_risk_that_cannot_occur"
+    , "tests.test_ideal_settings_endpoint.ProfileBackedPreflightWiringTests.test_every_production_preflight_forwards_its_bound_profile_credential"
   ]
   , "test_identity_gate_completion": [
     "tests.test_identity_gate_completion.IdentityChainCacheTests.test_false_success_and_exit_verdict_disagreement_are_counted"
@@ -7319,6 +7333,7 @@
     , "tests.test_integration_corpus.IntegrationCorpusTests.test_runner_writes_case_results_incrementally"
     , "tests.test_integration_corpus.IntegrationRunnerBoundaryTests.test_current_profile_controls_provider_generation_and_report"
     , "tests.test_integration_corpus.IntegrationRunnerBoundaryTests.test_empty_manifest_cli_saves_zero_case_summary"
+    , "tests.test_integration_corpus.IntegrationRunnerBoundaryTests.test_explicit_header_and_unused_key_reach_preflight_and_canonical_client"
   ]
   , "test_integrity_jump_js": [
     "tests.test_integrity_jump_js.IntegrityJumpTests.test_jump_reveals_filtered_target_without_changing_filter_for_visible_or_missing_rows"
@@ -7702,6 +7717,7 @@
     , "tests.test_llama_cpp_status.LlamaCppStatusTests.test_oversized_props_can_recover_without_poisoning_runtime_cache"
     , "tests.test_llama_cpp_status.LlamaCppStatusTests.test_props_accepts_exact_limit_and_rejects_one_byte_over"
     , "tests.test_llama_cpp_status.LlamaCppStatusTests.test_props_reads_at_most_one_mebibyte_plus_overflow_sentinel"
+    , "tests.test_llama_cpp_status.LlamaCppStatusTests.test_props_request_uses_explicit_header_or_bearer_with_same_precedence"
     , "tests.test_llama_cpp_status.LlamaCppStatusTests.test_reasoning_format_is_surfaced"
     , "tests.test_llama_cpp_status.SingleReaderTests.test_provenance_refuses_a_mismatched_model"
     , "tests.test_llama_cpp_status.SingleReaderTests.test_provenance_still_refuses_an_unverified_server"
@@ -7788,6 +7804,7 @@
     , "tests.test_llm_concurrency_cache.LlmConcurrencyCacheTests.test_legacy_measurement_without_environment_is_remeasured"
     , "tests.test_llm_concurrency_cache.LlmConcurrencyCacheTests.test_matching_cache_obeys_live_server_and_caller_limits_without_rebenchmark"
     , "tests.test_llm_concurrency_cache.LlmConcurrencyCacheTests.test_runtime_changes_invalidate_real_saved_measurement_and_new_record_reuses"
+    , "tests.test_llm_concurrency_cache.LlmConcurrencyCacheTests.test_status_credentials_follow_the_bound_run_profile"
     , "tests.test_llm_concurrency_cache.LlmConcurrencyCacheTests.test_unavailable_status_preserves_saved_measurement_bytes"
     , "tests.test_llm_concurrency_cache.LlmUnmeasuredFallbackCacheTests.test_ambiguous_version1_concurrency_one_is_remeasured"
     , "tests.test_llm_concurrency_cache.LlmUnmeasuredFallbackCacheTests.test_failed_higher_level_after_valid_level1_persists_measured_best"
@@ -7863,9 +7880,24 @@
     , "tests.test_llm_profile_requests_js.LlmProfileRequestJsTests.test_profile_token_limits_survive_switching_and_reject_invalid_edits"
   ]
   , "test_llm_provider": [
-    "tests.test_llm_provider.ApiKeyReferenceTests.test_client_is_built_with_the_resolved_key"
+    "tests.test_llm_provider.ApiKeyReferenceTests.test_auth_and_not_found_stop_retrying_but_throttling_does_not"
+    , "tests.test_llm_provider.ApiKeyReferenceTests.test_client_is_built_with_the_resolved_key"
+    , "tests.test_llm_provider.ApiKeyReferenceTests.test_client_never_sends_the_implicit_openai_key_to_a_third_party"
     , "tests.test_llm_provider.ApiKeyReferenceTests.test_env_references_resolve_and_literals_pass_through"
+    , "tests.test_llm_provider.ApiKeyReferenceTests.test_explicit_keys_are_preserved_on_every_endpoint"
+    , "tests.test_llm_provider.ApiKeyReferenceTests.test_failover_eligibility_keeps_provider_errors_and_stops_local_ones"
+    , "tests.test_llm_provider.ApiKeyReferenceTests.test_implicit_openai_key_is_scoped_to_the_official_endpoint"
     , "tests.test_llm_provider.ApiKeyReferenceTests.test_setup_page_shows_a_reference_but_redacts_a_secret"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_authorization_case_variants_share_one_canonical_header"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_canonical_openai_urls_are_accepted_by_validation_and_resolution"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_deterministic_4xx_terminal_transient_retryable"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_effective_key_preserves_omitted_blank_manual_and_header_profiles"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_explicit_authorization_wins_over_unused_keys_in_both_spellings"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_hosted_authorization_header_profile_sends_only_the_configured_bearer"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_sdk_retries_are_terminal_for_deterministic_statuses_only"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_sdk_transport_keeps_timeout_recovery"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_setup_test_and_models_resolve_blank_official_openai_key"
+    , "tests.test_llm_provider.CredentialProfilePolicyTests.test_setup_test_config_failure_has_no_outbound_request_and_redacts"
     , "tests.test_llm_provider.ProviderRequestSettingsTest.test_client_sends_profile_headers_and_body_on_completions"
     , "tests.test_llm_provider.ProviderRequestSettingsTest.test_context_rejections_are_distinct_from_other_bad_requests"
     , "tests.test_llm_provider.ProviderRequestSettingsTest.test_error_classification_and_backoff_are_deterministic"
@@ -8080,9 +8112,12 @@
   ]
   , "test_lmstudio_local_poll_cache": [
     "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_actual_status_http_coalesces_props_cli_parse_and_live_vram"
+    , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_cache_identity_separates_credentials_and_remote_cached_api_forwards"
     , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_concurrent_same_key_shares_fetch_and_returns_independent_snapshots"
     , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_endpoint_model_credentials_and_remote_scope_have_distinct_cache_keys"
+    , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_explicit_non_bearer_authorization_reaches_cached_and_live_probes"
     , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_invalidated_inflight_result_is_returned_but_cannot_repopulate_cache"
+    , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_llama_props_probe_receives_effective_authorization_cached_and_live"
     , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_local_reload_success_failure_and_unexpected_error_invalidate_ui_only"
     , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_local_ttl_uses_monotonic_time_despite_wall_clock_reversal"
     , "tests.test_lmstudio_local_poll_cache.LocalPollCacheTests.test_worker_reads_are_live_even_with_historical_use_cache_flag"
@@ -10172,8 +10207,12 @@
     , "tests.test_profile_failover.FailoverConfigTests.test_off_by_default_resolves_to_nothing"
     , "tests.test_profile_failover.FailoverConfigTests.test_on_resolves_to_the_other_profile_in_both_directions"
     , "tests.test_profile_failover.RetryLoopFailoverTests.test_a_plain_client_is_unchanged"
+    , "tests.test_profile_failover.RetryLoopFailoverTests.test_actual_predispatch_context_budget_calls_neither_configured_provider"
+    , "tests.test_profile_failover.RetryLoopFailoverTests.test_auth_and_not_found_stop_retrying_but_still_fail_over"
     , "tests.test_profile_failover.RetryLoopFailoverTests.test_content_policy_refusal_also_switches"
+    , "tests.test_profile_failover.RetryLoopFailoverTests.test_context_budget_never_fails_over_a_local_sizing_error"
     , "tests.test_profile_failover.RetryLoopFailoverTests.test_rate_limit_exhaustion_switches_and_the_request_completes_on_the_other_profile"
+    , "tests.test_profile_failover.RetryLoopFailoverTests.test_throttling_and_transient_provider_errors_keep_retrying_then_fail_over"
     , "tests.test_profile_failover.RetryLoopFailoverTests.test_when_both_profiles_fail_the_chunk_is_given_up_once"
   ]
   , "test_profiler_archive_budget": [
@@ -11828,6 +11867,7 @@
   ]
   , "test_report_explanation": [
     "tests.test_report_explanation.ReportCreationTests.test_both_report_writers_publish_without_calling_llm"
+    , "tests.test_report_explanation.ReportCreationTests.test_healthy_client_receives_completion_and_effective_authorization"
     , "tests.test_report_explanation.ReportCreationTests.test_missing_optional_provider_dependency_keeps_best_effort_summary_contract"
     , "tests.test_report_explanation.ReportExplanationApiTests.test_explicit_action_publishes_and_releases_claim"
     , "tests.test_report_explanation.ReportExplanationApiTests.test_failed_unsupported_cancelled_or_stale_explanation_preserves_report"
@@ -12334,6 +12374,7 @@
     , "tests.test_review_source_binding.ReviewSourceBindingTests.test_annotationless_donor_warns_in_classic_and_index_review"
     , "tests.test_review_source_binding.ReviewSourceBindingTests.test_changed_boundaries_with_equal_count_do_not_borrow_metadata"
     , "tests.test_review_source_binding.ReviewSourceBindingTests.test_classic_response_contract_reaches_default_custom_and_literal_requests"
+    , "tests.test_review_source_binding.ReviewSourceBindingTests.test_cli_fingerprints_keyless_manual_and_omitted_legacy_keys"
     , "tests.test_review_source_binding.ReviewSourceBindingTests.test_cli_publishes_portion_reassignment_in_sequential_and_contextual_modes"
     , "tests.test_review_source_binding.ReviewSourceBindingTests.test_compatible_merge_keeps_review_whitespace_and_bound_source_facts"
     , "tests.test_review_source_binding.ReviewSourceBindingTests.test_exact_full_review_accepts_correction_and_explicit_spoken_annotation"
