@@ -29,6 +29,31 @@ def is_script_recovery_cast_invalidated(root):
     return isinstance(state, dict) and RECOVERY_CAST_INVALIDATED in state
 
 
+def _get_prepared_text_sha256(root):
+    """Digest of the selected source as the generation worker prepares it.
+
+    state.json records the RAW upload digest, while a checkpoint fingerprint
+    holds the digest of the PREPARED text (decoded, newline-normalized, front
+    matter stripped). Comparing those directly calls the same book a different
+    source whenever preparation changes bytes. Recompute the prepared digest
+    under the saved policy so both sides of the comparison are the same stage.
+
+    None means no comparable identity could be proved; the caller then keeps
+    an ambiguous checkpoint as a potential recovery candidate instead of
+    treating it as a different source.
+    """
+    try:
+        from project_scope_source import get_scope_source_snapshot
+        state = safe_load_json(str(Path(root) / 'state.json'), {})
+        if not isinstance(state, dict):
+            return None
+        snapshot, _prepared_text = get_scope_source_snapshot(state)
+        digest = snapshot.get('prepared_text_sha256')
+        return digest if isinstance(digest, str) else None
+    except (OSError, ValueError, RecursionError, UnicodeError, TypeError):
+        return None
+
+
 def has_selected_source_recovery(root):
     """True when the selected source has a saved checkpoint a launcher could resume.
 
@@ -44,10 +69,22 @@ def has_selected_source_recovery(root):
         return True
     if not has_selected_source_state(str(root)):
         return False
-    selected = safe_load_json(str(root / 'state.json'), {})
-    selection = selected.get('script_generation_selection') if isinstance(selected, dict) else None
-    selected_sha256 = selection.get('source_sha256') if isinstance(selection, dict) else None
-    return has_selected_source_checkpoint(str(root), str(script_path), selected_sha256)
+    return has_selected_source_checkpoint(
+        str(root), str(script_path), _get_prepared_text_sha256(root))
+
+
+def get_fenced_recovery_status(root):
+    """The cast-change recovery decision, under the caller's book lock.
+
+    A worker checkpoint is written before the first manifest, so this must not
+    depend on a manifest being present. The marker is only ever set alongside a
+    recovery candidate and only cleared by a fresh run, so its presence is the
+    single conservative decision every recovery surface shares: Start over is
+    the cure. Reading never repairs, resumes or deletes checkpoint/manifest/cast.
+    """
+    if is_script_recovery_cast_invalidated(root):
+        return get_recovery_fence_status()
+    return None
 
 
 def get_stale_recovery_state(root, cast_sha256):

@@ -1,4 +1,5 @@
 """Stale-Retry fencing with null, absent and proven cast baselines."""
+import asyncio
 import contextlib
 import hashlib
 import json
@@ -14,7 +15,8 @@ import core
 from generate_script import LLMGenParams
 from routers import script
 from script_recovery_guard import (RECOVERY_CAST_INVALIDATED, RECOVERY_CAST_INVALIDATED_DETAIL,
-                                   get_stale_recovery_state, is_script_recovery_cast_invalidated)
+                                   get_recovery_fence_status, get_stale_recovery_state,
+                                   is_script_recovery_cast_invalidated)
 from tests.test_script_recovery import SOURCE, _write_failed_run
 from three_pass_generate import (_save_three_pass_checkpoint, run_three_pass,
                                   three_pass_checkpoint_path, three_pass_fingerprint,
@@ -160,6 +162,75 @@ class RecoveryCastBaselineTests(unittest.TestCase):
             self.assertEqual([], scheduled)
             self.assertEqual(checkpoint_bytes, checkpoint.read_bytes())
             self.assertFalse(manifest.exists())
+
+    def test_checkpoint_before_manifest_surfaces_fence_on_every_recovery_surface(self):
+        with self.fixture() as (root, script_path, source, scheduled):
+            checkpoint, manifest = self._write_worker_first_checkpoint(script_path)
+            self._fence(root, 'a' * 64)
+            cast_path = Path(script.get_run_cast_path())
+            pair = (checkpoint, manifest, cast_path)
+            before = {path: path.read_bytes() if path.exists() else None for path in pair}
+            expected = get_recovery_fence_status()
+            self.assertEqual(expected, script.ensure_script_recovery_response(include_detail=True))
+            self.assertEqual(expected, asyncio.run(script.generate_script_recovery_detail()))
+            for act in (lambda: script.apply_manual_recovery([], 'skip'),
+                        lambda: script.apply_manual_recovery([], 'inject')):
+                with self.assertRaises(HTTPException) as caught:
+                    act()
+                self.assertEqual(409, caught.exception.status_code)
+                self.assertEqual(RECOVERY_CAST_INVALIDATED_DETAIL, caught.exception.detail)
+            with self.assertRaises(HTTPException) as caught:
+                self._attempt_retry(root, source)
+            self.assertEqual(409, caught.exception.status_code)
+            self.assertEqual(RECOVERY_CAST_INVALIDATED_DETAIL, caught.exception.detail)
+            self.assertEqual([], scheduled)
+            self.assertEqual(before,
+                             {path: path.read_bytes() if path.exists() else None for path in pair})
+
+    def test_prepared_source_bytes_keep_the_cast_change_recovery_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script_path = Path(_write_failed_run(tmp))
+            source = root / 'book.txt'
+            # The worker decodes, normalizes CRLF and strips front matter before
+            # it fingerprints the text, so a normal upload's prepared bytes
+            # differ from its raw upload digest for the very same book.
+            raw = ('Publisher front matter\r\n\r\n'
+                   + SOURCE.replace('\n', '\r\n')).encode('utf-8')
+            source.write_bytes(raw)
+            state = json.loads((root / 'state.json').read_text())
+            state['input_file_path'] = str(source)
+            state['script_generation_input_file'] = str(source)
+            state['script_generation_options'] = {'strip_front_matter': True}
+            atomic_json_write(state, root / 'state.json')
+            from merge_integrity import get_prepared_source
+            from project_scope_source import get_scope_source_snapshot
+            from source_encoding import get_decoded_source_text, get_normalized_source_newlines
+            snapshot, prepared = get_scope_source_snapshot(state)
+            raw_digest = hashlib.sha256(raw).hexdigest()
+            self.assertNotEqual(raw_digest, snapshot['prepared_text_sha256'])
+            self.assertNotEqual(raw, prepared.encode('utf-8'))
+            decoded, _encoding = get_decoded_source_text(raw)
+            worker_text = get_prepared_source(get_normalized_source_newlines(decoded), True)
+            self.assertEqual(hashlib.sha256(worker_text.encode('utf-8')).hexdigest(),
+                             snapshot['prepared_text_sha256'])
+            state['script_generation_selection'] = {'source_sha256': raw_digest}
+            atomic_json_write(state, root / 'state.json')
+            checkpoint = Path(three_pass_checkpoint_path(str(script_path)))
+            manifest = Path(three_pass_manifest_path(str(script_path)))
+            checkpoint.unlink(missing_ok=True)
+            manifest.unlink(missing_ok=True)
+            _save_three_pass_checkpoint(
+                str(script_path), three_pass_fingerprint(prepared, 'fixture-model', 1000),
+                'segment', [{'type': 'NARRATOR', 'text': 'Chapter one.'}], 1, [], [])
+            pair = (checkpoint, manifest)
+            before = {path: path.read_bytes() if path.exists() else None for path in pair}
+            flagged = get_stale_recovery_state(str(root), 'a' * 64)
+            self.assertIsNotNone(flagged)
+            self.assertEqual('a' * 64,
+                             flagged[RECOVERY_CAST_INVALIDATED]['approved_cast_sha256'])
+            self.assertEqual(before,
+                             {path: path.read_bytes() if path.exists() else None for path in pair})
 
     def test_no_checkpoint_and_different_source_are_not_fenced(self):
         with self.fixture() as (root, script_path, source, scheduled):

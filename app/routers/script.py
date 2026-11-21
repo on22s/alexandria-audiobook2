@@ -1,6 +1,6 @@
 from book_state_transaction import ensure_saved_book_state
 from script_recovery_guard import (RECOVERY_CAST_INVALIDATED, RECOVERY_CAST_INVALIDATED_DETAIL,
-                                   get_recovery_fence_status, is_script_recovery_cast_invalidated)
+                                   get_fenced_recovery_status, is_script_recovery_cast_invalidated)
 from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
@@ -2713,6 +2713,18 @@ def ensure_script_recovery_manifest():
         return get_script_recovery_manifest()
 
 
+def get_locked_recovery_fence():
+    """The single cast-change recovery decision, under the book/checkpoint guard.
+
+    Callers outside an existing critical section use this so status, detail,
+    Retry, Skip and Inject all decide from the same snapshot. A worker checkpoint
+    precedes its manifest, so the decision never depends on a manifest existing.
+    Reading only: checkpoint, manifest and cast stay intact for inspection.
+    """
+    with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+        return get_fenced_recovery_status(DATA_DIR)
+
+
 def completed_script_prefix(checkpoint):
     """The entries a running three-pass has fully finished (all three passes),
     in order, stopping at the first one that has not - the snapshot #600
@@ -2863,7 +2875,11 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                             require_recovery: bool = False):
     """Queue the one production generation command, optionally from a checkpoint."""
     require_whole_source_generation(safe_load_json(os.path.join(DATA_DIR, 'state.json'), {}))
-    if require_recovery and ensure_script_recovery_manifest() is None:
+    # A fenced worker checkpoint has no manifest yet. Let it reach the locked
+    # cast-change decision below so Retry surfaces Start Over instead of a
+    # misleading "no recovery available" refusal.
+    if (require_recovery and ensure_script_recovery_manifest() is None
+            and not is_script_recovery_cast_invalidated(DATA_DIR)):
         raise AppError(409, 'No failed or incomplete three-pass generation is available to resume.', key='error.generation.no_recovery')
     check_global_gpu_lock("script")
     try:
@@ -2904,7 +2920,7 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             # fenced here under the same book/checkpoint admission. An explicit
             # Start Over discards progress and a truly new baseline has no
             # checkpoint, so neither is blocked and both still clear the marker.
-            if (require_recovery or resumes_checkpoint) and is_script_recovery_cast_invalidated(DATA_DIR):
+            if (require_recovery or resumes_checkpoint) and get_fenced_recovery_status(DATA_DIR) is not None:
                 raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
             if require_recovery:
                 stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
@@ -3052,11 +3068,14 @@ async def generate_script(background_tasks: BackgroundTasks,
 def ensure_script_recovery_response(include_detail=False):
     """Read metadata and optional failed-unit detail under one book guard."""
     with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+        # A fenced run may have only a worker checkpoint (no manifest yet), so
+        # the cast-change decision comes first and keeps its Start Over result.
+        fenced = get_fenced_recovery_status(DATA_DIR)
+        if fenced is not None:
+            return fenced
         manifest = get_script_recovery_manifest()
         if manifest is None:
             return {"recoverable": False}
-        if is_script_recovery_cast_invalidated(DATA_DIR):
-            return get_recovery_fence_status()
         failures = manifest.get("diagnostic_failures") or []
         response = {
             "recoverable": True,
@@ -3196,7 +3215,7 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
     default-instruct rows, which are validated and stored in off mode even for
     a directed run; an injected row always uses the failed run's direction."""
     with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
-        if is_script_recovery_cast_invalidated(DATA_DIR):
+        if get_fenced_recovery_status(DATA_DIR) is not None:
             raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
         if is_task_running("script", process_state):
             raise HTTPException(status_code=409, detail="Script generation is running.")
@@ -3298,6 +3317,8 @@ class SkipChunkRequest(BaseModel):
 def _require_failed_unit(chunk):
     checkpoint = ensure_failed_checkpoint()
     if checkpoint is None:
+        if get_locked_recovery_fence() is not None:
+            raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
         raise HTTPException(status_code=409,
                             detail="No failed generation unit is waiting for recovery.")
     failed = checkpoint["failed"]
@@ -3312,7 +3333,8 @@ async def generate_script_recovery_detail():
     """The failed chunk in full: attempts, source, prompt, retry profile."""
     checkpoint = await asyncio.to_thread(ensure_failed_checkpoint)
     if checkpoint is None:
-        return {"recoverable": False}
+        fenced = await asyncio.to_thread(get_locked_recovery_fence)
+        return fenced if fenced is not None else {"recoverable": False}
     return {"recoverable": True, **build_recovery_detail(checkpoint)}
 
 

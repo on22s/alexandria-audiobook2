@@ -11413,10 +11413,12 @@
   , "test_recovery_cast_baseline": [
     "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_absent_baseline_fails_closed_with_valid_legacy_tokens"
     , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_castless_approved_cast_is_not_a_change"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_checkpoint_before_manifest_surfaces_fence_on_every_recovery_surface"
     , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_loader_fence_refuses_real_cli_without_publication_or_alteration"
     , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_no_checkpoint_and_different_source_are_not_fenced"
     , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_normal_recovery_after_start_over_clears_the_fence"
     , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_null_baseline_fails_closed_with_valid_legacy_tokens"
+    , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_prepared_source_bytes_keep_the_cast_change_recovery_state"
     , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_proven_unchanged_cast_keeps_a_legitimate_retry"
     , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_recovery_get_retry_skip_and_inject_all_report_the_fence"
     , "tests.test_recovery_cast_baseline.RecoveryCastBaselineTests.test_worker_first_checkpoint_without_manifest_survives_approval_and_undo"
@@ -13107,6 +13109,7 @@
   ]
   , "test_script_recovery_response": [
     "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_corrupt_checkpoint_fails_detail_without_hiding_metadata_or_editing_evidence"
+    , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_fenced_recovery_surfaces_server_detail_and_start_over"
     , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_legacy_retry_confirmation_ui_requires_explicit_choice"
     , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_legacy_retry_requires_current_explicit_confirmation_and_keeps_saved_options"
     , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_native_recovery_renderer_leads_with_choices_and_retains_diagnostics"
