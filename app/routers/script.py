@@ -137,6 +137,7 @@ from core import (
     _markdown_heads_up_lines,
     _markdown_stats_table,
     _new_review_totals,
+    _review_is_incomplete,
     _pause_task,
     _require_safe_filename,
     _resume_task,
@@ -4121,8 +4122,7 @@ def _start_batch_review(request, background_tasks):
                     # or hit a VRAM abort with no recorded summary. Treat as
                     # incomplete rather than silently calling it "done".
                     state["tasks"][i]["status"] = "incomplete"
-                elif (stats.get("batches_failed", 0) > 0 or
-                      stats.get("batches_skipped_vram", 0) > 0):
+                elif _review_is_incomplete(stats):
                     # The reviewer bailed out early to avoid an OOM; entries past the
                     # abort point or failed batches were left unreviewed, and a checkpoint
                     # may remain on disk for a future resume. Don't report this book as done.
@@ -4219,7 +4219,13 @@ def _start_batch_review(request, background_tasks):
             state["logs"].append(f"Wrote batch review report: {os.path.relpath(report_path, ROOT_DIR)}")
 
         state["running"] = False
-        state["logs"].append("Batch review finished.")
+        incomplete_count = sum(1 for task in state["tasks"] if task.get("status") == "incomplete")
+        if incomplete_count:
+            state["logs"].append(
+                f"Batch review finished with {incomplete_count} incomplete "
+                f"book(s); re-run those reviews to finish them.")
+        else:
+            state["logs"].append("Batch review finished.")
 
     destinations = [os.path.join(SCRIPTS_DIR, f"{secure_filename(name)}.json")
                     for name in names if secure_filename(name)]

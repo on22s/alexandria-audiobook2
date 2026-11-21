@@ -2900,19 +2900,32 @@ def main():
 
     output_entries = all_corrected + unreviewed_remainder
     output_entries = retain_literal_policy(output_entries, literal_policy)
+    output_bytes = json.dumps(output_entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
 
     if not review_complete:
         accounting = save_checkpoint(output_path, len(batch_lengths), total_batches, batch_size,
                         args.context_window, all_corrected, total_stats, previous_tail,
                         batch_lengths, failed_batches, source_sha256,
                         _entries_fingerprint(output_entries), writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
+    checkpoint_saved = os.path.exists(_checkpoint_path(output_path))
 
+    # An incomplete review never publishes: the resumable checkpoint holds the
+    # completed work, while the script, bindings, voice settings, alias registry
+    # and audio stay exactly as they were. Explicit --output keeps its legacy
+    # behaviour of always receiving the assembled entries.
+    if not review_complete and (active_review or saved_review):
+        ensure_review_not_cancelled()
+        print("\nReview is incomplete: the script, voice settings and audio were left unchanged.")
+        if checkpoint_saved:
+            print("Resume the review to apply the completed batches.")
+        else:
+            print("No resumable checkpoint was saved; re-run the review from the start.")
     # Keep active script identity and old chunks in the same recoverable commit.
-    if active_review:
+    elif active_review:
         from script_selection_binding import publish_controlled_script_edit
         ensure_review_not_cancelled()
         moved = publish_controlled_script_edit(data_dir, original_script_bytes,
-            json.dumps(output_entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8'),
+            output_bytes,
             voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
             remap_voice_config=_remapped_voice_config, registry_staging=registry_staging,
             expected_source_identity=review_source_identity)
@@ -2922,7 +2935,7 @@ def main():
         from script_selection_binding import publish_saved_script_edit
         ensure_review_not_cancelled()
         moved = publish_saved_script_edit(data_dir, saved_dir, output_path, original_script_bytes,
-            json.dumps(output_entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8'),
+            output_bytes,
             voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
             remap_voice_config=_remapped_voice_config, registry_staging=registry_staging,
             expected_source_identity=review_source_identity)

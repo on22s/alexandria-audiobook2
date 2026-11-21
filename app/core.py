@@ -1342,7 +1342,7 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
             if task_name == "review":
                 stats = _extract_review_stats(state["logs"])
                 failures = _extract_failed_sections(state["logs"])
-                if stats is None or stats.get("batches_failed") or stats.get("batches_skipped_vram"):
+                if _review_is_incomplete(stats):
                     if "status" in state: state["status"] = "incomplete"
                 if stats is None:
                     completion_note = (
@@ -1350,7 +1350,12 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
                         "Review completion could not be verified; re-run the review."
                     )
                 if stats:
-                    if stats.get("batches_failed"):
+                    if stats.get("review_incomplete") and not (stats.get("batches_failed") or stats.get("batches_skipped_vram")):
+                        completion_note = (
+                            f"Task {task_name} stopped early before all entries were reviewed. "
+                            "Re-run to resume from its checkpoint when one is available."
+                        )
+                    elif stats.get("batches_failed"):
                         disposition = (
                             "The original entries were preserved" if failures.get("original_entries_preserved")
                             else "Source-bound partial label edits were retained; unresolved sections still need review"
@@ -1879,7 +1884,7 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             cancel_directory.cleanup()
 
 
-_REVIEW_ENTRIES_RE = re.compile(r'Review (?:complete|incomplete):\s*(\d+)\s*->\s*(\d+)\s*entries')
+_REVIEW_ENTRIES_RE = re.compile(r'Review (complete|incomplete):\s*(\d+)\s*->\s*(\d+)\s*entries')
 _REVIEW_SUMMARY_PATTERNS = {
     "text_changed": re.compile(r'Text changed:\s*(\d+)'),
     "speaker_changed": re.compile(r'Speaker changed:\s*(\d+)'),
@@ -1907,7 +1912,22 @@ def _new_review_totals() -> dict:
     totals = {key: 0 for key in _REVIEW_SUMMARY_PATTERNS}
     totals["books_done"] = 0
     totals['accounting_unverified'] = False
+    totals["review_incomplete"] = False
     return totals
+
+
+def _review_is_incomplete(stats: Optional[dict]) -> bool:
+    """Read the producer's completion marker, falling back to old counter-only output.
+
+    A VRAM abort after the batches (e.g. while deduplicating) leaves both
+    counters at zero, so the marker is authoritative when present. Older stats
+    and persisted batch state may lack it and still rely on the counters.
+    """
+    if not stats:
+        return True
+    if stats.get("review_incomplete"):
+        return True
+    return bool(stats.get("batches_failed") or stats.get("batches_skipped_vram"))
 
 
 def _extract_review_stats(lines: List[str]) -> Optional[dict]:
@@ -1918,8 +1938,9 @@ def _extract_review_stats(lines: List[str]) -> Optional[dict]:
     if not entries_match:
         return None
     stats = {key: 0 for key in _REVIEW_SUMMARY_PATTERNS}
-    stats["entries_before"] = int(entries_match.group(1))
-    stats["entries_after"] = int(entries_match.group(2))
+    stats["review_incomplete"] = entries_match.group(1) == "incomplete"
+    stats["entries_before"] = int(entries_match.group(2))
+    stats["entries_after"] = int(entries_match.group(3))
     for line in lines:
         if line.startswith('REVIEW_ACCOUNTING_JSON: '):
             try:
@@ -1953,6 +1974,7 @@ def _combine_pass_stats(*stat_dicts: Optional[dict]) -> dict:
     combined = {key: 0 for key in _REVIEW_SUMMARY_PATTERNS}
     combined["partial"] = False
     combined['accounting_unverified'] = False
+    combined["review_incomplete"] = False
     for stats in stat_dicts:
         if not stats:
             combined["partial"] = True
@@ -1962,6 +1984,8 @@ def _combine_pass_stats(*stat_dicts: Optional[dict]) -> dict:
         combined['partial'] = combined['partial'] or bool(stats.get('partial'))
         combined['accounting_unverified'] = (combined['accounting_unverified']
                                             or bool(stats.get('accounting_unverified')))
+        combined["review_incomplete"] = (combined["review_incomplete"]
+                                          or _review_is_incomplete(stats))
     combined['accounting_warning'] = get_review_accounting_warning(combined)
     return combined
 
@@ -2116,6 +2140,8 @@ def _format_book_summary(i: int, total: int, tag: str, name: str, stats: dict) -
         bits.append(f"{stats['batches_failed']} batch(es) failed")
     if stats["batches_skipped_vram"]:
         bits.append(f"{stats['batches_skipped_vram']} batch(es) skipped (VRAM)")
+    if stats.get("review_incomplete"):
+        bits.append("review incomplete")
     if get_review_accounting_warning(stats):
         bits.append(get_review_accounting_warning(stats))
     return f">>> [{i+1}/{total}]{tag} '{name}' done: {', '.join(bits)} <<<"
@@ -2483,7 +2509,7 @@ def _get_deterministic_review_summary(stats: dict, incomplete: bool) -> str:
             details.append(f"{failed} section(s) failed")
         if skipped:
             details.append(f"{skipped} section(s) were skipped for VRAM safety")
-        reason = "; ".join(details) or "some work did not finish"
+        reason = "; ".join(details) or "the review stopped before all entries were reviewed"
         return (
             f"This review was incomplete: {reason}. Completed sections reported "
             f"{total_changes} change(s). Check the warnings below before generating audio."
@@ -2544,6 +2570,10 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
         intro += ["", f"**Note:** this script was only partially reviewed — the GPU ran low "
                        f"on memory and {stats['batches_skipped_vram']} section(s) were skipped. "
                        "Re-run the review to finish the rest."]
+    elif stats.get("review_incomplete"):
+        intro += ["", "**Note:** this script was only partially reviewed — the review stopped "
+                      "before all entries were checked. Re-run to resume from its checkpoint "
+                      "when one is available."]
 
     lines = list(intro)
     if _has_partial_review_labels(failures):
@@ -2571,7 +2601,7 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
         lines += _markdown_failed_sections_lines(failures)
         lines += density_lines
 
-    incomplete = bool(stats.get("batches_failed") or stats.get("batches_skipped_vram"))
+    incomplete = _review_is_incomplete(stats)
     lines = _insert_llm_summary(lines, len(intro), stats, incomplete=incomplete)
 
     try:

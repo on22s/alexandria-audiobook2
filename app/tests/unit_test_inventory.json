@@ -12522,7 +12522,12 @@
     , "tests.test_review_narrator_correction.ReviewNarratorCorrectionTests.test_review_labels_do_not_turn_quote_heuristics_into_attribution_locks"
   ]
   , "test_review_partial_retention": [
-    "tests.test_review_partial_retention.PartialPublicationTests.test_actual_saved_partial_resume_keeps_existing_input_policy_without_stale_change_stats"
+    "tests.test_review_partial_retention.CompletionMarkerTests.test_complete_summary_and_old_stats_fallback"
+    , "tests.test_review_partial_retention.CompletionMarkerTests.test_zero_counter_incomplete_summary_marks_status_and_report"
+    , "tests.test_review_partial_retention.IncompletePublicationTests.test_active_incomplete_keeps_bytes_and_resume_publishes"
+    , "tests.test_review_partial_retention.IncompletePublicationTests.test_old_checkpoint_still_resumes"
+    , "tests.test_review_partial_retention.IncompletePublicationTests.test_saved_incomplete_keeps_bytes_and_resume_publishes"
+    , "tests.test_review_partial_retention.PartialPublicationTests.test_actual_saved_partial_resume_keeps_existing_input_policy_without_stale_change_stats"
     , "tests.test_review_partial_retention.PartialPublicationTests.test_benchmark_local_and_remote_report_partial_quality_without_extra_model_attempt"
     , "tests.test_review_partial_retention.PartialPublicationTests.test_contextual_and_concurrent_partial_artifacts_keep_failure_no_seal_and_batch_local_status"
     , "tests.test_review_partial_retention.PartialPublicationTests.test_parent_preserves_original_fallback_and_complete_report_behavior"
