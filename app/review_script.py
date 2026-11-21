@@ -48,7 +48,9 @@ from review_prompts import (REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT,
 from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_object
 from literal_policy import (get_literal_policy, get_literal_policy_identity,
                             ensure_literal_narration, retain_literal_policy,
-                            get_word_identity, is_literal_marker_lineage, SCRIPT_POLICY_KEY)
+                            get_word_identity, get_scope_coverage_digest,
+                            get_scope_coverage_intervals, is_scope_cut_proof,
+                            is_literal_marker_lineage, SCRIPT_POLICY_KEY)
 from literal_fidelity import audit_literal_words, iter_literal_words
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
                                get_current_status, get_effective_max_tokens)
@@ -1584,8 +1586,37 @@ def is_review_literal_source(text, policy):
             and get_word_identity([selected]) == policy['source_words'])
 
 
-def _retained_parent_rows(scope, entries, parent_entries, parent_policy, active_policy):
-    """Exact parent suffix selected by recorded scope evidence, not child text."""
+def get_review_scope_coverage(text, entries):
+    """Ordered raw-interval coverage of scoped rows, invariant under splits."""
+    spans = []
+    position = 0
+    while position < len(entries):
+        entry = entries[position]
+        span = _get_scoped_row_span(entry, len(text))
+        stop = position + 1
+        while stop < len(entries) and entries[stop].get('source_span') == entry['source_span']:
+            stop += 1
+        group = entries[position:stop]
+        if len(group) > 1:
+            texts = [row['text'] for row in group]
+            try:
+                spans.extend(get_source_span_fragments(text, ' '.join(texts), list(span), texts))
+            except SourceSpanError as error:
+                raise ValueError('Scoped row intervals do not partition') from error
+        else:
+            spans.append(list(span))
+        position = stop
+    return get_scope_coverage_intervals(text, spans)
+
+
+def _retained_parent_rows(text, scope, entries, parent_entries, parent_policy, active_policy):
+    """Select the unique native parent suffix, then bind exact raw coverage.
+
+    The cut comes from the recorded boundary or word-count inference over the
+    parent alone; child text never selects the cut. Verification compares the
+    merged raw intervals, so a legitimate split or merge is accepted but an
+    inserted excluded row cannot borrow the retained region's authority.
+    """
     if active_policy == parent_policy:
         retained = parent_entries
     else:
@@ -1601,16 +1632,13 @@ def _retained_parent_rows(scope, entries, parent_entries, parent_policy, active_
                 if cursor == scope['start_word']:
                     cuts.append(index)
                 cursor += count
-        matching = [cut for cut in dict.fromkeys(cuts) if type(cut) is int
-                    and 0 <= cut < len(parent_entries)
-                    and [row['text'] for row in parent_entries[cut:]]
-                    == [row['text'] for row in entries]]
-        if len(matching) != 1:
+        cuts = [cut for cut in dict.fromkeys(cuts) if type(cut) is int
+                and 0 <= cut < len(parent_entries)]
+        if len(cuts) != 1:
             raise ValueError('Retained parent cut is not uniquely evidenced')
-        retained = parent_entries[matching[0]:]
-    if (len(retained) != len(entries)
-            or any(original['text'] != row['text']
-                   for original, row in zip(retained, entries))):
+        retained = parent_entries[cuts[0]:]
+    expected = get_review_scope_coverage(text, get_review_source_entries(retained, text))
+    if get_review_scope_coverage(text, entries) != expected:
         raise ValueError('Scoped rows do not match the verified parent partition')
     return retained
 
@@ -1660,26 +1688,50 @@ def _get_scoped_row_span(entry, source_length):
 
 
 def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=None):
-    """Bind inherited row spans to ordered words in the selected suffix."""
+    """Bind inherited row spans to ordered words and the verified retained cut."""
+    import hashlib
     scope = policy['scope_source']
     words = list(iter_literal_words(text))
     if scope['total_words'] != len(words) or scope['end_word'] != len(words):
         raise ValueError('Scoped source word count differs')
     expected = words[scope['start_word']:]
     spans = [_get_scoped_row_span(entry, len(text)) for entry in entries]
-    retained = None
-    if parent_entries is not None:
-        retained = _retained_parent_rows(
-            scope, entries, parent_entries, get_literal_policy(parent_entries), policy)
-    leading = _retained_leading_region(text, scope, entries) if retained is None else None
+    coverage = get_review_scope_coverage(text, entries)
+    proof = scope.get('cut_proof')
+    leading = None
+    if proof is not None:
+        if not is_scope_cut_proof(proof):
+            raise ValueError('Scope cut proof is malformed')
+        if (proof['source_sha256'] != hashlib.sha256(text.encode('utf-8')).hexdigest()
+                or proof['start_word'] != scope['start_word']
+                or get_scope_coverage_digest(coverage) != proof['coverage_sha256']):
+            raise ValueError('Scoped rows do not cover the verified retained source intervals')
+        if (('input_sha256' in proof) != ('input_sha256' in policy)
+                or (policy.get('input_sha256') is not None
+                    and proof.get('input_sha256') != policy['input_sha256'])):
+            raise ValueError('Scope cut proof root identity differs')
+        if parent_entries is not None:
+            parent_policy = get_literal_policy(parent_entries)
+            if parent_policy is None:
+                raise ValueError('Scope cut proof parent identity differs')
+            if (parent_policy != policy
+                    and proof['parent_policy_sha256'] != get_literal_policy_identity(parent_policy)):
+                raise ValueError('Scope cut proof parent identity differs')
+            parent_spans = [_get_scoped_row_span(row, len(text))
+                            for row in get_review_source_entries(parent_entries, text)]
+            if any(not any(a <= start and end <= b for a, b in parent_spans)
+                   for start, end in spans):
+                raise ValueError('Scoped rows exceed the verified parent partition')
+    else:
+        if parent_entries is not None:
+            _retained_parent_rows(text, scope, entries, parent_entries,
+                                  get_literal_policy(parent_entries), policy)
+        else:
+            leading = _retained_leading_region(text, scope, entries)
     first_word = next((position for position, item in enumerate(entries)
                        if any(True for _ in iter_literal_words(item['text']))), len(entries))
     cursor = 0
     for index, (entry, span) in enumerate(zip(entries, spans)):
-        if retained is not None:
-            parent_span = _get_scoped_row_span(retained[index], len(text))
-            if not (parent_span[0] <= span[0] and span[1] <= parent_span[1]):
-                raise ValueError('Scoped row span is outside the parent retained partition')
         if (leading is not None and index < first_word
                 and not (leading[0] <= span[0] and span[1] <= leading[1])):
             raise ValueError('Leading row span is outside the retained sequence')

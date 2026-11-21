@@ -17,12 +17,16 @@ from generate_script import get_preprocessed_source
 import literal_fidelity
 from literal_fidelity import _words, iter_literal_words
 from literal_policy import (SCRIPT_POLICY_KEY, bind_literal_chunks, bind_literal_policy,
-                            get_literal_policy, get_literal_policy_identity, get_word_identity)
+                            get_literal_policy, get_literal_policy_identity, get_word_identity,
+                            get_scope_coverage_digest, is_scope_cut_proof)
 from project import group_into_chunks
+from project_scope_apply import apply_source_scope
 from project_scope_literal import get_literal_scope
 from project_scope_partition import get_scope_partition
+from project_scope_plan import get_scope_preview
+from project_scope_admission import ensure_scope_admission
 import review_script as review
-from script_selection_binding import make_script_selection_binding
+from script_selection_binding import BINDING_NAME, make_script_selection_binding
 from tests.test_pass_boundary_retry_regressions import client_for
 from tests.test_review_source_binding import row
 from tests.test_review_source_spans import create_book
@@ -1049,3 +1053,185 @@ class CutEvidenceTests(unittest.TestCase):
                                              active_rows=child)[0])
                     saved = self.publish(directory, script, child, expected=True)
                     self.assertEqual([22, 23], saved[0]['source_span'])
+
+
+class ScopeCutProofTests(unittest.TestCase):
+    """The recorded cut is proven by native raw coverage, never by the child."""
+
+    def setUp(self):
+        self.cut = CutEvidenceTests()
+
+    def build_child(self, raw, parent, parent_chunks, start, digest):
+        cut = get_scope_partition(parent, parent_chunks, start)['chunk_start']
+        return get_literal_scope(raw, parent, parent_chunks, start, cut,
+                                 input_sha256=digest)
+
+    def parents(self, raw, whole, chunks, scoped, digest):
+        for parent, parent_chunks, start, label in (
+                (whole, chunks, 3, 'whole'), (scoped, chunks[1:], 2, 'scoped')):
+            yield parent, parent_chunks, start, label, self.build_child(
+                raw, parent, parent_chunks, start, digest)
+
+    def forged(self, parent, start, child, mode):
+        entries = copy.deepcopy(child)
+        scope = entries[0][SCRIPT_POLICY_KEY]['scope_source']
+        extra = copy.deepcopy(parent[start - 1])
+        extra[SCRIPT_POLICY_KEY] = entries[0].pop(SCRIPT_POLICY_KEY)
+        entries.insert(0, extra)
+        if mode == 'cut':
+            scope['script_start_entry'] = start - 1
+        elif mode == 'legacy':
+            scope.pop('script_start_entry', None)
+        return entries
+
+    def test_forged_cut_cannot_publish_an_excluded_mark(self):
+        raw, whole, chunks, scoped = self.cut.build()
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        for parent, _chunks, start, label, child in self.parents(
+                raw, whole, chunks, scoped, digest):
+            for mode in ('cut', 'legacy', 'plain'):
+                with self.subTest(parent=label, mode=mode), tempfile.TemporaryDirectory() as directory:
+                    entries = self.forged(parent, start, child, mode)
+                    script, _, _ = make_saved_hop(
+                        directory, raw=raw, original_rows=parent, active_rows=entries)
+                    self.assertIsNone(review.get_review_source_text(
+                        directory, str(script), script.read_bytes(), entries))
+                    self.cut.publish(directory, script, entries, expected=False)
+
+    def test_direct_forged_cut_cannot_publish_an_excluded_mark(self):
+        raw, whole, chunks, scoped = self.cut.build()
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        _parent, _chunks, start, _label, child = next(self.parents(
+            raw, whole, chunks, scoped, digest))
+        entries = self.forged(whole, start, child, 'cut')
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, _ = create_book(directory, raw=raw, source=entries)
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+            self.cut.publish(directory, script, entries, expected=False)
+
+    def test_valid_split_reuses_the_receipt_without_calls(self):
+        raw, whole, chunks, scoped = self.cut.build()
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        for parent, _chunks, _start, label, child in self.parents(
+                raw, whole, chunks, scoped, digest):
+            with self.subTest(parent=label), tempfile.TemporaryDirectory() as directory:
+                script, _, _ = make_saved_hop(
+                    directory, raw=raw, original_rows=parent, active_rows=child)
+                saved, _out, _calls, _changed = run_cli_at(
+                    directory, script, [self.cut.split(child)])
+                self.assertIn(NEW_SPEAKER, [entry['speaker'] for entry in saved])
+                self.assertEqual(raw, review.get_review_source_text(
+                    directory, str(script), script.read_bytes(), saved))
+                replay, output, calls, changed = run_cli_at(directory, script, [])
+                self.assertIn('No changes since the completed review', output)
+                self.assertEqual([], calls)
+                self.assertFalse(changed)
+                self.assertEqual(saved, replay)
+
+    def test_zero_gap_retained_mark_publishes_and_reuses(self):
+        raw, whole, chunks, scoped = self.cut.build(gap='')
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        for parent, parent_chunks, start, label, child in self.parents(
+                raw, whole, chunks, scoped, digest):
+            self.assertEqual([22, 23], child[0]['source_span'])
+            with self.subTest(parent=label), tempfile.TemporaryDirectory() as directory:
+                script, _, _ = make_saved_hop(
+                    directory, raw=raw, original_rows=parent, active_rows=child)
+                saved = self.cut.publish(directory, script, child, expected=True)
+                self.assertEqual([22, 23], saved[0]['source_span'])
+                replay, output, calls, _changed = run_cli_at(directory, script, [])
+                self.assertIn('No changes since the completed review', output)
+                self.assertEqual([], calls)
+                self.assertEqual(saved, replay)
+
+    def test_malformed_proof_is_refused_without_downgrade(self):
+        raw, whole, chunks, scoped = self.cut.build()
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        _parent, _chunks, _start, _label, child = next(self.parents(
+            raw, whole, chunks, scoped, digest))
+        proof = child[0][SCRIPT_POLICY_KEY]['scope_source']['cut_proof']
+        self.assertEqual(1, proof['version'])
+        variants = {}
+        stale = copy.deepcopy(child)
+        stale[0][SCRIPT_POLICY_KEY]['scope_source']['cut_proof']['coverage_sha256'] = '0' * 64
+        variants['stale_coverage'] = stale
+        shifted = copy.deepcopy(child)
+        shifted[0][SCRIPT_POLICY_KEY]['scope_source']['cut_proof']['intervals'][0][0] -= 1
+        variants['shifted_interval'] = shifted
+        future = copy.deepcopy(child)
+        future[0][SCRIPT_POLICY_KEY]['scope_source']['cut_proof']['version'] = 2
+        variants['future_version'] = future
+        extra = copy.deepcopy(child)
+        extra[0][SCRIPT_POLICY_KEY]['scope_source']['cut_proof']['unexpected'] = True
+        variants['extra_field'] = extra
+        for name, entries in variants.items():
+            with self.subTest(mutation=name), tempfile.TemporaryDirectory() as directory:
+                script, _, _ = create_book(directory, raw=raw, source=entries)
+                self.assertIsNone(review.get_review_source_text(
+                    directory, str(script), script.read_bytes(), entries))
+        downgraded = copy.deepcopy(child)
+        del downgraded[0][SCRIPT_POLICY_KEY]['scope_source']['cut_proof']
+        with tempfile.TemporaryDirectory() as directory:
+            script, source, _ = create_book(directory, raw=raw, source=child)
+            script.write_bytes(json.dumps(downgraded).encode('utf-8'))
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(script), script.read_bytes(), downgraded))
+
+    def test_coverage_digest_is_invariant_under_a_valid_split(self):
+        raw, whole, chunks, scoped = self.cut.build()
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        _parent, _chunks, _start, _label, child = next(self.parents(
+            raw, whole, chunks, scoped, digest))
+        proof = child[0][SCRIPT_POLICY_KEY]['scope_source']['cut_proof']
+        bound, quality = review.get_review_source_binding(
+            child, self.cut.split(child), source_text=raw)
+        self.assertTrue(quality['passed'])
+        self.assertIsNotNone(bound)
+        resolved = review.get_review_source_entries(copy.deepcopy(bound), raw)
+        coverage = review.get_review_scope_coverage(raw, resolved)
+        self.assertEqual(proof['coverage_sha256'], get_scope_coverage_digest(coverage))
+
+    def test_real_scope_apply_persists_the_proof_and_review_still_captures_source(self):
+        rows = [row(text, 'NARRATOR', instruct='Even.')
+                for text in ('Intro.', 'Exclude me', 'Keep the line.', 'Afterward.')]
+        raw = '\n\n'.join(entry['text'] for entry in rows)
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        script = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
+        chunks = bind_literal_chunks(
+            [dict(entry, id=index, uid=f'u{index}', status='pending', audio_path=None)
+             for index, entry in enumerate(group_into_chunks(script))],
+            get_literal_policy(script))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source.txt'
+            source.write_text(raw, encoding='utf-8')
+            state = {'active_book_id': 'fixture', 'book_generation': 'g1',
+                     'input_file_path': str(source)}
+            for name, data in (('state.json', state), ('annotated_script.json', script),
+                               ('voice_config.json', {}), ('chunks.json', chunks)):
+                (root / name).write_text(json.dumps(data), encoding='utf-8')
+            path = root / 'annotated_script.json'
+            binding = make_script_selection_binding(
+                get_book_operation_token(directory), digest, path.read_bytes(),
+                source_path=str(source))
+            (root / BINDING_NAME).write_text(json.dumps(binding), encoding='utf-8')
+            with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                    ensure_scope_admission(root):
+                plan = get_scope_preview(root, 1)
+                self.assertTrue(is_scope_cut_proof(plan['selected_script'][0][
+                    SCRIPT_POLICY_KEY]['scope_source']['cut_proof']))
+                apply_source_scope(root, 1, plan['revision'])
+            applied = json.loads(path.read_bytes())
+            proof = applied[0][SCRIPT_POLICY_KEY]['scope_source']['cut_proof']
+            self.assertTrue(is_scope_cut_proof(proof))
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(path), path.read_bytes(), applied))
+            with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                    ensure_scope_admission(root):
+                from project_scope_apply import apply_source_scope_undo
+                from project_scope_apply import get_source_scope_undo_preview
+                undo = get_source_scope_undo_preview(root)
+                apply_source_scope_undo(root, undo['revision'])
+            self.assertEqual(script, json.loads(path.read_bytes()))
+

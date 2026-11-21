@@ -36,6 +36,66 @@ def is_literal_word_identity(value):
             and re.fullmatch(r'[0-9a-f]{64}', value['sha256']) is not None)
 
 
+def get_scope_coverage_intervals(text, spans):
+    """Merge ordered, verified raw spans into significant coverage intervals.
+
+    A split introduces a separator gap where the parent row held one inline, so
+    whitespace-only gaps are bridged. Non-whitespace gaps stay distinct, which
+    keeps an inserted excluded row outside the verified retained coverage.
+    """
+    merged = []
+    for span in spans:
+        if (not isinstance(span, (list, tuple)) or len(span) != 2
+                or any(type(value) is not int for value in span)
+                or span[0] < 0 or span[0] >= span[1] or span[1] > len(text)):
+            raise ValueError('Scope coverage requires ordered raw intervals')
+        start, end = span
+        if merged and (start <= merged[-1][1] or not text[merged[-1][1]:start].strip()):
+            if end > merged[-1][1]:
+                merged[-1][1] = end
+        else:
+            merged.append([start, end])
+    if not merged:
+        raise ValueError('Scope coverage requires at least one raw interval')
+    return merged
+
+
+def get_scope_coverage_digest(intervals):
+    """Content-free digest of the ordered retained raw intervals."""
+    return hashlib.sha256(json.dumps(intervals, separators=(',', ':')).encode('utf-8')).hexdigest()
+
+
+def is_scope_cut_proof(value):
+    """Strict, versioned retained-cut coverage proof (no unsafe downgrade)."""
+    if not isinstance(value, dict):
+        return False
+    required = {'version', 'source_sha256', 'parent_policy_sha256',
+                'start_word', 'intervals', 'coverage_sha256'}
+    if not required <= set(value) or set(value) - (required | {'input_sha256'}):
+        return False
+    if type(value['version']) is not int or value['version'] != 1:
+        return False
+    if any(not isinstance(value[key], str) or not re.fullmatch(r'[0-9a-f]{64}', value[key])
+           for key in ('source_sha256', 'parent_policy_sha256', 'coverage_sha256')):
+        return False
+    if ('input_sha256' in value and (not isinstance(value['input_sha256'], str)
+            or not re.fullmatch(r'[0-9a-f]{64}', value['input_sha256']))):
+        return False
+    if type(value['start_word']) is not int or value['start_word'] < 0:
+        return False
+    intervals = value['intervals']
+    if not isinstance(intervals, list) or not intervals or len(intervals) > 1_000_000:
+        return False
+    previous = 0
+    for interval in intervals:
+        if (not isinstance(interval, list) or len(interval) != 2
+                or any(type(value) is not int for value in interval)
+                or interval[0] < previous or interval[0] >= interval[1]):
+            return False
+        previous = interval[1]
+    return get_scope_coverage_digest(intervals) == value['coverage_sha256']
+
+
 def is_literal_chunk_marker(marker):
     """Shape emitted by bind_literal_chunks; ancestor digests stay valid."""
     return (isinstance(marker, dict)
@@ -88,9 +148,11 @@ def get_literal_policy(entries):
         if (not isinstance(scope, dict) or not {'parent_policy_sha256',
                 'prepared_source_sha256', 'start_word', 'end_word', 'total_words'} <= set(scope)
                 or set(scope) - {'parent_policy_sha256', 'prepared_source_sha256',
-                                 'start_word', 'end_word', 'total_words', 'script_start_entry'}
-                or any(not isinstance(scope[key], str) or not re.fullmatch(r'[0-9a-f]{64}', scope[key])
-                       for key in ('parent_policy_sha256', 'prepared_source_sha256'))
+                                 'start_word', 'end_word', 'total_words', 'script_start_entry',
+                                 'cut_proof'}
+                 or ('cut_proof' in scope and not is_scope_cut_proof(scope['cut_proof']))
+                 or any(not isinstance(scope[key], str) or not re.fullmatch(r'[0-9a-f]{64}', scope[key])
+                        for key in ('parent_policy_sha256', 'prepared_source_sha256'))
                 or any(type(scope[key]) is not int for key in ('start_word','end_word','total_words'))
                 or ('script_start_entry' in scope
                     and (type(scope['script_start_entry']) is not int
