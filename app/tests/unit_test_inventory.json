@@ -12483,6 +12483,16 @@
     , "tests.test_review_partial_retention.IncompletePublicationTests.test_old_checkpoint_still_resumes"
     , "tests.test_review_partial_retention.IncompletePublicationTests.test_saved_incomplete_keeps_bytes_and_resume_publishes"
   ]
+  , "test_review_followup_2222_more": [
+    "tests.test_review_followup_2222_more.MarkerAndBoundaryTests.test_explicit_complete_marker_beats_historical_counters"
+    , "tests.test_review_followup_2222_more.MarkerAndBoundaryTests.test_in_wave_skip_counts_source_rows"
+    , "tests.test_review_followup_2222_more.MarkerAndBoundaryTests.test_legacy_boundary_survives_abort_and_resume"
+    , "tests.test_review_followup_2222_more.MarkerAndBoundaryTests.test_mixed_two_book_aggregate_separates_final_check_aborts"
+    , "tests.test_review_followup_2222_more.NotificationOutcomeJsTests.test_incomplete_has_distinct_notification_outcome"
+    , "tests.test_review_partial_retention.IncompletePublicationTests.test_active_incomplete_keeps_bytes_and_resume_publishes"
+    , "tests.test_review_partial_retention.IncompletePublicationTests.test_old_checkpoint_still_resumes"
+    , "tests.test_review_partial_retention.IncompletePublicationTests.test_saved_incomplete_keeps_bytes_and_resume_publishes"
+  ]
   , "test_review_force_js": [
     "tests.test_review_force_js.ReviewForceJsTests.test_all_review_handlers_forward_checkbox"
   ]
@@ -12578,8 +12588,8 @@
     , "tests.test_review_partial_retention.TypedMetadataMergeTests.test_matching_bool_spoken_values_merge_and_keep_bool"
   ]
   , "test_review_pass_direction": [
-    "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_clean_forward_keeps_checkpoint_but_still_marks_backward_child"
-    , "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_failed_forward_clears_checkpoint_and_marks_backward_child"
+    "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_clean_forward_preserves_checkpoint_and_marks_backward_child"
+    , "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_failed_forward_preserves_checkpoint_and_skips_backward_child"
     , "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_single_direction_review_keeps_default_behaviour"
     , "tests.test_review_pass_direction.ReviewPassIdentityTests.test_backward_fingerprint_is_distinct_from_forward"
     , "tests.test_review_pass_direction.ReviewPassIdentityTests.test_forward_and_default_fingerprint_match_main"

@@ -939,6 +939,8 @@
   "core.notify.enabled": "Notifications enabled",
   "core.notify.failed-body": "Open Alexandria to review the activity log and your recovery options.",
   "core.notify.finished-body": "Switch back to Alexandria to see the results.",
+  "core.notify.incomplete-body": "Some entries were left unreviewed. Re-run the review to finish them.",
+  "core.notify.incomplete-title": "{task} review incomplete",
   "core.notify.request-failed": "Could not request notifications. Check this site’s browser permissions and try again.",
   "core.notify.requesting": "Requesting notifications…",
   "core.notify.status-default": "Optional: receive desktop updates when tasks finish.",

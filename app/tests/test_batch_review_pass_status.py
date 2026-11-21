@@ -18,8 +18,8 @@ CLEAN = ['Review complete: 2 -> 2 entries', 'Total changes: 0']
 class BatchReviewPassStatusTests(unittest.TestCase):
     def test_actual_batch_route_and_report_keep_both_passes_completion_requirements(self):
         cases = (
-            ('forward_failed_batches', True, 0, CLEAN + ['Batches failed: 1'], 0, CLEAN, False, 'incomplete'),
-            ('forward_vram_abort', True, 0, CLEAN + ['Batches skipped (low GPU VRAM): 1'], 0, CLEAN, False, 'incomplete'),
+            ('forward_failed_batches', True, 0, ['Review incomplete: 2 -> 2 entries', 'Batches failed: 1'], 0, CLEAN, False, 'incomplete'),
+            ('forward_vram_abort', True, 0, ['Review incomplete: 2 -> 2 entries', 'Batches skipped (low GPU VRAM): 1'], 0, CLEAN, False, 'incomplete'),
             ('forward_process_failed', True, 1, ['fixture reviewer crashed'], 0, CLEAN, False, 'failed'),
             ('forward_fatal_marker', False, 1,
              ['REVIEW_FAILURE_JSON: {"message": "Checkpoint write failed: disk full", '

@@ -822,6 +822,7 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
         "source_offsets": list(source_offsets) if source_offsets is not None else
                           [(index + 1) * batch_size for index in range(completed_batches)],
     }
+    data["accepted_source_offset"] = data["source_offsets"][-1] if data["source_offsets"] else 0
     if literal_policy is not None:
         data["literal_source_policy"] = literal_policy
     updated_accounting = None
@@ -889,8 +890,11 @@ def get_review_resume_source_offsets(checkpoint, entries, batch_size, input_sha2
             consumed += length
             offsets.append(consumed)
         return offsets
-    # Legacy output checkpoints lack per-batch lengths; the whole corrected
-    # prefix is still established, although its earlier split points are not.
+    # Legacy output checkpoints lack per-batch lengths; the persisted accepted
+    # boundary is independent of that optional field.
+    accepted = checkpoint.get("accepted_source_offset")
+    if type(accepted) is int and 0 <= accepted <= len(entries):
+        return [min(accepted, (index + 1) * batch_size) for index in range(count - 1)] + [accepted] if count else []
     corrected_count = len(checkpoint["all_corrected"])
     offsets = [min(corrected_count, (index + 1) * batch_size) for index in range(count)]
     if offsets:
@@ -921,9 +925,12 @@ def _load_resume_state(output_path, total_batches_estimate, batch_size, context_
         completed_batches = checkpoint["completed_batches"]
         all_corrected = checkpoint["all_corrected"]
         total_stats = checkpoint["total_stats"]
-        # Skip counts describe the run that wrote the checkpoint; they must not
-        # brand a later, successful resume as incomplete.
+        # Failure and skip counts describe the run that wrote the checkpoint;
+        # the failing batches are rewound for retry and must not brand a later,
+        # successful resume as incomplete.
         total_stats["batches_skipped_vram"] = 0
+        total_stats["batches_failed"] = 0
+        total_stats["unreviewed_rows"] = 0
         previous_tail = checkpoint["previous_tail"]
         batch_lengths = checkpoint["batch_lengths"]
         failed_batches = checkpoint["failed_batches"]
@@ -2532,6 +2539,7 @@ def main():
         "entries_removed": 0,
         "batches_failed": 0,
         "batches_skipped_vram": 0,
+        "unreviewed_rows": 0,
     }
     review_windows = get_review_entry_windows(entries, generation_config)
     total_batches_estimate = len(review_windows)
@@ -2777,6 +2785,7 @@ def main():
             for i, (start, end), batch, result in zip(wave_indices, wave_windows, wave_batches, wave_results):
                 source_offsets.append(end)
                 if result == "VRAM_SKIP":
+                    total_stats["unreviewed_rows"] += len(batch)
                     # Keep the skipped batch at its original position even if
                     # concurrent workers acquired the VRAM lock out of order.
                     all_corrected.extend(batch)
@@ -2876,6 +2885,7 @@ def main():
                 skipped_count = sum(1 for result in wave_results if result == "VRAM_SKIP")
                 for remaining in remaining_batches[wave_start + len(wave_batches):]:
                     unreviewed_remainder.extend(remaining)
+                    total_stats["unreviewed_rows"] += len(remaining)
                     skipped_count += 1
                 total_stats["batches_skipped_vram"] = skipped_count
                 vram_aborted = True
@@ -2942,7 +2952,7 @@ def main():
     checkpoint_saved = (get_verified_checkpoint(
         output_path, receipt_fingerprint, source_sha256, output_sha256)
         if not review_complete else None)
-    unreviewed_entries = len(unreviewed_remainder)
+    unreviewed_entries = total_stats.get("unreviewed_rows", len(unreviewed_remainder))
     post_processing_abort = bool(vram_aborted and not failed_batches and not unreviewed_entries)
     publication_withheld = not review_complete and (active_review or saved_review)
 
@@ -3014,6 +3024,7 @@ def main():
         'incomplete': not review_complete,
         'unreviewed_entries': unreviewed_entries,
         'post_processing_abort': post_processing_abort,
+        'final_check_aborted': post_processing_abort,
         'publication_withheld': publication_withheld,
         'resumable_checkpoint': checkpoint_saved is not None})
     warning = get_review_accounting_warning({'accounting_unverified': accounting_unverified})

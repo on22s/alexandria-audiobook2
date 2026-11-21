@@ -105,15 +105,10 @@ class BidirectionalCheckpointTests(unittest.TestCase):
                 if phase == 'fwd':
                     write_stale_checkpoint()
                     return fwd_rc, (CLEAN if fwd_rc == 0 else ['fixture reviewer crashed'])
-                if fwd_rc == 0:
-                    # A cleanly completed forward pass keeps its checkpoint so
-                    # a crash in this backward pass could resume from it.
-                    self.assertTrue(checkpoint.exists())
-                else:
-                    # The backward child must start fresh: the stale forward
-                    # checkpoint has to be gone before it is launched.
-                    self.assertFalse(checkpoint.exists(),
-                                     'backward pass resumed a stale forward checkpoint')
+                # Direction identity is bound in the child fingerprint; the
+                # parent must never delete a checkpoint an ordinary retry can
+                # validate.
+                self.assertTrue(checkpoint.exists())
                 return 0, CLEAN
 
             app = FastAPI()
@@ -144,19 +139,19 @@ class BidirectionalCheckpointTests(unittest.TestCase):
             self.assertEqual(original, book.read_text())
             return clear_calls, seen_flags, [str(book)]
 
-    def test_failed_forward_clears_checkpoint_and_marks_backward_child(self):
+    def test_failed_forward_preserves_checkpoint_and_skips_backward_child(self):
         clear_calls, seen_flags, paths = self._run_batch(bidirectional=True, fwd_rc=1)
-        self.assertEqual(paths + paths, clear_calls)
-        self.assertEqual([('fwd', False, False), ('bwd', True, True)], seen_flags)
+        self.assertEqual([], clear_calls)
+        self.assertEqual([('fwd', False, False)], seen_flags)
 
-    def test_clean_forward_keeps_checkpoint_but_still_marks_backward_child(self):
+    def test_clean_forward_preserves_checkpoint_and_marks_backward_child(self):
         clear_calls, seen_flags, paths = self._run_batch(bidirectional=True, fwd_rc=0)
-        self.assertEqual(paths, clear_calls)
+        self.assertEqual([], clear_calls)
         self.assertEqual([('fwd', False, False), ('bwd', True, True)], seen_flags)
 
     def test_single_direction_review_keeps_default_behaviour(self):
         clear_calls, seen_flags, paths = self._run_batch(bidirectional=False, fwd_rc=1)
-        self.assertEqual(paths, clear_calls)
+        self.assertEqual([], clear_calls)
         self.assertEqual([('fwd', False, False)], seen_flags)
 
 

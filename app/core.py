@@ -1365,7 +1365,7 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
                                   "No resumable checkpoint was verified; re-run the review.")
                         completion_note = (
                             f"Task {task_name} stopped early: {stage}. {disposition} {resume}")
-                    elif stats.get("batches_failed"):
+                    elif _review_is_incomplete(stats) and stats.get("batches_failed"):
                         disposition = (
                             "The original entries were preserved" if failures.get("original_entries_preserved")
                             else "Source-bound partial label edits were retained; unresolved sections still need review"
@@ -1376,7 +1376,7 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
                             f"section(s) could not be reviewed. {disposition}; "
                             f"see the report for exact ranges and retry guidance."
                         )
-                    elif stats.get("batches_skipped_vram"):
+                    elif _review_is_incomplete(stats) and stats.get("batches_skipped_vram"):
                         completion_note = (
                             f"Task {task_name} completed, but {stats['batches_skipped_vram']} "
                             f"section(s) were skipped because the GPU ran low on memory. "
@@ -1583,6 +1583,8 @@ def _run_history_final_status(state, task_name, error):
     """
     if error is not None or state.get("status") == "failed":
         return "failed"
+    if task_name == 'script' and state.get('_script_published_cleanup_stop'):
+        return 'completed'
     if state.get("cancel") or state.get("status") in ("cancelled", "canceled"):
         return "cancelled"
     children = state.get("tasks")
@@ -1594,8 +1596,6 @@ def _run_history_final_status(state, task_name, error):
             return "incomplete"
     if state.get("status") in ("incomplete", "partial"):
         return "incomplete"
-    if task_name == 'script' and state.get('_script_published_cleanup_stop'):
-        return 'completed'
     return "completed"
 
 
@@ -1942,8 +1942,10 @@ def _new_review_totals() -> dict:
     totals["books_done"] = 0
     totals['accounting_unverified'] = False
     totals["review_incomplete"] = False
+    totals["review_complete"] = False
     totals["unreviewed_entries"] = 0
     totals["post_processing_abort"] = False
+    totals["final_check_aborted"] = 0
     totals["publication_withheld"] = False
     totals["resumable_checkpoint"] = False
     return totals
@@ -1958,6 +1960,8 @@ def _review_is_incomplete(stats: Optional[dict]) -> bool:
     """
     if not stats:
         return True
+    if stats.get("review_complete") and not stats.get("review_incomplete"):
+        return False
     if stats.get("review_incomplete"):
         return True
     return bool(stats.get("batches_failed") or stats.get("batches_skipped_vram"))
@@ -1972,10 +1976,12 @@ def _extract_review_stats(lines: List[str]) -> Optional[dict]:
         return None
     stats = {key: 0 for key in _REVIEW_SUMMARY_PATTERNS}
     stats["review_incomplete"] = entries_match.group(1) == "incomplete"
+    stats["review_complete"] = entries_match.group(1) == "complete"
     stats["entries_before"] = int(entries_match.group(2))
     stats["entries_after"] = int(entries_match.group(3))
     stats["unreviewed_entries"] = 0
     stats["post_processing_abort"] = False
+    stats["final_check_aborted"] = 0
     stats["publication_withheld"] = False
     stats["resumable_checkpoint"] = False
     for line in lines:
@@ -1989,6 +1995,7 @@ def _extract_review_stats(lines: List[str]) -> Optional[dict]:
                 for key in ('post_processing_abort', 'publication_withheld', 'resumable_checkpoint'):
                     if type(disposition.get(key)) is bool:
                         stats[key] = disposition[key]
+                stats['final_check_aborted'] = int(stats['post_processing_abort'])
             except (ValueError, KeyError, TypeError):
                 logger.warning('Malformed review disposition summary; using counters only.')
         if line.startswith('REVIEW_ACCOUNTING_JSON: '):
@@ -2024,8 +2031,10 @@ def _combine_pass_stats(*stat_dicts: Optional[dict]) -> dict:
     combined["partial"] = False
     combined['accounting_unverified'] = False
     combined["review_incomplete"] = False
+    combined["review_complete"] = False
     combined["unreviewed_entries"] = 0
     combined["post_processing_abort"] = False
+    combined["final_check_aborted"] = 0
     combined["publication_withheld"] = False
     combined["resumable_checkpoint"] = False
     for stats in stat_dicts:
@@ -2039,9 +2048,11 @@ def _combine_pass_stats(*stat_dicts: Optional[dict]) -> dict:
                                             or bool(stats.get('accounting_unverified')))
         combined["review_incomplete"] = (combined["review_incomplete"]
                                           or _review_is_incomplete(stats))
+        combined["review_complete"] = combined["review_complete"] or bool(stats.get("review_complete"))
         combined["unreviewed_entries"] += stats.get("unreviewed_entries") or 0
         for key in ("post_processing_abort", "publication_withheld", "resumable_checkpoint"):
             combined[key] = combined[key] or bool(stats.get(key))
+        combined["final_check_aborted"] += int(stats.get("final_check_aborted") or 0)
     combined['accounting_warning'] = get_review_accounting_warning(combined)
     return combined
 
@@ -2223,6 +2234,8 @@ def _format_pass_summary(label: str, totals: dict, aliases: List[dict], show_ali
             lines.append("  Review incomplete: all rows reviewed; final checks stopped")
         else:
             lines.append(f"  Review incomplete: {totals.get('unreviewed_entries', 0)} unreviewed entries")
+    if totals.get("final_check_aborted"):
+        lines.append(f"  Final checks stopped for {totals['final_check_aborted']} book(s); unreviewed rows: {totals.get('unreviewed_entries', 0)}")
     if get_review_accounting_warning(totals):
         lines.append('  ' + get_review_accounting_warning(totals))
     if show_aliases:
