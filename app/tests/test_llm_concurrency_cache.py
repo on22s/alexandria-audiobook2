@@ -209,9 +209,12 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
                 self._assert_no_config_write(write)
 
     def test_cache_hit_fetches_status_when_caller_has_not_supplied_it(self):
+        profile = {"base_url": "http://remote:1234/v1", "model_name": "model",
+                   "api_key": "sk-unused-fixture",
+                   "provider_headers": {"Authorization": "Token configured-fixture"}}
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "config.json")
-            path.write_text("{}")
+            path.write_text(json.dumps({"llm_mode": "remote", "llm_remote": profile}))
             current = {"available": True, "parallel": 2, "context_length": 8192,
                        "runtime": "llama.cpp"}
             with patch.object(llm_bench.lmstudio_settings, "get_remote_gpu_name_and_backend",
@@ -230,7 +233,46 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
                     str(path), "remote", "http://remote:1234/v1", "model",
                     object(), ssh_alias="test-host")
             self.assertEqual(2, got)
-            status.assert_called_once_with("remote", "http://remote:1234/v1", "model", ssh_alias="test-host", api_key=None)
+            status.assert_called_once()
+            probe = status.call_args.kwargs
+            self.assertEqual("sk-unused-fixture", probe["api_key"])
+            self.assertEqual("Token configured-fixture", probe["authorization"])
+            self.assertEqual("Token configured-fixture",
+                llm_bench.get_effective_authorization(probe["llm_config"]),
+                "the cached probe must still use the bound profile's credential")
+            bench.assert_not_called()
+
+    def test_status_credentials_follow_the_bound_run_profile(self):
+        config = {"llm_mode": "remote", "llm_remote": {
+            "base_url": "http://remote:1234/v1", "model_name": "model",
+            "api_key": "sk-unused-fixture",
+            "provider_headers": {"Authorization": "Token config-fixture"}}}
+        bound = {**config["llm_remote"],
+                 "provider_headers": {"Authorization": "Token bound-fixture"}}
+        current = {"available": True, "parallel": 2, "context_length": 8192,
+                   "runtime": "llama.cpp"}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "config.json")
+            path.write_text(json.dumps(config))
+            with patch.object(llm_bench.lmstudio_settings, "get_remote_gpu_name_and_backend",
+                              return_value=("fixture", "fixture")), \
+                 patch.object(llm_bench, "find_optimal_concurrency", side_effect=_valid_find(2)):
+                llm_bench.ensure_cached_or_benchmarked_concurrency(
+                    str(path), "remote", "http://remote:1234/v1", "model", object(),
+                    ssh_alias="test-host", status=current)
+            with patch.object(llm_bench.lmstudio_settings, "get_current_status",
+                              return_value=current) as status, \
+                 patch.object(llm_bench.lmstudio_settings, "get_remote_lmstudio_status", return_value=current), \
+                 patch.object(llm_bench.lmstudio_settings, "get_remote_gpu_name_and_backend",
+                              return_value=("fixture", "fixture")), \
+                 patch.object(llm_bench, "find_optimal_concurrency") as bench:
+                got = llm_bench.ensure_cached_or_benchmarked_concurrency(
+                    str(path), "remote", "http://remote:1234/v1", "model", object(),
+                    ssh_alias="test-host", llm_config=bound)
+            self.assertEqual(2, got)
+            status.assert_called_once_with("remote", "http://remote:1234/v1", "model",
+                ssh_alias="test-host", api_key="sk-unused-fixture",
+                authorization="Token bound-fixture", llm_config=bound)
             bench.assert_not_called()
 
     def test_cache_miss_still_benchmarks_with_both_limits_and_persists_result(self):

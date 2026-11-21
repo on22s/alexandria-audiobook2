@@ -12,6 +12,7 @@ Setup tab has been wrong on every load since the project moved to llama.cpp.
 """
 import io
 import json
+import os
 import unittest
 import urllib.error
 from unittest.mock import patch
@@ -31,8 +32,8 @@ PROPS = {
 
 
 def fake_props(payload):
-    """Patch urlopen to serve `payload` from /props, or raise if payload None."""
-    def opener(url, timeout=None):
+    """Serve `payload` from the shared no-redirect probe transport."""
+    def opener(request, timeout=None):
         if payload is None:
             raise OSError("connection refused")
         body = json.dumps(payload).encode()
@@ -56,7 +57,7 @@ class LlamaCppStatusTests(unittest.TestCase):
             ls._props_miss.clear()
 
     def _status(self, payload, model="qwen3-14b"):
-        with patch("urllib.request.urlopen", fake_props(payload)):
+        with patch.object(ls, 'open_no_redirect', fake_props(payload)):
             return ls.get_llama_cpp_status("http://127.0.0.1:8090/v1", model)
 
     def test_a_loaded_model_is_reported_as_loaded(self):
@@ -65,6 +66,21 @@ class LlamaCppStatusTests(unittest.TestCase):
         self.assertEqual(32768, status["context_length"])
         self.assertEqual(1, status["parallel"])
         self.assertEqual("llama.cpp", status["runtime"])
+
+    def test_props_request_uses_explicit_header_or_bearer_with_same_precedence(self):
+        seen = []
+        def opener(request, timeout=None):
+            seen.append((request.full_url, request.headers.get('Authorization')))
+            return _Ctx(json.dumps(PROPS).encode())
+        with patch.object(ls, 'open_no_redirect', opener):
+            status = ls.get_llama_cpp_status("http://127.0.0.1:8090/v1", "qwen3-14b",
+                api_key="sk-unused-fixture", authorization="Token configured-fixture")
+            self.assertTrue(status["loaded"])
+            ls.get_llama_cpp_status("http://127.0.0.1:8090/v1", "qwen3-14b",
+                api_key="fixture-key")
+        self.assertEqual([("http://127.0.0.1:8090/props", "Token configured-fixture"),
+                          ("http://127.0.0.1:8090/props", "Bearer fixture-key")], seen,
+                         "an explicit header must win; an unused key must not become a bearer")
 
     def test_optimized_is_none_not_false(self):
         """llama.cpp is configured at launch and has no reload settings.
@@ -87,23 +103,23 @@ class LlamaCppStatusTests(unittest.TestCase):
         one user's proxy capture (2026-09-17). One miss per URL per TTL."""
         calls = []
 
-        def counting(url, timeout=None):
-            calls.append(url)
-            raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
-        with patch("urllib.request.urlopen", counting):
+        def counting(request, timeout=None):
+            calls.append(request.full_url)
+            raise urllib.error.HTTPError(request.full_url, 404, "Not Found", {}, None)
+        with patch.object(ls, 'open_no_redirect', counting):
             for _ in range(5):
                 self.assertIsNone(ls.get_llama_cpp_status("http://127.0.0.1:3001/v1", "m"))
         self.assertEqual(1, len(calls), calls)
 
     def test_a_remembered_miss_expires_and_a_real_server_is_seen_again(self):
-        with patch("urllib.request.urlopen", side_effect=urllib.error.HTTPError(
+        with patch.object(ls, 'open_no_redirect', side_effect=urllib.error.HTTPError(
                 "http://127.0.0.1:8090/props", 404, "Not Found", {}, None)):
             self.assertIsNone(ls.get_llama_cpp_status("http://127.0.0.1:8090/v1", "qwen3-14b"))
         with ls._props_miss_lock:
-            ls._props_miss["http://127.0.0.1:8090"] -= ls.PROPS_MISS_TTL_SECONDS + 1
+            ls._props_miss[ls._props_miss_key("http://127.0.0.1:8090")] -= ls.PROPS_MISS_TTL_SECONDS + 1
         self.assertTrue(self._status(PROPS)["loaded"])
         with ls._props_miss_lock:
-            self.assertNotIn("http://127.0.0.1:8090", ls._props_miss)
+            self.assertNotIn(ls._props_miss_key("http://127.0.0.1:8090"), ls._props_miss)
 
     def test_a_server_running_the_wrong_model_is_not_loaded(self):
         # Scoring a run against a model nobody meant to use is the failure
@@ -133,12 +149,12 @@ class LlamaCppStatusTests(unittest.TestCase):
                 return super().read(size)
 
         response = Response(body)
-        with patch('urllib.request.urlopen', return_value=response):
+        with patch.object(ls, 'open_no_redirect', return_value=response):
             status = ls.get_llama_cpp_status('http://fixture/v1', 'qwen3-14b')
         self.assertIsNone(status)
         self.assertEqual([limit + 1], sizes)
         self.assertEqual(limit + 1, response.tell())
-        self.assertNotIn('http://fixture', ls._props_miss)
+        self.assertFalse(any(key[0] == 'http://fixture' for key in ls._props_miss))
 
     def test_props_accepts_exact_limit_and_rejects_one_byte_over(self):
         limit = 1 << 20
@@ -146,21 +162,105 @@ class LlamaCppStatusTests(unittest.TestCase):
         for length in (limit - 1, limit, limit + 1):
             with self.subTest(length=length):
                 response = _Ctx(document + b' ' * (length - len(document)))
-                with patch('urllib.request.urlopen', return_value=response):
+                with patch.object(ls, 'open_no_redirect', return_value=response):
                     status = ls.get_llama_cpp_status('http://fixture/v1', 'qwen3-14b')
                 if length <= limit:
                     self.assertTrue(status['loaded'])
                 else:
                     self.assertIsNone(status)
-                self.assertNotIn('http://fixture', ls._props_miss)
+                self.assertFalse(any(key[0] == 'http://fixture' for key in ls._props_miss))
 
     def test_oversized_props_can_recover_without_poisoning_runtime_cache(self):
         document = json.dumps(PROPS).encode()
         replies = [_Ctx(document + b' ' * (1 << 20)), _Ctx(document)]
-        with patch('urllib.request.urlopen', side_effect=replies) as probe:
+        with patch.object(ls, 'open_no_redirect', side_effect=replies) as probe:
             self.assertIsNone(ls.get_llama_cpp_status('http://fixture/v1', 'qwen3-14b'))
             self.assertTrue(ls.get_llama_cpp_status('http://fixture/v1', 'qwen3-14b')['loaded'])
         self.assertEqual(2, probe.call_count)
+
+
+    def test_resolved_opaque_env_header_is_sent_verbatim_by_probes(self):
+        from llm_provider import get_effective_authorization
+        profile = {"base_url": "https://hosted.invalid/v1",
+                   "provider_headers": {"Authorization": "env:AA2_OPAQUE_FIXTURE"}}
+        with patch.dict(os.environ,
+                        {"AA2_OPAQUE_FIXTURE": "env:opaque-secret-fixture"}, clear=True):
+            effective = get_effective_authorization(profile)
+            seen = []
+            def probe(sent, timeout=None):
+                seen.append(sent.headers.get('Authorization'))
+                return _Ctx(json.dumps(PROPS).encode())
+            with patch.object(ls, 'open_no_redirect', probe):
+                self.assertTrue(ls.get_llama_cpp_status(
+                    'http://fixture/v1', 'qwen3-14b', authorization=effective)['loaded'])
+        self.assertEqual(['env:opaque-secret-fixture'], seen)
+
+    def test_unset_env_reference_sends_no_props_authorization(self):
+        seen = []
+        def probe(sent, timeout=None):
+            seen.append(sent.headers.get('Authorization'))
+            return _Ctx(json.dumps(PROPS).encode())
+        with patch.dict(os.environ, {}, clear=True), \
+                patch.object(ls, 'open_no_redirect', probe):
+            status = ls.get_llama_cpp_status(
+                'http://fixture/v1', 'qwen3-14b', api_key='env:AA2_UNSET_FIXTURE')
+            self.assertTrue(ls.get_llama_cpp_status(
+                'http://other/v1', 'qwen3-14b',
+                authorization='${AA2_UNSET_FIXTURE}')['loaded'])
+        self.assertTrue(status['loaded'])
+        self.assertEqual([None, None], seen)
+
+    def test_authenticated_props_uses_no_redirect_transport_and_accepts_valid_response(self):
+        import urllib.request
+        from lmstudio_endpoint import _NoNativeRedirects, open_no_redirect
+        request = urllib.request.Request(
+            'http://fixture/props', headers={'Authorization': 'Token configured-fixture'})
+        handler = _NoNativeRedirects()
+        self.assertIsNone(handler.redirect_request(
+            request, None, 302, 'Found', {}, 'http://elsewhere.invalid/props'),
+            'a probe must never carry its credential across a redirect')
+        captured = {}
+        class FakeOpener:
+            def open(self, sent, timeout=None):
+                captured['request'] = sent
+                return _Ctx(json.dumps(PROPS).encode())
+        def fake_build(installed):
+            captured['handler'] = installed
+            return FakeOpener()
+        with patch('lmstudio_endpoint.build_opener', fake_build):
+            open_no_redirect(request, timeout=3)
+        self.assertIsInstance(captured['handler'], _NoNativeRedirects)
+        self.assertIs(captured['request'], request)
+        seen = []
+        def probe(sent, timeout=None):
+            seen.append((sent.full_url, sent.headers.get('Authorization')))
+            return _Ctx(json.dumps(PROPS).encode())
+        with patch.object(ls, 'open_no_redirect', probe):
+            status = ls.get_llama_cpp_status(
+                'http://fixture/v1', 'qwen3-14b',
+                authorization='Token configured-fixture')
+        self.assertTrue(status['loaded'])
+        self.assertEqual([('http://fixture/props', 'Token configured-fixture')], seen)
+
+    def test_props_miss_scope_is_origin_plus_credential_digest(self):
+        attempts = []
+        def refusing(sent, timeout=None):
+            attempts.append(sent.full_url)
+            raise urllib.error.HTTPError(sent.full_url, 404, 'Not Found', {}, None)
+        with patch.object(ls, 'open_no_redirect', refusing):
+            for _ in range(2):
+                self.assertIsNone(ls.get_llama_cpp_status(
+                    'http://fixture/v1', 'm', authorization='Token first-fixture'))
+        self.assertEqual(1, len(attempts),
+                         'the same credential and origin must reuse the miss')
+        with patch.object(ls, 'open_no_redirect', return_value=_Ctx(json.dumps(PROPS).encode())):
+            status = ls.get_llama_cpp_status(
+                'http://fixture/v1', 'qwen3-14b', authorization='Token second-fixture')
+            self.assertTrue(status['loaded'])
+            self.assertTrue(ls.get_llama_cpp_status('http://other/v1', 'm') is None
+                            or ls.get_llama_cpp_status('http://other/v1', 'qwen3-14b'))
+        for secret in ('first-fixture', 'second-fixture'):
+            self.assertNotIn(secret, repr(ls._props_miss))
 
 
 class DispatchTests(unittest.TestCase):

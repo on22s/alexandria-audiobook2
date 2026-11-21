@@ -1,5 +1,5 @@
 from book_state_transaction import ensure_saved_book_state
-from script_recovery_guard import (RECOVERY_CAST_INVALIDATED, RECOVERY_CAST_INVALIDATED_DETAIL,
+from script_recovery_guard import (RECOVERY_CAST_INVALIDATED,
                                    get_fenced_recovery_status, is_script_recovery_cast_invalidated)
 from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
@@ -46,7 +46,7 @@ from speaker_identity import get_saveable_alias_graph
 from alias_registry_apply import alias_registry_admission
 from diagnostics import redact_text
 from llm_provider import (MANUAL_DATA_DIR_ENV, manual_llm_dir, is_manual_request_owner_alive,
-                          read_manual_pending_locked)
+                          get_effective_authorization, read_manual_pending_locked)
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
 from generation_checkpoint_shards import (get_generation_checkpoint_artifacts,
                                            remove_generation_shard_checkpoint)
@@ -2744,7 +2744,12 @@ def get_recovery_admission():
 
 def _refuse_cast_invalidated_recovery():
     """The one 409 for every admission point that refuses a fenced run."""
-    raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
+    raise AppError(
+        409,
+        'The approved cast changed since this run started, so it cannot resume; '
+        'start a new run. The saved checkpoint was preserved.',
+        key='script.recovery.cast-changed-detail',
+    )
 
 
 def completed_script_prefix(checkpoint):
@@ -4856,7 +4861,8 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             llm = get_active_llm_config(config)
             _, _, settings_message = ensure_ideal_settings(
                 config.get("llm_mode", "local"), llm.get("base_url", ""),
-                llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+                llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"),
+                authorization=get_effective_authorization(llm), llm_config=llm)
             state["logs"].append(f"Batch LM Studio preflight: {settings_message}")
             workers, worst, context = _get_batch_script_workers(jobs)
             state["workers"] = workers
@@ -5172,7 +5178,8 @@ def start_delivery_retry(background_tasks, request):
             model = llm.get("model_name", "")
             _, status, message = ensure_ideal_settings(
                 config.get("llm_mode", "local"), llm.get("base_url", "http://localhost:1234/v1"),
-                model, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+                model, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"),
+                authorization=get_effective_authorization(llm), llm_config=llm)
             state["logs"].append(message)
             check_cancel()
             generation_settings = resolve_three_pass_generation_settings(config)

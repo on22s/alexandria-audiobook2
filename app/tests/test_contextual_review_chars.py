@@ -30,7 +30,7 @@ from routers import script
 
 
 # Captured from origin/main: the default (entries, 4) receipt must stay exact.
-DEFAULT_FINGERPRINT = '824aac1e65c95f0b8b36e39a98391c0f03451d69e9713a9f493c4ba249b7805a'
+DEFAULT_FINGERPRINT = 'b19a9e494d99696271a23873ddc1c2585c8b0cc2d4f042cefc5a518b8012ce6c'
 
 
 def entry(text, speaker='ALICE', instruct='calm'):

@@ -594,7 +594,6 @@
   "core.editor.suggest-gap-action": "推荐间隔",
   "core.editor.suggest-gap-title": "可选的间隔建议；使用精确的 NARRATOR 说话人标签。明确停顿不会被替换。",
   "core.editor.text-line": "第 {line} 行的文本",
-  "core.editor.update-failed": "无法更新分块",
   "core.editor.voice-change": "声音在此变化：从这一行起，该角色听起来不同（时间跳跃、变老）",
   "core.eta.unavailable": "状态不可用——任务可能仍在运行",
   "core.eta.with-elapsed": "{label}（已运行 {elapsed}）",
@@ -6517,5 +6516,13 @@
   "script.review.context-mode.aria.entries": "当前按条目数计量上下文。激活可切换为按字符数。",
   "script.review.context-mode.chars": "字符",
   "script.review.context-mode.entries": "条目",
-  "help.item.btn-review-context-mode": "在“条目”与“字符”之间切换，两种模式各自保留数值。更改模式或数值会视为新的审阅：已完成的审阅不会被复用，暂停的审阅也不会按新设置继续。默认值（4 个条目）与旧版审阅一致，因此不会重做那些审阅。"
+  "help.item.btn-review-context-mode": "在“条目”与“字符”之间切换，两种模式各自保留数值。更改模式或数值会视为新的审阅：已完成的审阅不会被复用，暂停的审阅也不会按新设置继续。默认值（4 个条目）与旧版审阅一致，因此不会重做那些审阅。",
+  "take.status.load-failed": "快照无法加载。重新加载成功前列表为空。",
+  "take.status.loading": "正在加载已保存的快照…",
+  "editor.repair.options-load-failed": "修复选项无法加载。列出的章节和说话人可能属于上一本书；请刷新 Editor 并重新加载选项。",
+  "editor.repair.render-not-started": "修复渲染未启动。请查看错误，然后再次预览选区。",
+  "core.editor.save-line-failed": "无法保存这一行",
+  "core.editor.save-line-recovery": "修复报告的问题，然后再次编辑并保存这一行。如果持续被拒绝，请重新加载 Editor。",
+  "editor.integrity.save-failed": "{count} 行编辑保存失败 — {reason}",
+  "editor.integrity.save-failed-one": "第 {line} 行保存失败 — {reason}"
 }
