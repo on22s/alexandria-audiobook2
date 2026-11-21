@@ -8,9 +8,9 @@ from openai import OpenAI
 from pydantic import ValidationError
 
 from config_settings import LLMConfig
-from llm_provider import (ConfiguredOpenAI, get_profile_timeout, make_llm_client,
-                          merge_provider_extra_body, classify_llm_error,
-                          get_retry_delay)
+from llm_provider import (ConfiguredOpenAI, MissingAPIKeyError, get_profile_timeout, make_llm_client,
+                          merge_provider_extra_body, classify_llm_error, get_retry_delay,
+                          is_failover_eligible, is_official_openai_endpoint, resolve_api_key)
 
 
 class _FakeCompletions:
@@ -308,19 +308,91 @@ class ReasoningModelRequestShapeTests(unittest.TestCase):
 
 class ApiKeyReferenceTests(unittest.TestCase):
     def test_env_references_resolve_and_literals_pass_through(self):
-        from llm_provider import resolve_api_key, is_api_key_reference
+        from llm_provider import is_api_key_reference
+        openai = "https://api.openai.com/v1"
+        local = "http://localhost:1234/v1"
         with patch.dict("os.environ", {"MY_KEY": "sk-from-env", "OPENAI_API_KEY": "sk-default"}, clear=False):
-            self.assertEqual("sk-from-env", resolve_api_key("env:MY_KEY"))
-            self.assertEqual("sk-from-env", resolve_api_key("${MY_KEY}"))
-            self.assertEqual("sk-default", resolve_api_key(""))
-            self.assertEqual("local", resolve_api_key("local"))
-            self.assertEqual("sk-literal", resolve_api_key("sk-literal"))
+            self.assertEqual("sk-from-env", resolve_api_key("env:MY_KEY", openai))
+            self.assertEqual("sk-from-env", resolve_api_key("${MY_KEY}", openai))
+            self.assertEqual("sk-default", resolve_api_key("", openai))
+            self.assertEqual("local", resolve_api_key("local", openai))
+            self.assertEqual("sk-literal", resolve_api_key("sk-literal", openai))
         with patch.dict("os.environ", {}, clear=True):
-            self.assertEqual("", resolve_api_key("env:MISSING"), "a typo must not become the key")
-            self.assertEqual("local", resolve_api_key(""))
+            self.assertEqual("", resolve_api_key("env:MISSING", openai), "a typo must not become the key")
+            self.assertEqual("local", resolve_api_key("", local))
         self.assertTrue(is_api_key_reference("env:MY_KEY"))
         self.assertTrue(is_api_key_reference("${MY_KEY}"))
         self.assertFalse(is_api_key_reference("sk-literal"))
+
+    def test_implicit_openai_key_is_scoped_to_the_official_endpoint(self):
+        openai = "https://api.openai.com/v1"
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-real-openai"}, clear=False):
+            for url in (openai, "https://api.openai.com", "https://API.OPENAI.COM./v1"):
+                with self.subTest(allowed=url):
+                    self.assertTrue(is_official_openai_endpoint(url))
+                    self.assertEqual("sk-real-openai", resolve_api_key("", url))
+            third_party = ("https://api.deepseek.com/v1", "https://openrouter.ai/api/v1",
+                           "https://instance.thundercompute.net:1234/v1", "http://10.0.0.9:1234/v1",
+                           "https://api.openai.com.evil.example/v1", "http://api.openai.com/v1",
+                           "https://api.openai.com:8443/v1", "https://user@api.openai.com/v1",
+                           "https://api.openai.com/v1?redirect=evil")
+            for url in third_party:
+                with self.subTest(refused=url):
+                    self.assertFalse(is_official_openai_endpoint(url))
+                    with self.assertRaises(MissingAPIKeyError) as raised:
+                        resolve_api_key("", url)
+                    self.assertNotIn("sk-real-openai", str(raised.exception))
+            for url in ("http://localhost:1234/v1", "http://127.0.0.1:1234/v1", "", None):
+                with self.subTest(local=url):
+                    self.assertEqual("local", resolve_api_key("", url))
+
+    def test_explicit_keys_are_preserved_on_every_endpoint(self):
+        with patch.dict("os.environ", {"MY_KEY": "sk-from-env", "OPENAI_API_KEY": "sk-real-openai"},
+                        clear=False):
+            for url in ("https://api.deepseek.com/v1", "http://localhost:1234/v1", ""):
+                with self.subTest(url=url):
+                    self.assertEqual("sk-from-env", resolve_api_key("env:MY_KEY", url))
+                    self.assertEqual("sk-from-env", resolve_api_key("${MY_KEY}", url))
+                    self.assertEqual("sk-explicit", resolve_api_key("sk-explicit", url))
+            self.assertEqual("", resolve_api_key("env:MISSING", "https://api.deepseek.com/v1"),
+                             "a typo must surface as an auth failure, not a fallback key")
+
+    def test_client_never_sends_the_implicit_openai_key_to_a_third_party(self):
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-real-openai"}, clear=False):
+            with patch("llm_provider.OpenAI", _FakeOpenAI):
+                _FakeOpenAI.instances.clear()
+                with self.assertRaises(MissingAPIKeyError):
+                    make_llm_client({"base_url": "https://api.deepseek.com/v1", "api_key": ""}, timeout=5)
+            self.assertEqual([], _FakeOpenAI.instances, "no client may be built with the wrong key")
+            with patch("llm_provider.OpenAI", _FakeOpenAI):
+                make_llm_client({"base_url": "https://api.openai.com/v1", "api_key": ""}, timeout=5)
+            self.assertEqual("sk-real-openai", _FakeOpenAI.instances[-1].kwargs["api_key"])
+            with patch("llm_provider.OpenAI", _FakeOpenAI):
+                make_llm_client({"base_url": "http://localhost:1234/v1", "api_key": ""}, timeout=5)
+            self.assertEqual("local", _FakeOpenAI.instances[-1].kwargs["api_key"])
+
+    def test_auth_and_not_found_stop_retrying_but_throttling_does_not(self):
+        for status, category in ((401, "auth"), (403, "auth"), (404, "not_found")):
+            with self.subTest(status=status):
+                error = type("ProviderError", (Exception,), {"status_code": status})(f"HTTP {status}")
+                result = classify_llm_error(error)
+                self.assertEqual(category, result["category"])
+                self.assertFalse(result["retryable"])
+        for status, category in ((429, "rate_limited"), (503, "server_error")):
+            with self.subTest(status=status):
+                error = type("ProviderError", (Exception,), {"status_code": status})(f"HTTP {status}")
+                result = classify_llm_error(error)
+                self.assertEqual(category, result["category"])
+                self.assertTrue(result["retryable"])
+
+    def test_failover_eligibility_keeps_provider_errors_and_stops_local_ones(self):
+        for category in ("content_policy", "auth", "not_found", "rate_limited", "server_error",
+                         "timeout", "connection_error", "api_error"):
+            with self.subTest(eligible=category):
+                self.assertTrue(is_failover_eligible({"category": category}))
+        for category in ("context_budget", "profile_changed", "request_admission"):
+            with self.subTest(local=category):
+                self.assertFalse(is_failover_eligible({"category": category}))
 
     def test_client_is_built_with_the_resolved_key(self):
         with patch("llm_provider.OpenAI", _FakeOpenAI), \

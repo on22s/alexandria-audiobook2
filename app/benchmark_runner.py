@@ -1198,8 +1198,9 @@ def _remote_llm_base_url(llm):
 
 def get_remote_llm_worker_profile(llm):
     """Copy the active profile, resolving its key on the orchestrating host."""
-    return {**llm, "base_url": _remote_llm_base_url(llm),
-            "api_key": resolve_api_key(llm.get("api_key", "local"))}
+    worker_base_url = _remote_llm_base_url(llm)
+    return {**llm, "base_url": worker_base_url,
+            "api_key": resolve_api_key(llm.get("api_key", "local"), worker_base_url)}
 
 
 def get_llm_worker_params(params):

@@ -59,8 +59,10 @@ class RuntimeBudgetProbe(unittest.TestCase):
             self.addCleanup(sdk.close)
             clients.append(provider.ConfiguredOpenAI(sdk, {}))
         cfg = {'llm_failover': True, 'llm_mode': 'remote',
-               'llm_remote': {'base_url': 'http://remote.invalid/v1', 'model_name': 'remote'},
-               'llm_local': {'base_url': 'http://local.invalid/v1', 'model_name': 'local'}}
+               'llm_remote': {'base_url': 'http://remote.invalid/v1', 'model_name': 'remote',
+                              'api_key': 'fixture'},
+               'llm_local': {'base_url': 'http://local.invalid/v1', 'model_name': 'local',
+                             'api_key': 'fixture'}}
         with patch.object(provider, 'make_llm_client', side_effect=clients):
             client = provider.make_run_client(cfg, cfg['llm_remote'], 30)
         params = gs.LLMGenParams(system_prompt='Return narration.', user_prompt_template='{chunk}',
@@ -107,10 +109,11 @@ class RuntimeProfileBindingTests(unittest.TestCase):
         self.addCleanup(secondary.close)
         sdk = provider.ConfiguredOpenAI(secondary, {})
         return provider.FailoverClient(sdk, 'remote', sdk, 'local', secondary_label='local',
-            secondary_config=config or {'base_url': 'http://local.invalid/v1', 'model_name': 'local'})
+            secondary_config=config or {'base_url': 'http://local.invalid/v1', 'model_name': 'local',
+                                        'api_key': 'fixture'})
 
     def test_secondary_request_options_replace_primary_without_mutating_inputs(self):
-        config = {'base_url': 'http://local.invalid/v1', 'model_name': 'local',
+        config = {'base_url': 'http://local.invalid/v1', 'model_name': 'local', 'api_key': 'fixture',
                   'provider_extra_body': {'secondary_only': False}, 'structured_output': 'off',
                   'api_retry_limit': 0}
         before = copy.deepcopy(config)
