@@ -301,3 +301,28 @@ assert.match(body.innerHTML,/class="chunk-row text-danger"/,body.innerHTML);
 assert.match(body.innerHTML,/data-uid="row-1"/);
 assert.strictEqual(run('failedChunkEdits.size'),1);
 ''')
+
+    def test_deleted_uid_no_longer_blocks_the_book_render_barrier(self):
+        self.run_js(r'''
+const edits=source.indexOf('const pendingChunkEdits =');
+run(source.slice(edits,source.indexOf('window.generateChunk =',edits)));
+let rows=[chunk(0),chunk(1)];
+ctx.API.get=async()=>rows;
+ctx.document.querySelector=selector=>body.children.find(row=>selector.includes('data-id="'+row.dataset.id+'"'))||null;
+await ctx.loadChunks(true);
+ctx.API.post=async()=>{throw Error('refused save');};
+await assert.rejects(ctx.applyChunkEdits(0,{text:'refused draft'}),/refused save/);
+await assert.rejects(ctx.flushChunkEdits(),/refused save/);
+
+rows=[{...rows[1],id:0}];
+await ctx.loadChunks(true);
+assert.strictEqual(ctx.getEditorFailedEditsSummary(),'');
+assert.strictEqual(run('isEditorEditPending()'),false);
+await ctx.flushChunkEdits();
+assert.strictEqual(run('failedChunkEdits.size'),0);
+
+rows.push({...chunk(0),id:1});
+await ctx.loadChunks(true);
+assert.strictEqual(ctx.getEditorFailedEditsSummary(),'','undoing the deletion must not resurrect the refused draft');
+await ctx.flushChunkEdits();
+''')

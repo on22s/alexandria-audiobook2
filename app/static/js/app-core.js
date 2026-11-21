@@ -8961,9 +8961,7 @@
             });
             if (chunks.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" class="text-center">${escapeHtml(t('core.editor.no-chunks', 'No chunks found. Please generate script first.'))}</td></tr>`;
-                cachedChunks = [];
-                chunkSnapshotBook = refreshBook;
-                chunkSnapshotRevision = snapshot.revision;
+                cacheChunkSnapshot(chunks, refreshBook, snapshot);
                 window.renderEditorQualityInbox?.();
                 return chunks;
             }
@@ -8974,9 +8972,7 @@
                 chunks.forEach(chunk => {
                     if (snapshot.full || snapshot.changed_ids.includes(chunk.id)) { updateChunkRow(chunk); }
                 });
-                cachedChunks = chunks;
-                chunkSnapshotBook = refreshBook;
-                chunkSnapshotRevision = snapshot.revision;
+                cacheChunkSnapshot(chunks, refreshBook, snapshot);
                 window.renderEditorQualityInbox?.();
 
                 // Continue polling if generating
@@ -9155,9 +9151,7 @@
                 }
             }
 
-            cachedChunks = chunks;
-            chunkSnapshotBook = refreshBook;
-            chunkSnapshotRevision = snapshot.revision;
+            cacheChunkSnapshot(chunks, refreshBook, snapshot);
             window.renderEditorQualityInbox?.();
 
             // If any chunk is generating, poll (without full redraw)
@@ -9166,6 +9160,23 @@
             }
 
             return chunks;
+        }
+
+        function cacheChunkSnapshot(chunks, book, snapshot) {
+            cachedChunks = chunks;
+            chunkSnapshotBook = book;
+            chunkSnapshotRevision = snapshot.revision;
+            // Only a complete snapshot proves that a refused edit's UID is
+            // gone. An index may now belong to a different line.
+            if (snapshot.full && typeof failedChunkEdits !== 'undefined' && failedChunkEdits.size) {
+                const presentUids = new Set(chunks.map(chunk => chunk.uid));
+                for (const key of failedChunkEdits.keys()) {
+                    const {bookToken, uid} = readChunkEditKey(key);
+                    if (bookToken === snapshot.book_token && uid && !presentUids.has(uid)) {
+                        failedChunkEdits.delete(key);
+                    }
+                }
+            }
         }
 
         window.toggleChunkExpand = (btn) => {
