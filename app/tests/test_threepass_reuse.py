@@ -111,12 +111,13 @@ class ReuseTest(unittest.TestCase):
         self.assertTrue(_is_reusable(out, MODEL))
 
     def test_manifest_with_malformed_digest_is_not_reusable(self):
-        out = self._arm(".threepass_manifest.json", manifest())
-        record = manifest()
-        record["completion"] = {"script_sha256": "not-a-digest"}
-        with open(out + ".threepass_manifest.json", "w", encoding="utf-8") as handle:
-            json.dump(record, handle)
-        self.assertFalse(_is_reusable(out, MODEL))
+        for completion in (None, "complete", [], {}, {"script_sha256": None},
+                           {"script_sha256": "not-a-digest"}):
+            with self.subTest(completion=completion):
+                record = manifest()
+                record["completion"] = completion
+                out = self._arm(".threepass_manifest.json", record)
+                self.assertFalse(_is_reusable(out, MODEL))
 
     # --- the single-pass arm must behave exactly as before ----------------
     def test_a_complete_quality_record_is_still_reusable(self):

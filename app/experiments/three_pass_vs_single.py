@@ -190,15 +190,15 @@ def _manifest_script_matches(manifest, out_path):
     A failed standalone replacement can leave a manifest claiming the new
     digest while the prior script survived on disk. Reuse must not mistake that
     prior script for the completed run. The completion record is the authority
-    scoped to this arm; a legacy manifest without its digest stays reusable on
-    its other evidence.
+    scoped to this arm. A legacy manifest with no completion record stays
+    reusable on its other evidence.
     """
-    completion = manifest.get("completion")
+    if "completion" not in manifest:
+        return True
+    completion = manifest["completion"]
     if not isinstance(completion, dict):
-        return True
+        return False
     digest = completion.get("script_sha256")
-    if digest is None:
-        return True
     if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest):
         return False
     try:

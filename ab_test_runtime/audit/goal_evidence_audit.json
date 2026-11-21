@@ -1050,29 +1050,20 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-21T06:17:32",
+  "written": "2026-11-21T07:16:00",
   "host": "mitch-linux",
   "git": {
-   "commit": "d261555b5b05d5fa5a7f5b9c809ed58a0363a39d",
-   "branch": "followup-three-pass-publication",
+   "commit": "b5dac9e50a88c492c991deba5216a6507bd248ff",
+   "branch": "HEAD",
    "dirty": true,
-   "source_state": "dirty:894dfa21e0ef",
+   "source_state": "dirty:89de9cecefb3",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/adapter_publication.py",
-    "M  app/book_state_transaction.py",
     "M  app/experiments/three_pass_vs_single.py",
-    "M  app/script_selection_binding.py",
-    "A  app/tests/test_book_journal_flush_guard.py",
-    "M  app/tests/test_script_recovery_response.py",
-    "M  app/tests/test_three_pass_cli_settings.py",
-    "M  app/tests/test_threepass_reuse.py",
-    "M  app/tests/unit_test_inventory.json",
-    "M  app/tests/windows_only_skip_baseline.txt",
-    "M  app/three_pass_generate.py"
+    "M  app/tests/test_threepass_reuse.py"
    ],
    "untracked_harness_files": null,
-   "harness_sha256": "398a5036153a4df581577e127574eb4131e07316e9f4fb96e82c4c6d340ad2ad",
+   "harness_sha256": "618541d2f8aa01167d9bbffc2277a3a95b6787bddb65f1fce2522ca8ee0def5e",
    "harness_sha256_scheme": "sha256-lf-v1"
   },
   "args": {
