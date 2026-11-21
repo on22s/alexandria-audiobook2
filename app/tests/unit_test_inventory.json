@@ -5091,6 +5091,18 @@
     , "tests.test_editor_chapter_generation_js.EditorChapterGenerationJsTests.test_progress_map_states_count_only_non_empty_lines"
     , "tests.test_editor_chapter_generation_js.EditorChapterGenerationJsTests.test_renderer_without_regenerate_skips_done_lines_and_never_confirms"
   ]
+  , "test_editor_feedback_followup": [
+    "tests.test_editor_feedback_followup.EditorFeedbackFollowupTests.test_authoritative_status_error_and_newer_intent_survive_late_reply"
+    , "tests.test_editor_feedback_followup.EditorFeedbackFollowupTests.test_inspector_error_clears_on_semantic_edit_and_survives_pause_only"
+    , "tests.test_editor_feedback_followup.EditorFeedbackFollowupTests.test_late_refusal_from_replaced_row_cannot_poison_new_book"
+    , "tests.test_editor_feedback_followup.EditorFeedbackFollowupTests.test_old_book_render_settling_cannot_overwrite_new_book_status"
+    , "tests.test_editor_feedback_followup.EditorFeedbackFollowupTests.test_real_gpu_busy_and_confirmation_dismissal_report_refusal"
+    , "tests.test_editor_feedback_followup.EditorFeedbackFollowupTests.test_real_local_and_external_dispatch_report_actual_start"
+    , "tests.test_editor_feedback_followup.EditorFeedbackFollowupTests.test_repair_locale_repaint_keeps_keyed_live_announcement"
+    , "tests.test_editor_feedback_followup.EditorFeedbackFollowupTests.test_stale_line_during_preflight_posts_nothing_and_writes_no_status"
+    , "tests.test_editor_feedback_followup.EditorFeedbackFollowupTests.test_success_clears_only_matching_field_failure_across_queued_saves"
+    , "tests.test_editor_feedback_followup.EditorFeedbackFollowupTests.test_take_failure_clears_on_selection_retry_loads_and_locale_repaint_keeps_it"
+  ]
   , "test_editor_index_selection": [
     "tests.test_editor_index_selection.EditorIndexSelectionTests.test_chapter_route_forwards_normalized_selection_to_real_export"
     , "tests.test_editor_index_selection.EditorIndexSelectionTests.test_chapter_routes_validate_against_real_audio_groups_before_schedule"

@@ -8,6 +8,7 @@ from tests.test_ui_help_js import DOM_FIXTURE
 
 STATIC = Path(__file__).resolve().parent.parent/'static'
 UI_SETUP = r'''
+vm.runInContext(fs.readFileSync(process.argv[1].replace('app-editor-repair.js','app-i18n.js'),'utf8'),context);
 Element.prototype.querySelector=function(s){return this.querySelectorAll(s)[0]||null;};
 Element.prototype.replaceChildren=function(...children){for(const child of [...this.children]){child.remove();}this.textContent='';for(const child of children){this.appendChild(child);}};
 Element.prototype.add=function(child){this.appendChild(child);};

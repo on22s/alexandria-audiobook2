@@ -4,6 +4,13 @@ let takeHistoryRequest = 0;
 let takeHistoryBusy = false;
 let takeHistoryAll = false;
 let takeHistoryOffset = 0;
+let takeHistoryFailedIdentity = null;
+
+// A keyed live announcement survives a locale repaint; a plain runtime
+// message clears the key so the repaint cannot restore the markup default.
+function setTakeHistoryStatus(message) {
+    renderUiMessage(document.getElementById('editor-take-status'), message);
+}
 
 function getTakeHistoryIdentity() {
     const target = getEditorReviewTarget();
@@ -24,11 +31,19 @@ function resetTakeHistoryView() {
 
 window.applyTakeHistoryInspector = () => {
     const identity = getTakeHistoryIdentity();
+    if (takeHistoryFailedIdentity !== null && identity !== takeHistoryFailedIdentity) {
+        // A refusal belongs to the line that requested it. Selecting another
+        // line clears it instead of carrying the failure into that panel.
+        takeHistoryFailedIdentity = null;
+        setTakeHistoryStatus(uiMessage('editor.snapshots.status-default', 'No snapshots loaded. Up to 16 per line, 4,096 records and 1 GiB per project. Deleted and incomplete copies count until permanently removed.'));
+    }
     if (takeHistoryIdentity && (identity !== takeHistoryIdentity || hasTakeHistoryDrafts())) {
         resetTakeHistoryView();
-        document.getElementById('editor-take-status').textContent = hasTakeHistoryDrafts()
-            ? t('take.status.drafts-hidden', 'Pending edits hide the comparison; saved audio is unchanged. Save or discard drafts, then refresh snapshots.')
-            : t('take.status.changed', 'The line or saved take changed. Refresh snapshots.');
+        if (hasTakeHistoryDrafts()) {
+            setTakeHistoryStatus(uiMessage('take.status.drafts-hidden', 'Pending edits hide the comparison; saved audio is unchanged. Save or discard drafts, then refresh snapshots.'));
+        } else {
+            setTakeHistoryStatus(uiMessage('take.status.changed', 'The line or saved take changed. Refresh snapshots.'));
+        }
     }
     document.getElementById('editor-take-save').disabled = takeHistoryBusy || !getEditorReviewTarget()?.chunk.audio_path || hasTakeHistoryDrafts();
 };
@@ -47,6 +62,8 @@ async function loadEditorTakeSnapshots(all = false, offset = 0) {
     const request = takeHistoryRequest;
     const identity = getTakeHistoryIdentity();
     takeHistoryIdentity = identity;
+    if (takeHistoryFailedIdentity === identity) { takeHistoryFailedIdentity = null; }
+    renderUiMessage(document.getElementById('editor-take-status'), 'Loading saved snapshots…');
     takeHistoryAll = all;
     takeHistoryOffset = offset;
     const book = chunkSnapshotBookToken;
@@ -58,10 +75,11 @@ async function loadEditorTakeSnapshots(all = false, offset = 0) {
         if (request !== takeHistoryRequest || identity !== getTakeHistoryIdentity() || hasTakeHistoryDrafts()) { return; }
         renderEditorTakeSnapshots(result, book, identity);
     } catch (error) {
-        if (request === takeHistoryRequest) {
+        if (request === takeHistoryRequest && identity === getTakeHistoryIdentity()) {
             showActionError(t('take.error.load', 'Cannot load snapshots'), error, t('take.error.load-recovery', 'Current line audio is unchanged.'));
-            document.getElementById('editor-take-status').textContent = t('take.status.load-failed', 'Snapshots could not be loaded. The list is empty until a reload succeeds.');
+            setTakeHistoryStatus(uiMessage('take.status.load-failed', 'Snapshots could not be loaded. The list is empty until a reload succeeds.'));
             takeHistoryIdentity = null;
+            takeHistoryFailedIdentity = identity;
         }
     }
 }
@@ -74,11 +92,14 @@ function takeStateLabel(state) {
 function renderEditorTakeSnapshots(result, book, identity) {
     const list = document.getElementById('editor-take-list');
     list.replaceChildren();
+    if (takeHistoryFailedIdentity === identity) { takeHistoryFailedIdentity = null; }
     const usage = result.usage;
     const usageValues = {count: result.total, records: usage.records, max_records: usage.max_records, used: (usage.bytes / 1048576).toFixed(1), max_bytes: usage.max_bytes / 1048576};
-    document.getElementById('editor-take-status').textContent = result.restore_supported
-        ? t('take.status.summary', '{count} saved snapshots in this view. Project archive: {records}/{max_records} records, {used} MiB/{max_bytes} MiB. Deleted and incomplete copies count. Audition keeps selected audio. Restoration checks eligibility when requested.', usageValues)
-        : t('take.status.summary.no-restore', '{count} saved snapshots in this view. Project archive: {records}/{max_records} records, {used} MiB/{max_bytes} MiB. Deleted and incomplete copies count. Audition keeps selected audio. Restoration checks eligibility when requested. Verified restoration is not qualified on this host.', usageValues);
+    if (result.restore_supported) {
+        setTakeHistoryStatus(uiMessage('take.status.summary', '{count} saved snapshots in this view. Project archive: {records}/{max_records} records, {used} MiB/{max_bytes} MiB. Deleted and incomplete copies count. Audition keeps selected audio. Restoration checks eligibility when requested.', usageValues));
+    } else {
+        setTakeHistoryStatus(uiMessage('take.status.summary.no-restore', '{count} saved snapshots in this view. Project archive: {records}/{max_records} records, {used} MiB/{max_bytes} MiB. Deleted and incomplete copies count. Audition keeps selected audio. Restoration checks eligibility when requested. Verified restoration is not qualified on this host.', usageValues));
+    }
     for (const record of result.records) {
         const item = document.createElement('div');
         item.className = 'border rounded p-2 mb-2';
@@ -178,7 +199,7 @@ async function restoreEditorTakeSnapshot(record, identity, book) {
             version: record.version, sha256: record.sha256,
         });
         if (identity === getTakeHistoryIdentity() && book === chunkSnapshotBookToken && !isEditorEditPending()) {
-            document.getElementById('editor-take-status').textContent = t('take.restore.requested', 'Restoration requested. Checking saved audio and current voice dependencies; follow the audio task below.');
+            setTakeHistoryStatus(uiMessage('take.restore.requested', 'Restoration requested. Checking saved audio and current voice dependencies; follow the audio task below.'));
         }
         _startPolling('take_restore', () => API.get('/api/status/audio'), {
             displayLabel: t('take.restore.label', 'Saved take restoration'),
@@ -186,14 +207,18 @@ async function restoreEditorTakeSnapshot(record, identity, book) {
             onTick: status => {
                 if (typeof status.running !== 'boolean') { throw new Error(t('take.restore.error-status', 'Audio task status is unavailable.')); }
                 if (status.running && identity === getTakeHistoryIdentity()) {
-                    document.getElementById('editor-take-status').textContent = t('take.restore.checking', 'Audio task is checking restoration. Cancel audio task to request cancellation.');
+                    setTakeHistoryStatus(uiMessage('take.restore.checking', 'Audio task is checking restoration. Cancel audio task to request cancellation.'));
                 }
             },
             onDone: status => {
                 takeHistoryBusy = false; cancel.hidden = true;
                 window.applyTakeHistoryInspector();
                 if (identity === getTakeHistoryIdentity()) {
-                    document.getElementById('editor-take-status').textContent = status.error || t('take.restore.done', 'Audio task {status}. Refresh snapshots to inspect the selected performance.', {status: status.status || t('take.restore.finished', 'finished')});
+                    if (status.error) {
+                        renderUiMessage(document.getElementById('editor-take-status'), String(status.error));
+                    } else {
+                        setTakeHistoryStatus(uiMessage('take.restore.done', 'Audio task {status}. Refresh snapshots to inspect the selected performance.', {status: status.status || t('take.restore.finished', 'finished')}));
+                    }
                     void loadChunks(true);
                 }
             },

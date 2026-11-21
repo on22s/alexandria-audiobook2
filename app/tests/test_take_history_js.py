@@ -6,6 +6,7 @@ from tests.test_ui_help_js import DOM_FIXTURE
 
 SOURCE = Path(__file__).resolve().parent.parent / 'static/js/app-take-history.js'
 SETUP = r'''
+vm.runInContext(fs.readFileSync(process.argv[1].replace('app-take-history.js','app-i18n.js'),'utf8'),context);
 context.window=context;context.URLSearchParams=URLSearchParams;
 Element.prototype.replaceChildren=function(...nodes){for(const child of [...this.children]){child.remove();}this.textContent='';for(const child of nodes){this.appendChild(child);}};
 Element.prototype.append=function(...nodes){for(const child of nodes){this.appendChild(child);}};
