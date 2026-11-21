@@ -55,8 +55,9 @@ from source_normalization import normalize_known_source_corruptions
 from three_pass_generate import (build_attribute_request,
                                  build_instruct_request,
                                  build_three_pass_request_preflight,
-                                 get_three_pass_preflight_capacity,
-                                 get_context_rescue_windows,
+                                  get_three_pass_preflight_capacity,
+                                  get_three_pass_unchecked_count,
+                                  get_context_rescue_windows,
                                  is_three_pass_context_required,
                                  LARGE_CONTEXT_CHARS,
                                  validate_instruct_context_chars,
@@ -3042,6 +3043,7 @@ def ensure_script_recovery_response(include_detail=False):
             "failed_pass": manifest.get("failed_pass"),
             "failed_chunk": manifest.get("failed_chunk"),
             "failure_count": len(failures),
+            "unchecked_count": get_three_pass_unchecked_count(manifest),
         }
         state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), {})
         if isinstance(state, dict) and state.get('script_generation_selection') is None:

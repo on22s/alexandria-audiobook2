@@ -2456,7 +2456,7 @@ def _resolution_counts(resolutions):
 def _write_manifest(output_path, fingerprint, resolutions, passes, status,
                     failed_pass=None, failed_chunk=None, legacy_resume=False,
                     progress=None, diagnostic_failures=None, telemetry=None,
-                    model_binding=None, delivery_review=None):
+                    model_binding=None, delivery_review=None, run_id=None):
     """Persist the run manifest next to the output so results are analyzable from
     structured data instead of log-grepping."""
     if not output_path:
@@ -2475,6 +2475,8 @@ def _write_manifest(output_path, fingerprint, resolutions, passes, status,
         "model_binding": model_binding,
         "delivery_review": delivery_review or {"count": 0, "entries": []},
     }
+    if run_id is not None:
+        manifest["run_id"] = run_id
     if failed_pass is not None:
         manifest["failed_pass"] = failed_pass
     if failed_chunk is not None:
@@ -2501,11 +2503,11 @@ def three_pass_fingerprint(source_text, model_name, chunk_size, params=None,
         # anything 'keep' adds is flagged attribution_unchecked in the output.
         "endpoint": endpoint,
         "on_exhaustion": "fail" if on_exhaustion == "keep" else on_exhaustion,
-        # #2156: keep scope changes exhaustion behavior (a whole rejected batch
-        # retained vs subdivided), so 'batch' is a distinct semantic identity.
-        # The default 'line' is omitted so checkpoints written before this knob
-        # existed keep their identity and resume unchanged.
-        **({"pass2_keep_scope": keep_scope} if keep_scope not in (None, "line") else {}),
+        # Keep scope changes exhaustion behavior (a whole rejected batch retained
+        # vs subdivided), so every new checkpoint binds it explicitly. Passing
+        # None omits the key and reproduces the pre-knob identity, which legacy
+        # checkpoints are matched against before deciding what may be reused.
+        **({"pass2_keep_scope": keep_scope} if keep_scope in PASS2_KEEP_SCOPES else {}),
         "context_windows": context_windows,
         "context_rescue_retries": context_rescue_retries,
         "collect_all_failures": collect_all_failures,
@@ -2656,7 +2658,9 @@ def validate_three_pass_checkpoint(data, chunk_count=None):
                 "diagnostic_segment_resume first failed chunk")
 
 
-def _load_three_pass_checkpoint(output_path, fingerprint, chunk_count=None):
+def _load_three_pass_checkpoint(output_path, fingerprint, chunk_count=None, *,
+                                keep_scope=None, scope_fingerprints=None,
+                                legacy_fingerprint=None):
     path = three_pass_checkpoint_path(output_path)
     if not os.path.exists(path):
         return None
@@ -2664,9 +2668,21 @@ def _load_three_pass_checkpoint(output_path, fingerprint, chunk_count=None):
         data = load_generation_delta_checkpoint(path)
         if not isinstance(data, dict):
             raise ValueError("expected an object")
-        if (get_run_fingerprint_identity(data.get("fingerprint"))
-                != get_run_fingerprint_identity(fingerprint)):
-            return None
+        identity = get_run_fingerprint_identity(data.get("fingerprint"))
+        if identity != get_run_fingerprint_identity(fingerprint):
+            if keep_scope is not None and legacy_fingerprint is not None \
+                    and identity == get_run_fingerprint_identity(legacy_fingerprint):
+                pass  # legacy checkpoint: caller decides what may be reused
+            elif keep_scope is not None and scope_fingerprints and any(
+                    identity == get_run_fingerprint_identity(other)
+                    for scope, other in scope_fingerprints.items() if scope != keep_scope):
+                # A saved checkpoint from the other keep scope cannot be resumed
+                # under this one; leave every byte of it untouched.
+                raise RuntimeError(
+                    "Saved progress was written with a different pass-2 keep scope; "
+                    "it was preserved. Use Start over to begin again.")
+            else:
+                return None
         validate_three_pass_checkpoint(data, chunk_count)
     except (OSError, ValueError, UnicodeError) as exc:
         raise RuntimeError(f"Invalid three-pass checkpoint {path}: {exc}") from exc
@@ -2714,7 +2730,8 @@ def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
                                 chunks_done, named, annotated, resolutions=None,
                                 elapsed_s=None, diagnostic_failures=None,
                                 failed=None, model_binding=None,
-                                diagnostic_segment_resume=None, checkpoint_writer=None):
+                                diagnostic_segment_resume=None, checkpoint_writer=None,
+                                pass2_keep_scope=None):
     """`failed` (only on a pass-1 fail-fast) carries what the recovery panel
     needs to show and to validate a hand-supplied segmentation: the failed
     chunk's number, its exact source text, how many chunks there are, and the
@@ -2724,10 +2741,11 @@ def _save_three_pass_checkpoint(output_path, fingerprint, stage, segmented,
                        "named": named, "annotated": annotated,
                        "resolutions": resolutions or [],
                        "elapsed_s": elapsed_s or {},
-                       "diagnostic_failures": diagnostic_failures or [],
-                       "failed": failed or None,
-                       "model_binding": model_binding,
-                       "diagnostic_segment_resume": diagnostic_segment_resume}
+                        "diagnostic_failures": diagnostic_failures or [],
+                        "failed": failed or None,
+                        "model_binding": model_binding,
+                        "diagnostic_segment_resume": diagnostic_segment_resume,
+                        "pass2_keep_scope": pass2_keep_scope}
     path = three_pass_checkpoint_path(output_path)
     if checkpoint_writer is None:
         atomic_json_write(data, path, allow_nonatomic_fallback=False)
@@ -2753,8 +2771,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                    attribute_batch_size=BATCH_SIZE, attribute_context_chars=0,
                    attribute_prompt_variant="default", attribute_prompt_texts=None,
                    planned_calls=None, cast=None, keep_scope="line", speaker_traits=False,
-                   attribute_target_chars=0, instruct_target_chars=0, instruct_context_chars=0,
-                   defer_final_publication=False, require_matching_checkpoint=False):
+                    attribute_target_chars=0, instruct_target_chars=0, instruct_context_chars=0,
+                    defer_final_publication=False, require_matching_checkpoint=False,
+                    run_id=None):
     """Full flow. Returns the assembled [{speaker,text,instruct}] list, or raises
     RuntimeError if pass 1 exhausts a chunk. first_person_narrator optionally
     seeds that exact character into the pass-2 roster. When output_path is given, saves a
@@ -2814,22 +2833,33 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             allow_open_end=index < len(chunk_records) - 1)
         quote_analyses.append(analysis)
         quote_depth = analysis["final_depth"]
-    fingerprint = three_pass_fingerprint(
-        source_text, model_name, chunk_size, params, on_exhaustion,
-        context_windows, context_rescue_retries, endpoint, collect_all_failures,
-        attribute_batch_size=attribute_batch_size,
-        attribute_context_chars=attribute_context_chars,
-        attribute_prompt_variant=attribute_prompt_variant,
-        attribute_prompt_texts=attribute_prompt_texts,
-        cast_sha256=(cast or {}).get("sha256"),
-        attribution_votes=attribution_votes, vote_temperature=vote_temperature,
-        first_person_narrator=narrator, speaker_traits=speaker_traits,
-        attribute_target_chars=attribute_target_chars, instruct_target_chars=instruct_target_chars,
-        instruct_context_chars=instruct_context_chars, keep_scope=keep_scope)
+    def make_fingerprint(scope):
+        return three_pass_fingerprint(
+            source_text, model_name, chunk_size, params, on_exhaustion,
+            context_windows, context_rescue_retries, endpoint, collect_all_failures,
+            attribute_batch_size=attribute_batch_size,
+            attribute_context_chars=attribute_context_chars,
+            attribute_prompt_variant=attribute_prompt_variant,
+            attribute_prompt_texts=attribute_prompt_texts,
+            cast_sha256=(cast or {}).get("sha256"),
+            attribution_votes=attribution_votes, vote_temperature=vote_temperature,
+            first_person_narrator=narrator, speaker_traits=speaker_traits,
+            attribute_target_chars=attribute_target_chars, instruct_target_chars=instruct_target_chars,
+            instruct_context_chars=instruct_context_chars, keep_scope=scope)
+
+    fingerprint = make_fingerprint(keep_scope)
+    scope_fingerprints = {scope: make_fingerprint(scope) for scope in PASS2_KEEP_SCOPES}
+    legacy_fingerprint = make_fingerprint(None)
     initial_binding = get_run_model_binding(client, model_name)
     if initial_binding["failover_model"] is not None:
         fingerprint["model_binding"] = initial_binding
-    state = _load_three_pass_checkpoint(output_path, fingerprint, len(chunks)) if output_path else None
+        for other in scope_fingerprints.values():
+            other["model_binding"] = initial_binding
+        legacy_fingerprint["model_binding"] = initial_binding
+    state = (_load_three_pass_checkpoint(
+        output_path, fingerprint, len(chunks), keep_scope=keep_scope,
+        scope_fingerprints=scope_fingerprints, legacy_fingerprint=legacy_fingerprint)
+        if output_path else None)
     if require_matching_checkpoint and state is None:
         raise RuntimeError('The saved checkpoint does not match this source and settings; it was preserved.')
     if state is not None:
@@ -2878,9 +2908,20 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
         # A new attempt retries unresolved attribution while keeping accepted rows.
         diagnostic_failures = [failure for failure in diagnostic_failures
                                if failure.get("pass") != "attribute"]
+        # A kept, quality-rejected attribution is flagged, not verified. Leave it
+        # pending so the scheduler retries it instead of skipping a populated row
+        # and trapping the run in an incomplete checkpoint (#2158 follow-up).
+        retry_attribution = {index for index, entry in enumerate(named)
+                             if isinstance(entry, dict)
+                             and entry.get("attribution_unchecked")}
+        for index in retry_attribution:
+            named[index] = None
         retry_instructions = {index for index, entry in enumerate(annotated)
                               if isinstance(entry, dict)
                               and entry.get("instruct_unchecked") is True}
+        # An instruction written for a rejected attribution depends on its
+        # speaker, so redo those too; accepted rows and instructions stay as-is.
+        retry_instructions.update(retry_attribution)
         # Older diagnostic writers recorded the failed index without marking
         # the fallback row. Those rows also remain pending on resume.
         retry_instructions.update(failure["entry"] for failure in diagnostic_failures
@@ -2888,11 +2929,24 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                                   and type(failure.get("entry")) is int
                                   and 0 <= failure["entry"] < len(annotated))
         for index in retry_instructions:
-            annotated[index] = None
+            if index < len(annotated):
+                annotated[index] = None
         diagnostic_failures = [failure for failure in diagnostic_failures
                                if not (failure.get("pass") == "instruct"
                                        and type(failure.get("entry")) is int
                                        and failure.get("entry") in retry_instructions)]
+    if (state is not None and get_run_fingerprint_identity(state.get("fingerprint"))
+            == get_run_fingerprint_identity(legacy_fingerprint)
+            and state.get("pass2_keep_scope") != keep_scope):
+        # A pre-binding checkpoint has no scope identity. Reuse its pass-2/3
+        # output only when evidence bound to that checkpoint proves the same
+        # scope; otherwise keep verified segmentation and redo the later passes.
+        named, annotated = [], []
+        diagnostic_failures = [failure for failure in diagnostic_failures
+                               if failure.get("pass") == "segment"]
+        print("Saved progress cannot prove this pass-2 keep scope; retaining "
+              "verified segmentation and repeating attribution and instructions.",
+              flush=True)
     diagnostic_segment_resume = None
     if any(failure.get("pass") == "segment" for failure in diagnostic_failures):
         resume = state.get("diagnostic_segment_resume")
@@ -2946,8 +3000,9 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                                         failed=failed,
                                         model_binding=get_run_model_binding(
                                             client, model_name, resumed_binding),
-                                        diagnostic_segment_resume=diagnostic_segment_resume,
-                                        checkpoint_writer=checkpoint_writer)
+                                         diagnostic_segment_resume=diagnostic_segment_resume,
+                                         checkpoint_writer=checkpoint_writer,
+                                         pass2_keep_scope=keep_scope)
     passes = {}
     narration_resets = None            # set once the dialogue map has run (#1534)
 
@@ -2998,7 +3053,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                             "response_fingerprints": len({
                                 a.get("response_fingerprint") for a in attempts
                                 if a.get("response_fingerprint")}),
-                        }, diagnostic_failures=diagnostic_failures)
+                        }, diagnostic_failures=diagnostic_failures, run_id=run_id)
 
     # Pass 1 — resume from chunks_done.
     seg_start = time.time()
@@ -3831,24 +3886,67 @@ def get_output_paths(data_dir, requested_output=None):
             os.path.join(data_dir, "chunks.json"))
 
 
-def get_three_pass_publication_blocker(manifest):
-    """Why a finished three-pass manifest must not be published, or None.
-
-    Publication requires a run that actually finished in a publishable state
-    and no quality-rejected (``attribution_unchecked``) kept attributions.
-    Checking at the publication boundary also refuses a stale manifest left by
-    a resumed run written under an older policy. A manifest with no status is
-    allowed for compatibility with checkpoints recorded before statuses existed.
-    """
-    status = manifest.get("status")
-    if status is not None and status not in ("publishing", "complete"):
-        return f"generation status is {status!r}"
-    unchecked = sum(
+def get_three_pass_unchecked_count(manifest):
+    """Number of quality-rejected kept attributions recorded in a manifest."""
+    if not isinstance(manifest, dict):
+        return 0
+    return sum(
         pass_info["unchecked_entries"]
         for pass_info in (manifest.get("passes") or {}).values()
         if isinstance(pass_info, dict)
-        and isinstance(pass_info.get("unchecked_entries"), int)
+        and type(pass_info.get("unchecked_entries")) is int
         and pass_info["unchecked_entries"] > 0)
+
+
+def load_three_pass_completion_manifest(path):
+    """Strictly read the manifest a publication decision is about to trust.
+
+    A missing or corrupt manifest must never be silently treated as an empty
+    object: that would let a run with no completion evidence publish over the
+    last accepted script and delete its chunks.
+    """
+    from script_selection_binding import _unique_pairs
+    try:
+        raw = Path(path).read_bytes()
+        manifest = json.loads(
+            raw, object_pairs_hook=_unique_pairs,
+            parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Invalid numeric constant')))
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError) as exc:
+        raise ValueError('Generation manifest is missing or invalid; prior output preserved') from exc
+    if not isinstance(manifest, dict):
+        raise ValueError('Generation manifest is invalid; prior output preserved')
+    return manifest
+
+
+def get_three_pass_publication_blocker(manifest, *, expected_run_id=None):
+    """Why a finished three-pass manifest must not be published, or None.
+
+    Publication needs a valid manifest from a run that actually finished in a
+    publishable state, with no contradictory diagnostic evidence and (for an
+    active book) bound to this exact attempt. A missing or malformed manifest
+    is never an empty, publishable result.
+    """
+    if not isinstance(manifest, dict) or not manifest:
+        return 'generation manifest is missing or invalid'
+    status = manifest.get("status")
+    if status not in ("publishing", "complete"):
+        return f"generation status is {status!r}"
+    if expected_run_id is not None and manifest.get("run_id") != expected_run_id:
+        return 'generation manifest belongs to a different attempt'
+    receipt = manifest.get("publication")
+    if receipt is not None:
+        receipt_run = receipt.get("run_id") if isinstance(receipt, dict) else None
+        if receipt_run != (expected_run_id or manifest.get("run_id")):
+            return 'generation manifest has a conflicting publication receipt'
+    if manifest.get("failed_pass") is not None or manifest.get("failed_chunk") is not None:
+        return 'generation did not complete successfully'
+    failures = manifest.get("diagnostic_failures")
+    if failures:
+        return f"{len(failures)} diagnostic failure(s) remain"
+    for pass_info in (manifest.get("passes") or {}).values():
+        if isinstance(pass_info, dict) and pass_info.get("status") not in (None, "complete"):
+            return f"generation pass status is {pass_info['status']!r}"
+    unchecked = get_three_pass_unchecked_count(manifest)
     if unchecked:
         return f"{unchecked} quality-rejected attribution(s) remain unchecked"
     return None
@@ -4194,12 +4292,13 @@ def main():
                 break
         atomic_json_write(summary, output_path + ".preflight_manifest.json", allow_nonatomic_fallback=False)
         sys.exit(0 if summary["status"] == "complete" else 1)
+    active_run_id = args.active_run_id if args.active_book_token is not None else None
     try:
         entries = run_three_pass(client, model_name, book, params, chunk_size,
                                  output_path=output_path,
                                  planned_calls=planned_calls,
-                                 **({'defer_final_publication': True}
-                                    if args.active_book_token is not None else {}),
+                                 **({'defer_final_publication': True, 'run_id': active_run_id}
+                                    if active_run_id is not None else {}),
                                  **({'require_matching_checkpoint': True}
                                     if args.require_matching_checkpoint else {}),
                                  **run_options)
@@ -4207,40 +4306,54 @@ def main():
         print(f"Error: {exc}")
         sys.exit(1)
 
-    manifest = safe_load_json(three_pass_manifest_path(output_path), {})
-    blocker = get_three_pass_publication_blocker(manifest)
-    if blocker:
+    def refuse(blocker):
         partial_path = output_path + ".partial.json"
         atomic_json_write(entries, partial_path, allow_nonatomic_fallback=False)
         print(f"Refusing publication: {blocker}; "
               f"wrote {len(entries)} entries to {partial_path}")
         sys.exit(1)
-    # #2157: re-verify source identity at the actual publication boundary,
-    # shared with the legacy publisher, so a source edited after preparation
-    # cannot publish a script for stale text.
+
+    try:
+        manifest = load_three_pass_completion_manifest(three_pass_manifest_path(output_path))
+    except ValueError as exc:
+        refuse(str(exc))
+    blocker = get_three_pass_publication_blocker(manifest, expected_run_id=active_run_id)
+    if blocker:
+        refuse(blocker)
+    # Re-verify source identity at the publication boundary. The same guard is
+    # re-run at the final replacement boundary (and on every retry) by the
+    # guarded commit below, so an edit in either window cannot publish stale text.
     from script_selection_binding import require_unchanged_source
-    require_unchanged_source(
-        args.input_file,
-        args.active_source_sha256 if args.active_book_token is not None else input_source_sha256,
-        owning_root=owning_root)
+    publish_source_sha256 = (args.active_source_sha256 if active_run_id is not None
+                             else input_source_sha256)
+
+    def require_source_unchanged():
+        require_unchanged_source(args.input_file, publish_source_sha256,
+                                 owning_root=owning_root)
+
+    require_source_unchanged()
     if args.literal_source_preserving:
         from literal_policy import bind_literal_policy
-        from script_selection_binding import _source_digest
-        if _source_digest(args.input_file) != input_source_sha256:
-            raise ValueError("Source input changed during literal annotation; refusing publication")
         entries = bind_literal_policy(book, entries,
             input_sha256=input_source_sha256,
             strip_front_matter=args.strip_front_matter)
-    # Dialogue mapping already ran inside run_three_pass before the final
-    # checkpoint and manifest were written.
-    if args.active_book_token is not None:
+        require_source_unchanged()
+    # Stage the final bytes only after literal binding, then commit under the
+    # guarded boundary; completion and chunk clearing follow a successful commit.
+    script_bytes = json.dumps(entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
+    if active_run_id is not None:
         from script_selection_binding import publish_generated_script
-        script_bytes = json.dumps(entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
         publish_generated_script(data_dir, args.active_book_token, args.input_file,
-                                 args.active_source_sha256, script_bytes, expected_run_id=args.active_run_id,
-                                 complete_manifest=True)
+                                 args.active_source_sha256, script_bytes,
+                                 expected_run_id=args.active_run_id,
+                                 complete_manifest=True,
+                                 before_replace=require_source_unchanged)
     else:
-        atomic_json_write(entries, output_path, allow_nonatomic_fallback=False)
+        atomic_json_write(entries, output_path, allow_nonatomic_fallback=False,
+                          before_replace=require_source_unchanged)
+        manifest['status'] = 'complete'
+        atomic_json_write(manifest, three_pass_manifest_path(output_path),
+                          allow_nonatomic_fallback=False)
     print(f"Wrote {len(entries)} entries to {output_path}")
     if args.active_book_token is None and chunks_path is not None and remove_chunk_snapshot(chunks_path):
         print("Cleared old chunks.json")

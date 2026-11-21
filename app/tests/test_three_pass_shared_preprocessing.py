@@ -98,7 +98,7 @@ class SharedPreprocessingCliTests(unittest.TestCase):
                  patch.object(tp, 'run_three_pass', side_effect=fake_run), \
                  patch.object(tp, 'DEFAULT_MODEL_PROFILES_PATH',
                               str(Path(__file__).parent.parent / 'three_pass_model_profiles.json')):
-                with self.assertRaisesRegex(ValueError, 'Source input changed'):
+                with self.assertRaisesRegex(ValueError, 'changed during generation'):
                     tp.main()
             self.assertEqual(prior, output.read_bytes())
             self.assertFalse((Path(str(output) + '.partial.json')).exists())

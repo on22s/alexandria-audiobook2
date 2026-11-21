@@ -1,4 +1,5 @@
 """Verify CLI sample/full execution policy and real planning prompt construction."""
+import contextlib
 import copy
 import hashlib
 import importlib.util
@@ -69,7 +70,9 @@ class ThreePassCliSettingsTests(unittest.TestCase):
             selection = capture_generation_selection(tmp, str(source))
             def run(client, model, text, params, chunk_size, **kwargs):
                 self.assertTrue(kwargs['defer_final_publication'])
-                Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text('{"status":"publishing"}')
+                Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(
+                    json.dumps({'status': 'publishing', 'run_id': 'f' * 32,
+                                'passes': {}, 'diagnostic_failures': []}))
                 return [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
             argv = ['three_pass_generate', str(source), '--active-book-token', selection['book_token'],
                     '--active-source-sha256', selection['source_sha256'], '--active-run-id', 'f'*32]
@@ -100,7 +103,9 @@ class ThreePassCliSettingsTests(unittest.TestCase):
             (root / 'chunks.json').write_text('[{"text":"old chunk"}]')
             selection = capture_generation_selection(tmp, str(source))
             def run(client, model, text, params, chunk_size, **kwargs):
-                Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text('{"status":"publishing"}')
+                Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(
+                    json.dumps({'status': 'publishing', 'run_id': 'f' * 32,
+                                'passes': {}, 'diagnostic_failures': []}))
                 source.write_text('A different source was selected.', encoding='utf-8')
                 return [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
             argv = ['three_pass_generate', str(source), '--active-book-token', selection['book_token'],
@@ -110,13 +115,128 @@ class ThreePassCliSettingsTests(unittest.TestCase):
                  patch.object(tp, 'ensure_ideal_settings', return_value=(None, {'context_length':32768}, 'fixture')), \
                  patch.object(tp, 'make_run_client', return_value=object()), \
                  patch.object(tp, 'run_three_pass', side_effect=run):
-                with self.assertRaisesRegex(ValueError, 'source changed'):
+                with self.assertRaisesRegex(ValueError, 'changed during generation'):
                     tp.main()
             self.assertEqual('[{"text":"old"}]', (root / 'annotated_script.json').read_text())
             self.assertEqual('[{"text":"old chunk"}]', (root / 'chunks.json').read_text())
             self.assertFalse((root / BINDING_NAME).exists())
             self.assertTrue(json.loads((root / 'state.json').read_text())['script_selection_pending'])
             self.assertEqual('publishing', json.loads((root / 'annotated_script.json.threepass_manifest.json').read_text())['status'])
+
+    def test_missing_corrupt_and_contradictory_manifests_refuse_publication(self):
+        """A run that leaves no valid completion evidence must not replace the
+        last accepted script, whatever its manifest happens to say."""
+        config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                  'generation': {'max_tokens': 4096}}
+        writers = {
+            'deleted': lambda path: None,
+            'corrupt': lambda path: path.write_text('{bad'),
+            'contradictory': lambda path: path.write_text(json.dumps({
+                'status': 'complete', 'passes': {'attribute': {'unchecked_entries': 1}},
+                'diagnostic_failures': []})),
+        }
+        for label, write_manifest in writers.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source = root / 'source.txt'
+                source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+                output = root / 'out.json'
+                prior = b'[{"text":"prior accepted script"}]'
+                output.write_bytes(prior)
+
+                def run(client, model, text, params, chunk_size, **kwargs):
+                    write_manifest(Path(tp.three_pass_manifest_path(kwargs['output_path'])))
+                    return [{'speaker': 'NARRATOR', 'text': 'new script', 'instruct': 'Neutral.'}]
+
+                with patch.object(tp.sys, 'argv', ['three_pass_generate', str(source),
+                                                   '--output', str(output)]), \
+                     patch.object(tp, 'load_app_config', return_value=config), \
+                     patch.object(tp, 'ensure_ideal_settings',
+                                  return_value=(None, {'context_length': 32768}, 'fixture')), \
+                     patch.object(tp, 'make_run_client', return_value=object()), \
+                     patch.object(tp, 'run_three_pass', side_effect=run):
+                    with self.assertRaises(SystemExit):
+                        tp.main()
+                self.assertEqual(prior, output.read_bytes())
+
+    def test_source_swap_around_staging_and_retry_preserves_old_output(self):
+        """The guarded replacement revalidates the confined source at the final
+        boundary and on every retry; a swap during literal binding, staging or
+        backoff must leave the last accepted script and chunks untouched."""
+        import utils
+
+        config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                  'generation': {'max_tokens': 4096}}
+        for label in ('literal_binding', 'staging', 'backoff'):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source = root / 'source.txt'
+                source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+                output = root / 'out.json'
+                prior = b'[{"text":"prior accepted script"}]'
+                output.write_bytes(prior)
+                chunks = root / 'chunks.json'
+                chunks.write_bytes(b'[{"text":"prior chunk"}]')
+                swapped = False
+
+                def swap_once():
+                    nonlocal swapped
+                    if not swapped:
+                        source.write_text('Different words chosen elsewhere.', encoding='utf-8')
+                        swapped = True
+
+                def run(client, model, text, params, chunk_size, **kwargs):
+                    Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(
+                        json.dumps({'status': 'complete', 'passes': {}, 'diagnostic_failures': []}))
+                    return [{'speaker': 'NARRATOR', 'text': 'new script', 'instruct': 'Neutral.'}]
+
+                patches = [
+                    patch.object(tp.sys, 'argv', ['three_pass_generate', str(source),
+                                                  '--output', str(output)]
+                                 + (['--literal-source-preserving']
+                                    if label == 'literal_binding' else [])),
+                    patch.object(tp, 'load_app_config', return_value=config),
+                    patch.object(tp, 'ensure_ideal_settings',
+                                 return_value=(None, {'context_length': 32768}, 'fixture')),
+                    patch.object(tp, 'make_run_client', return_value=object()),
+                    patch.object(tp, 'run_three_pass', side_effect=run),
+                ]
+                if label == 'literal_binding':
+                    patches.append(patch('literal_policy.bind_literal_policy',
+                                         side_effect=lambda *a, **k: (swap_once(),
+                                                                      a[1])[1]))
+                elif label == 'staging':
+                    original_mkstemp = utils.tempfile.mkstemp
+
+                    def staging_swap(*args, **kwargs):
+                        swap_once()
+                        return original_mkstemp(*args, **kwargs)
+
+                    patches.append(patch.object(utils.tempfile, 'mkstemp', side_effect=staging_swap))
+                else:
+                    original_replace = utils.os.replace
+                    attempts = []
+
+                    def backoff_swap(src, dst, *args, **kwargs):
+                        if Path(dst) == output:
+                            attempts.append(dst)
+                            if len(attempts) == 1:
+                                swap_once()
+                                error = OSError('locked')
+                                error.winerror = 5
+                                raise error
+                        return original_replace(src, dst, *args, **kwargs)
+
+                    patches.append(patch.object(utils.os, 'replace', side_effect=backoff_swap))
+
+                with contextlib.ExitStack() as stack:
+                    for item in patches:
+                        stack.enter_context(item)
+                    with self.assertRaisesRegex(ValueError, 'changed during generation'):
+                        tp.main()
+                self.assertTrue(swapped)
+                self.assertEqual(prior, output.read_bytes())
+                self.assertEqual(b'[{"text":"prior chunk"}]', chunks.read_bytes())
 
     def run_cli(self, tmp, config, preflight, extra):
         source = Path(tmp) / 'source.txt'
@@ -133,6 +253,8 @@ class ThreePassCliSettingsTests(unittest.TestCase):
 
         def run(client, model, text, params, chunk_size, **kwargs):
             calls.append((text, params, chunk_size, kwargs))
+            Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(
+                json.dumps({'status': 'complete', 'passes': {}, 'diagnostic_failures': []}))
             return [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
 
         argv = ['three_pass_generate', str(source), '--output', str(output),

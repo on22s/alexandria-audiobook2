@@ -204,15 +204,16 @@ class BatchKeepScopeTests(unittest.TestCase):
         out = _attribute(BATCH, self.ANSWER, "keep", BATCH_SOURCE, keep_scope="batch")
         self.assertNotIn("SILAS DURGAN", tp.attested_new_speakers(out, set(), BATCH_SOURCE))
 
-    def test_scope_is_part_of_checkpoint_identity_but_line_keeps_legacy(self):
-        """#2156: 'batch' retains whole rejected batches while 'line' subdivides,
-        so the two must not resume into one another. The default 'line' stays
-        byte-identical to the pre-knob fingerprint so existing books resume."""
-        fp = lambda scope="line": tp.three_pass_fingerprint("text", "m", 6000,
-                                                             keep_scope=scope)
-        self.assertEqual(tp.three_pass_fingerprint("text", "m", 6000), fp())
-        self.assertEqual(fp("line"), fp())
+    def test_every_scope_is_bound_in_new_checkpoint_identity(self):
+        """'batch' retains whole rejected batches while 'line' subdivides, so
+        both scopes are bound explicitly: a checkpoint can no longer be resumed
+        under a scope it was not written for. Passing None reproduces the
+        pre-knob identity so legacy checkpoints can be recognised separately."""
+        fp = lambda scope: tp.three_pass_fingerprint("text", "m", 6000, keep_scope=scope)
+        self.assertEqual(tp.three_pass_fingerprint("text", "m", 6000), fp("line"))
         self.assertNotEqual(fp("batch"), fp("line"))
+        self.assertNotEqual(tp.three_pass_fingerprint("text", "m", 6000, keep_scope=None),
+                            fp("line"))
 
     def test_run_three_pass_binds_keep_scope_into_the_fingerprint(self):
         """#2156: the live run option must reach the fingerprint, not just

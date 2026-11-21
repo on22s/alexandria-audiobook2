@@ -15,6 +15,7 @@ from pathlib import Path
 _DIGEST = re.compile(r'^[0-9a-f]{64}$')
 MAX_BINDING_BYTES = 4096
 BINDING_NAME = 'annotated_script.selection_binding.json'
+STALE_SOURCE_MESSAGE = 'Selected source changed during generation; preserving prior output'
 
 
 def is_script_selection_pending(state):
@@ -117,7 +118,7 @@ def require_unchanged_source(source_path, expected_sha256, *, owning_root=None):
     edited or swapped mid-run can never publish a script for stale text.
     """
     if _source_digest(source_path, owning_root=owning_root) != _digest(expected_sha256):
-        raise ValueError('Source input changed during generation; preserving prior output')
+        raise ValueError(STALE_SOURCE_MESSAGE)
 
 
 def _read_selection_state(data_dir, *, required):
@@ -540,7 +541,7 @@ def check_script_selection_binding(raw, book_token, source_sha256, current_scrip
 
 def publish_generated_script(data_dir, expected_token, expected_source_path,
                              expected_source_sha256, script_bytes, *, expected_run_id,
-                             complete_manifest=False):
+                             complete_manifest=False, before_replace=None):
     """Publish a run's output and binding together after checking its selection.
 
     The caller supplies identity and source digest captured before the run, not
@@ -599,7 +600,7 @@ def publish_generated_script(data_dir, expected_token, expected_source_path,
         if current_script['sha256'] != base:
             raise ValueError('Active script changed during generation; edits were preserved')
         if _source_digest(expected_source_path, owning_root=data_dir) != expected_source_sha256:
-            raise ValueError('Selected source changed during script generation')
+            raise ValueError(STALE_SOURCE_MESSAGE)
         binding = make_script_selection_binding(expected_token, expected_source_sha256,
                                                 script_bytes, source_path=expected_source_path)
         journal = Path(get_chunk_status_journal_path(chunks))
@@ -619,13 +620,22 @@ def publish_generated_script(data_dir, expected_token, expected_source_path,
         replacements['state.json'] = json.dumps(state, ensure_ascii=False, indent=2,
                                                  allow_nan=False).encode('utf-8')
         if complete_manifest:
+            from three_pass_generate import get_three_pass_publication_blocker
             _, raw_manifest = capture_scope_file(data_dir, manifest_path.name,
-                                                  limit=16 * 1024**2, include_bytes=True)
+                                                   limit=16 * 1024**2, include_bytes=True)
             if raw_manifest is None:
                 raise ValueError('Generation publication manifest unavailable')
-            manifest = json.loads(raw_manifest, object_pairs_hook=_unique_pairs)
-            if not isinstance(manifest, dict) or manifest.get('status') != 'publishing':
-                raise ValueError('Generation is not awaiting publication')
+            try:
+                manifest = json.loads(
+                    raw_manifest, object_pairs_hook=_unique_pairs,
+                    parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Invalid numeric constant')))
+                blocker = (get_three_pass_publication_blocker(
+                    manifest, expected_run_id=expected_run_id)
+                    if isinstance(manifest, dict) else 'generation manifest is invalid')
+            except (UnicodeDecodeError, ValueError, RecursionError) as error:
+                raise ValueError('Generation completion evidence is invalid; edits were preserved') from error
+            if blocker:
+                raise ValueError(f'Generation completion evidence is invalid: {blocker}; edits were preserved')
             manifest['status'] = 'complete'
             manifest['publication'] = {
                 'run_id': expected_run_id,
@@ -633,4 +643,5 @@ def publish_generated_script(data_dir, expected_token, expected_source_path,
             }
             replacements[manifest_path.name] = json.dumps(
                 manifest, ensure_ascii=False, indent=2, allow_nan=False).encode()
-        apply_book_state_locked(data_dir, replacements, [chunks.name, journal.name])
+        apply_book_state_locked(data_dir, replacements, [chunks.name, journal.name],
+                                before_replace=before_replace)

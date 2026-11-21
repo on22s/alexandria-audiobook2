@@ -4903,12 +4903,16 @@ def ensure_saved_book_state(data_dir, scripts_dir, timeout=10, *, recover=True):
         yield
 
 
-def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_limit=None, cancel_check=None):
+def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_limit=None,
+                            cancel_check=None, before_replace=None):
     """Stage and publish a switch; streams require an admitted, bounded caller.
 
     Stream objects must already be pinned by the caller. Their extent and hash
     are checked during staging. The byte limit also bounds each aggregate scan
     of existing targets; no stream authorizes a book restore by itself.
+    before_replace is rechecked at the final publication boundary and before
+    every row replacement, so evidence that changed during staging cannot be
+    published.
     """
     root, root_identity = _book_operation_root(data_dir)
     if os.path.lexists(root / JOURNAL):
@@ -5208,6 +5212,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                 data['target_parent_identity_scheme'] = WINDOWS_PARENT_SCHEME
         if root_guard is not None:
             root_guard.check()
+        if before_replace is not None:
+            before_replace()
         journal_version = _save_journal(
             root, data, create=True, root_fd=root_fd,
             on_publish_attempt=lambda: journal_publication_attempted.append(True))
@@ -5229,6 +5235,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             _require_transaction_parent_identities(
                 root, names, parent_identities, root_fd=root_fd, cancel_check=cancel_check)
         for index, (row, target) in enumerate(zip(rows, targets)):
+            if before_replace is not None:
+                before_replace()
             # Then only this row's own chain around its move (#1660), keeping
             # the loop linear: _validate_names refuses any target that is an
             # ancestor of another, so moving one target cannot change another's
