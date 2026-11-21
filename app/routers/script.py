@@ -4070,25 +4070,12 @@ def _start_batch_review(request, background_tasks):
                         ", ".join(f"'{a['variant']}' -> '{a['canonical']}'" for a in new_aliases)
                     )
 
-            # Clear stale progress at the start of every pass. In a bidirectional
-            # run the forward pass's clean checkpoint is preserved so a crash in
-            # the backward pass can resume from where forward left off; see below.
-            should_clear = True
-            if state.get("bidirectional") and state.get("current_pass") == "bwd":
-                # Preserve the forward pass's checkpoint only when that pass
-                # finished cleanly. Any other status means the forward pass did
-                # not complete: "failed" (subprocess/validation error),
-                # "incomplete" (VRAM abort, failed batches, or missing summary),
-                # "pending"/None (never ran), "cancelled", or "running". In every
-                # one of those cases the on-disk checkpoint is stale forward-pass
-                # progress and must not seed the hindsight (backward) result.
-                should_clear = orig_status != "done"
-
-            if should_clear:
-                if request.start_over:
-                    discard_review_progress(script_path)
-                else:
-                    clear_checkpoint(script_path)
+            # Ordinary retries keep their checkpoint: the child validates its
+            # execution and input identity (including --review-pass) before
+            # resuming, and discards a checkpoint it cannot bind. Only an
+            # explicit Start over retires progress before model work.
+            if request.start_over:
+                discard_review_progress(script_path)
 
             cmd = [
                 sys.executable, "-u",
@@ -4198,6 +4185,11 @@ def _start_batch_review(request, background_tasks):
                 if state["cancel"]:
                     state["logs"].append("Batch review cancelled.")
                     break
+                forward_task = state["tasks"][i]
+                if (forward_task.get("status") != "done" or not forward_task.get("stats_fwd")):
+                    state["logs"].append(
+                        f"[{i+1}/{total}] [bwd] Skipping hindsight pass: {names[i]} has no verified complete forward review.")
+                    continue
                 if not _process_book(i, names[i], tag=" [bwd]"):
                     break
 

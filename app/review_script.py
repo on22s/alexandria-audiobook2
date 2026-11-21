@@ -231,6 +231,24 @@ def _checkpoint_path(output_path):
     return get_review_progress_paths(output_path)[0]
 
 
+def get_verified_checkpoint(output_path, execution_sha256, input_sha256, output_sha256):
+    """Read a checkpoint only when it is whole and bound to this exact run."""
+    path = _checkpoint_path(output_path)
+    if not os.path.exists(path):
+        return None
+    try:
+        data = load_generation_checkpoint_document(path)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if (data.get("execution_sha256") != execution_sha256
+            or data.get("source_sha256") != input_sha256
+            or data.get("output_sha256") != output_sha256):
+        return None
+    return data
+
+
 _entries_fingerprint = get_review_entries_fingerprint
 
 
@@ -656,7 +674,8 @@ def get_saved_review_accounting(accounting, data):
 
 
 def load_checkpoint(output_path, total_batches, batch_size, context_window, entries,
-                    execution_sha256=None, legacy_execution_sha256=()):
+                    execution_sha256=None, legacy_execution_sha256=(),
+                    input_sha256=None, input_entries=None):
     """Return checkpoint dict if one exists and matches this run's parameters.
 
     If earlier batches failed (and were filled in with their original,
@@ -696,7 +715,11 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
             data.get("context_window") != context_window):
         print("Found a review checkpoint but parameters changed - starting fresh.")
         return None
-    entries_sha256 = _entries_fingerprint(entries)
+    # Inherited source spans can normalize rows after the on-disk digest was
+    # taken. Validate against the original input identity while keeping the
+    # normalized rows for windows and inference.
+    input_rows = input_entries if input_entries is not None else entries
+    entries_sha256 = input_sha256 or _entries_fingerprint(input_rows)
     if entries_sha256 not in (data.get("source_sha256"),
                                data.get("output_sha256")):
         print("Review checkpoint source changed or has no fingerprint - starting fresh.")
@@ -715,7 +738,7 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
             or any(not isinstance(offset, int) or isinstance(offset, bool) or offset < 0 for offset in offsets)
             or offsets != sorted(offsets)
             or (entries_sha256 == data.get("source_sha256")
-                and offsets and offsets[-1] > len(entries))):
+                and offsets and offsets[-1] > len(input_rows))):
         print("Invalid review checkpoint source offsets - starting fresh.")
         return None
     if get_literal_policy(entries) is not None and (
@@ -723,7 +746,7 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
         end = ((offsets[-1] if offsets else data["completed_batches"] * batch_size)
                if entries_sha256 == data.get("source_sha256")
                else len(data["all_corrected"]))
-        prefix = " ".join(entry.get("text", "") for entry in entries[:end])
+        prefix = " ".join(entry.get("text", "") for entry in input_rows[:end])
         if not audit_literal_words(prefix, data["all_corrected"])["passed"]:
             print("Literal review checkpoint changed narration - starting fresh.")
             return None
@@ -746,7 +769,7 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
     keep_count = (max(0, failed_batches[0] - 1)
                   if failed_batches and len(batch_lengths) == completed_batches else completed_batches)
     metadata, contributions, counts = get_review_checkpoint_accounting(
-        data, entries, keep_count, migrated=migrated_counts)
+        data, input_rows, keep_count, migrated=migrated_counts)
     data['review_accounting'] = metadata
     data['review_batch_contributions'] = contributions
     if counts is not None:
@@ -851,12 +874,12 @@ def clear_checkpoint(output_path):
                       "Stale checkpoint artifacts may remain.")
 
 
-def get_review_resume_source_offsets(checkpoint, entries, batch_size):
+def get_review_resume_source_offsets(checkpoint, entries, batch_size, input_sha256=None):
     """Return consumed-input offsets in the coordinate space of this input."""
     if not checkpoint:
         return []
     count = checkpoint["completed_batches"]
-    if _entries_fingerprint(entries) == checkpoint.get("source_sha256"):
+    if (input_sha256 or _entries_fingerprint(entries)) == checkpoint.get("source_sha256"):
         return list(checkpoint.get("source_offsets") or
                     [min(len(entries), (index + 1) * batch_size) for index in range(count)])
     lengths = checkpoint["batch_lengths"]
@@ -877,7 +900,7 @@ def get_review_resume_source_offsets(checkpoint, entries, batch_size):
 
 def _load_resume_state(output_path, total_batches_estimate, batch_size, context_window,
                         entries, all_corrected, total_stats, execution_sha256=None,
-                        legacy_execution_sha256=()):
+                        legacy_execution_sha256=(), input_sha256=None, input_entries=None):
     """Load a checkpoint (if any) and compute where this run should resume from.
 
     Shared by main()'s contextual and non-contextual review loops, which
@@ -892,16 +915,21 @@ def _load_resume_state(output_path, total_batches_estimate, batch_size, context_
     failed_batches = []
     checkpoint = load_checkpoint(output_path, total_batches_estimate, batch_size,
                                  context_window, entries, execution_sha256=execution_sha256,
-                                 legacy_execution_sha256=legacy_execution_sha256)
+                                 legacy_execution_sha256=legacy_execution_sha256,
+                                 input_sha256=input_sha256, input_entries=input_entries)
     if checkpoint:
         completed_batches = checkpoint["completed_batches"]
         all_corrected = checkpoint["all_corrected"]
         total_stats = checkpoint["total_stats"]
+        # Skip counts describe the run that wrote the checkpoint; they must not
+        # brand a later, successful resume as incomplete.
+        total_stats["batches_skipped_vram"] = 0
         previous_tail = checkpoint["previous_tail"]
         batch_lengths = checkpoint["batch_lengths"]
         failed_batches = checkpoint["failed_batches"]
 
-    source_offsets = get_review_resume_source_offsets(checkpoint, entries, batch_size)
+    source_offsets = get_review_resume_source_offsets(
+        checkpoint, entries, batch_size, input_sha256=input_sha256)
     resume_offset = source_offsets[-1] if source_offsets else 0
     return (all_corrected, total_stats, previous_tail, completed_batches,
             batch_lengths, failed_batches, resume_offset, checkpoint)
@@ -2465,6 +2493,7 @@ def main():
             active_config = {**config, "llm_mode": "remote" if llm_mode == "local" else "local"}
         return is_llm_on_this_gpu(active_config)
 
+    input_entries = entries
     source_sha256 = _entries_fingerprint(entries)
     review_source_snapshot = (None if gen_params.review_labels_only else
         get_review_source_snapshot(data_dir, script_path, original_script_bytes, entries))
@@ -2511,9 +2540,11 @@ def main():
          failed_batches, resume_offset, checkpoint) = _load_resume_state(
             output_path, total_batches_estimate, batch_size, args.context_window,
             entries, all_corrected, total_stats, execution_sha256=receipt_fingerprint,
-            legacy_execution_sha256=legacy_fingerprints)
-        source_offsets = get_review_resume_source_offsets(checkpoint, entries, batch_size)
-        accounting = get_review_runtime_accounting(checkpoint, source_sha256, len(entries),
+            legacy_execution_sha256=legacy_fingerprints,
+            input_sha256=source_sha256, input_entries=input_entries)
+        source_offsets = get_review_resume_source_offsets(
+            checkpoint, entries, batch_size, input_sha256=source_sha256)
+        accounting = get_review_runtime_accounting(checkpoint, source_sha256, len(input_entries),
             total_stats, source_offsets, batch_lengths, len(all_corrected))
         remaining_windows = get_review_remaining_windows(review_windows, entries, resume_offset)
     except ValueError:
@@ -2902,25 +2933,42 @@ def main():
     output_entries = retain_literal_policy(output_entries, literal_policy)
     output_bytes = json.dumps(output_entries, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
 
+    output_sha256 = _entries_fingerprint(output_entries)
     if not review_complete:
         accounting = save_checkpoint(output_path, len(batch_lengths), total_batches, batch_size,
                         args.context_window, all_corrected, total_stats, previous_tail,
                         batch_lengths, failed_batches, source_sha256,
-                        _entries_fingerprint(output_entries), writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
-    checkpoint_saved = os.path.exists(_checkpoint_path(output_path))
+                        output_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
+    checkpoint_saved = (get_verified_checkpoint(
+        output_path, receipt_fingerprint, source_sha256, output_sha256)
+        if not review_complete else None)
+    unreviewed_entries = len(unreviewed_remainder)
+    post_processing_abort = bool(vram_aborted and not failed_batches and not unreviewed_entries)
+    publication_withheld = not review_complete and (active_review or saved_review)
 
     # An incomplete review never publishes: the resumable checkpoint holds the
     # completed work, while the script, bindings, voice settings, alias registry
     # and audio stay exactly as they were. Explicit --output keeps its legacy
     # behaviour of always receiving the assembled entries.
-    if not review_complete and (active_review or saved_review):
+    if publication_withheld:
         ensure_review_not_cancelled()
         print("\nReview is incomplete: the script, voice settings and audio were left unchanged.")
+        if post_processing_abort:
+            print(f"All {len(entries)} entries were reviewed; final checks did not finish.")
+        elif unreviewed_entries:
+            print(f"{unreviewed_entries} entries were left unreviewed.")
         if checkpoint_saved:
             print("Resume the review to apply the completed batches.")
         else:
             print("No resumable checkpoint was saved; re-run the review from the start.")
+    if not review_complete and not publication_withheld:
+        if post_processing_abort:
+            print(f"All {len(entries)} entries were reviewed; final checks did not finish.")
+        elif unreviewed_entries:
+            print(f"{unreviewed_entries} entries were left unreviewed.")
     # Keep active script identity and old chunks in the same recoverable commit.
+    if publication_withheld:
+        pass
     elif active_review:
         from script_selection_binding import publish_controlled_script_edit
         ensure_review_not_cancelled()
@@ -2962,6 +3010,12 @@ def main():
 
     accounting_unverified = accounting['metadata']['inherited_unverified']
     _emit_json_marker('REVIEW_ACCOUNTING_JSON', {'inherited_unverified': accounting_unverified})
+    _emit_json_marker('REVIEW_DISPOSITION_JSON', {
+        'incomplete': not review_complete,
+        'unreviewed_entries': unreviewed_entries,
+        'post_processing_abort': post_processing_abort,
+        'publication_withheld': publication_withheld,
+        'resumable_checkpoint': checkpoint_saved is not None})
     warning = get_review_accounting_warning({'accounting_unverified': accounting_unverified})
     if warning:
         print('WARNING: ' + warning)

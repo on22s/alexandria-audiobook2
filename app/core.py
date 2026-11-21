@@ -1351,10 +1351,20 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
                     )
                 if stats:
                     if stats.get("review_incomplete") and not (stats.get("batches_failed") or stats.get("batches_skipped_vram")):
+                        if stats.get("post_processing_abort"):
+                            stage = "all entries were reviewed; final checks did not finish"
+                        elif stats.get("unreviewed_entries"):
+                            stage = f"{stats['unreviewed_entries']} entries were left unreviewed"
+                        else:
+                            stage = "the review stopped before all entries were reviewed"
+                        disposition = ("The script, voice settings and audio were left unchanged."
+                                       if stats.get("publication_withheld") else
+                                       "The assembled entries were written to the output.")
+                        resume = ("Re-run to resume from its verified checkpoint."
+                                  if stats.get("resumable_checkpoint") else
+                                  "No resumable checkpoint was verified; re-run the review.")
                         completion_note = (
-                            f"Task {task_name} stopped early before all entries were reviewed. "
-                            "Re-run to resume from its checkpoint when one is available."
-                        )
+                            f"Task {task_name} stopped early: {stage}. {disposition} {resume}")
                     elif stats.get("batches_failed"):
                         disposition = (
                             "The original entries were preserved" if failures.get("original_entries_preserved")
@@ -1554,14 +1564,7 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
                         RUN_HISTORY_DIR, run_id, data_dir=DATA_DIR, **artifact)
                 except Exception:
                     logger.exception("Could not record artifact for run %s", run_id)
-            if error is not None or state.get("status") == "failed":
-                final_status = "failed"
-            elif task_name == 'script' and state.get('_script_published_cleanup_stop'):
-                final_status = 'completed'
-            elif state.get("cancel") or state.get("status") == "cancelled":
-                final_status = "cancelled"
-            else:
-                final_status = "completed"
+            final_status = _run_history_final_status(state, task_name, error)
             try:
                 finish_run(RUN_HISTORY_DIR, run_id, final_status, error=error)
             except Exception:
@@ -1569,6 +1572,31 @@ def _run_claimed_background_task(task_name: str, callback) -> None:
         if direct_claim is not None:
             release_gpu_task_claim(task_name, direct_claim)
 
+
+
+def _run_history_final_status(state, task_name, error):
+    """Map a finished task's terminal status and any children to history vocabulary.
+
+    Only the two child outcomes already used by task state are considered, so
+    unrelated task families keep their existing completed/cancelled/failed
+    semantics instead of being reinterpreted here.
+    """
+    if error is not None or state.get("status") == "failed":
+        return "failed"
+    if state.get("cancel") or state.get("status") in ("cancelled", "canceled"):
+        return "cancelled"
+    children = state.get("tasks")
+    if isinstance(children, list):
+        child_statuses = {child.get("status") for child in children if isinstance(child, dict)}
+        if "failed" in child_statuses:
+            return "failed"
+        if "incomplete" in child_statuses:
+            return "incomplete"
+    if state.get("status") in ("incomplete", "partial"):
+        return "incomplete"
+    if task_name == 'script' and state.get('_script_published_cleanup_stop'):
+        return 'completed'
+    return "completed"
 
 
 def ensure_failed_subprocess_stopped(process, state):
@@ -1904,6 +1932,7 @@ _ALIAS_LINE_RE = re.compile(r"'(.+?)'\s*->\s*'(.+?)'(?:\s*\((.*)\))?\s*$")
 _DIFF_PREVIEW_RE = re.compile(r'DIFF_PREVIEW_JSON:\s*(\{.*\})\s*$')
 _FAILED_SECTIONS_RE = re.compile(r'FAILED_SECTIONS_JSON:\s*(\{.*\})\s*$')
 _REVIEW_FAILURE_RE = re.compile(r'REVIEW_FAILURE_JSON:\s*(\{.*\})\s*$')
+_REVIEW_DISPOSITION_RE = re.compile(r'REVIEW_DISPOSITION_JSON:\s*(\{.*\})\s*$')
 _MAX_REVIEW_FAILURE_MESSAGE_CHARS = 500
 
 
@@ -1913,6 +1942,10 @@ def _new_review_totals() -> dict:
     totals["books_done"] = 0
     totals['accounting_unverified'] = False
     totals["review_incomplete"] = False
+    totals["unreviewed_entries"] = 0
+    totals["post_processing_abort"] = False
+    totals["publication_withheld"] = False
+    totals["resumable_checkpoint"] = False
     return totals
 
 
@@ -1941,7 +1974,23 @@ def _extract_review_stats(lines: List[str]) -> Optional[dict]:
     stats["review_incomplete"] = entries_match.group(1) == "incomplete"
     stats["entries_before"] = int(entries_match.group(2))
     stats["entries_after"] = int(entries_match.group(3))
+    stats["unreviewed_entries"] = 0
+    stats["post_processing_abort"] = False
+    stats["publication_withheld"] = False
+    stats["resumable_checkpoint"] = False
     for line in lines:
+        if (match := _REVIEW_DISPOSITION_RE.search(line)) is not None:
+            try:
+                disposition = json.loads(match.group(1))
+                count = disposition['unreviewed_entries']
+                if type(count) is not int or count < 0:
+                    raise ValueError('Invalid unreviewed count')
+                stats["unreviewed_entries"] = count
+                for key in ('post_processing_abort', 'publication_withheld', 'resumable_checkpoint'):
+                    if type(disposition.get(key)) is bool:
+                        stats[key] = disposition[key]
+            except (ValueError, KeyError, TypeError):
+                logger.warning('Malformed review disposition summary; using counters only.')
         if line.startswith('REVIEW_ACCOUNTING_JSON: '):
             try:
                 accounting = json.loads(line.split(': ', 1)[1])
@@ -1975,6 +2024,10 @@ def _combine_pass_stats(*stat_dicts: Optional[dict]) -> dict:
     combined["partial"] = False
     combined['accounting_unverified'] = False
     combined["review_incomplete"] = False
+    combined["unreviewed_entries"] = 0
+    combined["post_processing_abort"] = False
+    combined["publication_withheld"] = False
+    combined["resumable_checkpoint"] = False
     for stats in stat_dicts:
         if not stats:
             combined["partial"] = True
@@ -1986,6 +2039,9 @@ def _combine_pass_stats(*stat_dicts: Optional[dict]) -> dict:
                                             or bool(stats.get('accounting_unverified')))
         combined["review_incomplete"] = (combined["review_incomplete"]
                                           or _review_is_incomplete(stats))
+        combined["unreviewed_entries"] += stats.get("unreviewed_entries") or 0
+        for key in ("post_processing_abort", "publication_withheld", "resumable_checkpoint"):
+            combined[key] = combined[key] or bool(stats.get(key))
     combined['accounting_warning'] = get_review_accounting_warning(combined)
     return combined
 
@@ -2142,6 +2198,10 @@ def _format_book_summary(i: int, total: int, tag: str, name: str, stats: dict) -
         bits.append(f"{stats['batches_skipped_vram']} batch(es) skipped (VRAM)")
     if stats.get("review_incomplete"):
         bits.append("review incomplete")
+        if stats.get("post_processing_abort"):
+            bits.append("all rows reviewed; final checks stopped")
+        elif stats.get("unreviewed_entries"):
+            bits.append(f"{stats['unreviewed_entries']} unreviewed entries")
     if get_review_accounting_warning(stats):
         bits.append(get_review_accounting_warning(stats))
     return f">>> [{i+1}/{total}]{tag} '{name}' done: {', '.join(bits)} <<<"
@@ -2158,6 +2218,11 @@ def _format_pass_summary(label: str, totals: dict, aliases: List[dict], show_ali
         lines.append(f"  Narrators merged: {totals['narrators_merged']}, Speakers merged: {totals['speakers_merged']}")
     if totals["batches_failed"] or totals["batches_skipped_vram"]:
         lines.append(f"  Batches failed: {totals['batches_failed']}, skipped (VRAM): {totals['batches_skipped_vram']}")
+    if totals.get("review_incomplete"):
+        if totals.get("post_processing_abort"):
+            lines.append("  Review incomplete: all rows reviewed; final checks stopped")
+        else:
+            lines.append(f"  Review incomplete: {totals.get('unreviewed_entries', 0)} unreviewed entries")
     if get_review_accounting_warning(totals):
         lines.append('  ' + get_review_accounting_warning(totals))
     if show_aliases:
@@ -2213,6 +2278,12 @@ def _markdown_heads_up_lines(stats: dict) -> List[str]:
         lines.append(f"- {stats['batches_skipped_vram']} section(s) were skipped because the "
                       f"graphics card was running low on memory. Running the review again may "
                       f"catch these.")
+    if stats.get("post_processing_abort"):
+        lines.append("- All entries were reviewed, but the review stopped during final checks. "
+                     "Re-run to finish those checks when a verified checkpoint is available.")
+    elif stats.get("review_incomplete") and stats.get("unreviewed_entries"):
+        lines.append(f"- {stats['unreviewed_entries']} entries were left unreviewed. "
+                     "Re-run to finish them when a verified checkpoint is available.")
     return lines
 
 
@@ -2509,7 +2580,10 @@ def _get_deterministic_review_summary(stats: dict, incomplete: bool) -> str:
             details.append(f"{failed} section(s) failed")
         if skipped:
             details.append(f"{skipped} section(s) were skipped for VRAM safety")
-        reason = "; ".join(details) or "the review stopped before all entries were reviewed"
+        reason = ("; ".join(details) or
+                  ("all entries were reviewed but final checks did not finish"
+                   if stats.get("post_processing_abort") else
+                   "the review stopped before all entries were reviewed"))
         return (
             f"This review was incomplete: {reason}. Completed sections reported "
             f"{total_changes} change(s). Check the warnings below before generating audio."
@@ -2571,9 +2645,19 @@ def _write_single_review_report(stats: dict, highlights: Optional[dict] = None,
                        f"on memory and {stats['batches_skipped_vram']} section(s) were skipped. "
                        "Re-run the review to finish the rest."]
     elif stats.get("review_incomplete"):
-        intro += ["", "**Note:** this script was only partially reviewed — the review stopped "
-                      "before all entries were checked. Re-run to resume from its checkpoint "
-                      "when one is available."]
+        if stats.get("post_processing_abort"):
+            reason = "all entries were reviewed but final checks did not finish"
+        elif stats.get("unreviewed_entries"):
+            reason = f"{stats['unreviewed_entries']} entries were left unreviewed"
+        else:
+            reason = "the review stopped before all entries were checked"
+        resume = ("Re-run to resume from its verified checkpoint."
+                  if stats.get("resumable_checkpoint") else
+                  "No resumable checkpoint was verified; re-run the review.")
+        withheld = (" The script and audio were left unchanged."
+                    if stats.get("publication_withheld") else "")
+        intro += ["", f"**Note:** this script was only partially reviewed — {reason}. "
+                      f"{resume}{withheld}"]
 
     lines = list(intro)
     if _has_partial_review_labels(failures):

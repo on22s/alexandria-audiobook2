@@ -102,5 +102,9 @@ class BatchReviewPassStatusTests(unittest.TestCase):
                     self.assertNotIn('only partially reviewed',report)
                     self.assertNotIn('could not be reviewed',report)
                 self.assertEqual(1,sum(phase=='fwd' and kind=='review' for phase,kind in calls) if not nick_failure else sum(phase=='fwd' and kind=='nickname' for phase,kind in calls))
-                self.assertEqual(int(bidirectional),sum(phase=='bwd' and kind=='review' for phase,kind in calls))
+                fwd_done = (not nick_failure and fwd_rc == 0 and any('Review complete:' in line for line in fwd_lines)
+                            and not any('Batches failed:' in line or 'Batches skipped' in line
+                                        for line in fwd_lines))
+                self.assertEqual(int(bidirectional and fwd_done),
+                                 sum(phase=='bwd' and kind=='review' for phase,kind in calls))
                 self.assertEqual(1,len(list(reports.glob('*.md'))))

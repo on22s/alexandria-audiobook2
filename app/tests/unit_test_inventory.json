@@ -12466,6 +12466,23 @@
     , "tests.test_review_failure_message.ReviewFailureStatusTests.test_run_process_stores_message_and_kind_and_clears_both"
     , "tests.test_review_failure_message.ReviewFailureStatusTests.test_status_route_returns_both_fields"
   ]
+  , "test_review_followup_2222": [
+    "tests.test_review_followup_2222.BatchPassCheckpointTests.test_clean_forward_keeps_checkpoint_and_runs_hindsight"
+    , "tests.test_review_followup_2222.BatchPassCheckpointTests.test_explicit_restart_discards_progress"
+    , "tests.test_review_followup_2222.BatchPassCheckpointTests.test_incomplete_forward_keeps_checkpoint_and_skips_hindsight"
+    , "tests.test_review_followup_2222.DispositionTests.test_legacy_stats_fall_back_to_counters"
+    , "tests.test_review_followup_2222.DispositionTests.test_post_processing_abort_reports_all_rows_and_withheld_publication"
+    , "tests.test_review_followup_2222.DispositionTests.test_skipped_rows_and_explicit_output_keep_distinct_messages"
+    , "tests.test_review_followup_2222.InheritedSpanResumeTests.test_legacy_prefix_without_batch_lengths_still_resumes"
+    , "tests.test_review_followup_2222.InheritedSpanResumeTests.test_normalized_rows_resume_only_with_original_input_identity"
+    , "tests.test_review_followup_2222.RunHistoryOutcomeTests.test_background_task_persists_derived_status"
+    , "tests.test_review_followup_2222.RunHistoryOutcomeTests.test_helper_derives_terminal_and_child_outcomes"
+    , "tests.test_review_followup_2222.VerifiedCheckpointTests.test_cli_does_not_promise_resume_for_obsolete_checkpoint"
+    , "tests.test_review_followup_2222.VerifiedCheckpointTests.test_only_current_bound_checkpoint_promises_resume"
+    , "tests.test_review_partial_retention.IncompletePublicationTests.test_active_incomplete_keeps_bytes_and_resume_publishes"
+    , "tests.test_review_partial_retention.IncompletePublicationTests.test_old_checkpoint_still_resumes"
+    , "tests.test_review_partial_retention.IncompletePublicationTests.test_saved_incomplete_keeps_bytes_and_resume_publishes"
+  ]
   , "test_review_force_js": [
     "tests.test_review_force_js.ReviewForceJsTests.test_all_review_handlers_forward_checkbox"
   ]
