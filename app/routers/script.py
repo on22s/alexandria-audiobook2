@@ -3987,6 +3987,8 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
 
 def _start_batch_review(request, background_tasks):
     dedupe, discover, bidirectional = _resolve_batch_review_options(request)
+    effective_options = {"bidirectional": bidirectional,
+                         "find_nicknames": discover, "dedupe_speakers": dedupe}
     check_global_gpu_lock("batch_review")
     if not request.script_names:
         raise HTTPException(status_code=400, detail="No scripts selected.")
@@ -4005,7 +4007,6 @@ def _start_batch_review(request, background_tasks):
         _init_batch_state(state,
                           [f"Starting {prefix}batch review of {total} script(s)..."],
                           [{"name": n, "status": "pending"} for n in names])
-        state["bidirectional"] = bidirectional
         state["totals_fwd"] = _new_review_totals()
         state["totals_bwd"] = _new_review_totals()
         state["aliases_fwd"] = []
@@ -4256,8 +4257,8 @@ def _start_batch_review(request, background_tasks):
     except BaseException:
         release_gpu_task_claim('batch_review', claim_id, pending_only=True)
         raise
-    return {"status": "started", "task_count": total, "bidirectional": bidirectional,
-            "find_nicknames": discover, "dedupe_speakers": dedupe}
+    process_state["batch_review"].update(effective_options)
+    return {"status": "started", "task_count": total, **effective_options}
 
 
 

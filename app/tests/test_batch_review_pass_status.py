@@ -153,14 +153,12 @@ class BatchOptionAdmissionTests(unittest.TestCase):
             (scripts / 'book.json').write_text('[]')
             state = {'batch_review': {'running': False, 'cancel': False}}
             app = FastAPI(); app.include_router(script.router)
-            with patch.object(script, 'SCRIPTS_DIR', str(scripts)), \
-                 patch.object(script, 'CHARACTER_ALIASES_PATH', str(root / 'aliases.json')), \
-                 patch.object(script, 'REPORTS_DIR', str(root / 'reports')), \
-                 patch.object(script, 'ROOT_DIR', str(root)), \
-                 patch.object(script, 'process_state', state), \
-                 patch.object(core, 'process_state', state), \
-                 patch.object(core, '_task_claims', {}), \
-                 patch.object(core, '_gpu_leases', {}), \
+            with patch.multiple(script, DATA_DIR=str(root), SCRIPTS_DIR=str(scripts),
+                                CHARACTER_ALIASES_PATH=str(root / 'aliases.json'),
+                                REPORTS_DIR=str(root / 'reports'), ROOT_DIR=str(root),
+                                process_state=state), \
+                 patch.multiple(core, DATA_DIR=str(root), process_state=state,
+                                _task_claims={}, _gpu_leases={}), \
                  patch.object(core, 'acquire_gpu_lock', return_value=None), \
                  patch.object(core, 'llm_is_on_this_gpu', return_value=True), \
                  patch.object(script, 'check_global_gpu_lock') as check, \
@@ -170,11 +168,18 @@ class BatchOptionAdmissionTests(unittest.TestCase):
                  patch.object(script, '_insert_llm_summary', side_effect=lambda lines, *_a, **_k: lines), \
                  patch.object(script, '_run_claimed_background_task', side_effect=lambda name, work: work()), \
                  TestClient(app) as client:
-                response = client.post('/api/review_script/batch/start',
-                                       json={'script_names': ['book']})
-            self.assertEqual(200, response.status_code, response.text)
-            body = response.json()
-            self.assertEqual((True, True, False),
-                             (body['dedupe_speakers'], body['find_nicknames'], body['bidirectional']))
-            check.assert_called_once_with('batch_review')
-            claim.assert_called_once()
+                keys = ('dedupe_speakers', 'find_nicknames', 'bidirectional')
+                runs = (({}, (True, True, False)),
+                        ({'bidirectional': True}, (True, True, True)),
+                        ({'dedupe_speakers': False}, (False, False, False)))
+                for options, expected in runs:
+                    with self.subTest(options=options):
+                        response = client.post('/api/review_script/batch/start',
+                                               json={'script_names': ['book'], **options})
+                        self.assertEqual(200, response.status_code, response.text)
+                        status = client.get('/api/status/batch_review')
+                        self.assertEqual(200, status.status_code, status.text)
+                        self.assertEqual(expected, tuple(response.json()[key] for key in keys))
+                        self.assertEqual(expected, tuple(status.json()[key] for key in keys))
+            self.assertEqual(3, check.call_count)
+            self.assertEqual(3, claim.call_count)

@@ -80,18 +80,59 @@ assert.strictEqual(recovery.length,4);assert.strictEqual(notifications.length,4)
 
     def test_batch_option_checkboxes_keep_merge_and_discovery_consistent(self):
         setup = SETUP + r'''
-run(source.slice(source.indexOf('let _batchMergeWasChecked = true;'), source.indexOf('function _isReviewForceChecked()')));
-const merge=ctx.document.getElementById('review-dedupe-speakers'),discover=ctx.document.getElementById('review-batch-find-nicknames'),twoPass=ctx.document.getElementById('review-batch-bidirectional');
-merge.checked=false;discover.checked=false;twoPass.checked=false;run('syncBatchReviewOptions()');
+run(source.slice(source.indexOf('function _isReviewDedupeChecked()'), source.indexOf('function _isLiteralSourcePreservingChecked()')));
+run(source.slice(source.indexOf('let reviewBatchSelected ='), source.indexOf('// --- Shared helpers for saved-script checkbox pickers')));
+run(source.slice(source.indexOf('async function startBatchReview('), source.indexOf('// --- Nickname discovery + alias editor ---')));
+Object.assign(ctx, {
+    loadReviewBatchScripts: () => {}, refreshReviewRestart: () => {},
+    confirmIfRemote: async () => true, applyReviewContextWindow: () => 0,
+    syncReviewRestartButtons: () => {}, _resetPauseBtn: () => {}, pollReviewBatch: () => {},
+});
+ctx.document.querySelectorAll = () => [{dataset: {name: 'book'}}];
+const submitted = [];
+ctx.API.post = async (url, payload) => {
+    assert.strictEqual(url, '/api/review_script/batch/start');
+    submitted.push([payload.dedupe_speakers, payload.find_nicknames, payload.bidirectional]);
+};
+const reviewMarkup = fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]), '../index.html'), 'utf8');
+const mode = 'review-batch-mode', merge = 'review-dedupe-speakers';
+const discover = 'review-batch-find-nicknames', twoPass = 'review-batch-bidirectional';
+function change(id, checked) {
+    const input = reviewMarkup.match(new RegExp('<input[^>]*id="' + id + '"[^>]*>'))[0];
+    const handler = input.match(/onchange="([^"]+)"/)[1];
+    ctx.changedControl = element(id);
+    ctx.changedControl.checked = checked;
+    run('(function(){' + handler + ';}).call(changedControl)');
+}
+async function expectPayload(flags) {
+    await ctx.startBatchReview();
+    assert.deepStrictEqual(submitted.at(-1), flags);
+}
+element(merge).checked = true;
+element(discover).checked = true;
+element(twoPass).checked = false;
 '''
         self.run_js(r'''
-discover.checked=true;run('syncBatchReviewOptions()');
-assert.strictEqual(discover.checked,true);assert.strictEqual(merge.checked,true);
-merge.checked=false;discover.checked=false;twoPass.checked=false;run('syncBatchReviewOptions()');
-twoPass.checked=true;run('syncBatchReviewOptions()');
-assert.strictEqual(twoPass.checked,true);assert.strictEqual(discover.checked,true);assert.strictEqual(merge.checked,true);
-merge.checked=false;run('syncBatchReviewOptions()');
-assert.strictEqual(discover.checked,false);assert.strictEqual(twoPass.checked,false);
-discover.checked=true;run('syncBatchReviewOptions()');
-assert.strictEqual(discover.checked,true);assert.strictEqual(merge.checked,true);
+change(mode, true);
+change(twoPass, true);
+await expectPayload([true, true, true]);
+change(discover, false);
+await expectPayload([true, false, false]);
+change(merge, false);
+await expectPayload([false, false, false]);
+change(twoPass, true);
+await expectPayload([true, true, true]);
+
+change(mode, false);
+change(merge, false);
+change(merge, true);
+change(mode, true);
+await expectPayload([true, true, true]);
+
+change(mode, false);
+change(merge, false);
+change(mode, true);
+await expectPayload([false, false, false]);
+change(discover, true);
+await expectPayload([true, true, false]);
 ''', setup=setup)

@@ -4050,21 +4050,16 @@
             const cb = document.getElementById('review-dedupe-speakers');
             return cb ? cb.checked : true;
         }
-        let _batchMergeWasChecked = true;
-        window.syncBatchReviewOptions = () => {
+        window.syncBatchReviewOptions = (changed) => {
+            if (!document.getElementById('review-batch-mode')?.checked) { return; }
             const merge = document.getElementById('review-dedupe-speakers');
             const discover = document.getElementById('review-batch-find-nicknames');
             const twoPass = document.getElementById('review-batch-bidirectional');
             if (!merge || !discover || !twoPass) { return; }
-            const mergeTurnedOff = _batchMergeWasChecked && !merge.checked;
-            _batchMergeWasChecked = merge.checked;
-            if (mergeTurnedOff) {
-                discover.checked = false;
-                twoPass.checked = false;
-            }
-            if (twoPass.checked && !discover.checked) { discover.checked = true; }
-            if (discover.checked && !merge.checked) { merge.checked = true; }
-            _batchMergeWasChecked = merge.checked;
+            if (changed === twoPass && twoPass.checked) { discover.checked = true; }
+            if ((changed === discover || changed === twoPass) && discover.checked) { merge.checked = true; }
+            if (!merge.checked) { discover.checked = false; }
+            if (!discover.checked) { twoPass.checked = false; }
         };
         function _isReviewForceChecked() {
             const cb = document.getElementById('review-force-rerun');
