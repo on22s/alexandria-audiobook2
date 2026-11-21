@@ -6514,6 +6514,7 @@
   "script.review.context-mode.entries": "Entradas",
   "help.item.btn-review-context-mode": "Cambia entre Entradas y Caracteres; cada modo conserva su valor. Cambiar el modo o el valor cuenta como una revisión nueva: no se reutiliza una revisión terminada ni se reanuda una pausada con el nuevo ajuste. El valor predeterminado (4 entradas) coincide con revisiones anteriores, así que ésas no se repiten.",
   "take.status.load-failed": "No se pudieron cargar las instantáneas. La lista estará vacía hasta que se vuelva a cargar correctamente.",
+  "take.status.loading": "Cargando instantáneas guardadas…",
   "editor.repair.options-load-failed": "No se pudieron cargar las opciones de reparación. Los capítulos y locutores mostrados pueden pertenecer a un libro anterior; actualiza Editor y vuelve a cargar las opciones.",
   "editor.repair.render-not-started": "No se inició el renderizado de reparación. Revisa el error y vuelve a previsualizar la selección.",
   "core.editor.save-line-failed": "No se pudo guardar esta línea",

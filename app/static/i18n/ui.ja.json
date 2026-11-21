@@ -6514,6 +6514,7 @@
   "script.review.context-mode.entries": "エントリ",
   "help.item.btn-review-context-mode": "エントリ数と文字数を切り替えます。各モードは別々の値を保持します。モードや値を変更すると新しいレビューとみなされ、完了済みのレビューは再利用されず、一時停止中のレビューも新しい設定では再開されません。既定値（4 エントリ）は以前のレビューと同じなので、それらは再実行されません。",
   "take.status.load-failed": "スナップショットを読み込めませんでした。再読み込みが成功するまでリストは空です。",
+  "take.status.loading": "保存済みスナップショットを読み込んでいます…",
   "editor.repair.options-load-failed": "修復オプションを読み込めませんでした。表示されている章と話者は前の本のものかもしれません。Editor を更新してオプションを再読み込みしてください。",
   "editor.repair.render-not-started": "修復レンダリングが開始されませんでした。エラーを確認してから、選択内容を再度プレビューしてください。",
   "core.editor.save-line-failed": "この行を保存できませんでした",

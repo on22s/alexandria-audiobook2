@@ -308,7 +308,7 @@ class SafetyTextTests(LocaleTestCase):
             ('app-scripts.js', "formatUiSafetyText('safety.designer.discard-edits'"),
             ('app-publication.js', "formatUiSafetyText('safety.m4b.publication.book-changed'"),
             ('app-narration-markup.js', "formatUiSafetyText('safety.editor.markup.apply-confirm-keep'"),
-            ('app-speech-verification.js', "formatUiSafetyText('safety.editor.speech.snapshot-changed'"),
+            ('app-speech-verification.js', "renderUiSafety(warning, 'safety.editor.speech.snapshot-changed'"),
             ('app-publication.js', "formatUiSafetyText('safety.m4b.publication.incomplete'"),
         )
         for name, needle in expectations:
@@ -322,10 +322,10 @@ class KeyingTests(unittest.TestCase):
             ('app-export-quality.js', "t('audio.export-quality.summary'"),
             ('app-mastering.js', "t('audio.mastering.card'"),
             ('app-publication.js', "t('audio.m4b.publication.selected-input'"),
-            ('app-editor-repair.js', "t('editor.repair.preview-summary'"),
+            ('app-editor-repair.js', "uiMessage('editor.repair.preview-summary'"),
             ('app-word-timing.js', "t('editor.word-timing.gaps-no-suggestion'"),
             ('app-synthesis-windows.js', "t('setup.audio.synthesis-window.range'"),
-            ('app-speech-verification.js', "t('editor.speech.rechecking'"),
+            ('app-speech-verification.js', "uiMessage('editor.speech.rechecking'"),
             ('app-narration-markup.js', "t('editor.markup.preview-only'"),
             ('app-audio-channels.js', "t('audio.channel.source-count'"),
             ('app-calibre.js', "t('calibre.status.capture-started'"),

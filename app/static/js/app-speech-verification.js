@@ -126,7 +126,9 @@ async function recheckEditorSpeech() {
         if (editorReviewFresh && !concurrentEvidence) {
             setSpeechVerificationStatus(uiMessage('editor.speech.recorded', 'Speech recheck recorded. Review the evidence and listen before accepting the take.'));
         } else {
-            renderUiMessage(document.getElementById('editor-line-speech-status'), formatUiSafetyText('safety.editor.speech.snapshot-changed', 'Speech recheck recorded, but the review snapshot changed. Refresh review for current evidence.'));
+            const warning = document.getElementById('editor-line-speech-status');
+            setUiMessage(warning, 'safety.editor.speech.snapshot-changed', 'Speech recheck recorded, but the review snapshot changed. Refresh review for current evidence.');
+            renderUiSafety(warning, 'safety.editor.speech.snapshot-changed', 'Speech recheck recorded, but the review snapshot changed. Refresh review for current evidence.');
         }
     } catch (error) {
         if (identity === getSpeechVerificationTargetIdentity(getEditorReviewTarget())) {

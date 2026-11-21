@@ -63,7 +63,7 @@ async function loadEditorTakeSnapshots(all = false, offset = 0) {
     const identity = getTakeHistoryIdentity();
     takeHistoryIdentity = identity;
     if (takeHistoryFailedIdentity === identity) { takeHistoryFailedIdentity = null; }
-    renderUiMessage(document.getElementById('editor-take-status'), 'Loading saved snapshots…');
+    setTakeHistoryStatus(uiMessage('take.status.loading', 'Loading saved snapshots…'));
     takeHistoryAll = all;
     takeHistoryOffset = offset;
     const book = chunkSnapshotBookToken;
