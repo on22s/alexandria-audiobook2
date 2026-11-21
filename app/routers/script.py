@@ -4014,7 +4014,7 @@ def _start_batch_review(request, background_tasks):
     _, window = get_validated_context_setting(
         CONTEXT_MODE_ENTRIES, request.context_window, 0, minimum=0)
 
-    names = list(request.script_names)
+    names = list(dict.fromkeys(request.script_names))
     total = len(names)
     pending = {
         "tasks": [{"name": name, "status": "pending"} for name in names],

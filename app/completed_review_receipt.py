@@ -121,14 +121,27 @@ def load_review_receipt_document(output_path):
     return document if isinstance(document, dict) else None
 
 
+def _absolute_string_path(value):
+    """Normalise a path field, returning None on anything but a real string."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return os.path.abspath(value)
+    except (TypeError, ValueError, OSError):
+        return None
+
+
 def get_durable_review_fact(document, direction):
     """Return a strict-validated forward/backward fact, else None.
 
-    A malformed fact never yields completion: every identity/summary field must
-    be present and well typed. Unknown keys are tolerated so a future writer can
-    add fields without invalidating older readers.
+    A malformed fact is always a cache miss: an unsupported document version,
+    non-string path, missing digest or bad summary must neither complete a run
+    nor crash the caller (including a forced rerun). Older facts without the
+    transaction-bound identity fields are deliberately not accepted.
     """
     if not isinstance(document, dict) or direction not in REVIEW_DIRECTIONS:
+        return None
+    if type(document.get('version')) is not int or document['version'] != VERSION:
         return None
     facts = document.get('facts')
     if not isinstance(facts, dict):
@@ -136,12 +149,25 @@ def get_durable_review_fact(document, direction):
     fact = facts.get(direction)
     if not isinstance(fact, dict):
         return None
-    if (fact.get('direction') != direction
-            or fact.get('input_path') != os.path.abspath(fact.get('input_path') or '')
-            or fact.get('output_path') != os.path.abspath(fact.get('output_path') or '')):
+    if fact.get('direction') != direction:
         return None
+    for key in ('input_path', 'output_path'):
+        normalised = _absolute_string_path(fact.get(key))
+        if normalised is None or fact[key] != normalised:
+            return None
     if not all(is_sha256(fact.get(key)) for key in
-               ('fingerprint', 'input_sha256', 'output_sha256')):
+               ('fingerprint', 'input_sha256', 'output_sha256', 'settings_fingerprint')):
+        return None
+    for key in ('entries_before', 'entries_after'):
+        if type(fact.get(key)) is not int or fact[key] < 0:
+            return None
+    consumed = fact.get('consumed_forward_sha256')
+    if consumed is not None and not is_sha256(consumed):
+        return None
+    consumed_fp = fact.get('consumed_forward_fingerprint')
+    if consumed_fp is not None and not is_sha256(consumed_fp):
+        return None
+    if direction == 'backward' and not is_sha256(consumed) and not is_sha256(consumed_fp):
         return None
     companions = fact.get('companions')
     if not isinstance(companions, dict):
@@ -173,8 +199,15 @@ def read_durable_review_fact(output_path, direction):
 
 
 def build_review_fact(input_path, output_path, input_sha256, output_sha256, fingerprint,
-                      companions, summary):
-    """Build one durable fact. Callers pass post-publication bytes/companions."""
+                      companions, summary, *, settings_fingerprint=None,
+                      consumed_forward_sha256=None, consumed_forward_fingerprint=None,
+                      entries_before=0, entries_after=0):
+    """Build one durable fact from the publication transaction's own digests.
+
+    ``output_sha256`` is the digest of the bytes the publisher committed, and
+    ``companions`` are the identities of the bytes it committed. Callers must
+    not re-read the output after publication to derive either.
+    """
     return {
         'direction': None,
         'input_path': os.path.abspath(input_path),
@@ -182,6 +215,11 @@ def build_review_fact(input_path, output_path, input_sha256, output_sha256, fing
         'input_sha256': input_sha256,
         'output_sha256': output_sha256,
         'fingerprint': fingerprint,
+        'settings_fingerprint': settings_fingerprint,
+        'consumed_forward_sha256': consumed_forward_sha256,
+        'consumed_forward_fingerprint': consumed_forward_fingerprint,
+        'entries_before': entries_before,
+        'entries_after': entries_after,
         'companions': dict(companions),
         'summary': {key: summary.get(key, 0) for key in REVIEW_SUMMARY_FIELDS}
                    | {'accounting_unverified': bool(summary.get('accounting_unverified'))},
@@ -229,12 +267,16 @@ def invalidate_flat_review_receipt(output_path, direction='forward'):
 
 
 def resolve_legacy_review_fact(input_path, output_path, input_sha256, output_sha256,
-                               fingerprint, direction):
+                               fingerprint, direction, *, companions=None,
+                               settings_fingerprint=None, entries_before=0, entries_after=0):
     """A validated flat receipt becomes a durable fact with unknown counters.
 
     The original counters were never stored, so they are reported as zero with
-    ``accounting_unverified`` set rather than presented as measured values.
+    ``accounting_unverified`` set rather than presented as measured values. The
+    companion identities are the ones validated before migration, otherwise the
+    promoted fact could not match the very next unchanged run.
     """
     return build_review_fact(input_path, output_path, input_sha256, output_sha256,
-        fingerprint, {}, {key: 0 for key in REVIEW_SUMMARY_FIELDS}
-        | {'accounting_unverified': True})
+        fingerprint, companions or {}, {key: 0 for key in REVIEW_SUMMARY_FIELDS}
+        | {'accounting_unverified': True}, settings_fingerprint=settings_fingerprint,
+        entries_before=entries_before, entries_after=entries_after)

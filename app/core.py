@@ -2320,6 +2320,9 @@ def _markdown_heads_up_lines(stats: dict) -> List[str]:
     elif stats.get("post_processing_abort") and not stats.get("batches_failed"):
         lines.append("- All entries were reviewed, but the review stopped during final checks. "
                      "Re-run to finish those checks when a verified checkpoint is available.")
+    elif stats.get("post_processing_abort") or stats.get("final_check_aborted"):
+        lines.append("- Final checks also stopped on some book(s) while other sections failed. "
+                     "Re-run to finish those checks when a verified checkpoint is available.")
     elif stats.get("review_incomplete") and stats.get("unreviewed_entries"):
         lines.append(f"- {stats['unreviewed_entries']} entries were left unreviewed. "
                      "Re-run to finish them when a verified checkpoint is available.")
@@ -2624,6 +2627,9 @@ def _get_deterministic_review_summary(stats: dict, incomplete: bool) -> str:
             reason = (f"{books} book(s) stopped in final checks and "
                       f"{stats['unreviewed_entries']} entries were left unreviewed")
         else:
+            if stats.get('final_check_aborted', 0) or stats.get('post_processing_abort'):
+                books = stats.get('final_check_aborted', 0) or 1
+                details.append(f"{books} book(s) stopped in final checks")
             reason = ("; ".join(details) or
                       ("all entries were reviewed but final checks did not finish"
                        if stats.get("post_processing_abort") else
