@@ -230,7 +230,7 @@ class FrontendTests(unittest.TestCase):
                 "/api/generate_script/batch/preflight", "Largest predicted request",
                 "scriptBatchSelectAll(true)", "scriptBatchSelectAll(false)",
                 "scriptBatchSort('num-asc')", "scriptBatchSort('reverse')",
-                "script-batch-selected-count", "Failed books keep validated checkpoints",
+                "script-batch-selected-count", "Failed books may have validated checkpoints",
                 "completed, {failed} failed, {cancelled} cancelled",
                 # Checkboxes instead of a native <select multiple> - selecting a
                 # subset normally requires ctrl/shift-click, unusable over a

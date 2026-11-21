@@ -15354,6 +15354,7 @@
   , "test_task_outcomes_js": [
     "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_all_three_recovery_callers_reject_zero_failure_and_negated_summaries"
     , "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_auto_pause_title_is_paused_and_notification_is_not_repeated"
+    , "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_batch_completion_ignores_collision_skips_and_keeps_real_failures"
     , "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_persona_completion_notifies_even_when_refresh_fails"
     , "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_real_failures_incomplete_batches_and_errors_after_success_remain_visible"
     , "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_zero_error_summary_counts_are_neutral_without_masking_real_failures"
