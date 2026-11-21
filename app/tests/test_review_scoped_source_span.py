@@ -6,13 +6,15 @@ import json
 from contextlib import ExitStack, redirect_stdout
 from pathlib import Path
 import tempfile
+import unicodedata
 import unittest
 from unittest.mock import patch
 
 from book_state_transaction import get_book_operation_token
 from dialogue_spans import _normalize, mark_entries
 from generate_script import get_preprocessed_source
-from literal_fidelity import _words
+import literal_fidelity
+from literal_fidelity import _words, iter_literal_words
 from literal_policy import (SCRIPT_POLICY_KEY, bind_literal_chunks, bind_literal_policy,
                             get_literal_policy, get_literal_policy_identity, get_word_identity)
 from project_scope_literal import get_literal_scope
@@ -305,7 +307,7 @@ class ScopedRowBindingFindingsTests(unittest.TestCase):
 
     def test_literal_offsets_survive_nfc_length_and_typographic_apostrophes(self):
         sample = 'Cafe\u0301 reopens.\n\nDon\u2019t stop.'
-        words = review._literal_words_with_offsets(sample)
+        words = list(iter_literal_words(sample))
         self.assertEqual('Caf\u00e9', words[0][0])
         self.assertEqual('Cafe\u0301', sample[words[0][1]:words[0][2]])
         self.assertIn("Don't", [word for word, _, _ in words])
@@ -524,4 +526,158 @@ class ScopedMarkerFindingsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             script, _, entries = create_book(directory, raw=source, source=second)
             self.assertEqual(source, review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+
+
+class ResidualAstraFindingsTests(unittest.TestCase):
+    """CLI publication and raw-offset cases from the second Astra pass."""
+
+    def setUp(self):
+        self.rows = mark_entries(copy.deepcopy(RAW_ROWS), RAW)
+
+    def split(self, batch, index=None):
+        if index is None:
+            index = next(position for position, entry in enumerate(batch)
+                         if '\n\n' in entry['text'])
+        narrator = {key: value for key, value in batch[index].items()
+                    if key not in ('text', SCRIPT_POLICY_KEY)}
+        paragraphs = batch[index]['text'].split('\n\n')
+        reply = [{key: value for key, value in entry.items()
+                  if key not in ('source_span', SCRIPT_POLICY_KEY)} for entry in batch[:index]]
+        reply += [{**narrator, 'text': '\n\n'.join(paragraphs[:-1])},
+                  {**narrator, 'speaker': NEW_SPEAKER, 'text': paragraphs[-1],
+                   'instruct': 'Startled shout.', **ANNOTATIONS}]
+        reply += [{key: value for key, value in entry.items()
+                   if key not in ('source_span', SCRIPT_POLICY_KEY)} for entry in batch[index + 1:]]
+        return reply
+
+    def publish(self, directory, script, batch, *, expect_published):
+        saved, stdout, _, _ = run_cli_at(directory, script, [self.split(batch)])
+        published = NEW_SPEAKER in [entry['speaker'] for entry in saved]
+        receipt = Path(str(script) + '.review_completed.json').exists()
+        self.assertEqual(expect_published, published, stdout[-800:])
+        self.assertEqual(expect_published, receipt, stdout[-800:])
+
+    def test_child_range_widening_is_refused_without_split_or_receipt(self):
+        parent_rows, _ = build_scoped_rows(RAW, self.rows, 2)
+        parent = get_literal_policy(parent_rows)
+        child_rows, _ = build_scoped_rows(RAW, self.rows, 1, ancestor=parent)
+        parent_scope = parent['scope_source']
+        child_scope = child_rows[0][SCRIPT_POLICY_KEY]['scope_source']
+        self.assertLess(child_scope['start_word'], parent_scope['start_word'])
+        with tempfile.TemporaryDirectory() as directory:
+            active, _, _ = make_saved_hop(
+                directory, raw=RAW, original_rows=parent_rows, active_rows=child_rows)
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(active), active.read_bytes(), child_rows))
+            self.publish(directory, active, child_rows, expect_published=False)
+
+    def test_unrelated_well_shaped_marker_is_refused_without_split_or_receipt(self):
+        parent_rows, _ = build_scoped_rows(RAW, self.rows, 2)
+        parent = get_literal_policy(parent_rows)
+        selected = ' '.join(list(_words(RAW))[get_literal_policy(parent_rows)['scope_source']['start_word']:])
+        forged = {'chunk-1': {'version': 'literal_words_v1',
+                              'boundary': 'before_speech_preparation',
+                              'projection': 'existing_project_speakable_entries_v1',
+                              'source_policy_sha256': 'a' * 64,
+                              'narration_words': get_word_identity([selected])}}
+        child_rows, _ = build_scoped_rows(RAW, self.rows, 2, ancestor=parent, chunks=forged)
+        with tempfile.TemporaryDirectory() as directory:
+            active, _, _ = make_saved_hop(
+                directory, raw=RAW, original_rows=parent_rows, active_rows=child_rows)
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(active), active.read_bytes(), child_rows))
+            self.publish(directory, active, child_rows, expect_published=False)
+
+    def test_native_grandchild_keeps_publication(self):
+        digest = hashlib.sha256(RAW.encode()).hexdigest()
+        original = bind_literal_policy(RAW, self.rows, input_sha256=digest)
+        chunks = bind_literal_chunks(
+            [{'id': index, 'uid': f'uid-{index}', 'text': entry['text']}
+             for index, entry in enumerate(self.rows)], get_literal_policy(original))
+        first = get_literal_scope(RAW, original, chunks, 1, 1, input_sha256=digest)
+        second = get_literal_scope(RAW, first, chunks[1:], 1, 1, input_sha256=digest)
+        with tempfile.TemporaryDirectory() as directory:
+            active, _, _ = make_saved_hop(
+                directory, raw=RAW, original_rows=first, active_rows=second)
+            self.assertEqual(RAW, review.get_review_source_text(
+                directory, str(active), active.read_bytes(), second))
+            self.publish(directory, active, second, expect_published=True)
+
+    def test_saved_child_strip_choice_must_derive_the_terminal_text(self):
+        header = ('Manifesto.\nA synthetic translator note.\n'
+                  'Original Web Novel Chapter ― Complete.\n'
+                  'Original Translation by Tester.\n\n')
+        full = header + RAW
+        prepared = get_preprocessed_source(full, strip_front_matter=True)[0]
+        source_rows = mark_entries([row(part, 'NARRATOR') for part in prepared.split('\n\n')], prepared)
+        parent_rows, _ = build_scoped_rows(prepared, source_rows, 1, strip=True)
+        conflicting, _ = build_scoped_rows(prepared, source_rows, 1, strip=False)
+        with tempfile.TemporaryDirectory() as directory:
+            active, _, _ = make_saved_hop(
+                directory, raw=full, original_rows=parent_rows, active_rows=conflicting)
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(active), active.read_bytes(), conflicting))
+        matching, _ = build_scoped_rows(prepared, source_rows, 1, strip=True)
+        with tempfile.TemporaryDirectory() as directory:
+            active, _, _ = make_saved_hop(
+                directory, raw=full, original_rows=parent_rows, active_rows=matching)
+            self.assertEqual(prepared, review.get_review_source_text(
+                directory, str(active), active.read_bytes(), matching))
+
+    def test_legacy_parent_keeps_both_valid_strip_choices(self):
+        source_rows = mark_entries(copy.deepcopy(RAW_ROWS), RAW)
+        parent_rows, _ = build_scoped_rows(RAW, source_rows, 1)
+        parent = get_literal_policy(parent_rows)
+        for choice in (False, True):
+            child_rows, _ = build_scoped_rows(RAW, source_rows, 1, strip=choice, ancestor=parent)
+            with self.subTest(choice=choice), tempfile.TemporaryDirectory() as directory:
+                active, _, _ = make_saved_hop(
+                    directory, raw=RAW, original_rows=parent_rows, active_rows=child_rows)
+                self.assertEqual(RAW, review.get_review_source_text(
+                    directory, str(active), active.read_bytes(), child_rows))
+
+    def test_selected_span_starts_after_excluded_words_including_wordless_rows(self):
+        raw = '! Exclude me ! Keep the line.\n\nAfterward.'
+        rows = [row('!', 'NARRATOR'), row('Exclude', 'NARRATOR'), row('me', 'NARRATOR'),
+                row('!', 'NARRATOR'), row('Keep the line.', 'NARRATOR'),
+                row('Afterward.', 'NARRATOR')]
+        retained, _ = build_scoped_rows(raw, rows, 3)
+        self.assertEqual(raw[13:14], '!')
+        retained[0]['source_span'] = [13, 14]
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=retained)
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+        stale = copy.deepcopy(retained)
+        stale[0]['source_span'] = [0, 1]
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=stale)
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+
+    def test_shared_iterator_handles_decomposed_hangul_and_other_scripts(self):
+        decomposed = 'Exclude me \u1100\u1161 Keep.'
+        tokens = list(iter_literal_words(decomposed))
+        self.assertIn(('가', 11, 13), tokens)
+        precomposed = 'Exclude me 가 Keep.'
+        self.assertIn(('가', 11, 12), list(iter_literal_words(precomposed)))
+        for sample in ('Caf\u00e9 x', 'Cafe\u0301 x', 'Don\u2019t x',
+                       'दिल्ली 中文', 'HARK—!'):
+            normalized, spans = literal_fidelity._normalized_with_offsets(sample)
+            self.assertEqual(unicodedata.normalize('NFC', sample).replace('’', "'"), normalized)
+            self.assertEqual(len(normalized), len(spans))
+            self.assertEqual(list(literal_fidelity._words(sample)),
+                             [word for word, _, _ in iter_literal_words(sample)])
+
+    def test_decomposed_hangul_row_keeps_two_character_offset(self):
+        raw = 'Exclude me \u1100\u1161 Keep.\n\nAfterward.'
+        rows = [row('Exclude', 'NARRATOR'), row('me', 'NARRATOR'),
+                row('\u1100\u1161', 'NARRATOR'), row('Keep.', 'NARRATOR'),
+                row('Afterward.', 'NARRATOR')]
+        retained, _ = build_scoped_rows(raw, rows, 2)
+        self.assertEqual([11, 13], retained[0]['source_span'])
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=retained)
+            self.assertEqual(raw, review.get_review_source_text(
                 directory, str(script), script.read_bytes(), entries))

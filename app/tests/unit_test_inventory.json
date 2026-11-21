@@ -12583,7 +12583,15 @@
     , "tests.test_review_prompt_presets.ReviewPresetModelTests.test_old_configs_load_unchanged_and_default_to_default"
   ]
   , "test_review_scoped_source_span": [
-    "tests.test_review_scoped_source_span.SavedSourceHopFindingsTests.test_absent_conflicting_or_stale_inherited_provenance_is_refused"
+    "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_child_range_widening_is_refused_without_split_or_receipt"
+    , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_decomposed_hangul_row_keeps_two_character_offset"
+    , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_legacy_parent_keeps_both_valid_strip_choices"
+    , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_native_grandchild_keeps_publication"
+    , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_saved_child_strip_choice_must_derive_the_terminal_text"
+    , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_selected_span_starts_after_excluded_words_including_wordless_rows"
+    , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_shared_iterator_handles_decomposed_hangul_and_other_scripts"
+    , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_unrelated_well_shaped_marker_is_refused_without_split_or_receipt"
+    , "tests.test_review_scoped_source_span.SavedSourceHopFindingsTests.test_absent_conflicting_or_stale_inherited_provenance_is_refused"
     , "tests.test_review_scoped_source_span.SavedSourceHopFindingsTests.test_descendant_policy_is_accepted_and_unscoped_legacy_chain_stays_valid"
     , "tests.test_review_scoped_source_span.SavedSourceHopFindingsTests.test_refused_hop_does_not_publish_the_split"
     , "tests.test_review_scoped_source_span.SavedSourceHopFindingsTests.test_valid_chain_carries_terminal_raw_identity_and_offsets"

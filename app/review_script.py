@@ -48,8 +48,8 @@ from review_prompts import (REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT,
 from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_object
 from literal_policy import (get_literal_policy, get_literal_policy_identity,
                             ensure_literal_narration, retain_literal_policy,
-                            get_word_identity, SCRIPT_POLICY_KEY)
-from literal_fidelity import audit_literal_words
+                            get_word_identity, is_literal_marker_lineage, SCRIPT_POLICY_KEY)
+from literal_fidelity import audit_literal_words, iter_literal_words
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
                                get_current_status, get_effective_max_tokens)
 from lmstudio_settings import get_failover_llm_config
@@ -1584,51 +1584,14 @@ def is_review_literal_source(text, policy):
             and get_word_identity([selected]) == policy['source_words'])
 
 
-def _literal_words_with_offsets(text):
-    """Literal-tokenizer words with their original character offsets.
-
-    NFC composition and typographic apostrophes can change the normalized
-    length; each normalized character carries the raw interval it came from.
-    """
-    import unicodedata
-    from literal_fidelity import _words
-    units = []
-    buffer, buffer_start = '', None
-    for index, char in enumerate(text):
-        if unicodedata.category(char).startswith('M'):
-            buffer += char
-            continue
-        if buffer:
-            units.append((buffer_start, index,
-                          unicodedata.normalize('NFC', buffer).replace('\u2019', "'")))
-        buffer, buffer_start = char, index
-    if buffer:
-        units.append((buffer_start, len(text),
-                      unicodedata.normalize('NFC', buffer).replace('\u2019', "'")))
-    normalized = ''.join(unit[2] for unit in units)
-    offsets = []
-    for raw_start, raw_end, piece in units:
-        offsets.extend([(raw_start, raw_end)] * len(piece))
-    words = []
-    cursor = 0
-    for word in _words(normalized):
-        position = normalized.find(word, cursor)
-        if position < 0:
-            raise ValueError('Literal word has no raw source coordinates')
-        end = position + len(word)
-        words.append((word, offsets[position][0], offsets[end - 1][1]))
-        cursor = end
-    return words
-
-
 def verify_review_scoped_source_rows(text, entries, policy):
     """Bind inherited row spans to ordered words in the selected suffix."""
-    from literal_fidelity import _words
     scope = policy['scope_source']
-    words = _literal_words_with_offsets(text)
+    words = list(iter_literal_words(text))
     if scope['total_words'] != len(words) or scope['end_word'] != len(words):
         raise ValueError('Scoped source word count differs')
     expected = words[scope['start_word']:]
+    excluded_end = words[scope['start_word'] - 1][2] if scope['start_word'] else 0
     cursor = 0
     for entry in entries:
         span = entry.get('source_span')
@@ -1636,7 +1599,9 @@ def verify_review_scoped_source_rows(text, entries, policy):
                 or any(type(value) is not int for value in span)
                 or not 0 <= span[0] < span[1] <= len(text)):
             raise ValueError('Scoped row has no verified source span')
-        for word in _words(entry['text']):
+        if span[0] < excluded_end:
+            raise ValueError('Scoped row span starts in excluded source words')
+        for word in (item[0] for item in iter_literal_words(entry['text'])):
             if cursor >= len(expected) or expected[cursor][0] != word:
                 raise ValueError('Scoped rows do not match the selected source words')
             word_start, word_end = expected[cursor][1], expected[cursor][2]
@@ -1648,15 +1613,32 @@ def verify_review_scoped_source_rows(text, entries, policy):
 
 
 def is_review_inherited_literal_policy(active, original):
-    """A saved-source hop inherits its policy, or a verifiable scoped child."""
+    """A saved-source hop inherits a policy or a strictly scoped child of it."""
     if original is None:
         return active is None
     if active is None:
         return False
     if active == original:
         return True
-    return (active['boundary'] == 'selected_source_words_v1'
-            and active['scope_source']['parent_policy_sha256'] == get_literal_policy_identity(original))
+    if active['boundary'] != 'selected_source_words_v1':
+        return False
+    scope = active['scope_source']
+    if original['boundary'] == 'selected_source_words_v1':
+        parent = original['scope_source']
+        parent_start, parent_total = parent['start_word'], parent['total_words']
+        parent_prepared = parent['prepared_source_sha256']
+    else:
+        parent_start, parent_total = 0, original['source_words']['words']
+        parent_prepared = original['source_sha256']
+    if (scope['total_words'] != parent_total
+            or scope['prepared_source_sha256'] != parent_prepared
+            or not parent_start <= scope['start_word'] < scope['end_word'] <= parent_total):
+        return False
+    identity = get_literal_policy_identity(original)
+    if scope['parent_policy_sha256'] != identity:
+        return False
+    return all(is_literal_marker_lineage(marker, original, uid, identity)
+               for uid, marker in active['scope_chunks'].items())
 
 
 def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _source_depth=0):
@@ -1747,13 +1729,24 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
             resolved = get_review_source_entries(entries, text)
             if policy and policy['boundary'] == 'selected_source_words_v1':
                 verify_review_scoped_source_rows(text, resolved, policy)
+            choices = set(original.get('strip_choices', (False, True)))
+            if source_policy is not None and 'strip_front_matter' in source_policy:
+                parent_choice = source_policy['strip_front_matter']
+                if parent_choice not in choices:
+                    raise ValueError('Parent literal preprocessing choice is not verified')
+                choices = {parent_choice}
+            child_choice = policy.get('strip_front_matter') if policy else None
+            if child_choice is not None:
+                if child_choice not in choices:
+                    raise ValueError('Child literal preprocessing choice differs from the captured source')
+                choices = {child_choice}
             identity['sources'].extend(original['identity']['sources'])
-            return {'text': text, 'identity': identity}
+            return {'text': text, 'identity': identity, 'strip_choices': choices}
         if policy and policy.get('input_sha256', digest) != digest:
             raise ValueError('Literal source identity differs from the captured source')
         strip_choices = ((policy['strip_front_matter'],) if policy
                          and 'strip_front_matter' in policy else (False, True))
-        sources = set()
+        sources, valid_choices = set(), set()
         for strip_front_matter in strip_choices:
             try:
                 prepared, _report = get_preprocessed_source(decoded, strip_front_matter=strip_front_matter)
@@ -1770,9 +1763,10 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
                 except ValueError:
                     continue
                 sources.add(text)
+                valid_choices.add(strip_front_matter)
         if len(sources) != 1:
             raise ValueError('Prepared review source coordinates are unavailable or ambiguous')
-        return {'text': sources.pop(), 'identity': identity}
+        return {'text': sources.pop(), 'identity': identity, 'strip_choices': valid_choices}
     except (OSError, ValueError, TypeError, UnicodeError) as error:
         record_failure('review_source_unavailable', error, task='review')
         return None

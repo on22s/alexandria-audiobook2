@@ -49,6 +49,19 @@ def is_literal_chunk_marker(marker):
             and is_literal_word_identity(marker['narration_words']))
 
 
+def is_literal_marker_lineage(marker, policy, uid, policy_identity):
+    """Native marker-lineage rule used by chunk checks and inherited policies.
+
+    A marker belongs to the current policy, or is the exact marker already
+    carried by the same UID in the parent's scoped lineage. An unrelated
+    well-shaped ancestor digest is not evidence of inheritance.
+    """
+    if marker.get('source_policy_sha256') == policy_identity:
+        return True
+    return (policy.get('boundary') == 'selected_source_words_v1'
+            and policy.get('scope_chunks', {}).get(uid) == marker)
+
+
 def get_literal_policy(entries):
     policies = [entry[SCRIPT_POLICY_KEY] for entry in entries
                 if isinstance(entry, dict) and SCRIPT_POLICY_KEY in entry]
@@ -156,7 +169,6 @@ def _ensure_literal_chunk(chunk, policy, policy_identity):
             or marker.get("boundary") != "before_speech_preparation"
             or marker.get("narration_words") != get_word_identity([chunk.get("text")])):
         raise ValueError("Literal narration chunk changed or lacks provenance; regenerate chunks")
-    if policy is not None and marker.get("source_policy_sha256") != policy_identity:
-        if (policy.get('boundary') != 'selected_source_words_v1'
-                or policy.get('scope_chunks', {}).get(chunk.get('uid')) != marker):
-            raise ValueError("Literal narration chunk belongs to a different source policy")
+    if (policy is not None
+            and not is_literal_marker_lineage(marker, policy, chunk.get('uid'), policy_identity)):
+        raise ValueError("Literal narration chunk belongs to a different source policy")
