@@ -923,7 +923,8 @@ class OwnershipAndCompositionTests(unittest.TestCase):
             retained_span = list(parent[start]['source_span'])
             self.assertEqual([19, 20], excluded_span)
             self.assertEqual([22, 23], retained_span)
-            for span, expected in ((excluded_span, False), (retained_span, True)):
+            for span, expected in ((excluded_span, False), ([21, 23], False),
+                                   ([22, 24], False), (retained_span, True)):
                 with self.subTest(parent=label, span=span), tempfile.TemporaryDirectory() as directory:
                     entries = copy.deepcopy(child)
                     entries[0]['source_span'] = span
@@ -934,6 +935,17 @@ class OwnershipAndCompositionTests(unittest.TestCase):
                         self.assertEqual(retained_span, saved[0]['source_span'])
                     else:
                         self.assertEqual(entries, saved)
+            missing_parent = copy.deepcopy(parent)
+            del missing_parent[start]['source_span']
+            with self.subTest(parent=label, missing='parent'), tempfile.TemporaryDirectory() as directory:
+                script, _, _ = make_saved_hop(
+                    directory, raw=raw, original_rows=missing_parent, active_rows=child)
+                self.publish(directory, script, child, expected=False)
+        missing_child = copy.deepcopy(child)
+        del missing_child[0]['source_span']
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, _ = create_book(directory, raw=raw, source=missing_child)
+            self.publish(directory, script, missing_child, expected=False)
 
     def test_combining_sequences_keep_legacy_digest_and_raw_offsets(self):
         for word, expected_span in (('a\u0327\u0301', [11, 14]), ('\u00e1\u0327', [11, 13])):

@@ -1650,6 +1650,15 @@ def _retained_leading_region(text, scope, entries):
     return matches[0]
 
 
+def _get_scoped_row_span(entry, source_length):
+    span = entry.get('source_span')
+    if (not isinstance(span, (list, tuple)) or len(span) != 2
+            or any(type(value) is not int for value in span)
+            or not 0 <= span[0] < span[1] <= source_length):
+        raise ValueError('Scoped row has no verified source span')
+    return span
+
+
 def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=None):
     """Bind inherited row spans to ordered words in the selected suffix."""
     scope = policy['scope_source']
@@ -1657,6 +1666,7 @@ def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=No
     if scope['total_words'] != len(words) or scope['end_word'] != len(words):
         raise ValueError('Scoped source word count differs')
     expected = words[scope['start_word']:]
+    spans = [_get_scoped_row_span(entry, len(text)) for entry in entries]
     retained = None
     if parent_entries is not None:
         retained = _retained_parent_rows(
@@ -1665,15 +1675,10 @@ def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=No
     first_word = next((position for position, item in enumerate(entries)
                        if any(True for _ in iter_literal_words(item['text']))), len(entries))
     cursor = 0
-    for index, entry in enumerate(entries):
-        span = entry.get('source_span')
-        if (not isinstance(span, (list, tuple)) or len(span) != 2
-                or any(type(value) is not int for value in span)
-                or not 0 <= span[0] < span[1] <= len(text)):
-            raise ValueError('Scoped row has no verified source span')
+    for index, (entry, span) in enumerate(zip(entries, spans)):
         if retained is not None:
-            parent_span = retained[index]['source_span']
-            if not parent_span[0] <= span[0] and span[1] <= parent_span[1]:
+            parent_span = _get_scoped_row_span(retained[index], len(text))
+            if not (parent_span[0] <= span[0] and span[1] <= parent_span[1]):
                 raise ValueError('Scoped row span is outside the parent retained partition')
         if (leading is not None and index < first_word
                 and not (leading[0] <= span[0] and span[1] <= leading[1])):
