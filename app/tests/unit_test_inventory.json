@@ -12475,7 +12475,10 @@
     , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_all_writes_fail_never_claims_a_verified_checkpoint"
     , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_compact_failure_keeps_same_input_deltas_but_not_changed_input"
     , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_failed_section_marker_ordinal_matches_next_model_call"
-    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_retry_batch_uses_window_ordinal_not_batch_size_division"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_in_place_retry_after_a_split_rewinds_to_the_failed_input"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_in_place_split_with_no_checkpoint_omits_retry_offset"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_legacy_in_place_split_resumes_after_the_corrected_rows"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_misaligned_in_place_split_can_publish_partial_output"
   ]
   , "test_review_checkpoint_summary": [
     "tests.test_review_checkpoint_summary.ReviewCheckpointSummaryTests.test_actual_http_listing_skips_file_removed_at_stat_and_keeps_other_checkpoint"

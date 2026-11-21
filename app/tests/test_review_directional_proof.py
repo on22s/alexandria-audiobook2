@@ -145,8 +145,7 @@ class DirectionalProofTests(ProofHarness):
             execution_sha256='exec')
         loaded = review.load_checkpoint(str(self.book), 3, 1, 0, source,
                                         execution_sha256='exec')
-        self.assertEqual([], loaded['batch_lengths'])
-        self.assertEqual(4, loaded['accepted_output_count'])
+        self.assertIsNone(loaded, 'an ambiguous failed boundary must start a fresh review')
 
     def test_reused_report_keeps_published_entry_counts(self):
         from types import SimpleNamespace

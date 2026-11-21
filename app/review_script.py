@@ -842,10 +842,8 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
     If earlier batches failed (and were filled in with their original,
     unreviewed entries as a fallback), rewind the checkpoint to just before
     the earliest such failure so those batches get retried on this run
-    instead of being permanently skipped. The rewind only runs when
-    `batch_lengths` fully covers `completed_batches` - true for any
-    checkpoint written entirely by this version; older checkpoints (missing
-    these fields) just keep their previous resume-from-completed behavior.
+    instead of being permanently skipped. If an older checkpoint cannot
+    prove the rewind boundary, review the current input from the beginning.
 
     `total_batches` can legitimately drift between runs - earlier batches may
     have added/removed entries (splits/merges), changing the total entry
@@ -943,6 +941,9 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
                     and sum(rebuilt) == len(data["all_corrected"])):
                 batch_lengths = rebuilt
                 data["batch_lengths"] = rebuilt
+    if failed_batches and len(batch_lengths) != completed_batches:
+        print("Review checkpoint cannot locate the failed batch safely - starting fresh.")
+        return None
     keep_count = (max(0, failed_batches[0] - 1)
                   if failed_batches and len(batch_lengths) == completed_batches else completed_batches)
     metadata, contributions, counts = get_review_checkpoint_accounting(
@@ -962,6 +963,7 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
         keep_entries = sum(batch_lengths[:keep_count])
         all_corrected = data["all_corrected"][:keep_entries]
         data["all_corrected"] = all_corrected
+        data["accepted_output_count"] = len(all_corrected)
         data["completed_batches"] = keep_count
         data["batch_lengths"] = batch_lengths[:keep_count]
         if "source_offsets" in data:
@@ -1068,11 +1070,6 @@ def get_review_resume_source_offsets(checkpoint, entries, batch_size, input_sha2
     if current == checkpoint.get("source_sha256"):
         return list(checkpoint.get("source_offsets") or
                     [min(len(entries), (index + 1) * batch_size) for index in range(count)])
-    if (current == checkpoint.get("output_sha256")
-            and checkpoint.get("settings_fingerprint") is not None):
-        accepted = checkpoint.get("accepted_output_count")
-        if type(accepted) is int and 0 <= accepted <= len(entries) and count:
-            return [min(accepted, (index + 1) * batch_size) for index in range(count - 1)] + [accepted]
     lengths = checkpoint["batch_lengths"]
     if len(lengths) == count:
         offsets, consumed = [], 0
@@ -1080,11 +1077,8 @@ def get_review_resume_source_offsets(checkpoint, entries, batch_size, input_sha2
             consumed += length
             offsets.append(consumed)
         return offsets
-    # Legacy output checkpoints lack per-batch lengths; the persisted accepted
-    # boundary is independent of that optional field.
-    accepted = checkpoint.get("accepted_source_offset")
-    if type(accepted) is int and 0 <= accepted <= len(entries):
-        return [min(accepted, (index + 1) * batch_size) for index in range(count - 1)] + [accepted] if count else []
+    # A legacy checkpoint opened on its published output uses the retained
+    # corrected prefix, whose size can differ from the consumed source rows.
     corrected_count = len(checkpoint["all_corrected"])
     offsets = [min(corrected_count, (index + 1) * batch_size) for index in range(count)]
     if offsets:
@@ -1133,10 +1127,10 @@ def _load_resume_state(output_path, total_batches_estimate, batch_size, context_
             batch_lengths, failed_batches, resume_offset, checkpoint)
 
 
-def get_verified_retry_offset(output_path, total_batches, batch_size, context_window,
-                              entries, input_sha256, input_entries, execution_sha256,
-                              legacy_execution_sha256=(), review_windows=()):
-    """Return the next actionable input offset from a genuinely resumable checkpoint.
+def get_verified_retry_position(output_path, total_batches, batch_size, context_window,
+                                entries, input_sha256, input_entries, execution_sha256,
+                                legacy_execution_sha256=(), review_windows=()):
+    """Return the verified input offset and next review batch number, if any.
 
     Uses the real loader (including delta recovery and rewind) and the same
     offset/windows validation as a fresh invocation, rather than trusting file
@@ -1144,7 +1138,7 @@ def get_verified_retry_offset(output_path, total_batches, batch_size, context_wi
     """
     stats = {key: 0 for key in REVIEW_EDIT_COUNTERS}
     try:
-        (_corrected, _stats, _tail, _completed, _lengths, _failed,
+        (_corrected, _stats, _tail, completed, _lengths, _failed,
          resume_offset, checkpoint) = _load_resume_state(
             output_path, total_batches, batch_size, context_window, entries,
             [], stats, execution_sha256=execution_sha256,
@@ -1154,24 +1148,13 @@ def get_verified_retry_offset(output_path, total_batches, batch_size, context_wi
         return None
     if not checkpoint:
         return None
-    remaining = get_review_remaining_windows(review_windows, entries, resume_offset)
-    return remaining[0][0] if remaining else resume_offset
-
-
-def get_review_retry_batch(review_windows, retry_offset, failed_sections=()):
-    """1-based ordinal of the window the next resume call will actually review.
-
-    Character-packed windows can hold a single row each, so an input offset is
-    not a batch number; derive the ordinal from the same canonical windows the
-    resume loop uses instead of dividing by the configured batch size.
-    """
-    if retry_offset is not None:
-        for ordinal, (start, _end) in enumerate(review_windows, 1):
-            if start == retry_offset:
-                return ordinal
-    batches = [section.get("batch") for section in failed_sections
-               if type(section.get("batch")) is int]
-    return min(batches) if batches else None
+    try:
+        remaining = get_review_remaining_windows(review_windows, entries, resume_offset)
+    except ReviewResumeMisaligned:
+        return None
+    if remaining:
+        return remaining[0][0], completed + 1
+    return resume_offset, None
 
 
 # ── Speaker de-duplication (merge aliases that are the same character) ──────────
@@ -3244,19 +3227,17 @@ def main():
                         output_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
     in_place_output = os.path.abspath(output_path) == os.path.abspath(script_path)
     output_coordinates = (in_place_output and not (active_review or saved_review)
-                          and bool(source_offsets)
-                          and len(all_corrected) != source_offsets[-1])
+                          and output_sha256 != source_sha256)
     next_entries = output_entries if output_coordinates else entries
     next_sha256 = output_sha256 if output_coordinates else source_sha256
     next_windows = (get_review_entry_windows(next_entries, generation_config)
                     if output_coordinates else review_windows)
-    retry_offset = (get_verified_retry_offset(
+    retry_position = (get_verified_retry_position(
         output_path, total_batches, batch_size, args.context_window, next_entries,
         next_sha256, next_entries, receipt_fingerprint, legacy_fingerprints,
         review_windows=next_windows) if not review_complete else None)
-    checkpoint_saved = retry_offset is not None
-    retry_from_batch = (get_review_retry_batch(next_windows, retry_offset, failed_sections)
-                        if checkpoint_saved else None)
+    checkpoint_saved = retry_position is not None
+    retry_offset, retry_from_batch = retry_position if checkpoint_saved else (None, None)
     unreviewed_entries = total_stats.get("unreviewed_rows", len(unreviewed_remainder))
     post_processing_abort = total_stats.get("abort_stage") == "final_checks"
     abort_stage = total_stats.get("abort_stage", "")
@@ -3361,7 +3342,7 @@ def main():
         'abort_stage': abort_stage,
         'publication_withheld': publication_withheld,
         'resumable_checkpoint': checkpoint_saved,
-        'retry_offset': len(all_corrected) if output_coordinates else retry_offset,
+        'retry_offset': retry_offset,
         'retry_from_batch': retry_from_batch})
     warning = get_review_accounting_warning({'accounting_unverified': accounting_unverified})
     if warning:

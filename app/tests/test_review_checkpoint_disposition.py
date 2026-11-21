@@ -36,12 +36,14 @@ def make_book(root):
     return path
 
 
-def run_review(root, path, gates, *, ctx=1, mode='ok', fail=(), out=None, dedupe=False):
+def run_review(root, path, gates, *, ctx=1, mode='ok', fail=(), out=None, dedupe=False,
+               split_first=False):
     """Run the real review CLI against a fixture and capture its markers."""
     args = ['review', '--input', str(path), '--output', str(out or path),
             '--context-window', str(ctx)] + (['--dedupe-speakers'] if dedupe else [])
     log = io.StringIO()
     calls = []
+    submitted = []
     original_write = gd.atomic_json_write
 
     def writer(data, *a, **kw):
@@ -51,8 +53,13 @@ def run_review(root, path, gates, *, ctx=1, mode='ok', fail=(), out=None, dedupe
 
     def batch(_client, _model, rows, index, *_a, **_kw):
         calls.append(index)
+        submitted.append([row['text'] for row in rows])
         if index in fail:
             return None
+        if split_first and index == 1:
+            original = rows[0]
+            start, end = original['text'].split(' ', 1)
+            return [{**original, 'text': start}, {**original, 'text': end}, *rows[1:]]
         return [{**row, 'speaker': 'ACCEPTED' + str(index)} for row in rows]
 
     with ExitStack() as stack:
@@ -82,7 +89,7 @@ def run_review(root, path, gates, *, ctx=1, mode='ok', fail=(), out=None, dedupe
         return payloads[-1] if payloads else None
 
     return {
-        'lines': lines, 'calls': calls,
+        'lines': lines, 'calls': calls, 'submitted': submitted,
         'disposition': marker('REVIEW_DISPOSITION_JSON'),
         'failed': marker('FAILED_SECTIONS_JSON'),
     }
@@ -139,13 +146,6 @@ class LegacyResumeTests(unittest.TestCase):
 
 
 class RetryDispositionTests(unittest.TestCase):
-    def test_retry_batch_uses_window_ordinal_not_batch_size_division(self):
-        windows = [(0, 1), (1, 2), (2, 3)]
-        self.assertEqual(2, review.get_review_retry_batch(windows, 1))
-        self.assertEqual(3, review.get_review_retry_batch(windows, 2))
-        self.assertEqual(2, review.get_review_retry_batch(
-            windows, None, [{'batch': 2}]))
-
     def test_compact_failure_keeps_same_input_deltas_but_not_changed_input(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -172,6 +172,69 @@ class RetryDispositionTests(unittest.TestCase):
                                  for line in result['lines']))
             self.assertTrue(any('no verified checkpoint holds the work' in line
                                 for line in result['lines']))
+
+    def test_in_place_retry_after_a_split_rewinds_to_the_failed_input(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / 'book.json'
+            path.write_text(json.dumps(SOURCE))
+            failed = run_review(root, path, [True] * 4, fail=(2,), split_first=True)
+            self.assertTrue(failed['disposition']['incomplete'])
+            self.assertEqual(2, failed['disposition']['retry_offset'])
+            expected = SOURCE[0]['text'].split(' ', 1) + [row['text'] for row in SOURCE[1:]]
+            self.assertEqual(expected, [row['text'] for row in json.loads(path.read_text())])
+            retry = run_review(root, path, [True] * 4)
+            self.assertEqual(failed['disposition']['retry_from_batch'], retry['calls'][0])
+            self.assertEqual([[row['text']] for row in SOURCE[1:]], retry['submitted'])
+            self.assertEqual(expected, [row['text'] for row in json.loads(path.read_text())])
+            self.assertFalse(retry['disposition']['incomplete'])
+            self.assertIsNone(retry['disposition']['retry_offset'])
+
+    def test_legacy_in_place_split_resumes_after_the_corrected_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / 'book.json'
+            path.write_text(json.dumps(SOURCE))
+            run_review(root, path, [True, False], split_first=True)
+            checkpoint = Path(str(path) + '.review_checkpoint.json')
+            document = json.loads(checkpoint.read_text())
+            for field in ('batch_lengths', 'accepted_output_count', 'settings_fingerprint',
+                          'consumed_forward_sha256', 'consumed_forward_fingerprint', 'companions',
+                          'review_accounting', 'review_batch_contributions'):
+                document.pop(field, None)
+            checkpoint.write_text(json.dumps(document))
+            before = [row['text'] for row in json.loads(path.read_text())]
+            retry = run_review(root, path, [True] * 4)
+            self.assertEqual([[row['text']] for row in SOURCE[1:]], retry['submitted'])
+            self.assertEqual(before, [row['text'] for row in json.loads(path.read_text())])
+
+    def test_in_place_split_with_no_checkpoint_omits_retry_offset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / 'book.json'
+            path.write_text(json.dumps(SOURCE))
+            failed = run_review(root, path, [True, False], mode='all', split_first=True)
+            self.assertFalse(failed['disposition']['resumable_checkpoint'])
+            self.assertIsNone(failed['disposition']['retry_offset'])
+            self.assertIsNone(failed['disposition']['retry_from_batch'])
+            path.write_text(json.dumps(SOURCE))
+            completed = run_review(root, path, [True] * 5, split_first=True)
+            self.assertFalse(completed['disposition']['incomplete'])
+            self.assertIsNone(completed['disposition']['retry_offset'])
+
+    def test_misaligned_in_place_split_can_publish_partial_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / 'book.json'
+            path.write_text(json.dumps(SOURCE))
+            with patch.dict(CONFIG['generation'], review_batch_size=2, review_target_chars=0):
+                result = run_review(root, path, [True, False], split_first=True)
+            disposition = result['disposition']
+            self.assertTrue(disposition['incomplete'])
+            self.assertFalse(disposition['resumable_checkpoint'])
+            self.assertIsNone(disposition['retry_offset'])
+            expected = SOURCE[0]['text'].split(' ', 1) + [row['text'] for row in SOURCE[1:]]
+            self.assertEqual(expected, [row['text'] for row in json.loads(path.read_text())])
 
     def test_failed_section_marker_ordinal_matches_next_model_call(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -55,12 +55,14 @@ class LegacyBoundaryTests(unittest.TestCase):
             windows = [(0, 1), (1, 2), (2, 3)]
             review.save_checkpoint(str(output), 1, 3, 3, 0, rows[:1], stats, rows[:1],
                                    [1], [], digest, source_offsets=[1], execution_sha256='exec')
-            self.assertEqual(1, review.get_verified_retry_offset(
+            self.assertEqual((1, 2), review.get_verified_retry_position(
                 str(output), 3, 3, 0, rows, digest, rows, 'exec', review_windows=windows))
-            self.assertIsNone(review.get_verified_retry_offset(
+            self.assertIsNone(review.get_verified_retry_position(
+                str(output), 3, 3, 0, rows, digest, rows, 'exec', review_windows=[(0, 2), (2, 3)]))
+            self.assertIsNone(review.get_verified_retry_position(
                 str(output), 3, 3, 0, rows, digest, rows, 'other', review_windows=windows))
             Path(str(output) + '.review_checkpoint.json').write_text('{broken')
-            self.assertIsNone(review.get_verified_retry_offset(
+            self.assertIsNone(review.get_verified_retry_position(
                 str(output), 3, 3, 0, rows, digest, rows, 'exec', review_windows=windows))
 
 
