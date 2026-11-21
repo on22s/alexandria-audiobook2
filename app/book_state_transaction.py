@@ -1426,6 +1426,8 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
                 output.flush(); os.fsync(output.fileno())
             if observed_version() != expected_version:
                 raise ValueError('Book transaction journal changed; update was refused')
+            if on_publish_attempt is not None:
+                on_publish_attempt()
             try:
                 os.replace(temporary, JOURNAL, src_dir_fd=root_fd, dst_dir_fd=root_fd)
                 os.fsync(root_fd)
@@ -1439,12 +1441,25 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
             # The temporary name may have been edited or replaced while the
             # update failed. An inode match is not enough to authorize deletion.
     check_expected_version()
+    replace_started = []
+    def before_committed_replace():
+        # Portable writers stage through a text/byte temp of their own. Move the
+        # rollback-capable guard to after that durable staged write and
+        # immediately before its replace, matching the descriptor path: a source
+        # edit in the staging window is refused while the destination is intact.
+        check_expected_version()
+        if on_publish_attempt is not None:
+            on_publish_attempt()
+        replace_started.append(True)
     try:
-        save_adapter_publication_bytes(str(path), bytes(payload))
+        save_adapter_publication_bytes(str(path), bytes(payload),
+                                       before_replace=before_committed_replace)
         return verify_published(_book_target_version(path))
     except Exception as error:
-        raise BookJournalPublicationUncertain(
-            'Book transaction journal update is uncertain; evidence was preserved') from error
+        if replace_started:
+            raise BookJournalPublicationUncertain(
+                'Book transaction journal update is uncertain; evidence was preserved') from error
+        raise
 
 
 @_refuse_book_io('Active-book journal could not be read')
@@ -4903,12 +4918,17 @@ def ensure_saved_book_state(data_dir, scripts_dir, timeout=10, *, recover=True):
         yield
 
 
-def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_limit=None, cancel_check=None):
+def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_limit=None,
+                            cancel_check=None, before_replace=None):
     """Stage and publish a switch; streams require an admitted, bounded caller.
 
     Stream objects must already be pinned by the caller. Their extent and hash
     are checked during staging. The byte limit also bounds each aggregate scan
     of existing targets; no stream authorizes a book restore by itself.
+    before_replace is rechecked at the final publication boundary, before every
+    row replacement, immediately before the committed journal is staged and
+    again immediately before its replace (while rollback is still possible), so
+    evidence that changed during staging or final validation cannot be published.
     """
     root, root_identity = _book_operation_root(data_dir)
     if os.path.lexists(root / JOURNAL):
@@ -5208,6 +5228,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                 data['target_parent_identity_scheme'] = WINDOWS_PARENT_SCHEME
         if root_guard is not None:
             root_guard.check()
+        if before_replace is not None:
+            before_replace()
         journal_version = _save_journal(
             root, data, create=True, root_fd=root_fd,
             on_publish_attempt=lambda: journal_publication_attempted.append(True))
@@ -5229,6 +5251,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             _require_transaction_parent_identities(
                 root, names, parent_identities, root_fd=root_fd, cancel_check=cancel_check)
         for index, (row, target) in enumerate(zip(rows, targets)):
+            if before_replace is not None:
+                before_replace()
             # Then only this row's own chain around its move (#1660), keeping
             # the loop linear: _validate_names refuses any target that is an
             # ancestor of another, so moving one target cannot change another's
@@ -5439,11 +5463,17 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             # journal is still "publishing", so the rollback is valid.
             _require_transaction_parent_identities(
                 root, names, parent_identities, root_fd=root_fd, cancel_check=cancel_check)
+        if before_replace is not None:
+            # Last rollback point: revalidate the confined source immediately
+            # before the committed journal makes this publication durable. An
+            # edit in the final validation window must restore every target,
+            # not publish new bytes and remove the old chunks.
+            before_replace()
         data['phase'] = 'committed'
         if root_guard is not None:
             root_guard.check()
         journal_version = _save_journal(root, data, expected_version=journal_version,
-                                        root_fd=root_fd)
+                                        root_fd=root_fd, on_publish_attempt=before_replace)
         # Publication is durable at this point.  Finish validation and cleanup
         # without surfacing a late cancellation for data that was committed.
         if streams:

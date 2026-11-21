@@ -228,3 +228,136 @@ class CheckpointShapeTests(unittest.TestCase):
             expected = copy.deepcopy(state); path.write_text(json.dumps(state))
             self.assertEqual(expected, tp._load_three_pass_checkpoint(output, state['fingerprint']))
             self.assertEqual(expected, state)
+
+
+class UncheckedAttributionResumeTests(unittest.TestCase):
+    def test_rejected_rows_and_dependent_instructions_are_redone_on_resume(self):
+        """A quality-rejected kept attribution is pending, not accepted: resume
+        must redo only it (and the instruction written for its old speaker) and
+        then publish a complete script with no unchecked entries."""
+        source = 'A quiet morning. Then a voice spoke.'
+        params = LLMGenParams(max_tokens=500, segmentation='quotes', structured_output='off')
+        segmented = [{'type': 'NARRATOR', 'text': 'A quiet morning.'},
+                     {'type': 'SPOKEN', 'text': 'Then a voice spoke.'}]
+        accepted_named = {'speaker': 'NARRATOR', 'text': 'A quiet morning.'}
+        accepted_instruct = {**accepted_named, 'instruct': 'Neutral, even narration.'}
+        with tempfile.TemporaryDirectory() as tmp:
+            output = str(Path(tmp) / 'book.json')
+            fingerprint = tp.three_pass_fingerprint(source, 'fixture', 6000, params)
+            state = {'fingerprint': fingerprint, 'stage': 'attribute_incomplete',
+                     'chunks_done': 1, 'segmented': segmented,
+                     'named': [accepted_named,
+                               {'speaker': 'UNKNOWN', 'text': 'Then a voice spoke.',
+                                'attribution_unchecked': ['unattested_speaker']}],
+                     'annotated': [accepted_instruct,
+                                   {'speaker': 'UNKNOWN', 'text': 'Then a voice spoke.',
+                                    'instruct': 'Old dependent instruction.'}],
+                     'resolutions': ['clean'], 'elapsed_s': {}, 'diagnostic_failures': []}
+            Path(tp.three_pass_checkpoint_path(output)).write_text(json.dumps(state))
+            attribute_calls, instruct_calls = [], []
+
+            def fake_attribute(_client, _model, batch, _params, **_kwargs):
+                attribute_calls.append([entry['text'] for entry in batch])
+                named_rows = [{'speaker': 'ALICE', 'text': entry['text']} for entry in batch]
+                return named_rows, [1.0] * len(named_rows)
+
+            def fake_instruct(_client, _model, batch, _params, **_kwargs):
+                instruct_calls.append([entry['text'] for entry in batch])
+                return [{**entry, 'instruct': 'Fresh instruction.'} for entry in batch]
+
+            with patch.object(tp, 'attribute_batch_voted', side_effect=fake_attribute), \
+                 patch.object(tp, 'instruct_batch', side_effect=fake_instruct), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                result = tp.run_three_pass(None, 'fixture', source, params, 6000,
+                                           output_path=output)
+            self.assertEqual([['A quiet morning.', 'Then a voice spoke.']], attribute_calls)
+            self.assertEqual([['Then a voice spoke.']], instruct_calls)
+            self.assertEqual(accepted_named, {k: result[0][k] for k in ('speaker', 'text')})
+            self.assertEqual('Neutral, even narration.', result[0]['instruct'])
+            self.assertEqual('ALICE', result[1]['speaker'])
+            self.assertEqual('Fresh instruction.', result[1]['instruct'])
+            manifest = json.loads(Path(tp.three_pass_manifest_path(output)).read_text())
+            self.assertEqual('complete', manifest['status'])
+            self.assertEqual(0, tp.get_three_pass_unchecked_count(manifest))
+
+
+class CheckpointScopeBindingTests(unittest.TestCase):
+    SOURCE = 'Alpha spoke first. Beta answered later.'
+    TEXTS = ['Alpha spoke first.', 'Beta answered later.']
+
+    def _params(self):
+        return LLMGenParams(max_tokens=500, segmentation='quotes', structured_output='off')
+
+    def _state(self, fingerprint, scope_evidence, *, named=None, annotated=None):
+        segmented = [{'type': 'SPOKEN', 'text': text} for text in self.TEXTS]
+        named = named if named is not None else [
+            {'speaker': name, 'text': text}
+            for name, text in zip(('ALPHA', 'BETA'), self.TEXTS)]
+        annotated = annotated if annotated is not None else [
+            {**entry, 'instruct': 'Original instruction.'} for entry in named]
+        state = {'fingerprint': fingerprint, 'stage': 'done', 'chunks_done': 1,
+                 'segmented': segmented, 'named': named, 'annotated': annotated,
+                 'resolutions': ['clean'], 'elapsed_s': {}, 'diagnostic_failures': []}
+        if scope_evidence is not None:
+            state['pass2_keep_scope'] = scope_evidence
+        return state
+
+    def _write(self, path, state, storage):
+        if storage == 'delta':
+            from generation_checkpoint_deltas import GenerationCheckpointDeltas
+            GenerationCheckpointDeltas(path).save_checkpoint(state, compact=False)
+        else:
+            Path(path).write_text(json.dumps(state))
+
+    def _resume(self, output, keep_scope, attribute_calls, instruct_calls):
+        def fake_attribute(_client, _model, batch, _params, **_kwargs):
+            attribute_calls.append([entry['text'] for entry in batch])
+            rows = [{'speaker': 'FRESH', 'text': entry['text']} for entry in batch]
+            return rows, [1.0] * len(rows)
+
+        def fake_instruct(_client, _model, batch, _params, **_kwargs):
+            instruct_calls.append([entry['text'] for entry in batch])
+            return [{**entry, 'instruct': 'Repeated instruction.'} for entry in batch]
+
+        with patch.object(tp, 'attribute_batch_voted', side_effect=fake_attribute), \
+             patch.object(tp, 'instruct_batch', side_effect=fake_instruct), \
+             contextlib.redirect_stdout(io.StringIO()):
+            return tp.run_three_pass(None, 'fixture', self.SOURCE, self._params(), 6000,
+                                     output_path=output, keep_scope=keep_scope)
+
+    def test_legacy_checkpoints_reuse_only_with_matching_bound_scope_evidence(self):
+        params = self._params()
+        legacy = tp.three_pass_fingerprint(self.SOURCE, 'fixture', 6000, params, keep_scope=None)
+        for storage in ('snapshot', 'delta'):
+            for evidence, expected_calls in (('line', 0), ('batch', 1), (None, 1)):
+                with self.subTest(storage=storage, evidence=evidence), tempfile.TemporaryDirectory() as tmp:
+                    output = str(Path(tmp) / 'book.json')
+                    state = self._state(legacy, evidence)
+                    self._write(tp.three_pass_checkpoint_path(output), state, storage)
+                    attribute_calls, instruct_calls = [], []
+                    result = self._resume(output, 'line', attribute_calls, instruct_calls)
+                    self.assertEqual(expected_calls, len(attribute_calls))
+                    self.assertEqual(expected_calls, len(instruct_calls))
+                    if expected_calls == 0:
+                        self.assertEqual(state['annotated'], result)
+                    else:
+                        self.assertEqual(self.TEXTS, [entry['text'] for entry in result])
+                        self.assertTrue(all(entry['instruct'] == 'Repeated instruction.'
+                                            for entry in result))
+
+    def test_new_cross_scope_checkpoint_is_refused_without_damage(self):
+        params = self._params()
+        line_fp = tp.three_pass_fingerprint(self.SOURCE, 'fixture', 6000, params, keep_scope='line')
+        for storage in ('snapshot', 'delta'):
+            with self.subTest(storage=storage), tempfile.TemporaryDirectory() as tmp:
+                output = str(Path(tmp) / 'book.json')
+                path = tp.three_pass_checkpoint_path(output)
+                state = self._state(line_fp, 'line')
+                self._write(path, state, storage)
+                before = Path(path).read_bytes()
+                attribute_calls, instruct_calls = [], []
+                with contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaisesRegex(RuntimeError, 'different pass-2 keep scope'):
+                        self._resume(output, 'batch', attribute_calls, instruct_calls)
+                self.assertEqual([], attribute_calls)
+                self.assertEqual(before, Path(path).read_bytes())

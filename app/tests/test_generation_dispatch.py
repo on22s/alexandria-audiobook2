@@ -4,7 +4,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from routers.script import build_generate_script_command, get_script_recovery_manifest
+from routers.script import (build_generate_script_command, get_script_recovery_manifest,
+                            ensure_script_recovery_response)
 from three_pass_generate import get_output_paths, three_pass_manifest_path
 
 
@@ -100,6 +101,18 @@ class GenerationDispatchTests(unittest.TestCase):
                     handle.write('{"input_file_path":"new-book.txt",'
                                  '"script_generation_input_file":"book.txt"}')
                 self.assertIsNone(get_script_recovery_manifest())
+
+    def test_recovery_response_exposes_unchecked_count(self):
+        manifest = {'status': 'incomplete',
+                    'passes': {'attribute': {'unchecked_entries': 2},
+                               'instruct': {'unchecked_entries': 0}}}
+        with tempfile.TemporaryDirectory() as directory:
+            with patch("routers.script.SCRIPT_PATH", os.path.join(directory, "annotated_script.json")), \
+                 patch("routers.script.DATA_DIR", directory), \
+                 patch("routers.script.get_script_recovery_manifest", return_value=manifest):
+                response = ensure_script_recovery_response()
+        self.assertTrue(response['recoverable'])
+        self.assertEqual(2, response['unchecked_count'])
 
 
 if __name__ == "__main__":

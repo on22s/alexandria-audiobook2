@@ -28,6 +28,7 @@ would mostly measure which books were included.
 """
 import argparse
 import collections
+import hashlib
 import json
 import os
 import re
@@ -183,6 +184,31 @@ def _three_pass_finished(record, expected_model):
     return True
 
 
+def _manifest_script_matches(manifest, out_path):
+    """The completion digest is a claim about the script bytes on disk.
+
+    A failed standalone replacement can leave a manifest claiming the new
+    digest while the prior script survived on disk. Reuse must not mistake that
+    prior script for the completed run. The completion record is the authority
+    scoped to this arm. A legacy manifest with no completion record stays
+    reusable on its other evidence.
+    """
+    if "completion" not in manifest:
+        return True
+    completion = manifest["completion"]
+    if not isinstance(completion, dict):
+        return False
+    digest = completion.get("script_sha256")
+    if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest):
+        return False
+    try:
+        with open(out_path, 'rb') as handle:
+            actual = hashlib.sha256(handle.read()).hexdigest()
+    except OSError:
+        return False
+    return actual == digest
+
+
 def _is_reusable(out_path, expected_model=None):
     """True only when a previous run of this arm demonstrably finished.
 
@@ -202,7 +228,8 @@ def _is_reusable(out_path, expected_model=None):
         return _single_pass_finished(quality, expected_model)
     manifest = _load_json(out_path + ".threepass_manifest.json")
     if manifest is not None:
-        return _three_pass_finished(manifest, expected_model)
+        return (_three_pass_finished(manifest, expected_model)
+                and _manifest_script_matches(manifest, out_path))
     return False
 
 

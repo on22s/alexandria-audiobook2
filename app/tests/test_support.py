@@ -33,6 +33,34 @@ from unittest.mock import patch
 logger = logging.getLogger(__name__)
 
 
+def build_three_pass_completion_manifest(entries, *, status='publishing',
+                                          run_id=None, **extra):
+    """Build a genuine attempt- and staged-script-bound completion manifest."""
+    import hashlib
+    if isinstance(entries, (bytes, bytearray)):
+        script = bytes(entries)
+        count = len(json.loads(script))
+    else:
+        script = json.dumps(entries, ensure_ascii=False, indent=2,
+                            allow_nan=False).encode('utf-8')
+        count = len(entries)
+    manifest = {
+        'status': status, 'run_id': run_id,
+        'passes': {}, 'diagnostic_failures': [],
+        'completion': {'status': status, 'run_id': run_id,
+                       'script_sha256': hashlib.sha256(script).hexdigest(),
+                       'entries': count},
+    }
+    manifest.update(extra)
+    return manifest
+
+
+def write_three_pass_completion_manifest(path, entries, **kwargs):
+    manifest = build_three_pass_completion_manifest(entries, **kwargs)
+    Path(path).write_text(json.dumps(manifest), encoding='utf-8')
+    return manifest
+
+
 def get_isolated_git_environment(extra=None):
     """Keep fixture Git commands out of the caller's repository and index.
 

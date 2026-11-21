@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import three_pass_generate as tp
 from generate_script import LLMGenParams
+from tests.test_support import write_three_pass_completion_manifest
 
 if os.environ.get('THREE_PASS_PLANNING_SOURCE'):
     spec = importlib.util.spec_from_file_location('saved_planning', os.environ['THREE_PASS_PLANNING_SOURCE'])
@@ -45,6 +46,13 @@ class ThreePassPlanningWorkTests(unittest.TestCase):
                             self.assertEqual(expected, actual)
 
     def test_actual_cli_uses_counts_without_full_preflight_report(self):
+        def run(client, model, text, params, chunk_size, **kwargs):
+            entries = [{'speaker': 'NARRATOR', 'text': 'result', 'instruct': 'Neutral.'}]
+            write_three_pass_completion_manifest(
+                tp.three_pass_manifest_path(kwargs['output_path']),
+                entries, status='complete', run_id=kwargs.get('run_id'))
+            return entries
+
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / 'source.txt'
             source.write_text('Alice waited. "Yes." Alice left.')
@@ -54,10 +62,10 @@ class ThreePassPlanningWorkTests(unittest.TestCase):
                  patch.object(tp, 'load_app_config', return_value={'llm_mode':'local', 'llm_local':{'model_name':'fixture'}, 'generation':{'max_tokens':4096}}), \
                  patch.object(tp, 'ensure_ideal_settings', return_value=(None, {'context_length':32768}, 'fixture')), \
                  patch.object(tp, 'make_run_client', return_value=object()), \
-                 patch.object(tp, 'run_three_pass', return_value=[{'speaker':'NARRATOR','text':'result','instruct':'Neutral.'}]) as run, \
+                 patch.object(tp, 'run_three_pass', side_effect=run) as dispatched, \
                  patch.object(tp, 'build_three_pass_request_preflight', side_effect=AssertionError('CLI formatted full report')):
                 tp.main()
-            self.assertEqual({1:0, 2:1, 3:1}, run.call_args.kwargs['planned_calls'])
+            self.assertEqual({1:0, 2:1, 3:1}, dispatched.call_args.kwargs['planned_calls'])
             self.assertEqual('result', json.loads(output.read_text())[0]['text'])
 
     def test_resumed_fallback_preserves_source_order_without_full_named_rescans(self):
@@ -100,6 +108,11 @@ class ThreePassPlanningWorkTests(unittest.TestCase):
                 entries = tp.run_three_pass(client,'fixture',source,params,6000,output_path=output,on_exhaustion='fallback',attribute_batch_size=1)
             checkpoint = json.loads(Path(tp.three_pass_checkpoint_path(output)).read_text())
             self.assertEqual(entries, checkpoint['annotated'])
-        self.assertEqual([['BOB','ALICE'], ['ALICE','BOB'], ['ALICE','CAROL','BOB']], dispatched_rosters)
-        self.assertEqual(['NARRATOR','ALICE','CAROL','CAROL','BOB','BOB','ALICE'], [entry['speaker'] for entry in entries])
+        # The quality-rejected kept row (index 3) is pending again, so it is
+        # re-attributed along with the other unresolved rows; its roster grows
+        # as earlier speakers become established.
+        self.assertEqual([['BOB','ALICE'], ['ALICE','BOB']] + [['ALICE','CAROL','BOB']] * 5,
+                         dispatched_rosters)
+        self.assertEqual(['NARRATOR','ALICE','CAROL','UNKNOWN','BOB','BOB','ALICE'],
+                         [entry['speaker'] for entry in entries])
         self.assertLessEqual(sum(scan_sizes), len(segmented), f'full named rescans: {scan_sizes}')

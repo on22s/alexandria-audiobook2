@@ -1,4 +1,5 @@
 """Verify CLI sample/full execution policy and real planning prompt construction."""
+import contextlib
 import copy
 import hashlib
 import importlib.util
@@ -11,6 +12,8 @@ from unittest.mock import patch
 
 import three_pass_generate as tp
 from attribution_prompt_variants import builtin_texts
+from tests.test_support import (write_three_pass_completion_manifest,
+                                build_three_pass_completion_manifest)
 
 if os.environ.get('THREE_PASS_CLI_SOURCE'):
     spec = importlib.util.spec_from_file_location('tp_cli_saved', os.environ['THREE_PASS_CLI_SOURCE'])
@@ -69,8 +72,11 @@ class ThreePassCliSettingsTests(unittest.TestCase):
             selection = capture_generation_selection(tmp, str(source))
             def run(client, model, text, params, chunk_size, **kwargs):
                 self.assertTrue(kwargs['defer_final_publication'])
-                Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text('{"status":"publishing"}')
-                return [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+                entries = [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+                write_three_pass_completion_manifest(
+                    tp.three_pass_manifest_path(kwargs['output_path']),
+                    entries, run_id='f' * 32)
+                return entries
             argv = ['three_pass_generate', str(source), '--active-book-token', selection['book_token'],
                     '--active-source-sha256', selection['source_sha256'], '--active-run-id', 'f'*32]
             with patch.object(tp.sys, 'argv', argv), patch.object(tp, 'get_runtime_data_dir', return_value=tmp), \
@@ -100,9 +106,12 @@ class ThreePassCliSettingsTests(unittest.TestCase):
             (root / 'chunks.json').write_text('[{"text":"old chunk"}]')
             selection = capture_generation_selection(tmp, str(source))
             def run(client, model, text, params, chunk_size, **kwargs):
-                Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text('{"status":"publishing"}')
+                entries = [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+                write_three_pass_completion_manifest(
+                    tp.three_pass_manifest_path(kwargs['output_path']),
+                    entries, run_id='f' * 32)
                 source.write_text('A different source was selected.', encoding='utf-8')
-                return [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+                return entries
             argv = ['three_pass_generate', str(source), '--active-book-token', selection['book_token'],
                     '--active-source-sha256', selection['source_sha256'], '--active-run-id', 'f'*32]
             with patch.object(tp.sys, 'argv', argv), patch.object(tp, 'get_runtime_data_dir', return_value=tmp), \
@@ -110,13 +119,131 @@ class ThreePassCliSettingsTests(unittest.TestCase):
                  patch.object(tp, 'ensure_ideal_settings', return_value=(None, {'context_length':32768}, 'fixture')), \
                  patch.object(tp, 'make_run_client', return_value=object()), \
                  patch.object(tp, 'run_three_pass', side_effect=run):
-                with self.assertRaisesRegex(ValueError, 'source changed'):
+                with self.assertRaisesRegex(ValueError, 'changed during generation'):
                     tp.main()
             self.assertEqual('[{"text":"old"}]', (root / 'annotated_script.json').read_text())
             self.assertEqual('[{"text":"old chunk"}]', (root / 'chunks.json').read_text())
             self.assertFalse((root / BINDING_NAME).exists())
             self.assertTrue(json.loads((root / 'state.json').read_text())['script_selection_pending'])
             self.assertEqual('publishing', json.loads((root / 'annotated_script.json.threepass_manifest.json').read_text())['status'])
+
+    def test_missing_corrupt_and_contradictory_manifests_refuse_publication(self):
+        """A run that leaves no valid completion evidence must not replace the
+        last accepted script, whatever its manifest happens to say."""
+        config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                  'generation': {'max_tokens': 4096}}
+        writers = {
+            'deleted': lambda path: None,
+            'corrupt': lambda path: path.write_text('{bad'),
+            'contradictory': lambda path: path.write_text(json.dumps({
+                'status': 'complete', 'passes': {'attribute': {'unchecked_entries': 1}},
+                'diagnostic_failures': []})),
+        }
+        for label, write_manifest in writers.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source = root / 'source.txt'
+                source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+                output = root / 'out.json'
+                prior = b'[{"text":"prior accepted script"}]'
+                output.write_bytes(prior)
+
+                def run(client, model, text, params, chunk_size, **kwargs):
+                    write_manifest(Path(tp.three_pass_manifest_path(kwargs['output_path'])))
+                    return [{'speaker': 'NARRATOR', 'text': 'new script', 'instruct': 'Neutral.'}]
+
+                with patch.object(tp.sys, 'argv', ['three_pass_generate', str(source),
+                                                   '--output', str(output)]), \
+                     patch.object(tp, 'load_app_config', return_value=config), \
+                     patch.object(tp, 'ensure_ideal_settings',
+                                  return_value=(None, {'context_length': 32768}, 'fixture')), \
+                     patch.object(tp, 'make_run_client', return_value=object()), \
+                     patch.object(tp, 'run_three_pass', side_effect=run):
+                    with self.assertRaises(SystemExit):
+                        tp.main()
+                self.assertEqual(prior, output.read_bytes())
+
+    def test_source_swap_around_staging_and_retry_preserves_old_output(self):
+        """The guarded replacement revalidates the confined source at the final
+        boundary and on every retry; a swap during literal binding, staging or
+        backoff must leave the last accepted script and chunks untouched."""
+        import utils
+
+        config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                  'generation': {'max_tokens': 4096}}
+        for label in ('literal_binding', 'staging', 'backoff'):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source = root / 'source.txt'
+                source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+                output = root / 'out.json'
+                prior = b'[{"text":"prior accepted script"}]'
+                output.write_bytes(prior)
+                chunks = root / 'chunks.json'
+                chunks.write_bytes(b'[{"text":"prior chunk"}]')
+                swapped = False
+
+                def swap_once():
+                    nonlocal swapped
+                    if not swapped:
+                        source.write_text('Different words chosen elsewhere.', encoding='utf-8')
+                        swapped = True
+
+                def run(client, model, text, params, chunk_size, **kwargs):
+                    entries = [{'speaker': 'NARRATOR', 'text': 'new script',
+                                'instruct': 'Neutral.'}]
+                    write_three_pass_completion_manifest(
+                        tp.three_pass_manifest_path(kwargs['output_path']),
+                        entries, status='complete', run_id=kwargs.get('run_id'))
+                    return entries
+
+                patches = [
+                    patch.object(tp.sys, 'argv', ['three_pass_generate', str(source),
+                                                  '--output', str(output)]
+                                 + (['--literal-source-preserving']
+                                    if label == 'literal_binding' else [])),
+                    patch.object(tp, 'load_app_config', return_value=config),
+                    patch.object(tp, 'ensure_ideal_settings',
+                                 return_value=(None, {'context_length': 32768}, 'fixture')),
+                    patch.object(tp, 'make_run_client', return_value=object()),
+                    patch.object(tp, 'run_three_pass', side_effect=run),
+                ]
+                if label == 'literal_binding':
+                    patches.append(patch('literal_policy.bind_literal_policy',
+                                         side_effect=lambda *a, **k: (swap_once(),
+                                                                      a[1])[1]))
+                elif label == 'staging':
+                    original_mkstemp = utils.tempfile.mkstemp
+
+                    def staging_swap(*args, **kwargs):
+                        swap_once()
+                        return original_mkstemp(*args, **kwargs)
+
+                    patches.append(patch.object(utils.tempfile, 'mkstemp', side_effect=staging_swap))
+                else:
+                    original_replace = utils.os.replace
+                    attempts = []
+
+                    def backoff_swap(src, dst, *args, **kwargs):
+                        if Path(dst) == output:
+                            attempts.append(dst)
+                            if len(attempts) == 1:
+                                swap_once()
+                                error = OSError('locked')
+                                error.winerror = 5
+                                raise error
+                        return original_replace(src, dst, *args, **kwargs)
+
+                    patches.append(patch.object(utils.os, 'replace', side_effect=backoff_swap))
+
+                with contextlib.ExitStack() as stack:
+                    for item in patches:
+                        stack.enter_context(item)
+                    with self.assertRaisesRegex(ValueError, 'changed during generation'):
+                        tp.main()
+                self.assertTrue(swapped)
+                self.assertEqual(prior, output.read_bytes())
+                self.assertEqual(b'[{"text":"prior chunk"}]', chunks.read_bytes())
 
     def run_cli(self, tmp, config, preflight, extra):
         source = Path(tmp) / 'source.txt'
@@ -133,7 +260,11 @@ class ThreePassCliSettingsTests(unittest.TestCase):
 
         def run(client, model, text, params, chunk_size, **kwargs):
             calls.append((text, params, chunk_size, kwargs))
-            return [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+            entries = [{'speaker':'NARRATOR', 'text':text, 'instruct':'Neutral.'}]
+            write_three_pass_completion_manifest(
+                tp.three_pass_manifest_path(kwargs['output_path']),
+                entries, status='complete', run_id=kwargs.get('run_id'))
+            return entries
 
         argv = ['three_pass_generate', str(source), '--output', str(output),
                 '--chunk-size', '6000', '--segmentation', 'quotes'] + extra
@@ -238,3 +369,416 @@ class ThreePassCliSettingsTests(unittest.TestCase):
             attributed = [r for r in report['requests'] if r['stage'] == 'attribute']
             self.assertTrue(attributed)
             self.assertGreater(attributed[0]['prompt_tokens'], len(texts['system']) // 3)
+
+
+    def test_copy_run_params_retains_runtime_literal_provenance(self):
+        params = tp.get_three_pass_run_params(
+            {'generation': {'max_tokens': 4096}}, {'context_length': 8192})
+        params.literal_input_sha256 = 'a' * 64
+        params.literal_strip_front_matter = True
+        copied = tp.copy_run_params(params, cast_aliases=True)
+        self.assertIsNot(copied, params)
+        self.assertEqual('a' * 64, copied.literal_input_sha256)
+        self.assertTrue(copied.literal_strip_front_matter)
+        self.assertTrue(copied.cast_aliases)
+
+    def test_literal_cli_binds_completion_digest_to_final_script_bytes(self):
+        from literal_policy import bind_literal_policy
+        config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                  'generation': {'max_tokens': 4096}}
+        for label, extra in (('fresh', []),):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source = root / 'source.txt'
+                source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+                output = root / 'out.json'
+                seen = {}
+
+                def run(client, model, text, params, chunk_size, **kwargs):
+                    seen['params'] = params
+                    seen['run_id'] = kwargs.get('run_id')
+                    seen['resume'] = kwargs.get('require_matching_checkpoint')
+                    entries = bind_literal_policy(text, [
+                        {'speaker': 'NARRATOR', 'text': text, 'instruct': 'Neutral.'}],
+                        input_sha256=params.literal_input_sha256,
+                        strip_front_matter=params.literal_strip_front_matter)
+                    write_three_pass_completion_manifest(
+                        tp.three_pass_manifest_path(kwargs['output_path']),
+                        entries, status='complete', run_id=kwargs.get('run_id'))
+                    return entries
+
+                argv = ['three_pass_generate', str(source), '--output', str(output),
+                        '--literal-source-preserving'] + extra
+                with patch.object(tp.sys, 'argv', argv), \
+                     patch.object(tp, 'load_app_config', return_value=config), \
+                     patch.object(tp, 'ensure_ideal_settings',
+                                  return_value=(None, {'context_length': 32768}, 'fixture')), \
+                     patch.object(tp, 'make_run_client', return_value=object()), \
+                     patch.object(tp, 'run_three_pass', side_effect=run):
+                    tp.main()
+                script = output.read_bytes()
+                entries = json.loads(script)
+                self.assertIn('_literal_source_policy', entries[0])
+                manifest = json.loads(Path(tp.three_pass_manifest_path(str(output))).read_text())
+                self.assertEqual(hashlib.sha256(script).hexdigest(),
+                                 manifest['completion']['script_sha256'])
+                self.assertEqual(len(entries), manifest['completion']['entries'])
+                self.assertEqual(seen['run_id'], manifest['run_id'])
+                self.assertTrue(seen['params'].literal_source_preserving)
+                self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(),
+                                 seen['params'].literal_input_sha256)
+                self.assertEqual(bool(extra), bool(seen['resume']))
+
+    def test_explicit_null_pass_status_is_refused_but_omitted_legacy_is_not(self):
+        from tests.test_support import build_three_pass_completion_manifest
+        run_id = 'f' * 32
+        for status, passes, blocked in (
+                ('null', {'attribute': {'status': None, 'unchecked_entries': 0}}, True),
+                ('omitted_legacy', {'attribute': {'unchecked_entries': 0}}, False),
+                ('complete', {'attribute': {'status': 'complete', 'unchecked_entries': 0}}, False)):
+            with self.subTest(status=status):
+                manifest = build_three_pass_completion_manifest(
+                    [{'text': 'line'}], status='complete', run_id=run_id, passes=passes)
+                blocker = tp.get_three_pass_publication_blocker(manifest, expected_run_id=run_id)
+                self.assertEqual(blocked, blocker is not None)
+
+    def test_active_cli_refuses_explicit_null_pass_status(self):
+        from literal_policy import bind_literal_policy
+        from script_selection_binding import capture_generation_selection
+        config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                  'generation': {'max_tokens': 4096}}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source.txt'
+            source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+            prior = b'[{"text":"old accepted"}]'
+            (root / 'annotated_script.json').write_bytes(prior)
+            (root / 'chunks.json').write_bytes(b'[{"text":"old chunk"}]')
+            (root / 'state.json').write_text(json.dumps({
+                'active_book_id': 'a', 'book_generation': 'one',
+                'input_file_path': str(source), 'script_selection_pending': True,
+                'script_generation_run_id': 'f' * 32,
+                'script_generation_base_sha256': hashlib.sha256(prior).hexdigest()}))
+            selection = capture_generation_selection(tmp, str(source))
+
+            def run(client, model, text, params, chunk_size, **kwargs):
+                entries = bind_literal_policy(text, [
+                    {'speaker': 'NARRATOR', 'text': text, 'instruct': 'Neutral.'}],
+                    input_sha256=params.literal_input_sha256,
+                    strip_front_matter=params.literal_strip_front_matter)
+                manifest = build_three_pass_completion_manifest(
+                    entries, status='publishing', run_id=kwargs['run_id'])
+                manifest['passes'] = {'attribute': {'status': None}}
+                Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(
+                    json.dumps(manifest))
+                return entries
+
+            argv = ['three_pass_generate', str(source),
+                    '--active-book-token', selection['book_token'],
+                    '--active-source-sha256', selection['source_sha256'],
+                    '--active-run-id', 'f' * 32, '--literal-source-preserving']
+            with patch.object(tp.sys, 'argv', argv), \
+                 patch.object(tp, 'get_runtime_data_dir', return_value=tmp), \
+                 patch.object(tp, 'load_app_config', return_value=config), \
+                 patch.object(tp, 'ensure_ideal_settings',
+                              return_value=(None, {'context_length': 32768}, 'fixture')), \
+                 patch.object(tp, 'make_run_client', return_value=object()), \
+                 patch.object(tp, 'run_three_pass', side_effect=run), \
+                 self.assertRaises(SystemExit) as raised:
+                tp.main()
+            self.assertEqual(1, raised.exception.code)
+            self.assertEqual(prior, (root / 'annotated_script.json').read_bytes())
+
+    def test_standalone_cli_publishes_exact_validated_bytes_under_native_crlf(self):
+        config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                  'generation': {'max_tokens': 4096}}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source.txt'
+            source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+            output = root / 'out.json'
+
+            def run(client, model, text, params, chunk_size, **kwargs):
+                entries = [{'speaker': 'NARRATOR', 'text': text, 'instruct': 'Neutral.'}]
+                write_three_pass_completion_manifest(
+                    tp.three_pass_manifest_path(kwargs['output_path']),
+                    entries, status='complete', run_id=kwargs.get('run_id'))
+                return entries
+
+            real_fdopen = os.fdopen
+            forced = []
+            def native_crlf_fdopen(fd, mode='r', *args, **kwargs):
+                if 'w' in mode and kwargs.get('newline') is None:
+                    forced.append(1)
+                    kwargs['newline'] = '\r\n'
+                return real_fdopen(fd, mode, *args, **kwargs)
+
+            argv = ['three_pass_generate', str(source), '--output', str(output)]
+            with patch.object(tp.sys, 'argv', argv), \
+                 patch.object(tp, 'load_app_config', return_value=config), \
+                 patch.object(tp, 'ensure_ideal_settings',
+                              return_value=(None, {'context_length': 32768}, 'fixture')), \
+                 patch.object(tp, 'make_run_client', return_value=object()), \
+                 patch.object(tp, 'run_three_pass', side_effect=run), \
+                 patch.object(tp.os, 'fdopen', side_effect=native_crlf_fdopen):
+                tp.main()
+            script = output.read_bytes()
+            manifest = json.loads(Path(tp.three_pass_manifest_path(str(output))).read_text())
+            self.assertEqual([], forced)
+            self.assertEqual(hashlib.sha256(script).hexdigest(),
+                             manifest['completion']['script_sha256'])
+            self.assertNotIn(b'\r\n', script)
+
+    def test_active_literal_cli_publishes_attempt_bound_script_and_manifest(self):
+        from literal_policy import bind_literal_policy
+        from script_selection_binding import capture_generation_selection, BINDING_NAME
+        config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                  'generation': {'max_tokens': 4096}}
+        for label, extra in (('fresh', []), ('resumed', ['--require-matching-checkpoint'])):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source = root / 'source.txt'
+                source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+                (root / 'state.json').write_text(json.dumps({
+                    'active_book_id': 'a', 'book_generation': 'one',
+                    'input_file_path': str(source), 'script_selection_pending': True,
+                    'script_generation_run_id': 'f' * 32}))
+                (root / 'annotated_script.json').write_text('[{"text":"old"}]')
+                state = json.loads((root / 'state.json').read_text())
+                state['script_generation_base_sha256'] = hashlib.sha256(
+                    (root / 'annotated_script.json').read_bytes()).hexdigest()
+                (root / 'state.json').write_text(json.dumps(state))
+                (root / 'chunks.json').write_text('[{"text":"old chunk"}]')
+                selection = capture_generation_selection(tmp, str(source))
+
+                def run(client, model, text, params, chunk_size, **kwargs):
+                    self.assertEqual('f' * 32, kwargs['run_id'])
+                    self.assertEqual(bool(extra), bool(kwargs.get('require_matching_checkpoint')))
+                    entries = bind_literal_policy(text, [
+                        {'speaker': 'NARRATOR', 'text': text, 'instruct': 'Neutral.'}],
+                        input_sha256=params.literal_input_sha256,
+                        strip_front_matter=params.literal_strip_front_matter)
+                    write_three_pass_completion_manifest(
+                        tp.three_pass_manifest_path(kwargs['output_path']),
+                        entries, status='publishing', run_id=kwargs['run_id'])
+                    return entries
+
+                argv = ['three_pass_generate', str(source),
+                        '--active-book-token', selection['book_token'],
+                        '--active-source-sha256', selection['source_sha256'],
+                        '--active-run-id', 'f' * 32, '--literal-source-preserving'] + extra
+                with patch.object(tp.sys, 'argv', argv), \
+                     patch.object(tp, 'get_runtime_data_dir', return_value=tmp), \
+                     patch.object(tp, 'load_app_config', return_value=config), \
+                     patch.object(tp, 'ensure_ideal_settings',
+                                  return_value=(None, {'context_length': 32768}, 'fixture')), \
+                     patch.object(tp, 'make_run_client', return_value=object()), \
+                     patch.object(tp, 'run_three_pass', side_effect=run):
+                    tp.main()
+                script = (root / 'annotated_script.json').read_bytes()
+                self.assertIn('_literal_source_policy', json.loads(script)[0])
+                manifest = json.loads((root / 'annotated_script.json.threepass_manifest.json').read_text())
+                self.assertEqual('complete', manifest['status'])
+                self.assertEqual('complete', manifest['completion']['status'])
+                self.assertEqual(hashlib.sha256(script).hexdigest(),
+                                 manifest['publication']['script_sha256'])
+                self.assertEqual(hashlib.sha256(script).hexdigest(),
+                                 manifest['completion']['script_sha256'])
+                self.assertTrue((root / BINDING_NAME).exists())
+                self.assertFalse((root / 'chunks.json').exists())
+
+    def test_standalone_refuses_foreign_attempt_and_prior_receipt(self):
+        config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                  'generation': {'max_tokens': 4096}}
+        for label in ('foreign_attempt', 'same_content_prior_attempt', 'prior_receipt'):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source = root / 'source.txt'
+                source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+                output = root / 'out.json'
+                prior = b'[{"text":"prior accepted script"}]'
+                output.write_bytes(prior)
+                chunks = root / 'chunks.json'
+                chunks.write_bytes(b'old chunks')
+
+                def run(client, model, text, params, chunk_size, **kwargs):
+                    entries = [{'speaker': 'NARRATOR', 'text': text, 'instruct': 'Neutral.'}]
+                    current = kwargs.get('run_id')
+                    claimed = 'e' * 32 if label != 'prior_receipt' else current
+                    manifest = build_three_pass_completion_manifest(
+                        entries, status='complete', run_id=claimed)
+                    if label == 'prior_receipt':
+                        digest = hashlib.sha256(json.dumps(
+                            entries, ensure_ascii=False, indent=2,
+                            allow_nan=False).encode()).hexdigest()
+                        manifest['publication'] = {'run_id': current,
+                                                   'script_sha256': digest}
+                    Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(
+                        json.dumps(manifest))
+                    return entries
+
+                with patch.object(tp.sys, 'argv', ['three_pass_generate', str(source),
+                                                   '--output', str(output)]), \
+                     patch.object(tp, 'load_app_config', return_value=config), \
+                     patch.object(tp, 'ensure_ideal_settings',
+                                  return_value=(None, {'context_length': 32768}, 'fixture')), \
+                     patch.object(tp, 'make_run_client', return_value=object()), \
+                     patch.object(tp, 'run_three_pass', side_effect=run):
+                    with self.assertRaises(SystemExit):
+                        tp.main()
+                self.assertEqual(prior, output.read_bytes())
+                self.assertEqual(b'old chunks', chunks.read_bytes())
+
+
+class StandaloneCompletionBoundaryTests(unittest.TestCase):
+    """The standalone publication boundary uses the same completion contract."""
+
+    @contextlib.contextmanager
+    def _run_main(self, tmp, writer, *, scripts=None):
+        source = Path(tmp) / 'source.txt'
+        source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+        output = Path(tmp) / 'out.json'
+        prior = b'[{"text":"prior accepted script"}]'
+        output.write_bytes(prior)
+        chunks = Path(tmp) / 'chunks.json'
+        chunks.write_bytes(b'old chunks')
+        config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                  'generation': {'max_tokens': 4096}}
+
+        def run(client, model, text, params, chunk_size, **kwargs):
+            entries = [{'speaker': 'NARRATOR', 'text': 'new script',
+                        'instruct': 'Neutral.'}]
+            writer(Path(tp.three_pass_manifest_path(kwargs['output_path'])),
+                   entries, prior, run_id=kwargs.get('run_id'))
+            return entries
+
+        patches = [
+            patch.object(tp.sys, 'argv', ['three_pass_generate', str(source),
+                                          '--output', str(output)]),
+            patch.object(tp, 'load_app_config', return_value=config),
+            patch.object(tp, 'ensure_ideal_settings',
+                         return_value=(None, {'context_length': 32768}, 'fixture')),
+            patch.object(tp, 'make_run_client', return_value=object()),
+            patch.object(tp, 'run_three_pass', side_effect=run),
+        ]
+        if scripts is not None:
+            patches.append(patch.object(tp, 'atomic_json_write', side_effect=scripts))
+        with contextlib.ExitStack() as stack:
+            for item in patches:
+                stack.enter_context(item)
+            yield output, chunks, prior, tp.main
+
+    def test_substitutions_leave_prior_script_and_chunks_untouched(self):
+        staged = [{'speaker': 'NARRATOR', 'text': 'new script',
+                   'instruct': 'Neutral.'}]
+        valid = build_three_pass_completion_manifest(staged, status='complete')
+        old_sha = hashlib.sha256(b'[{"text":"prior accepted script"}]').hexdigest()
+        substitutions = {
+            'status_only': {'status': 'complete'},
+            'string_unchecked': {**valid,
+                                 'passes': {'attribute': {'unchecked_entries': '2'}}},
+            'malformed_pass_mapping': {**valid,
+                                       'passes': {'attribute': 'not a pass record'}},
+            'stale_completion': {**valid, 'completion': {
+                **valid['completion'], 'script_sha256': old_sha}},
+            'prior_receipt_old_script': {**valid, 'publication': {
+                'script_sha256': old_sha}},
+        }
+        for label, manifest in substitutions.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                def writer(path, entries, prior, manifest=manifest, run_id=None):
+                    path.write_text(json.dumps(manifest))
+                with self._run_main(tmp, writer) as (output, chunks, prior, main):
+                    with self.assertRaises(SystemExit):
+                        main()
+                self.assertEqual(prior, output.read_bytes())
+                self.assertEqual(b'old chunks', chunks.read_bytes())
+
+    def test_matching_digest_cannot_hide_unchecked_rows_or_wrong_count(self):
+        for label in ('unchecked_row', 'wrong_declared_count', 'empty_pass_list'):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source = root / 'source.txt'
+                source.write_text('Alice stood beside the garden gate.', encoding='utf-8')
+                output = root / 'out.json'
+                prior = b'[{"text":"prior accepted script"}]'
+                output.write_bytes(prior)
+                chunks = root / 'chunks.json'
+                chunks.write_bytes(b'old chunks')
+                config = {'llm_mode': 'local', 'llm_local': {'model_name': 'fixture'},
+                          'generation': {'max_tokens': 4096}}
+
+                def run(client, model, text, params, chunk_size, **kwargs):
+                    rows = [{'speaker': 'NARRATOR', 'text': 'new script',
+                             'instruct': 'Neutral.'}]
+                    if label == 'unchecked_row':
+                        rows[0]['attribution_unchecked'] = ['fallback']
+                    manifest = build_three_pass_completion_manifest(
+                        rows, status='complete', run_id=kwargs.get('run_id'))
+                    if label == 'wrong_declared_count':
+                        manifest['completion']['entries'] = 2
+                    if label == 'empty_pass_list':
+                        manifest['passes'] = []
+                    Path(tp.three_pass_manifest_path(kwargs['output_path'])).write_text(
+                        json.dumps(manifest))
+                    return rows
+
+                with patch.object(tp.sys, 'argv', ['three_pass_generate', str(source),
+                                                   '--output', str(output)]), \
+                     patch.object(tp, 'load_app_config', return_value=config), \
+                     patch.object(tp, 'ensure_ideal_settings',
+                                  return_value=(None, {'context_length': 32768}, 'fixture')), \
+                     patch.object(tp, 'make_run_client', return_value=object()), \
+                     patch.object(tp, 'run_three_pass', side_effect=run):
+                    with self.assertRaises(SystemExit):
+                        tp.main()
+                self.assertEqual(prior, output.read_bytes())
+                self.assertEqual(b'old chunks', chunks.read_bytes())
+
+    def test_manifest_permission_failure_cannot_leave_a_half_published_book(self):
+        """The final manifest write was redundant: an injected permission
+        failure on it must not decide whether the script and chunks publish."""
+        with tempfile.TemporaryDirectory() as tmp:
+            calls = []
+            original = tp.atomic_json_write
+
+            def writer(path, entries, prior, run_id=None):
+                write_three_pass_completion_manifest(
+                    path, entries, status='complete', run_id=run_id)
+
+            def guarded(data, path, *args, **kwargs):
+                calls.append(Path(path).name)
+                if str(path).endswith('threepass_manifest.json'):
+                    error = PermissionError('injected manifest permission failure')
+                    error.errno = 13
+                    raise error
+                return original(data, path, *args, **kwargs)
+
+            with self._run_main(tmp, writer, scripts=guarded) as (output, chunks, prior, main):
+                main()
+            self.assertNotIn('annotated_script.json.threepass_manifest.json', calls)
+            self.assertIn('out.json', calls)
+            self.assertNotEqual(prior, output.read_bytes())
+            self.assertIn('new script', output.read_text())
+            self.assertEqual(b'old chunks', chunks.read_bytes())
+
+    def test_script_write_permission_failure_preserves_chunks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            original = tp.atomic_json_write
+
+            def writer(path, entries, prior, run_id=None):
+                write_three_pass_completion_manifest(
+                    path, entries, status='complete', run_id=run_id)
+
+            def guarded(data, path, *args, **kwargs):
+                if Path(path).name == 'out.json':
+                    error = PermissionError('injected script permission failure')
+                    error.errno = 13
+                    raise error
+                return original(data, path, *args, **kwargs)
+
+            with self._run_main(tmp, writer, scripts=guarded) as (output, chunks, prior, main):
+                with self.assertRaisesRegex(PermissionError, 'script permission'):
+                    main()
+            self.assertEqual(prior, output.read_bytes())
+            self.assertEqual(b'old chunks', chunks.read_bytes())
