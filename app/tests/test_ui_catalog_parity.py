@@ -360,6 +360,23 @@ class RealCatalogTests(unittest.TestCase):
                     self.assertNotEqual(self.english[key], messages[key],
                                         f'{locale} left {key} untranslated')
 
+    def test_the_cast_changed_recovery_keys_are_used_and_translated(self):
+        """A fenced run's Start Over explanation is keyed in every locale."""
+        keys = ('script.recovery.cast-changed-title',
+                'script.recovery.cast-changed-detail',
+                'script.recovery.cast-changed-guidance',
+                'script.recovery.cast-changed-start-over')
+        core = (STATIC / 'js' / 'app-core.js').read_text(encoding='utf-8')
+        for key in keys:
+            with self.subTest(key=key):
+                self.assertIn(f"'{key}'", core, 'the fenced recovery panel must use this key')
+                self.assertIn(key, self.english)
+                for locale, payload in self.catalogs.items():
+                    messages = messages_of(payload)
+                    self.assertIn(key, messages, f'{locale} is missing {key}')
+                    self.assertNotEqual(self.english[key], messages[key],
+                                        f'{locale} left {key} untranslated')
+
     def test_no_locale_claims_a_review_it_does_not_have(self):
         for locale, payload in self.catalogs.items():
             with self.subTest(locale=locale):

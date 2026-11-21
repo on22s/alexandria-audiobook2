@@ -96,6 +96,7 @@ class ConcurrentAliasPublicationTests(unittest.TestCase):
         from unittest.mock import patch
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
+        import core
         from routers import script
         from utils import file_lock
         with tempfile.TemporaryDirectory() as tmp:
@@ -128,6 +129,9 @@ class ConcurrentAliasPublicationTests(unittest.TestCase):
             app = FastAPI()
             app.include_router(script.router)
             with patch.object(script, "CHARACTER_ALIASES_PATH", str(path)), \
+                 patch.object(script, "DATA_DIR", tmp), \
+                 patch.object(core, "process_state", {}), patch.object(core, "_task_claims", {}), \
+                 patch.object(core, "_gpu_leases", {}), \
                  patch.object(script, "atomic_json_write", side_effect=pause_manual_publication), \
                  patch.object(find_nicknames, "file_lock", side_effect=observe_discovery_lock), \
                  TestClient(app) as client:

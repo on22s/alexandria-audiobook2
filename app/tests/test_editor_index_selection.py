@@ -87,8 +87,10 @@ class EditorIndexSelectionTests(unittest.TestCase):
             pm.save_chunks(chunks)
             app = FastAPI(); app.include_router(editor.router)
             state = copy.deepcopy(editor.process_state)
-            def schedule(tasks, name, callback):
+            def schedule(tasks, name, callback, *, verify=None):
                 self.assertEqual('chapter_export', name)
+                if verify is not None:
+                    verify()
                 tasks.add_task(callback)
             with patch.object(editor, 'project_manager', pm), \
                  patch.object(editor, 'process_state', state), \

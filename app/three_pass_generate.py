@@ -2,7 +2,9 @@
 See docs/superpowers/specs/2026-07-21-three-pass-script-generation-design.md."""
 
 import argparse
-from script_recovery_facts import three_pass_manifest_path
+from script_recovery_facts import three_pass_checkpoint_path, three_pass_manifest_path
+from script_recovery_guard import (RECOVERY_CAST_INVALIDATED_DETAIL, SCRIPT_PATH_NAME,
+                                   is_script_recovery_cast_invalidated)
 import hashlib
 import json
 import math
@@ -20,7 +22,8 @@ from types import MappingProxyType
 
 from core import llm_timeout_seconds
 from source_encoding import read_source_text, get_normalized_source_newlines
-from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
+from llm_provider import (make_llm_client, make_run_client, get_effective_authorization,
+                          get_run_model_binding,
                           get_run_fingerprint_identity, get_provider_extra_body)
 from llm_request_budget import get_prompt_token_estimate
 
@@ -58,7 +61,7 @@ from config_settings import load_app_config, get_generation_config
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
                                get_effective_max_tokens, TokenBudgetError)
 from utils import (get_runtime_data_dir, get_app_config_path,
-                   atomic_json_write, safe_load_json, is_nonverbal_text)
+                   atomic_json_write, safe_load_json, is_nonverbal_text, file_lock)
 
 BATCH_SIZE = 25
 NARRATOR_DEFAULT_INSTRUCT = "Neutral, even narration."
@@ -2435,10 +2438,6 @@ def get_preflight_sample_info(label, index, output_path, planned_calls,
     return info
 
 
-def three_pass_checkpoint_path(output_path):
-    return output_path + ".threepass_checkpoint.json"
-
-
 def _resolution_counts(resolutions):
     """Roll per-chunk resolution strings up into summary counts."""
     return {
@@ -2662,34 +2661,53 @@ def validate_three_pass_checkpoint(data, chunk_count=None):
                 "diagnostic_segment_resume first failed chunk")
 
 
+def _refuse_fenced_active_checkpoint(path):
+    """Authoritative refusal for the one active-book checkpoint path.
+
+    The HTTP launcher fences this run before dispatch, but the documented
+    command line can point at the same default active checkpoint directly. The
+    loader is the last boundary every consumer shares, so refuse there under
+    the same book/checkpoint admission. Batch checkpoints and unrelated output
+    paths are untouched, and a Start over (which discards progress and clears
+    the marker) or a fresh baseline has no marker to refuse.
+    """
+    resolved = Path(os.path.abspath(path))
+    if resolved.name != SCRIPT_PATH_NAME:
+        return
+    if is_script_recovery_cast_invalidated(str(resolved.parent)):
+        raise RuntimeError(RECOVERY_CAST_INVALIDATED_DETAIL)
+
+
 def _load_three_pass_checkpoint(output_path, fingerprint, chunk_count=None, *,
                                 keep_scope=None, scope_fingerprints=None,
                                 legacy_fingerprint=None):
     path = three_pass_checkpoint_path(output_path)
     if not os.path.exists(path):
         return None
-    try:
-        data = load_generation_delta_checkpoint(path)
-        if not isinstance(data, dict):
-            raise ValueError("expected an object")
-        identity = get_run_fingerprint_identity(data.get("fingerprint"))
-        if identity != get_run_fingerprint_identity(fingerprint):
-            if keep_scope is not None and legacy_fingerprint is not None \
-                    and identity == get_run_fingerprint_identity(legacy_fingerprint):
-                pass  # legacy checkpoint: caller decides what may be reused
-            elif keep_scope is not None and scope_fingerprints and any(
-                    identity == get_run_fingerprint_identity(other)
-                    for scope, other in scope_fingerprints.items() if scope != keep_scope):
-                # A saved checkpoint from the other keep scope cannot be resumed
-                # under this one; leave every byte of it untouched.
-                raise RuntimeError(
-                    "Saved progress was written with a different pass-2 keep scope; "
-                    "it was preserved. Use Start over to begin again.")
-            else:
-                return None
-        validate_three_pass_checkpoint(data, chunk_count)
-    except (OSError, ValueError, UnicodeError) as exc:
-        raise RuntimeError(f"Invalid three-pass checkpoint {path}: {exc}") from exc
+    with file_lock(path):
+        _refuse_fenced_active_checkpoint(output_path)
+        try:
+            data = load_generation_delta_checkpoint(path, locked=True)
+            if not isinstance(data, dict):
+                raise ValueError("expected an object")
+            identity = get_run_fingerprint_identity(data.get("fingerprint"))
+            if identity != get_run_fingerprint_identity(fingerprint):
+                if keep_scope is not None and legacy_fingerprint is not None \
+                        and identity == get_run_fingerprint_identity(legacy_fingerprint):
+                    pass  # legacy checkpoint: caller decides what may be reused
+                elif keep_scope is not None and scope_fingerprints and any(
+                        identity == get_run_fingerprint_identity(other)
+                        for scope, other in scope_fingerprints.items() if scope != keep_scope):
+                    # A saved checkpoint from the other keep scope cannot be resumed
+                    # under this one; leave every byte of it untouched.
+                    raise RuntimeError(
+                        "Saved progress was written with a different pass-2 keep scope; "
+                        "it was preserved. Use Start over to begin again.")
+                else:
+                    return None
+            validate_three_pass_checkpoint(data, chunk_count)
+        except (OSError, ValueError, UnicodeError) as exc:
+            raise RuntimeError(f"Invalid three-pass checkpoint {path}: {exc}") from exc
     return data
 
 
@@ -4311,7 +4329,8 @@ def main():
     # loaded / settings are stale, mirroring generate_script.py. Without this a
     # fresh `lms unload` leaves no model loaded and every call 400s.
     _, lm_status, heal_msg = ensure_ideal_settings(
-        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"),
+        authorization=get_effective_authorization(llm), llm_config=llm)
     print(heal_msg)
     params = get_three_pass_run_params(config, lm_status, args.reasoning_effort, generation_settings)
     params.literal_source_preserving = args.literal_source_preserving

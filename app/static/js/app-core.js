@@ -706,7 +706,10 @@
                 if (/^(?:\[ERROR\]|Error:)/i.test(line)) { return true; }
             }
             return logs.some(log => {
-                const line = String(log)
+                const text = String(log).trim();
+                // Collision messages are neutral even if the saved filename contains "Error".
+                if (/^\[\d+\] Skipping — saved script '[^']*' (?:already exists\. Choose version or replace explicitly\.|now exists\.)$/.test(text)) { return false; }
+                const line = text
                     .replace(/\b(?:0|zero|no)\s+(?:(?:batch\(es\)|section\(s\)|batches|sections)\s+)?(?:errors?|failures?|failed)\b(?:\s+or\s+(?:errors?|failures?))?/gi, '')
                     .replace(/\b(?:errors?|failed|failures?)\s*(?:count\s*)?[:=]\s*0(?!\d|\.\d)/gi, '')
                     .replace(/\bwithout (?:any |recorded )?(?:errors?|failures?|failed)(?: or skipped sections)?\b/gi, '');
@@ -778,6 +781,7 @@
         function taskStatusLabel(status) {
             if (status === 'pending') { return t('core.task-status.pending', 'pending'); }
             if (status === 'running') { return t('core.task-status.running', 'running'); }
+            if (status === 'skipped') { return t('core.task-status.skipped', 'skipped'); }
             if (status === 'done') { return t('core.task-status.done', 'done'); }
             if (status === 'finished') { return t('core.task-status.finished', 'finished'); }
             if (status === 'failed') { return t('core.task-status.failed', 'failed'); }
@@ -2105,7 +2109,8 @@
             document.getElementById('llm-context-length').value = p.context_length ?? '';
             document.getElementById('llm-max-input-tokens').value = p.max_input_tokens ?? '';
             document.getElementById('llm-max-output-tokens').value = p.max_output_tokens ?? '';
-            document.getElementById('llm-key').value = p.api_key || 'local';
+            // An explicitly saved blank key is a choice, not a missing value.
+            document.getElementById('llm-key').value = p.api_key ?? 'local';
             document.getElementById('llm-model').value = p.model_name || '';
             document.getElementById('llm-request-timeout').value =
                 p.request_timeout_seconds ?? '';
@@ -2123,8 +2128,10 @@
             document.getElementById('llm-retry-jitter').value = p.retry_jitter ?? 0.2;
             document.getElementById('llm-provider-headers').value =
                 JSON.stringify(p.provider_headers || {}, null, 2);
+            // JSON.parse in the browser rounds integers beyond 2^53, so the
+            // server sends the exact JSON text alongside the parsed object.
             document.getElementById('llm-provider-extra-body').value =
-                JSON.stringify(p.provider_extra_body || {}, null, 2);
+                p.provider_extra_body_json ?? JSON.stringify(p.provider_extra_body || {}, null, 2);
             document.getElementById('llm-reasoning-effort').value = p.reasoning_effort || '';
             document.getElementById('llm-on-this-gpu').value = (p.on_this_gpu === true || p.on_this_gpu === false) ? String(p.on_this_gpu) : '';
             document.getElementById('llm-transport').value = p.transport || 'http';
@@ -2151,6 +2158,7 @@
         }
 
         function getEditedLlmProfile() {
+            const bodyText = document.getElementById('llm-provider-extra-body').value;
             return {
                 context_length: getOptionalTokenInput('llm-context-length', 'Total context budget'),
                 max_input_tokens: getOptionalTokenInput('llm-max-input-tokens', 'Input ceiling'),
@@ -2169,6 +2177,10 @@
                 retry_jitter: getOptionalNumberInput('llm-retry-jitter', 'Backoff jitter') ?? 0.2,
                 provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
                 provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body'),
+                // The editor's text is the authoritative representation: a
+                // browser number cannot hold integers beyond 2^53 exactly.
+                provider_extra_body_json: bodyText.trim() ? bodyText : '{}',
+                provider_extra_body_raw: true,
                 reasoning_effort: document.getElementById('llm-reasoning-effort').value || null,
                 on_this_gpu: getOnThisGpuInput(),
                 transport: document.getElementById('llm-transport').value || 'http'
@@ -2712,11 +2724,19 @@
                 passPayload[pass + '_preset'] = payload.active;
                 passPayload[pass + '_prompt_presets'] = payload.own;
             }
+            // An untouched slot comes straight from the browser-parsed GET
+            // response, whose numbers may already be rounded. Its exact text
+            // travelled alongside it; declare that text authoritative so an
+            // unrelated save cannot rewrite the stored body.
+            const withExactBody = profile => (profile && typeof profile === 'object'
+                && typeof profile.provider_extra_body_json === 'string'
+                && profile.provider_extra_body_raw !== true)
+                ? {...profile, provider_extra_body_raw: true} : profile;
             return {
-                llm: llmProfiles[currentLlmMode],
+                llm: withExactBody(llmProfiles[currentLlmMode]),
                 llm_mode: currentLlmMode,
-                llm_local: llmProfiles.local,
-                llm_remote: llmProfiles.remote,
+                llm_local: withExactBody(llmProfiles.local),
+                llm_remote: withExactBody(llmProfiles.remote),
                 llm_remote_ssh: document.getElementById('llm-ssh').value.trim() || null,
                 llm_failover: document.getElementById('llm-failover').checked,
                 tts: {
@@ -3497,6 +3517,10 @@
             try {
                 const recovery = await API.get('/api/generate_script/recovery?include_detail=true');
                 retryBtn.style.display = recovery.recoverable ? 'inline-block' : 'none';
+                if (recovery.start_over_required) {
+                    renderCastChangedRecovery(recovery.detail);
+                    return;
+                }
                 if (recovery.recoverable) {
                     const resumeAtPass = recovery.failed_pass
                         ? t('script.recovery.can-resume-at', 'Generation can resume from its checkpoint at {pass}.', {pass: recovery.failed_pass})
@@ -3513,6 +3537,26 @@
                 }
                 console.debug('Script recovery status unavailable', e);
             }
+        }
+
+        // A fenced run cannot resume: its checkpoint was built for the old cast.
+        // Surface the server's own explanation and point at the existing Start
+        // over control; checkpoint, manifest and cast are left intact for review.
+        function renderCastChangedRecovery(detail) {
+            const panel = document.getElementById('script-recovery-panel');
+            if (!panel) { return; }
+            const explanation = detail || t('script.recovery.cast-changed-detail', 'The approved cast changed since this run started, so it cannot resume; start a new run. The saved checkpoint was preserved.');
+            showToast(explanation, 'warning', 12000);
+            panel.style.display = '';
+            panel.innerHTML = `
+                <div role="status" aria-live="polite" aria-atomic="true">
+                    <div class="card-header"><strong>${escapeHtml(t('script.recovery.cast-changed-title', 'Approved cast changed'))}</strong></div>
+                    <div class="card-body">
+                        <p>${escapeHtml(explanation)}</p>
+                        <p class="small text-muted">${escapeHtml(t('script.recovery.cast-changed-guidance', 'Your checkpoint, manifest and cast were preserved. Use Start over to generate again with the approved cast.'))}</p>
+                        <button type="button" class="btn btn-outline-warning" onclick="document.getElementById('btn-gen-script-fresh').click()"><i class="fas fa-undo me-1" aria-hidden="true"></i>${escapeHtml(t('script.recovery.cast-changed-start-over', 'Start over'))}</button>
+                    </div>
+                </div>`;
         }
 
         // Failed-request recovery panel (issue #522 s23): where it failed, every
@@ -3969,7 +4013,7 @@
                         state.tasks.forEach((taskStatus, i) => {
                             const el = document.getElementById(`script-batch-status-${i}`);
                             if (!el) { return; }
-                            const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
+                            const colours = { pending: 'secondary', running: 'primary', done: 'success', skipped: 'secondary', failed: 'danger', cancelled: 'warning' };
                             el.innerHTML = `<span class="badge bg-${colours[taskStatus.status] || 'secondary'}">${escapeHtml(taskStatusLabel(taskStatus.status))}</span>`;
                         });
                     }
@@ -3979,7 +4023,7 @@
                     clearScriptCancellation('batch_script');
                     renderManualRequest({ running: false }, 'batch_script');
                     _showTaskRecoveryPanel('script-batch-recovery-panel', 'batch_script', state,
-                        t('script.batch.recovery-hint', 'Inspect the log and resume failed books from their validated checkpoints.'));
+                        t('script.batch.recovery-hint', 'Inspect the log. If a failed book has a validated checkpoint, resume it from there.'));
                     notifyJobDone('batch_script', '', 'finished', state);
                     document.getElementById('btn-gen-script').disabled = false;
                     document.getElementById('btn-pause-batch-script').style.display = 'none';
@@ -3988,9 +4032,14 @@
                     const done = tasks.filter(task => task.status === 'done').length;
                     const failed = tasks.filter(task => task.status === 'failed').length;
                     const cancelled = tasks.filter(task => task.status === 'cancelled').length;
+                    // A collision skip never attempted the book, so count it separately.
+                    const skipped = tasks.filter(task => task.status === 'skipped').length;
                     const tone = failed ? 'text-warning' : 'text-muted';
+                    const summary = failed
+                        ? t('script.batch.finished', 'Batch finished — {done} completed, {skipped} skipped, {failed} failed, {cancelled} cancelled. Failed books may have validated checkpoints.', {done, skipped, failed, cancelled})
+                        : t('script.batch.finished-clean', 'Batch finished — {done} completed, {skipped} skipped, {failed} failed, {cancelled} cancelled.', {done, skipped, failed, cancelled});
                     document.getElementById('script-batch-status-msg').innerHTML =
-                        `<span class="${tone}">${escapeHtml(t('script.batch.finished', 'Batch finished — {done} completed, {failed} failed, {cancelled} cancelled. Failed books keep validated checkpoints.', {done, failed, cancelled}))}</span>`;
+                        `<span class="${tone}">${escapeHtml(summary)}</span>`;
                     loadSavedScripts();
                 }
             });
@@ -8276,9 +8325,27 @@
             }
         }
 
+        function showFailedEditorIntegrity(badge) {
+            const failed = getFailedChunkEdits();
+            const first = failed[0];
+            editorIntegrityView++;
+            if (failed.length === 1) {
+                setUiMessage(badge, 'editor.integrity.save-failed-one', 'Line {line} failed to save — {reason}',
+                    () => ({line: first.line, reason: first.reason}));
+            } else {
+                setUiMessage(badge, 'editor.integrity.save-failed', '{count} line edits failed to save — {reason}',
+                    () => ({count: failed.length, reason: first.reason}));
+            }
+            badge.className = 'badge bg-danger';
+        }
+
         async function refreshEditorIntegrity() {
             const badge = document.getElementById('editor-integrity-badge');
             if (!badge) { return; }
+            if (typeof getEditorFailedEditsSummary === 'function' && getEditorFailedEditsSummary()) {
+                showFailedEditorIntegrity(badge);
+                return;
+            }
             if (isEditorEditPending()) {
                 invalidateEditorIntegrity('Save edits before checking source');
                 return;
@@ -8550,11 +8617,15 @@
                               chunk.status === 'error' ? 'danger' : 'secondary';
             if (typeof getChunkRowState === 'function') { tr.dataset.renderState = getChunkRowState(chunk); }
 
-            // Update status badge
+            // Update status badge. Keep the locale selector class and the
+            // data-status it repaints from; otherwise a save freezes the badge
+            // in the language that happened to be active at save time.
             const badge = tr.querySelector('.badge');
             if (badge) {
-                badge.className = `badge bg-${statusColor}`;
-                badge.innerText = chunk.status;
+                const statusLabel = typeof chunkStatusLabel === 'function' ? chunkStatusLabel(chunk.status) : chunk.status;
+                badge.className = `badge bg-${statusColor} chunk-status-label`;
+                badge.setAttribute?.('data-status', chunk.status);
+                badge.innerText = statusLabel;
                 const oldDrift = tr.querySelector('.drift-badge');
                 if (oldDrift) { oldDrift.remove(); }
                 badge.insertAdjacentHTML('afterend', _driftBadge(chunk));
@@ -8595,21 +8666,51 @@
                     }
                 }
 
-                // Update audio player when status is done - always refresh src to bust cache
-                if (chunk.status === 'done' && chunk.audio_path) {
-                    const existingAudio = actionContainer.querySelector('audio');
-                    const existingNoAudio = actionContainer.querySelector('.text-muted');
-                    const newSrc = encodeURI(`/${chunk.audio_path}`) + `?t=${encodeURIComponent(chunk.audio_revision || Date.now())}`;
-
-                    if (existingNoAudio) {
-                        // No audio element yet, create one
+                // The player is owned by the audio identity, not by the row
+                // status. A pause-only save leaves that identity untouched and
+                // must not interrupt playback; 'generating' with valid audio
+                // keeps the old take listenable. Only a cleared path removes it.
+                const existingAudio = actionContainer.querySelector('audio.chunk-audio');
+                if (chunk.audio_path) {
+                    const path = encodeURI(`/${chunk.audio_path}`);
+                    const currentSrc = existingAudio?.getAttribute?.('src');
+                    // Legacy rows have no revision. Keep their original cache
+                    // buster while the audio path remains the same.
+                    const newSrc = !chunk.audio_revision && currentSrc?.startsWith(`${path}?t=`)
+                        ? currentSrc : `${path}?t=${encodeURIComponent(chunk.audio_revision || Date.now())}`;
+                    if (existingAudio) {
+                        if (currentSrc !== newSrc) {
+                            existingAudio.src = newSrc;
+                            existingAudio.load?.();
+                        }
+                    } else {
+                        const existingNoAudio = actionContainer.querySelector('.text-muted');
                         const audioHtml = `<audio class="chunk-audio" data-id="${chunk.id}" controls src="${newSrc}" style="width: 200px; height: 30px;" onplay="stopOthers(${chunk.id})"></audio>`;
-                        existingNoAudio.outerHTML = audioHtml;
-                    } else if (existingAudio) {
-                        // Audio exists - just update the src with new cache-busting timestamp
-                        // This forces browser to fetch the regenerated file
-                        existingAudio.src = newSrc;
-                        existingAudio.load(); // Force reload
+                        if (existingNoAudio) { existingNoAudio.outerHTML = audioHtml; }
+                        else if (typeof actionContainer.insertAdjacentHTML === 'function') { actionContainer.insertAdjacentHTML('beforeend', audioHtml); }
+                    }
+                } else {
+                    // A semantic edit can downgrade a previously rendered row to
+                    // pending with no audio. Stop and remove the stale player so
+                    // neither the table nor the inspector can play the old take.
+                    if (existingAudio) {
+                        try { existingAudio.pause?.(); existingAudio.removeAttribute?.('src'); existingAudio.load?.(); } catch (error) {}
+                        try { existingAudio.remove?.(); } catch (error) {}
+                    }
+                    if (!actionContainer.querySelector('.text-muted')) {
+                        const noAudio = typeof document.createElement === 'function' ? document.createElement('span') : null;
+                        if (noAudio) {
+                            noAudio.className = 'text-muted small';
+                            if (typeof setUiMessage === 'function' && typeof noAudio.setAttribute === 'function') {
+                                setUiMessage(noAudio, 'core.editor.no-audio', 'No audio');
+                            } else {
+                                noAudio.textContent = t('core.editor.no-audio', 'No audio');
+                            }
+                            if (typeof actionContainer.appendChild === 'function') { actionContainer.appendChild(noAudio); }
+                            else if (typeof actionContainer.insertAdjacentHTML === 'function') { actionContainer.insertAdjacentHTML('beforeend', `<span class="text-muted small">${uiMessageMarkup('core.editor.no-audio', 'No audio')}</span>`); }
+                        } else if (typeof actionContainer.insertAdjacentHTML === 'function') {
+                            actionContainer.insertAdjacentHTML('beforeend', `<span class="text-muted small">${uiMessageMarkup('core.editor.no-audio', 'No audio')}</span>`);
+                        }
                     }
                 }
             }
@@ -8909,9 +9010,7 @@
             });
             if (chunks.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" class="text-center">${escapeHtml(t('core.editor.no-chunks', 'No chunks found. Please generate script first.'))}</td></tr>`;
-                cachedChunks = [];
-                chunkSnapshotBook = refreshBook;
-                chunkSnapshotRevision = snapshot.revision;
+                cacheChunkSnapshot(chunks, refreshBook, snapshot);
                 window.renderEditorQualityInbox?.();
                 return chunks;
             }
@@ -8922,9 +9021,7 @@
                 chunks.forEach(chunk => {
                     if (snapshot.full || snapshot.changed_ids.includes(chunk.id)) { updateChunkRow(chunk); }
                 });
-                cachedChunks = chunks;
-                chunkSnapshotBook = refreshBook;
-                chunkSnapshotRevision = snapshot.revision;
+                cacheChunkSnapshot(chunks, refreshBook, snapshot);
                 window.renderEditorQualityInbox?.();
 
                 // Continue polling if generating
@@ -9007,8 +9104,11 @@
                             `<div class="tp tp-dither tp-sm tp-indeterminate" style="width: 100px;"><span class="tp-label" role="status" aria-label="${escapeHtml(t('core.editor.generating-aria', 'Generating audio'))}">${escapeHtml(t('core.editor.generating', 'Generating…'))}</span></div>` :
                             `<button class="btn btn-sm ${chunk.status === 'error' ? 'btn-outline-danger' : 'btn-primary'}" onclick="generateChunk(${chunk.id})"><i class="fas fa-play"></i> ${chunk.status === 'error' ? uiMessageMarkup('core.editor.retry-line', 'Retry') : uiMessageMarkup('core.editor.generate-short', 'Gen')}</button>`;
 
+                        const failedMarkup = (typeof getFailedChunkEntries === 'function' && typeof chunkEditKey === 'function'
+                            && getFailedChunkEntries(chunkEditKey(chunk.uid, snapshot.book_token)).length > 0) ? ' text-danger' : '';
+
                         return `
-                            <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" data-render-state="${window.getChunkRowState?.(chunk) || 'pending'}" class="chunk-row">
+                            <tr data-id="${chunk.id}" data-uid="${escapeHtml(chunk.uid)}" data-book-token="${escapeHtml(snapshot.book_token)}" data-render-state="${window.getChunkRowState?.(chunk) || 'pending'}" class="chunk-row${failedMarkup}">
                                 <td class="text-center align-middle" style="white-space:nowrap;">
                                     <button type="button" class="chunk-action-btn" onclick="selectEditorReviewLineById(${chunk.id})" title="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}" aria-label="${escapeHtml(t('core.editor.inspect-line', 'Inspect line {line}', {line: chunk.id + 1}))}"><i class="fas fa-magnifying-glass"></i></button><button class="chunk-action-btn chunk-toggle-btn" onclick="toggleChunkExpand(this)" title="${escapeHtml(t('core.editor.expand', 'Expand/collapse'))}"><i class="fas fa-chevron-down"></i></button><button class="chunk-action-btn" onclick="insertChunkAfter(${chunk.id})" title="${escapeHtml(t('core.editor.insert-line', 'Insert line below'))}"><i class="fas fa-plus"></i></button><button class="chunk-action-btn" onclick="deleteChunk(${chunk.id})" title="${escapeHtml(t('core.editor.delete-line', 'Delete line'))}"><i class="fas fa-trash" style="color:#dc3545;"></i></button><button class="chunk-action-btn" onclick="voiceChangesHere(${chunk.id})" title="${escapeHtml(t('core.editor.voice-change', 'Voice changes here: from this line on, this character sounds different (time skip, older)'))}"><i class="fas fa-user-clock"></i></button>${document.getElementById('reproducible-takes')?.checked === true ? `<button class="chunk-action-btn" onclick="differentTake(${chunk.id})" title="${escapeHtml(t('core.editor.different-take', 'Different take: render this line again with a new seed'))}"><i class="fas fa-dice"></i></button>` : ''}
                                 </td>
@@ -9100,9 +9200,7 @@
                 }
             }
 
-            cachedChunks = chunks;
-            chunkSnapshotBook = refreshBook;
-            chunkSnapshotRevision = snapshot.revision;
+            cacheChunkSnapshot(chunks, refreshBook, snapshot);
             window.renderEditorQualityInbox?.();
 
             // If any chunk is generating, poll (without full redraw)
@@ -9111,6 +9209,23 @@
             }
 
             return chunks;
+        }
+
+        function cacheChunkSnapshot(chunks, book, snapshot) {
+            cachedChunks = chunks;
+            chunkSnapshotBook = book;
+            chunkSnapshotRevision = snapshot.revision;
+            // Only a complete snapshot proves that a refused edit's UID is
+            // gone. An index may now belong to a different line.
+            if (snapshot.full && typeof failedChunkEdits !== 'undefined' && failedChunkEdits.size) {
+                const presentUids = new Set(chunks.map(chunk => chunk.uid));
+                for (const key of failedChunkEdits.keys()) {
+                    const {bookToken, uid} = readChunkEditKey(key);
+                    if (bookToken === snapshot.book_token && uid && !presentUids.has(uid)) {
+                        failedChunkEdits.delete(key);
+                    }
+                }
+            }
         }
 
         window.toggleChunkExpand = (btn) => {
@@ -9155,6 +9270,7 @@
             }
             return {
                 query: new URLSearchParams({expected_book_token: token, expected_uid: uid}).toString(),
+                uid, bookToken: token,
                 isCurrent: () => book === currentBookFilename && token === chunkSnapshotBookToken
             };
         }
@@ -9607,36 +9723,176 @@
 
         const pendingChunkEdits = new Map();
         const failedChunkEdits = new Map();
+        const queuedChunkEdits = new Map();
         let chunkEditsRevision = 0;
+        let chunkEditOrder = 0;
+
+        // A numeric row id is reused after a reorder or a book switch, and the
+        // same uid can move to a different index. Work and failures are owned
+        // by the stable book token + uid (with the field kept in the failure
+        // map), never by the transient index.
+        function chunkEditKey(uid, bookToken) {
+            return JSON.stringify([bookToken, uid]);
+        }
+
+        function readChunkEditKey(key) {
+            if (typeof key !== 'string') { return {bookToken: null, uid: null, id: Number(key)}; }
+            try {
+                const [bookToken, uid, id] = JSON.parse(key);
+                return {bookToken, uid, id};
+            } catch (error) {
+                return {bookToken: null, uid: null, id: Number(key)};
+            }
+        }
+
+        function isRelevantChunkEditKey(key, bookToken = chunkSnapshotBookToken, uids = null) {
+            const owner = readChunkEditKey(key);
+            return owner.bookToken === null || (owner.bookToken === bookToken && (!uids || uids.has(owner.uid)));
+        }
+
+        function getCurrentChunkEditRow(id, uid, bookToken) {
+            if (bookToken !== chunkSnapshotBookToken) { return null; }
+            const row = document.querySelector(`#chunks-table-body tr[data-id="${id}"]`);
+            return row?.dataset.uid === uid && row?.dataset.bookToken === bookToken ? row : null;
+        }
+
+        function getFailedChunkEntries(key) {
+            const entry = failedChunkEdits.get(key);
+            if (!entry) { return []; }
+            if (entry.failures instanceof Map) { return Array.from(entry.failures.values()); }
+            return [{error: entry.error || entry, fields: entry.field ? String(entry.field).split(', ') : []}];
+        }
+
+        function isCurrentChunkEditRow(id, uid, bookToken) {
+            return !!getCurrentChunkEditRow(id, uid, bookToken)
+                && cachedChunks.find(chunk => chunk.id === id && chunk.uid === uid)?.uid === uid;
+        }
+
+        function getFailedChunkEdits() {
+            return Array.from(failedChunkEdits.entries(), ([key, entry]) => {
+                if (!isRelevantChunkEditKey(key)) { return null; }
+                const {uid} = readChunkEditKey(key);
+                // The line number follows the uid in the *current* snapshot,
+                // not the index captured when the save was first refused.
+                const current = typeof cachedChunks !== 'undefined' && Array.isArray(cachedChunks)
+                    ? cachedChunks.find(chunk => chunk.uid === uid) : null;
+                const failures = getFailedChunkEntries(key);
+                return {
+                    line: (current ? current.id : (entry?.id ?? 0)) + 1,
+                    field: Array.from(new Set(failures.flatMap(failure => failure.fields || []))).join(', '),
+                    reason: failures[0]?.error?.message || String(failures[0]?.error || ''),
+                };
+            }).filter(Boolean);
+        }
+
+        function getEditorFailedEditsSummary() {
+            const failed = getFailedChunkEdits();
+            if (!failed.length) { return ''; }
+            const first = failed[0];
+            return failed.length === 1
+                ? t('editor.integrity.save-failed-one', 'Line {line} failed to save — {reason}', {line: first.line, reason: first.reason})
+                : t('editor.integrity.save-failed', '{count} line edits failed to save — {reason}', {count: failed.length, reason: first.reason});
+        }
+        window.getEditorFailedEditsSummary = getEditorFailedEditsSummary;
+
+        function setFailedChunkEdits(key, id, uid, bookToken, fields, error, order) {
+            let entry = failedChunkEdits.get(key);
+            if (!(entry?.failures instanceof Map)) {
+                entry = {failures: new Map(), error, field: '', id, uid, bookToken};
+                failedChunkEdits.set(key, entry);
+            }
+            for (const field of fields) { entry.failures.set(field, {error, fields, order}); }
+            entry.error = error;
+            entry.field = Array.from(entry.failures.keys()).join(', ');
+        }
+
+        function clearFailedChunkEdits(key, fields, order) {
+            const entry = failedChunkEdits.get(key);
+            if (!entry) { return; }
+            if (!(entry.failures instanceof Map)) {
+                const recorded = String(entry.field || '').split(', ').filter(Boolean);
+                if (!recorded.length || recorded.some(field => fields.includes(field))) { failedChunkEdits.delete(key); }
+                return;
+            }
+            for (const field of fields) {
+                const failure = entry.failures.get(field);
+                if (failure && failure.order <= order) { entry.failures.delete(field); }
+            }
+            if (!entry.failures.size) { failedChunkEdits.delete(key); return; }
+            entry.field = Array.from(entry.failures.keys()).join(', ');
+            entry.error = entry.failures.values().next().value.error;
+        }
+
+        // The red marker is derived, never set directly: an unrelated field
+        // settling or a full redraw must not hide a still-outstanding failure.
+        function syncChunkRowFailureMarker(row, key) {
+            if (!row?.classList) { return; }
+            const failed = getFailedChunkEntries(key).length > 0;
+            if (typeof row.classList.toggle === 'function') { row.classList.toggle('text-danger', failed); }
+            else if (failed && typeof row.classList.add === 'function') { row.classList.add('text-danger'); }
+            else if (!failed && typeof row.classList.remove === 'function') { row.classList.remove('text-danger'); }
+        }
 
         function applyChunkEdits(id, data) {
             const row = document.querySelector(`#chunks-table-body tr[data-id="${id}"]`);
             const uid = row?.dataset.uid;
             const bookToken = row?.dataset.bookToken;
             if (!uid || !bookToken) { throw new Error('Reload the Editor before saving this row.'); }
+            const key = chunkEditKey(uid, bookToken);
             const query = new URLSearchParams({expected_book_token: bookToken, expected_uid: uid}).toString();
-            const previous = pendingChunkEdits.get(id);
+            const previous = pendingChunkEdits.get(key);
             const captured = JSON.parse(JSON.stringify(data));
+            const fields = Object.keys(captured);
             chunkEditsRevision++;
+            const order = ++chunkEditOrder;
+            let intents = queuedChunkEdits.get(key);
+            if (!intents) { intents = new Map(); queuedChunkEdits.set(key, intents); }
+            intents.set(order, captured);
             invalidateEditorIntegrity('Edits awaiting save');
             window.markEditorReviewStale?.();
             const request = (async () => {
                 if (previous) { await previous.catch(() => {}); }
                 try {
-                    await API.post(`/api/chunks/${id}?${query}`, captured);
-                    if (bookToken !== chunkSnapshotBookToken || cachedChunks.find(chunk => chunk.id === id)?.uid !== uid) { return; }
-                    cachedChunks = cachedChunks.map(chunk => chunk.id === id ? { ...chunk, ...captured } : chunk);
+                    const saved = await API.post(`/api/chunks/${id}?${query}`, captured);
+                    if (!isCurrentChunkEditRow(id, uid, bookToken)) { return; }
+                    cachedChunks = cachedChunks.map(chunk => {
+                        if (chunk.id !== id || chunk.uid !== uid) { return chunk; }
+                        const next = {...chunk, ...captured};
+                        if (saved && typeof saved === 'object') {
+                            // Only the confirmed reply may change cached state.
+                            // Queued field drafts stay in the DOM until their own
+                            // POST succeeds, so a full redraw keeps showing them.
+                            for (const field of [...fields, 'status', 'error', 'audio_path', 'audio_revision', 'drift']) {
+                                if (Object.prototype.hasOwnProperty.call(saved, field)) { next[field] = saved[field]; }
+                            }
+                        }
+                        return next;
+                    });
                     // The server can normalize an edit without changing its revision.
                     chunkSnapshotRevision = null;
-                    failedChunkEdits.delete(id);
+                    clearFailedChunkEdits(key, fields, order);
+                    const activeRow = getCurrentChunkEditRow(id, uid, bookToken);
+                    syncChunkRowFailureMarker(activeRow, key);
+                    const confirmed = cachedChunks.find(chunk => chunk.id === id && chunk.uid === uid);
+                    if (confirmed && activeRow && typeof updateChunkRow === 'function') { updateChunkRow(confirmed); }
                 } catch (error) {
-                    failedChunkEdits.set(id, error);
+                    // A refusal belongs to the saved UID even if it moved.
+                    // A different book or a removed UID has no row to mark.
+                    if (bookToken !== chunkSnapshotBookToken) { return; }
+                    const current = cachedChunks.find(chunk => chunk.uid === uid);
+                    if (!current) { return; }
+                    setFailedChunkEdits(key, current.id, uid, bookToken, fields, error, order);
+                    const activeRow = getCurrentChunkEditRow(current.id, uid, bookToken);
+                    syncChunkRowFailureMarker(activeRow, key);
                     throw error;
+                } finally {
+                    intents.delete(order);
+                    if (!intents.size) { queuedChunkEdits.delete(key); }
                 }
             })();
-            pendingChunkEdits.set(id, request);
+            pendingChunkEdits.set(key, request);
             request.finally(() => {
-                if (pendingChunkEdits.get(id) === request) { pendingChunkEdits.delete(id); }
+                if (pendingChunkEdits.get(key) === request) { pendingChunkEdits.delete(key); }
                 window.renderEditorLineInspector?.();
                 void refreshEditorIntegrity();
             }).catch(() => {});
@@ -9644,24 +9900,53 @@
         }
 
         function isEditorEditPending() {
-            return pendingChunkEdits.size > 0 || failedChunkEdits.size > 0;
+            const currentBook = typeof chunkSnapshotBookToken === 'undefined' ? null : chunkSnapshotBookToken;
+            const inBook = key => {
+                if (typeof key !== 'string') { return true; }
+                try { return currentBook === null || JSON.parse(key)[0] === currentBook; }
+                catch (error) { return true; }
+            };
+            return Array.from(pendingChunkEdits.keys()).some(inBook)
+                || Array.from(failedChunkEdits.keys()).some(inBook);
         }
 
         async function flushChunkEdits() {
-            while (pendingChunkEdits.size) {
-                await Promise.allSettled(Array.from(pendingChunkEdits.values()));
+            return flushChunkEditsFor(chunkSnapshotBookToken);
+        }
+
+        async function flushChunkEditsFor(bookToken, uids = null) {
+            while (true) {
+                const pending = Array.from(pendingChunkEdits.entries())
+                    .filter(([key]) => isRelevantChunkEditKey(key, bookToken, uids))
+                    .map(([, request]) => request);
+                if (!pending.length) { break; }
+                await Promise.allSettled(pending);
             }
-            if (failedChunkEdits.size) { throw failedChunkEdits.values().next().value; }
+            const failure = Array.from(failedChunkEdits.entries())
+                .find(([key]) => isRelevantChunkEditKey(key, bookToken, uids));
+            if (failure) { throw failure[1].error; }
         }
 
         async function ensureEditorRenderSnapshot() {
+            // Pin the book for the whole barrier. Another book can become
+            // active while A's writes are still in flight; its pending save
+            // must not be mistaken for A's, and its snapshot must never be
+            // returned as A's.
+            const bookToken = chunkSnapshotBookToken;
+            const stillCurrent = () => chunkSnapshotBookToken === bookToken;
+            const refuse = () => { throw new Error(t('safety.core.editor.restart-render', 'Active book changed; restart rendering for the current book.')); };
             while (true) {
+                if (!stillCurrent()) { refuse(); }
                 // Includes the focused textarea whose onchange has not fired yet.
                 await Promise.all(Array.from(document.querySelectorAll('#chunks-table-body tr[data-id]'))
+                    .filter(row => row.dataset.bookToken === bookToken)
                     .map(row => saveRowEdits(Number(row.dataset.id), true)));
-                await flushChunkEdits();
+                if (!stillCurrent()) { refuse(); }
+                await flushChunkEditsFor(bookToken);
+                if (!stillCurrent()) { refuse(); }
                 const revision = chunkEditsRevision;
                 const chunks = await API.get('/api/chunks');
+                if (!stillCurrent()) { refuse(); }
                 if (revision === chunkEditsRevision) { return chunks; }
             }
         }
@@ -9687,7 +9972,7 @@
                     return;
                 }
                 if (!await showConfirm(formatUiSafetyText('safety.core.editor.apply-gap', 'Set pause after this line to {pause} ms? Uses NARRATOR as the narrator. Speech, delivery instructions and takes stay unchanged.', {pause: suggestion.pause_after}), {title: t('safety.core.editor.apply-gap.title', 'Apply suggested gap?'), actionLabel: t('core.editor.apply-gap', 'Apply gap')})) { return; }
-                await flushChunkEdits();
+                await flushChunkEditsFor(target.bookToken, new Set([target.uid]));
                 if (!target.isCurrent()) { throw new Error(t('safety.core.editor.book-changed', 'Active book changed; request a new suggestion.')); }
                 await API.post(url, {expected_revision: suggestion.revision});
                 if (!target.isCurrent()) { return; }
@@ -9709,7 +9994,8 @@
                 // For now, next loadChunks will show updated status (pending)
             } catch (e) {
                 console.error("Update failed", e);
-                showToast(t('core.editor.update-failed', 'Failed to update chunk'), 'error');
+                showActionError(t('core.editor.save-line-failed', 'Could not save this line'), e,
+                    t('core.editor.save-line-recovery', 'Fix the reported problem, then edit and save the line again. Reload the Editor if it keeps refusing.'));
             }
         };
 
@@ -9720,6 +10006,7 @@
 
             const inputs = tr.querySelectorAll('input, textarea, select');
             const data = {};
+            const editKey = chunkEditKey(tr.dataset.uid, tr.dataset.bookToken);
             const cached = cachedChunks.find(chunk => chunk.id === id && chunk.uid === tr.dataset.uid);
 
             inputs.forEach(input => {
@@ -9738,7 +10025,7 @@
                 data.pause_after = data.pause_after === '' ? null : parseInt(data.pause_after);
             }
 
-            if (changedOnly && !pendingChunkEdits.has(id) && !failedChunkEdits.has(id)) {
+            if (changedOnly && !pendingChunkEdits.has(editKey) && !failedChunkEdits.has(editKey)) {
                 if (cached) {
                     for (const field of Object.keys(data)) {
                         const saved = field === 'pause_after' ? (cached[field] ?? null) : (cached[field] ?? '');
@@ -9775,8 +10062,11 @@
                 // Optimistic UI update
                 if (tr) {
                     const statusBadge = tr.querySelector('.badge');
-                    statusBadge.className = 'badge bg-warning';
-                    statusBadge.innerText = t('core.editor.status.generating', 'generating');
+                    if (statusBadge) {
+                        statusBadge.className = 'badge bg-warning chunk-status-label';
+                        statusBadge.setAttribute?.('data-status', 'generating');
+                        statusBadge.innerText = typeof chunkStatusLabel === 'function' ? chunkStatusLabel('generating') : t('core.editor.status.generating', 'generating');
+                    }
 
                     // Replace button with progress bar
                     const container = tr.querySelector('.d-flex');
@@ -9836,6 +10126,7 @@
             const batchBook = currentBookFilename;
             const batchToken = chunkSnapshotBookToken;
             let rowsMarked = false;
+            let dispatched = false;
             isRenderingAll = true;
             document.getElementById('btn-batch-fast').style.display = 'none';
             document.getElementById('btn-regen-all').style.display = 'none';
@@ -9855,7 +10146,7 @@
                 if (toProcess.length === 0) {
                     showToast(t('core.editor.no-renderable', 'No non-empty chunks to render!'), 'warning');
                     cancelRender(true);
-                    return;
+                    return false;
                 }
 
                 if (regenerateAll) {
@@ -9864,7 +10155,7 @@
                         : formatUiSafetyText('safety.core.editor.regenerate-all', 'Regenerate all {count} non-empty chunks? This will replace existing audio.', {count: toProcess.length});
                     if (!await showConfirm(confirmBody, {title: repairPreview ? t('safety.core.editor.regenerate-selection.title', 'Replace selected audio?') : t('safety.core.editor.regenerate-all.title', 'Replace all rendered audio?'), actionLabel: repairPreview ? t('core.editor.regenerate-selection', 'Regenerate selection') : t('core.editor.regenerate-all', 'Regenerate all'), danger: true})) {
                         cancelRender(true);
-                        return;
+                        return false;
                     }
                     // Re-fetch after the user confirms - showConfirm only
                     // resolves on a click, so server-side chunk state can
@@ -9888,8 +10179,9 @@
                         tr.classList.add('table-info');
                         const badge = tr.querySelector('.badge');
                         if (badge) {
-                            badge.className = 'badge bg-warning';
-                            badge.innerText = t('core.editor.status.generating', 'generating');
+                            badge.className = 'badge bg-warning chunk-status-label';
+                            badge.setAttribute?.('data-status', 'generating');
+                            badge.innerText = typeof chunkStatusLabel === 'function' ? chunkStatusLabel('generating') : t('core.editor.status.generating', 'generating');
                         }
                     }
                 }
@@ -9899,6 +10191,7 @@
                     expected_uids: toProcess.map(chunk => chunk.uid),
                     ...(repairPreview ? {expected_repair_revision: repairPreview.repair_revision} : {})
                 });
+                dispatched = true;
                 console.log(`${label} started: ${describeStart(response)}`);
 
                 // Poll for completion via the shared engine - gets the
@@ -9935,12 +10228,14 @@
                         if (typeof window.refreshEditorChapterMap === 'function') { window.refreshEditorChapterMap(); }
                     },
                 });
+                return dispatched;
 
             } catch (e) {
                 console.error(`${label} error:`, e);
                 showActionError(t('core.editor.batch-failed', 'Error during batch rendering'), e, t('core.editor.batch-recovery', 'Check the audio task status and refreshed chunks before starting another render; some audio may already have been generated.'), "error");
                 cancelRender(true);
                 if (rowsMarked) { await loadChunks(true); }
+                return false;
             }
         }
 

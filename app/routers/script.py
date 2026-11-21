@@ -1,4 +1,6 @@
 from book_state_transaction import ensure_saved_book_state
+from script_recovery_guard import (RECOVERY_CAST_INVALIDATED,
+                                   get_fenced_recovery_status, is_script_recovery_cast_invalidated)
 from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
@@ -41,10 +43,11 @@ from fastapi.responses import FileResponse, StreamingResponse
 from review_startup import ReviewStartupTrace, CURRENT as REVIEW_STARTUP, read_trace, get_failure_log_path
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
-from speaker_identity import get_validated_alias_graph
+from speaker_identity import get_saveable_alias_graph
+from alias_registry_apply import alias_registry_admission
 from diagnostics import redact_text
 from llm_provider import (MANUAL_DATA_DIR_ENV, manual_llm_dir, is_manual_request_owner_alive,
-                          read_manual_pending_locked)
+                          get_effective_authorization, read_manual_pending_locked)
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
 from generation_checkpoint_shards import (get_generation_checkpoint_artifacts,
                                            remove_generation_shard_checkpoint)
@@ -2723,6 +2726,42 @@ def ensure_script_recovery_manifest():
         return get_script_recovery_manifest()
 
 
+def _read_recovery_admission(include_failed=True):
+    """Caller holds the book/checkpoint guard: decide fence before failed work.
+
+    A worker checkpoint precedes its manifest, so an eligible manifest must not
+    short-circuit the cast-change decision. Returning the fence first keeps
+    summary, detail, Retry, Skip and Inject on the same Start Over action.
+    Metadata-only readers skip the failed-unit load so a corrupt checkpoint
+    cannot turn a summary into a refusal. Reading never repairs, resumes or
+    deletes checkpoint, manifest or cast.
+    """
+    fenced = get_fenced_recovery_status(DATA_DIR)
+    if fenced is not None:
+        return fenced, None
+    return None, (_load_failed_checkpoint(locked=True) if include_failed else None)
+
+
+def get_recovery_admission():
+    """The one book+checkpoint-locked admission decision for recovery readers.
+
+    Use outside an existing critical section so every surface decides from the
+    same snapshot, whether or not a manifest exists.
+    """
+    with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+        return _read_recovery_admission()
+
+
+def _refuse_cast_invalidated_recovery():
+    """The one 409 for every admission point that refuses a fenced run."""
+    raise AppError(
+        409,
+        'The approved cast changed since this run started, so it cannot resume; '
+        'start a new run. The saved checkpoint was preserved.',
+        key='script.recovery.cast-changed-detail',
+    )
+
+
 def completed_script_prefix(checkpoint):
     """The entries a running three-pass has fully finished (all three passes),
     in order, stopping at the first one that has not - the snapshot #600
@@ -2873,7 +2912,11 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                             require_recovery: bool = False):
     """Queue the one production generation command, optionally from a checkpoint."""
     require_whole_source_generation(safe_load_json(os.path.join(DATA_DIR, 'state.json'), {}))
-    if require_recovery and ensure_script_recovery_manifest() is None:
+    # A fenced worker checkpoint has no manifest yet. Let it reach the locked
+    # cast-change decision below so Retry surfaces Start Over instead of a
+    # misleading "no recovery available" refusal.
+    if (require_recovery and ensure_script_recovery_manifest() is None
+            and not is_script_recovery_cast_invalidated(DATA_DIR)):
         raise AppError(409, 'No failed or incomplete three-pass generation is available to resume.', key='error.generation.no_recovery')
     check_global_gpu_lock("script")
     try:
@@ -2902,34 +2945,45 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if refusal:
             raise HTTPException(status_code=400, detail=refusal)
-    if require_recovery:
-        stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
-        stored = (stored.get("script_generation_options") or {}) if isinstance(stored, dict) else {}
-        if stored.get("literal_source_preserving") is True:
-            options["literal_source_preserving"] = True
-        options["cast_sha256"] = stored.get("cast_sha256")
-        if options["cast_sha256"] and get_file_sha256(get_run_cast_path()) != options["cast_sha256"]:
-            raise HTTPException(status_code=409, detail=(
-                "The cast list this run started with is missing or changed, so it cannot "
-                "resume; start a new run."))
-        cast_source = None
-    else:
-        cast_source = get_existing_cast_list(input_file)
-    uses_cast = bool(options.get("cast_sha256") if require_recovery else cast_source)
-    try:
-        command = build_generate_script_command(
-            input_file,
-            strip_front_matter=options["strip_front_matter"],
-            first_person_narrator=options["first_person_narrator"],
-            reasoning_effort=get_active_reasoning_effort(),
-            cast_file=get_run_cast_path() if uses_cast else None,
-            **({"literal_source_preserving": True} if options.get("literal_source_preserving") else {}),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
     claim_id = None
     try:
         with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+            starts_over = request is not None and request.start_over
+            resumes_checkpoint = os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH)) and not starts_over
+            # A fenced checkpoint must never be replayed by any launcher path
+            # that can reuse it, not just explicit Retry. Ordinary Generate
+            # with Start Over off resumes the same checkpoint the worker loads
+            # at three_pass_generate.py's _load_three_pass_checkpoint, so it is
+            # fenced here under the same book/checkpoint admission. An explicit
+            # Start Over discards progress and a truly new baseline has no
+            # checkpoint, so neither is blocked and both still clear the marker.
+            if (require_recovery or resumes_checkpoint) and get_fenced_recovery_status(DATA_DIR) is not None:
+                _refuse_cast_invalidated_recovery()
+            if require_recovery:
+                stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+                stored = (stored.get("script_generation_options") or {}) if isinstance(stored, dict) else {}
+                if stored.get("literal_source_preserving") is True:
+                    options["literal_source_preserving"] = True
+                options["cast_sha256"] = stored.get("cast_sha256")
+                if options["cast_sha256"] and get_file_sha256(get_run_cast_path()) != options["cast_sha256"]:
+                    raise HTTPException(status_code=409, detail=(
+                        "The cast list this run started with is missing or changed, so it cannot "
+                        "resume; start a new run."))
+                cast_source = None
+            else:
+                cast_source = get_existing_cast_list(input_file)
+            uses_cast = bool(options.get("cast_sha256") if require_recovery else cast_source)
+            try:
+                command = build_generate_script_command(
+                    input_file,
+                    strip_front_matter=options["strip_front_matter"],
+                    first_person_narrator=options["first_person_narrator"],
+                    reasoning_effort=get_active_reasoning_effort(),
+                    cast_file=get_run_cast_path() if uses_cast else None,
+                    **({"literal_source_preserving": True} if options.get("literal_source_preserving") else {}),
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
             current_state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
             require_whole_source_generation(current_state)
             if current_state.get("input_file_path") != input_file:
@@ -3009,6 +3063,12 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             if isinstance(state, dict):
                 # Retry reads these instead of the current form. Otherwise a
                 # changed checkbox would invalidate the resume fingerprint.
+                # A fresh run establishes a new cast baseline, clearing any
+                # stale-recovery flag left by a roster approval.
+                if not require_recovery and (
+                        (request is not None and request.start_over)
+                        or not os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH))):
+                    state.pop(RECOVERY_CAST_INVALIDATED, None)
                 state["script_generation_options"] = options
                 state["script_generation_input_file"] = input_file
                 if original is not None:
@@ -3060,7 +3120,12 @@ async def generate_script(background_tasks: BackgroundTasks,
 
 def ensure_script_recovery_response(include_detail=False):
     """Read metadata and optional failed-unit detail under one book guard."""
-    with ensure_book_state(DATA_DIR):
+    with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+        # The shared decision fences first, even when a manifest holds failed
+        # work, so summary and detail never disagree on the Start Over action.
+        fenced, failed = _read_recovery_admission(include_failed=include_detail)
+        if fenced is not None:
+            return fenced
         manifest = get_script_recovery_manifest()
         if manifest is None:
             return {"recoverable": False}
@@ -3082,23 +3147,21 @@ def ensure_script_recovery_response(include_detail=False):
         }
         state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), {})
         if isinstance(state, dict) and state.get('script_generation_selection') is None:
-            with file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
-                try:
-                    checkpoint = get_current_generation_checkpoint(locked=True)
-                except HTTPException:
-                    # Metadata remains useful when the checkpoint is corrupt;
-                    # do not offer confirmation without a readable checkpoint.
-                    checkpoint = None
-                if isinstance(checkpoint, dict):
-                    from book_state_transaction import get_book_operation_token
-                    response['legacy_confirmation'] = {
-                        'checkpoint_token': get_script_recovery_token(checkpoint),
-                        'book_token': get_book_operation_token(DATA_DIR),
-                    }
+            try:
+                checkpoint = get_current_generation_checkpoint(locked=True)
+            except HTTPException:
+                # Metadata remains useful when the checkpoint is corrupt;
+                # do not offer confirmation without a readable checkpoint.
+                checkpoint = None
+            if isinstance(checkpoint, dict):
+                from book_state_transaction import get_book_operation_token
+                response['legacy_confirmation'] = {
+                    'checkpoint_token': get_script_recovery_token(checkpoint),
+                    'book_token': get_book_operation_token(DATA_DIR),
+                }
         if include_detail:
-            checkpoint = _load_failed_checkpoint()
-            response["detail"] = ({"recoverable": True, **build_recovery_detail(checkpoint)}
-                                  if checkpoint is not None else None)
+            response["detail"] = ({"recoverable": True, **build_recovery_detail(failed)}
+                                  if failed is not None else None)
         return response
 
 
@@ -3212,6 +3275,8 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
     default-instruct rows, which are validated and stored in off mode even for
     a directed run; an injected row always uses the failed run's direction."""
     with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+        if get_fenced_recovery_status(DATA_DIR) is not None:
+            _refuse_cast_invalidated_recovery()
         if is_task_running("script", process_state):
             raise HTTPException(status_code=409, detail="Script generation is running.")
         checkpoint = _load_failed_checkpoint(locked=True)
@@ -3310,7 +3375,9 @@ class SkipChunkRequest(BaseModel):
 
 
 def _require_failed_unit(chunk):
-    checkpoint = ensure_failed_checkpoint()
+    fenced, checkpoint = get_recovery_admission()
+    if fenced is not None:
+        _refuse_cast_invalidated_recovery()
     if checkpoint is None:
         raise HTTPException(status_code=409,
                             detail="No failed generation unit is waiting for recovery.")
@@ -3324,7 +3391,9 @@ def _require_failed_unit(chunk):
 @router.get("/api/generate_script/recovery/detail")
 async def generate_script_recovery_detail():
     """The failed chunk in full: attempts, source, prompt, retry profile."""
-    checkpoint = await asyncio.to_thread(ensure_failed_checkpoint)
+    fenced, checkpoint = await asyncio.to_thread(get_recovery_admission)
+    if fenced is not None:
+        return fenced
     if checkpoint is None:
         return {"recoverable": False}
     return {"recoverable": True, **build_recovery_detail(checkpoint)}
@@ -3776,13 +3845,14 @@ async def get_character_aliases():
 @router.post("/api/character_aliases")
 async def save_character_aliases(aliases: Dict[str, str]):
     """Overwrite the alias map (lets the user correct discovered nicknames before review)."""
-    cleaned = {k: v for k, v in aliases.items() if k.strip() and v.strip()}
-    try:
-        cleaned = get_validated_alias_graph(cleaned)
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    with file_lock(CHARACTER_ALIASES_PATH):
-        atomic_json_write(cleaned, CHARACTER_ALIASES_PATH, allow_nonatomic_fallback=False)
+    with alias_registry_admission(DATA_DIR):
+        cleaned = {k: v for k, v in aliases.items() if k.strip() and v.strip()}
+        try:
+            cleaned = get_saveable_alias_graph(cleaned)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        with file_lock(CHARACTER_ALIASES_PATH):
+            atomic_json_write(cleaned, CHARACTER_ALIASES_PATH, allow_nonatomic_fallback=False)
     return {"status": "saved", "count": len(cleaned)}
 
 
@@ -4604,7 +4674,10 @@ def ensure_batch_script_output(job, state):
                 state["logs"].append(
                     f"[{job['index'] + 1}] Skipping — saved script "
                     f"'{os.path.basename(candidate)}' now exists.")
-                yield None
+                # "skipped" tells the worker the policy skipped the book; None
+                # stays reserved for a cancellation, which the worker maps to
+                # its own status (#2201).
+                yield "skipped"
                 return
             if resolved == candidate:
                 if action == "backup":
@@ -4624,6 +4697,11 @@ def _run_batch_script_job(job, state, log_path, total):
         if prepared is None:
             state["tasks"][job["index"]]["status"] = (
                 "cancelled" if state.get("cancel") else "failed")
+            return
+        if prepared == "skipped":
+            # The collision policy skipped this book before generation; it was
+            # never attempted, so it is not a failure (#2201).
+            state["tasks"][job["index"]]["status"] = "skipped"
             return
         _run_claimed_batch_script_job(prepared, state, log_path, total)
 
@@ -4772,7 +4850,11 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
                 state["logs"].append(
                     f"[{i+1}] Skipping — saved script '{safe_stem}' already exists. "
                     "Choose version or replace explicitly.")
-                state["tasks"][i]["status"] = "failed"
+                # A policy skip never attempted the book, so it is neither a
+                # failure nor a cancellation (#2201); reporting it as failed
+                # made a re-run of a finished batch read as N failures with
+                # checkpoints that do not exist.
+                state["tasks"][i]["status"] = "skipped"
                 continue
             if action == "version":
                 if was_reserved and request.collision_policy == "replace":
@@ -4801,7 +4883,8 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             llm = get_active_llm_config(config)
             _, _, settings_message = ensure_ideal_settings(
                 config.get("llm_mode", "local"), llm.get("base_url", ""),
-                llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+                llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"),
+                authorization=get_effective_authorization(llm), llm_config=llm)
             state["logs"].append(f"Batch LM Studio preflight: {settings_message}")
             workers, worst, context = _get_batch_script_workers(jobs)
             state["workers"] = workers
@@ -5117,7 +5200,8 @@ def start_delivery_retry(background_tasks, request):
             model = llm.get("model_name", "")
             _, status, message = ensure_ideal_settings(
                 config.get("llm_mode", "local"), llm.get("base_url", "http://localhost:1234/v1"),
-                model, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+                model, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"),
+                authorization=get_effective_authorization(llm), llm_config=llm)
             state["logs"].append(message)
             check_cancel()
             generation_settings = resolve_three_pass_generation_settings(config)

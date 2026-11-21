@@ -18,8 +18,12 @@ _PATH_SHAPE_ERRORS = frozenset((errno.ENOTDIR, errno.ELOOP, errno.EACCES,
 
 
 def _reraise_io_error(error):
-    if error.errno not in _PATH_SHAPE_ERRORS:
-        raise error
+    if isinstance(error, PermissionError):
+        if error.errno in (None, errno.EACCES, errno.EPERM):
+            return
+    elif error.errno in _PATH_SHAPE_ERRORS:
+        return
+    raise error
 
 
 def _stat_directory(path):

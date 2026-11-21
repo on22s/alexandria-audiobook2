@@ -53,7 +53,7 @@ class LlamaProbeRecoveryTests(unittest.TestCase):
             with self.subTest(first=first), self.endpoint([
                     first, (200, json.dumps(PROPS).encode())]) as (url, calls):
                 self.assertIsNone(settings.get_llama_cpp_status(url, 'qwen3-14b'))
-                self.assertNotIn(url[:-3], settings._props_miss)
+                self.assertNotIn(settings._props_miss_key(url[:-3]), settings._props_miss)
                 status = settings.get_llama_cpp_status(url, 'qwen3-14b')
                 self.assertIsNotNone(status)
                 self.assertTrue(status['loaded'])
@@ -64,10 +64,10 @@ class LlamaProbeRecoveryTests(unittest.TestCase):
         for error in (TimeoutError('timeout'), OSError('connection refused'),
                       urllib.error.URLError('disconnected')):
             with self.subTest(error=error):
-                with patch('urllib.request.urlopen', side_effect=error):
+                with patch.object(settings, 'open_no_redirect', side_effect=error):
                     self.assertIsNone(settings.get_llama_cpp_status('http://fixture/v1', 'qwen3-14b'))
-                self.assertNotIn('http://fixture', settings._props_miss)
-                with patch('urllib.request.urlopen', fake_props(PROPS)):
+                self.assertFalse(any(key[0] == 'http://fixture' for key in settings._props_miss))
+                with patch.object(settings, 'open_no_redirect', fake_props(PROPS)):
                     self.assertTrue(settings.get_llama_cpp_status('http://fixture/v1', 'qwen3-14b')['loaded'])
 
     def test_native_unsupported_routes_keep_existing_cache_and_expiry(self):
@@ -78,7 +78,7 @@ class LlamaProbeRecoveryTests(unittest.TestCase):
                     self.assertIsNone(settings.get_llama_cpp_status(url, 'qwen3-14b'))
                 self.assertEqual(['/props'], calls)
                 with settings._props_miss_lock:
-                    settings._props_miss[url[:-3]] -= settings.PROPS_MISS_TTL_SECONDS + 1
+                    settings._props_miss[settings._props_miss_key(url[:-3])] -= settings.PROPS_MISS_TTL_SECONDS + 1
                 self.assertTrue(settings.get_llama_cpp_status(url, 'qwen3-14b')['loaded'])
                 self.assertEqual(['/props', '/props'], calls)
 

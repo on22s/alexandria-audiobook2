@@ -24,8 +24,13 @@ from weakref import WeakValueDictionary
 from copy import deepcopy
 from urllib.parse import urlparse
 
+from diagnostics import sanitize_url_for_display
 from utils import run_rocm_smi_json
-from lmstudio_endpoint import get_lmstudio_endpoint_status
+from lmstudio_endpoint import get_lmstudio_endpoint_status, open_no_redirect
+
+# Distinguishes an omitted legacy argument from an explicitly resolved None:
+# None is authoritative ("send no credential"), omission is just old-call shape.
+_STATUS_UNSET = object()
 
 IDEAL_SETTINGS = {"context_length": 8192, "parallel": 1, "gpu": "max"}
 DEFAULT_SETTINGS = {"context_length": 4096, "parallel": 4, "gpu": "max"}
@@ -161,10 +166,17 @@ _LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "::1", "")
 
 
 def is_local_llm_endpoint(base_url):
-    """Recognize local address spellings, without asserting runtime ownership."""
+    """Recognize local address spellings, without asserting runtime ownership.
+
+    An unparseable URL (a stored Manual profile may carry one) is not a local
+    endpoint; classification must not raise on it.
+    """
     if not base_url:
         return True
-    host = (urlparse(base_url).hostname or "").lower().removesuffix(".")
+    try:
+        host = (urlparse(base_url).hostname or "").lower().removesuffix(".")
+    except ValueError:
+        return False
     if host in _LOCAL_HOSTS:
         return True
     try:
@@ -173,6 +185,46 @@ def is_local_llm_endpoint(base_url):
         return False
     mapped = address.ipv4_mapped if isinstance(address, ipaddress.IPv6Address) else None
     return address.is_loopback or (mapped is not None and mapped.is_loopback)
+
+
+def normalize_llm_endpoint(base_url):
+    """Trim a saved HTTP endpoint for dialing, or None when it is not dialable.
+
+    One answer for the failover predicate and the runtime client (Rule 15): a
+    padded legacy URL stays usable, a malformed port is refused rather than
+    handed to the client to fail obscurely later.
+    """
+    if not isinstance(base_url, str) or not base_url.strip():
+        return None
+    candidate = base_url.strip()
+    try:
+        parsed = urlparse(candidate)
+        host = parsed.hostname
+        if parsed.scheme not in ("http", "https") or not host:
+            return None
+        # urlparse strips tabs/newlines from the netloc before exposing it, so
+        # check the raw authority as written rather than the parsed one.
+        scheme_at = candidate.find("://")
+        authority = candidate[scheme_at + 3:].split("/", 1)[0] if scheme_at >= 0 else candidate
+        if any(character.isspace() or ord(character) < 33 for character in authority):
+            return None
+        # A parser-valid host can still carry an unusable explicit port.
+        if parsed.port == 0:
+            return None
+    except ValueError:
+        return None
+    return candidate
+
+
+def is_usable_llm_endpoint(base_url):
+    """Whether a saved HTTP profile has an endpoint a client can dial."""
+    return normalize_llm_endpoint(base_url) is not None
+
+
+def is_billed_http_profile(profile):
+    """Whether this profile sends HTTP requests to a (possibly billed) host."""
+    return (isinstance(profile, dict) and profile.get("transport") != "manual"
+            and is_usable_llm_endpoint(profile.get("base_url")))
 
 
 def is_remote_llm(llm_mode, base_url):
@@ -208,26 +260,377 @@ def get_active_llm_config(config):
     measure the local and remote endpoints independently of the toggle. That
     is a different decision and deliberately does not use this function.
     """
-    block = get_saved_llm_profile(config)
+    block = get_saved_llm_profile(config, require_complete=True)
     if not block:
         return {}
     from llm_request_budget import get_inherited_profile_limits
     return get_inherited_profile_limits(block, config.get("generation") or {})
 
 
-def get_saved_llm_profile(config):
-    """The active profile exactly as saved, without inherited global limits.
+_PROFILE_CREDENTIAL_KEYS = frozenset(("api_key", "provider_headers", "provider_extra_body"))
+BENCHMARK_IDENTITY_KEY = "benchmark_identity"
+BENCHMARK_IDENTITY_VERSION = 1
+_BENCHMARK_DIGEST_PATTERN = re.compile(r"^v[0-9]+:[0-9a-f]{64}$")
+_BENCHMARK_SSH_ALIAS = object()
+BENCHMARK_CACHE_KEYS = frozenset(("concurrency", "concurrency_for", "concurrency_environment",
+                                  "concurrency_revision", BENCHMARK_IDENTITY_KEY))
+# A scheduling hint, not a request setting: changing it must not retire a
+# measurement of the endpoint's own throughput.
+_BENCHMARK_IDENTITY_EXCLUDED = _PROFILE_CREDENTIAL_KEYS | BENCHMARK_CACHE_KEYS | frozenset(("on_this_gpu",))
 
-    Settings round-trips (the Setup migration, secret restoration) must use
-    this, or an inherited fallback would be written back as a profile override.
+
+def get_profile_neutral_values():
+    """Schema defaults for every LLMConfig field.
+
+    A profile that passed through Setup carries every field, including its
+    defaults. Comparing against these keeps a normalized blank stub from
+    looking like a configured profile.
+    """
+    from config_settings import LLMConfig
+    neutral = {}
+    for name, field in LLMConfig.model_fields.items():
+        if field.is_required():
+            neutral[name] = "" if field.annotation is str else None
+        else:
+            neutral[name] = field.get_default(call_default_factory=True)
+    return neutral
+
+
+def get_profile_settings(block):
+    """Profile fields describing a configuration, not credentials or cache."""
+    if not isinstance(block, dict):
+        return {}
+    excluded = _PROFILE_CREDENTIAL_KEYS | BENCHMARK_CACHE_KEYS
+    return {key: value for key, value in block.items() if key not in excluded}
+
+
+def is_profile_configured(block):
+    """Whether a saved LLM profile carries a real, non-default setting.
+
+    Credentials alone never make a profile usable, and a normalized blank
+    stub (every schema field at its default) or a cache-only slot must not
+    shadow a complete legacy `llm` profile. Manual transport is intentional
+    on its own and needs no URL; partial HTTP profiles (endpoint-, model- or
+    adapter-only) predate Setup and stay valid as the active profile, which
+    Setup fills in before a run.
+    """
+    settings = get_profile_settings(block)
+    if settings.get("transport") == "manual":
+        return True
+    # attribution_adapter lives outside LLMConfig, so it is not in the neutral
+    # map. A configured adapter still makes the profile complete: the required
+    # serving check must run even when the named slot holds nothing else.
+    spec = settings.get("attribution_adapter")
+    if isinstance(spec, dict) and str(spec.get("path") or "").strip():
+        return True
+    neutral = get_profile_neutral_values()
+    return any(key in neutral and value != neutral[key] for key, value in settings.items())
+
+
+def is_executable_failover_profile(block):
+    """Whether the secondary can actually serve a run if the primary fails.
+
+    The primary may be partial because Setup completes it; a failover target
+    is dialled as saved, so an HTTP secondary needs both an endpoint and a
+    model. Manual transport stays opt-in and serial, without a URL.
+    """
+    if not is_profile_configured(block):
+        return False
+    if block.get("transport") == "manual":
+        return True
+    return (is_usable_llm_endpoint(block.get("base_url"))
+            and bool(str(block.get("model_name") or "").strip()))
+
+
+def get_benchmark_identity(config, section, *, profile=None, ssh_alias=_BENCHMARK_SSH_ALIAS,
+                           llm_mode=None):
+    """Nonsecret identity of the requests a concurrency measurement belongs to.
+
+    One answer for the benchmark writer, reader and Setup retention (Rule 15).
+    It is derived from the effective run profile - the one the client is bound
+    to - not from a later edit of the on-disk section: provider body options
+    are folded into their effective form (typed reasoning_effort merged into
+    the custom body), global token limits are inherited, and the management
+    SSH alias is included whenever the endpoint is remote rather than only
+    when the toggle says "remote" (a hosted legacy profile still runs with
+    llm_mode=local). Credentials, cache metadata and the scheduling hint are
+    excluded. Missing fields take schema defaults, so a compact legacy
+    profile compares equal to the same settings normalized by Setup.
+
+    `profile` lets the caller pass an already-bound run profile; when absent
+    the section's own config block is used and global limits are inherited.
+    A bound profile already carries the ceiling captured when its client was
+    built, so inheriting again here would describe a later config edit rather
+    than the requests that client actually sends (including an absent ceiling).
+    `ssh_alias` overrides the management alias for the same reason, and
+    `llm_mode` overrides the toggle: a Setup switch after the client was bound
+    must not change the remote classification of that client's requests.
+    """
+    config = config if isinstance(config, dict) else {}
+    bound = profile is not None
+    if not bound:
+        profile = config.get(section)
+    if not isinstance(profile, dict):
+        return None
+    from llm_provider import get_provider_extra_body
+    if bound:
+        effective = profile
+    else:
+        from llm_request_budget import get_inherited_profile_limits
+        effective = get_inherited_profile_limits(profile, config.get("generation") or {})
+    neutral = get_profile_neutral_values()
+    identity = {key: neutral[key] for key in neutral if key not in _BENCHMARK_IDENTITY_EXCLUDED}
+    identity.pop("reasoning_effort", None)
+    identity.update({key: value for key, value in effective.items() if key in identity})
+    # Fold after the raw profile copy: the effective body, not the raw JSON,
+    # is what the bound client sends, and a body-only spelling of the same
+    # option must therefore compare equal to the typed setting.
+    identity["provider_extra_body"] = get_provider_extra_body(effective)
+    if ssh_alias is _BENCHMARK_SSH_ALIAS:
+        ssh_alias = config.get("llm_remote_ssh")
+    mode = llm_mode if llm_mode is not None else (config.get("llm_mode") or "local")
+    if is_remote_llm(mode, identity.get("base_url", "")):
+        identity["ssh_alias"] = ssh_alias
+    return identity
+
+
+def _canonical_identity_value(value):
+    """Normalize integral floats without collapsing distinct large integers.
+
+    Casting every number to float made adjacent provider-body seeds either side
+    of 2^53 produce the same receipt. Integers keep their full precision; an
+    integral float (a JSON round-trip of an int default) folds back to an int.
+    """
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else value
+    if isinstance(value, dict):
+        return {key: _canonical_identity_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_canonical_identity_value(item) for item in value]
+    return value
+
+
+def get_benchmark_identity_key(config, section, *, profile=None, ssh_alias=_BENCHMARK_SSH_ALIAS,
+                               llm_mode=None):
+    """A versioned digest of the effective request identity.
+
+    The canonical JSON is hashed rather than persisted: a raw identity carried
+    provider body values (and can carry future ones) into config.json, so a
+    retired value stayed on disk long after the setting that produced it was
+    changed. The version makes a future identity-schema change explicit rather
+    than silently reinterpreting old receipts.
+    """
+    identity = get_benchmark_identity(config, section, profile=profile, ssh_alias=ssh_alias,
+                                      llm_mode=llm_mode)
+    if identity is None:
+        return None
+    canonical = json.dumps({key: _canonical_identity_value(value) for key, value in identity.items()},
+                           sort_keys=True, default=str)
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return f"v{BENCHMARK_IDENTITY_VERSION}:{digest}"
+
+
+def is_benchmark_digest(value):
+    """Whether a stored receipt identity is a generated digest, not raw JSON.
+
+    Pre-digest receipts carried provider body values verbatim; reusing one as
+    an identity key would keep a retired value on disk after a request edit.
+    """
+    return isinstance(value, str) and bool(_BENCHMARK_DIGEST_PATTERN.fullmatch(value))
+
+
+def json_values_equal(left, right):
+    """JSON equality that never confuses a boolean with a number.
+
+    Python treats True and 1 as equal, which would let an old `{"flag":true}`
+    receipt vouch for a current `{"flag":1}` request. Only numeric scalars may
+    compare across int/float (a JSON round-trip spelling); every other type
+    must match before its value is considered.
+    """
+    if isinstance(left, bool) or isinstance(right, bool):
+        return type(left) is type(right) and left == right
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return left == right
+    if isinstance(left, dict) and isinstance(right, dict):
+        return (left.keys() == right.keys()
+                and all(json_values_equal(left[key], right[key]) for key in left))
+    if isinstance(left, (list, tuple)) and isinstance(right, (list, tuple)):
+        return (len(left) == len(right)
+                and all(json_values_equal(a, b) for a, b in zip(left, right)))
+    return left == right
+
+
+def predigest_identity_matches(raw, config, section):
+    """Whether an old receipt's plain identity describes this exact request.
+
+    A receipt whose provider body changed before Setup opened must be dropped,
+    not given the new request's digest; only an identity that still matches
+    the saved section can be relabelled and reused.
+    """
+    try:
+        stored = json.loads(raw)
+    except (TypeError, ValueError):
+        return False
+    current = get_benchmark_identity(config, section)
+    return (isinstance(stored, dict) and isinstance(current, dict)
+            and json_values_equal(_canonical_identity_value(stored),
+                                       _canonical_identity_value(current)))
+
+
+def get_benchmark_destination(profile):
+    """The endpoint::model a stored measurement was actually taken against.
+
+    The environment records the destination at measurement time; a named slot
+    may since have been hydrated to a neutral stub by Setup, so its current
+    base_url/model_name alone cannot qualify a fresh receipt.
+    """
+    profile = profile if isinstance(profile, dict) else {}
+    environment = profile.get("concurrency_environment")
+    if isinstance(environment, dict):
+        base_url = environment.get("base_url")
+        model_name = environment.get("model_name")
+        if base_url and model_name:
+            return f"{base_url}::{model_name}"
+    return f"{profile.get('base_url', '')}::{profile.get('model_name', '')}"
+
+
+def is_qualified_concurrency_cache(profile):
+    """Whether a profile carries a real measurement bound to its own endpoint."""
+    if not isinstance(profile, dict):
+        return False
+    concurrency = profile.get("concurrency")
+    if not (isinstance(concurrency, int) and not isinstance(concurrency, bool) and concurrency > 0):
+        return False
+    return (profile.get("concurrency_for") == get_benchmark_destination(profile)
+            and has_valid_benchmark_environment(profile))
+
+
+def has_valid_benchmark_environment(profile):
+    """Whether a stored entry carries real measured-environment evidence.
+
+    An empty or malformed environment is not evidence: a neutral named slot
+    must not displace a qualified measurement just because it has a cache
+    field. The version and the measured endpoint are the minimum schema.
+    """
+    environment = profile.get("concurrency_environment") if isinstance(profile, dict) else None
+    if not isinstance(environment, dict) or not environment:
+        return False
+    version = environment.get("version")
+    base_url = environment.get("base_url")
+    return (isinstance(version, int) and not isinstance(version, bool)
+            and isinstance(base_url, str) and bool(base_url.strip()))
+
+
+def get_benchmark_target_slot(config):
+    """The named slot the benchmark reads for this config's active endpoint.
+
+    The slot follows the endpoint, not the toggle: a hosted profile saved in
+    llm_local with llm_mode=local is still dialled remotely and measured into
+    llm_remote. Migration must land evidence there for the next run to reuse.
+    """
+    config = config if isinstance(config, dict) else {}
+    active = get_saved_llm_profile(config, require_complete=True) or config.get("llm") or {}
+    base_url = active.get("base_url", "") if isinstance(active, dict) else ""
+    return "llm_remote" if is_remote_llm(config.get("llm_mode") or "local", base_url) else "llm_local"
+
+
+def get_document_with_retained_cache(document, existing):
+    """Return a save document carrying still-valid measured evidence.
+
+    A measurement belongs to the requests that produced it, so a qualified
+    entry with real environment evidence is kept for the matching effective
+    identity. The legacy `llm` mirror is one such source, not a separate
+    cache: its entry is also placed in the slot the benchmark actually reads
+    (endpoint-based, so a hosted legacy profile with llm_mode=local migrates
+    into llm_remote). A blank or key-only named slot with an invalid
+    environment cannot displace qualified legacy evidence. Credentials and
+    every other posted field come from `document` unchanged.
+    """
+    result = dict(document)
+    before_map = existing if isinstance(existing, dict) else {}
+    qualified = {}
+    # Named slots first: a structurally valid named receipt is the authority
+    # for its own identity. The mirror is only a fallback source, never a way
+    # to overwrite newer named evidence for the same endpoint. A receipt is
+    # identified by its stored digest, not by a digest recomputed from the
+    # surrounding profile, which a later edit can change without the receipt
+    # itself changing. A pre-digest receipt gets a fresh nonsecret one.
+    for section in ("llm_local", "llm_remote", "llm"):
+        before = before_map.get(section)
+        if not is_qualified_concurrency_cache(before) or not has_valid_benchmark_environment(before):
+            continue
+        stored = before.get(BENCHMARK_IDENTITY_KEY)
+        if is_benchmark_digest(stored):
+            key = stored
+        elif stored is None or predigest_identity_matches(stored, before_map, section):
+            key = get_benchmark_identity_key(before_map, section)
+        else:
+            # Stale or malformed plain identity: drop it rather than relabel
+            # evidence from a different request as the active one's receipt.
+            continue
+        if key is None:
+            continue
+        entry = {name: before[name] for name in BENCHMARK_CACHE_KEYS if name in before}
+        entry[BENCHMARK_IDENTITY_KEY] = key
+        if key not in qualified:
+            qualified[key] = entry
+    for section in ("llm", "llm_local", "llm_remote"):
+        after = result.get(section)
+        if not isinstance(after, dict):
+            continue
+        entry = qualified.get(get_benchmark_identity_key(result, section))
+        if entry:
+            result[section] = {**after, **entry}
+    target = get_benchmark_target_slot(result)
+    after = result.get(target)
+    # The mirror is the active proposed request. Only a receipt for that exact
+    # request may land in the benchmark's slot, whether it came from the legacy
+    # mirror or a named slot hydrated to a neutral stub. A retired receipt from
+    # a body/model/mode edit must not be carried forward.
+    proposed_key = get_benchmark_identity_key(result, "llm")
+    receipt = qualified.get(proposed_key) if proposed_key is not None else None
+    if receipt and isinstance(after, dict) and not is_qualified_concurrency_cache(after):
+        result[target] = {**after, **receipt}
+    return result
+
+
+def get_saved_llm_profile(config, *, require_complete=False):
+    """The named profile exactly as saved, without inherited global limits.
+
+    Settings round-trips (the Setup migration, secret restoration) and
+    credential lookup need the raw profile, even when it is partial: a saved
+    key or header still belongs to that endpoint. Run resolution passes
+    `require_complete` so a partial primary cannot shadow a complete legacy
+    `llm` profile and silently dial the wrong endpoint.
     """
     if not isinstance(config, dict):
         return {}
     mode = config.get("llm_mode") or "local"
     block = config.get(f"llm_{mode}")
-    if not isinstance(block, dict) or not block:
+    if not isinstance(block, dict) or (require_complete and not is_profile_configured(block)):
         block = config.get("llm")
     return block if isinstance(block, dict) else {}
+
+
+def get_hydrated_profile_source(config, section):
+    """The persisted profile GET used to fill `section` before the form posts.
+
+    The active named slot is filled from the complete legacy mirror when it is
+    not itself configured; an inactive slot keeps its own saved values. Preview
+    uses this same decision to establish a baseline instead of guessing from
+    equal endpoints or bodies.
+    """
+    config = config if isinstance(config, dict) else {}
+    mode = config.get("llm_mode") or "local"
+    if section == f"llm_{mode}":
+        block = config.get(section)
+        if not isinstance(block, dict) or not is_profile_configured(block):
+            return "llm" if isinstance(config.get("llm"), dict) else section
+    return section
 
 
 def get_failover_llm_config(config):
@@ -238,7 +641,7 @@ def get_failover_llm_config(config):
         return {}
     other = "remote" if (config.get("llm_mode") or "local") == "local" else "local"
     block = config.get(f"llm_{other}")
-    if not isinstance(block, dict) or not block.get("base_url") or not block.get("model_name"):
+    if not is_executable_failover_profile(block):
         return {}
     from llm_request_budget import get_inherited_profile_limits
     return get_inherited_profile_limits(block, config.get("generation") or {})
@@ -258,8 +661,10 @@ def is_active_llm_remote(config):
     cannot pass the mirror by accident.
     """
     config = config if isinstance(config, dict) else {}
-    return is_remote_llm(config.get("llm_mode") or "local",
-                         get_active_llm_config(config).get("base_url", ""))
+    active = get_active_llm_config(config)
+    if not is_billed_http_profile(active):
+        return False
+    return is_remote_llm(config.get("llm_mode") or "local", active.get("base_url", ""))
 
 
 def find_lms_binary():
@@ -629,9 +1034,11 @@ def get_remote_lmstudio_status_cached(ssh_alias, model_name, timeout=20):
         return deepcopy(status)
 
 
-def get_remote_runtime_status_cached(base_url, ssh_alias, model_name, api_key=None):
+def get_remote_runtime_status_cached(base_url, ssh_alias, model_name, api_key=None,
+                                     authorization=None):
     """Preserve the existing remote runtime-cache API."""
-    return get_runtime_status_cached("remote", base_url, ssh_alias, model_name, api_key)
+    return get_runtime_status_cached("remote", base_url, ssh_alias, model_name, api_key,
+                                     authorization)
 
 
 def save_runtime_status_cache(key, status, local_epoch):
@@ -657,12 +1064,22 @@ def invalidate_local_status_cache():
                 del _remote_status_cache[key]
 
 
-def get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name, api_key=None):
-    """Cache an explicitly requested UI runtime observation, including `/props`."""
+def get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name, api_key=None,
+                              authorization=None):
+    """Cache an explicitly requested UI runtime observation, including `/props`.
+
+    The credential is part of the cache identity: a profile authenticating by
+    a non-Bearer header must not inherit a probe made with an unrelated api_key.
+    Only a digest is stored, never the header value itself.
+    """
+    from llm_provider import resolve_authorization_value
+    api_key = resolve_authorization_value(api_key)
+    authorization = resolve_authorization_value(authorization)
     remote = is_remote_llm(llm_mode, base_url)
     key = (ssh_alias, model_name, base_url,
-           hashlib.sha256(repr((type(api_key).__name__, api_key)).encode()).hexdigest()
-           if api_key is not None else None)
+           hashlib.sha256(repr((type(api_key).__name__, api_key,
+                                type(authorization).__name__, authorization)).encode()).hexdigest()
+           if (api_key is not None or authorization is not None) else None)
     if not remote:
         key = (None, *key[1:], "local-ui")
     cached = ensure_remote_status_cache_entry(key)
@@ -674,7 +1091,8 @@ def get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name, api_key
             return cached[1]
         with _remote_status_cache_lock:
             epoch = _status_cache_epoch_locked(key)
-        status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+        status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key,
+                                    authorization=authorization)
         save_runtime_status_cache(key, status, epoch)
         return deepcopy(status)
 
@@ -857,14 +1275,24 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, port=1234)
     return True, f"Reloaded {model_name} on '{ssh_alias}' with {label} settings"
 
 
-# /props probe misses, keyed by server root: see get_llama_cpp_status.
+# /props probe misses, scoped to origin + effective credential: a server that
+# answers one profile may refuse another, and the digest must never be the
+# credential itself. See get_llama_cpp_status.
 PROPS_MISS_TTL_SECONDS = 600
 PROPS_MAX_BYTES = 1 << 20
 _props_miss = {}
 _props_miss_lock = threading.Lock()
 
 
-def get_llama_cpp_status(base_url, model_name, timeout=5):
+def _props_miss_key(origin, api_key=None, authorization=None):
+    """One cache scope per origin and wire Authorization, never plaintext."""
+    credential = (authorization if authorization else
+                  (f'Bearer {api_key}' if api_key else None))
+    digest = hashlib.sha256(repr((type(credential).__name__, credential)).encode()).hexdigest()
+    return (origin, digest)
+
+
+def get_llama_cpp_status(base_url, model_name, timeout=5, api_key=None, authorization=None):
     """-> a status dict if `base_url` is llama.cpp, else None.
 
     WHY THIS EXISTS. `get_lmstudio_status` asks `lms ps`, which is the right
@@ -896,12 +1324,24 @@ def get_llama_cpp_status(base_url, model_name, timeout=5):
     # gateway every poll was a fresh GET /props answered 404 - hundreds in a
     # row in one user's proxy log (2026-09-17). Remember the miss per URL for
     # a while instead of asking again on every poll.
+    from llm_provider import resolve_authorization_value
+    api_key = resolve_authorization_value(api_key)
+    authorization = resolve_authorization_value(authorization)
+    miss_key = _props_miss_key(root, api_key, authorization)
     with _props_miss_lock:
-        missed_at = _props_miss.get(root)
+        missed_at = _props_miss.get(miss_key)
     if missed_at is not None and time.monotonic() - missed_at < PROPS_MISS_TTL_SECONDS:
         return None
+    # Same credential precedence as the LM Studio endpoint probe: an explicit
+    # Authorization header wins verbatim, otherwise a bearer comes from api_key.
+    headers = {}
+    if authorization:
+        headers['Authorization'] = authorization
+    elif api_key:
+        headers['Authorization'] = 'Bearer ' + api_key
     try:
-        with urllib.request.urlopen(root + "/props", timeout=timeout) as response:
+        props_request = urllib.request.Request(root + "/props", headers=headers)
+        with open_no_redirect(props_request, timeout=timeout) as response:
             payload = response.read(PROPS_MAX_BYTES + 1)
             if len(payload) > PROPS_MAX_BYTES:
                 return None
@@ -911,16 +1351,16 @@ def get_llama_cpp_status(base_url, model_name, timeout=5):
         # failure or gateway outage. Those do not identify the runtime.
         if exc.code in (404, 405, 501):
             with _props_miss_lock:
-                _props_miss[root] = time.monotonic()
+                _props_miss[miss_key] = time.monotonic()
         return None
     except Exception:                                       # noqa: BLE001
         return None
     if not isinstance(props, dict) or "default_generation_settings" not in props:
         with _props_miss_lock:
-            _props_miss[root] = time.monotonic()
+            _props_miss[miss_key] = time.monotonic()
         return None
     with _props_miss_lock:
-        _props_miss.pop(root, None)
+        _props_miss.pop(miss_key, None)
 
     generation = props.get("default_generation_settings") or {}
     context = generation.get("n_ctx")
@@ -1005,18 +1445,43 @@ def get_lmstudio_management_binding(base_url, ssh_alias=None):
         return False, None, "CLI management binding could not be verified"
 
 
-def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False, api_key=None, cache_local=False):
+def get_manual_runtime_status(llm_config):
+    """Declared-limit serial status for Manual transport, with no HTTP at all."""
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits(llm_config or {})
+    return {"runtime": "manual", "available": False, "loaded": False,
+            "context_length": limits.get("context_length"), "parallel": 1,
+            "optimized": None, "management_verified": False,
+            "management_reason": "Manual transport has no runtime to configure"}
+
+
+def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False,
+                       api_key=_STATUS_UNSET, cache_local=False,
+                       authorization=_STATUS_UNSET, llm_config=None):
     """Read runtime without reloads; cache_local opts the UI into bounded caching.
 
-    Existing local worker reads stay live even when use_cache=True.
+    Existing local worker reads stay live even when use_cache=True. An explicit
+    `authorization` is the profile's effective credential and is used verbatim
+    by the native endpoint probe (a profile may authenticate by header rather
+    than by api_key).
     """
+    from llm_provider import resolve_authorization_value
+    api_key = (None if api_key is _STATUS_UNSET
+               else resolve_authorization_value(api_key))
+    authorization = (None if authorization is _STATUS_UNSET
+                     else resolve_authorization_value(authorization))
+    if (llm_config or {}).get("transport") == "manual":
+        return get_manual_runtime_status(llm_config)
     remote = is_remote_llm(llm_mode, base_url)
     if use_cache and (remote or cache_local):
-        return get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name, api_key)
-    native = get_llama_cpp_status(base_url, model_name)
+        return get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name,
+                                         api_key, authorization)
+    native = get_llama_cpp_status(base_url, model_name, api_key=api_key,
+                                  authorization=authorization)
     if native is not None:
         return native
-    endpoint = get_lmstudio_endpoint_status(base_url, model_name, api_key)
+    endpoint = get_lmstudio_endpoint_status(base_url, model_name, api_key,
+                                            authorization=authorization)
     if endpoint is None:
         return {"runtime": "unknown", "available": False, "loaded": False,
                 "context_length": None, "parallel": None, "optimized": False,
@@ -1036,7 +1501,8 @@ def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache
             "management_port": port, "management_reason": reason}
 
 
-def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None):
+def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None,
+                               authorization=None):
     """Return the settings a subsequent ``ensure_ideal_settings`` will target.
 
     This is a pure sizing helper for preflight UIs: it reports the verified
@@ -1047,7 +1513,8 @@ def get_planned_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, a
     ``context_known`` is False only when the context is the conservative
     fallback for a runtime that neither reported one nor can be healed to one.
     """
-    status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+    status = get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key,
+                                authorization=authorization)
     if status.get("runtime") == "llama.cpp" or not status.get("management_verified"):
         reported = status.get("ideal_context_length") or status.get("context_length")
         return {
@@ -1079,6 +1546,7 @@ def get_planned_request_context(config):
     known, `known` is False and `context` is that conservative guess, usable
     for sizing but not as evidence that a larger request fits.
     """
+    from llm_provider import get_effective_authorization
     from llm_request_budget import get_request_limits
     llm = get_active_llm_config(config)
     if llm.get("transport") == "manual":
@@ -1088,7 +1556,8 @@ def get_planned_request_context(config):
     else:
         planned = get_planned_ideal_settings(
             config.get("llm_mode", "local"), llm.get("base_url", ""),
-            llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"))
+            llm.get("model_name", ""), config.get("llm_remote_ssh"),
+            api_key=llm.get("api_key"), authorization=get_effective_authorization(llm))
     detected = planned["context_length"] if planned.get("context_known") else None
     context = get_request_limits(llm, detected)["context_length"]
     return {"context": int(context or planned.get("context_length") or 0),
@@ -1096,7 +1565,8 @@ def get_planned_request_context(config):
             "parallel": max(1, int(planned.get("parallel") or 1))}
 
 
-def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None):
+def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None,
+                          authorization=None, llm_config=None):
     """Self-heal LM Studio's load settings (local or remote) toward the ideal
     config (VRAM-safe locally, large-context remotely), then return the FRESH
     post-heal status so callers can size chunking/context decisions and the
@@ -1109,15 +1579,21 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_ke
     {available, loaded, context_length, parallel, optimized} shape. Never
     raises - every call it makes is itself best-effort/non-raising.
     """
+    if (llm_config or {}).get("transport") == "manual":
+        return (False, get_manual_runtime_status(llm_config),
+                "Manual transport: serial execution with declared limits; no runtime to configure.")
+
     is_remote = is_remote_llm(llm_mode, base_url)
 
     initial_status = get_current_status(
-        llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+        llm_mode, base_url, model_name, ssh_alias, api_key=api_key,
+        authorization=authorization)
     if initial_status.get("runtime") == "llama.cpp":
         return (is_remote, initial_status,
                 "llama.cpp server at %s - context %s, %s slot(s), fixed at "
                 "launch. No LM Studio settings to apply."
-                % (base_url, initial_status.get("context_length"),
+                % (sanitize_url_for_display(base_url),
+                   initial_status.get("context_length"),
                    initial_status.get("parallel")))
 
     if not initial_status.get("management_verified"):
@@ -1129,7 +1605,7 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_ke
                 "Remote LLM endpoint - no SSH alias configured, cannot verify/apply ideal settings.")
 
     if is_remote:
-        get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+        get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key, authorization=authorization)
         apply_settings = lambda: apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, port=initial_status["management_port"])
         label = "Remote LM Studio"
         ok_warning = ("Proceeding with whatever is currently loaded, which may truncate "
@@ -1145,7 +1621,7 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_ke
         # warn about. get_llama_cpp_status already answers this question and
         # returns None for anything that is not llama.cpp (Rule 15) - the local
         # branch simply never asked it.
-        get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key)
+        get_status = lambda: get_current_status(llm_mode, base_url, model_name, ssh_alias, api_key=api_key, authorization=authorization)
         apply_settings = lambda: apply_lmstudio_settings(model_name, ideal=True)
         label = "LM Studio"
         ok_warning = ("The model may be running with a higher 'parallel'/context-length "

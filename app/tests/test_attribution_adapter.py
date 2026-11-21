@@ -231,6 +231,28 @@ class AdapterTransportTest(unittest.TestCase):
         self.assertTrue(ok);self.assertNotIn(key,message);self.assertNotIn(key,describe(cfg));self.assertEqual(before,cfg)
         self.assertEqual([('/lora-adapters',None),('/lora-adapters','Bearer '+key)],requests)
 
+    def test_manual_transport_skips_adapter_probe_even_with_required_legacy_adapter(self):
+        config = {"llm_mode": "manual",
+                  "llm": {"transport": "manual",
+                          "base_url": "https://hosted.invalid/v1",
+                          "api_key": "sk-retained-fixture",
+                          "provider_headers": {"Authorization": "Token retained-fixture"},
+                          "attribution_adapter": {"path": "/required.gguf", "require": True}}}
+        with patch("attribution_adapter.served_adapters",
+                   side_effect=AssertionError("Manual must not probe /lora-adapters")):
+            ok, message = check_adapter(config, "https://hosted.invalid/v1")
+        self.assertTrue(ok)
+        self.assertIn("Manual", message)
+
+    def test_http_required_adapter_stays_fail_closed(self):
+        config = {"llm_mode": "local",
+                  "llm_local": {"base_url": "https://hosted.invalid/v1",
+                                "api_key": "fixture-key",
+                                "attribution_adapter": {"path": "/required.gguf", "require": True}}}
+        with patch("attribution_adapter.served_adapters", return_value=None):
+            with self.assertRaises(AdapterError):
+                check_adapter(config, "https://hosted.invalid/v1")
+
     def test_actual_http_rejects_oversized_valid_json_and_accepts_normal_response(self):
         import json
         from attribution_adapter import served_adapters,MAX_ADAPTER_RESPONSE_BYTES

@@ -2563,12 +2563,14 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             },
         }
         character_items = list(characters.items())
+        from llm_provider import get_effective_authorization
         full_cfg = load_app_config(CONFIG_PATH)
         llm_cfg = get_active_llm_config(full_cfg)
         status = get_current_status(
             full_cfg.get("llm_mode", "local"), llm_cfg.get("base_url", ""),
             model_name, (full_cfg.get("llm_remote_ssh") or "").strip(),
-            use_cache=True, api_key=llm_cfg.get("api_key"))
+            use_cache=True, api_key=llm_cfg.get("api_key"),
+            authorization=get_effective_authorization(llm_cfg), llm_config=llm_cfg)
         for start in range(0, len(character_items), 2):
             batch = character_items[start:start + 2]
             char_block = "\n\n".join(

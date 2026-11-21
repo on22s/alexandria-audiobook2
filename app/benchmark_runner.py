@@ -17,12 +17,13 @@ import sys
 import tempfile
 from urllib.parse import urlparse
 
-from llm_provider import make_llm_client, resolve_api_key
+from llm_provider import make_llm_client
 
 from benchmark_worker_protocol import (get_benchmark_worker_result,
                                       get_benchmark_failure_message,
                                       is_benchmark_worker_infrastructure_failure)
-from benchmark_core import (get_benchmark_llm_config, load_resumable_benchmark_report,
+from benchmark_core import (get_benchmark_llm_config, get_thunder_worker_base_url,
+                            get_thunder_worker_profile, load_resumable_benchmark_report,
                             save_benchmark_report)
 from benchmark_fixtures import _hash_entries, get_normalized_source_chunks
 from benchmark_validation import (validate_persona_speakers, get_benchmark_file_path,
@@ -918,10 +919,13 @@ def run_persona_generation_benchmark(manifest, environment, report_path, state,
     target = manifest["targets"][0]
     config = load_app_config(config_path)
     llm, status = _get_llm_benchmark_target(config, target)
-    client = get_cancellable_benchmark_client(
-        make_llm_client(llm, timeout=llm_timeout_seconds()))
+    client = None
+    if target != "thunder":
+        client = get_cancellable_benchmark_client(
+            make_llm_client(llm, timeout=llm_timeout_seconds()))
     report = load_resumable_benchmark_report(report_path, manifest, environment)
-    report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
+    report["network_rtt_seconds"] = (_measure_llm_network_rtt(client)
+                                     if client is not None else _rtt_probe_seconds(llm))
     save_benchmark_report(report_path, report)
     for fixture in manifest["fixtures"]:
         _validate_persona_fixture(fixture)
@@ -982,12 +986,15 @@ def run_nickname_detection_benchmark(manifest, environment, report_path, state,
     target = manifest["targets"][0]
     config = load_app_config(config_path)
     llm, status = _get_llm_benchmark_target(config, target)
-    client = get_cancellable_benchmark_client(
-        make_llm_client(llm, timeout=llm_timeout_seconds()))
+    client = None
+    if target != "thunder":
+        client = get_cancellable_benchmark_client(
+            make_llm_client(llm, timeout=llm_timeout_seconds()))
     context_length = status.get("context_length") or 4096
     concurrency = status.get("parallel") or 1
     report = load_resumable_benchmark_report(report_path, manifest, environment)
-    report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
+    report["network_rtt_seconds"] = (_measure_llm_network_rtt(client)
+                                     if client is not None else _rtt_probe_seconds(llm))
     save_benchmark_report(report_path, report)
     for fixture in manifest["fixtures"]:
         _validate_nickname_fixture(fixture)
@@ -1186,20 +1193,48 @@ def _pending_fixtures_with_repetitions(fixtures, repetitions, completed):
 
 
 def _remote_llm_base_url(llm):
-    """The URL llm_benchmark_worker.py should use FROM the remote host
-    itself - localhost, not the public forwarding URL. Reusing the
-    forwarding URL here would route the worker's calls back out through the
-    internet a second time, defeating the entire point of running it on
-    Thunder in the first place (see docs/guides/THUNDER_COMPUTE.md's network_rtt_seconds
-    confound)."""
-    port = urlparse(llm.get("base_url") or "").port or 1234
-    return f"http://localhost:{port}/v1"
+    """The loopback URL the worker uses on the Thunder host (see
+    benchmark_core.get_thunder_worker_base_url, the single source)."""
+    return get_thunder_worker_base_url(llm)
 
 
 def get_remote_llm_worker_profile(llm):
-    """Copy the active profile, resolving its key on the orchestrating host."""
-    return {**llm, "base_url": _remote_llm_base_url(llm),
-            "api_key": resolve_api_key(llm.get("api_key", "local"))}
+    """The effective profile preflight fingerprints and the worker dispatches
+    with; both use benchmark_core.get_thunder_worker_profile."""
+    return get_thunder_worker_profile(llm)
+
+
+def _rtt_probe_profile(llm):
+    """A keyless-safe copy of the profile for the OPTIONAL network-RTT probe.
+
+    Thunder's public forwarding URL is legitimately configured without an
+    api_key (the worker resolves its key against loopback). Constructing the
+    real client from that public URL would raise MissingAPIKeyError before the
+    loopback worker ever starts. The probe only measures wire latency, so keep
+    the public URL and any explicit Authorization header and substitute a
+    harmless local placeholder when no key can be resolved.
+    """
+    profile = dict(llm or {})
+    from llm_provider import MissingAPIKeyError, resolve_client_api_key
+    try:
+        resolve_client_api_key(profile)
+    except MissingAPIKeyError:
+        profile["api_key"] = "local"
+    return profile
+
+
+def _rtt_probe_seconds(llm):
+    """Measure the public endpoint's RTT, or skip the diagnostic on any error.
+
+    This is an optional baseline for short remote cases, never a gate: a
+    profile the probe cannot build must not stop the benchmark dispatch.
+    """
+    try:
+        client = get_cancellable_benchmark_client(
+            make_llm_client(_rtt_probe_profile(llm), timeout=llm_timeout_seconds()))
+    except Exception:
+        return None
+    return _measure_llm_network_rtt(client)
 
 
 def get_llm_worker_params(params):
@@ -1297,10 +1332,13 @@ def run_script_generation_benchmark(manifest, environment, report_path, state,
         presence_penalty=generation.get("presence_penalty", 0.0),
         banned_tokens=generation.get("banned_tokens", []),
         context_length=status.get("context_length"))
-    client = get_cancellable_benchmark_client(
-        make_llm_client(llm, timeout=llm_timeout_seconds()))
+    client = None
+    if target != "thunder":
+        client = get_cancellable_benchmark_client(
+            make_llm_client(llm, timeout=llm_timeout_seconds()))
     report = load_resumable_benchmark_report(report_path, manifest, environment)
-    report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
+    report["network_rtt_seconds"] = (_measure_llm_network_rtt(client)
+                                     if client is not None else _rtt_probe_seconds(llm))
     save_benchmark_report(report_path, report)
     max_retries = manifest.get("settings", {}).get("max_retries", 0)
     if not isinstance(max_retries, int) or max_retries < 0:
@@ -1397,10 +1435,13 @@ def run_script_review_benchmark(manifest, environment, report_path, state,
         banned_tokens=generation.get("banned_tokens", []),
         context_length=status.get("context_length"),
         review_labels_only=get_review_labels_only(config))
-    client = get_cancellable_benchmark_client(
-        make_llm_client(llm, timeout=llm_timeout_seconds()))
+    client = None
+    if target != "thunder":
+        client = get_cancellable_benchmark_client(
+            make_llm_client(llm, timeout=llm_timeout_seconds()))
     report = load_resumable_benchmark_report(report_path, manifest, environment)
-    report["network_rtt_seconds"] = _measure_llm_network_rtt(client)
+    report["network_rtt_seconds"] = (_measure_llm_network_rtt(client)
+                                     if client is not None else _rtt_probe_seconds(llm))
     save_benchmark_report(report_path, report)
     max_retries = manifest.get("settings", {}).get("max_retries", 0)
     thresholds = manifest.get("quality_thresholds") or {}

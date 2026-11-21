@@ -108,6 +108,47 @@ class EditorRenderBarrierTests(unittest.TestCase):
 }finished=true;})().catch(error=>{console.error(error);process.exitCode=1;});
 ''')
 
+    def test_failed_row_save_reports_the_server_reason_and_names_failed_line(self):
+        self.run_node(r'''
+(async()=>{
+ const a=client();a.setHold(false);a.setFail(true);
+ await a.context.updateChunk(7,'text','bad edit');
+ assert.equal(a.errors.length,1);
+ assert(a.errors[0].includes('Could not save this line'),a.errors[0]);
+ assert(a.errors[0].includes('fixture row write failed'),a.errors[0]);
+ const summary=vm.runInContext('getEditorFailedEditsSummary()',a.context);
+ assert(summary.includes('Line 8 failed to save'),summary);
+ assert(summary.includes('fixture row write failed'),summary);
+ a.setFail(false);
+ await a.context.updateChunk(7,'text','corrected edit');
+ assert.equal(vm.runInContext('getEditorFailedEditsSummary()',a.context),'');
+ assert.equal(vm.runInContext('failedChunkEdits.size',a.context),0);
+ finished=true;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+''')
+
+    def test_failed_row_save_badge_names_failure_instead_of_unsaved_edits(self):
+        self.run_node(r'''
+(async()=>{
+ const a=client();a.setHold(false);a.setFail(true);
+ const badge={textContent:'',className:''};
+ a.context.document.getElementById=id=>id==='editor-integrity-badge'?badge:null;
+ a.context.setUiMessage=(node,key,english,values)=>{node.textContent=a.context.t(key,english,typeof values==='function'?values():values);};
+ a.context.pluralForm=()=>'many';
+ vm.runInContext(source.slice(source.indexOf('let editorIntegrityView = 0;'),source.indexOf('async function refreshRuntimeEstimate(')),a.context);
+ await a.context.updateChunk(7,'text','bad edit');
+ await a.context.refreshEditorIntegrity();
+ assert(badge.textContent.includes('failed to save'),badge.textContent);
+ assert(!badge.textContent.includes('Save edits before checking source'),badge.textContent);
+ assert.equal(badge.className,'badge bg-danger');
+ vm.runInContext('failedChunkEdits.clear(); pendingChunkEdits.set(7, Promise.resolve())',a.context);
+ await a.context.refreshEditorIntegrity();
+ assert(badge.textContent.includes('Save edits before checking source'),badge.textContent);
+ assert.equal(badge.className,'badge bg-secondary');
+ finished=true;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+''')
+
     def run_node(self,code):
         with tempfile.TemporaryDirectory() as tmp:
             result=subprocess.run(['node','-e',HARNESS+code,str(SOURCE),str(Path(tmp)/'chunks.json')],capture_output=True,text=True,timeout=15)

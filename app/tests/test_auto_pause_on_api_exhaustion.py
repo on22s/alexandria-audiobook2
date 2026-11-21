@@ -70,6 +70,16 @@ class AutoPauseTests(unittest.TestCase):
         self.assertEqual([], out)
         self.assertEqual([GOOD], remaining)
 
+    def test_auth_and_not_found_fail_instead_of_pausing_for_an_operator(self):
+        for status, category in ((401, "auth"), (403, "auth"), (404, "not_found")):
+            with self.subTest(status=status):
+                error = type("ProviderError", (Exception,), {"status_code": status})(f"HTTP {status}")
+                client, remaining = _client([error, GOOD])
+                with patch.object(os, "kill", side_effect=AssertionError(f"{category} must not signal")):
+                    out = self._call(client, _params("pause", limit=3))
+                self.assertEqual([], out)
+                self.assertEqual([GOOD], remaining, f"{category} must not burn the retry budget")
+
     def test_resume_keeps_quality_feedback_and_attempt_history(self):
         client, _ = _client([GOOD, RATE_LIMITED("429"), GOOD])
         requests, attempts = [], []
