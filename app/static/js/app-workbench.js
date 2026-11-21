@@ -112,16 +112,21 @@
                 const result = await API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`);
                 if (loadSequence !== dsbProjectLoadSequence || !isDatasetProjectSelected(name)) { return; }
                 applyDatasetBatchState(!!(result.running || result.ownership_unconfirmed));
-                applyDatasetRowRevisions(name, result.row_revisions, (result.samples || []).length);
                 document.getElementById('dsb-description').value = result.description || '';
                 document.getElementById('dsb-global-seed').value = result.global_seed ?? '';
-                dsbRows = (result.samples || []).map(s => ({
-                    emotion: s.emotion || s.description || '',
-                    text: s.text || '',
-                    seed: s.seed ?? '',
-                    status: s.status || 'pending',
-                    audio_url: s.audio_url || null,
-                }));
+                // Bind the model, its base and its tokens from ONE response:
+                // snapshotting dsbRows before the new samples arrive records
+                // the previous project's definitions as this project's base.
+                const samples = Array.isArray(result.samples) ? result.samples : [];
+                dsbRows = samples.map(s => ({ ...datasetRowDefinition(s),
+                    status: s.status || 'pending', audio_url: s.audio_url || null }));
+                const state = ensureDatasetRowSaveState(name);
+                applyDatasetRowRevisions(name, result.row_revisions, dsbRows.length);
+                state.edits.clear();
+                state.conflicted.clear();
+                state.fullRevision = null;
+                state.completedSequence = 0;
+                state.conflictShown = false;
                 dsbLoadedProject = name;
                 dsbPendingProjectLoad = null;
                 document.getElementById('dsb-form-area').style.display = '';
@@ -249,6 +254,9 @@
                 || !/^[0-9a-f]{64}$/.test(revision || '') || index >= dsbRows.length) { return false; }
             const state = ensureDatasetRowSaveState(name);
             const definition = datasetRowDefinition(row);
+            // A live draft owns its visible row. Adopting an ACK over it would
+            // persist a value the user never authorised.
+            if (state.edits.has(index)) { state.conflicted.add(index); return false; }
             Object.assign(dsbRows[index], definition);
             if (row.status) { dsbRows[index].status = row.status; }
             dsbRows[index].audio_url = row.audio_url || null;
@@ -283,32 +291,53 @@
             }
             if (!Array.isArray(state.baseDefinitions)) { state.baseDefinitions = dsbRows.map(datasetRowDefinition); }
             let changedDefinition = false, conflict = false;
+            const changedStatus = [];
             samples.forEach((serverRow, index) => {
                 const definition = datasetRowDefinition(serverRow);
                 const localDefinition = getDatasetRowDefinition(dsbRows[index]);
                 const hasLocalDraft = JSON.stringify(localDefinition)
                     !== JSON.stringify(state.baseDefinitions[index]);
-                if (state.conflicted.has(index) || (preserveDrafts && hasLocalDraft)) {
+                if (state.conflicted.has(index)
+                    || (preserveDrafts && hasLocalDraft && !state.edits.has(index))) {
+                    // An unregistered visible difference can only have come
+                    // from outside this tab; a registered draft is handled
+                    // below and keeps its original base token.
                     conflict = true;
                     return;
                 }
-                if (preserveDrafts && state.edits.has(index)) {
-                    // An unsaved draft keeps its original base and token; adopting
-                    // a newer token here would silently authorize that stale draft.
-                    conflict = true;
-                    return;
+                const draft = preserveDrafts ? state.edits.get(index) : null;
+                if (draft) {
+                    const base = draft.base || state.baseDefinitions[index];
+                    if (JSON.stringify(base) !== JSON.stringify(definition)) {
+                        // A genuine external edit: the draft keeps its
+                        // original base and token, so its CAS still rejects.
+                        conflict = true;
+                        return;
+                    }
+                    // Our own metadata/generation acknowledgement: the
+                    // definition is unchanged, so the draft stays valid and
+                    // the shared base token advances with the authoritative
+                    // row rather than leaving the draft to be 409'd.
+                    draft.base = definition;
                 }
                 if (JSON.stringify(state.baseDefinitions[index]) !== JSON.stringify(definition)) {
                     changedDefinition = true;
                 }
-                Object.assign(dsbRows[index], definition);
+                const before = { status: dsbRows[index].status, audio: dsbRows[index].audio_url };
+                // A registered draft keeps its visible value; only the base,
+                // status, audio and token follow an authoritative own ACK.
+                if (!draft) { Object.assign(dsbRows[index], definition); }
                 state.baseDefinitions[index] = definition;
                 if (serverRow.status) { dsbRows[index].status = serverRow.status; }
                 dsbRows[index].audio_url = serverRow.audio_url || null;
                 if (serverRow.status !== 'error') { delete dsbRows[index].error; }
+                if (before.status !== dsbRows[index].status || before.audio !== dsbRows[index].audio_url) {
+                    changedStatus.push(index);
+                }
                 if (validTokens && state.tokens) { state.tokens[index] = revisions[index]; }
             });
             if (changedDefinition) { dsbRenderTable(); }
+            else if (changedStatus.length) { dsbRenderTable(changedStatus); }
             if (conflict && !state.conflictShown) {
                 state.conflictShown = true;
                 showToast(t('workbench.rows.external-edit', 'Dataset rows changed elsewhere. Reload before saving the affected rows.'), 'warning');
@@ -320,17 +349,49 @@
         async function saveDatasetRows(value) {
             const state = ensureDatasetRowSaveState(value.name);
             if (value.rows) {
-                const result = await API.post('/api/dataset_builder/update_rows', { name: value.name, rows: value.rows });
+                const body = { name: value.name, rows: value.rows };
+                const base = value.revisions || [];
+                // Refresh each base token at write time: an earlier edit in
+                // this same serialized chain may have advanced it with its
+                // own ACK, and that is the revision the server now holds.
+                const revisions = base.map((token, index) => state.tokens?.[index] || token);
+                if (revisions.length > 0
+                    && revisions.every(token => /^[0-9a-f]{64}$/.test(token || ''))) {
+                    // A full-list write compares the BASE it was built from
+                    // (which may have fewer/more rows than the new list),
+                    // atomically, against the server's current list.
+                    body.expected_count = revisions.length;
+                    body.expected_revisions = Object.fromEntries(
+                        revisions.map((token, index) => [index, token]));
+                }
+                let result;
+                try {
+                    result = await API.post('/api/dataset_builder/update_rows', body);
+                } catch (error) {
+                    if (error.status === 409) {
+                        state.fullRevision = null;
+                        state.conflictShown = false;
+                        showToast(t('workbench.rows.external-edit', 'Dataset rows changed elsewhere. Reload before saving the affected rows.'), 'warning');
+                    }
+                    throw error;
+                }
                 applyDatasetRowRevisions(value.name, result.row_revisions, value.rows.length);
                 state.baseDefinitions = value.rows.map(row => ({ ...row }));
+                state.edits.clear();
                 state.completedSequence = Math.max(state.completedSequence || 0, value.revision || 0);
                 state.conflicted.clear();
+                state.conflictShown = false;
                 if (state.fullRevision === value.revision) { state.fullRevision = null; }
                 return;
             }
             const queuedEdits = value.edits.filter(edit => state.edits.has(edit.index));
             if (!queuedEdits.length) { return; }
-            const edits = queuedEdits.map(edit => ({ index: edit.index, row: edit.row, expected_revision: state.tokens?.[edit.index] }));
+            // Read the base token at write time: only our own acknowledged
+            // commits advance it, so a coalesced draft on the same row still
+            // binds to the row's now-authoritative revision. An external edit
+            // never advances it (see reconcileDatasetRows), so its CAS fails.
+            const edits = queuedEdits.map(edit => ({ index: edit.index, row: edit.row,
+                expected_revision: state.tokens?.[edit.index] }));
             let result;
             try {
                 result = await API.post('/api/dataset_builder/edit_rows', { name: value.name, expected_count: value.count, edits });
@@ -364,27 +425,62 @@
             return dsbPendingProjectLoad !== null;
         }
 
+        // Metadata and rows keep separate debounce slots (so a form edit does
+        // not replace a queued row draft), but their COMMITS share one chain:
+        // a metadata ACK can never be applied after a later row ACK carrying
+        // an older snapshot of the same rows.
+        let dsbCommitTail = null;
+        function serializeDatasetCommit(write) {
+            // When idle, run synchronously so the first commit is observable
+            // immediately; later writes queue behind the previous one.
+            const chained = dsbCommitTail !== null;
+            let result;
+            if (chained) {
+                result = dsbCommitTail.then(write, write);
+            } else {
+                try { result = write(); } catch (error) { result = Promise.reject(error); }
+            }
+            const settled = Promise.resolve(result).then(() => {}, () => {});
+            dsbCommitTail = settled;
+            settled.then(() => { if (dsbCommitTail === settled) { dsbCommitTail = null; } });
+            return result;
+        }
+
+        function ensureDatasetMetaQueue() {
+            if (!dsbSaveMetaQueue) {
+                dsbSaveMetaQueue = createSerializedSaveQueue({
+                    write: value => serializeDatasetCommit(async () => {
+                        const { revision, ...body } = value;
+                        const result = await API.post('/api/dataset_builder/update_meta', body);
+                        if (Array.isArray(result.samples) && Array.isArray(result.row_revisions)) {
+                            reconcileDatasetRows(value.name, result.samples, result.row_revisions,
+                                                 { sequence: revision });
+                        }
+                        return result;
+                    }),
+                    onError: error => _toastSaveError('meta', error),
+                });
+            }
+            return dsbSaveMetaQueue;
+        }
+
+        function ensureDatasetRowsQueue() {
+            if (!dsbSaveRowsQueue) {
+                dsbSaveRowsQueue = createSerializedSaveQueue({
+                    write: value => serializeDatasetCommit(() => saveDatasetRows(value)),
+                    onError: error => _toastSaveError('rows', error),
+                });
+            }
+            return dsbSaveRowsQueue;
+        }
+
         function dsbSaveForm() {
             const name = dsbCurrentProject;
             if (!name || isDatasetProjectLoading()) { return; }
             const description = document.getElementById('dsb-description').value;
             const globalSeed = document.getElementById('dsb-global-seed').value;
-            if (!dsbSaveMetaQueue) {
-                dsbSaveMetaQueue = createSerializedSaveQueue({
-                    write: async value => {
-                        const { revision, ...body } = value;
-                        const result = await API.post('/api/dataset_builder/update_meta', body);
-                        if (Array.isArray(result.samples) && Array.isArray(result.row_revisions)) {
-                            reconcileDatasetRows(value.name, result.samples, result.row_revisions,
-                                                 { sequence: value.revision });
-                        }
-                        return result;
-                    },
-                    onError: error => _toastSaveError('meta', error),
-                });
-            }
-            dsbSaveMetaQueue.enqueue({ name, description, global_seed: globalSeed,
-                                       revision: ++ensureDatasetRowSaveState(name).sequence });
+            ensureDatasetMetaQueue().enqueue({ name, description, global_seed: globalSeed,
+                                               revision: ++ensureDatasetRowSaveState(name).sequence });
         }
 
         function dsbSaveRows(index = null) {
@@ -401,15 +497,10 @@
             } else {
                 state.fullRevision = revision;
                 state.edits.clear();
-                value = { name, revision, rows: dsbRows.map(getDatasetRowDefinition) };
+                value = { name, revision, rows: dsbRows.map(getDatasetRowDefinition),
+                    count: dsbRows.length, revisions: state.tokens?.slice() || [] };
             }
-            if (!dsbSaveRowsQueue) {
-                dsbSaveRowsQueue = createSerializedSaveQueue({
-                    write: saveDatasetRows,
-                    onError: error => _toastSaveError('rows', error),
-                });
-            }
-            dsbSaveRowsQueue.enqueue(value);
+            ensureDatasetRowsQueue().enqueue(value);
         }
 
         function isDatasetRowGenerationRunning() {
@@ -484,9 +575,9 @@
 
             return getEscapedHtml`<tr data-dsb-idx="${i}" data-dsb-status="${row.status || 'pending'}" data-dsb-audio="${row.audio_url || ''}" class="${row.status === 'generating' ? 'table-info' : ''}">
                 <td class="text-center align-middle">${i + 1}</td>
-                <td><input type="text" class="form-control form-control-sm" aria-label="${t('workbench.row.emotion.aria-label', 'Emotion or delivery style for sample {index}', {index: i + 1})}" ${disabled} value="${row.emotion || ''}" onchange="dsbUpdateRow(${i}, 'emotion', this.value)" placeholder="${t('workbench.row.emotion.placeholder', 'e.g. Savagely sarcastic')}"></td>
-                <td><textarea class="form-control form-control-sm" aria-label="${t('workbench.row.text.aria-label', 'Sample text for sample {index}', {index: i + 1})}" rows="2" ${disabled} onchange="dsbUpdateRow(${i}, 'text', this.value)" placeholder="${t('workbench.row.text.placeholder', 'Sample text...')}">${row.text || ''}</textarea></td>
-                <td><input type="number" class="form-control form-control-sm" aria-label="${t('workbench.row.seed.aria-label', 'Seed for sample {index}; blank or -1 uses the global seed; 0 or higher overrides it', {index: i + 1})}" ${disabled} value="${row.seed ?? ''}" onchange="dsbUpdateRow(${i}, 'seed', this.value)" placeholder="-" style="width:65px;" min="-1"></td>
+                <td><input type="text" class="form-control form-control-sm" aria-label="${t('workbench.row.emotion.aria-label', 'Emotion or delivery style for sample {index}', {index: i + 1})}" ${disabled} value="${row.emotion || ''}" oninput="dsbUpdateRow(${i}, 'emotion', this.value)" placeholder="${t('workbench.row.emotion.placeholder', 'e.g. Savagely sarcastic')}"></td>
+                <td><textarea class="form-control form-control-sm" aria-label="${t('workbench.row.text.aria-label', 'Sample text for sample {index}', {index: i + 1})}" rows="2" ${disabled} oninput="dsbUpdateRow(${i}, 'text', this.value)" placeholder="${t('workbench.row.text.placeholder', 'Sample text...')}">${row.text || ''}</textarea></td>
+                <td><input type="number" class="form-control form-control-sm" aria-label="${t('workbench.row.seed.aria-label', 'Seed for sample {index}; blank or -1 uses the global seed; 0 or higher overrides it', {index: i + 1})}" ${disabled} value="${row.seed ?? ''}" oninput="dsbUpdateRow(${i}, 'seed', this.value)" placeholder="-" style="width:65px;" min="-1"></td>
                 <td class="text-center align-middle"><span class="badge bg-${statusColor}">${statusLabel}</span>${row.status === 'error' ? row.error || '' : ''}</td>
                 <td class="align-middle">
                     <div class="d-flex align-items-center gap-1">
@@ -513,15 +604,30 @@
             }
         }
 
+        function dsbRowOwnsLiveControl(index) {
+            const state = ensureDatasetRowSaveState(dsbCurrentProject);
+            if (state.edits.has(index)) { return true; }
+            const tbody = document.getElementById('dsb-table-body');
+            const row = tbody?.children?.[index];
+            const active = document.activeElement;
+            return !!(row && active && typeof row.contains === 'function' && row.contains(active)
+                && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA'));
+        }
+
         function dsbRenderTable(changedIndices) {
             applyDatasetTrainingSaveFeedback();
             const tbody = document.getElementById('dsb-table-body');
 
-            // Full rebuild if no specific indices or row count changed
+            // Full rebuild, unless a live draft/focused control must survive it.
             if (!changedIndices || tbody.children.length !== dsbRows.length) {
-                tbody.innerHTML = dsbRows.map((row, i) => dsbBuildRowHtml(row, i)).join('');
-                dsbUpdateProgress();
-                return;
+                if (tbody.children.length === dsbRows.length
+                    && dsbRows.some((row, i) => dsbRowOwnsLiveControl(i))) {
+                    changedIndices = dsbRows.map((row, i) => i);
+                } else {
+                    tbody.innerHTML = dsbRows.map((row, i) => dsbBuildRowHtml(row, i)).join('');
+                    dsbUpdateProgress();
+                    return;
+                }
             }
 
             // Targeted update: only re-render changed rows
@@ -532,6 +638,17 @@
                 const oldStatus = existing.getAttribute('data-dsb-status');
                 const oldAudio = existing.getAttribute('data-dsb-audio');
                 if (oldStatus === (row.status || 'pending') && oldAudio === (row.audio_url || '')) { continue; }
+                if (dsbRowOwnsLiveControl(i)) {
+                    // Never detach a focused/dirty control: a native change on
+                    // detach would otherwise commit a stale visible value. The
+                    // draft keeps its original token; status/audio are refreshed
+                    // on the next render once the control is no longer live.
+                    if (typeof existing.setAttribute === 'function') {
+                        existing.setAttribute('data-dsb-status', row.status || 'pending');
+                        existing.setAttribute('data-dsb-audio', row.audio_url || '');
+                    }
+                    continue;
+                }
                 const temp = document.createElement('tbody');
                 temp.innerHTML = dsbBuildRowHtml(row, i);
                 existing.replaceWith(temp.firstElementChild);
@@ -656,10 +773,9 @@
             try {
                 const result = await API.post('/api/dataset_builder/generate_sample', request);
                 if (!isCurrent()) { return; }
-                if (!applyDatasetRowAck(name, index, result.row, result.row_revision)
-                    && /^[0-9a-f]{64}$/.test(result.row_revision || '') && tokens) {
-                    tokens[index] = result.row_revision;
-                }
+                // A token only advances with its authoritative visible row;
+                // never adopt it from a bare revision on an unrecognised ACK.
+                applyDatasetRowAck(name, index, result.row, result.row_revision);
                 dsbRows[index].status = 'done';
                 dsbRows[index].audio_url = result.audio_url;
             } catch (e) {
@@ -682,30 +798,48 @@
             const rootDesc = document.getElementById('dsb-description').value.trim();
             if (!name) { showToast(t('workbench.error.no-project', 'Select or create a project first.'), 'warning'); return; }
             if (!rootDesc) { showToast(t('workbench.error.no-root-description', 'Enter a root voice description first.'), 'warning'); return; }
+            if (!dsbRows.some(r => r.text.trim())) { showToast(t('workbench.batch.no-samples', 'Add at least one sample with text.'), 'warning'); return; }
 
-            const samples = dsbRows.filter(r => r.text.trim());
-            if (samples.length === 0) { showToast(t('workbench.batch.no-samples', 'Add at least one sample with text.'), 'warning'); return; }
+            const sequence = ++dsbBatchStartSequence;
+            dsbPendingStart = sequence;
+            applyDatasetBatchState(false, true);
 
+            // A pre-send flush refusal sent NO generation request. Keep the
+            // visible project intact and do not poll a forgiving status
+            // endpoint that would reconcile an empty list over these rows.
+            try {
+                await dsbSaveRowsQueue?.flush();
+                await dsbSaveMetaQueue?.flush();
+            } catch (error) {
+                if (dsbPendingStart === sequence) { dsbPendingStart = null; applyDatasetBatchState(false); }
+                _toastSaveError('rows', error);
+                return;
+            }
+            const release = () => {
+                if (dsbPendingStart === sequence) { dsbPendingStart = null; applyDatasetBatchState(false); }
+            };
+            if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name)
+                || dsbRows !== rows) { release(); return; }
+
+            // Select only AFTER the flush: metadata invalidation can make an
+            // all-done list eligible again, and skipping it used to submit
+            // nothing after the UI had already announced completion.
             const indices = regenAll
                 ? dsbRows.map((_, i) => i).filter(i => dsbRows[i].text.trim())
                 : dsbRows.map((r, i) => i).filter(i => dsbRows[i].text.trim() && dsbRows[i].status !== 'done');
+            if (indices.length === 0) { release(); showToast(t('workbench.batch.all-generated', 'All samples are already generated.'), 'warning'); return; }
+            if (regenAll && !await showConfirm(formatUiSafetyText('safety.workbench.batch.regenerate', 'Regenerate all {count} samples?', {count: indices.length}), {title: t('workbench.batch.regenerate.title', 'Replace all sample audio?'), actionLabel: t('workbench.batch.regenerate.action', 'Regenerate all'), danger: true})) { release(); return; }
+            if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name) || dsbRows !== rows) { release(); return; }
 
-            if (indices.length === 0) { showToast(t('workbench.batch.all-generated', 'All samples are already generated.'), 'warning'); return; }
-            if (regenAll && !await showConfirm(formatUiSafetyText('safety.workbench.batch.regenerate', 'Regenerate all {count} samples?', {count: indices.length}), {title: t('workbench.batch.regenerate.title', 'Replace all sample audio?'), actionLabel: t('workbench.batch.regenerate.action', 'Regenerate all'), danger: true})) { return; }
-            if (dsbBatchRunning || !isDatasetProjectSelected(name) || dsbRows !== rows) { return; }
             const seedInput = document.getElementById('dsb-global-seed');
             let globalSeed, perSeeds;
             try {
                 globalSeed = getDatasetSeed(seedInput.value);
                 perSeeds = dsbRows.map(row => getDatasetSeed(row.seed));
-            } catch (e) { showToast(e.message, 'error'); return; }
-            const sequence = ++dsbBatchStartSequence;
-            dsbPendingStart = sequence;
+            } catch (e) { release(); showToast(e.message, 'error'); return; }
             const previous = indices.map(index => ({ index, row: dsbRows[index], status: dsbRows[index].status }));
 
-            // Mark as generating
             indices.forEach(i => { dsbRows[i].status = 'generating'; });
-            applyDatasetBatchState(false, true);
             dsbRenderTable();
             document.getElementById('dsb-logs').style.display = '';
 
@@ -718,50 +852,29 @@
                 applyDatasetBatchState(false);
                 dsbRenderTable();
             };
+            const tokens = ensureDatasetRowSaveState(name).tokens;
+            const revisions = {};
+            let complete = true;
+            for (const index of indices) {
+                const revision = tokens?.[index];
+                if (/^[0-9a-f]{64}$/.test(revision || '')) { revisions[index] = revision; }
+                else { complete = false; }
+            }
+            const request = {
+                name,
+                description: rootDesc,
+                samples: dsbRows.map(r => {
+                    const definition = getDatasetRowDefinition(r);
+                    return { emotion: definition.emotion, text: definition.text };
+                }),
+                indices,
+                global_seed: globalSeed,
+                seeds: perSeeds,
+                expected_count: dsbRows.length,
+            };
+            if (complete) { request.expected_revisions = revisions; }
             try {
-                await dsbSaveRowsQueue?.flush();
-                await dsbSaveMetaQueue?.flush();
-                if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name)
-                    || dsbRows !== rows) { abort(); return; }
-                const current = dsbRows.map((_, index) => index).filter(index => dsbRows[index].text.trim()
-                    && (regenAll || dsbRows[index].status !== 'done'));
-                if (!current.length) { abort(); return; }
-                if (regenAll && current.join(',') !== indices.join(',')
-                    && !await showConfirm(formatUiSafetyText('safety.workbench.batch.regenerate', 'Regenerate all {count} samples?', {count: current.length}), {title: t('workbench.batch.regenerate.title', 'Replace all sample audio?'), actionLabel: t('workbench.batch.regenerate.action', 'Regenerate all'), danger: true})) { abort(); return; }
-                let currentGlobalSeed, currentPerSeeds;
-                try {
-                    currentGlobalSeed = getDatasetSeed(seedInput.value);
-                    currentPerSeeds = dsbRows.map(row => getDatasetSeed(row.seed));
-                } catch (e) { abort(); showToast(e.message, 'error'); return; }
-                current.forEach(index => {
-                    if (!previous.some(entry => entry.index === index)) {
-                        previous.push({ index, row: dsbRows[index], status: dsbRows[index].status });
-                    }
-                    dsbRows[index].status = 'generating';
-                });
-                const tokens = ensureDatasetRowSaveState(name).tokens;
-                const revisions = {};
-                let complete = true;
-                for (const index of current) {
-                    const revision = tokens?.[index];
-                    if (/^[0-9a-f]{64}$/.test(revision || '')) { revisions[index] = revision; }
-                    else { complete = false; }
-                }
-                const request = {
-                    name,
-                    description: rootDesc,
-                    samples: dsbRows.map(r => {
-                        const definition = getDatasetRowDefinition(r);
-                        return { emotion: definition.emotion, text: definition.text };
-                    }),
-                    indices: current,
-                    global_seed: currentGlobalSeed,
-                    seeds: currentPerSeeds,
-                    expected_count: dsbRows.length,
-                };
-                if (complete) { request.expected_revisions = revisions; }
                 await API.post('/api/dataset_builder/generate_batch', request);
-
                 if (sequence !== dsbBatchStartSequence || !isDatasetProjectSelected(name)) { return; }
                 dsbPendingStart = null;
                 applyDatasetBatchState(true);

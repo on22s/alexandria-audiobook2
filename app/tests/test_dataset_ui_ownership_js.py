@@ -112,10 +112,13 @@ context.API.post=async(url,body)=>{
  if(url.endsWith('edit_rows')){return {row_revisions:{0:b}};}
  throw Error(url);};
 context.dsbSaveForm();const meta=run('dsbSaveMetaQueue.flush()');await new Promise(resolve=>setImmediate(resolve));
-context.dsbUpdateRow(0,'text','draft');await run('dsbSaveRowsQueue.flush()');
-assert.strictEqual(run("ensureDatasetRowSaveState('A').tokens[0]"),b);
+context.dsbUpdateRow(0,'text','draft');
+// Metadata and row commits now share one serialized chain: resolve the
+// metadata ACK before the queued row commit, then require the newer row ACK
+// to win in the UI and in the next submitted token.
 giveMeta({samples:[{text:'old',emotion:'',seed:'',status:'pending'}],row_revisions:[a]});
-await meta;
+await meta;await run('dsbSaveRowsQueue.flush()');
+assert.strictEqual(run("ensureDatasetRowSaveState('A').tokens[0]"),b);
 assert.strictEqual(run('dsbRows[0].text'),'draft');
 assert.strictEqual(run("ensureDatasetRowSaveState('A').tokens[0]"),b);
 ''')

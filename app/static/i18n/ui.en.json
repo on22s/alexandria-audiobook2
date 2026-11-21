@@ -1681,6 +1681,7 @@
   "error.book.snapshot_busy": "Book or saved snapshot is busy; retry shortly.",
   "error.book.switch_other_process": "Cannot {operation} while another process owns a task. Wait for it to finish or cancel it.",
   "error.book.switch_tasks_running": "Cannot {operation} while tasks are running: {tasks}. Wait for them to finish or cancel them.",
+  "error.dataset.empty_generated_text": "Dataset row has no text to generate",
   "error.dataset.project_not_found": "Project not found",
   "error.dataset.revision_count_required": "Dataset generation needs an expected row count with revisions",
   "error.dataset.revision_map_incomplete": "Dataset generation needs a revision for every requested row",
