@@ -37,6 +37,30 @@ def get_saved_script_recovery_manifest(data_dir, manifest_path):
     return manifest
 
 
+def is_checkpoint_from_different_source(output_path, selected_source_sha256):
+    """True only when a paired checkpoint proves the run used another source.
+
+    An absent, unreadable or unproven checkpoint is not evidence of a different
+    source, so legacy runs stay conservative. Reading never repairs or resumes.
+    """
+    checkpoint_path = Path(three_pass_checkpoint_path(str(output_path)))
+    if not checkpoint_path.is_file():
+        return False
+    try:
+        checkpoint = safe_load_json(str(checkpoint_path), {})
+    except (OSError, RecursionError, UnicodeError, ValueError):
+        return False
+    if not isinstance(checkpoint, dict):
+        return False
+    fingerprint = checkpoint.get("fingerprint")
+    if not isinstance(fingerprint, dict):
+        return False
+    source_sha256 = fingerprint.get("source_sha256")
+    if not isinstance(source_sha256, str) or not isinstance(selected_source_sha256, str):
+        return False
+    return source_sha256 != selected_source_sha256
+
+
 def has_selected_source_checkpoint(data_dir, output_path, selected_source_sha256=None):
     """True when a loader-relevant active checkpoint may still be resumed.
 

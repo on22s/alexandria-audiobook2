@@ -2713,16 +2713,30 @@ def ensure_script_recovery_manifest():
         return get_script_recovery_manifest()
 
 
-def get_locked_recovery_fence():
-    """The single cast-change recovery decision, under the book/checkpoint guard.
+def _read_recovery_admission(include_failed=True):
+    """Caller holds the book/checkpoint guard: decide fence before failed work.
 
-    Callers outside an existing critical section use this so status, detail,
-    Retry, Skip and Inject all decide from the same snapshot. A worker checkpoint
-    precedes its manifest, so the decision never depends on a manifest existing.
-    Reading only: checkpoint, manifest and cast stay intact for inspection.
+    A worker checkpoint precedes its manifest, so an eligible manifest must not
+    short-circuit the cast-change decision. Returning the fence first keeps
+    summary, detail, Retry, Skip and Inject on the same Start Over action.
+    Metadata-only readers skip the failed-unit load so a corrupt checkpoint
+    cannot turn a summary into a refusal. Reading never repairs, resumes or
+    deletes checkpoint, manifest or cast.
+    """
+    fenced = get_fenced_recovery_status(DATA_DIR)
+    if fenced is not None:
+        return fenced, None
+    return None, (_load_failed_checkpoint(locked=True) if include_failed else None)
+
+
+def get_recovery_admission():
+    """The one book+checkpoint-locked admission decision for recovery readers.
+
+    Use outside an existing critical section so every surface decides from the
+    same snapshot, whether or not a manifest exists.
     """
     with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
-        return get_fenced_recovery_status(DATA_DIR)
+        return _read_recovery_admission()
 
 
 def completed_script_prefix(checkpoint):
@@ -3068,9 +3082,9 @@ async def generate_script(background_tasks: BackgroundTasks,
 def ensure_script_recovery_response(include_detail=False):
     """Read metadata and optional failed-unit detail under one book guard."""
     with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
-        # A fenced run may have only a worker checkpoint (no manifest yet), so
-        # the cast-change decision comes first and keeps its Start Over result.
-        fenced = get_fenced_recovery_status(DATA_DIR)
+        # The shared decision fences first, even when a manifest holds failed
+        # work, so summary and detail never disagree on the Start Over action.
+        fenced, failed = _read_recovery_admission(include_failed=include_detail)
         if fenced is not None:
             return fenced
         manifest = get_script_recovery_manifest()
@@ -3099,9 +3113,8 @@ def ensure_script_recovery_response(include_detail=False):
                     'book_token': get_book_operation_token(DATA_DIR),
                 }
         if include_detail:
-            checkpoint = _load_failed_checkpoint(locked=True)
-            response["detail"] = ({"recoverable": True, **build_recovery_detail(checkpoint)}
-                                  if checkpoint is not None else None)
+            response["detail"] = ({"recoverable": True, **build_recovery_detail(failed)}
+                                  if failed is not None else None)
         return response
 
 
@@ -3315,10 +3328,10 @@ class SkipChunkRequest(BaseModel):
 
 
 def _require_failed_unit(chunk):
-    checkpoint = ensure_failed_checkpoint()
+    fenced, checkpoint = get_recovery_admission()
+    if fenced is not None:
+        raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
     if checkpoint is None:
-        if get_locked_recovery_fence() is not None:
-            raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
         raise HTTPException(status_code=409,
                             detail="No failed generation unit is waiting for recovery.")
     failed = checkpoint["failed"]
@@ -3331,10 +3344,11 @@ def _require_failed_unit(chunk):
 @router.get("/api/generate_script/recovery/detail")
 async def generate_script_recovery_detail():
     """The failed chunk in full: attempts, source, prompt, retry profile."""
-    checkpoint = await asyncio.to_thread(ensure_failed_checkpoint)
+    fenced, checkpoint = await asyncio.to_thread(get_recovery_admission)
+    if fenced is not None:
+        return fenced
     if checkpoint is None:
-        fenced = await asyncio.to_thread(get_locked_recovery_fence)
-        return fenced if fenced is not None else {"recoverable": False}
+        return {"recoverable": False}
     return {"recoverable": True, **build_recovery_detail(checkpoint)}
 
 

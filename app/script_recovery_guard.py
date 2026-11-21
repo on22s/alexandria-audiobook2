@@ -7,7 +7,8 @@ generation route can use it without importing each other's heavier modules.
 from pathlib import Path
 
 from script_recovery_facts import (get_saved_script_recovery_manifest, has_selected_source_checkpoint,
-                                   has_selected_source_state, three_pass_manifest_path)
+                                   has_selected_source_state, is_checkpoint_from_different_source,
+                                   three_pass_manifest_path)
 from utils import safe_load_json
 
 RECOVERY_CAST_INVALIDATED = 'script_generation_roster_cast_invalidated'
@@ -64,13 +65,15 @@ def has_selected_source_recovery(root):
     """
     root = Path(root)
     script_path = root / SCRIPT_PATH_NAME
-    if get_saved_script_recovery_manifest(
-            str(root), three_pass_manifest_path(str(script_path))) is not None:
+    selected_source_sha256 = _get_prepared_text_sha256(root)
+    if (get_saved_script_recovery_manifest(
+            str(root), three_pass_manifest_path(str(script_path))) is not None
+            and not is_checkpoint_from_different_source(str(script_path), selected_source_sha256)):
         return True
     if not has_selected_source_state(str(root)):
         return False
     return has_selected_source_checkpoint(
-        str(root), str(script_path), _get_prepared_text_sha256(root))
+        str(root), str(script_path), selected_source_sha256)
 
 
 def get_fenced_recovery_status(root):

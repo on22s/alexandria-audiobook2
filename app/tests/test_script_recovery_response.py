@@ -227,6 +227,9 @@ const handler=source.slice(source.indexOf('async function refreshScriptRecovery(
   assert(toasts[0][0].includes('approved cast changed'));
   assert(panel.innerHTML.includes('Start over'));
   assert(panel.innerHTML.includes('btn-gen-script-fresh'));
+  assert(panel.innerHTML.includes('role="status"'));
+  assert(panel.innerHTML.includes('aria-live="polite"'));
+  assert(panel.innerHTML.includes('<button type="button"'));
   assert(!panel.innerHTML.includes('<img'));
   if(withDetail){assert(panel.innerHTML.includes(serverDetail));}
  }

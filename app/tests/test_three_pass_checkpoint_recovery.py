@@ -194,7 +194,11 @@ class CheckpointShapeTests(unittest.TestCase):
                             tp.run_three_pass(None, 'fixture', 'Target.', params, 3000, output_path=output)
                         segment.assert_not_called(); attribute.assert_not_called(); instruct.assert_not_called()
                     self.assertEqual(raw, path.read_text())
-                    self.assertEqual([path], list(Path(tmp).iterdir()))
+                    # The loader's shared file lock leaves its sibling .lock
+                    # descriptor by design; no other artifact may appear and
+                    # the rejected checkpoint stays byte-for-byte intact.
+                    self.assertEqual([path], [entry for entry in Path(tmp).iterdir()
+                                              if entry.name != path.name + '.lock'])
 
     def test_loader_rejects_matching_schema_errors_before_returning_state(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -3529,11 +3529,13 @@
             showToast(explanation, 'warning', 12000);
             panel.style.display = '';
             panel.innerHTML = `
-                <div class="card-header"><strong>${escapeHtml(t('script.recovery.cast-changed-title', 'Approved cast changed'))}</strong></div>
-                <div class="card-body">
-                    <p>${escapeHtml(explanation)}</p>
-                    <p class="small text-muted">${escapeHtml(t('script.recovery.cast-changed-guidance', 'Your checkpoint, manifest and cast were preserved. Use Start over to generate again with the approved cast.'))}</p>
-                    <button type="button" class="btn btn-outline-warning" onclick="document.getElementById('btn-gen-script-fresh').click()"><i class="fas fa-undo me-1"></i>${escapeHtml(t('script.recovery.cast-changed-start-over', 'Start over'))}</button>
+                <div role="status" aria-live="polite" aria-atomic="true">
+                    <div class="card-header"><strong>${escapeHtml(t('script.recovery.cast-changed-title', 'Approved cast changed'))}</strong></div>
+                    <div class="card-body">
+                        <p>${escapeHtml(explanation)}</p>
+                        <p class="small text-muted">${escapeHtml(t('script.recovery.cast-changed-guidance', 'Your checkpoint, manifest and cast were preserved. Use Start over to generate again with the approved cast.'))}</p>
+                        <button type="button" class="btn btn-outline-warning" onclick="document.getElementById('btn-gen-script-fresh').click()"><i class="fas fa-undo me-1" aria-hidden="true"></i>${escapeHtml(t('script.recovery.cast-changed-start-over', 'Start over'))}</button>
+                    </div>
                 </div>`;
         }
 

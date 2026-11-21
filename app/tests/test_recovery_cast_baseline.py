@@ -187,6 +187,33 @@ class RecoveryCastBaselineTests(unittest.TestCase):
             self.assertEqual(before,
                              {path: path.read_bytes() if path.exists() else None for path in pair})
 
+    def test_manifest_backed_fence_surfaces_identical_guidance_everywhere(self):
+        with self.fixture() as (root, script_path, source, scheduled):
+            checkpoint = Path(three_pass_checkpoint_path(str(script_path)))
+            manifest = Path(three_pass_manifest_path(str(script_path)))
+            self.assertTrue(manifest.is_file())
+            self._fence(root, 'c' * 64)
+            before = {path: path.read_bytes() if path.exists() else None
+                      for path in (checkpoint, manifest, Path(script.get_run_cast_path()))}
+            expected = get_recovery_fence_status()
+            # A manifest holding failed work must not let any surface answer
+            # "recoverable" or validate semantic data while the run is fenced.
+            self.assertEqual(expected, script.ensure_script_recovery_response())
+            self.assertEqual(expected, script.ensure_script_recovery_response(include_detail=True))
+            self.assertEqual(expected, asyncio.run(script.generate_script_recovery_detail()))
+            for act in (lambda: script.apply_manual_recovery([], 'skip'),
+                        lambda: script.apply_manual_recovery([], 'inject')):
+                with self.assertRaises(HTTPException) as caught:
+                    act()
+                self.assertEqual(409, caught.exception.status_code)
+                self.assertEqual(RECOVERY_CAST_INVALIDATED_DETAIL, caught.exception.detail)
+            with self.assertRaises(HTTPException) as caught:
+                self._attempt_retry(root, source)
+            self.assertEqual(RECOVERY_CAST_INVALIDATED_DETAIL, caught.exception.detail)
+            self.assertEqual([], scheduled)
+            self.assertEqual(before, {path: path.read_bytes() if path.exists() else None
+                                      for path in before})
+
     def test_prepared_source_bytes_keep_the_cast_change_recovery_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -246,6 +273,60 @@ class RecoveryCastBaselineTests(unittest.TestCase):
             state['script_generation_selection'] = {'source_sha256': 'e' * 64}
             atomic_json_write(state, root / 'state.json')
             self.assertIsNone(get_stale_recovery_state(str(root), 'b' * 64))
+
+    def test_manifest_with_proven_different_source_stays_unfenced(self):
+        with self.fixture() as (root, script_path, source, scheduled):
+            checkpoint, manifest = self._write_worker_first_checkpoint(script_path)
+            # Keep an eligible manifest in place: it must no longer short-circuit
+            # the paired checkpoint's prepared-source evidence.
+            atomic_json_write({'status': 'failed', 'diagnostic_failures': []}, manifest)
+            fingerprint = three_pass_fingerprint(SOURCE, 'fixture-model', 1000)
+            fingerprint['source_sha256'] = 'f' * 64
+            _save_three_pass_checkpoint(
+                str(script_path), fingerprint, 'segment',
+                [{'type': 'NARRATOR', 'text': 'Chapter one.'}], 1, [], [])
+            state = json.loads((root / 'state.json').read_text())
+            state['script_generation_selection'] = {'source_sha256': 'e' * 64}
+            atomic_json_write(state, root / 'state.json')
+            before = {path: path.read_bytes() for path in (checkpoint, manifest)}
+            self.assertIsNone(get_stale_recovery_state(str(root), 'b' * 64))
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+
+    def test_manifest_backed_prepared_source_bytes_keep_the_recovery_fence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script_path = Path(_write_failed_run(tmp))
+            source = root / 'book.txt'
+            raw = ('Publisher front matter\r\n\r\n'
+                   + SOURCE.replace('\n', '\r\n')).encode('utf-8')
+            source.write_bytes(raw)
+            state = json.loads((root / 'state.json').read_text())
+            state['input_file_path'] = str(source)
+            state['script_generation_input_file'] = str(source)
+            state['script_generation_options'] = {'strip_front_matter': True}
+            atomic_json_write(state, root / 'state.json')
+            from merge_integrity import get_prepared_source
+            from project_scope_source import get_scope_source_snapshot
+            from source_encoding import get_decoded_source_text, get_normalized_source_newlines
+            snapshot, prepared = get_scope_source_snapshot(state)
+            decoded, _encoding = get_decoded_source_text(raw)
+            worker_text = get_prepared_source(get_normalized_source_newlines(decoded), True)
+            self.assertEqual(hashlib.sha256(worker_text.encode('utf-8')).hexdigest(),
+                             snapshot['prepared_text_sha256'])
+            checkpoint = Path(three_pass_checkpoint_path(str(script_path)))
+            manifest = Path(three_pass_manifest_path(str(script_path)))
+            checkpoint.unlink(missing_ok=True)
+            _save_three_pass_checkpoint(
+                str(script_path), three_pass_fingerprint(prepared, 'fixture-model', 1000),
+                'segment', [{'type': 'NARRATOR', 'text': 'Chapter one.'}], 1, [], [])
+            state['script_generation_selection'] = {'source_sha256': hashlib.sha256(raw).hexdigest()}
+            atomic_json_write(state, root / 'state.json')
+            before = {path: path.read_bytes() for path in (checkpoint, manifest)}
+            flagged = get_stale_recovery_state(str(root), 'a' * 64)
+            self.assertIsNotNone(flagged)
+            self.assertEqual('a' * 64,
+                             flagged[RECOVERY_CAST_INVALIDATED]['approved_cast_sha256'])
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
 
     def test_recovery_get_retry_skip_and_inject_all_report_the_fence(self):
         with self.fixture() as (root, script_path, source, scheduled):
