@@ -25,7 +25,7 @@ from copy import deepcopy
 from urllib.parse import urlparse
 
 from utils import run_rocm_smi_json
-from lmstudio_endpoint import get_lmstudio_endpoint_status
+from lmstudio_endpoint import get_lmstudio_endpoint_status, open_no_redirect
 
 IDEAL_SETTINGS = {"context_length": 8192, "parallel": 1, "gpu": "max"}
 DEFAULT_SETTINGS = {"context_length": 4096, "parallel": 4, "gpu": "max"}
@@ -867,11 +867,21 @@ def apply_remote_lmstudio_settings(ssh_alias, model_name, ideal=True, port=1234)
     return True, f"Reloaded {model_name} on '{ssh_alias}' with {label} settings"
 
 
-# /props probe misses, keyed by server root: see get_llama_cpp_status.
+# /props probe misses, scoped to origin + effective credential: a server that
+# answers one profile may refuse another, and the digest must never be the
+# credential itself. See get_llama_cpp_status.
 PROPS_MISS_TTL_SECONDS = 600
 PROPS_MAX_BYTES = 1 << 20
 _props_miss = {}
 _props_miss_lock = threading.Lock()
+
+
+def _props_miss_key(origin, api_key=None, authorization=None):
+    """One cache scope per origin and wire Authorization, never plaintext."""
+    credential = (authorization if authorization else
+                  (f'Bearer {api_key}' if api_key else None))
+    digest = hashlib.sha256(repr((type(credential).__name__, credential)).encode()).hexdigest()
+    return (origin, digest)
 
 
 def get_llama_cpp_status(base_url, model_name, timeout=5, api_key=None, authorization=None):
@@ -906,8 +916,9 @@ def get_llama_cpp_status(base_url, model_name, timeout=5, api_key=None, authoriz
     # gateway every poll was a fresh GET /props answered 404 - hundreds in a
     # row in one user's proxy log (2026-09-17). Remember the miss per URL for
     # a while instead of asking again on every poll.
+    miss_key = _props_miss_key(root, api_key, authorization)
     with _props_miss_lock:
-        missed_at = _props_miss.get(root)
+        missed_at = _props_miss.get(miss_key)
     if missed_at is not None and time.monotonic() - missed_at < PROPS_MISS_TTL_SECONDS:
         return None
     # Same credential precedence as the LM Studio endpoint probe: an explicit
@@ -918,9 +929,8 @@ def get_llama_cpp_status(base_url, model_name, timeout=5, api_key=None, authoriz
     elif api_key:
         headers['Authorization'] = 'Bearer ' + api_key
     try:
-        props_request = (urllib.request.Request(root + "/props", headers=headers)
-                         if headers else root + "/props")
-        with urllib.request.urlopen(props_request, timeout=timeout) as response:
+        props_request = urllib.request.Request(root + "/props", headers=headers)
+        with open_no_redirect(props_request, timeout=timeout) as response:
             payload = response.read(PROPS_MAX_BYTES + 1)
             if len(payload) > PROPS_MAX_BYTES:
                 return None
@@ -930,16 +940,16 @@ def get_llama_cpp_status(base_url, model_name, timeout=5, api_key=None, authoriz
         # failure or gateway outage. Those do not identify the runtime.
         if exc.code in (404, 405, 501):
             with _props_miss_lock:
-                _props_miss[root] = time.monotonic()
+                _props_miss[miss_key] = time.monotonic()
         return None
     except Exception:                                       # noqa: BLE001
         return None
     if not isinstance(props, dict) or "default_generation_settings" not in props:
         with _props_miss_lock:
-            _props_miss[root] = time.monotonic()
+            _props_miss[miss_key] = time.monotonic()
         return None
     with _props_miss_lock:
-        _props_miss.pop(root, None)
+        _props_miss.pop(miss_key, None)
 
     generation = props.get("default_generation_settings") or {}
     context = generation.get("n_ctx")
@@ -1024,8 +1034,18 @@ def get_lmstudio_management_binding(base_url, ssh_alias=None):
         return False, None, "CLI management binding could not be verified"
 
 
+def get_manual_runtime_status(llm_config):
+    """Declared-limit serial status for Manual transport, with no HTTP at all."""
+    from llm_request_budget import get_request_limits
+    limits = get_request_limits(llm_config or {})
+    return {"runtime": "manual", "available": False, "loaded": False,
+            "context_length": limits.get("context_length"), "parallel": 1,
+            "optimized": None, "management_verified": False,
+            "management_reason": "Manual transport has no runtime to configure"}
+
+
 def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache=False, api_key=None,
-                       cache_local=False, authorization=None):
+                       cache_local=False, authorization=None, llm_config=None):
     """Read runtime without reloads; cache_local opts the UI into bounded caching.
 
     Existing local worker reads stay live even when use_cache=True. An explicit
@@ -1033,6 +1053,8 @@ def get_current_status(llm_mode, base_url, model_name, ssh_alias=None, use_cache
     by the native endpoint probe (a profile may authenticate by header rather
     than by api_key).
     """
+    if (llm_config or {}).get("transport") == "manual":
+        return get_manual_runtime_status(llm_config)
     remote = is_remote_llm(llm_mode, base_url)
     if use_cache and (remote or cache_local):
         return get_runtime_status_cached(llm_mode, base_url, ssh_alias, model_name,
@@ -1127,7 +1149,7 @@ def get_planned_request_context(config):
 
 
 def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_key=None,
-                          authorization=None):
+                          authorization=None, llm_config=None):
     """Self-heal LM Studio's load settings (local or remote) toward the ideal
     config (VRAM-safe locally, large-context remotely), then return the FRESH
     post-heal status so callers can size chunking/context decisions and the
@@ -1140,6 +1162,10 @@ def ensure_ideal_settings(llm_mode, base_url, model_name, ssh_alias=None, api_ke
     {available, loaded, context_length, parallel, optimized} shape. Never
     raises - every call it makes is itself best-effort/non-raising.
     """
+    if (llm_config or {}).get("transport") == "manual":
+        return (False, get_manual_runtime_status(llm_config),
+                "Manual transport: serial execution with declared limits; no runtime to configure.")
+
     is_remote = is_remote_llm(llm_mode, base_url)
 
     initial_status = get_current_status(

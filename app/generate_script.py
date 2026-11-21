@@ -2398,7 +2398,7 @@ def main():
     # here - is_remote/lm_status aren't needed for anything else in this file.
     _, lm_status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key,
-        authorization=get_effective_authorization(llm_config))
+        authorization=get_effective_authorization(llm_config), llm_config=llm_config)
     print(heal_msg)
 
     # Create OpenAI client with custom base URL

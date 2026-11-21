@@ -66,7 +66,7 @@ def run_manifest(manifest, output_path, limit=None):
         _, status, heal_message = ensure_ideal_settings(
             config.get("llm_mode", "local"), base_url, model,
             ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"),
-            authorization=get_effective_authorization(llm))
+            authorization=get_effective_authorization(llm), llm_config=llm)
         adapter_ok, adapter_message = check_adapter(config, base_url)
         adapter_evidence = {"expected": describe(config), "verified": adapter_ok,
                             "message": adapter_message}

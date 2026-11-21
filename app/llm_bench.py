@@ -281,7 +281,7 @@ def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, mo
         status = lmstudio_settings.get_current_status(
             llm_mode, base_url, model_name, ssh_alias=ssh_alias,
             api_key=credentials.get("api_key"),
-            authorization=get_effective_authorization(credentials))
+            authorization=get_effective_authorization(credentials), llm_config=credentials)
     server_parallel = status.get("parallel") if status.get("available") else None
     effective_max = max(1, min(max_concurrency, server_parallel)) if server_parallel else max(1, max_concurrency)
     if not status.get("available"):

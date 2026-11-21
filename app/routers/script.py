@@ -4792,7 +4792,7 @@ async def generate_script_batch_start(request: BatchScriptRequest, background_ta
             _, _, settings_message = ensure_ideal_settings(
                 config.get("llm_mode", "local"), llm.get("base_url", ""),
                 llm.get("model_name", ""), config.get("llm_remote_ssh"), api_key=llm.get("api_key"),
-                authorization=get_effective_authorization(llm))
+                authorization=get_effective_authorization(llm), llm_config=llm)
             state["logs"].append(f"Batch LM Studio preflight: {settings_message}")
             workers, worst, context = _get_batch_script_workers(jobs)
             state["workers"] = workers
@@ -5109,7 +5109,7 @@ def start_delivery_retry(background_tasks, request):
             _, status, message = ensure_ideal_settings(
                 config.get("llm_mode", "local"), llm.get("base_url", "http://localhost:1234/v1"),
                 model, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"),
-                authorization=get_effective_authorization(llm))
+                authorization=get_effective_authorization(llm), llm_config=llm)
             state["logs"].append(message)
             check_cancel()
             generation_settings = resolve_three_pass_generation_settings(config)

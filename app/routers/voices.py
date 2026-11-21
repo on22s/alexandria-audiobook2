@@ -2570,7 +2570,7 @@ def _suggest_voices_impl(request: SuggestVoicesRequest):
             full_cfg.get("llm_mode", "local"), llm_cfg.get("base_url", ""),
             model_name, (full_cfg.get("llm_remote_ssh") or "").strip(),
             use_cache=True, api_key=llm_cfg.get("api_key"),
-            authorization=get_effective_authorization(llm_cfg))
+            authorization=get_effective_authorization(llm_cfg), llm_config=llm_cfg)
         for start in range(0, len(character_items), 2):
             batch = character_items[start:start + 2]
             char_block = "\n\n".join(

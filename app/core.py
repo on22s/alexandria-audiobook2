@@ -2440,7 +2440,7 @@ def _llm_summarize_report(markdown_body: str) -> Optional[str]:
             full_cfg.get("llm_mode", "local"), llm_cfg.get("base_url", ""),
             model_name, (full_cfg.get("llm_remote_ssh") or "").strip(), use_cache=True,
             api_key=llm_cfg.get("api_key"),
-            authorization=get_effective_authorization(llm_cfg))
+            authorization=get_effective_authorization(llm_cfg), llm_config=llm_cfg)
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,

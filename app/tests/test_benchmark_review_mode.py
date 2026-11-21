@@ -485,6 +485,17 @@ class ThunderLegacyReportResumeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'environment changed'):
                 core.load_resumable_benchmark_report(path, manifest, keyless_environment)
 
+    def test_ambiguous_authorization_headers_refuse_thunder_legacy_resume(self):
+        for headers in ({'Authorization': ''},
+                        {'authorization': 'Token first-fixture',
+                         'AUTHORIZATION': 'Token first-fixture'}):
+            with self.subTest(headers=headers):
+                config = get_config(True)
+                config['llm_remote']['provider_headers'] = headers
+                _, environment = self._case(config)
+                self.assertNotIn('legacy_sha256', environment,
+                                 'an unverifiable historical wire identity must not be offered')
+
     def test_explicit_header_over_unused_key_compares_effective_authorization(self):
         config = get_config(True)
         config['llm_remote']['api_key'] = 'sk-unused-fixture'

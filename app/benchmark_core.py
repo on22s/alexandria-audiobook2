@@ -169,8 +169,11 @@ def get_benchmark_execution_environment(manifest, environment, config):
     if target == "thunder" and stage in {"script_generation", "script_review",
                                          "persona_generation", "nickname_detection"}:
         from llm_provider import (get_effective_authorization, get_explicit_authorization,
+                                  is_authorization_header_unambiguous,
                                   resolve_historical_api_key)
         public = get_benchmark_llm_config(config, target)
+        if not is_authorization_header_unambiguous(public):
+            return result
         historical_key = resolve_historical_api_key(public.get("api_key", "local"))
         # Older reports fingerprinted the public profile while the worker has
         # always dispatched against the rewritten loopback URL. What matters is

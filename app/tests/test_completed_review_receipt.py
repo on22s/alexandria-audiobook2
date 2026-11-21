@@ -337,6 +337,36 @@ class LegacyReceiptContextTests(unittest.TestCase):
         self.assertIsNotNone(explicit_legacy,
                              'an explicit header keeps dispatch equivalent across eras')
 
+    def test_blank_or_ambiguous_authorization_refuses_legacy_matching(self):
+        from types import SimpleNamespace
+        from generate_script import LLMGenParams
+        import review_script as review
+        params = LLMGenParams(system_prompt='sys', user_prompt_template='{batch}')
+        args = SimpleNamespace(context_window=0, dedupe_speakers=False,
+                               alias_registry=None, remap_voice_config=None)
+        headers_cases = (
+            {'Authorization': ''},
+            {'authorization': 'Token first-fixture', 'AUTHORIZATION': 'Token first-fixture'},
+        )
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+            for headers in headers_cases:
+                with self.subTest(headers=headers):
+                    profile = {'transport': 'manual', 'api_key': '',
+                               'base_url': 'https://hosted.invalid/v1',
+                               'model_name': 'fixture', 'provider_headers': headers}
+                    config = {'generation': {'review_batch_size': 2},
+                              'llm_mode': 'local', 'llm_local': profile}
+                    self.assertIsNone(review.get_legacy_review_fingerprint(
+                        config, profile, params, args, object(), 'fixture'),
+                        'a historical header that could change the wire must refuse')
+            clean = {'transport': 'manual', 'api_key': '',
+                     'base_url': 'https://hosted.invalid/v1', 'model_name': 'fixture',
+                     'provider_headers': {'Authorization': 'Token configured-fixture'}}
+            config = {'generation': {'review_batch_size': 2},
+                      'llm_mode': 'local', 'llm_local': clean}
+            self.assertIsNotNone(review.get_legacy_review_fingerprint(
+                config, clean, params, args, object(), 'fixture'))
+
     def test_pre_pr_manual_checkpoint_with_offset_resumes_only_with_legacy_digest(self):
         import review_script as review
         review, config, primary, params, args = self._case()

@@ -29,7 +29,7 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
         stack.enter_context(patch.object(runner, 'load_app_config', return_value=config))
         heal = stack.enter_context(patch.object(runner, 'ensure_ideal_settings', return_value=(False, {}, 'ready')))
         adapter = stack.enter_context(patch.object(runner, 'check_adapter', return_value=(True, 'verified')))
-        provider = stack.enter_context(patch.object(runner, 'OpenAI'))
+        provider = stack.enter_context(patch.object(runner, 'make_llm_client'))
         process = stack.enter_context(patch.object(runner, 'process_chunk', return_value=[{
             'speaker': 'NARRATOR', 'text': text, 'instruct': 'neutral'}]))
         return lock, manifest, config, heal, adapter, provider, process
@@ -141,7 +141,9 @@ class CorpusOwnershipTests(fixtures.OwnedCorpusFixture):
                 config['llm_local']['base_url'] = url
                 before = copy.deepcopy(config);output = root/'report.json'
                 report = runner.run_manifest(manifest,str(output))
-                self.assertEqual(url,provider.call_args.kwargs['base_url'])
+                self.assertEqual(before['llm_local'],provider.call_args.args[0],
+                                 'the canonical client must receive the bound active profile')
+                self.assertEqual(url,provider.call_args.args[0]['base_url'])
                 self.assertEqual(before,config)
                 self.assertNotIn('fixture-user',output.read_text())
                 self.assertNotIn('fixture-password',output.read_text())

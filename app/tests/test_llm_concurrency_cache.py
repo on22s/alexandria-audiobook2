@@ -233,9 +233,13 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
                     str(path), "remote", "http://remote:1234/v1", "model",
                     object(), ssh_alias="test-host")
             self.assertEqual(2, got)
-            status.assert_called_once_with("remote", "http://remote:1234/v1", "model",
-                ssh_alias="test-host", api_key="sk-unused-fixture",
-                authorization="Token configured-fixture")
+            status.assert_called_once()
+            probe = status.call_args.kwargs
+            self.assertEqual("sk-unused-fixture", probe["api_key"])
+            self.assertEqual("Token configured-fixture", probe["authorization"])
+            self.assertEqual("Token configured-fixture",
+                llm_bench.get_effective_authorization(probe["llm_config"]),
+                "the cached probe must still use the bound profile's credential")
             bench.assert_not_called()
 
     def test_status_credentials_follow_the_bound_run_profile(self):
@@ -268,7 +272,7 @@ class LlmConcurrencyCacheTests(unittest.TestCase):
             self.assertEqual(2, got)
             status.assert_called_once_with("remote", "http://remote:1234/v1", "model",
                 ssh_alias="test-host", api_key="sk-unused-fixture",
-                authorization="Token bound-fixture")
+                authorization="Token bound-fixture", llm_config=bound)
             bench.assert_not_called()
 
     def test_cache_miss_still_benchmarks_with_both_limits_and_persists_result(self):

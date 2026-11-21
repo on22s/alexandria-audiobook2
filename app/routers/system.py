@@ -692,7 +692,7 @@ async def lmstudio_status():
     status = dict(await asyncio.to_thread(
         get_current_status, llm_mode, base_url, model_name, ssh_alias,
         use_cache=True, api_key=llm_cfg.get("api_key"), cache_local=True,
-        authorization=get_effective_authorization(llm_cfg),
+        authorization=get_effective_authorization(llm_cfg), llm_config=llm_cfg,
     ))
     status["model"] = model_name
     if is_remote_llm(llm_mode, base_url):
@@ -761,7 +761,7 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
         status = dict(get_current_status(full_cfg.get("llm_mode", "local"),
             cfg.get("base_url", ""), model_name,
             (full_cfg.get("llm_remote_ssh") or "").strip(), api_key=cfg.get("api_key"),
-            authorization=get_effective_authorization(cfg)))
+            authorization=get_effective_authorization(cfg), llm_config=cfg))
         if (not status.get("management_verified") or not status.get("loaded")
                 or status.get("optimized") is not req.enable):
             raise HTTPException(status_code=502, detail="CLI reported reload, but fresh endpoint status did not verify the requested settings")
@@ -775,7 +775,7 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
         ownership = get_current_status(full_cfg.get("llm_mode", "local"),
             cfg.get("base_url", ""), model_name,
             (full_cfg.get("llm_remote_ssh") or "").strip(), api_key=cfg.get("api_key"),
-            authorization=get_effective_authorization(cfg))
+            authorization=get_effective_authorization(cfg), llm_config=cfg)
         if not ownership.get("management_verified"):
             raise HTTPException(status_code=400, detail="Settings were not applied: " + ownership.get(
                 "management_reason", "endpoint management ownership is unverified"))

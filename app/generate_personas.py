@@ -1616,7 +1616,7 @@ def main():
     # call applies here.
     _, lm_status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key,
-        authorization=get_effective_authorization(llm_cfg))
+        authorization=get_effective_authorization(llm_cfg), llm_config=llm_cfg)
     print(heal_msg)
 
     client = make_run_client(config, llm_cfg, llm_timeout_seconds())

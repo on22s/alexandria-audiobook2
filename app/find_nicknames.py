@@ -474,7 +474,7 @@ def main():
     # was disconnected from whatever was really loaded.
     _, status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"),
-        authorization=get_effective_authorization(llm))
+        authorization=get_effective_authorization(llm), llm_config=llm)
     print(heal_msg)
     client = make_run_client(config, llm, llm_timeout_seconds())
 

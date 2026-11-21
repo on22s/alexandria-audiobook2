@@ -35,8 +35,8 @@ from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config, get_review_labels_only
 from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
                           get_run_fingerprint_identity, get_effective_authorization,
-                          get_explicit_authorization, resolve_client_api_key,
-                          resolve_historical_api_key)
+                          get_explicit_authorization, is_authorization_header_unambiguous,
+                          resolve_client_api_key, resolve_historical_api_key)
 from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SPAN_ALGORITHM_VERSION,
     get_review_entries_fingerprint, get_review_sidecar_identity, get_completed_review_match,
     get_review_progress_paths, get_review_receipt_path, save_completed_review_receipt,
@@ -438,6 +438,8 @@ def _legacy_dispatch_is_equivalent(profile):
     run's client flag.
     """
     profile = profile or {}
+    if not is_authorization_header_unambiguous(profile):
+        return False
     if profile.get("transport") == "manual":
         return True
     try:
@@ -2418,7 +2420,7 @@ def main():
     startup_event('model_setup_started')
     is_remote, lm_status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key,
-        authorization=get_effective_authorization(llm_config))
+        authorization=get_effective_authorization(llm_config), llm_config=llm_config)
     print(heal_msg)
     from llm_request_budget import get_request_limits
     limits = get_request_limits(llm_config, lm_status.get("context_length"))
@@ -2516,7 +2518,8 @@ def main():
     # apply_remote_lmstudio_settings intentionally doesn't pin a TTL).
     pre_review_status = get_current_status(llm_mode, base_url, model_name,
                                             ssh_alias=config.get("llm_remote_ssh"), api_key=api_key,
-                                            authorization=get_effective_authorization(llm_config))
+                                            authorization=get_effective_authorization(llm_config),
+                                            llm_config=llm_config)
     if pre_review_status["loaded"] and not pre_review_status["optimized"]:
         label = "Remote LM Studio" if is_remote else "LM Studio"
         print(f"WARNING: {label} model '{model_name}' is loaded but NOT optimized.")

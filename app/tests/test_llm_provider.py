@@ -568,6 +568,15 @@ class CredentialProfilePolicyTests(unittest.TestCase):
                 self.assertNotIn("sk-unused-fixture", str(seen))
                 self.assertNotIn("sk-env-fixture", str(seen))
 
+    def test_manual_profile_has_no_wire_credential(self):
+        profile = {'transport': 'manual', 'base_url': 'https://hosted.invalid/v1',
+                   'api_key': 'sk-retained-fixture',
+                   'provider_headers': {'Authorization': 'Token retained-fixture'},
+                   'model_name': 'fixture'}
+        self.assertIsNone(llm_provider.get_effective_authorization(profile),
+                          'Manual sends no HTTP, so retained URL and headers are inert')
+        self.assertEqual('manual', resolve_client_api_key(profile))
+
     def test_authorization_case_variants_share_one_canonical_header(self):
         seen, clients = [], []
 

@@ -143,6 +143,24 @@ def _raw_authorization_headers(llm_config):
             if str(name).lower() == "authorization" and str(value).strip()]
 
 
+def is_authorization_header_unambiguous(llm_config):
+    """True when header presence and spelling cannot change the wire identity.
+
+    Historical transports sent the raw header mapping. A present-but-empty
+    Authorization or two case spellings of the name may therefore have produced
+    a different request than today's single canonical header, so such profiles
+    cannot prove an unchanged dispatch for legacy receipt/report matching.
+    """
+    headers = (llm_config or {}).get("provider_headers") or {}
+    names = [name for name in headers if str(name).lower() == "authorization"]
+    if len(names) > 1:
+        return False
+    if not names:
+        return True
+    value = headers[names[0]]
+    return isinstance(value, str) and bool(value.strip())
+
+
 def get_explicit_authorization(llm_config):
     """The one configured Authorization header value (names case-insensitive).
 
@@ -195,8 +213,13 @@ def get_effective_authorization(llm_config):
 
     One answer for the SDK, the native runtime probe and the adapter probe: an
     explicit header wins verbatim; otherwise the effective SDK key is sent as a
-    bearer. Never store this in a receipt or fingerprint - it is a credential.
+    bearer. Manual sends no HTTP at all, so it has no wire credential even when
+    a retained URL or headers remain in the profile. Never store this in a
+    receipt or fingerprint - it is a credential.
     """
+    llm_config = llm_config or {}
+    if llm_config.get("transport") == "manual":
+        return None
     explicit = get_explicit_authorization(llm_config)
     if explicit is not None:
         return explicit

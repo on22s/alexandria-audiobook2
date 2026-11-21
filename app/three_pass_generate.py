@@ -4313,7 +4313,7 @@ def main():
     # fresh `lms unload` leaves no model loaded and every call 400s.
     _, lm_status, heal_msg = ensure_ideal_settings(
         llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=llm.get("api_key"),
-        authorization=get_effective_authorization(llm))
+        authorization=get_effective_authorization(llm), llm_config=llm)
     print(heal_msg)
     params = get_three_pass_run_params(config, lm_status, args.reasoning_effort, generation_settings)
     params.literal_source_preserving = args.literal_source_preserving

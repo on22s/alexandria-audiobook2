@@ -10,6 +10,15 @@ class _NoNativeRedirects(HTTPRedirectHandler):
         return None
 
 
+def open_no_redirect(request, timeout=5):
+    """Open a probe request without following redirects.
+
+    A redirect must never carry an Authorization header to another origin, so
+    native and llama.cpp probes share this opener rather than each deciding.
+    """
+    return build_opener(_NoNativeRedirects()).open(request, timeout=timeout)
+
+
 def get_native_model_status(document, model_name, version):
     if not isinstance(document, dict):
         return None
@@ -74,12 +83,12 @@ def get_lmstudio_endpoint_status(base_url, model_name, api_key=None, timeout=5, 
             headers['Authorization'] = authorization
         elif api_key:
             headers['Authorization'] = 'Bearer ' + api_key
-        opener = build_opener(_NoNativeRedirects())
         for version in (1, 0):
             endpoint = urlunsplit((url.scheme, url.netloc,
                                    path + '/api/v%d/models' % version, '', ''))
             try:
-                with opener.open(Request(endpoint, headers=headers), timeout=timeout) as response:
+                with open_no_redirect(Request(endpoint, headers=headers),
+                                      timeout=timeout) as response:
                     document = json.loads(response.read())
             except HTTPError as exc:
                 if version == 1 and exc.code in (404, 405):
