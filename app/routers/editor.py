@@ -559,27 +559,40 @@ CHUNK_SNAPSHOT_CONFLICT_DETAIL = (
 )
 
 
+def _read_export_rows_locked():
+    _ensure_editor_selection()
+    try:
+        return project_manager.read_saved_chunk_rows()
+    except FileNotFoundError:
+        return []
+
+
 def _require_export_chunks():
     """Request-time export admission: refuse before a worker is enqueued.
 
-    Read the saved rows only. The mutating loader would regenerate/backfill a
-    corrupt or absent snapshot, silently repairing the very evidence a stale
-    journal conflict is meant to protect. A genuinely absent snapshot is not a
-    conflict; any other unreadable state is.
+    Read the saved rows only, under non-recovering admission. The mutating
+    loader would regenerate/backfill a corrupt or absent snapshot, silently
+    repairing the very evidence a stale journal conflict is meant to protect.
+    A genuinely absent snapshot is not a conflict; any other unreadable state
+    is. Returns the admitted rows so later stages need not read them again.
     """
     try:
         with ensure_book_state(DATA_DIR, recover=False):
-            _ensure_editor_selection()
-            try:
-                project_manager.read_saved_chunk_rows()
-            except FileNotFoundError:
-                return
-            except (ValueError, OSError, RecursionError) as error:
-                raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
-    except ValueError as error:
+            return _read_export_rows_locked()
+    except (ValueError, OSError, RecursionError) as error:
         # Non-recovering admission refuses a pending book transaction without
         # mutating its staged publication artifacts.
         raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
+
+
+def _chapter_preview_with_rows(admitted_rows, **options):
+    """Complete a chapter preview under the same non-recovering read contract."""
+    try:
+        with ensure_book_state(DATA_DIR, recover=False):
+            _ensure_editor_selection()
+    except (ValueError, OSError, RecursionError) as error:
+        raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
+    return project_manager.preview_chapter_filenames(rows=admitted_rows, **options)
 
 
 def _ensure_editor_chunks():
@@ -1604,12 +1617,21 @@ def get_unready_export_speakers():
 
 
 async def validate_export_readiness(require_ready):
-    await asyncio.to_thread(_ensure_editor_selection)
-    if require_ready:
-        missing = await asyncio.to_thread(get_unready_export_speakers)
-        if missing:
-            raise HTTPException(status_code=409, detail={
-                "message": "Mark every speaker ready before exporting.", "speakers": missing})
+    def check():
+        with ensure_book_state(DATA_DIR, recover=False):
+            _ensure_editor_selection()
+            if require_ready:
+                missing = get_unready_export_speakers()
+                if missing:
+                    raise HTTPException(status_code=409, detail={
+                        "message": "Mark every speaker ready before exporting.", "speakers": missing})
+            # Late boundary: a transaction published while readiness was being
+            # checked must still refuse, without recovering or repairing it.
+            _ensure_editor_selection()
+    try:
+        await asyncio.to_thread(check)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=CHUNK_SNAPSHOT_CONFLICT_DETAIL) from error
 
 
 from m4b_metadata import PublicationCoverSelection
@@ -1783,13 +1805,13 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
     """Write chapters as separate MP3/WAV files (CPU only, no GPU lock)."""
     if request.format not in ("mp3", "wav"):
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
-    await asyncio.to_thread(_require_export_chunks)
+    admitted_rows = await asyncio.to_thread(_require_export_chunks)
     await validate_export_readiness(request.require_ready)
     chapters = request.chapters
     if chapters is not None:
         try:
             preview = await asyncio.to_thread(
-                project_manager.preview_chapter_filenames,
+                _chapter_preview_with_rows, admitted_rows,
                 fmt=request.format, per_chunk_chapters=request.per_chunk_chapters,
                 template=request.template, padding=request.padding,
                 book_name=request.book_name, series_name=request.series_name,
@@ -1847,14 +1869,14 @@ async def preview_chapter_filenames(format: str = "mp3", per_chunk_chapters: boo
         raise HTTPException(status_code=400, detail="format must be mp3 or wav")
     if not 0 <= padding <= 6:
         raise HTTPException(status_code=400, detail="padding must be 0-6 digits")
-    await asyncio.to_thread(_require_export_chunks)
+    admitted_rows = await asyncio.to_thread(_require_export_chunks)
     await validate_export_readiness(require_ready)
     try:
         mastering_options = MasteringOptions.model_validate_json(mastering).model_dump() if mastering is not None else None
     except ValueError as exc:
         raise HTTPException(status_code=422, detail='Invalid mastering options.') from exc
     try:
-        rows = await asyncio.to_thread(project_manager.preview_chapter_filenames,
+        rows = await asyncio.to_thread(_chapter_preview_with_rows, admitted_rows,
             fmt=format, per_chunk_chapters=per_chunk_chapters, template=template,
             padding=padding, book_name=book_name,
             series_name=series_name, volume_number=volume_number,
