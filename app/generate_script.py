@@ -16,7 +16,8 @@ from generation_completion import get_file_sha256, get_generation_input
 from config_settings import load_app_config, get_generation_config
 from llm_provider import make_llm_client, make_run_client, merge_provider_extra_body, get_provider_extra_body
 from llm_provider import classify_llm_error, get_retry_delay, get_run_model_binding, get_run_fingerprint_identity
-from llm_provider import FailoverClient, RunProfileChanged, RunRequestAdmissionError
+from llm_provider import (FailoverClient, RunProfileChanged, RunRequestAdmissionError,
+                          is_failover_eligible)
 from chunk_quality import (validate_chunk_quality, is_trigram_only_near_miss, is_segment_near_miss,
                            get_near_miss_rank, get_chunk_schema_findings)
 from validation_reporting import format_validation_findings
@@ -1554,13 +1555,15 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 continue
             # Order of last resorts: the other profile first (a fresh provider
             # is more likely to answer than the same one later), then the
-            # operator, then giving up.
+            # operator, then giving up. Local sizing/dispatch failures do not
+            # qualify - a second provider cannot fix a prompt that does not
+            # fit, and re-sending the book to a billed endpoint is a leak.
             switch = getattr(client, "failover", None)
-            if switch is not None and switch(error_details):
+            if switch is not None and is_failover_eligible(error_details) and switch(error_details):
                 # The other profile takes this request and the rest of the
                 # run, with a fresh budget: the failure was the provider's.
-                # Content-policy refusals qualify too - that is the case a
-                # second provider exists for.
+                # Content-policy refusals and auth/model errors qualify too - a
+                # different provider may accept the same request.
                 return _retry_same_request()
             if (error_details["retryable"]
                     and getattr(params, "on_api_exhaustion", "fail") == "pause"

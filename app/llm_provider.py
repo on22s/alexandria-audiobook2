@@ -14,14 +14,24 @@ import re
 import threading
 import time
 from types import SimpleNamespace
+from urllib.parse import urlparse
 
 import httpx2
 from openai import OpenAI
+from lmstudio_settings import is_local_llm_endpoint
 from manual_llm_context import (ManualRequestCancelled, apply_manual_cancellation,
                                 ensure_manual_request_active)
 
 
 _ENV_REF = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+_OPENAI_API_HOST = "api.openai.com"
+
+
+class MissingAPIKeyError(ValueError):
+    """A non-local endpoint has no configured key, so no bearer token may be
+    invented for it. OPENAI_API_KEY belongs only to the official OpenAI host.
+    """
+
 
 def is_api_key_reference(configured):
     """True for `env:NAME` / `${NAME}` - a pointer, not a secret, so the setup
@@ -30,14 +40,39 @@ def is_api_key_reference(configured):
     return value.startswith("env:") or bool(_ENV_REF.match(value))
 
 
-def resolve_api_key(configured):
-    """-> the API key to send, from a profile's `api_key` value.
+def is_official_openai_endpoint(base_url):
+    """True only for the official OpenAI HTTPS API origin.
+
+    Used to decide where an implicit OPENAI_API_KEY may be sent. Anything else
+    - another hosted provider, a proxy, a look-alike host, a URL with
+    credentials or a non-default port - must carry its own explicit key.
+    """
+    parsed = urlparse(str(base_url or ""))
+    if (parsed.hostname or "").lower().removesuffix(".") != _OPENAI_API_HOST:
+        return False
+    try:
+        port = parsed.port
+    except ValueError:
+        return False
+    return (parsed.scheme == "https" and port in (None, 443)
+            and parsed.path.rstrip("/") in ("", "/v1")
+            and parsed.username is None and parsed.password is None
+            and not parsed.query and not parsed.fragment)
+
+
+def resolve_api_key(configured, base_url=None):
+    """-> the API key to send, from a profile's `api_key` and `base_url`.
 
     `env:NAME` and `${NAME}` read the environment so the secret never sits in
-    config.json (which the UI now redacts but still stores); an empty value
-    falls back to OPENAI_API_KEY; anything else - "local", "sk-..." - is the
-    key itself. Missing environment variables resolve to "" rather than to
-    the literal reference, so a typo shows up as an auth error, not as a key.
+    config.json (which the UI now redacts but still stores); an explicit
+    "local" or "sk-..." value is the key itself. Missing environment variables
+    resolve to "" rather than to the literal reference, so a typo shows up as
+    an auth error, not as a key.
+
+    An EMPTY value only inherits OPENAI_API_KEY on the official OpenAI
+    endpoint. Local endpoints keep the harmless "local" placeholder, and any
+    other host refuses to start rather than sending a real OpenAI key to a
+    third party. Every caller passes the endpoint the key will be used against.
     """
     value = str(configured or "").strip()
     if value.startswith("env:"):
@@ -45,9 +80,16 @@ def resolve_api_key(configured):
     match = _ENV_REF.match(value)
     if match:
         return os.environ.get(match.group(1), "")
-    if not value:
+    if value:
+        return value
+    if is_official_openai_endpoint(base_url):
         return os.environ.get("OPENAI_API_KEY", "local")
-    return value
+    if is_local_llm_endpoint(base_url):
+        return "local"
+    host = (urlparse(str(base_url or "")).hostname or str(base_url or "")).lower()
+    raise MissingAPIKeyError(
+        f"No API key configured for {host}. Set api_key in the profile "
+        "(OPENAI_API_KEY is only used for the official OpenAI endpoint).")
 
 
 def is_openai_reasoning_model(model_name):
@@ -148,6 +190,10 @@ def classify_llm_error(error):
         return {"category": "rate_limited", "status_code": status_code, "retryable": True}
     if isinstance(status_code, int) and 500 <= status_code <= 599:
         return {"category": "server_error", "status_code": status_code, "retryable": True}
+    if status_code in (401, 403):
+        return {"category": "auth", "status_code": status_code, "retryable": False}
+    if status_code == 404:
+        return {"category": "not_found", "status_code": status_code, "retryable": False}
     error_type = type(error).__name__.lower()
     if "timeout" in error_type:
         return {"category": "timeout", "status_code": status_code, "retryable": True}
@@ -160,6 +206,22 @@ def classify_llm_error(error):
     if "connect" in lowered:
         return {"category": "connection_error", "status_code": status_code, "retryable": True}
     return {"category": "api_error", "status_code": status_code, "retryable": True}
+
+
+_LOCAL_REQUEST_FAILURE_CATEGORIES = frozenset({
+    "context_budget", "profile_changed", "request_admission",
+})
+
+
+def is_failover_eligible(error_details):
+    """Whether an exhausted error may switch to the other profile.
+
+    Local sizing and dispatch/config failures are not the provider's fault:
+    re-sending the whole book to a second (possibly billed) endpoint cannot
+    help, so they stop at the primary. Provider refusals and auth/model errors
+    remain eligible - a different provider may accept the same request.
+    """
+    return error_details.get("category") not in _LOCAL_REQUEST_FAILURE_CATEGORIES
 
 
 def get_retry_delay(retry_initial_delay_seconds, retry_multiplier,
@@ -333,7 +395,8 @@ class FailoverClient:
                 try:
                     status = get_current_status(
                         self._pair[1][2], config.get("base_url", ""), self.secondary_model,
-                        ssh_alias=self._ssh_alias, api_key=resolve_api_key(config.get("api_key")))
+                        ssh_alias=self._ssh_alias,
+                        api_key=resolve_api_key(config.get("api_key"), config.get("base_url", "")))
                 except Exception as error:
                     status = {"available": False, "loaded": False,
                               "runtime_error": f"{type(error).__name__}: {error}"}
@@ -732,7 +795,8 @@ def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
         return ConfiguredOpenAI(client, get_provider_extra_body(llm_config), limits=limits) if limits else client
     client = OpenAI(
         base_url=llm_config.get("base_url", "http://localhost:11434/v1"),
-        api_key=resolve_api_key(llm_config.get("api_key", "local")),
+        api_key=resolve_api_key(llm_config.get("api_key", "local"),
+                                llm_config.get("base_url", "")),
         timeout=(get_profile_timeout(llm_config, timeout)
                  if respect_profile_timeout else timeout),
         default_headers=get_provider_headers(llm_config) or None,

@@ -82,7 +82,7 @@ def adapter_config(config):
         return None
     return {"path": path,
             "scale": spec.get("scale", 1.0),
-            "api_key": resolve_api_key(block.get("api_key", "local")),
+            "api_key": resolve_api_key(block.get("api_key", "local"), block.get("base_url", "")),
             "expect": bool(spec.get("require", False))}
 
 

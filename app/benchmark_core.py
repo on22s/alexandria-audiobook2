@@ -115,7 +115,8 @@ def get_benchmark_execution_environment(manifest, environment, config):
                                if key not in {"concurrency", "concurrency_for", "concurrency_environment",
                                               "concurrency_revision"}}
         from llm_provider import resolve_api_key
-        identity["resolved_api_key"] = resolve_api_key(profile.get("api_key"))
+        identity["resolved_api_key"] = resolve_api_key(
+            profile.get("api_key"), profile.get("base_url", ""))
         # These two runners consume Setup sampling and prompt settings. The
         # persona/nickname runners use their production defaults instead.
         if stage in {"script_generation", "script_review"}:

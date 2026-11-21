@@ -379,7 +379,8 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         profiles.append({key: value for key, value in profile.items()
                          if key not in ('concurrency', 'concurrency_for', 'concurrency_environment',
                                         'concurrency_revision')})
-        profiles[-1]['resolved_api_key'] = resolve_api_key(profile.get('api_key'))
+        profiles[-1]['resolved_api_key'] = resolve_api_key(
+            profile.get('api_key'), profile.get('base_url', ''))
     identity = {'algorithm': REVIEW_ALGORITHM_VERSION, 'profiles': profiles,
         'model_binding': get_run_model_binding(client, model_name),
         'params': {field.name: getattr(params, field.name) for field in fields(params) if field.compare

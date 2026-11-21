@@ -1071,7 +1071,8 @@
     , "tests.test_audit_serving_metadata.ServingMetadataAuditTests.test_main_allows_a_directory_without_legacy_scout"
   ]
   , "test_auto_pause_on_api_exhaustion": [
-    "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_content_policy_never_pauses_even_in_pause_mode"
+    "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_auth_and_not_found_fail_instead_of_pausing_for_an_operator"
+    , "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_content_policy_never_pauses_even_in_pause_mode"
     , "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_fail_mode_gives_the_chunk_up_and_never_signals"
     , "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_pause_for_operator_prints_the_marker_the_app_watches_for"
     , "tests.test_auto_pause_on_api_exhaustion.AutoPauseTests.test_pause_mode_freezes_then_retries_with_a_fresh_budget"
@@ -7854,8 +7855,13 @@
     , "tests.test_llm_profile_requests_js.LlmProfileRequestJsTests.test_profile_token_limits_survive_switching_and_reject_invalid_edits"
   ]
   , "test_llm_provider": [
-    "tests.test_llm_provider.ApiKeyReferenceTests.test_client_is_built_with_the_resolved_key"
+    "tests.test_llm_provider.ApiKeyReferenceTests.test_auth_and_not_found_stop_retrying_but_throttling_does_not"
+    , "tests.test_llm_provider.ApiKeyReferenceTests.test_client_is_built_with_the_resolved_key"
+    , "tests.test_llm_provider.ApiKeyReferenceTests.test_client_never_sends_the_implicit_openai_key_to_a_third_party"
     , "tests.test_llm_provider.ApiKeyReferenceTests.test_env_references_resolve_and_literals_pass_through"
+    , "tests.test_llm_provider.ApiKeyReferenceTests.test_explicit_keys_are_preserved_on_every_endpoint"
+    , "tests.test_llm_provider.ApiKeyReferenceTests.test_failover_eligibility_keeps_provider_errors_and_stops_local_ones"
+    , "tests.test_llm_provider.ApiKeyReferenceTests.test_implicit_openai_key_is_scoped_to_the_official_endpoint"
     , "tests.test_llm_provider.ApiKeyReferenceTests.test_setup_page_shows_a_reference_but_redacts_a_secret"
     , "tests.test_llm_provider.ProviderRequestSettingsTest.test_client_sends_profile_headers_and_body_on_completions"
     , "tests.test_llm_provider.ProviderRequestSettingsTest.test_context_rejections_are_distinct_from_other_bad_requests"
@@ -10163,8 +10169,11 @@
     , "tests.test_profile_failover.FailoverConfigTests.test_off_by_default_resolves_to_nothing"
     , "tests.test_profile_failover.FailoverConfigTests.test_on_resolves_to_the_other_profile_in_both_directions"
     , "tests.test_profile_failover.RetryLoopFailoverTests.test_a_plain_client_is_unchanged"
+    , "tests.test_profile_failover.RetryLoopFailoverTests.test_auth_and_not_found_stop_retrying_but_still_fail_over"
     , "tests.test_profile_failover.RetryLoopFailoverTests.test_content_policy_refusal_also_switches"
+    , "tests.test_profile_failover.RetryLoopFailoverTests.test_context_budget_never_fails_over_a_local_sizing_error"
     , "tests.test_profile_failover.RetryLoopFailoverTests.test_rate_limit_exhaustion_switches_and_the_request_completes_on_the_other_profile"
+    , "tests.test_profile_failover.RetryLoopFailoverTests.test_throttling_and_transient_provider_errors_keep_retrying_then_fail_over"
     , "tests.test_profile_failover.RetryLoopFailoverTests.test_when_both_profiles_fail_the_chunk_is_given_up_once"
   ]
   , "test_profiler_archive_budget": [
