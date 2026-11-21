@@ -1283,6 +1283,7 @@
   "editor.word-timing.unavailable": "タイミングを利用できません。既存の行の音声は変更されていません。",
   "editor.word-timing.wrong-take": "タイミングの結果は別の保存済みテイクのものです。",
   "error.book.busy_preview": "本の状態が使用中です。しばらくしてからプレビューを再試行してください。",
+  "error.book.chunk_snapshot_unreadable": "保存済みの本の状態を読み取れません。続行する前に本を再読み込みするか、別の本に切り替えてください。保存済みの進捗と音声は保持されています。",
   "error.book.owned_by_batch_review": "この保存済みの本はバッチレビューが使用中です。完了を待つか、キャンセルしてください。",
   "error.book.owned_or_saving": "この保存済みの本はバッチレビューまたは別の保存が使用中です。完了を待つか、キャンセルしてください。",
   "error.book.snapshot_busy": "本または保存済みスナップショットが使用中です。しばらくしてから再試行してください。",
