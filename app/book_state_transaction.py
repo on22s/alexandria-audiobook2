@@ -5643,6 +5643,155 @@ def require_book_snapshot_current(data_dir, snapshot):
 
 
 
+def _selection_source_digest(path, data_dir):
+    """Content digest of a selected source through the confined capture seam."""
+    from script_selection_binding import _source_digest
+    try:
+        return _source_digest(path, owning_root=data_dir)
+    except ValueError:
+        return _source_digest(path)
+
+
+def _published_binding_for_selection_locked(data_dir, state, previous_token, previous_path,
+                                            new_path, new_digest, new_token):
+    """Return (rebound binding bytes, previous source digest) or (None, digest).
+
+    Called with the book/state/chunks locks held, before the pending flag is
+    set. A verified published binding for byte-identical source is rebound to
+    the new generation in the same transaction; the published script itself is
+    unchanged. Anything unreadable or inconsistent yields no rebind, so the
+    normal pending-selection path stays authoritative.
+    """
+    from script_selection_binding import (BINDING_NAME, MAX_BINDING_BYTES,
+        is_script_selection_pending, parse_script_binding, check_binding_source,
+        saved_binding_matches, make_script_selection_binding, _validated_script_entries)
+    from project_scope_files import capture_scope_file
+    previous_digest = None
+    if is_script_selection_pending(state):
+        return None, None
+    proof, raw = capture_scope_file(data_dir, BINDING_NAME,
+                                    limit=MAX_BINDING_BYTES, include_bytes=True)
+    if raw is None:
+        return None, None
+    try:
+        binding = parse_script_binding(raw)
+        previous_digest = binding['source_sha256']
+        if not isinstance(new_digest, str) or new_digest != previous_digest:
+            return None, previous_digest
+        check_binding_source(raw, previous_token, previous_digest,
+                             source_path=previous_path)
+        script_proof, script_bytes = capture_scope_file(
+            data_dir, 'annotated_script.json', limit=512 * 1024**2, include_bytes=True)
+        if script_bytes is None:
+            return None, previous_digest
+        script_sha256 = hashlib.sha256(script_bytes).hexdigest()
+        if not saved_binding_matches(binding, script_sha256=script_sha256,
+                                     entries=_validated_script_entries(script_bytes)):
+            return None, previous_digest
+        rebound = make_script_selection_binding(new_token, new_digest, script_bytes,
+                                                source_path=new_path)
+        return (json.dumps(rebound, sort_keys=True, separators=(',', ':')).encode('utf-8'),
+                previous_digest)
+    except (ValueError, RecursionError):
+        # A validation failure leaves the pending-selection path authoritative;
+        # an unexpected I/O error (e.g. EIO reading the script) must propagate
+        # with the book state still unchanged so a retry can rebind cleanly.
+        return None, previous_digest
+
+
+def _backfill_legacy_snapshot_uids(snapshot_bytes):
+    """Give verified UID-less legacy rows the native stable UIDs, keeping progress.
+
+    Returns None for anything that is not a plain list of objects, so the caller
+    still retires unreadable evidence instead of publishing a derived guess.
+    """
+    from chunk_status_journal import _decode_json, _ensure_supported_depth
+    from take_retention import get_retained_book_bytes
+    try:
+        rows = _decode_json(snapshot_bytes, "snapshot")
+        _ensure_supported_depth(rows, "snapshot")
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            return None
+        from project import _new_chunk_uid
+        seen = set()
+        for row in rows:
+            uid = row.get("uid")
+            if uid in seen:
+                return None
+            if not isinstance(uid, str) or not uid:
+                row["uid"] = _new_chunk_uid()
+            seen.add(row["uid"])
+        get_retained_book_bytes(rows)
+        return rows
+    except (ValueError, OSError, RecursionError):
+        return None
+
+
+def _plan_selection_chunk_snapshot_locked(data_dir, previous_identity, same_bytes,
+                                          *, verified=False):
+    """Reconcile the chunk journal with the generation a selection publishes.
+
+    Caller holds the book state lock, the state file lock and the chunks file
+    lock. Both files are read through the confined, nonblocking, descriptor
+    verified capture seam: a FIFO, alias or unexpected I/O error refuses the
+    selection (releasing every lock) instead of deleting valid progress. Only
+    byte-identical source replays a coherent journal into the new snapshot,
+    retaining the exact original snapshot and torn journal together as evidence;
+    a foreign, stale or unreadable pair is retired with BOTH raw files retained
+    under one suffix so the pair can be replayed later. Returns (replacements,
+    removals) relative to data_dir for the enclosing book transaction.
+    """
+    from chunk_status_journal import ChunkStatusJournal, get_chunk_status_journal_path
+    from project_scope_files import capture_scope_file
+    chunks_name = "chunks.json"
+    journal_name = os.path.basename(get_chunk_status_journal_path(Path(data_dir) / chunks_name))
+    snapshot_proof, snapshot_bytes = capture_scope_file(
+        data_dir, chunks_name, limit=512 * 1024**2, include_bytes=True)
+    journal_proof, journal_bytes = capture_scope_file(
+        data_dir, journal_name, limit=512 * 1024**2, include_bytes=True)
+    snapshot_bytes = snapshot_bytes if snapshot_proof['exists'] else None
+    journal_bytes = journal_bytes if journal_proof['exists'] else None
+    rows = None
+    if snapshot_bytes is not None:
+        try:
+            rows = ChunkStatusJournal(Path(data_dir) / chunks_name, previous_identity).get_rows_from_bytes(
+                snapshot_bytes, journal_bytes)
+        except (ValueError, OSError, RecursionError):
+            rows = None
+    if (rows is None and verified and same_bytes and journal_bytes is None
+            and snapshot_bytes is not None):
+        # A standalone legacy snapshot with no UIDs cannot pass native journal
+        # validation, but verified byte-identical source still earns the same
+        # stable-UID backfill the loader applies - without losing done/audio.
+        rows = _backfill_legacy_snapshot_uids(snapshot_bytes)
+    torn = False
+    if journal_bytes is not None:
+        complete = journal_bytes[:journal_bytes.rfind(b"\n") + 1]
+        torn = complete != journal_bytes
+    if rows is not None and same_bytes:
+        replacements = {chunks_name: json.dumps(
+            rows, ensure_ascii=False, indent=2, allow_nan=False).encode("utf-8")}
+        removals = [journal_name]
+        if torn:
+            # Keep the exact original pair together under one suffix: the
+            # replayed rows above are a derived copy, not the evidence.
+            suffix = ".torn-" + uuid.uuid4().hex
+            replacements[chunks_name + suffix] = snapshot_bytes
+            replacements[journal_name + suffix] = journal_bytes
+        return replacements, removals
+    # Deliberate retirement: keep whatever raw files are available together,
+    # using one suffix so a recovery reader can replay the retained pair.
+    suffix = (".torn-" if torn else ".stale-") + uuid.uuid4().hex
+    replacements, removals = {}, []
+    if snapshot_bytes is not None:
+        replacements[chunks_name + suffix] = snapshot_bytes
+        removals.append(chunks_name)
+    if journal_bytes is not None:
+        replacements[journal_name + suffix] = journal_bytes
+        removals.append(journal_name)
+    return replacements, removals
+
+
 def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, before_publication=None):
     """Select an input under the same book-operation contract as load/jobs.
 
@@ -5653,9 +5802,14 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
     from utils import safe_load_json
     from sound_design_registry import ACTIVE_CUES
     from sound_design_renditions import ACTIVE_RENDITIONS, capture_sound_design_companions
+    from chunk_status_journal import get_chunk_status_journal_path
+    from script_selection_binding import BINDING_NAME
     with ensure_book_state(data_dir, timeout=timeout) as root:
         data_dir = root
         state_path = Path(data_dir) / "state.json"
+        chunks_path = Path(data_dir) / "chunks.json"
+        journal_exists = os.path.lexists(get_chunk_status_journal_path(chunks_path))
+        snapshot_exists = os.path.lexists(chunks_path)
         with file_lock(str(state_path)):
             state = safe_load_json(str(state_path), default={})
             if not isinstance(state, dict):
@@ -5663,11 +5817,32 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
             if input_path is None:
                 input_path = state.get("input_file_path")
             previous_book_id = state.get('active_book_id')
+            previous_path = state.get("input_file_path")
+            previous_identity = {"active_book_id": previous_book_id,
+                                 "book_generation": state.get("book_generation")}
+            previous_token = get_book_operation_token(data_dir, state=state)
+            new_digest = None
+            try:
+                new_digest = _selection_source_digest(input_path, data_dir)
+            except ValueError:
+                # An unavailable or non-file source is already an ordinary
+                # pending-selection case; unexpected I/O must propagate with
+                # the book state unchanged so a retry can rebind cleanly.
+                pass
             state.update(input_file_path=input_path, active_book_id=book_id,
                          book_generation=uuid.uuid4().hex)
-            # Selecting a source does not replace the previous script. Keep it
-            # recoverable, but do not certify it as belonging to this selection.
-            state['script_selection_pending'] = True
+            new_token = get_book_operation_token(data_dir, state=state)
+            # Re-uploading byte-identical source is not a new book. Rebind the
+            # verified published script (and keep its chunk progress) in the
+            # same transaction; changed bytes under any name start a new book.
+            rebound_binding, previous_digest = _published_binding_for_selection_locked(
+                data_dir, state, previous_token, previous_path, str(input_path),
+                new_digest, new_token)
+            same_bytes = (new_digest is not None and new_digest == previous_digest)
+            if rebound_binding is not None:
+                state.pop('script_selection_pending', None)
+            else:
+                state['script_selection_pending'] = True
             state.pop('_source_scope', None)
             state.pop('_source_scope_exports', None)
             from speech_numbers import STATE_KEY as date_order_key
@@ -5680,15 +5855,30 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
             if companions:
                 capture_sound_design_companions(data_dir, ACTIVE_CUES, ACTIVE_RENDITIONS,
                                                 expected_book_id=previous_book_id)
-            if before_publication is not None:
-                before_publication()
-            if companions:
-                apply_book_state_locked(data_dir, {
-                    'state.json': json.dumps(state, ensure_ascii=False, indent=2).encode('utf-8')},
-                    companions)
-            else:
-                save_adapter_publication_bytes(str(state_path), json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8"))
-            return get_book_operation_token(data_dir)
+            state_bytes = json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8")
+            def publish(chunk_replacements, chunk_removals):
+                replacements = dict(chunk_replacements)
+                if rebound_binding is not None:
+                    replacements[BINDING_NAME] = rebound_binding
+                if before_publication is not None:
+                    before_publication()
+                if companions or replacements or chunk_removals:
+                    apply_book_state_locked(data_dir,
+                        {'state.json': state_bytes, **replacements},
+                        list(companions) + list(chunk_removals))
+                else:
+                    save_adapter_publication_bytes(str(state_path), state_bytes)
+                return get_book_operation_token(data_dir)
+            if journal_exists or snapshot_exists:
+                # A standalone snapshot belongs to the source being replaced
+                # too: reconcile it here rather than leave old progress bound
+                # to the new generation.
+                with file_lock(chunks_path):
+                    chunk_replacements, chunk_removals = _plan_selection_chunk_snapshot_locked(
+                        data_dir, previous_identity, same_bytes,
+                        verified=rebound_binding is not None)
+                    return publish(chunk_replacements, chunk_removals)
+            return publish({}, [])
 
 
 

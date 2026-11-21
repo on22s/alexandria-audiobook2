@@ -9,6 +9,7 @@ from pathlib import Path
 import uuid
 
 from adapter_publication import save_adapter_publication_bytes, sync_adapter_directory
+from audio_take_history import _ensure_metadata_depth
 from utils import file_lock
 from take_retention import (KEY as RETAINED_TAKE_KEY, get_retained_audio_paths,
     get_retained_take_bytes, MAX_BOOK_RECEIPT_BYTES)
@@ -52,6 +53,53 @@ def _get_json_bytes(value):
     return json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
 
 
+def _decode_json(raw, what):
+    """One decoder boundary: malformed or deeply nested data is a ValueError.
+
+    JSON decoding of a hostile record can raise RecursionError (a deeply
+    nested object) or UnicodeDecodeError as well as JSONDecodeError. Readers
+    of this journal all map ValueError to an actionable conflict, so every
+    decode must converge here instead of leaking RecursionError into FastAPI
+    startup or a route.
+    """
+    try:
+        return json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
+        raise ValueError(f"Chunk status {what} is invalid") from error
+
+
+def _ensure_supported_depth(value, what):
+    """Bound shape before any recursive copy, using the shared depth rule.
+
+    A record can decode successfully yet still overflow ``copy.deepcopy`` or
+    a response encoder. Refuse it here so every reader converges on the same
+    actionable ValueError instead of leaking RecursionError from a later step.
+    """
+    try:
+        _ensure_metadata_depth(value)
+    except ValueError as error:
+        raise ValueError(f"Chunk status {what} is too deeply nested") from error
+
+
+def capture_chunk_state_file(path, *, what, limit=512 * 1024**2):
+    """Read one bounded snapshot/journal through the confined, nonblocking seam.
+
+    Returns the exact bytes, or None for a genuinely absent path. A FIFO,
+    alias, oversized or changed-while-reading file is a controlled ValueError:
+    a reader never blocks on a writerless FIFO while holding a book lock and
+    never creates or replaces the file it was asked to inspect.
+    """
+    from project_scope_files import capture_scope_file
+    path = Path(os.path.abspath(path))
+    try:
+        proof, raw = capture_scope_file(os.fspath(path.parent), path.name,
+                                        limit=limit, include_bytes=True)
+    except ValueError as error:
+        raise ValueError(
+            f"Chunk status {what} is unreadable or not a bounded regular file") from error
+    return raw if proof['exists'] else None
+
+
 class ChunkStatusJournal:
     """Cache only a verified snapshot plus fsynced transitions, bound to a book."""
     def __init__(self, chunks_path, book_identity):
@@ -74,8 +122,10 @@ class ChunkStatusJournal:
         if versions == self._versions:
             return
         self._versions = None
-        raw = self.snapshot.read_bytes()
-        journal = self.path.read_bytes() if self.path.exists() else None
+        raw = capture_chunk_state_file(self.snapshot, what="snapshot")
+        if raw is None:
+            raise ValueError("Chunk status snapshot is missing while a journal is retained")
+        journal = capture_chunk_state_file(self.path, what="journal")
         self._load_bytes(raw, journal)
         if versions != self._get_versions():
             self._rows = None
@@ -89,7 +139,8 @@ class ChunkStatusJournal:
         return copy.deepcopy(self._rows)
 
     def _load_bytes(self, raw, journal):
-        rows = json.loads(raw)
+        rows = _decode_json(raw, "snapshot")
+        _ensure_supported_depth(rows, "snapshot")
         if (not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows)
                 or any(not isinstance(row.get("uid"), str) or not row["uid"] for row in rows)
                 or len({row["uid"] for row in rows}) != len(rows)):
@@ -101,7 +152,9 @@ class ChunkStatusJournal:
             lines = complete.splitlines()
             if not lines:
                 raise ValueError("Chunk status journal has no committed header")
-            records = [json.loads(line) for line in lines]
+            records = [_decode_json(line, "journal record") for line in lines]
+            for record in records:
+                _ensure_supported_depth(record, "journal record")
             header = records.pop(0)
             if (not isinstance(header, dict) or header.get("version") != 1
                     or header.get("book_identity") != self.book_identity):

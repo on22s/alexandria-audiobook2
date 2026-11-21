@@ -44,7 +44,16 @@ logger = logging.getLogger("AlexandriaUI")
 
 def reset_stuck_chunks():
     """Reset chunks left generating by a prior interrupted server process."""
-    chunks = project_manager.load_chunks()
+    try:
+        chunks = project_manager.load_chunks()
+    except BookSwitchPlaceholderError:
+        raise
+    except (ValueError, OSError) as error:
+        # A stale or torn chunk journal is evidence to preserve. Skipping this
+        # reset keeps the UI reachable after a restart; callers still report
+        # the unreadable book as a conflict when they load its chunks.
+        logger.warning("Preserving chunk state; stuck-chunk reset skipped: %s", error)
+        return 0
     if not chunks:
         return 0
 
