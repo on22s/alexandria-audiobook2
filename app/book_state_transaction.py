@@ -29,6 +29,18 @@ _held_books = ContextVar('held_book_state_scopes', default=())
 logger = logging.getLogger(__name__)
 
 
+class BookTransactionError(ValueError):
+    """A damaged, foreign or contended book journal needs recovery, not a
+    client content conflict. Subclasses ValueError so existing recovery callers
+    that classify every validation refusal as ValueError keep working; routes
+    catch it first to report it as a server-side condition."""
+
+    DETAIL = 'The book transaction journal is damaged; the log has the details.'
+
+
+BOOK_STATE_BUSY_DETAIL = 'The book is busy; retry in a moment.'
+
+
 class BookJournalPublicationUncertain(ValueError):
     """Journal replacement may have occurred; preserve transaction evidence."""
 
@@ -4676,9 +4688,19 @@ def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None):
     """Serialize book operations and recover pending switches before use."""
     with book_operator_locked(data_dir, timeout=timeout) as (root, identity):
         if recover:
-            recover_book_state_locked(
-                root, cancel_check=cancel_check, expected_root=root,
-                expected_root_identity=identity)
+            try:
+                recover_book_state_locked(
+                    root, cancel_check=cancel_check, expected_root=root,
+                    expected_root_identity=identity)
+            except ValueError as refusal:
+                # Only plain validation refusals are journal damage; dedicated
+                # outcomes (migration required, publication uncertain, exchange
+                # diverged) keep their own class so callers can classify them.
+                if type(refusal) is ValueError:
+                    # Keep the validation failure's own cause (often an OSError
+                    # from a pinned descriptor); only the outer class changes.
+                    raise BookTransactionError(str(refusal)) from refusal.__cause__
+                raise
         elif os.path.lexists(root / JOURNAL):
             raise ValueError("Book recovery is required before previewing saved state")
         # Recovery may have taken time; refuse admission if the named root was

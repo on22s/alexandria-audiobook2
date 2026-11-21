@@ -3,7 +3,8 @@ from merge_integrity import get_source_integrity, is_source_integrity_admitted
 from pathlib import Path
 from review_report import get_review_report_info, apply_review_report_explanation
 from completed_review_receipt import get_review_progress_paths
-from book_state_transaction import ensure_book_state, get_book_operation_identity
+from book_state_transaction import (ensure_book_state, reuse_book_state,
+    BookTransactionError, BOOK_STATE_BUSY_DETAIL, get_book_operation_identity)
 from task_ownership import ensure_startup_recovery
 import asyncio
 import copy
@@ -15,6 +16,7 @@ import os
 import soundfile
 import shutil
 import tempfile
+import threading
 import time
 import uuid
 import zipfile
@@ -666,14 +668,23 @@ def _get_editor_quality_sync(expected_book_token):
 
 
 _DELETED_CHUNK_UNDO_TTL_SECONDS = 1800
+_deleted_chunk_receipts_lock = threading.RLock()
 _deleted_chunk_receipts = {}
 
 
 def _get_undo_take_rows():
-    """Caller holds the book lock; unexpired deletion undo still owns its audio."""
+    """Caller holds the book lock; unexpired deletion undo still owns its audio.
+
+    Snapshot under the receipts' own leaf lock and filter outside it: the
+    writers prune, cap and rewrite receipts while a take action reads them,
+    and a resizing dict must never be iterated mid-mutation. The leaf lock is
+    never held while acquiring the book or GPU lock, so it adds no ordering.
+    """
     book = get_editor_book_identity(os.path.dirname(SCRIPT_PATH))
     now = time.monotonic()
-    return [receipt['chunk'] for receipt in _deleted_chunk_receipts.values()
+    with _deleted_chunk_receipts_lock:
+        receipts = [dict(receipt) for receipt in _deleted_chunk_receipts.values()]
+    return [receipt['chunk'] for receipt in receipts
             if receipt['book'] == book and now - receipt['created'] <= _DELETED_CHUNK_UNDO_TTL_SECONDS]
 
 
@@ -728,13 +739,13 @@ def ensure_audio_generation_requests(indices, expected_book_token=None, expected
 
 
 def apply_chunk_update(index, updates, expected_book_token, expected_uid):
-    with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
+    with reuse_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
         check_chunk_identity(index, expected_book_token, expected_uid)
         return project_manager.update_chunk(index, updates)
 
 
 def apply_editor_gap(index, expected_book_token, expected_uid, expected_revision):
-    with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
+    with reuse_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
         check_chunk_identity(index, expected_book_token, expected_uid)
         if expected_revision is None:
             return project_manager.get_gap_suggestion(index)
@@ -762,14 +773,14 @@ async def apply_gap_suggestion_endpoint(index: int, request: GapSuggestionReques
 
 
 def apply_chunk_insertion(index, expected_book_token=None, expected_uid=None):
-    with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
+    with reuse_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
         check_chunk_identity(index, expected_book_token, expected_uid)
         return project_manager.insert_chunk(index)
 
 
 def apply_chunk_deletion(index, expected_book_token=None, expected_uid=None):
     root = os.path.dirname(SCRIPT_PATH)
-    with ensure_book_state(root, timeout=0.25):
+    with reuse_book_state(root, timeout=0.25):
         check_chunk_identity(index, expected_book_token, expected_uid)
         before_revision = get_snapshot_digest(project_manager.load_chunks())
         result = project_manager.delete_chunk(index)
@@ -777,42 +788,46 @@ def apply_chunk_deletion(index, expected_book_token=None, expected_uid=None):
             return None
         deleted, chunks = result
         now = time.monotonic()
-        for token, receipt in list(_deleted_chunk_receipts.items()):
-            if now - receipt['created'] > _DELETED_CHUNK_UNDO_TTL_SECONDS:
-                del _deleted_chunk_receipts[token]
-        while len(_deleted_chunk_receipts) >= 128:
-            del _deleted_chunk_receipts[next(iter(_deleted_chunk_receipts))]
         identity = get_editor_book_identity(root)
         revision = get_snapshot_digest(chunks)
-        for receipt in _deleted_chunk_receipts.values():
-            if receipt['book'] == identity and receipt.get('revision') == before_revision:
-                receipt['revision'] = revision
-        token = uuid.uuid4().hex
-        _deleted_chunk_receipts[token] = {'created': now, 'book': identity, 'revision': revision,
-            'chunk': copy.deepcopy(deleted), 'index': index}
+        with _deleted_chunk_receipts_lock:
+            for token, receipt in list(_deleted_chunk_receipts.items()):
+                if now - receipt['created'] > _DELETED_CHUNK_UNDO_TTL_SECONDS:
+                    del _deleted_chunk_receipts[token]
+            while len(_deleted_chunk_receipts) >= 128:
+                del _deleted_chunk_receipts[next(iter(_deleted_chunk_receipts))]
+            for receipt in _deleted_chunk_receipts.values():
+                if receipt['book'] == identity and receipt.get('revision') == before_revision:
+                    receipt['revision'] = revision
+            token = uuid.uuid4().hex
+            _deleted_chunk_receipts[token] = {'created': now, 'book': identity, 'revision': revision,
+                'chunk': copy.deepcopy(deleted), 'index': index}
         return deleted, chunks, token
 
 
 def apply_chunk_restore(request):
     root = os.path.dirname(SCRIPT_PATH)
-    with ensure_book_state(root, timeout=0.25):
-        receipt = _deleted_chunk_receipts.get(request.undo_token)
+    with reuse_book_state(root, timeout=0.25):
         revision = get_snapshot_digest(project_manager.load_chunks())
-        latest = next((token for token in reversed(_deleted_chunk_receipts)
-            if _deleted_chunk_receipts[token]['book'] == get_editor_book_identity(root)
-            and _deleted_chunk_receipts[token].get('revision') == revision), None)
+        identity = get_editor_book_identity(root)
+        with _deleted_chunk_receipts_lock:
+            receipt = dict(_deleted_chunk_receipts[request.undo_token]) if request.undo_token in _deleted_chunk_receipts else None
+            latest = next((token for token in reversed(_deleted_chunk_receipts)
+                if _deleted_chunk_receipts[token]['book'] == identity
+                and _deleted_chunk_receipts[token].get('revision') == revision), None)
         if (receipt is None or time.monotonic() - receipt['created'] > _DELETED_CHUNK_UNDO_TTL_SECONDS
                 or request.undo_token != latest or receipt.get('revision') != revision
-                or receipt['book'] != get_editor_book_identity(root)
+                or receipt['book'] != identity
                 or request.chunk != receipt['chunk'] or request.at_index != receipt['index']):
             raise HTTPException(status_code=409, detail='Undo expired or belongs to another book or deletion; refresh the Editor')
         chunks = project_manager.restore_chunk(receipt['index'], copy.deepcopy(receipt['chunk']))
         if chunks is not None:
-            del _deleted_chunk_receipts[request.undo_token]
             restored_revision = get_snapshot_digest(chunks)
-            for previous in _deleted_chunk_receipts.values():
-                if previous['book'] == receipt['book'] and previous.get('revision') == revision:
-                    previous['revision'] = restored_revision
+            with _deleted_chunk_receipts_lock:
+                del _deleted_chunk_receipts[request.undo_token]
+                for previous in _deleted_chunk_receipts.values():
+                    if previous['book'] == receipt['book'] and previous.get('revision') == revision:
+                        previous['revision'] = restored_revision
         return chunks
 
 
@@ -822,15 +837,23 @@ class ChunkRestoreRequest(BaseModel):
     undo_token: Optional[str] = Field(default=None, max_length=64)
 
 def _apply_chunk_edit(operation, *args):
-    """Keep the conflict check and chunk mutation atomic with task claims."""
-    with _gpu_lock:
-        check_global_gpu_lock("audio")
-        try:
+    """Book lock then GPU mutex — the one order for edits and generation start.
+
+    start_script_generation holds the book journal across its task claim, so
+    taking the GPU mutex first here inverts that order and stalls both paths.
+    The book admission is re-used by the operation's own reuse_book_state, and
+    no local lock path is ever exposed in a user-visible detail.
+    """
+    try:
+        with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25), _gpu_lock:
+            check_global_gpu_lock("audio")
             return operation(*args)
-        except TimeoutError as error:
-            raise HTTPException(status_code=409, detail='The edit could not be confirmed. Refresh the Editor and check the line before retrying.') from error
-        except (ValueError, OSError) as error:
-            raise HTTPException(status_code=409, detail=str(error)) from error
+    except TimeoutError as error:
+        raise HTTPException(status_code=409, detail=BOOK_STATE_BUSY_DETAIL) from error
+    except BookTransactionError as error:
+        raise HTTPException(status_code=500, detail=BookTransactionError.DETAIL) from error
+    except (ValueError, OSError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
 
 @router.post("/api/chunks/restore")
 async def restore_chunk(request: ChunkRestoreRequest):
