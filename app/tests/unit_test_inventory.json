@@ -1720,6 +1720,12 @@
     , "tests.test_book_journal_fallback_2106.BookJournalFallbackRecheckTests.test_fallback_normal_update_publishes_its_bytes"
     , "tests.test_book_journal_fallback_2106.BookJournalFallbackRecheckTests.test_fallback_refuses_journal_replaced_before_publication"
   ]
+  , "test_book_journal_flush_guard": [
+    "tests.test_book_journal_flush_guard.DescriptorJournalFlushGuardTests.test_final_flush_edit_is_refused_and_prior_bytes_are_preserved"
+    , "tests.test_book_journal_flush_guard.PortableJournalFlushGuardTests.test_final_flush_edit_is_refused_and_prior_bytes_are_preserved"
+    , "tests.test_book_journal_flush_guard.PortableJournalFlushGuardTests.test_generic_writer_callers_do_not_need_a_guard"
+    , "tests.test_book_journal_flush_guard.PortableJournalFlushGuardTests.test_guard_runs_after_staged_write_before_replace"
+  ]
   , "test_book_placeholder_readers": [
     "tests.test_book_placeholder_readers.PlaceholderPredicateTests.test_a_symlink_to_a_placeholder_is_not_one"
     , "tests.test_book_placeholder_readers.PlaceholderPredicateTests.test_only_the_exact_placeholder_matches"
@@ -6599,6 +6605,7 @@
     , "tests.test_generation_dispatch.GenerationDispatchTests.test_only_failed_or_incomplete_manifest_is_recoverable"
     , "tests.test_generation_dispatch.GenerationDispatchTests.test_placeholder_narrator_is_rejected_before_dispatch"
     , "tests.test_generation_dispatch.GenerationDispatchTests.test_reasoning_effort_is_passed_to_three_pass_when_set"
+    , "tests.test_generation_dispatch.GenerationDispatchTests.test_recovery_response_exposes_unchecked_count"
     , "tests.test_generation_dispatch.GenerationDispatchTests.test_single_generation_uses_production_three_pass_recovery"
   ]
   , "test_generation_entry_schema": [
@@ -13067,8 +13074,10 @@
   ]
   , "test_script_recovery_response": [
     "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_corrupt_checkpoint_fails_detail_without_hiding_metadata_or_editing_evidence"
+    , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_explicit_null_pass_status_is_invalid_but_omitted_legacy_is_not"
     , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_legacy_retry_confirmation_ui_requires_explicit_choice"
     , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_legacy_retry_requires_current_explicit_confirmation_and_keeps_saved_options"
+    , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_malformed_unchecked_evidence_returns_controlled_recovery"
     , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_native_recovery_renderer_leads_with_choices_and_retains_diagnostics"
     , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_no_failed_checkpoint_keeps_retry_metadata_without_detail"
     , "tests.test_script_recovery_response.ScriptRecoveryResponseTests.test_optional_detail_matches_dedicated_endpoint_for_failed_passes"
@@ -13101,7 +13110,13 @@
     , "tests.test_script_request_size_limits.ScriptRequestSizeTests.test_oversized_batch_models_stop_before_gpu_admission_or_preflight"
   ]
   , "test_script_selection_binding": [
-    "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_alias_registry_cannot_target_lock_or_transaction_metadata"
+    "tests.test_script_selection_binding.CompletionEvidencePublisherTests.test_locked_publisher_requires_valid_attempt_bound_completion_evidence"
+    , "tests.test_script_selection_binding.CompletionEvidencePublisherTests.test_source_swap_at_guarded_replacement_boundary_preserves_output"
+    , "tests.test_script_selection_binding.CompletionRecordSubstitutionTests.test_source_edit_at_commit_boundary_restores_script_chunks_and_state"
+    , "tests.test_script_selection_binding.CompletionRecordSubstitutionTests.test_source_edit_at_committed_journal_replace_restores_all_artifacts"
+    , "tests.test_script_selection_binding.CompletionRecordSubstitutionTests.test_substitutions_preserve_every_prior_byte"
+    , "tests.test_script_selection_binding.LockedPublisherStaleSourceTests.test_locked_publisher_refuses_source_swapped_after_early_check"
+    , "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_alias_registry_cannot_target_lock_or_transaction_metadata"
     , "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_alias_registry_rejects_windows_reserved_and_trailing_names"
     , "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_binding_rejects_deeply_nested_script_as_invalid"
     , "tests.test_script_selection_binding.ScriptSelectionBindingTests.test_binding_rejects_nonfinite_and_ambiguous_script_json"
@@ -15521,7 +15536,9 @@
     , "tests.test_three_pass_character_batches.CharacterBatchTests.test_unicode_boundaries_duplicates_and_context"
   ]
   , "test_three_pass_checkpoint_recovery": [
-    "tests.test_three_pass_checkpoint_recovery.CheckpointShapeTests.test_completed_receipt_replay_guard_preserves_legacy_and_rejects_corrupt_receipts"
+    "tests.test_three_pass_checkpoint_recovery.CheckpointScopeBindingTests.test_legacy_checkpoints_reuse_only_with_matching_bound_scope_evidence"
+    , "tests.test_three_pass_checkpoint_recovery.CheckpointScopeBindingTests.test_new_cross_scope_checkpoint_is_refused_without_damage"
+    , "tests.test_three_pass_checkpoint_recovery.CheckpointShapeTests.test_completed_receipt_replay_guard_preserves_legacy_and_rejects_corrupt_receipts"
     , "tests.test_three_pass_checkpoint_recovery.CheckpointShapeTests.test_emitted_attribute_incomplete_stage_can_resume"
     , "tests.test_three_pass_checkpoint_recovery.CheckpointShapeTests.test_loader_rejects_matching_schema_errors_before_returning_state"
     , "tests.test_three_pass_checkpoint_recovery.CheckpointShapeTests.test_matching_invalid_state_is_rejected_without_dispatch_or_overwrite"
@@ -15529,16 +15546,30 @@
     , "tests.test_three_pass_checkpoint_recovery.CheckpointShapeTests.test_valid_legacy_and_pending_entry_shapes_still_load"
     , "tests.test_three_pass_checkpoint_recovery.DiagnosticCheckpointReplayTests.test_failed_middle_chunk_is_retried_and_tail_is_reassembled_without_duplicates"
     , "tests.test_three_pass_checkpoint_recovery.DiagnosticCheckpointReplayTests.test_native_process_death_after_second_delta_resumes_without_replaying_prefix"
+    , "tests.test_three_pass_checkpoint_recovery.UncheckedAttributionResumeTests.test_rejected_rows_and_dependent_instructions_are_redone_on_resume"
   ]
   , "test_three_pass_cli_settings": [
-    "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_active_cli_preserves_prior_script_if_source_changes_during_run"
+    "tests.test_three_pass_cli_settings.StandaloneCompletionBoundaryTests.test_manifest_permission_failure_cannot_leave_a_half_published_book"
+    , "tests.test_three_pass_cli_settings.StandaloneCompletionBoundaryTests.test_matching_digest_cannot_hide_unchecked_rows_or_wrong_count"
+    , "tests.test_three_pass_cli_settings.StandaloneCompletionBoundaryTests.test_script_write_permission_failure_preserves_chunks"
+    , "tests.test_three_pass_cli_settings.StandaloneCompletionBoundaryTests.test_substitutions_leave_prior_script_and_chunks_untouched"
+    , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_active_cli_preserves_prior_script_if_source_changes_during_run"
     , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_active_cli_publishes_script_binding_and_manifest_as_one_book"
+    , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_active_cli_refuses_explicit_null_pass_status"
+    , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_active_literal_cli_publishes_attempt_bound_script_and_manifest"
     , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_captured_source_hash_matches_the_bytes_used_for_preparation"
+    , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_copy_run_params_retains_runtime_literal_provenance"
     , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_default_shaped_preset_reaches_pass_2_only"
+    , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_explicit_null_pass_status_is_refused_but_omitted_legacy_is_not"
     , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_invalid_active_identity_fails_before_client_creation"
+    , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_literal_cli_binds_completion_digest_to_final_script_bytes"
     , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_literal_cli_rejects_fifo_without_unbounded_hash_read"
+    , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_missing_corrupt_and_contradictory_manifests_refuse_publication"
     , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_samples_and_full_run_receive_same_selected_controls_and_plan_votes"
     , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_selected_preset_texts_reach_samples_and_estimated_prompt"
+    , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_source_swap_around_staging_and_retry_preserves_old_output"
+    , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_standalone_cli_publishes_exact_validated_bytes_under_native_crlf"
+    , "tests.test_three_pass_cli_settings.ThreePassCliSettingsTests.test_standalone_refuses_foreign_attempt_and_prior_receipt"
   ]
   , "test_three_pass_controls": [
     "tests.test_three_pass_controls.ThreePassControlTests.test_actual_run_rejects_before_provider_and_artifacts"
@@ -15675,8 +15706,9 @@
     , "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_batch_scope_needs_keep"
     , "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_batch_scope_still_subdivides_a_misaligned_answer"
     , "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_batch_scope_still_subdivides_a_mixed_failure"
+    , "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_every_scope_is_bound_in_new_checkpoint_identity"
     , "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_line_scope_still_raises_so_the_caller_subdivides"
-    , "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_scope_does_not_change_the_checkpoint_identity"
+    , "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_run_three_pass_binds_keep_scope_into_the_fingerprint"
     , "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_the_kept_label_stays_off_the_roster"
     , "tests.test_three_pass_keep_exhausted.BatchKeepScopeTests.test_the_setup_switch_selects_the_scope"
     , "tests.test_three_pass_keep_exhausted.KeepExhaustedAnswerTests.test_keep_resumes_a_fail_checkpoint"
@@ -15728,6 +15760,7 @@
   , "test_three_pass_shared_preprocessing": [
     "tests.test_three_pass_shared_preprocessing.SharedPreprocessingCliTests.test_apostrophe_repair_and_non_latin_text_keep_existing_policy"
     , "tests.test_three_pass_shared_preprocessing.SharedPreprocessingCliTests.test_homoglyph_repair_reaches_both_actual_cli_outputs_and_source_fingerprints"
+    , "tests.test_three_pass_shared_preprocessing.SharedPreprocessingCliTests.test_source_changed_after_preparation_refuses_publication"
     , "tests.test_three_pass_shared_preprocessing.SharedPreprocessingCliTests.test_utf16_nul_input_is_refused_before_healing_or_provider_dispatch"
   ]
   , "test_three_pass_telemetry": [
@@ -15789,6 +15822,10 @@
     , "tests.test_threepass_reuse.ReuseTest.test_a_quality_record_wins_when_both_are_present"
     , "tests.test_threepass_reuse.ReuseTest.test_an_incomplete_quality_record_is_still_rejected"
     , "tests.test_threepass_reuse.ReuseTest.test_an_unreadable_sibling_is_not_reusable"
+    , "tests.test_threepass_reuse.ReuseTest.test_legacy_manifest_without_completion_digest_is_still_reusable"
+    , "tests.test_threepass_reuse.ReuseTest.test_manifest_claiming_new_digest_after_failed_replacement_is_not_reusable"
+    , "tests.test_threepass_reuse.ReuseTest.test_manifest_digest_matching_the_script_is_reusable"
+    , "tests.test_threepass_reuse.ReuseTest.test_manifest_with_malformed_digest_is_not_reusable"
     , "tests.test_threepass_reuse.ReuseTest.test_output_with_no_sibling_record_is_not_reusable"
     , "tests.test_threepass_reuse.ReuseTest.test_the_model_check_is_skipped_when_no_model_is_named"
   ]
