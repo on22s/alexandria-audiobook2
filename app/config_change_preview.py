@@ -4,7 +4,7 @@ from typing import Literal, get_args, get_origin
 from fastapi.encoders import jsonable_encoder
 
 from config_settings import AppConfig, GenerationConfig, LLMConfig, PromptConfig, TTSConfig
-from lmstudio_settings import get_document_with_retained_cache
+from lmstudio_settings import BENCHMARK_CACHE_KEYS, get_document_with_retained_cache
 
 _ABSENT = object()
 _MODELS = {'llm_local': LLMConfig, 'llm_remote': LLMConfig, 'tts': TTSConfig,
@@ -52,29 +52,36 @@ def get_preview_value(value, key, section='', allowed=frozenset()):
     return 'Contents hidden'
 
 
-def _carried_forward(key, value, after):
-    """Whether a saved unknown field survives anywhere in the save document."""
-    for section in ("llm", "llm_local", "llm_remote"):
-        block = after.get(section)
+def _carried_forward(key, value, after, section):
+    """Whether a saved unknown field survives at its destination after Save.
+
+    Only real migrated cache fields may survive in a different section; every
+    other unknown field must still be there in the section that held it, or it
+    has been dropped by Save and belongs in the warning count.
+    """
+    sections = ("llm", "llm_local", "llm_remote") if key in BENCHMARK_CACHE_KEYS else (section,)
+    for name in sections:
+        block = after.get(name)
         if isinstance(block, dict) and key in block and block[key] == value:
             return True
     return False
 
 
-def _count_dropped_unmanaged(saved, after, get_local_profile):
-    """Count unknown fields Save actually drops, including the legacy mirror.
+def _count_dropped_unmanaged(saved, after):
+    """Count unknown fields Save actually drops, counting each saved section once.
 
-    A field carried into a named slot by migration, or retained as qualified
-    cache evidence, is not dropped and must not inflate the warning count.
-    Visible profile rows are built separately and are unchanged by this count.
+    A legacy-only config has no llm_local block: falling back to the mirror
+    would count its fields twice. A field carried into a named slot by cache
+    migration is not dropped; an unrelated field merely sharing a value with
+    another section is.
     """
     count = len(set(saved) - set(AppConfig.model_fields))
     for section, model in {**_MODELS, 'llm': LLMConfig}.items():
-        old = get_local_profile(saved) if section == 'llm_local' else saved.get(section)
+        old = saved.get(section)
         if not isinstance(old, dict):
             continue
         for key in set(old) - set(model.model_fields):
-            if not _carried_forward(key, old[key], after):
+            if not _carried_forward(key, old[key], after, section):
                 count += 1
     return count
 
@@ -84,7 +91,7 @@ def get_config_change_preview(existing, proposal, get_local_profile, *, exists):
     saved = jsonable_encoder(existing.data)
     after = get_document_with_retained_cache(proposal.model_dump(mode='json'), existing.data)
     changes, defaults = [], []
-    unmanaged = _count_dropped_unmanaged(saved, after, get_local_profile)
+    unmanaged = _count_dropped_unmanaged(saved, after)
 
     def append_row(section, key, old, new, default=_ABSENT, absent=False, field=None):
         before = default if old is _ABSENT else old

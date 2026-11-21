@@ -278,7 +278,7 @@ def ensure_cached_or_benchmarked_concurrency(config_path, llm_mode, base_url, mo
     # called. Identity must describe the requests that client actually sends,
     # not a config edit that landed after binding (Rule 15: one answer).
     bound_identity = lmstudio_settings.get_benchmark_identity_key(
-        config, profile_key, profile=llm_config)
+        config, profile_key, profile=llm_config, ssh_alias=ssh_alias)
     if status is None:
         # The probe must use the credentials of the profile bound to this
         # client/endpoint, not a different profile that happens to be in the
