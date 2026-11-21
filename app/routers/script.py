@@ -1,4 +1,6 @@
 from book_state_transaction import ensure_saved_book_state
+from script_recovery_guard import (RECOVERY_CAST_INVALIDATED, RECOVERY_CAST_INVALIDATED_DETAIL,
+                                   get_fenced_recovery_status, is_script_recovery_cast_invalidated)
 from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
@@ -38,7 +40,8 @@ from fastapi.responses import FileResponse, StreamingResponse
 from review_startup import ReviewStartupTrace, CURRENT as REVIEW_STARTUP, read_trace, get_failure_log_path
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
-from speaker_identity import get_validated_alias_graph
+from speaker_identity import get_saveable_alias_graph
+from alias_registry_apply import alias_registry_admission
 from diagnostics import redact_text
 from llm_provider import (MANUAL_DATA_DIR_ENV, manual_llm_dir, is_manual_request_owner_alive,
                           read_manual_pending_locked)
@@ -2710,6 +2713,18 @@ def ensure_script_recovery_manifest():
         return get_script_recovery_manifest()
 
 
+def get_locked_recovery_fence():
+    """The single cast-change recovery decision, under the book/checkpoint guard.
+
+    Callers outside an existing critical section use this so status, detail,
+    Retry, Skip and Inject all decide from the same snapshot. A worker checkpoint
+    precedes its manifest, so the decision never depends on a manifest existing.
+    Reading only: checkpoint, manifest and cast stay intact for inspection.
+    """
+    with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+        return get_fenced_recovery_status(DATA_DIR)
+
+
 def completed_script_prefix(checkpoint):
     """The entries a running three-pass has fully finished (all three passes),
     in order, stopping at the first one that has not - the snapshot #600
@@ -2860,7 +2875,11 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                             require_recovery: bool = False):
     """Queue the one production generation command, optionally from a checkpoint."""
     require_whole_source_generation(safe_load_json(os.path.join(DATA_DIR, 'state.json'), {}))
-    if require_recovery and ensure_script_recovery_manifest() is None:
+    # A fenced worker checkpoint has no manifest yet. Let it reach the locked
+    # cast-change decision below so Retry surfaces Start Over instead of a
+    # misleading "no recovery available" refusal.
+    if (require_recovery and ensure_script_recovery_manifest() is None
+            and not is_script_recovery_cast_invalidated(DATA_DIR)):
         raise AppError(409, 'No failed or incomplete three-pass generation is available to resume.', key='error.generation.no_recovery')
     check_global_gpu_lock("script")
     try:
@@ -2889,34 +2908,45 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if refusal:
             raise HTTPException(status_code=400, detail=refusal)
-    if require_recovery:
-        stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
-        stored = (stored.get("script_generation_options") or {}) if isinstance(stored, dict) else {}
-        if stored.get("literal_source_preserving") is True:
-            options["literal_source_preserving"] = True
-        options["cast_sha256"] = stored.get("cast_sha256")
-        if options["cast_sha256"] and get_file_sha256(get_run_cast_path()) != options["cast_sha256"]:
-            raise HTTPException(status_code=409, detail=(
-                "The cast list this run started with is missing or changed, so it cannot "
-                "resume; start a new run."))
-        cast_source = None
-    else:
-        cast_source = get_existing_cast_list(input_file)
-    uses_cast = bool(options.get("cast_sha256") if require_recovery else cast_source)
-    try:
-        command = build_generate_script_command(
-            input_file,
-            strip_front_matter=options["strip_front_matter"],
-            first_person_narrator=options["first_person_narrator"],
-            reasoning_effort=get_active_reasoning_effort(),
-            cast_file=get_run_cast_path() if uses_cast else None,
-            **({"literal_source_preserving": True} if options.get("literal_source_preserving") else {}),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
     claim_id = None
     try:
         with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+            starts_over = request is not None and request.start_over
+            resumes_checkpoint = os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH)) and not starts_over
+            # A fenced checkpoint must never be replayed by any launcher path
+            # that can reuse it, not just explicit Retry. Ordinary Generate
+            # with Start Over off resumes the same checkpoint the worker loads
+            # at three_pass_generate.py's _load_three_pass_checkpoint, so it is
+            # fenced here under the same book/checkpoint admission. An explicit
+            # Start Over discards progress and a truly new baseline has no
+            # checkpoint, so neither is blocked and both still clear the marker.
+            if (require_recovery or resumes_checkpoint) and get_fenced_recovery_status(DATA_DIR) is not None:
+                raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
+            if require_recovery:
+                stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+                stored = (stored.get("script_generation_options") or {}) if isinstance(stored, dict) else {}
+                if stored.get("literal_source_preserving") is True:
+                    options["literal_source_preserving"] = True
+                options["cast_sha256"] = stored.get("cast_sha256")
+                if options["cast_sha256"] and get_file_sha256(get_run_cast_path()) != options["cast_sha256"]:
+                    raise HTTPException(status_code=409, detail=(
+                        "The cast list this run started with is missing or changed, so it cannot "
+                        "resume; start a new run."))
+                cast_source = None
+            else:
+                cast_source = get_existing_cast_list(input_file)
+            uses_cast = bool(options.get("cast_sha256") if require_recovery else cast_source)
+            try:
+                command = build_generate_script_command(
+                    input_file,
+                    strip_front_matter=options["strip_front_matter"],
+                    first_person_narrator=options["first_person_narrator"],
+                    reasoning_effort=get_active_reasoning_effort(),
+                    cast_file=get_run_cast_path() if uses_cast else None,
+                    **({"literal_source_preserving": True} if options.get("literal_source_preserving") else {}),
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
             current_state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
             require_whole_source_generation(current_state)
             if current_state.get("input_file_path") != input_file:
@@ -2996,6 +3026,12 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             if isinstance(state, dict):
                 # Retry reads these instead of the current form. Otherwise a
                 # changed checkbox would invalidate the resume fingerprint.
+                # A fresh run establishes a new cast baseline, clearing any
+                # stale-recovery flag left by a roster approval.
+                if not require_recovery and (
+                        (request is not None and request.start_over)
+                        or not os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH))):
+                    state.pop(RECOVERY_CAST_INVALIDATED, None)
                 state["script_generation_options"] = options
                 state["script_generation_input_file"] = input_file
                 if original is not None:
@@ -3031,7 +3067,12 @@ async def generate_script(background_tasks: BackgroundTasks,
 
 def ensure_script_recovery_response(include_detail=False):
     """Read metadata and optional failed-unit detail under one book guard."""
-    with ensure_book_state(DATA_DIR):
+    with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+        # A fenced run may have only a worker checkpoint (no manifest yet), so
+        # the cast-change decision comes first and keeps its Start Over result.
+        fenced = get_fenced_recovery_status(DATA_DIR)
+        if fenced is not None:
+            return fenced
         manifest = get_script_recovery_manifest()
         if manifest is None:
             return {"recoverable": False}
@@ -3045,21 +3086,20 @@ def ensure_script_recovery_response(include_detail=False):
         }
         state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), {})
         if isinstance(state, dict) and state.get('script_generation_selection') is None:
-            with file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
-                try:
-                    checkpoint = get_current_generation_checkpoint(locked=True)
-                except HTTPException:
-                    # Metadata remains useful when the checkpoint is corrupt;
-                    # do not offer confirmation without a readable checkpoint.
-                    checkpoint = None
-                if isinstance(checkpoint, dict):
-                    from book_state_transaction import get_book_operation_token
-                    response['legacy_confirmation'] = {
-                        'checkpoint_token': get_script_recovery_token(checkpoint),
-                        'book_token': get_book_operation_token(DATA_DIR),
-                    }
+            try:
+                checkpoint = get_current_generation_checkpoint(locked=True)
+            except HTTPException:
+                # Metadata remains useful when the checkpoint is corrupt;
+                # do not offer confirmation without a readable checkpoint.
+                checkpoint = None
+            if isinstance(checkpoint, dict):
+                from book_state_transaction import get_book_operation_token
+                response['legacy_confirmation'] = {
+                    'checkpoint_token': get_script_recovery_token(checkpoint),
+                    'book_token': get_book_operation_token(DATA_DIR),
+                }
         if include_detail:
-            checkpoint = _load_failed_checkpoint()
+            checkpoint = _load_failed_checkpoint(locked=True)
             response["detail"] = ({"recoverable": True, **build_recovery_detail(checkpoint)}
                                   if checkpoint is not None else None)
         return response
@@ -3175,6 +3215,8 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
     default-instruct rows, which are validated and stored in off mode even for
     a directed run; an injected row always uses the failed run's direction."""
     with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+        if get_fenced_recovery_status(DATA_DIR) is not None:
+            raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
         if is_task_running("script", process_state):
             raise HTTPException(status_code=409, detail="Script generation is running.")
         checkpoint = _load_failed_checkpoint(locked=True)
@@ -3275,6 +3317,8 @@ class SkipChunkRequest(BaseModel):
 def _require_failed_unit(chunk):
     checkpoint = ensure_failed_checkpoint()
     if checkpoint is None:
+        if get_locked_recovery_fence() is not None:
+            raise HTTPException(status_code=409, detail=RECOVERY_CAST_INVALIDATED_DETAIL)
         raise HTTPException(status_code=409,
                             detail="No failed generation unit is waiting for recovery.")
     failed = checkpoint["failed"]
@@ -3289,7 +3333,8 @@ async def generate_script_recovery_detail():
     """The failed chunk in full: attempts, source, prompt, retry profile."""
     checkpoint = await asyncio.to_thread(ensure_failed_checkpoint)
     if checkpoint is None:
-        return {"recoverable": False}
+        fenced = await asyncio.to_thread(get_locked_recovery_fence)
+        return fenced if fenced is not None else {"recoverable": False}
     return {"recoverable": True, **build_recovery_detail(checkpoint)}
 
 
@@ -3739,13 +3784,14 @@ async def get_character_aliases():
 @router.post("/api/character_aliases")
 async def save_character_aliases(aliases: Dict[str, str]):
     """Overwrite the alias map (lets the user correct discovered nicknames before review)."""
-    cleaned = {k: v for k, v in aliases.items() if k.strip() and v.strip()}
-    try:
-        cleaned = get_validated_alias_graph(cleaned)
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    with file_lock(CHARACTER_ALIASES_PATH):
-        atomic_json_write(cleaned, CHARACTER_ALIASES_PATH, allow_nonatomic_fallback=False)
+    with alias_registry_admission(DATA_DIR):
+        cleaned = {k: v for k, v in aliases.items() if k.strip() and v.strip()}
+        try:
+            cleaned = get_saveable_alias_graph(cleaned)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        with file_lock(CHARACTER_ALIASES_PATH):
+            atomic_json_write(cleaned, CHARACTER_ALIASES_PATH, allow_nonatomic_fallback=False)
     return {"status": "saved", "count": len(cleaned)}
 
 

@@ -3497,6 +3497,10 @@
             try {
                 const recovery = await API.get('/api/generate_script/recovery?include_detail=true');
                 retryBtn.style.display = recovery.recoverable ? 'inline-block' : 'none';
+                if (recovery.start_over_required) {
+                    renderCastChangedRecovery(recovery.detail);
+                    return;
+                }
                 if (recovery.recoverable) {
                     const resumeAtPass = recovery.failed_pass
                         ? t('script.recovery.can-resume-at', 'Generation can resume from its checkpoint at {pass}.', {pass: recovery.failed_pass})
@@ -3513,6 +3517,24 @@
                 }
                 console.debug('Script recovery status unavailable', e);
             }
+        }
+
+        // A fenced run cannot resume: its checkpoint was built for the old cast.
+        // Surface the server's own explanation and point at the existing Start
+        // over control; checkpoint, manifest and cast are left intact for review.
+        function renderCastChangedRecovery(detail) {
+            const panel = document.getElementById('script-recovery-panel');
+            if (!panel) { return; }
+            const explanation = detail || t('script.recovery.cast-changed-detail', 'The approved cast changed since this run started, so it cannot resume; start a new run. The saved checkpoint was preserved.');
+            showToast(explanation, 'warning', 12000);
+            panel.style.display = '';
+            panel.innerHTML = `
+                <div class="card-header"><strong>${escapeHtml(t('script.recovery.cast-changed-title', 'Approved cast changed'))}</strong></div>
+                <div class="card-body">
+                    <p>${escapeHtml(explanation)}</p>
+                    <p class="small text-muted">${escapeHtml(t('script.recovery.cast-changed-guidance', 'Your checkpoint, manifest and cast were preserved. Use Start over to generate again with the approved cast.'))}</p>
+                    <button type="button" class="btn btn-outline-warning" onclick="document.getElementById('btn-gen-script-fresh').click()"><i class="fas fa-undo me-1"></i>${escapeHtml(t('script.recovery.cast-changed-start-over', 'Start over'))}</button>
+                </div>`;
         }
 
         // Failed-request recovery panel (issue #522 s23): where it failed, every

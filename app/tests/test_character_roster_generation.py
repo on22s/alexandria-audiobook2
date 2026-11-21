@@ -5,6 +5,8 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+from fastapi import HTTPException
+
 from cast_list import get_cast_list_path
 from character_roster_apply import (ensure_character_roster_admission, apply_character_roster,
     get_character_roster_undo_status, discard_character_roster_undo)
@@ -12,6 +14,7 @@ from character_roster_snapshot import get_character_roster_preview
 from tests import test_script_cast_routes as generation
 from tests.test_character_roster import SOURCE1, A, entry, decision, proposal
 import three_pass_generate as three_pass
+from utils import atomic_json_write
 
 
 class CharacterRosterGenerationTests(unittest.TestCase):
@@ -27,6 +30,9 @@ class CharacterRosterGenerationTests(unittest.TestCase):
         self.list_path = get_cast_list_path(self.source, self.dir)
         self.write_list([{'name': 'ALICE', 'aliases': []}])
         self.start()
+        atomic_json_write({'status': 'failed', 'fingerprint': 'fp'},
+                          generation.script_module.three_pass_manifest_path(
+                              generation.script_module.SCRIPT_PATH))
         frozen = Path(generation.script_module.get_run_cast_path())
         initial = frozen.read_bytes(); initial_hash = hashlib.sha256(initial).hexdigest()
         value = proposal(SOURCE1, [entry(SOURCE1, A, 'ALICE', 'Alice')], [decision('add', [], [A])])
@@ -49,9 +55,16 @@ class CharacterRosterGenerationTests(unittest.TestCase):
             current = Path(self.list_path).read_bytes()
             self.assertNotEqual(initial, current)
             self.assertEqual(initial, frozen.read_bytes())
-            self.start(recovery=True)
+            self.assertEqual(initial_hash, self.stored_options()['cast_sha256'])
+            # Approval with a changed cast retires Retry instead of silently
+            # resuming with the pre-approval cast; run evidence is preserved.
+            with self.assertRaises(HTTPException) as caught:
+                self.start(recovery=True)
+            self.assertEqual(409, caught.exception.status_code)
+            self.assertIn('approved cast changed', caught.exception.detail)
             self.assertEqual(initial, frozen.read_bytes())
             self.assertEqual(initial_hash, self.stored_options()['cast_sha256'])
+            self.assertTrue(frozen.exists())
             self.start()
             self.assertEqual(current, frozen.read_bytes())
             updated_hash = hashlib.sha256(current).hexdigest()

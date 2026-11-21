@@ -248,10 +248,16 @@ def is_group_speaker_label(name):
 
 
 def is_speaker_merge_allowed(variant, canonical):
-    """Protect narration and groups, allowing the same group's spelling."""
-    protected_labels = {"NARRATOR", "NARRATION", "NARRATIVE", "UNKNOWN"}
-    if (variant.strip().upper() in protected_labels
-            or canonical.strip().upper() in protected_labels):
+    """Protect narration and groups, allowing the same group's spelling.
+
+    Protected labels are compared by the same NFC/casefold/word identity the
+    alias index uses, so ``UN-KNOWN``/``un known`` cannot be used as a spelling
+    variant to launder a merge into UNKNOWN (#2203-adjacent reserved-edge bug).
+    """
+    protected_keys = {_identity_key(name) for name in (
+        "NARRATOR", "NARRATION", "NARRATIVE", "UNKNOWN")}
+    if (_identity_key(variant) in protected_keys
+            or _identity_key(canonical) in protected_keys):
         return False
     if is_group_speaker_label(variant) or is_group_speaker_label(canonical):
         first = " ".join(unicodedata.normalize("NFC", variant).casefold().split())
@@ -260,8 +266,13 @@ def is_speaker_merge_allowed(variant, canonical):
     return True
 
 
-def _get_alias_roots(mapping):
-    """Return terminal labels and variants whose paths reach a cycle."""
+def _get_alias_roots(mapping, *, allowed_edge=None):
+    """Return terminal labels and variants whose paths reach a cycle.
+
+    With allowed_edge, traversal stops at an edge it refuses and reports that
+    edge's canonical as the terminal label. Callers that pass no predicate keep
+    the permissive legacy read behaviour.
+    """
     index = {}
     for variant in sorted(mapping):
         index.setdefault(_identity_key(variant), variant)
@@ -278,6 +289,10 @@ def _get_alias_roots(mapping):
             seen.add(current)
             canonical = mapping[current]
             following = index.get(_identity_key(canonical))
+            terminal = following if following is not None else canonical
+            if allowed_edge is not None and not allowed_edge(current, terminal):
+                roots.update((alias, terminal) for alias in seen)
+                break
             if following is None or following == current:
                 roots.update((alias, canonical) for alias in seen)
                 break
@@ -294,6 +309,21 @@ def get_validated_alias_graph(value):
     if cyclic:
         raise ValueError("alias registry contains a cycle reached from " +
                          ", ".join(sorted(cyclic)))
+    return mapping
+
+
+def get_saveable_alias_graph(value):
+    """Validate an alias graph for publication, refusing protected merges.
+
+    Reads stay permissive (get_validated_alias_graph, get_resolved_speaker_merge_map)
+    so a legacy registry holding an UNKNOWN edge remains readable and never folds
+    that edge. Only a write that introduces a protected narrator/UNKNOWN/group
+    merge is refused, on either side of the pair.
+    """
+    mapping = get_validated_alias_graph(value)
+    for variant, canonical in mapping.items():
+        if not is_speaker_merge_allowed(variant, canonical):
+            raise ValueError(f"protected speaker mapping '{variant}' -> '{canonical}' cannot be saved")
     return mapping
 
 
@@ -337,7 +367,7 @@ def get_safe_alias_proposals(proposal_maps, roster, existing_aliases=None, flatt
     roots so a later locked check can follow intervening human root changes.
     """
     current = get_validated_alias_graph({} if existing_aliases is None else existing_aliases)
-    human_roots, _ = _get_alias_roots(current)
+    human_roots, _ = _get_alias_roots(current, allowed_edge=is_speaker_merge_allowed)
     human_keys = {_identity_key(variant) for variant in current}
     human_keys.update(_identity_key(root) for root in human_roots.values())
     choices, conflicts = {}, set()
@@ -359,7 +389,7 @@ def get_safe_alias_proposals(proposal_maps, roster, existing_aliases=None, flatt
     proposed = dict(choices.values())
     combined = dict(proposed)
     combined.update(current)
-    roots, cyclic = _get_alias_roots(combined)
+    roots, cyclic = _get_alias_roots(combined, allowed_edge=is_speaker_merge_allowed)
     allowed_roots = list(roster) + list(human_roots.values())
     safe = {}
     for variant in proposed:

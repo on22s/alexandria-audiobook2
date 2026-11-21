@@ -202,3 +202,35 @@ const handler=source.slice(source.indexOf('async function refreshScriptRecovery(
 '''
         result = subprocess.run(['node', '-e', js, str(source)], capture_output=True, text=True)
         self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_fenced_recovery_surfaces_server_detail_and_start_over(self):
+        source = Path(__file__).parent.parent / 'static/js/app-core.js'
+        js = r'''
+const assert=require('assert'),fs=require('fs'),vm=require('vm');
+const source=fs.readFileSync(process.argv[1],'utf8');
+const handler=source.slice(source.indexOf('async function refreshScriptRecovery()'),source.indexOf('// Failed-request recovery panel'));
+(async()=>{
+ for(const withDetail of [true,false]) {
+  const calls=[],toasts=[],renders=[];const retry={style:{}},panel={style:{display:'none'},innerHTML:''};
+  const serverDetail='The approved cast changed since this run started, so it cannot resume.';
+  const context={document:{getElementById:id=>id==='btn-retry-script'?retry:panel},console:{debug(){}},
+   API:{get:async path=>{calls.push(path);return {recoverable:false,fenced:true,start_over_required:true,detail:withDetail?serverDetail:null};}},
+   showToast:(...args)=>toasts.push(args),renderScriptRecovery:value=>renders.push(value),
+   escapeHtml:value=>String(value).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])),
+   t:(key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))};
+  vm.runInNewContext(handler,context);await context.refreshScriptRecovery();
+  assert.deepStrictEqual(calls,['/api/generate_script/recovery?include_detail=true']);
+  assert.strictEqual(retry.style.display,'none');
+  assert.strictEqual(panel.style.display,'');
+  assert.deepStrictEqual(renders,[]);
+  assert.strictEqual(toasts.length,1);
+  assert(toasts[0][0].includes('approved cast changed'));
+  assert(panel.innerHTML.includes('Start over'));
+  assert(panel.innerHTML.includes('btn-gen-script-fresh'));
+  assert(!panel.innerHTML.includes('<img'));
+  if(withDetail){assert(panel.innerHTML.includes(serverDetail));}
+ }
+})().catch(error=>{console.error(error);process.exitCode=1;});
+'''
+        result = subprocess.run(['node', '-e', js, str(source)], capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
