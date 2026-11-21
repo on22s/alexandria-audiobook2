@@ -247,12 +247,16 @@ class FinalOwnedCaptureCancellationTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             ready, completed = Path(tmp) / 'ready', Path(tmp) / 'completed'
+            finish = Path(tmp) / 'finish'
             code = ("import json,os,pathlib,sys,time\n"
                     "pathlib.Path(%r).write_text(str(os.getpid()))\n"
-                    "time.sleep(5)\n"
+                    "finish = pathlib.Path(%r)\n"
+                    "deadline = time.monotonic() + 60\n"
+                    "while not finish.exists() and time.monotonic() < deadline:\n"
+                    "    time.sleep(.05)\n"
                     "pathlib.Path(%r).touch()\n"
                     "print(json.dumps({'python_version':sys.version.split()[0],"
-                    "'packages':{},'prefix':sys.prefix}))\n") % (str(ready), str(completed))
+                    "'packages':{},'prefix':sys.prefix}))\n") % (str(ready), str(finish), str(completed))
             processes, stopped = [], []
             native_start, native_stop = owned.start_owned_subprocess, owned.stop_owned_subprocess
 
@@ -266,6 +270,8 @@ class FinalOwnedCaptureCancellationTests(unittest.TestCase):
                 self.assertIsNotNone(process.poll())
                 self.assertFalse(owned.is_subprocess_tree_running(process))
                 stopped.append(process)
+                # Only open the completion gate once the owned tree is gone.
+                finish.touch()
                 return result
 
             def cancelled():
