@@ -1267,6 +1267,32 @@ def _get_config_preview_sync(config):
                                          exists=os.path.isfile(CONFIG_PATH))
 
 
+_CONCURRENCY_CACHE_KEYS = ("concurrency", "concurrency_for", "concurrency_environment", "concurrency_revision")
+
+
+def _carry_concurrency_cache(document, existing):
+    """Return a save document carrying a still-valid measured cache.
+
+    llm_bench binds each measurement to an endpoint and model, so only a save
+    that leaves both unchanged keeps the cache. A changed identity drops it
+    and the next run re-measures instead of inheriting a stale result.
+    Credentials are never part of this merge.
+    """
+    result = dict(document)
+    for section in ("llm", "llm_local", "llm_remote"):
+        before = (existing or {}).get(section)
+        after = result.get(section)
+        if not isinstance(before, dict) or not isinstance(after, dict):
+            continue
+        if (before.get("base_url"), before.get("model_name")) != (
+                after.get("base_url"), after.get("model_name")):
+            continue
+        kept = {key: before[key] for key in _CONCURRENCY_CACHE_KEYS if key in before}
+        if kept:
+            result[section] = {**after, **kept}
+    return result
+
+
 def apply_config_save(existing, normalized_config):
     """The caller holds the config lock; preserve existing damaged-file backup policy."""
     if existing.needs_backup:
@@ -1275,7 +1301,8 @@ def apply_config_save(existing, normalized_config):
         except OSError as exc:
             raise HTTPException(status_code=500,
                                 detail=f"Could not preserve damaged config before saving: {exc}") from exc
-    atomic_json_write(normalized_config.model_dump(), CONFIG_PATH, allow_nonatomic_fallback=False)
+    document = _carry_concurrency_cache(normalized_config.model_dump(), existing.data)
+    atomic_json_write(document, CONFIG_PATH, allow_nonatomic_fallback=False)
 
 
 def is_pronunciation_config_change(before, after):

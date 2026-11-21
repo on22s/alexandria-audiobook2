@@ -10167,6 +10167,15 @@
     , "tests.test_profile_failover.RetryLoopFailoverTests.test_rate_limit_exhaustion_switches_and_the_request_completes_on_the_other_profile"
     , "tests.test_profile_failover.RetryLoopFailoverTests.test_when_both_profiles_fail_the_chunk_is_given_up_once"
   ]
+  , "test_profile_settings_integrity": [
+    "tests.test_profile_settings_integrity.ProfileCompletenessTests.test_a_complete_primary_still_wins_over_the_legacy_mirror"
+    , "tests.test_profile_settings_integrity.ProfileCompletenessTests.test_failover_uses_the_same_completeness_policy"
+    , "tests.test_profile_settings_integrity.ProfileCompletenessTests.test_manual_transport_is_complete_without_an_endpoint"
+    , "tests.test_profile_settings_integrity.ProfileCompletenessTests.test_partial_primary_falls_back_to_a_complete_legacy_profile"
+    , "tests.test_profile_settings_integrity.SetupSaveConcurrencyCacheTests.test_changed_endpoint_or_model_drops_the_stale_cache"
+    , "tests.test_profile_settings_integrity.SetupSaveConcurrencyCacheTests.test_preserved_cache_is_reused_but_a_changed_endpoint_rebenchmarks"
+    , "tests.test_profile_settings_integrity.SetupSaveConcurrencyCacheTests.test_unrelated_setup_save_keeps_the_measured_cache"
+  ]
   , "test_profiler_archive_budget": [
     "tests.test_profiler_archive_budget.ProfilerArchiveBudgetTests.test_oversize_epub_chapter_is_rejected_before_decompression"
     , "tests.test_profiler_archive_budget.ProfilerArchiveBudgetTests.test_oversize_reference_is_rejected_before_decompression"

@@ -208,24 +208,48 @@ def get_active_llm_config(config):
     measure the local and remote endpoints independently of the toggle. That
     is a different decision and deliberately does not use this function.
     """
-    block = get_saved_llm_profile(config)
+    block = get_saved_llm_profile(config, require_complete=True)
     if not block:
         return {}
     from llm_request_budget import get_inherited_profile_limits
     return get_inherited_profile_limits(block, config.get("generation") or {})
 
 
-def get_saved_llm_profile(config):
-    """The active profile exactly as saved, without inherited global limits.
+_PROFILE_CREDENTIAL_KEYS = frozenset(("api_key", "provider_headers", "provider_extra_body"))
 
-    Settings round-trips (the Setup migration, secret restoration) must use
-    this, or an inherited fallback would be written back as a profile override.
+
+def is_profile_configured(block):
+    """Whether a saved LLM profile is more than a credentials-only stub.
+
+    A partial primary (say, just an api_key) must not shadow a complete legacy
+    `llm` profile: make_llm_client would otherwise dial its localhost default
+    with an empty model. Manual transport is complete on its own, and a
+    profile carrying any other non-empty setting is a real configuration -
+    endpoint-only, model-only and adapter-only profiles all predate or sit
+    outside the Setup form and stay valid. Credentials alone are never enough.
+    """
+    if not isinstance(block, dict) or not block:
+        return False
+    if block.get("transport") == "manual":
+        return True
+    return any(key not in _PROFILE_CREDENTIAL_KEYS and value not in (None, "", {}, [])
+               for key, value in block.items())
+
+
+def get_saved_llm_profile(config, *, require_complete=False):
+    """The named profile exactly as saved, without inherited global limits.
+
+    Settings round-trips (the Setup migration, secret restoration) and
+    credential lookup need the raw profile, even when it is partial: a saved
+    key or header still belongs to that endpoint. Run resolution passes
+    `require_complete` so a partial primary cannot shadow a complete legacy
+    `llm` profile and silently dial the wrong endpoint.
     """
     if not isinstance(config, dict):
         return {}
     mode = config.get("llm_mode") or "local"
     block = config.get(f"llm_{mode}")
-    if not isinstance(block, dict) or not block:
+    if not isinstance(block, dict) or (require_complete and not is_profile_configured(block)):
         block = config.get("llm")
     return block if isinstance(block, dict) else {}
 
@@ -238,7 +262,7 @@ def get_failover_llm_config(config):
         return {}
     other = "remote" if (config.get("llm_mode") or "local") == "local" else "local"
     block = config.get(f"llm_{other}")
-    if not isinstance(block, dict) or not block.get("base_url") or not block.get("model_name"):
+    if not is_profile_configured(block):
         return {}
     from llm_request_budget import get_inherited_profile_limits
     return get_inherited_profile_limits(block, config.get("generation") or {})
