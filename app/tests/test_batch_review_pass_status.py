@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from routers import script
+from routers import editor, script
 
 
 CLEAN = ['Review complete: 2 -> 2 entries', 'Total changes: 0']
@@ -186,7 +186,7 @@ class BatchOptionAdmissionTests(unittest.TestCase):
 
     def test_pending_run_does_not_reuse_previous_results(self):
         state = {"batch_review": {
-            "running": False, "bidirectional": True, "current_task_idx": 0,
+            "running": False, "bidirectional": True, "current_task_idx": 0, "current_pass": "bwd",
             "tasks": [{"name": "finished", "status": "done",
                        "stats_fwd": {"total_changes": 2}, "stats_bwd": {"total_changes": 3}}],
             "totals_fwd": {"total_changes": 2}, "totals_bwd": {"total_changes": 3},
@@ -194,9 +194,17 @@ class BatchOptionAdmissionTests(unittest.TestCase):
         }}
         app = FastAPI()
         app.include_router(script.router)
+        app.include_router(editor.router)
+
+        def reserve(*args, **kwargs):
+            state["batch_review"]["running"] = True
+            return "new-claim"
+
         with patch.object(script, "process_state", state), \
+             patch.object(editor, "process_state", state), \
+             patch.object(editor, "_get_review_checkpoint_snapshot", return_value=([], "fixture")), \
              patch.object(script, "check_global_gpu_lock"), \
-             patch.object(script, "reserve_background_task", return_value="new-claim"), \
+             patch.object(script, "reserve_background_task", side_effect=reserve), \
              patch.object(script, "register_claimed_background_task") as registered, \
              TestClient(app) as client:
             before = client.get("/api/status/batch_review").json()
@@ -206,6 +214,7 @@ class BatchOptionAdmissionTests(unittest.TestCase):
             })
             self.assertEqual(200, start.status_code, start.text)
             status = client.get("/api/status/batch_review")
+            checkpoints = client.get("/api/review/checkpoints")
         registered.assert_called_once()  # The new worker has not started yet.
         self.assertEqual(200, status.status_code, status.text)
         pending = status.json()
@@ -215,5 +224,10 @@ class BatchOptionAdmissionTests(unittest.TestCase):
         for pass_name in ("totals_fwd", "totals_bwd"):
             self.assertEqual(core._new_review_totals(), pending[pass_name])
         self.assertEqual(-1, pending["current_task_idx"])
+        self.assertIsNone(pending["current_pass"])
+        self.assertEqual(200, checkpoints.status_code, checkpoints.text)
+        live = checkpoints.json()["live"]
+        self.assertIsNone(live["current_pass"])
+        self.assertEqual(pending["tasks"], live["tasks"])
         self.assertEqual([], pending["logs"])
         self.assertIsNone(pending["run_id"])

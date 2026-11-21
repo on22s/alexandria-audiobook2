@@ -4000,7 +4000,7 @@ def _start_batch_review(request, background_tasks):
     total = len(names)
     pending = {
         "tasks": [{"name": name, "status": "pending"} for name in names],
-        "current_task_idx": -1,
+        "current_task_idx": -1, "current_pass": None,
         "totals_fwd": _new_review_totals(), "totals_bwd": _new_review_totals(),
         "aliases_fwd": [], "aliases_bwd": [], "diff_pool": {"text": [], "speaker": []},
         "logs": [], "artifacts": [], "start_time": None, "run_id": None,
