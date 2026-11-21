@@ -211,10 +211,17 @@ class Ds2224BackendTests(unittest.TestCase):
         self.assertEqual(500, batch.status_code, batch.text)
         self.assertEqual('error.dataset.state_unreadable', batch.json()['message_key'])
         self.assertEqual(500, status.status_code, status.text)
+        self.assertEqual('error.dataset.state_unreadable', status.json()['message_key'])
         self.assertIn('could not be read', status.json()['detail'])
         single_claim.assert_not_called()
         batch_claim.assert_not_called()
         self.assertEqual(expected, self.load())
+        Path(state_path).write_bytes(b'{')
+        with TestClient(self.app) as client:
+            truncated = client.get('/api/dataset_builder/status/voice')
+        self.assertEqual(500, truncated.status_code, truncated.text)
+        self.assertEqual('error.dataset.state_unreadable', truncated.json()['message_key'])
+        self.assertEqual(b'{', Path(state_path).read_bytes())
 
     def test_ds2224_update_meta_hides_diagnostic_but_token_matches_full_record(self):
         self.save({'description': 'root', 'global_seed': '', 'samples': [
@@ -224,6 +231,7 @@ class Ds2224BackendTests(unittest.TestCase):
         with TestClient(self.app) as client:
             response = client.post('/api/dataset_builder/update_meta', json={
                 'name': 'voice', 'description': 'root', 'global_seed': ''})
+            status = client.get('/api/dataset_builder/status/voice')
         self.assertEqual(200, response.status_code, response.text)
         self.assertNotIn('PRIVATE-DS2224-DIAGNOSTIC', response.text)
         body = response.json()
@@ -232,13 +240,16 @@ class Ds2224BackendTests(unittest.TestCase):
         full = self.load()['samples']
         self.assertIn('error', full[0])
         self.assertEqual([self.revision(row) for row in full], body['row_revisions'])
+        self.assertEqual(200, status.status_code, status.text)
+        self.assertNotIn('PRIVATE-DS2224-DIAGNOSTIC', status.text)
+        self.assertEqual(body['row_revisions'], status.json()['row_revisions'])
         with patch.object(routes, 'claim_gpu_task', return_value='owned'), \
              patch.object(routes, 'release_gpu_task_claim'), \
              TestClient(self.app) as client:
             retry = client.post('/api/dataset_builder/generate_sample', json={
                 'dataset_name': 'voice', 'sample_index': 0,
                 'description': 'root', 'text': 'failed', 'seed': 0,
-                'expected_count': 2, 'expected_revision': body['row_revisions'][0]})
+                'expected_count': 2, 'expected_revision': status.json()['row_revisions'][0]})
         self.assertEqual(200, retry.status_code, retry.text)
 
     def test_ds2224_empty_resolved_text_is_refused_without_engine_call(self):

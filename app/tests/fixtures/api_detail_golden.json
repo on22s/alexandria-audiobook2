@@ -177,8 +177,6 @@
     "'DOCX upload could not be completed because the file appears to be held by another program; the file may be held by antivirus scanning or a sync tool. Try again shortly; any already published recovery material remains retained. Check existing uploads before retrying.'",
     "'Dataset builder project not found'",
     "'Dataset builder project not found'",
-    "'Dataset builder project not found'",
-    "'Dataset builder project state could not be read'",
     "'Dataset contains no usable training audio.'",
     "'Dataset generation needs a revision for every requested row'",
     "'Dataset generation needs an expected row count with revisions'",

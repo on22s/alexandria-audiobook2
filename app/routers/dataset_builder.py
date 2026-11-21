@@ -868,21 +868,15 @@ async def dataset_builder_cancel(name: Optional[str] = None):
 async def dataset_builder_status(name: str):
     """Get per-sample generation status for a dataset builder project."""
     safe_name = _require_safe_filename(name, "Invalid dataset name")
-    state_path = os.path.join(DATASET_BUILDER_DIR, safe_name, "state.json")
-    try:
-        os.lstat(state_path)
-    except FileNotFoundError:
+    state = await asyncio.to_thread(_load_builder_state_for_generation, safe_name)
+    if state is _MISSING_BUILDER_STATE:
         raise HTTPException(status_code=404, detail="Dataset builder project not found")
-    except OSError as error:
-        raise HTTPException(status_code=500, detail="Dataset builder project state could not be read") from error
-    if not os.path.isfile(state_path):
-        raise HTTPException(status_code=404, detail="Dataset builder project not found")
-    state = _load_builder_state(safe_name)
+    samples = state["samples"]
     return {
         "description": state.get("description", ""),
         "global_seed": state.get("global_seed", ""),
-        "samples": state.get("samples", []),
-        "row_revisions": [get_dataset_row_revision(row) for row in state.get("samples", [])],
+        "samples": [_browser_safe_dataset_row(row) for row in samples],
+        "row_revisions": [get_dataset_row_revision(row) for row in samples],
         "dataset_name": safe_name,
         **get_builder_activity(safe_name),
     }
