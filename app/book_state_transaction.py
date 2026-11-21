@@ -5662,7 +5662,10 @@ def _published_binding_for_selection_locked(data_dir, state, previous_token, pre
                                                 source_path=new_path)
         return (json.dumps(rebound, sort_keys=True, separators=(',', ':')).encode('utf-8'),
                 previous_digest)
-    except (ValueError, OSError, RecursionError):
+    except (ValueError, RecursionError):
+        # A validation failure leaves the pending-selection path authoritative;
+        # an unexpected I/O error (e.g. EIO reading the script) must propagate
+        # with the book state still unchanged so a retry can rebind cleanly.
         return None, previous_digest
 
 
@@ -5673,9 +5676,10 @@ def _plan_selection_chunk_snapshot_locked(data_dir, previous_identity, same_byte
     lock. Both files are read through the confined, nonblocking, descriptor
     verified capture seam: a FIFO, alias or unexpected I/O error refuses the
     selection (releasing every lock) instead of deleting valid progress. Only
-    byte-identical source replays a coherent journal into the new snapshot; a
-    foreign, stale or torn pair is retired with BOTH raw files retained under
-    one suffix so the pair can be replayed later. Returns (replacements,
+    byte-identical source replays a coherent journal into the new snapshot,
+    retaining the exact original snapshot and torn journal together as evidence;
+    a foreign, stale or unreadable pair is retired with BOTH raw files retained
+    under one suffix so the pair can be replayed later. Returns (replacements,
     removals) relative to data_dir for the enclosing book transaction.
     """
     from chunk_status_journal import ChunkStatusJournal, get_chunk_status_journal_path
@@ -5704,7 +5708,11 @@ def _plan_selection_chunk_snapshot_locked(data_dir, previous_identity, same_byte
             rows, ensure_ascii=False, indent=2, allow_nan=False).encode("utf-8")}
         removals = [journal_name]
         if torn:
-            replacements[journal_name + ".torn-" + uuid.uuid4().hex] = journal_bytes
+            # Keep the exact original pair together under one suffix: the
+            # replayed rows above are a derived copy, not the evidence.
+            suffix = ".torn-" + uuid.uuid4().hex
+            replacements[chunks_name + suffix] = snapshot_bytes
+            replacements[journal_name + suffix] = journal_bytes
         return replacements, removals
     # Deliberate retirement: keep whatever raw files are available together,
     # using one suffix so a recovery reader can replay the retained pair.
@@ -5736,6 +5744,7 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
         state_path = Path(data_dir) / "state.json"
         chunks_path = Path(data_dir) / "chunks.json"
         journal_exists = os.path.lexists(get_chunk_status_journal_path(chunks_path))
+        snapshot_exists = os.path.lexists(chunks_path)
         with file_lock(str(state_path)):
             state = safe_load_json(str(state_path), default={})
             if not isinstance(state, dict):
@@ -5750,7 +5759,10 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
             new_digest = None
             try:
                 new_digest = _selection_source_digest(input_path, data_dir)
-            except (ValueError, OSError):
+            except ValueError:
+                # An unavailable or non-file source is already an ordinary
+                # pending-selection case; unexpected I/O must propagate with
+                # the book state unchanged so a retry can rebind cleanly.
                 pass
             state.update(input_file_path=input_path, active_book_id=book_id,
                          book_generation=uuid.uuid4().hex)
@@ -5792,7 +5804,10 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
                 else:
                     save_adapter_publication_bytes(str(state_path), state_bytes)
                 return get_book_operation_token(data_dir)
-            if journal_exists:
+            if journal_exists or snapshot_exists:
+                # A standalone snapshot belongs to the source being replaced
+                # too: reconcile it here rather than leave old progress bound
+                # to the new generation.
                 with file_lock(chunks_path):
                     chunk_replacements, chunk_removals = _plan_selection_chunk_snapshot_locked(
                         data_dir, previous_identity, same_bytes)

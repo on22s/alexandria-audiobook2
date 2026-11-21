@@ -7405,7 +7405,16 @@
   ]
   , "test_japanese_text_boundary": []
   , "test_journal_identity_readers": [
-    "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_changed_bytes_under_same_filename_never_reuse_rows"
+    "tests.test_journal_identity_readers.JournalRecoveryBoundaryTests.test_changed_source_retires_a_standalone_snapshot"
+    , "tests.test_journal_identity_readers.JournalRecoveryBoundaryTests.test_decodable_deeply_nested_record_is_refused_before_copy"
+    , "tests.test_journal_identity_readers.JournalRecoveryBoundaryTests.test_export_preflight_does_not_recover_a_pending_book_transaction"
+    , "tests.test_journal_identity_readers.JournalRecoveryBoundaryTests.test_integrity_and_merge_are_fenced_after_a_source_change"
+    , "tests.test_journal_identity_readers.JournalRecoveryBoundaryTests.test_nonregular_snapshot_is_refused_without_regenerating_it"
+    , "tests.test_journal_identity_readers.JournalRecoveryBoundaryTests.test_orphan_journal_is_an_export_conflict_not_an_absent_snapshot"
+    , "tests.test_journal_identity_readers.JournalRecoveryBoundaryTests.test_same_source_torn_replay_retains_the_exact_pair_under_one_suffix"
+    , "tests.test_journal_identity_readers.JournalRecoveryBoundaryTests.test_transient_script_io_error_keeps_state_unchanged_and_retry_succeeds"
+    , "tests.test_journal_identity_readers.JournalRecoveryBoundaryTests.test_transient_source_io_error_keeps_state_unchanged_and_retry_succeeds"
+    , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_changed_bytes_under_same_filename_never_reuse_rows"
     , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_fifo_snapshot_and_journal_refuse_promptly_and_release_locks"
     , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_missing_snapshot_retains_orphan_journal"
     , "tests.test_journal_identity_readers.SelectionJournalIdentityTests.test_retained_stale_pair_replays_the_saved_progress"
