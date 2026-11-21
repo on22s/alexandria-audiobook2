@@ -1005,3 +1005,167 @@ class ExportLateBoundaryTests(JournalIdentityCases):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StorageAdmissionBoundaryTests(JournalIdentityCases):
+    @contextmanager
+    def refuse_version_read(self, path):
+        read_stat, read_lstat, read_path_lstat = os.stat, os.lstat, Path.lstat
+
+        def fail_lookup(read):
+            def lookup(candidate, *args, **kwargs):
+                if not isinstance(candidate, int) and os.fspath(candidate) == str(path):
+                    raise OSError(errno.EIO, "injected version lookup failure")
+                return read(candidate, *args, **kwargs)
+            return lookup
+
+        with patch.object(os, "stat", side_effect=fail_lookup(read_stat)), \
+             patch.object(os, "lstat", side_effect=fail_lookup(read_lstat)), \
+             patch.object(Path, "lstat", new=fail_lookup(read_path_lstat)):
+            yield
+
+    def test_selection_state_read_failure_preserves_published_book_and_progress(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            state = root / "state.json"
+            snapshot = root / "chunks.json"
+            journal = Path(get_chunk_status_journal_path(snapshot))
+            watched = (state, snapshot, journal, root / BINDING_NAME, root / "line-0.wav")
+            before = {path: path.read_bytes() for path in watched}
+            client = self.http_client(root, raise_server_exceptions=False)
+            import builtins
+            faults = []
+
+            def fail_read(read):
+                def open_file(path, *args, **kwargs):
+                    if (not faults and not isinstance(path, int)
+                            and os.fspath(path) == str(state)):
+                        faults.append(path)
+                        raise OSError(errno.EIO, "injected selection state read failure")
+                    return read(path, *args, **kwargs)
+                return open_file
+
+            with patch.object(builtins, "open", side_effect=fail_read(builtins.open)), \
+                 patch.object(os, "open", side_effect=fail_read(os.open)):
+                response = self.select(client)
+            self.assertTrue(faults)
+            self.assertEqual(500, response.status_code, response.text)
+            self.assertEqual(before, {path: path.read_bytes() for path in watched})
+            retry = self.select(client)
+            self.assertEqual(200, retry.status_code, retry.text)
+            self.assertNotIn("script_selection_pending", self.state(root))
+            row, = client.get("/api/chunks").json()
+            self.assertEqual(("done", "line-0.wav"), (row["status"], row["audio_path"]))
+
+    def test_unreadable_pending_marker_refuses_fresh_and_reused_admission(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            client = self.http_client(root, state=self.export_state())
+            snapshot = root / "chunks.json"
+            journal = Path(get_chunk_status_journal_path(snapshot))
+            with book_state_transaction.ensure_book_state(root, recover=False):
+                pending = self.write_pending_journal(root)
+                with self.refuse_version_read(pending), self.assertRaises(OSError):
+                    with book_state_transaction.reuse_book_state(root, recover=False):
+                        self.fail("unreadable transaction marker authorized reuse")
+            watched = (pending, snapshot, journal, root / "state.json", root / "line-0.wav")
+            before = {path: path.read_bytes() for path in watched}
+            with self.refuse_version_read(pending), \
+                 patch.object(editor, "schedule_claimed_background_task") as scheduled:
+                preview = client.get("/api/export_chapters/preview")
+                start = client.post("/api/export_audacity")
+                scheduled.assert_not_called()
+            for response in (preview, start):
+                self.assertEqual(409, response.status_code, response.text)
+                self.assertEqual(editor.CHUNK_SNAPSHOT_CONFLICT_DETAIL, response.json()["detail"])
+            self.assertEqual(before, {path: path.read_bytes() for path in watched})
+            pending.unlink()  # Finish the synthetic transaction before retrying.
+            retry = client.get("/api/export_chapters/preview")
+            self.assertEqual(200, retry.status_code, retry.text)
+            self.assertEqual(1, len(retry.json()["chapters"]))
+
+    def test_unknown_snapshot_version_never_authorizes_cached_legacy_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            snapshot = root / "chunks.json"
+            journal = Path(get_chunk_status_journal_path(snapshot))
+            manager = ProjectManager(str(root))
+            rows = manager.load_chunks()
+            journal.unlink()
+            snapshot.write_text(json.dumps(rows), encoding="utf-8")
+            client = self.http_client(root, manager=manager)
+            self.assertEqual("line-0", client.get("/api/chunks").json()[0]["uid"])
+
+            legacy = dict(rows[0])
+            legacy.pop("uid")
+            with self.refuse_version_read(snapshot):
+                warm = client.get("/api/chunks")
+                snapshot.write_text(json.dumps([legacy]), encoding="utf-8")
+                replaced = client.get("/api/chunks")
+            for response in (warm, replaced):
+                self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual([legacy], json.loads(snapshot.read_bytes()))
+            retry = client.get("/api/chunks")
+            self.assertEqual(200, retry.status_code, retry.text)
+            repaired, = retry.json()
+            self.assertTrue(repaired["uid"])
+            self.assertEqual(("done", "line-0.wav"), (repaired["status"], repaired["audio_path"]))
+            self.assertEqual(repaired["uid"], client.get("/api/chunks").json()[0]["uid"])
+
+    def test_legacy_missing_and_unhashable_uids_backfill_without_discarding_audio(self):
+        for uid in (None, [], {}):
+            with self.subTest(uid=uid), tempfile.TemporaryDirectory() as tmp:
+                root, _source, _rows, _identity = self.make_published_book(tmp)
+                snapshot = root / "chunks.json"
+                journal = Path(get_chunk_status_journal_path(snapshot))
+                rows = ProjectManager(str(root)).load_chunks()
+                journal.unlink()
+                if uid is None:
+                    rows[0].pop("uid")
+                else:
+                    rows[0]["uid"] = uid
+                snapshot.write_text(json.dumps(rows), encoding="utf-8")
+                client = self.http_client(root, raise_server_exceptions=False)
+                selected = self.select(client)
+                self.assertEqual(200, selected.status_code, selected.text)
+                repaired, = ProjectManager(str(root)).load_chunks()
+                self.assertIsInstance(repaired["uid"], str)
+                self.assertTrue(repaired["uid"])
+                self.assertEqual(("done", "line-0.wav"),
+                                 (repaired["status"], repaired["audio_path"]))
+
+    def test_export_readiness_second_identity_read_refuses_storage_fault(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            snapshot = root / "chunks.json"
+            journal = Path(get_chunk_status_journal_path(snapshot))
+            watched = (root / "state.json", snapshot, journal, root / "line-0.wav")
+            before = {path: path.read_bytes() for path in watched}
+            client = self.http_client(root, state=self.export_state(), raise_server_exceptions=False)
+            real_token = editor.get_book_operation_token
+            routes = (
+                ("get", "/api/export_chapters/preview", {}),
+                ("post", "/api/export_chapters", {"json": {"chapters": [0]}}),
+                ("post", "/api/merge_m4b", {"json": {}}),
+            )
+            for method, path, kwargs in routes:
+                with self.subTest(route=path):
+                    calls = []
+
+                    def fail_readiness(*args, **options):
+                        calls.append(args)
+                        if len(calls) == 2:
+                            raise OSError(getattr(errno, "ESTALE", errno.EIO),
+                                          "injected readiness identity read failure")
+                        return real_token(*args, **options)
+
+                    with patch.object(editor, "get_book_operation_token",
+                                      side_effect=fail_readiness), \
+                         patch.object(editor, "schedule_claimed_background_task") as scheduled:
+                        response = getattr(client, method)(path, **kwargs)
+                        scheduled.assert_not_called()
+                    self.assertEqual(2, len(calls))
+                    self.assertEqual(409, response.status_code, response.text)
+                    self.assertEqual(editor.CHUNK_SNAPSHOT_CONFLICT_DETAIL, response.json()["detail"])
+                    self.assertEqual(before, {path: path.read_bytes() for path in watched})
+            self.assertEqual(200, client.get("/api/export_chapters/preview").status_code)

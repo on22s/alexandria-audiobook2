@@ -1302,12 +1302,7 @@ class ProjectManager:
 
     def _get_chunks_file_version(self):
         """Identify the file whose rows have already received stable UIDs."""
-        try:
-            stat = os.stat(self.chunks_path)
-        except OSError:
-            return None
-        return (stat.st_dev, stat.st_ino, stat.st_size,
-                stat.st_mtime_ns, stat.st_ctime_ns)
+        return get_chunk_state_file_version(self.chunks_path)
 
     def _save_chunks_locked(self, chunks, uids_backfilled=False, *, retained_update_uid=None):
         """Publish rows and retain UID validation only for known-valid writes."""
@@ -1325,9 +1320,13 @@ class ProjectManager:
             self._status_journal = None
         else:
             save_snapshot(chunks)
-        self._uids_backfilled = uids_backfilled
-        self._uids_file_version = (self._get_chunks_file_version()
-                                   if uids_backfilled else None)
+        try:
+            version = self._get_chunks_file_version() if uids_backfilled else None
+        except ValueError:
+            # Publication succeeded. A failed cache probe only invalidates the cache.
+            version = None
+        self._uids_file_version = version
+        self._uids_backfilled = version is not None
         # Bind only our validated staged bytes. A destination reread could
         # attest an external edit that arrived immediately after publication.
         self._uids_content_sha256 = hashlib.sha256(written_bytes).digest() if written_bytes is not None else None
@@ -1396,6 +1395,8 @@ class ProjectManager:
         raw, read_identity = self._read_chunks_snapshot()
         if raw is not None and is_book_placeholder_bytes(raw):
             raise BookSwitchPlaceholderError(switching)
+        if (raw is None) != (file_version is None):
+            raise ValueError("Saved chunks changed while reading. Retry.")
         content_sha256 = hashlib.sha256(raw).digest() if raw is not None and sys.platform == 'win32' else None
         chunks = self._parse_chunks_snapshot(raw)
         if not isinstance(chunks, list) or not all(isinstance(c, dict) for c in chunks):
@@ -1417,7 +1418,7 @@ class ProjectManager:
                     self._save_chunks_locked(chunks, uids_backfilled=True)
                 else:
                     after_version = self._get_chunks_file_version()
-                    self._uids_backfilled = file_version == after_version
+                    self._uids_backfilled = after_version is not None and file_version == after_version
                     self._uids_file_version = (after_version
                                                if self._uids_backfilled else None)
                     self._uids_content_sha256 = content_sha256 if self._uids_backfilled else None

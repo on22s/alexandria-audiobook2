@@ -7547,6 +7547,11 @@
     , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_export_preflight_is_read_only_and_distinguishes_absent_snapshot"
     , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_merge_m4b_preflights_journal_before_optional_readiness"
     , "tests.test_journal_identity_readers.StaleJournalReaderTests.test_startup_lifespan_survives_deeply_nested_journal"
+    , "tests.test_journal_identity_readers.StorageAdmissionBoundaryTests.test_export_readiness_second_identity_read_refuses_storage_fault"
+    , "tests.test_journal_identity_readers.StorageAdmissionBoundaryTests.test_legacy_missing_and_unhashable_uids_backfill_without_discarding_audio"
+    , "tests.test_journal_identity_readers.StorageAdmissionBoundaryTests.test_selection_state_read_failure_preserves_published_book_and_progress"
+    , "tests.test_journal_identity_readers.StorageAdmissionBoundaryTests.test_unknown_snapshot_version_never_authorizes_cached_legacy_rows"
+    , "tests.test_journal_identity_readers.StorageAdmissionBoundaryTests.test_unreadable_pending_marker_refuses_fresh_and_reused_admission"
   ]
   , "test_judge_reason_contract": [
     "tests.test_judge_reason_contract.JudgeReasonContractTests.test_existing_speaker_gate_still_rejects_even_with_evidence"

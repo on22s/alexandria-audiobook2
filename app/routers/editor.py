@@ -1736,7 +1736,7 @@ async def validate_export_readiness(require_ready, token=None):
                 _ensure_editor_selection()
     try:
         await asyncio.to_thread(check)
-    except ValueError as error:
+    except (ValueError, OSError, RecursionError) as error:
         raise AppError(409, "Saved book state is unreadable. Reload or switch books before continuing; saved progress and audio have been preserved.", key='error.book.chunk_snapshot_unreadable') from error
 
 

@@ -1297,6 +1297,12 @@ def is_book_state_admitted(data_dir):
                for scope in _held_books.get())
 
 
+def _has_book_transaction(root):
+    """Distinguish an absent marker from a failed lookup at admission."""
+    from project_scope_files import _confined_absent
+    return not _confined_absent(root / JOURNAL)
+
+
 @contextlib.contextmanager
 def reuse_book_state(data_dir, timeout=10, *, recover=True):
     """Reuse only this live task/thread/process's actual kernel admission.
@@ -1308,7 +1314,7 @@ def reuse_book_state(data_dir, timeout=10, *, recover=True):
     """
     root, _identity = _direct_book_root(data_dir)
     if is_book_state_admitted(root):
-        if os.path.lexists(root / JOURNAL):
+        if _has_book_transaction(root):
             raise ValueError('Book transaction must finish before reusing its state.')
         yield root
     else:
@@ -3614,7 +3620,7 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
         if root != expected_root or root_identity != tuple(expected_root_identity):
             raise ValueError('Book root changed during admission; alias scope no longer matches')
     journal = root / JOURNAL
-    if not os.path.lexists(journal):
+    if not _has_book_transaction(root):
         _complete_interrupted_quarantines(root, root_identity)
         return False
     if _quarantine_book_transaction(root, root_identity, cancel_check=cancel_check):
@@ -4428,7 +4434,7 @@ def _complete_interrupted_quarantine(root, directory, root_identity):
                 & stat.FILE_ATTRIBUTE_REPARSE_POINT
                 or [moved_info.st_dev, moved_info.st_ino] != identity):
             return
-    if os.path.lexists(root / JOURNAL):
+    if _has_book_transaction(root):
         return
     if not _is_admitted_root_unchanged(root, root_identity):
         return
@@ -4611,7 +4617,7 @@ def quarantine_book_state_locked(root, root_identity):
     transaction is pending; ValueError when the journal or workspace cannot be
     quarantined safely (inspect reports why)."""
     root = Path(root)
-    if not os.path.lexists(root / JOURNAL):
+    if not _has_book_transaction(root):
         return False
     if not _quarantine_book_transaction(
             root, root_identity, refusal='Operator quarantine accepted the current book files',
@@ -4632,7 +4638,7 @@ def migrate_legacy_book_state_locked(root, root_identity):
     is deleted. -> False when no journal is pending; ValueError naming the
     mismatched rows otherwise."""
     root = Path(root)
-    if not os.path.lexists(root / JOURNAL):
+    if not _has_book_transaction(root):
         return False
     if not _quarantine_book_transaction(
             root, root_identity,
@@ -4696,10 +4702,11 @@ def get_book_journal_status(root):
     Recovery's own shape check decides (#1660): 'legacy' is a well-formed v1
     journal, which only migrate-legacy may act on; 'invalid' is one that
     finish, quarantine and migrate-legacy would all refuse."""
-    journal = Path(root) / JOURNAL
-    if not os.path.lexists(journal):
-        return 'absent'
+    root = Path(root)
+    journal = root / JOURNAL
     try:
+        if not _has_book_transaction(root):
+            return 'absent'
         data, _version = _read_book_journal(journal)
         _validate_recovery_journal_shape(Path(root), journal, data)
     except BookJournalMigrationRequired:
@@ -4757,7 +4764,7 @@ def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None,
                     # from a pinned descriptor); only the outer class changes.
                     raise BookTransactionError(str(refusal)) from refusal.__cause__
                 raise
-        elif os.path.lexists(root / JOURNAL):
+        elif _has_book_transaction(root):
             if get_book_journal_status(root) == 'legacy':
                 raise BookJournalMigrationRequired(
                     'Legacy active-book transaction requires explicit recovery inspection')
@@ -4994,7 +5001,7 @@ def ensure_saved_book_state(data_dir, scripts_dir, timeout=10, *, recover=True):
         root = Path(data_dir)
         child = Path(scripts_dir)
         if (os.path.normcase(os.path.realpath(child.parent)) == os.path.normcase(os.path.realpath(root))
-                and os.path.lexists(root / JOURNAL)):
+                and _has_book_transaction(root)):
             raise ValueError('Active-book recovery is required before accessing saved books.')
         yield
 
@@ -5012,7 +5019,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
     evidence that changed during staging or final validation cannot be published.
     """
     root, root_identity = _book_operation_root(data_dir)
-    if os.path.lexists(root / JOURNAL):
+    if _has_book_transaction(root):
         raise ValueError('Recover the pending book transaction first')
     operations = list(replacements.items()) + [(name, None) for name in removals]
     streams = [value for _, value in operations if isinstance(value, BookStateStream)]
@@ -5797,11 +5804,12 @@ def _backfill_legacy_snapshot_uids(snapshot_bytes):
         seen = set()
         for row in rows:
             uid = row.get("uid")
+            if not isinstance(uid, str) or not uid:
+                uid = _new_chunk_uid()
+                row["uid"] = uid
             if uid in seen:
                 return None
-            if not isinstance(uid, str) or not uid:
-                row["uid"] = _new_chunk_uid()
-            seen.add(row["uid"])
+            seen.add(uid)
         get_retained_book_bytes(rows)
         return rows
     except (ValueError, OSError, RecursionError):
@@ -5880,11 +5888,10 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
     the first write. After that handoff, errors may have an unknown commit
     outcome; uploaded source/provenance must remain available for recovery.
     """
-    from utils import safe_load_json
     from sound_design_registry import ACTIVE_CUES
     from sound_design_renditions import ACTIVE_RENDITIONS, capture_sound_design_companions
     from chunk_status_journal import get_chunk_status_journal_path
-    from script_selection_binding import BINDING_NAME
+    from script_selection_binding import BINDING_NAME, _read_selection_state
     with ensure_book_state(data_dir, timeout=timeout) as root:
         data_dir = root
         state_path = Path(data_dir) / "state.json"
@@ -5896,9 +5903,7 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
             Path(get_chunk_status_journal_path(chunks_path)))
         snapshot_exists = not _confined_absent(chunks_path)
         with file_lock(str(state_path)):
-            state = safe_load_json(str(state_path), default={})
-            if not isinstance(state, dict):
-                raise ValueError("Book state must be an object")
+            state = _read_selection_state(data_dir, required=False)
             if input_path is None:
                 input_path = state.get("input_file_path")
             previous_book_id = state.get('active_book_id')
