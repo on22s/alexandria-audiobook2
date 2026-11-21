@@ -1982,6 +1982,8 @@ def _extract_review_stats(lines: List[str]) -> Optional[dict]:
     stats["unreviewed_entries"] = 0
     stats["post_processing_abort"] = False
     stats["final_check_aborted"] = 0
+    stats["abort_stage"] = ""
+    stats["retry_offset"] = None
     stats["publication_withheld"] = False
     stats["resumable_checkpoint"] = False
     for line in lines:
@@ -1996,6 +1998,9 @@ def _extract_review_stats(lines: List[str]) -> Optional[dict]:
                     if type(disposition.get(key)) is bool:
                         stats[key] = disposition[key]
                 stats['final_check_aborted'] = int(stats['post_processing_abort'])
+                stats['abort_stage'] = str(disposition.get('abort_stage') or '')
+                if type(disposition.get('retry_offset')) is int:
+                    stats['retry_offset'] = disposition['retry_offset']
             except (ValueError, KeyError, TypeError):
                 logger.warning('Malformed review disposition summary; using counters only.')
         if line.startswith('REVIEW_ACCOUNTING_JSON: '):
@@ -2035,6 +2040,8 @@ def _combine_pass_stats(*stat_dicts: Optional[dict]) -> dict:
     combined["unreviewed_entries"] = 0
     combined["post_processing_abort"] = False
     combined["final_check_aborted"] = 0
+    combined["abort_stage"] = ""
+    combined["retry_offset"] = None
     combined["publication_withheld"] = False
     combined["resumable_checkpoint"] = False
     for stats in stat_dicts:
@@ -2282,12 +2289,13 @@ def get_review_accounting_warning(stats: dict) -> str:
 def _markdown_heads_up_lines(stats: dict) -> List[str]:
     """Plain-language notes about anything the reviewer couldn't finish."""
     lines = []
+    historical_only = stats.get('review_complete') and not stats.get('review_incomplete')
     if get_review_accounting_warning(stats):
         lines.append('- ' + get_review_accounting_warning(stats))
-    if stats.get("batches_failed"):
+    if stats.get("batches_failed") and not historical_only:
         lines.append(f"- {stats['batches_failed']} section(s) ran into an error and were left "
                       f"unchanged. Running the review again may fix these.")
-    if stats.get("batches_skipped_vram"):
+    if stats.get("batches_skipped_vram") and not historical_only:
         lines.append(f"- {stats['batches_skipped_vram']} section(s) were skipped because the "
                       f"graphics card was running low on memory. Running the review again may "
                       f"catch these.")
@@ -2593,10 +2601,14 @@ def _get_deterministic_review_summary(stats: dict, incomplete: bool) -> str:
             details.append(f"{failed} section(s) failed")
         if skipped:
             details.append(f"{skipped} section(s) were skipped for VRAM safety")
-        reason = ("; ".join(details) or
-                  ("all entries were reviewed but final checks did not finish"
-                   if stats.get("post_processing_abort") else
-                   "the review stopped before all entries were reviewed"))
+        if stats.get('final_check_aborted', 0) and stats.get('unreviewed_entries', 0):
+            reason = (f"{stats['final_check_aborted']} book(s) stopped in final checks and "
+                      f"{stats['unreviewed_entries']} entries were left unreviewed")
+        else:
+            reason = ("; ".join(details) or
+                      ("all entries were reviewed but final checks did not finish"
+                       if stats.get("post_processing_abort") else
+                       "the review stopped before all entries were reviewed"))
         return (
             f"This review was incomplete: {reason}. Completed sections reported "
             f"{total_changes} change(s). Check the warnings below before generating audio."

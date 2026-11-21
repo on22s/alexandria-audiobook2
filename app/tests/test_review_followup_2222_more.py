@@ -110,13 +110,19 @@ c.getTaskLabel=()=> 'Review';
         code = self.SETUP + r'''
 vm.runInContext(`assert.strictEqual(notifyJobDone('review','', 'finished',{status:'incomplete',logs:[]}),undefined);
 assert.match(notices.at(-1).title,/review incomplete/i);
-assert.match(notices.at(-1).options.body,/unreviewed/i);
+assert.match(notices.at(-1).options.body,/still unfinished/i);
 notifyJobDone('review','', 'finished',{status:'done',logs:['Task review completed successfully.']});
 assert.match(notices.at(-1).title,/finished/i);
 notifyJobDone('review','', 'finished',{status:'failed',logs:[]});
 assert.match(notices.at(-1).title,/failed/i);
 notifyJobDone('review','', 'finished',{status:'cancelled',logs:[]});
-assert.match(notices.at(-1).title,/cancelled/i);`,c);
+assert.match(notices.at(-1).title,/cancelled/i);
+notifyJobDone('batch_review','', 'finished',{status:'done',tasks:[{status:'failed'},{status:'incomplete'}],logs:[]});
+assert.match(notices.at(-1).title,/failed/i);
+notifyJobDone('batch_review','', 'finished',{status:'done',tasks:[{status:'cancelled'},{status:'incomplete'}],logs:[]});
+assert.match(notices.at(-1).title,/cancelled/i);
+notifyJobDone('batch_review','', 'finished',{status:'done',tasks:[{status:'incomplete'},{status:'done'}],logs:[]});
+assert.match(notices.at(-1).title,/incomplete/i);`,c);
 '''
         result = subprocess.run(['node', '-e', code, str(source)], capture_output=True, text=True)
         self.assertEqual(0, result.returncode, result.stderr)

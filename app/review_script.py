@@ -931,6 +931,7 @@ def _load_resume_state(output_path, total_batches_estimate, batch_size, context_
         total_stats["batches_skipped_vram"] = 0
         total_stats["batches_failed"] = 0
         total_stats["unreviewed_rows"] = 0
+        total_stats["abort_stage"] = ""
         previous_tail = checkpoint["previous_tail"]
         batch_lengths = checkpoint["batch_lengths"]
         failed_batches = checkpoint["failed_batches"]
@@ -940,6 +941,31 @@ def _load_resume_state(output_path, total_batches_estimate, batch_size, context_
     resume_offset = source_offsets[-1] if source_offsets else 0
     return (all_corrected, total_stats, previous_tail, completed_batches,
             batch_lengths, failed_batches, resume_offset, checkpoint)
+
+
+def get_verified_retry_offset(output_path, total_batches, batch_size, context_window,
+                              entries, input_sha256, input_entries, execution_sha256,
+                              legacy_execution_sha256=(), review_windows=()):
+    """Return the next actionable input offset from a genuinely resumable checkpoint.
+
+    Uses the real loader (including delta recovery and rewind) and the same
+    offset/windows validation as a fresh invocation, rather than trusting file
+    existence or a speculative assembled-output digest.
+    """
+    stats = {key: 0 for key in REVIEW_EDIT_COUNTERS}
+    try:
+        (_corrected, _stats, _tail, _completed, _lengths, _failed,
+         resume_offset, checkpoint) = _load_resume_state(
+            output_path, total_batches, batch_size, context_window, entries,
+            [], stats, execution_sha256=execution_sha256,
+            legacy_execution_sha256=legacy_execution_sha256,
+            input_sha256=input_sha256, input_entries=input_entries)
+    except (ValueError, OSError, TypeError):
+        return None
+    if not checkpoint:
+        return None
+    remaining = get_review_remaining_windows(review_windows, entries, resume_offset)
+    return remaining[0][0] if remaining else resume_offset
 
 
 # ── Speaker de-duplication (merge aliases that are the same character) ──────────
@@ -2642,6 +2668,8 @@ def main():
             if is_active_llm_on_this_gpu() and not wait_for_vram_headroom(fail_fast=offset_idx == 0):
                 unreviewed_remainder = entries[start:]
                 total_stats["batches_skipped_vram"] = total_batches - batch_index + 1
+                total_stats["unreviewed_rows"] = total_stats.get("unreviewed_rows", 0) + len(unreviewed_remainder)
+                total_stats["abort_stage"] = "vram_rows"
                 vram_aborted = True
                 break
 
@@ -2909,11 +2937,13 @@ def main():
                     total_stats["unreviewed_rows"] += len(remaining)
                     skipped_count += 1
                 total_stats["batches_skipped_vram"] = skipped_count
+                total_stats["abort_stage"] = "vram_rows"
                 vram_aborted = True
                 break
 
     if args.dedupe_speakers and not vram_aborted and is_active_llm_on_this_gpu():
         if not wait_for_vram_headroom():
+            total_stats["abort_stage"] = "final_checks"
             vram_aborted = True
 
     if literal_policy is not None:
@@ -2966,15 +2996,18 @@ def main():
 
     output_sha256 = _entries_fingerprint(output_entries)
     if not review_complete:
-        accounting = save_checkpoint(output_path, len(batch_lengths), total_batches, batch_size,
+        accounting = save_checkpoint(output_path, len(source_offsets), total_batches, batch_size,
                         args.context_window, all_corrected, total_stats, previous_tail,
                         batch_lengths, failed_batches, source_sha256,
                         output_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
-    checkpoint_saved = (get_verified_checkpoint(
-        output_path, receipt_fingerprint, source_sha256, output_sha256)
-        if not review_complete else None)
+    retry_offset = (get_verified_retry_offset(
+        output_path, total_batches, batch_size, args.context_window, entries,
+        source_sha256, input_entries, receipt_fingerprint, legacy_fingerprints,
+        review_windows=review_windows) if not review_complete else None)
+    checkpoint_saved = retry_offset is not None
     unreviewed_entries = total_stats.get("unreviewed_rows", len(unreviewed_remainder))
-    post_processing_abort = bool(vram_aborted and not failed_batches and not unreviewed_entries)
+    post_processing_abort = total_stats.get("abort_stage") == "final_checks"
+    abort_stage = total_stats.get("abort_stage", "")
     publication_withheld = not review_complete and (active_review or saved_review)
 
     if review_complete and getattr(args, 'review_pass', 'forward') == 'forward':
@@ -3062,8 +3095,10 @@ def main():
         'unreviewed_entries': unreviewed_entries,
         'post_processing_abort': post_processing_abort,
         'final_check_aborted': post_processing_abort,
+        'abort_stage': abort_stage,
         'publication_withheld': publication_withheld,
-        'resumable_checkpoint': checkpoint_saved is not None})
+        'resumable_checkpoint': checkpoint_saved,
+        'retry_offset': retry_offset})
     warning = get_review_accounting_warning({'accounting_unverified': accounting_unverified})
     if warning:
         print('WARNING: ' + warning)
@@ -3100,8 +3135,8 @@ def main():
             "sections": failed_sections,
             "original_entries_preserved": not any(
                 section['category'] == REVIEW_PARTIAL_EVENT for section in failed_sections),
-            "checkpoint_retained": os.path.exists(_checkpoint_path(output_path)),
-            "retry_from_batch": min(section["batch"] for section in failed_sections),
+            "checkpoint_retained": checkpoint_saved,
+            "retry_from_batch": ((retry_offset // batch_size) + 1 if retry_offset is not None and batch_size else min(section["batch"] for section in failed_sections)),
         }
         _emit_json_marker('FAILED_SECTIONS_JSON', failure_details)
 
@@ -3114,9 +3149,12 @@ def main():
     if diff_highlights["text_rewrites"] or diff_highlights["speaker_changes"]:
         _emit_json_marker('DIFF_PREVIEW_JSON', diff_highlights)
 
-    if vram_aborted:
+    if post_processing_abort:
+        print("Stopped after all rows were reviewed: final checks did not finish.")
+        print("Re-run to finish those checks when a verified checkpoint is available.")
+    elif vram_aborted:
         print("Stopped early: GPU VRAM stayed too high to safely continue.")
-        print("The remaining entries were saved unreviewed. Free up VRAM "
+        print(f"{unreviewed_entries} entries were left unreviewed. Free up VRAM "
               "(e.g. close other GPU apps) and re-run to review the rest.")
     elif not review_complete:
         print("Review remains incomplete; unresolved batches will retry on resume.")
@@ -3127,8 +3165,14 @@ def main():
     else:
         print(f"Fixed {total_changes} issues across {total_batches} batches.")
 
-    print(f"Output saved to: {output_path}")
-    if vram_aborted:
+    if publication_withheld:
+        print(f"Output withheld; the verified checkpoint holds the completed work "
+              f"and {unreviewed_entries} unreviewed row(s).")
+    else:
+        print(f"Output saved to: {output_path}")
+    if post_processing_abort:
+        print("Task review completed with final checks unfinished - all rows were reviewed.")
+    elif vram_aborted:
         print("Task review completed with an early VRAM-abort - some entries were saved unreviewed.")
     elif total_stats["batches_failed"] > 0:
         print(f"Task review completed with {total_stats['batches_failed']} unresolved batch(es) - complete review remains pending.")
