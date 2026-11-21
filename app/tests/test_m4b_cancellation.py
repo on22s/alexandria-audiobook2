@@ -18,7 +18,9 @@ class M4bCancellationTests(unittest.TestCase):
         state = {'running': True, 'logs': [], 'cancel': False}
         queued = []
         captured = {}
-        def schedule(background, name, task):
+        def schedule(background, name, task, *, verify=None):
+            if verify is not None:
+                verify()
             queued.append(task)
         def merge(**kwargs):
             captured.update(kwargs)

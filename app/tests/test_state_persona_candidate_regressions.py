@@ -207,6 +207,7 @@ class StateApiCandidateRegressionTests(unittest.TestCase):
     def test_export_checks_applied_versions_not_unused_base(self):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
+        from project import ProjectManager
         from routers import editor
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
             _, path, targets = self.fixture(directory, stack)
@@ -214,6 +215,7 @@ class StateApiCandidateRegressionTests(unittest.TestCase):
             config['ARTHUR']['version_timeline'] = [{'from_index': t['from_entry'], 'version_id': t['version_id']} for t in targets]
             stack.enter_context(patch.object(editor, 'DATA_DIR', directory))
             stack.enter_context(patch.object(editor, 'SCRIPT_PATH', str(Path(directory, 'annotated_script.json'))))
+            stack.enter_context(patch.object(editor, 'project_manager', ProjectManager(directory)))
             schedule = stack.enter_context(patch.object(editor, 'schedule_claimed_background_task'))
             app = FastAPI(); app.include_router(editor.router)
             client = stack.enter_context(TestClient(app))

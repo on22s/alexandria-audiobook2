@@ -1,5 +1,6 @@
 import os
 import copy
+import stat
 from contextlib import contextmanager, ExitStack, nullcontext
 from collections import Counter
 import tempfile
@@ -31,7 +32,9 @@ from verbalization import (SET_APART_HINT, classify,
 from utils import (atomic_json_write, safe_load_json, is_oom_failure, is_path_inside,
                    get_app_config_path, is_nonverbal_text, secure_filename, file_lock)
 from chunk_status_journal import (ChunkStatusJournal, get_chunk_status_journal_path,
-                                  get_chunk_audio_key)
+                                   get_chunk_audio_key, capture_chunk_state_file,
+                                   get_chunk_state_file_version, _decode_json,
+                                   _ensure_supported_depth)
 from adapter_publication import sync_adapter_directory
 from export_file_io import replace_export_output
 from config_settings import load_app_config
@@ -1216,6 +1219,16 @@ class ProjectManager:
         with self._chunks_lock, file_lock(self.chunks_path):
             return self._get_saved_chunks_locked()
 
+    def read_saved_chunk_rows(self):
+        """Read snapshot/journal rows verbatim; never regenerate, backfill or repair.
+
+        Unlike get_saved_chunks this does not enforce Editor's identity
+        validation, so legacy rows a loader would repair are still readable.
+        Its contract is only to refuse an unreadable or torn saved book.
+        """
+        with self._chunks_lock, file_lock(self.chunks_path):
+            return self._get_saved_chunk_rows_locked()
+
     def _get_saved_chunks_locked(self):
         """Caller holds the existing thread and kernel chunk locks."""
         chunks = self._get_saved_chunk_rows_locked()
@@ -1232,12 +1245,27 @@ class ProjectManager:
         return chunks
 
     def _get_saved_chunk_rows_locked(self):
-        """Read snapshot/journal objects without requiring legacy UID migration."""
-        if os.path.exists(get_chunk_status_journal_path(self.chunks_path)):
-            chunks = self._get_status_journal_locked().get_rows()
+        """Read snapshot/journal objects without requiring legacy UID migration.
+
+        Both artifacts go through the shared confined, nonblocking seam, so a
+        FIFO or alias is refused promptly without creating a lock or replacing
+        the file. Only a genuinely absent pair may be initialized; a retained
+        journal without its snapshot is an actionable conflict, not absence.
+        """
+        journal_path = get_chunk_status_journal_path(self.chunks_path)
+        snapshot_bytes = capture_chunk_state_file(self.chunks_path, what="snapshot")
+        journal_bytes = capture_chunk_state_file(journal_path, what="journal")
+        if journal_bytes is not None:
+            if snapshot_bytes is None:
+                raise ValueError(
+                    "Chunk status snapshot is missing while its journal is retained")
+            chunks = self._get_status_journal_locked().get_rows_from_bytes(
+                snapshot_bytes, journal_bytes)
+        elif snapshot_bytes is None:
+            raise FileNotFoundError(self.chunks_path)
         else:
-            with open(self.chunks_path, "r", encoding="utf-8") as source:
-                chunks = json.load(source)
+            chunks = _decode_json(snapshot_bytes, "snapshot")
+            _ensure_supported_depth(chunks, "snapshot")
         if not isinstance(chunks, list) or any(not isinstance(row, dict) for row in chunks):
             raise ValueError("Saved chunks must be an array of objects; open Editor to repair them")
         get_retained_book_bytes(chunks)
@@ -1274,50 +1302,57 @@ class ProjectManager:
 
     def _get_chunks_file_version(self):
         """Identify the file whose rows have already received stable UIDs."""
-        try:
-            stat = os.stat(self.chunks_path)
-        except OSError:
-            return None
-        return (stat.st_dev, stat.st_ino, stat.st_size,
-                stat.st_mtime_ns, stat.st_ctime_ns)
+        return get_chunk_state_file_version(self.chunks_path)
 
     def _save_chunks_locked(self, chunks, uids_backfilled=False, *, retained_update_uid=None):
         """Publish rows and retain UID validation only for known-valid writes."""
         if (os.path.lexists(os.path.join(self.root_dir, TAKE_HISTORY_POLICY))
                 or any(row.get(RETAINED_TAKE_KEY) is not None for row in chunks)):
-            previous = self._get_saved_chunk_rows_locked() if os.path.exists(self.chunks_path) else []
+            previous = (self._get_saved_chunk_rows_locked()
+                        if get_chunk_state_file_version(self.chunks_path) is not None else [])
             preserve_retained_takes(self.root_dir, previous, chunks, updated_uid=retained_update_uid)
         written_bytes = None
         def save_snapshot(rows):
             nonlocal written_bytes
             options = {'return_written_bytes': True} if uids_backfilled and sys.platform == 'win32' else {}
             written_bytes = atomic_json_write(rows, self.chunks_path, **options, allow_nonatomic_fallback=False)
-        if os.path.exists(get_chunk_status_journal_path(self.chunks_path)):
+        if get_chunk_state_file_version(get_chunk_status_journal_path(self.chunks_path)) is not None:
             self._get_status_journal_locked().save_compacted(chunks, save_snapshot=save_snapshot)
             self._status_journal = None
         else:
             save_snapshot(chunks)
-        self._uids_backfilled = uids_backfilled
-        self._uids_file_version = (self._get_chunks_file_version()
-                                   if uids_backfilled else None)
+        try:
+            version = self._get_chunks_file_version() if uids_backfilled else None
+        except ValueError:
+            # Publication succeeded. A failed cache probe only invalidates the cache.
+            version = None
+        self._uids_file_version = version
+        self._uids_backfilled = version is not None
         # Bind only our validated staged bytes. A destination reread could
         # attest an external edit that arrived immediately after publication.
         self._uids_content_sha256 = hashlib.sha256(written_bytes).digest() if written_bytes is not None else None
 
     def _read_chunks_snapshot(self):
         """-> (bytes, (dev, ino)) of chunks.json read through one descriptor,
-        or (None, None) when it is missing or unreadable."""
-        flags = os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0) | getattr(os, 'O_BINARY', 0)
+        or (None, None) when it is missing."""
+        flags = (os.O_RDONLY | getattr(os, 'O_NONBLOCK', 0)
+                 | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NOFOLLOW', 0))
         try:
             descriptor = os.open(self.chunks_path, flags)
-        except OSError:
-            return None, None
+        except FileNotFoundError:
+            if get_chunk_state_file_version(self.chunks_path) is None:
+                return None, None
+            raise ValueError("Saved chunks file disappeared while opening; saved progress was preserved")
+        except OSError as error:
+            raise ValueError("Saved chunks file is unreadable; it was preserved") from error
         try:
             info = os.fstat(descriptor)
+            if not stat.S_ISREG(info.st_mode):
+                raise ValueError("Saved chunks file is not a regular file; it was preserved")
             with os.fdopen(os.dup(descriptor), 'rb') as stream:
                 return stream.read(), (info.st_dev, info.st_ino)
         except OSError:
-            return None, None
+            raise ValueError("Saved chunks file is unreadable; it was preserved")
         finally:
             os.close(descriptor)
 
@@ -1328,10 +1363,18 @@ class ProjectManager:
         if raw is None:
             return None
         try:
-            return json.loads(raw.decode('utf-8'))
+            value = json.loads(raw.decode('utf-8'))
+        except RecursionError as error:
+            # Decoder-time overflow is the same controlled conflict as the
+            # post-decode depth guard, not corruption to back up or replace.
+            raise ValueError("Chunk status snapshot is too deeply nested") from error
         except (UnicodeDecodeError, ValueError) as error:
             logger.warning("Corrupted/unreadable JSON at %s, using default: %s", "chunks.json", error)
             return None
+        # A well-formed but over-nested standalone snapshot is a controlled
+        # conflict, not corruption: never back it up or regenerate over it.
+        _ensure_supported_depth(value, "snapshot")
+        return value
 
     def _read_chunks(self):
         """Read chunks.json, regenerating from script if missing or corrupted.
@@ -1345,16 +1388,16 @@ class ProjectManager:
                                       is_book_placeholder_bytes)
         switching = "A book switch is in progress; chunks are not available yet"
         journal_path = get_chunk_status_journal_path(self.chunks_path)
-        if is_book_placeholder(journal_path):
-            raise BookSwitchPlaceholderError(switching)
-        if os.path.exists(journal_path):
-            # A placeholder landing after the check fails to parse: an error,
-            # never a write.
+        if get_chunk_state_file_version(journal_path) is not None:
+            if is_book_placeholder(journal_path):
+                raise BookSwitchPlaceholderError(switching)
             return self._get_status_journal_locked().get_rows()
         file_version = self._get_chunks_file_version()
         raw, read_identity = self._read_chunks_snapshot()
         if raw is not None and is_book_placeholder_bytes(raw):
             raise BookSwitchPlaceholderError(switching)
+        if (raw is None) != (file_version is None):
+            raise ValueError("Saved chunks changed while reading. Retry.")
         content_sha256 = hashlib.sha256(raw).digest() if raw is not None and sys.platform == 'win32' else None
         chunks = self._parse_chunks_snapshot(raw)
         if not isinstance(chunks, list) or not all(isinstance(c, dict) for c in chunks):
@@ -1376,31 +1419,30 @@ class ProjectManager:
                     self._save_chunks_locked(chunks, uids_backfilled=True)
                 else:
                     after_version = self._get_chunks_file_version()
-                    self._uids_backfilled = file_version == after_version
+                    self._uids_backfilled = after_version is not None and file_version == after_version
                     self._uids_file_version = (after_version
                                                if self._uids_backfilled else None)
                     self._uids_content_sha256 = content_sha256 if self._uids_backfilled else None
             return chunks
-        if os.path.exists(self.chunks_path):
+        if raw is not None:
             # Back the corrupted file up rather than deleting it - regenerating
             # resets every chunk to pending/no-audio, so keep a copy in case the
-            # user's generation progress can be salvaged from it.
-            # Only back up the object that was read and found corrupt: a
-            # switch's placeholder appearing since is not ours to rename.
-            try:
-                now = os.lstat(self.chunks_path)
-            except OSError:
-                now = None
+            # user's generation progress can be salvaged from it. Decide from
+            # the bytes actually read, not from a presence probe that would
+            # hide a post-read stat failure as absence and regenerate silently.
             if is_book_placeholder(self.chunks_path):
                 raise BookSwitchPlaceholderError(switching)
-            if now is None or (now.st_dev, now.st_ino) != read_identity:
-                # Identity alone can be fooled by a reused inode number; the
-                # placeholder check above does not depend on it.
+            current = get_chunk_state_file_version(self.chunks_path)
+            if current is None or current[:2] != read_identity:
                 raise ValueError("chunks.json changed while it was being read; "
                                  "nothing was renamed. Retry.")
             backup = self.chunks_path + ".corrupt"
             suffix = 0
-            while os.path.lexists(backup):
+            while True:
+                try:
+                    os.lstat(backup)
+                except FileNotFoundError:
+                    break
                 suffix += 1
                 backup = self.chunks_path + f".corrupt.{suffix}"
             logger.warning("chunks.json is corrupted; backing it up to %s and regenerating.", backup)
@@ -1469,7 +1511,7 @@ class ProjectManager:
         Invalidate before publishing voices: an interrupted save can require
         extra regeneration, but cannot leave changed voices with current audio.
         """
-        if not os.path.exists(self.chunks_path):
+        if get_chunk_state_file_version(self.chunks_path) is None:
             return []
         chunks = self._read_chunks()
         changed = [index for index, chunk in enumerate(chunks)
@@ -1743,7 +1785,8 @@ class ProjectManager:
                 raise SynthesisWorkspaceUnavailable('Registered publication book changed')
         with self._chunks_lock, file_lock(self.chunks_path):
             use_journal = (self._active_journal_identity is not None
-                           or os.path.exists(get_chunk_status_journal_path(self.chunks_path)))
+                           or get_chunk_state_file_version(
+                               get_chunk_status_journal_path(self.chunks_path)) is not None)
             journal = self._get_status_journal_locked() if use_journal else None
             chunks = None if journal else self._read_chunks()
             chunk = (journal.get_row(uid) if journal
@@ -2951,7 +2994,7 @@ class ProjectManager:
 
     def merge_m4b(self, per_chunk_chapters=False, metadata=None, cancel_check=None, progress_callback=None,
                   mastering=None, mastering_callback=None, export_quality=None, export_quality_callback=None,
-                  source_cover=None, expected_book_token=None):
+                  source_cover=None, expected_book_token=None, *, expected_editor_revision=None):
         """Merge audio chunks into an M4B audiobook with chapter markers.
 
         Args:
@@ -2982,7 +3025,8 @@ class ProjectManager:
                 source_cover, expected_book_token, cancel_check))
             cover_path = resolved['cover_path']
             source_snapshot = ExportSourceSnapshot(self, cancel_check=cancel_check,
-                additional_sources=([cover_path] if cover_path else []) + list(resolved['expected_sources']))
+                additional_sources=([cover_path] if cover_path else []) + list(resolved['expected_sources']),
+                expected_editor_revision=expected_editor_revision)
             captured_cover = source_snapshot.identities.get(cover_path) if cover_path else None
             if cover_path and captured_cover is None:
                 raise ValueError('Selected M4B cover is missing before source capture')
@@ -3604,7 +3648,7 @@ class ProjectManager:
                         book_name="", series_name="", volume_number="",
                         chapters=None, changed_only=False,
                         progress_callback=None, cancel_check=None, mastering=None,
-                        export_quality=None):
+                        export_quality=None, *, expected_editor_revision=None):
         """Write selected chapter files and shared source/timing metadata.
 
         Changed-only exports decode only changed groups when the prior manifest
@@ -3623,7 +3667,8 @@ class ProjectManager:
         with PCMSourceStore(self.root_dir, lambda: ensure_audio_export_active(cancel_check)) as sources:
             try:
                 from export_publication import ExportSourceSnapshot
-                source_snapshot = ExportSourceSnapshot(self, cancel_check=cancel_check)
+                source_snapshot = ExportSourceSnapshot(self, cancel_check=cancel_check,
+                                                       expected_editor_revision=expected_editor_revision)
                 captured_chunks = source_snapshot.chunks
                 selected_sources = None
                 # Number chapters by the whole book, as preview does, before a
@@ -3804,9 +3849,14 @@ class ProjectManager:
     def preview_chapter_filenames(self, fmt="mp3", per_chunk_chapters=False,
                                   template=DEFAULT_CHAPTER_TEMPLATE, padding=2,
                                   book_name="", series_name="", volume_number="",
-                                  chapters=None, changed_only=False, mastering=None):
-        """Preview selected chapter files that export would write, excluding reuse."""
-        book = self.load_chunks()
+                                  chapters=None, changed_only=False, mastering=None, rows=None):
+        """Preview selected chapter files that export would write, excluding reuse.
+
+        `rows` lets a request reuse the rows it already admitted under a
+        non-recovering book lock, so a source switch between stages cannot make
+        this reader regenerate rows for the new book.
+        """
+        book = rows if rows is not None else self.load_chunks()
         chunks = [chunk for chunk in book if self.is_chunk_audio_available(chunk)]
         options = {"format": fmt, "per_chunk_chapters": per_chunk_chapters,
                    "template": template, "padding": padding, "book_name": book_name,
@@ -3848,7 +3898,8 @@ class ProjectManager:
         finally:
             with admit_take_history_edit(self.root_dir), self._chunks_lock, file_lock(self.chunks_path):
                 try:
-                    if os.path.exists(get_chunk_status_journal_path(self.chunks_path)):
+                    if get_chunk_state_file_version(
+                            get_chunk_status_journal_path(self.chunks_path)) is not None:
                         self._save_chunks_locked(self._read_chunks(), uids_backfilled=True)
                 finally:
                     self._active_journal_identity = None

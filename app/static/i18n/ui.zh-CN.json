@@ -1283,6 +1283,8 @@
   "editor.word-timing.unavailable": "计时不可用。现有行音频未更改。",
   "editor.word-timing.wrong-take": "计时结果属于另一条已保存录音。",
   "error.book.busy_preview": "这本书正忙；请稍后重试预览。",
+  "error.book.chunk_snapshot_unreadable": "无法读取已保存的书籍状态。请重新加载或切换书籍后再继续。已保留保存的进度和音频。",
+  "error.dataset.empty_generated_text": "数据集行没有可生成的文本",
   "error.dataset.project_not_found": "找不到该项目",
   "error.dataset.revision_count_required": "生成数据集时需要提供预期行数以及各行修订标记",
   "error.dataset.revision_map_incomplete": "生成数据集时需要为每一行提供修订标记",

@@ -1283,6 +1283,8 @@
   "editor.word-timing.unavailable": "Los tiempos no están disponibles. El audio existente de la línea no cambia.",
   "editor.word-timing.wrong-take": "El resultado de los tiempos pertenece a otra toma guardada.",
   "error.book.busy_preview": "El libro está ocupado; vuelve a intentar la vista previa en un momento.",
+  "error.book.chunk_snapshot_unreadable": "No se puede leer el estado guardado del libro. Vuelve a cargarlo o cambia de libro antes de continuar. El progreso guardado y el audio se han conservado.",
+  "error.dataset.empty_generated_text": "Esta fila del dataset no tiene texto para generar",
   "error.dataset.project_not_found": "No se encontró el proyecto",
   "error.dataset.revision_count_required": "Para generar el dataset se necesitan el número esperado de filas y las revisiones de cada una",
   "error.dataset.revision_map_incomplete": "Para generar el dataset se necesita una revisión para cada fila solicitada",

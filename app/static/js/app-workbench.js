@@ -116,7 +116,7 @@
                 document.getElementById('dsb-global-seed').value = result.global_seed ?? '';
                 // Bind the model, its base and its tokens from ONE response:
                 // snapshotting dsbRows before the new samples arrive records
-                // the previous project's definitions as this project's base.
+                // definitions of the previous project as this project base.
                 const samples = Array.isArray(result.samples) ? result.samples : [];
                 dsbRows = samples.map(s => ({ ...datasetRowDefinition(s),
                     status: s.status || 'pending', audio_url: s.audio_url || null }));
@@ -388,8 +388,8 @@
             if (!queuedEdits.length) { return; }
             // Read the base token at write time: only our own acknowledged
             // commits advance it, so a coalesced draft on the same row still
-            // binds to the row's now-authoritative revision. An external edit
-            // never advances it (see reconcileDatasetRows), so its CAS fails.
+            // binds to the now-authoritative revision. An external edit never
+            // advances it (see reconcileDatasetRows), so its CAS fails.
             const edits = queuedEdits.map(edit => ({ index: edit.index, row: edit.row,
                 expected_revision: state.tokens?.[edit.index] }));
             let result;
@@ -604,14 +604,13 @@
             }
         }
 
-        function dsbRowOwnsLiveControl(index) {
+        function dsbRowOwnsLiveControl(index, tbody) {
             const state = ensureDatasetRowSaveState(dsbCurrentProject);
             if (state.edits.has(index)) { return true; }
-            const tbody = document.getElementById('dsb-table-body');
             const row = tbody?.children?.[index];
             const active = document.activeElement;
             return !!(row && active && typeof row.contains === 'function' && row.contains(active)
-                && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA'));
+                && 'value' in active);
         }
 
         function dsbRenderTable(changedIndices) {
@@ -621,7 +620,7 @@
             // Full rebuild, unless a live draft/focused control must survive it.
             if (!changedIndices || tbody.children.length !== dsbRows.length) {
                 if (tbody.children.length === dsbRows.length
-                    && dsbRows.some((row, i) => dsbRowOwnsLiveControl(i))) {
+                    && dsbRows.some((row, i) => dsbRowOwnsLiveControl(i, tbody))) {
                     changedIndices = dsbRows.map((row, i) => i);
                 } else {
                     tbody.innerHTML = dsbRows.map((row, i) => dsbBuildRowHtml(row, i)).join('');
@@ -635,18 +634,15 @@
                 const existing = tbody.children[i];
                 if (!existing) { continue; }
                 const row = dsbRows[i];
+                const protectedRow = dsbRowOwnsLiveControl(i, tbody);
                 const oldStatus = existing.getAttribute('data-dsb-status');
                 const oldAudio = existing.getAttribute('data-dsb-audio');
                 if (oldStatus === (row.status || 'pending') && oldAudio === (row.audio_url || '')) { continue; }
-                if (dsbRowOwnsLiveControl(i)) {
+                if (protectedRow) {
                     // Never detach a focused/dirty control: a native change on
                     // detach would otherwise commit a stale visible value. The
-                    // draft keeps its original token; status/audio are refreshed
-                    // on the next render once the control is no longer live.
-                    if (typeof existing.setAttribute === 'function') {
-                        existing.setAttribute('data-dsb-status', row.status || 'pending');
-                        existing.setAttribute('data-dsb-audio', row.audio_url || '');
-                    }
+                    // DOM attributes stay stale on purpose, so a later render
+                    // repaints this row once the control is no longer live.
                     continue;
                 }
                 const temp = document.createElement('tbody');

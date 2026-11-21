@@ -110,7 +110,8 @@ class ExportStagingTests(unittest.TestCase):
                     segment = AudioSegment.from_file(io.BytesIO(archive.read(name)), format='wav')
                     found[name] = len(segment)
             self.assertEqual({'alice.wav': 40, 'bob.wav': 100}, found)
-            self.assertEqual(['.active_book_transaction.json.lock', 'audacity_export.zip', 'chunks.json.lock'],
+            self.assertEqual(['.active_book_transaction.json.lock', 'audacity_export.zip',
+                              'chunks.json.lock', 'state.json.lock'],
                              sorted(p.name for p in Path(root).iterdir()
                                                            if p.is_file()))
 
@@ -153,9 +154,10 @@ class ExportStagingTests(unittest.TestCase):
                                 for duration, meta, _, _ in inputs))
             self.assertTrue(any(duration == 100 and 'title=Bob' in meta
                                 for duration, meta, _, _ in inputs))
-            self.assertEqual(['.active_book_transaction.json.lock', 'audiobook.m4b', 'chunks.json.lock'],
+            self.assertEqual(['.active_book_transaction.json.lock', 'audiobook.m4b',
+                              'chunks.json.lock', 'state.json.lock'],
                              sorted(p.name for p in Path(root).iterdir()
-                                                    if p.is_file()))
+                                                     if p.is_file()))
 
     def test_audacity_releases_previous_track_and_groups_timeline_once(self):
         with tempfile.TemporaryDirectory() as root:
@@ -216,5 +218,6 @@ class ExportStagingTests(unittest.TestCase):
             self.assertEqual(b'previous m4b', oldm4b.read_bytes())
             self.assertEqual(b'foreign scratch', unrelated.read_bytes())
             self.assertEqual({oldzip.name, oldm4b.name, unrelated.name,
-                              '.active_book_transaction.json.lock', 'chunks.json.lock'},
+                              '.active_book_transaction.json.lock', 'chunks.json.lock',
+                              'state.json.lock'},
                              {p.name for p in Path(root).iterdir() if p.is_file()})

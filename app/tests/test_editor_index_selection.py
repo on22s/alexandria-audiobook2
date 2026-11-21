@@ -87,16 +87,22 @@ class EditorIndexSelectionTests(unittest.TestCase):
             pm.save_chunks(chunks)
             app = FastAPI(); app.include_router(editor.router)
             state = copy.deepcopy(editor.process_state)
-            def schedule(tasks, name, callback):
+            def schedule(tasks, name, callback, *, verify=None):
                 self.assertEqual('chapter_export', name)
+                if verify is not None:
+                    verify()
                 tasks.add_task(callback)
             with patch.object(editor, 'project_manager', pm), \
+                 patch.object(editor, 'DATA_DIR', root), \
+                 patch.object(editor, 'SCRIPT_PATH', pm.script_path), \
                  patch.object(editor, 'process_state', state), \
                  patch.object(editor, 'schedule_claimed_background_task', side_effect=schedule), \
                  patch.object(pm, 'export_chapters', wraps=pm.export_chapters) as export, TestClient(app) as client:
                 response = client.post('/api/export_chapters', json={'format': 'wav', 'chapters': [1, 0, 1]})
                 self.assertEqual(200, response.status_code, response.text)
                 self.assertEqual([0, 1], export.call_args.kwargs['chapters'])
+                self.assertEqual('done', state['chapter_export']['result']['status'],
+                                 state['chapter_export']['result'])
                 manifest = json.loads(Path(root, CHAPTER_EXPORT_DIR, 'manifest.json').read_text())
                 self.assertEqual([0, 1], [row['index'] for row in manifest['chapters']])
                 self.assertFalse(state['chapter_export']['running'])
