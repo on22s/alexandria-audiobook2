@@ -34,7 +34,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config, get_review_labels_only
 from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
-                          get_run_fingerprint_identity, resolve_api_key)
+                          get_run_fingerprint_identity, resolve_client_api_key)
 from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SPAN_ALGORITHM_VERSION,
     get_review_entries_fingerprint, get_review_sidecar_identity, get_completed_review_match,
     get_review_progress_paths, get_review_receipt_path, save_completed_review_receipt,
@@ -379,8 +379,12 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         profiles.append({key: value for key, value in profile.items()
                          if key not in ('concurrency', 'concurrency_for', 'concurrency_environment',
                                         'concurrency_revision')})
-        profiles[-1]['resolved_api_key'] = resolve_api_key(
-            profile.get('api_key'), profile.get('base_url', ''))
+        # The receipt must describe the key the client for this profile really
+        # uses, not force a credential resolution the client itself skips (a
+        # Manual profile has no SDK key) or collapse an omitted legacy key into
+        # a blank one. resolve_client_api_key is the same helper make_llm_client
+        # uses, so a profile the client accepts can never fail fingerprinting.
+        profiles[-1]['resolved_api_key'] = resolve_client_api_key(profile)
     identity = {'algorithm': REVIEW_ALGORITHM_VERSION, 'profiles': profiles,
         'model_binding': get_run_model_binding(client, model_name),
         'params': {field.name: getattr(params, field.name) for field in fields(params) if field.compare

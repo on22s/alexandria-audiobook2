@@ -2319,14 +2319,18 @@ def _validate_local_llm_base_url(base_url: str) -> None:
     if is_local_llm_endpoint(base_url):
         return
     from urllib.parse import urlparse
+    from llm_provider import is_official_openai_endpoint
+    # One OpenAI endpoint decision for validation and implicit-key resolution:
+    # the same normalized spellings are accepted by both (Rule 15).
+    if is_official_openai_endpoint(base_url):
+        return
     parsed = urlparse(base_url)
     hostname = (parsed.hostname or "").lower()
     # Thunder Compute forwards instance ports via *.thundercompute.net, so allow
     # that trusted remote host for running LM Studio on a Thunder GPU instance.
     if hostname == "thundercompute.net" or hostname.endswith(".thundercompute.net"):
         return
-    hosted_paths = {"api.deepseek.com": ("", "/v1"), "api.openai.com": ("/v1",),
-                    "openrouter.ai": ("/api/v1",)}
+    hosted_paths = {"api.deepseek.com": ("", "/v1"), "openrouter.ai": ("/api/v1",)}
     if hostname in hosted_paths:
         try:
             port = parsed.port

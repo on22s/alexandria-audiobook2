@@ -118,6 +118,32 @@ class BenchmarkReviewModeTests(unittest.TestCase):
             cwd=Path(__file__).parent.parent, capture_output=True, text=True, timeout=10)
         self.assertEqual(0, result.returncode, result.stderr)
 
+    def test_thunder_preflight_and_worker_share_the_keyless_loopback_profile(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory, 'fixture.json')
+            source.write_text(json.dumps(SOURCE))
+            manifest = build_script_review_manifest(
+                [{'path': str(source), 'entry_starts': [1]}], directory, targets=['thunder'])
+            config = {'llm_mode': 'local', 'llm_remote_ssh': 'fixture-host',
+                      'llm_remote': {'base_url': 'https://instance.thundercompute.net:1234/v1',
+                                     'model_name': 'fixture-remote'},
+                      'generation': {'max_tokens': 1000}}
+            with patch.dict('os.environ', {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False), \
+                    patch.object(routes, 'check_global_gpu_lock'), \
+                    patch.object(routes, 'collect_thunder_environment',
+                                 return_value=core.build_environment_fingerprint(
+                                     'thunder', ENVIRONMENT)):
+                result = routes._build_benchmark_preflight(SimpleNamespace(manifest=manifest),
+                                                           config=config)
+            self.assertEqual('ready', result['benchmark_state'])
+            worker = runner.get_remote_llm_worker_profile(
+                core.get_benchmark_llm_config(config, 'thunder'))
+            self.assertEqual('http://localhost:1234/v1', worker['base_url'])
+            self.assertEqual('local', worker['api_key'],
+                             'the worker and preflight agree on the loopback placeholder')
+            self.assertNotIn('sk-synthetic', json.dumps(result))
+
     def assert_labels_request(self, result):
         self.assertEqual('passed', result['report']['cases'][0]['status'])
         self.assertEqual(result['report'], result['saved_report'])

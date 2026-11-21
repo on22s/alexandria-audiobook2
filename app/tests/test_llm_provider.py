@@ -8,9 +8,11 @@ from openai import OpenAI
 from pydantic import ValidationError
 
 from config_settings import LLMConfig
+import llm_provider
 from llm_provider import (ConfiguredOpenAI, MissingAPIKeyError, get_profile_timeout, make_llm_client,
                           merge_provider_extra_body, classify_llm_error, get_retry_delay,
-                          is_failover_eligible, is_official_openai_endpoint, resolve_api_key)
+                          is_failover_eligible, is_official_openai_endpoint, resolve_api_key,
+                          resolve_client_api_key)
 
 
 class _FakeCompletions:
@@ -407,6 +409,135 @@ class ApiKeyReferenceTests(unittest.TestCase):
         self.assertEqual("env:MY_KEY", safe["llm"]["api_key"])
         self.assertEqual(_REDACTED_SECRET, safe["llm_remote"]["api_key"])
         self.assertTrue(safe["llm"]["api_key_configured"])
+
+
+class CredentialProfilePolicyTests(unittest.TestCase):
+    """Wire-level checks for the effective client profile (offline, synthetic)."""
+
+    def _sdk_factory(self, handler, seen):
+        policy_client = llm_provider.OpenAI
+
+        def factory(**kwargs):
+            client = policy_client(
+                **kwargs, http_client=httpx2.Client(transport=httpx2.MockTransport(handler)))
+            seen.append(client)
+            return client
+        return factory
+
+    @staticmethod
+    def _completion():
+        return httpx2.Response(200, json={
+            "id": "fixture", "object": "chat.completion", "created": 0, "model": "m",
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"},
+                         "finish_reason": "stop"}]})
+
+    def test_hosted_authorization_header_profile_sends_only_the_configured_bearer(self):
+        seen, clients = [], []
+
+        def handler(request):
+            seen.append((request.headers.get("authorization"),
+                         [value for name, value in request.headers.items()
+                          if name.lower() == "authorization"]))
+            return self._completion()
+
+        profile = {"base_url": "https://hosted.invalid/v1", "api_key": "",
+                   "provider_headers": {"authorization": "Bearer configured-fixture"}}
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-synthetic"}, clear=False), \
+                patch("llm_provider.OpenAI", self._sdk_factory(handler, clients)):
+            client = make_llm_client(profile, timeout=5)
+            client.chat.completions.create(model="m", messages=[{"role": "user", "content": "hi"}])
+        self.assertEqual(1, len(clients))
+        self.assertEqual("local", clients[0].api_key, "the SDK placeholder must be harmless")
+        self.assertEqual("Bearer configured-fixture", seen[0][0])
+        self.assertEqual(["Bearer configured-fixture"], seen[0][1], "only the configured header")
+        self.assertNotIn("sk-synthetic", str(seen))
+
+    def test_effective_key_preserves_omitted_blank_manual_and_header_profiles(self):
+        openai = "https://api.openai.com/v1"
+        manual = {"transport": "manual", "base_url": "https://hosted.invalid/v1"}
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-synthetic"}, clear=False):
+            self.assertEqual("manual", resolve_client_api_key(manual))
+            self.assertEqual("local", resolve_client_api_key(
+                {"base_url": "https://hosted.invalid/v1"}), "omitted keys keep the legacy placeholder")
+            self.assertEqual("sk-synthetic", resolve_client_api_key(
+                {"base_url": openai, "api_key": ""}), "a blank official-OpenAI key inherits the env key")
+            self.assertEqual("local", resolve_client_api_key(
+                {"base_url": "https://hosted.invalid/v1", "api_key": "",
+                 "provider_headers": {"AUTHORIZATION": "Bearer configured-fixture"}}))
+
+    def test_sdk_retries_are_terminal_for_deterministic_statuses_only(self):
+        for status, expected in ((401, 1), (403, 1), (404, 1), (429, 3), (503, 3)):
+            with self.subTest(status=status):
+                calls, clients = [], []
+
+                def handler(request, status=status):
+                    calls.append(request)
+                    return httpx2.Response(status, headers={"x-should-retry": "true"}, json={
+                        "error": {"message": "fixture", "type": "invalid_request_error"}})
+
+                with patch("llm_provider.OpenAI", self._sdk_factory(handler, clients)):
+                    client = make_llm_client({"base_url": "https://hosted.invalid/v1",
+                                              "api_key": "fixture"}, timeout=5)
+                    with self.assertRaises(Exception):
+                        client.chat.completions.create(
+                            model="m", messages=[{"role": "user", "content": "hi"}])
+                self.assertEqual(expected, len(calls),
+                                 "401/403/404 must be terminal; 429/503 keep transient recovery")
+
+    def test_sdk_transport_keeps_timeout_recovery(self):
+        calls, clients = [], []
+
+        def handler(request):
+            calls.append(request)
+            raise httpx2.ConnectTimeout("offline fixture")
+
+        with patch("llm_provider.OpenAI", self._sdk_factory(handler, clients)):
+            client = make_llm_client({"base_url": "https://hosted.invalid/v1",
+                                      "api_key": "fixture"}, timeout=5)
+            with self.assertRaises(Exception):
+                client.chat.completions.create(
+                    model="m", messages=[{"role": "user", "content": "hi"}])
+        self.assertGreater(len(calls), 1, "timeouts must keep the SDK's transient recovery")
+
+    def test_canonical_openai_urls_are_accepted_by_validation_and_resolution(self):
+        from core import LLMConfigError, _validate_local_llm_base_url
+        accepted = ("https://api.openai.com/v1", "https://api.openai.com",
+                    "https://API.OPENAI.COM./v1", "https://api.openai.com:443/v1")
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-synthetic"}, clear=False):
+            for url in accepted:
+                with self.subTest(accepted=url):
+                    self.assertTrue(is_official_openai_endpoint(url))
+                    self.assertEqual("sk-synthetic", resolve_api_key("", url))
+                    _validate_local_llm_base_url(url)
+        for url in ("https://api.openai.com.evil.invalid/v1", "http://api.openai.com/v1"):
+            with self.subTest(refused=url):
+                self.assertFalse(is_official_openai_endpoint(url))
+                with self.assertRaises(LLMConfigError):
+                    _validate_local_llm_base_url(url)
+
+    def test_setup_test_and_models_resolve_blank_official_openai_key(self):
+        import asyncio
+        from types import SimpleNamespace
+        from routers import system as system_routes
+
+        seen = []
+
+        def factory(**kwargs):
+            seen.append(kwargs.get("api_key"))
+            return SimpleNamespace(
+                models=SimpleNamespace(list=lambda: SimpleNamespace(data=[])),
+                chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **kwargs: SimpleNamespace(
+                    choices=[SimpleNamespace(message=SimpleNamespace(content="pong"))]))))
+
+        with patch("llm_provider.OpenAI", factory), \
+                patch.dict("os.environ", {"OPENAI_API_KEY": "sk-synthetic"}, clear=False):
+            result = system_routes._run_llm_test(
+                {"base_url": "https://api.openai.com/v1", "api_key": "", "model_name": "m"})
+            asyncio.run(system_routes.llm_models(system_routes.LlmModelsRequest(
+                base_url="https://api.openai.com/v1", api_key="", model_name="m")))
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(["sk-synthetic", "sk-synthetic"], seen,
+                         "Setup Test and Models must resolve keys like generation does")
 
 
 if __name__ == "__main__":
