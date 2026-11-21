@@ -1327,6 +1327,7 @@
   , "test_batch_script_output_admission": [
     "tests.test_batch_script_output_admission.BatchScriptOutputAdmissionTests.test_actual_batch_dispatch_rechecks_save_after_jobs_are_planned"
     , "tests.test_batch_script_output_admission.BatchScriptOutputAdmissionTests.test_cancel_rechecks_save_between_planning_and_worker_start"
+    , "tests.test_batch_script_output_admission.BatchScriptOutputAdmissionTests.test_collision_skip_at_planning_marks_row_skipped_not_failed"
     , "tests.test_batch_script_output_admission.BatchScriptOutputAdmissionTests.test_failure_and_cancellation_release_claim"
     , "tests.test_batch_script_output_admission.BatchScriptOutputAdmissionTests.test_replace_backs_up_actual_saved_bytes_before_overwriting"
     , "tests.test_batch_script_output_admission.BatchScriptOutputAdmissionTests.test_save_waits_until_generation_releases_same_output_claim"
