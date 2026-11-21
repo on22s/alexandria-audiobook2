@@ -778,6 +778,7 @@
         function taskStatusLabel(status) {
             if (status === 'pending') { return t('core.task-status.pending', 'pending'); }
             if (status === 'running') { return t('core.task-status.running', 'running'); }
+            if (status === 'skipped') { return t('core.task-status.skipped', 'skipped'); }
             if (status === 'done') { return t('core.task-status.done', 'done'); }
             if (status === 'finished') { return t('core.task-status.finished', 'finished'); }
             if (status === 'failed') { return t('core.task-status.failed', 'failed'); }
@@ -3969,7 +3970,7 @@
                         state.tasks.forEach((taskStatus, i) => {
                             const el = document.getElementById(`script-batch-status-${i}`);
                             if (!el) { return; }
-                            const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
+                            const colours = { pending: 'secondary', running: 'primary', done: 'success', skipped: 'secondary', failed: 'danger', cancelled: 'warning' };
                             el.innerHTML = `<span class="badge bg-${colours[taskStatus.status] || 'secondary'}">${escapeHtml(taskStatusLabel(taskStatus.status))}</span>`;
                         });
                     }
@@ -3988,9 +3989,16 @@
                     const done = tasks.filter(task => task.status === 'done').length;
                     const failed = tasks.filter(task => task.status === 'failed').length;
                     const cancelled = tasks.filter(task => task.status === 'cancelled').length;
+                    // Rows the collision policy skipped were never attempted:
+                    // counted separately, and the checkpoint promise stays
+                    // tied to real failures (#2201).
+                    const skipped = tasks.filter(task => task.status === 'skipped').length;
                     const tone = failed ? 'text-warning' : 'text-muted';
+                    const summary = failed
+                        ? t('script.batch.finished', 'Batch finished — {done} completed, {skipped} skipped, {failed} failed, {cancelled} cancelled. Failed books keep validated checkpoints.', {done, skipped, failed, cancelled})
+                        : t('script.batch.finished-clean', 'Batch finished — {done} completed, {skipped} skipped, {failed} failed, {cancelled} cancelled.', {done, skipped, failed, cancelled});
                     document.getElementById('script-batch-status-msg').innerHTML =
-                        `<span class="${tone}">${escapeHtml(t('script.batch.finished', 'Batch finished — {done} completed, {failed} failed, {cancelled} cancelled. Failed books keep validated checkpoints.', {done, failed, cancelled}))}</span>`;
+                        `<span class="${tone}">${escapeHtml(summary)}</span>`;
                     loadSavedScripts();
                 }
             });
