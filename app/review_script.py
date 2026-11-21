@@ -34,7 +34,8 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from config_settings import load_app_config, get_review_labels_only
 from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
-                          get_run_fingerprint_identity, resolve_api_key, resolve_client_api_key)
+                          get_run_fingerprint_identity, get_effective_authorization,
+                          resolve_client_api_key, resolve_historical_api_key)
 from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SPAN_ALGORITHM_VERSION,
     get_review_entries_fingerprint, get_review_sidecar_identity, get_completed_review_match,
     get_review_progress_paths, get_review_receipt_path, save_completed_review_receipt,
@@ -384,10 +385,11 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         # Manual profile has no SDK key) or collapse an omitted legacy key into
         # a blank one. resolve_client_api_key is the same helper make_llm_client
         # uses, so a profile the client accepts can never fail fingerprinting.
-        # `legacy` rebuilds the pre-fix digest for narrow historical matching.
+        # `legacy` rebuilds the pre-fix digest for local matching only. The old
+        # resolver inherited OPENAI_API_KEY for ANY empty key, regardless of
+        # endpoint; no value it returns here is ever used for a request.
         if legacy:
-            profiles[-1]['resolved_api_key'] = resolve_api_key(
-                profile.get('api_key'), profile.get('base_url', ''))
+            profiles[-1]['resolved_api_key'] = resolve_historical_api_key(profile.get('api_key'))
         else:
             profiles[-1]['resolved_api_key'] = resolve_client_api_key(profile)
     identity = {'algorithm': REVIEW_ALGORITHM_VERSION, 'profiles': profiles,
@@ -428,21 +430,34 @@ def get_legacy_review_fingerprint(config, llm_config, params, args, client, mode
                                   source_text=None, *, entries=()):
     """The pre-fix digest for effectively unchanged profiles, else None.
 
-    ``resolve_client_api_key`` replaced ``resolve_api_key`` in the receipt. The
-    only profiles where that changes the digest without changing the effective
-    settings are a Manual profile (no SDK key) and an absent/unused secondary.
-    Accepting the old digest for exactly those cases keeps receipts written by
-    the previous release valid after an upgrade, without letting any other
-    profile - or any credential-bearing value - be reused across profiles.
+    ``resolve_client_api_key`` replaced the old resolver in the receipt. The
+    digest changes only when a profile had an empty key: the old resolver then
+    folded the ambient OPENAI_API_KEY in. That value is inert evidence only when
+    no request could have carried it - a Manual primary (no SDK key) or a
+    secondary this run did not fail over to. A used failover, or a live primary
+    whose effective credential actually changed, must refuse the old digest.
+    No historical credential is passed to a client, a probe or a log.
     """
-    if llm_config.get("transport") != "manual" and get_failover_llm_config(config):
+    primary = llm_config or {}
+    if get_run_model_binding(client, model_name).get("failover_used"):
         return None
     try:
-        return get_completed_review_fingerprint(
-            config, llm_config, params, args, client, model_name, source_text,
-            entries=entries, legacy=True)
+        historical = resolve_historical_api_key(primary.get("api_key"))
+        effective = resolve_client_api_key(primary)
     except Exception:
         return None
+    if primary.get("transport") != "manual" and historical != effective:
+        return None
+    try:
+        historical_digest = get_completed_review_fingerprint(
+            config, llm_config, params, args, client, model_name, source_text,
+            entries=entries, legacy=True)
+        current_digest = get_completed_review_fingerprint(
+            config, llm_config, params, args, client, model_name, source_text,
+            entries=entries)
+    except Exception:
+        return None
+    return historical_digest if historical_digest != current_digest else None
 
 
 REVIEW_EDIT_COUNTERS = ('text_changed', 'speaker_changed', 'instruct_changed', 'annotations_changed',
@@ -595,7 +610,7 @@ def get_saved_review_accounting(accounting, data):
 
 
 def load_checkpoint(output_path, total_batches, batch_size, context_window, entries,
-                    execution_sha256=None):
+                    execution_sha256=None, legacy_execution_sha256=()):
     """Return checkpoint dict if one exists and matches this run's parameters.
 
     If earlier batches failed (and were filled in with their original,
@@ -624,7 +639,8 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
     if not isinstance(data, dict):
         print("Invalid review checkpoint shape - starting fresh.")
         return None
-    if execution_sha256 is not None and data.get("execution_sha256") != execution_sha256:
+    if (execution_sha256 is not None
+            and data.get("execution_sha256") not in (execution_sha256, *legacy_execution_sha256)):
         print("Review checkpoint execution settings changed or are unbound - starting fresh.")
         return None
     if data.get("literal_source_policy") != get_literal_policy(entries):
@@ -814,7 +830,8 @@ def get_review_resume_source_offsets(checkpoint, entries, batch_size):
 
 
 def _load_resume_state(output_path, total_batches_estimate, batch_size, context_window,
-                        entries, all_corrected, total_stats, execution_sha256=None):
+                        entries, all_corrected, total_stats, execution_sha256=None,
+                        legacy_execution_sha256=()):
     """Load a checkpoint (if any) and compute where this run should resume from.
 
     Shared by main()'s contextual and non-contextual review loops, which
@@ -828,7 +845,8 @@ def _load_resume_state(output_path, total_batches_estimate, batch_size, context_
     batch_lengths = []
     failed_batches = []
     checkpoint = load_checkpoint(output_path, total_batches_estimate, batch_size,
-                                 context_window, entries, execution_sha256=execution_sha256)
+                                 context_window, entries, execution_sha256=execution_sha256,
+                                 legacy_execution_sha256=legacy_execution_sha256)
     if checkpoint:
         completed_batches = checkpoint["completed_batches"]
         all_corrected = checkpoint["all_corrected"]
@@ -2379,7 +2397,8 @@ def main():
     llm_mode = config.get("llm_mode", "local")
     startup_event('model_setup_started')
     is_remote, lm_status, heal_msg = ensure_ideal_settings(
-        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key)
+        llm_mode, base_url, model_name, ssh_alias=config.get("llm_remote_ssh"), api_key=api_key,
+        authorization=get_effective_authorization(llm_config))
     print(heal_msg)
     from llm_request_budget import get_request_limits
     limits = get_request_limits(llm_config, lm_status.get("context_length"))
@@ -2445,7 +2464,8 @@ def main():
         (all_corrected, total_stats, previous_tail, completed_batches, batch_lengths,
          failed_batches, resume_offset, checkpoint) = _load_resume_state(
             output_path, total_batches_estimate, batch_size, args.context_window,
-            entries, all_corrected, total_stats, execution_sha256=receipt_fingerprint)
+            entries, all_corrected, total_stats, execution_sha256=receipt_fingerprint,
+            legacy_execution_sha256=legacy_fingerprints)
         source_offsets = get_review_resume_source_offsets(checkpoint, entries, batch_size)
         accounting = get_review_runtime_accounting(checkpoint, source_sha256, len(entries),
             total_stats, source_offsets, batch_lengths, len(all_corrected))
@@ -2475,7 +2495,8 @@ def main():
     # benchmark, or - for remote - TTL/idle expiry, since
     # apply_remote_lmstudio_settings intentionally doesn't pin a TTL).
     pre_review_status = get_current_status(llm_mode, base_url, model_name,
-                                            ssh_alias=config.get("llm_remote_ssh"), api_key=api_key)
+                                            ssh_alias=config.get("llm_remote_ssh"), api_key=api_key,
+                                            authorization=get_effective_authorization(llm_config))
     if pre_review_status["loaded"] and not pre_review_status["optimized"]:
         label = "Remote LM Studio" if is_remote else "LM Studio"
         print(f"WARNING: {label} model '{model_name}' is loaded but NOT optimized.")

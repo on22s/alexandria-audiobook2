@@ -22,7 +22,7 @@ from external_tts_client import ExternalTTSClient, get_external_tts_urls, get_ex
 from external_tts_capabilities import make_unknown_capability_report, UNAVAILABLE_ERROR
 
 from default_prompts import load_default_prompts, load_instruct_prompts, load_segment_prompts
-from llm_provider import is_api_key_reference
+from llm_provider import get_effective_authorization, is_api_key_reference
 from device_utils import get_available_gpu_device, normalize_device
 from review_prompts import load_review_prompts
 from diagnostics import redact_text
@@ -692,6 +692,7 @@ async def lmstudio_status():
     status = dict(await asyncio.to_thread(
         get_current_status, llm_mode, base_url, model_name, ssh_alias,
         use_cache=True, api_key=llm_cfg.get("api_key"), cache_local=True,
+        authorization=get_effective_authorization(llm_cfg),
     ))
     status["model"] = model_name
     if is_remote_llm(llm_mode, base_url):
@@ -759,7 +760,8 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
     def _get_reload_response(message):
         status = dict(get_current_status(full_cfg.get("llm_mode", "local"),
             cfg.get("base_url", ""), model_name,
-            (full_cfg.get("llm_remote_ssh") or "").strip(), api_key=cfg.get("api_key")))
+            (full_cfg.get("llm_remote_ssh") or "").strip(), api_key=cfg.get("api_key"),
+            authorization=get_effective_authorization(cfg)))
         if (not status.get("management_verified") or not status.get("loaded")
                 or status.get("optimized") is not req.enable):
             raise HTTPException(status_code=502, detail="CLI reported reload, but fresh endpoint status did not verify the requested settings")
@@ -772,7 +774,8 @@ async def lmstudio_optimize(req: LMStudioOptimizeRequest):
     def _apply_settings():
         ownership = get_current_status(full_cfg.get("llm_mode", "local"),
             cfg.get("base_url", ""), model_name,
-            (full_cfg.get("llm_remote_ssh") or "").strip(), api_key=cfg.get("api_key"))
+            (full_cfg.get("llm_remote_ssh") or "").strip(), api_key=cfg.get("api_key"),
+            authorization=get_effective_authorization(cfg))
         if not ownership.get("management_verified"):
             raise HTTPException(status_code=400, detail="Settings were not applied: " + ownership.get(
                 "management_reason", "endpoint management ownership is unverified"))

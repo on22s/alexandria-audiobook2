@@ -3,6 +3,7 @@ import copy
 from contextlib import ExitStack, redirect_stdout
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -401,3 +402,84 @@ class BenchmarkReviewModeTests(unittest.TestCase):
                 config = get_config(mode); before = copy.deepcopy(config)
                 self.assertEqual(mode is True, get_review_labels_only(config))
                 self.assertEqual(before, config)
+
+
+class ThunderLegacyReportResumeTests(unittest.TestCase):
+    """An old Thunder report may be resumed only when dispatch did not change."""
+
+    def _pre_fix_digest(self, manifest, config):
+        """The report digest as the pre-fix code hashed it (public profile)."""
+        from completed_review_receipt import (REVIEW_ALGORITHM_VERSION,
+                                              REVIEW_SOURCE_SPAN_ALGORITHM_VERSION)
+        from llm_provider import resolve_historical_api_key
+        public = core.get_benchmark_llm_config(config, 'thunder')
+        omitted = {'concurrency', 'concurrency_for', 'concurrency_environment', 'concurrency_revision'}
+        identity = {'version': 1, 'stage': manifest['stage'],
+                    'ssh_alias': config.get('llm_remote_ssh'),
+                    'profile': {key: value for key, value in public.items() if key not in omitted},
+                    'resolved_api_key': resolve_historical_api_key(public.get('api_key'))}
+        generation = config.get('generation') or {}
+        identity['generation'] = {key: generation.get(key) for key in (
+            'max_tokens', 'temperature', 'top_p', 'top_k', 'min_p', 'presence_penalty', 'banned_tokens')}
+        prompts = config.get('prompts') or {}
+        identity['prompts'] = {key: prompts.get(key) for key in (
+            'review_system_prompt', 'review_user_prompt')}
+        if get_review_labels_only(config):
+            identity['prompts']['review_labels_only'] = True
+        identity['review_algorithm'] = REVIEW_ALGORITHM_VERSION
+        identity['review_source_span_algorithm'] = REVIEW_SOURCE_SPAN_ALGORITHM_VERSION
+        return core._stable_hash(identity)
+
+    def _case(self, config):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'fixture.json'
+            source.write_text(json.dumps(SOURCE))
+            manifest = build_script_review_manifest(
+                [{'path': str(source), 'entry_starts': [1]}], tmp, targets=['thunder'])
+            base = core.build_environment_fingerprint('thunder', ENVIRONMENT)
+            return manifest, core.get_benchmark_execution_environment(
+                manifest, base, config)
+
+    def test_literal_key_thunder_report_resumes_without_mutating_canonical_identity(self):
+        config = get_config(True)
+        manifest, current = self._case(config)
+        self.assertNotIn('legacy_sha256', current['details'],
+                         'the compatibility digest must stay out of canonical identity')
+        old = copy.deepcopy(current)
+        old['details']['execution_sha256'] = self._pre_fix_digest(manifest, config)
+        old['sha256'] = core._stable_hash({'target': 'thunder', 'details': old['details']})
+        self.assertEqual(current['legacy_sha256'], old['sha256'],
+                         'the offered legacy digest must be the historical one')
+        report = core.build_benchmark_report(manifest, current)
+        report['environment'] = old
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'report.json'
+            core.save_benchmark_report(path, report)
+            resumed = core.load_resumable_benchmark_report(path, manifest, current)
+        self.assertEqual([], resumed['cases'])
+        self.assertEqual(old['sha256'], resumed['environment']['sha256'])
+
+    def test_changed_profile_and_keyless_public_profile_refuse_legacy_resume(self):
+        config = get_config(True)
+        manifest, current = self._case(config)
+        old = copy.deepcopy(current)
+        old['details']['execution_sha256'] = self._pre_fix_digest(manifest, config)
+        old['sha256'] = core._stable_hash({'target': 'thunder', 'details': old['details']})
+        report = core.build_benchmark_report(manifest, current)
+        report['environment'] = old
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'report.json'
+            core.save_benchmark_report(path, report)
+            changed = copy.deepcopy(config)
+            changed['llm_remote']['api_key'] = 'changed-fixture'
+            _, changed_environment = self._case(changed)
+            with self.assertRaisesRegex(ValueError, 'environment changed'):
+                core.load_resumable_benchmark_report(path, manifest, changed_environment)
+            keyless = copy.deepcopy(config)
+            keyless['llm_remote']['api_key'] = ''
+            with patch.dict(os.environ, {'OPENAI_API_KEY': 'sk-synthetic'}, clear=False):
+                _, keyless_environment = self._case(keyless)
+            self.assertNotIn('legacy_sha256', keyless_environment,
+                             'a keyless public profile changed the worker credential')
+            with self.assertRaisesRegex(ValueError, 'environment changed'):
+                core.load_resumable_benchmark_report(path, manifest, keyless_environment)
