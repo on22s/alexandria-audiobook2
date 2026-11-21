@@ -73,6 +73,16 @@ def _save(tmp, document):
     return _load(path)
 
 
+def _save_preview(tmp, document):
+    from fastapi import HTTPException
+    with patch.object(system_module, "CONFIG_PATH", os.path.join(tmp, "config.json")):
+        try:
+            asyncio.run(system_module.preview_config(document))
+            return 200
+        except HTTPException as error:
+            return error.status_code
+
+
 def _form(document):
     """The production JS posts these whole profile objects back unchanged."""
     form = {key: document[key] for key in
@@ -861,6 +871,114 @@ class StrictEndpointApiTests(unittest.TestCase):
                 payload = _form(_get(tmp))
                 self.assertEqual(200, client.post("/api/config/preview", json=payload).status_code)
                 self.assertEqual(200, client.post("/api/config", json=payload).status_code)
+
+
+class ExactIntegerBoundaryTests(unittest.TestCase):
+    def _roundtrip(self, tmp, value, typed=False):
+        body = {"seed": value} if typed is False else {"outer": {"seed": value}}
+        profile = dict(LOW, provider_extra_body=body)
+        path = _seed(tmp, {"llm_mode": "local", "llm": dict(profile),
+                           "llm_local": dict(profile), "tts": {}, "generation": {}})
+        document = _get(tmp)
+        posted = _form_via_js(document)
+        if typed:
+            # A user typing the value into the editor: raw text is exact, the
+            # browser's parsed object is lossy (None once JS overflows).
+            posted["provider_extra_body_json"] = json.dumps(body)
+            posted["provider_extra_body"] = ({"outer": {"seed": 1}} if value < 10 ** 300
+                                             else {"outer": {"seed": None}})
+        form = {**_form(document), "llm": posted, "llm_local": posted}
+        preview = _save_preview(tmp, form)
+        saved = _save(tmp, form)
+        self.assertEqual(200, preview)
+        return saved["llm_local"]["provider_extra_body"]
+
+    @unittest.skipUnless(shutil.which("node"), "node is not installed")
+    def test_untouched_large_integers_survive_real_form_and_routes(self):
+        for value in (2 ** 53 + 1, 2 ** 63 - 1, 10 ** 310):
+            with self.subTest(value=str(value)[:20]), tempfile.TemporaryDirectory() as tmp:
+                self.assertEqual({"seed": value}, self._roundtrip(tmp, value))
+
+    @unittest.skipUnless(shutil.which("node"), "node is not installed")
+    def test_typed_nested_large_integers_survive_without_overflow(self):
+        for value in (2 ** 63 - 1, 10 ** 310):
+            with self.subTest(value=str(value)[:20]), tempfile.TemporaryDirectory() as tmp:
+                self.assertEqual({"outer": {"seed": value}},
+                                 self._roundtrip(tmp, value, typed=True))
+
+
+class ExplicitBodyRepresentationTests(unittest.TestCase):
+    def test_structured_input_wins_over_stale_auxiliary_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _seed(tmp, {"llm_mode": "local", "llm": dict(LOW),
+                               "llm_local": dict(LOW), "tts": {}, "generation": {}})
+            app = FastAPI()
+            app.include_router(system_module.router)
+            client = TestClient(app, raise_server_exceptions=True)
+            with patch.object(system_module, "CONFIG_PATH", path), \
+                    patch.object(system_module.project_manager, "engine", None), \
+                    patch.object(system_module.project_manager, "invalidate_config_cache"):
+                form = _form(_get(tmp))
+                form["llm_local"]["provider_extra_body"] = {"flag": 1}
+                form["llm"]["provider_extra_body"] = {"flag": 1}
+                form["llm_local"]["provider_extra_body_json"] = '{"flag": true}'
+                form["llm"]["provider_extra_body_json"] = '{"flag": true}'
+                self.assertEqual(200, client.post("/api/config/preview", json=form).status_code)
+                self.assertEqual(200, client.post("/api/config", json=form).status_code)
+            saved = _load(path)
+            self.assertEqual({"flag": 1}, saved["llm_local"]["provider_extra_body"])
+            self.assertNotIn("provider_extra_body_json", saved["llm_local"])
+            self.assertNotIn("provider_extra_body_raw", saved["llm_local"])
+
+    def test_declared_raw_text_wins_and_malformed_text_is_controlled(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _seed(tmp, {"llm_mode": "local", "llm": dict(LOW),
+                               "llm_local": dict(LOW), "tts": {}, "generation": {}})
+            app = FastAPI()
+            app.include_router(system_module.router)
+            client = TestClient(app, raise_server_exceptions=True)
+            with patch.object(system_module, "CONFIG_PATH", path), \
+                    patch.object(system_module.project_manager, "engine", None), \
+                    patch.object(system_module.project_manager, "invalidate_config_cache"):
+                form = _form(_get(tmp))
+                for section in ("llm", "llm_local"):
+                    form[section]["provider_extra_body"] = {"flag": 1}
+                    form[section]["provider_extra_body_json"] = '{"flag": 2}'
+                    form[section]["provider_extra_body_raw"] = True
+                self.assertEqual(200, client.post("/api/config", json=form).status_code)
+            self.assertEqual({"flag": 2}, _load(path)["llm_local"]["provider_extra_body"])
+
+            with patch.object(system_module, "CONFIG_PATH", path), \
+                    patch.object(system_module.project_manager, "engine", None), \
+                    patch.object(system_module.project_manager, "invalidate_config_cache"):
+                form = _form(_get(tmp))
+                for section in ("llm", "llm_local"):
+                    form[section]["provider_extra_body"] = {"flag": 3}
+                    form[section]["provider_extra_body_json"] = "{not json"
+                    form[section]["provider_extra_body_raw"] = True
+                self.assertEqual(200, client.post("/api/config", json=form).status_code)
+            self.assertEqual({"flag": 3}, _load(path)["llm_local"]["provider_extra_body"])
+
+
+class BooleanNumberReceiptTests(StalePredigestReceiptTests):
+    def test_flag_true_receipt_cannot_vouch_for_flag_one_request(self):
+        old = dict(LOW, provider_extra_body={"flag": True})
+        new = dict(LOW, provider_extra_body={"flag": 1})
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _seed(tmp, {"llm_mode": "local", "llm": dict(new, **self._receipt(old)),
+                               "llm_local": dict(new), "tts": {}, "generation": {}})
+            with patch.object(system_module, "CONFIG_PATH", path):
+                proposal = system_module.get_config_to_save(
+                    AppConfig.model_validate(_load(path)), _load(path))
+            written = settings.get_document_with_retained_cache(proposal.model_dump(), _load(path))
+            self.assertNotIn("concurrency", written["llm_local"])
+            with _patches()[0], _patches()[1], patch.object(
+                    llm_bench, "find_optimal_concurrency", side_effect=_find(3)) as bench:
+                value = llm_bench.ensure_cached_or_benchmarked_concurrency(
+                    path, "local", new["base_url"], new["model_name"], object(),
+                    status=STATUS, llm_config=new)
+            bench.assert_called_once()
+            self.assertEqual(3, value)
 
 
 if __name__ == "__main__":

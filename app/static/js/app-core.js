@@ -2172,7 +2172,10 @@
                 retry_jitter: getOptionalNumberInput('llm-retry-jitter', 'Backoff jitter') ?? 0.2,
                 provider_headers: getJsonObjectInput('llm-provider-headers', 'Custom headers'),
                 provider_extra_body: getJsonObjectInput('llm-provider-extra-body', 'Custom request body'),
+                // The editor's text is the authoritative representation: a
+                // browser number cannot hold integers beyond 2^53 exactly.
                 provider_extra_body_json: document.getElementById('llm-provider-extra-body').value,
+                provider_extra_body_raw: true,
                 reasoning_effort: document.getElementById('llm-reasoning-effort').value || null,
                 on_this_gpu: getOnThisGpuInput(),
                 transport: document.getElementById('llm-transport').value || 'http'

@@ -443,6 +443,27 @@ def is_benchmark_digest(value):
     return isinstance(value, str) and bool(_BENCHMARK_DIGEST_PATTERN.fullmatch(value))
 
 
+def _identity_values_equal(left, right):
+    """JSON equality that never confuses a boolean with a number.
+
+    Python treats True and 1 as equal, which would let an old `{"flag":true}`
+    receipt vouch for a current `{"flag":1}` request. Only numeric scalars may
+    compare across int/float (a JSON round-trip spelling); every other type
+    must match before its value is considered.
+    """
+    if isinstance(left, bool) or isinstance(right, bool):
+        return type(left) is type(right) and left == right
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return left == right
+    if isinstance(left, dict) and isinstance(right, dict):
+        return (left.keys() == right.keys()
+                and all(_identity_values_equal(left[key], right[key]) for key in left))
+    if isinstance(left, (list, tuple)) and isinstance(right, (list, tuple)):
+        return (len(left) == len(right)
+                and all(_identity_values_equal(a, b) for a, b in zip(left, right)))
+    return left == right
+
+
 def predigest_identity_matches(raw, config, section):
     """Whether an old receipt's plain identity describes this exact request.
 
@@ -456,7 +477,8 @@ def predigest_identity_matches(raw, config, section):
         return False
     current = get_benchmark_identity(config, section)
     return (isinstance(stored, dict) and isinstance(current, dict)
-            and _canonical_identity_value(stored) == _canonical_identity_value(current))
+            and _identity_values_equal(_canonical_identity_value(stored),
+                                       _canonical_identity_value(current)))
 
 
 def get_benchmark_destination(profile):

@@ -321,19 +321,6 @@ class PromptPreset(BaseModel):
     builtin: bool = False
 
 
-def _js_round_numbers(value):
-    """Emulate the browser's IEEE-754 parse of JSON numbers for comparison."""
-    if isinstance(value, bool) or value is None:
-        return value
-    if isinstance(value, int):
-        return float(value) if abs(value) > 2 ** 53 else value
-    if isinstance(value, dict):
-        return {key: _js_round_numbers(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_js_round_numbers(item) for item in value]
-    return value
-
-
 class AppConfig(BaseModel):
     llm: LLMConfig
     llm_mode: Literal["local", "remote"] = "local"
@@ -352,13 +339,14 @@ class AppConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def restore_exact_provider_body(cls, data):
-        """Use the editor's raw JSON text when it is present.
+        """Resolve the single authoritative provider-body representation.
 
-        A browser parses GET's JSON with IEEE-754 numbers, so an unchanged
-        integer above 2^53 would come back one lower. The Setup editor posts
-        the exact text alongside the parsed object; parsing it here (with
-        Python's arbitrary-precision ints) keeps ordinary API callers and the
-        existing field validation untouched.
+        The Setup editor explicitly declares raw text authoritative with
+        `provider_extra_body_raw`; only then is its JSON text parsed here with
+        Python's arbitrary-precision integers. Every other caller's structured
+        `provider_extra_body` stays authoritative - stale auxiliary text can
+        never supersede it. Both helper fields are stripped before validation,
+        and a malformed raw text simply leaves the structured value in place.
         """
         if not isinstance(data, dict):
             return data
@@ -366,21 +354,21 @@ class AppConfig(BaseModel):
             profile = data.get(section)
             if not isinstance(profile, dict):
                 continue
-            raw = profile.get("provider_extra_body_json")
-            if not isinstance(raw, str) or not raw.strip():
+            if not any(key in profile for key in
+                       ("provider_extra_body_json", "provider_extra_body_raw")):
                 continue
-            try:
-                parsed = json.loads(raw)
-            except (TypeError, ValueError):
-                continue
-            if isinstance(parsed, dict) and _js_round_numbers(parsed) == profile.get(
-                    "provider_extra_body"):
-                # The object is the browser's rounded parse of this exact text;
-                # only then replace it with the lossless Python-parsed value.
-                # A differing object is a deliberate edit and must win.
-                profile = {**profile, "provider_extra_body": parsed}
-                profile.pop("provider_extra_body_json", None)
-                data = {**data, section: profile}
+            updated = {key: value for key, value in profile.items()
+                       if key not in ("provider_extra_body_json", "provider_extra_body_raw")}
+            if profile.get("provider_extra_body_raw") is True:
+                raw = profile.get("provider_extra_body_json")
+                if isinstance(raw, str) and raw.strip():
+                    try:
+                        parsed = json.loads(raw)
+                    except (TypeError, ValueError):
+                        parsed = None
+                    if isinstance(parsed, dict):
+                        updated["provider_extra_body"] = parsed
+            data = {**data, section: updated}
         return data
 
 
