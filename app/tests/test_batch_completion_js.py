@@ -77,3 +77,21 @@ for(const [statuses,cancel,label,counts] of [
 }
 assert.strictEqual(recovery.length,4);assert.strictEqual(notifications.length,4);
 ''', setup)
+
+    def test_batch_option_checkboxes_keep_merge_and_discovery_consistent(self):
+        setup = SETUP + r'''
+run(source.slice(source.indexOf('let _batchMergeWasChecked = true;'), source.indexOf('function _isReviewForceChecked()')));
+const merge=ctx.document.getElementById('review-dedupe-speakers'),discover=ctx.document.getElementById('review-batch-find-nicknames'),twoPass=ctx.document.getElementById('review-batch-bidirectional');
+merge.checked=false;discover.checked=false;twoPass.checked=false;run('syncBatchReviewOptions()');
+'''
+        self.run_js(r'''
+discover.checked=true;run('syncBatchReviewOptions()');
+assert.strictEqual(discover.checked,true);assert.strictEqual(merge.checked,true);
+merge.checked=false;discover.checked=false;twoPass.checked=false;run('syncBatchReviewOptions()');
+twoPass.checked=true;run('syncBatchReviewOptions()');
+assert.strictEqual(twoPass.checked,true);assert.strictEqual(discover.checked,true);assert.strictEqual(merge.checked,true);
+merge.checked=false;run('syncBatchReviewOptions()');
+assert.strictEqual(discover.checked,false);assert.strictEqual(twoPass.checked,false);
+discover.checked=true;run('syncBatchReviewOptions()');
+assert.strictEqual(discover.checked,true);assert.strictEqual(merge.checked,true);
+''', setup=setup)

@@ -4050,6 +4050,22 @@
             const cb = document.getElementById('review-dedupe-speakers');
             return cb ? cb.checked : true;
         }
+        let _batchMergeWasChecked = true;
+        window.syncBatchReviewOptions = () => {
+            const merge = document.getElementById('review-dedupe-speakers');
+            const discover = document.getElementById('review-batch-find-nicknames');
+            const twoPass = document.getElementById('review-batch-bidirectional');
+            if (!merge || !discover || !twoPass) { return; }
+            const mergeTurnedOff = _batchMergeWasChecked && !merge.checked;
+            _batchMergeWasChecked = merge.checked;
+            if (mergeTurnedOff) {
+                discover.checked = false;
+                twoPass.checked = false;
+            }
+            if (twoPass.checked && !discover.checked) { discover.checked = true; }
+            if (discover.checked && !merge.checked) { merge.checked = true; }
+            _batchMergeWasChecked = merge.checked;
+        };
         function _isReviewForceChecked() {
             const cb = document.getElementById('review-force-rerun');
             return cb ? cb.checked : false;
@@ -4312,7 +4328,7 @@
             document.getElementById('review-single-area').style.display = isBatch ? 'none' : 'block';
             document.getElementById('review-batch-area').style.display = isBatch ? 'block' : 'none';
             document.getElementById('btn-review-batch-start').style.display = isBatch ? 'inline-block' : 'none';
-            if (isBatch) { loadReviewBatchScripts(); }
+            if (isBatch) { syncBatchReviewOptions(); loadReviewBatchScripts(); }
             refreshReviewRestart();
         };
 

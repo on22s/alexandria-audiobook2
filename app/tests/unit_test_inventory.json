@@ -1168,6 +1168,7 @@
   ]
   , "test_batch_completion_js": [
     "tests.test_batch_completion_js.BatchCompletionJsTests.test_actual_review_callback_reports_counts_and_preserves_recovery_controls"
+    , "tests.test_batch_completion_js.BatchCompletionJsTests.test_batch_option_checkboxes_keep_merge_and_discovery_consistent"
     , "tests.test_batch_completion_js.BatchCompletionJsTests.test_pending_start_and_done_chunks_do_not_finish_before_worker_stops"
     , "tests.test_batch_completion_js.BatchCompletionJsTests.test_terminal_partial_results_count_pending_skipped_missing_and_cancelled"
     , "tests.test_batch_completion_js.BatchCompletionJsTests.test_unavailable_status_rejects_poll_and_manual_cancel_does_not_show_success"
@@ -1286,7 +1287,10 @@
     , "tests.test_batch_result_shape.VramNoneRenderingTests.test_run_sweep_keeps_none_as_null_in_artifact_and_prints_na"
   ]
   , "test_batch_review_pass_status": [
-    "tests.test_batch_review_pass_status.BatchReviewPassStatusTests.test_actual_batch_route_and_report_keep_both_passes_completion_requirements"
+    "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_contradictions_are_refused_before_gpu_or_task_claim"
+    , "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_effective_flags_keep_legacy_omitted_default_behavior"
+    , "tests.test_batch_review_pass_status.BatchOptionAdmissionTests.test_valid_defaults_start_and_report_effective_flags"
+    , "tests.test_batch_review_pass_status.BatchReviewPassStatusTests.test_actual_batch_route_and_report_keep_both_passes_completion_requirements"
   ]
   , "test_batch_review_task_snapshots": [
     "tests.test_batch_review_task_snapshots.BatchReviewTaskSnapshotTests.test_legacy_generic_only_state_keeps_existing_response"
