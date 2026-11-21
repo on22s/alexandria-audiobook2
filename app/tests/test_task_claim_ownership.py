@@ -154,6 +154,8 @@ class TaskClaimOwnershipTests(unittest.TestCase):
             source=Path(tmp)/'source.txt';source.write_text('alpha beta')
             (Path(tmp)/'state.json').write_text(json.dumps({'input_file_path':str(source)}))
             manager.load_chunks.return_value=[{'text':'alpha beta'}]
+            manager.chunks_path = str(Path(tmp) / 'chunks.json')
+            manager.read_saved_chunk_rows.side_effect = FileNotFoundError(manager.chunks_path)
             with patch.object(script,'SCRIPT_PATH',str(path)),patch.object(script,'process_state',self.state),patch.object(editor,'DATA_DIR',tmp),patch.object(editor,'SCRIPT_PATH',str(path)),patch.object(editor,'process_state',self.state),patch.object(editor,'project_manager',manager),patch.object(script,'run_process') as run,TestClient(app,raise_server_exceptions=False) as client:
                 for url,name in (('/api/merge','audio'),('/api/export_audacity','audacity_export'),('/api/find_nicknames','nicknames'),('/api/review_script','review')):
                     with self.subTest(url=url):
