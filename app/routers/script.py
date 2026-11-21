@@ -2891,38 +2891,38 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if refusal:
             raise HTTPException(status_code=400, detail=refusal)
-    if require_recovery:
-        stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
-        stored = (stored.get("script_generation_options") or {}) if isinstance(stored, dict) else {}
-        if stored.get("literal_source_preserving") is True:
-            options["literal_source_preserving"] = True
-        options["cast_sha256"] = stored.get("cast_sha256")
-        if options["cast_sha256"] and get_file_sha256(get_run_cast_path()) != options["cast_sha256"]:
-            raise HTTPException(status_code=409, detail=(
-                "The cast list this run started with is missing or changed, so it cannot "
-                "resume; start a new run."))
-        if is_script_recovery_cast_invalidated(DATA_DIR):
-            raise HTTPException(status_code=409, detail=(
-                "The approved cast changed since this run started, so it cannot resume; "
-                "start a new run. The saved checkpoint was preserved."))
-        cast_source = None
-    else:
-        cast_source = get_existing_cast_list(input_file)
-    uses_cast = bool(options.get("cast_sha256") if require_recovery else cast_source)
-    try:
-        command = build_generate_script_command(
-            input_file,
-            strip_front_matter=options["strip_front_matter"],
-            first_person_narrator=options["first_person_narrator"],
-            reasoning_effort=get_active_reasoning_effort(),
-            cast_file=get_run_cast_path() if uses_cast else None,
-            **({"literal_source_preserving": True} if options.get("literal_source_preserving") else {}),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
     claim_id = None
     try:
         with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
+            if require_recovery:
+                stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+                stored = (stored.get("script_generation_options") or {}) if isinstance(stored, dict) else {}
+                if stored.get("literal_source_preserving") is True:
+                    options["literal_source_preserving"] = True
+                options["cast_sha256"] = stored.get("cast_sha256")
+                if options["cast_sha256"] and get_file_sha256(get_run_cast_path()) != options["cast_sha256"]:
+                    raise HTTPException(status_code=409, detail=(
+                        "The cast list this run started with is missing or changed, so it cannot "
+                        "resume; start a new run."))
+                if is_script_recovery_cast_invalidated(DATA_DIR):
+                    raise HTTPException(status_code=409, detail=(
+                        "The approved cast changed since this run started, so it cannot resume; "
+                        "start a new run. The saved checkpoint was preserved."))
+                cast_source = None
+            else:
+                cast_source = get_existing_cast_list(input_file)
+            uses_cast = bool(options.get("cast_sha256") if require_recovery else cast_source)
+            try:
+                command = build_generate_script_command(
+                    input_file,
+                    strip_front_matter=options["strip_front_matter"],
+                    first_person_narrator=options["first_person_narrator"],
+                    reasoning_effort=get_active_reasoning_effort(),
+                    cast_file=get_run_cast_path() if uses_cast else None,
+                    **({"literal_source_preserving": True} if options.get("literal_source_preserving") else {}),
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
             current_state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
             require_whole_source_generation(current_state)
             if current_state.get("input_file_path") != input_file:
@@ -3004,7 +3004,10 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                 # changed checkbox would invalidate the resume fingerprint.
                 # A fresh run establishes a new cast baseline, clearing any
                 # stale-recovery flag left by a roster approval.
-                state.pop(RECOVERY_CAST_INVALIDATED, None)
+                if not require_recovery and (
+                        (request is not None and request.start_over)
+                        or not os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH))):
+                    state.pop(RECOVERY_CAST_INVALIDATED, None)
                 state["script_generation_options"] = options
                 state["script_generation_input_file"] = input_file
                 if original is not None:

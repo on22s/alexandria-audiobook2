@@ -14,6 +14,7 @@ from character_roster_snapshot import get_character_roster_preview
 from tests import test_script_cast_routes as generation
 from tests.test_character_roster import SOURCE1, A, entry, decision, proposal
 import three_pass_generate as three_pass
+from utils import atomic_json_write
 
 
 class CharacterRosterGenerationTests(unittest.TestCase):
@@ -29,6 +30,9 @@ class CharacterRosterGenerationTests(unittest.TestCase):
         self.list_path = get_cast_list_path(self.source, self.dir)
         self.write_list([{'name': 'ALICE', 'aliases': []}])
         self.start()
+        atomic_json_write({'status': 'failed', 'fingerprint': 'fp'},
+                          generation.script_module.three_pass_manifest_path(
+                              generation.script_module.SCRIPT_PATH))
         frozen = Path(generation.script_module.get_run_cast_path())
         initial = frozen.read_bytes(); initial_hash = hashlib.sha256(initial).hexdigest()
         value = proposal(SOURCE1, [entry(SOURCE1, A, 'ALICE', 'Alice')], [decision('add', [], [A])])

@@ -53,3 +53,9 @@ def alias_registry_admission(root):
                 yield
         except TimeoutError as exc:
             raise HTTPException(status_code=409, detail='The book or alias registry is busy; retry shortly.') from exc
+        except ValueError as exc:
+            if 'recovery is required' in str(exc).lower():
+                raise HTTPException(status_code=409, detail=(
+                    'Book recovery is required before changing aliases; '
+                    'complete recovery and retry. The registry was preserved.')) from exc
+            raise

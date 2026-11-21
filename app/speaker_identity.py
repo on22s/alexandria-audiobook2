@@ -260,8 +260,13 @@ def is_speaker_merge_allowed(variant, canonical):
     return True
 
 
-def _get_alias_roots(mapping):
-    """Return terminal labels and variants whose paths reach a cycle."""
+def _get_alias_roots(mapping, *, allowed_edge=None):
+    """Return terminal labels and variants whose paths reach a cycle.
+
+    With allowed_edge, traversal stops at an edge it refuses and reports that
+    edge's canonical as the terminal label. Callers that pass no predicate keep
+    the permissive legacy read behaviour.
+    """
     index = {}
     for variant in sorted(mapping):
         index.setdefault(_identity_key(variant), variant)
@@ -277,6 +282,9 @@ def _get_alias_roots(mapping):
                 break
             seen.add(current)
             canonical = mapping[current]
+            if allowed_edge is not None and not allowed_edge(current, canonical):
+                roots.update((alias, canonical) for alias in seen)
+                break
             following = index.get(_identity_key(canonical))
             if following is None or following == current:
                 roots.update((alias, canonical) for alias in seen)
@@ -352,7 +360,7 @@ def get_safe_alias_proposals(proposal_maps, roster, existing_aliases=None, flatt
     roots so a later locked check can follow intervening human root changes.
     """
     current = get_validated_alias_graph({} if existing_aliases is None else existing_aliases)
-    human_roots, _ = _get_alias_roots(current)
+    human_roots, _ = _get_alias_roots(current, allowed_edge=is_speaker_merge_allowed)
     human_keys = {_identity_key(variant) for variant in current}
     human_keys.update(_identity_key(root) for root in human_roots.values())
     choices, conflicts = {}, set()
@@ -374,7 +382,7 @@ def get_safe_alias_proposals(proposal_maps, roster, existing_aliases=None, flatt
     proposed = dict(choices.values())
     combined = dict(proposed)
     combined.update(current)
-    roots, cyclic = _get_alias_roots(combined)
+    roots, cyclic = _get_alias_roots(combined, allowed_edge=is_speaker_merge_allowed)
     allowed_roots = list(roster) + list(human_roots.values())
     safe = {}
     for variant in proposed:
