@@ -2316,6 +2316,12 @@ def _validate_local_llm_base_url(base_url: str) -> None:
     """
     if not base_url:
         return
+    from lmstudio_settings import is_usable_llm_endpoint
+    # The same strict authority/port check the failover predicate and runtime
+    # client use: a parser-valid loopback URL with port 0 is not dialable, and
+    # Setup must not accept what a run would refuse.
+    if not is_usable_llm_endpoint(base_url):
+        raise LLMConfigError(f"LLM base_url '{base_url}' is not local. Only local/trusted LLM endpoints are permitted.")
     if is_local_llm_endpoint(base_url):
         return
     from urllib.parse import urlparse

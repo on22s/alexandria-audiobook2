@@ -3,6 +3,7 @@
 import copy
 import json
 import logging
+import math
 import os
 import shutil
 import uuid
@@ -321,6 +322,27 @@ class PromptPreset(BaseModel):
     builtin: bool = False
 
 
+def _reject_json_constant(name):
+    """json.loads accepts NaN/Infinity by default; a config body must not."""
+    raise ValueError(f"Provider request body cannot contain {name}")
+
+
+def _reject_nonfinite(value):
+    """Reject float infinities anywhere in a provider body, with no coercion.
+
+    A finite JSON integer keeps its full size; only values that cannot be
+    written back as readable JSON are refused.
+    """
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError("Provider request body must contain only finite JSON numbers")
+    if isinstance(value, dict):
+        for item in value.values():
+            _reject_nonfinite(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _reject_nonfinite(item)
+
+
 class AppConfig(BaseModel):
     llm: LLMConfig
     llm_mode: Literal["local", "remote"] = "local"
@@ -335,6 +357,41 @@ class AppConfig(BaseModel):
     prompts: Optional[PromptConfig] = None
     prompt_presets: List[PromptPreset] = Field(default_factory=list, max_length=50)
     generation: Optional[GenerationConfig] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def restore_exact_provider_body(cls, data):
+        """Resolve the single authoritative provider-body representation.
+
+        The Setup editor explicitly declares raw text authoritative with
+        `provider_extra_body_raw`; only then is its JSON text parsed here with
+        Python's arbitrary-precision integers. Every other caller's structured
+        `provider_extra_body` stays authoritative - stale auxiliary text can
+        never supersede it. Both helper fields are stripped before validation,
+        and a malformed raw text simply leaves the structured value in place.
+        """
+        if not isinstance(data, dict):
+            return data
+        for section in ("llm", "llm_local", "llm_remote"):
+            profile = data.get(section)
+            if not isinstance(profile, dict):
+                continue
+            updated = {key: value for key, value in profile.items()
+                       if key not in ("provider_extra_body_json", "provider_extra_body_raw")}
+            if profile.get("provider_extra_body_raw") is True:
+                raw = profile.get("provider_extra_body_json")
+                if not isinstance(raw, str) or not raw.strip():
+                    raise ValueError("Raw provider request body is required when declared authoritative")
+                try:
+                    parsed = json.loads(raw, parse_constant=_reject_json_constant)
+                except (TypeError, ValueError) as error:
+                    raise ValueError("Raw provider request body is not valid JSON") from error
+                if not isinstance(parsed, dict):
+                    raise ValueError("Raw provider request body must be a JSON object")
+                updated["provider_extra_body"] = parsed
+            _reject_nonfinite(updated.get("provider_extra_body"))
+            data = {**data, section: updated}
+        return data
 
 
 def get_config_section_model(field):

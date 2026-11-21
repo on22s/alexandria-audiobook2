@@ -596,8 +596,27 @@ class FailoverClient:
             return None
         with self._runtime_lock:
             if self._runtime_state["profile"] is None:
-                from lmstudio_settings import get_current_status, is_remote_llm
                 config = self._secondary_config
+                if config.get("transport") == "manual":
+                    # A manual secondary has no HTTP runtime to interrogate.
+                    # Never probe a saved endpoint on its behalf: use declared
+                    # limits and one slot so human answers stay serial.
+                    from llm_request_budget import get_request_limits
+                    context = get_request_limits(config, None)["context_length"]
+                    if not isinstance(context, int) or isinstance(context, bool) or context < 1:
+                        context = 4096
+                    self._runtime_state["semaphore"] = threading.BoundedSemaphore(1)
+                    # #2215's declared-limit Manual status supplies the serial
+                    # slot and runtime metadata; keep #2214's explicit flag.
+                    from lmstudio_settings import get_manual_runtime_status
+                    status = {**get_manual_runtime_status(config), "manual": True}
+                    self._runtime_state["profile"] = {
+                        "config": config,
+                        "status": status,
+                        "context_length": context, "is_remote": False,
+                    }
+                    return deepcopy(self._runtime_state["profile"])
+                from lmstudio_settings import get_current_status, is_remote_llm
                 try:
                     status = get_current_status(
                         self._pair[1][2], config.get("base_url", ""), self.secondary_model,
@@ -713,8 +732,8 @@ def make_run_client(config, active_llm_config, timeout):
     except BaseException:
         primary.close()
         raise
-    return FailoverClient(primary, active_llm_config.get("model_name", ""),
-                          secondary, other.get("model_name", ""),
+    return FailoverClient(primary, str(active_llm_config.get("model_name", "")).strip(),
+                          secondary, str(other.get("model_name", "")).strip(),
                           primary_label=mode,
                           secondary_label="remote" if mode == "local" else "local",
                           secondary_config=other, ssh_alias=config.get("llm_remote_ssh"))
@@ -1001,8 +1020,10 @@ def make_llm_client(llm_config, timeout, respect_profile_timeout=True):
     if llm_config.get("transport") == "manual":
         client = ManualClient(get_manual_llm_data_dir())
         return ConfiguredOpenAI(client, get_provider_extra_body(llm_config), limits=limits) if limits else client
+    from lmstudio_settings import normalize_llm_endpoint
+    endpoint = normalize_llm_endpoint(llm_config.get("base_url"))
     client = OpenAI(
-        base_url=llm_config.get("base_url", "http://localhost:11434/v1"),
+        base_url=endpoint or llm_config.get("base_url", "http://localhost:11434/v1"),
         api_key=resolve_client_api_key(llm_config),
         timeout=(get_profile_timeout(llm_config, timeout)
                  if respect_profile_timeout else timeout),
