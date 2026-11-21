@@ -1604,7 +1604,7 @@ def _retained_parent_regions(scope, parent_entries):
     return regions
 
 
-def _direct_leading_region(text, scope, entries):
+def _retained_leading_region(text, scope, entries):
     """Unique raw region of wordless rows before the first retained word."""
     from dialogue_spans import _normalize, _normalize_with_offsets
     if not scope['start_word']:
@@ -1643,7 +1643,7 @@ def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=No
     expected = words[scope['start_word']:]
     regions = (_retained_parent_regions(scope, parent_entries)
                if parent_entries is not None else None)
-    leading = _direct_leading_region(text, scope, entries) if regions is None else None
+    leading = _retained_leading_region(text, scope, entries)
     first_word = next((position for position, item in enumerate(entries)
                        if any(True for _ in iter_literal_words(item['text']))), len(entries))
     cursor = 0

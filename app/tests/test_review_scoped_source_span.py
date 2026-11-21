@@ -880,6 +880,39 @@ class OwnershipAndCompositionTests(unittest.TestCase):
                 saved = self.publish(directory, script, child, expected=True)
                 self.assertEqual([15, 16], saved[1]['source_span'])
 
+    def test_saved_parent_with_two_standalone_marks_keeps_only_retained_mark(self):
+        rows = [row(text, 'NARRATOR') for text in
+                ('Intro.', 'Exclude me', '!', '!', 'Keep the line.')]
+        rows += copy.deepcopy(RAW_ROWS[5:])
+        raw = '\n\n'.join(entry['text'] for entry in rows).replace('Exclude me\n\n!', 'Exclude me !')
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        whole = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
+        chunks = bind_literal_chunks(
+            [{'text': 'Intro.', 'uid': 'intro'}, {'text': 'Exclude me !', 'uid': 'excluded'},
+             {'text': '! Keep the line.', 'uid': 'retained'},
+             *[{'text': entry['text'], 'uid': f'tail-{index}'}
+               for index, entry in enumerate(whole[5:])]], get_literal_policy(whole))
+        scoped = get_literal_scope(raw, whole, chunks, 1, 1, input_sha256=digest)
+        for parent, parent_chunks, start, label in (
+                (whole, chunks, 3, 'whole'), (scoped, chunks[1:], 2, 'scoped')):
+            child = get_literal_scope(raw, parent, parent_chunks, start, start - 1,
+                                      input_sha256=digest)
+            excluded_span = list(parent[start - 1]['source_span'])
+            retained_span = list(parent[start]['source_span'])
+            self.assertEqual([19, 20], excluded_span)
+            self.assertEqual([22, 23], retained_span)
+            for span, expected in ((excluded_span, False), (retained_span, True)):
+                with self.subTest(parent=label, span=span), tempfile.TemporaryDirectory() as directory:
+                    entries = copy.deepcopy(child)
+                    entries[0]['source_span'] = span
+                    script, _, _ = make_saved_hop(
+                        directory, raw=raw, original_rows=parent, active_rows=entries)
+                    saved = self.publish(directory, script, entries, expected=expected)
+                    if expected:
+                        self.assertEqual(retained_span, saved[0]['source_span'])
+                    else:
+                        self.assertEqual(entries, saved)
+
     def test_combining_sequences_keep_legacy_digest_and_raw_offsets(self):
         for word, expected_span in (('a\u0327\u0301', [11, 14]), ('\u00e1\u0327', [11, 13])):
             with self.subTest(word=word):

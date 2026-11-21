@@ -12594,6 +12594,7 @@
     , "tests.test_review_scoped_source_span.FinalAstraFindingsTests.test_word_only_path_stays_allocation_light_and_exact"
     , "tests.test_review_scoped_source_span.OwnershipAndCompositionTests.test_adjacent_retained_word_and_punctuation_is_valid"
     , "tests.test_review_scoped_source_span.OwnershipAndCompositionTests.test_combining_sequences_keep_legacy_digest_and_raw_offsets"
+    , "tests.test_review_scoped_source_span.OwnershipAndCompositionTests.test_saved_parent_with_two_standalone_marks_keeps_only_retained_mark"
     , "tests.test_review_scoped_source_span.OwnershipAndCompositionTests.test_whitespace_does_not_transfer_excluded_punctuation"
     , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_child_range_widening_is_refused_without_split_or_receipt"
     , "tests.test_review_scoped_source_span.ResidualAstraFindingsTests.test_decomposed_hangul_row_keeps_two_character_offset"
