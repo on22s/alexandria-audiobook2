@@ -11,13 +11,16 @@ import unittest
 from unittest.mock import patch
 
 from book_state_transaction import get_book_operation_token
+from completed_review_receipt import get_review_entries_fingerprint
 from dialogue_spans import _normalize, mark_entries
 from generate_script import get_preprocessed_source
 import literal_fidelity
 from literal_fidelity import _words, iter_literal_words
 from literal_policy import (SCRIPT_POLICY_KEY, bind_literal_chunks, bind_literal_policy,
                             get_literal_policy, get_literal_policy_identity, get_word_identity)
+from project import group_into_chunks
 from project_scope_literal import get_literal_scope
+from project_scope_partition import get_scope_partition
 import review_script as review
 from script_selection_binding import make_script_selection_binding
 from tests.test_pass_boundary_retry_regressions import client_for
@@ -66,10 +69,21 @@ def make_scoped_book():
                   scope_source={'parent_policy_sha256': get_literal_policy_identity(parent),
                                 'prepared_source_sha256': hashlib.sha256(RAW.encode()).hexdigest(),
                                 'start_word': start, 'end_word': len(words),
-                                'total_words': len(words)})
+                                'total_words': len(words),
+                                'script_start_entry': START_ENTRY})
     get_literal_policy([{SCRIPT_POLICY_KEY: policy}])
     retained[0][SCRIPT_POLICY_KEY] = policy
     return retained, marked[START_ENTRY:]
+
+
+def align_cut(rows, parent_rows):
+    """Record the synthetic child's cut relative to its parent rows."""
+    for index in range(len(parent_rows)):
+        if [row['text'] for row in parent_rows[index:]] == [row['text'] for row in rows]:
+            scope = rows[0][SCRIPT_POLICY_KEY]['scope_source']
+            scope['script_start_entry'] = index
+            return
+    return
 
 
 def split_reply(batch):
@@ -233,7 +247,11 @@ def build_scoped_rows(raw, source_rows, start_entry, *, input_sha256=None, strip
                   scope_source={'parent_policy_sha256': get_literal_policy_identity(ancestor or parent),
                                 'prepared_source_sha256': hashlib.sha256(raw.encode()).hexdigest(),
                                 'start_word': start, 'end_word': len(words),
-                                'total_words': len(words)})
+                                'total_words': len(words),
+                                'script_start_entry': max(0, start_entry
+                                - (ancestor['scope_source'].get('script_start_entry', 0)
+                                   if ancestor and ancestor['boundary'] == 'selected_source_words_v1'
+                                   else 0))})
     retained[0][SCRIPT_POLICY_KEY] = policy
     return retained, parent
 
@@ -365,6 +383,7 @@ class SavedSourceHopFindingsTests(unittest.TestCase):
             original, _ = build_scoped_rows(RAW, self.rows, 1)
             child, _ = build_scoped_rows(RAW, self.rows, 2,
                                          ancestor=get_literal_policy(original))
+            align_cut(child, original)
             active, _, _ = make_saved_hop(
                 directory, raw=RAW, original_rows=original, active_rows=child)
             self.assertEqual(RAW, review.get_review_source_text(
@@ -562,6 +581,7 @@ class ResidualAstraFindingsTests(unittest.TestCase):
         parent_rows, _ = build_scoped_rows(RAW, self.rows, 2)
         parent = get_literal_policy(parent_rows)
         child_rows, _ = build_scoped_rows(RAW, self.rows, 1, ancestor=parent)
+        align_cut(child_rows, parent_rows)
         parent_scope = parent['scope_source']
         child_scope = child_rows[0][SCRIPT_POLICY_KEY]['scope_source']
         self.assertLess(child_scope['start_word'], parent_scope['start_word'])
@@ -631,6 +651,7 @@ class ResidualAstraFindingsTests(unittest.TestCase):
         parent = get_literal_policy(parent_rows)
         for choice in (False, True):
             child_rows, _ = build_scoped_rows(RAW, source_rows, 1, strip=choice, ancestor=parent)
+            align_cut(child_rows, parent_rows)
             with self.subTest(choice=choice), tempfile.TemporaryDirectory() as directory:
                 active, _, _ = make_saved_hop(
                     directory, raw=RAW, original_rows=parent_rows, active_rows=child_rows)
@@ -742,6 +763,7 @@ class FinalAstraFindingsTests(unittest.TestCase):
         parent_rows, _ = build_scoped_rows(raw, rows, 1)
         parent = get_literal_policy(parent_rows)
         child_rows, _ = build_scoped_rows(raw, rows, 1, ancestor=parent)
+        align_cut(child_rows, parent_rows)
         with tempfile.TemporaryDirectory() as directory:
             active, _, _ = make_saved_hop(
                 directory, raw=raw, original_rows=parent_rows, active_rows=child_rows)
@@ -932,3 +954,86 @@ class OwnershipAndCompositionTests(unittest.TestCase):
                     saved = self.publish(directory, script, retained, expected=True)
                     self.assertEqual(word, saved[0]['text'])
                     self.assertEqual(expected_span, saved[0]['source_span'])
+
+
+class CutEvidenceTests(unittest.TestCase):
+    """Scope-recorded cut proves ownership of standalone marks."""
+
+    def build(self, gap='\n\n'):
+        rows = [row(text, 'NARRATOR', instruct='Neutral.') for text in
+                ('Intro.', 'Exclude me', '!', '!', 'Keep the line.')]
+        rows += copy.deepcopy(RAW_ROWS[5:])
+        raw = '\n\n'.join(entry['text'] for entry in rows).replace(
+            'Exclude me\n\n!', 'Exclude me !').replace('!\n\nKeep', '!' + gap + 'Keep')
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        whole = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
+        chunks = [dict(entry, id=index, uid=f'u{index}')
+                  for index, entry in enumerate(group_into_chunks(whole))]
+        first = get_scope_partition(whole, chunks, 1)['chunk_start']
+        scoped = get_literal_scope(raw, whole, chunks, 1, first, input_sha256=digest)
+        return raw, whole, chunks, scoped
+
+    def publish(self, directory, script, entries, *, expected):
+        saved, stdout, _, _ = run_cli_at(directory, script, [self.split(entries)])
+        published = NEW_SPEAKER in [entry['speaker'] for entry in saved]
+        receipt = Path(str(script) + '.review_completed.json')
+        self.assertEqual(expected, published, stdout[-900:])
+        self.assertEqual(expected, receipt.exists(), stdout[-900:])
+        if receipt.exists():
+            proof = json.loads(receipt.read_text(encoding='utf-8'))
+            self.assertEqual(get_review_entries_fingerprint(entries), proof['input_sha256'])
+            self.assertEqual(get_review_entries_fingerprint(saved), proof['output_sha256'])
+        else:
+            self.assertEqual(entries, saved)
+        return saved
+
+    def split(self, entries):
+        index = next(i for i, entry in enumerate(entries) if '\n\n' in entry['text'])
+        narrator = {key: value for key, value in entries[index].items()
+                    if key not in ('text', SCRIPT_POLICY_KEY)}
+        paragraphs = entries[index]['text'].split('\n\n')
+        reply = [{key: value for key, value in entry.items()
+                  if key not in ('source_span', SCRIPT_POLICY_KEY)} for entry in entries[:index]]
+        reply += [{**narrator, 'text': '\n\n'.join(paragraphs[:-1])},
+                  {**narrator, 'speaker': NEW_SPEAKER, 'text': paragraphs[-1],
+                   'instruct': 'Startled shout.', **ANNOTATIONS}]
+        reply += [{key: value for key, value in entry.items()
+                   if key not in ('source_span', SCRIPT_POLICY_KEY)} for entry in entries[index + 1:]]
+        return reply
+
+    def test_inserted_excluded_mark_cannot_earn_a_receipt(self):
+        raw, whole, chunks, scoped = self.build()
+        for parent, parent_chunks, start, label in (
+                (whole, chunks, 3, 'whole'), (scoped, chunks[1:], 2, 'scoped')):
+            cut = get_scope_partition(parent, parent_chunks, start)['chunk_start']
+            child = get_literal_scope(raw, parent, parent_chunks, start, cut,
+                                      input_sha256=hashlib.sha256(raw.encode()).hexdigest())
+            self.assertEqual([22, 23], child[0]['source_span'])
+            inserted = copy.deepcopy(child)
+            extra = copy.deepcopy(parent[start - 1])
+            extra[SCRIPT_POLICY_KEY] = inserted[0].pop(SCRIPT_POLICY_KEY)
+            inserted.insert(0, extra)
+            self.assertEqual([19, 20], inserted[0]['source_span'])
+            with self.subTest(parent=label), tempfile.TemporaryDirectory() as directory:
+                script, _, _ = make_saved_hop(
+                    directory, raw=raw, original_rows=parent, active_rows=inserted)
+                self.assertIsNone(review.get_review_source_text(
+                    directory, str(script), script.read_bytes(), inserted))
+                self.publish(directory, script, inserted, expected=False)
+
+    def test_retained_mark_without_gap_publishes(self):
+        raw, whole, chunks, scoped = self.build(gap='')
+        for parent, parent_chunks, start, label in (
+                (whole, chunks, 3, 'whole'), (scoped, chunks[1:], 2, 'scoped')):
+            cut = get_scope_partition(parent, parent_chunks, start)['chunk_start']
+            child = get_literal_scope(raw, parent, parent_chunks, start, cut,
+                                      input_sha256=hashlib.sha256(raw.encode()).hexdigest())
+            self.assertEqual([22, 23], child[0]['source_span'])
+            self.assertEqual([23, 37], child[1]['source_span'])
+            for direct, path in ((True, 'direct'), (False, 'saved')):
+                with self.subTest(parent=label, path=path), tempfile.TemporaryDirectory() as directory:
+                    script = (create_book(directory, raw=raw, source=child)[0] if direct else
+                              make_saved_hop(directory, raw=raw, original_rows=parent,
+                                             active_rows=child)[0])
+                    saved = self.publish(directory, script, child, expected=True)
+                    self.assertEqual([22, 23], saved[0]['source_span'])

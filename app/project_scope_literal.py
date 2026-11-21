@@ -46,6 +46,7 @@ def get_literal_scope(source, script, chunks, start_entry, start_chunk, *,
     policy.update(boundary='selected_source_words_v1', scope_chunks=lineage,
         scope_source={'parent_policy_sha256': get_literal_policy_identity(original),
                       'prepared_source_sha256': prepared_sha256,
-                      'start_word': start, 'end_word': len(words), 'total_words': len(words)})
+                       'start_word': start, 'end_word': len(words), 'total_words': len(words),
+                       'script_start_entry': start_entry})
     get_literal_policy([{SCRIPT_POLICY_KEY: policy}])
     return retain_literal_policy(suffix, policy)

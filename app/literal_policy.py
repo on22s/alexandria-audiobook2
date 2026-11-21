@@ -85,14 +85,19 @@ def get_literal_policy(entries):
         raise ValueError("Invalid literal preprocessing choice")
     if policy['boundary'] == 'selected_source_words_v1':
         scope, chunks = policy.get('scope_source'), policy.get('scope_chunks')
-        if (not isinstance(scope, dict) or set(scope) != {'parent_policy_sha256',
-                'prepared_source_sha256', 'start_word', 'end_word', 'total_words'}
+        if (not isinstance(scope, dict) or not {'parent_policy_sha256',
+                'prepared_source_sha256', 'start_word', 'end_word', 'total_words'} <= set(scope)
+                or set(scope) - {'parent_policy_sha256', 'prepared_source_sha256',
+                                 'start_word', 'end_word', 'total_words', 'script_start_entry'}
                 or any(not isinstance(scope[key], str) or not re.fullmatch(r'[0-9a-f]{64}', scope[key])
                        for key in ('parent_policy_sha256', 'prepared_source_sha256'))
                 or any(type(scope[key]) is not int for key in ('start_word','end_word','total_words'))
-                 or not 0 < scope['start_word'] < scope['end_word'] == scope['total_words']
-                 or identity['words'] != scope['end_word'] - scope['start_word']
-                 or not isinstance(chunks, dict) or not chunks
+                or ('script_start_entry' in scope
+                    and (type(scope['script_start_entry']) is not int
+                         or scope['script_start_entry'] < 0))
+                or not 0 < scope['start_word'] < scope['end_word'] == scope['total_words']
+                or identity['words'] != scope['end_word'] - scope['start_word']
+                or not isinstance(chunks, dict) or not chunks
                  or any(not isinstance(uid, str) or not uid or not is_literal_chunk_marker(marker)
                         for uid, marker in chunks.items())):
             raise ValueError('Invalid selected literal-source lineage')

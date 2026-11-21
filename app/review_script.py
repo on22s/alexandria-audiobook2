@@ -1584,24 +1584,35 @@ def is_review_literal_source(text, policy):
             and get_word_identity([selected]) == policy['source_words'])
 
 
-def _retained_parent_regions(scope, parent_entries):
-    """Raw intervals of parent rows that remain in the child's selection."""
-    from literal_policy import get_literal_policy as read_policy
-    parent_policy = read_policy(parent_entries)
-    cursor = (parent_policy['scope_source']['start_word']
-              if parent_policy and parent_policy['boundary'] == 'selected_source_words_v1' else 0)
-    ranges = []
-    for row in parent_entries:
-        span = row.get('source_span')
-        count = sum(1 for _ in iter_literal_words(row['text']))
-        ranges.append((cursor, cursor + count, span))
-        cursor += count
-    regions = []
-    for start_word, end_word, span in ranges:
-        if (isinstance(span, (list, tuple)) and len(span) == 2
-                and (end_word > scope['start_word'] or start_word == end_word)):
-            regions.append(span)
-    return regions
+def _retained_parent_rows(scope, entries, parent_entries, parent_policy, active_policy):
+    """Exact parent suffix selected by recorded scope evidence, not child text."""
+    if active_policy == parent_policy:
+        retained = parent_entries
+    else:
+        cuts = []
+        recorded = scope.get('script_start_entry')
+        if recorded is not None:
+            cuts.append(recorded)
+        else:
+            cursor = (parent_policy['scope_source']['start_word']
+                      if parent_policy and parent_policy['boundary'] == 'selected_source_words_v1' else 0)
+            for index, row in enumerate(parent_entries):
+                count = sum(1 for _ in iter_literal_words(row['text']))
+                if cursor == scope['start_word']:
+                    cuts.append(index)
+                cursor += count
+        matching = [cut for cut in dict.fromkeys(cuts) if type(cut) is int
+                    and 0 <= cut < len(parent_entries)
+                    and [row['text'] for row in parent_entries[cut:]]
+                    == [row['text'] for row in entries]]
+        if len(matching) != 1:
+            raise ValueError('Retained parent cut is not uniquely evidenced')
+        retained = parent_entries[matching[0]:]
+    if (len(retained) != len(entries)
+            or any(original['text'] != row['text']
+                   for original, row in zip(retained, entries))):
+        raise ValueError('Scoped rows do not match the verified parent partition')
+    return retained
 
 
 def _retained_leading_region(text, scope, entries):
@@ -1617,7 +1628,12 @@ def _retained_leading_region(text, scope, entries):
     if (not isinstance(anchor, (list, tuple)) or len(anchor) != 2
             or any(type(value) is not int for value in anchor)):
         raise ValueError('First retained row has no verified span')
-    needle = _normalize(' '.join(entry['text'] for entry in entries[:first + 1]))
+    leading = entries[:first + 1]
+    pieces = [leading[0]['text']]
+    for previous, current in zip(leading, leading[1:]):
+        gap = text[previous['source_span'][1]:current['source_span'][0]]
+        pieces.append(('' if not gap else ' ') + current['text'])
+    needle = _normalize(''.join(pieces))
     normalized, offsets = _normalize_with_offsets(text)
     matches = []
     cursor = 0
@@ -1641,9 +1657,11 @@ def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=No
     if scope['total_words'] != len(words) or scope['end_word'] != len(words):
         raise ValueError('Scoped source word count differs')
     expected = words[scope['start_word']:]
-    regions = (_retained_parent_regions(scope, parent_entries)
-               if parent_entries is not None else None)
-    leading = _retained_leading_region(text, scope, entries)
+    retained = None
+    if parent_entries is not None:
+        retained = _retained_parent_rows(
+            scope, entries, parent_entries, get_literal_policy(parent_entries), policy)
+    leading = _retained_leading_region(text, scope, entries) if retained is None else None
     first_word = next((position for position, item in enumerate(entries)
                        if any(True for _ in iter_literal_words(item['text']))), len(entries))
     cursor = 0
@@ -1653,9 +1671,10 @@ def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=No
                 or any(type(value) is not int for value in span)
                 or not 0 <= span[0] < span[1] <= len(text)):
             raise ValueError('Scoped row has no verified source span')
-        if regions is not None and not any(
-                region[0] <= span[0] and span[1] <= region[1] for region in regions):
-            raise ValueError('Scoped row span is outside the parent retained partition')
+        if retained is not None:
+            parent_span = retained[index]['source_span']
+            if not parent_span[0] <= span[0] and span[1] <= parent_span[1]:
+                raise ValueError('Scoped row span is outside the parent retained partition')
         if (leading is not None and index < first_word
                 and not (leading[0] <= span[0] and span[1] <= leading[1])):
             raise ValueError('Leading row span is outside the retained sequence')
