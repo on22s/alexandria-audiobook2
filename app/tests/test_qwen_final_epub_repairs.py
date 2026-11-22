@@ -78,6 +78,18 @@ def _with_compression_method(raw, member, method):
         position += 46 + name_len + extra_len + comment_len
 
 
+def _corrupt_lzma_metadata_member(raw, member):
+    """Mark one member as LZMA and corrupt its stream without needing an encoder."""
+    changed = bytearray(_with_compression_method(raw, member, zipfile.ZIP_LZMA))
+    with zipfile.ZipFile(io.BytesIO(changed)) as archive:
+        info = archive.getinfo(member)
+        local = info.header_offset
+    name_len, extra_len = struct.unpack_from("<HH", changed, local + 26)
+    payload = local + 30 + name_len + extra_len
+    changed[payload:payload + info.compress_size] = b"\x00" * info.compress_size
+    return bytes(changed)
+
+
 @contextmanager
 def _changed_named_identity(source, *, after_eof=True):
     """Model namespace replacement without claiming a physical OS race."""
@@ -206,6 +218,25 @@ class FinalEpubAdmissionTests(unittest.TestCase):
                         er.get_epub_language_from_path(io.BytesIO(compressed))
                 self.assertIsInstance(caught.exception.__cause__, RuntimeError)
                 self.assertNotIn("malformed", str(caught.exception))
+
+    def test_corrupt_lzma_metadata_has_malformed_value_error_contract(self):
+        if zipfile.lzma is None:
+            diagnostic = "unsupported or unavailable"
+            cause_type = RuntimeError
+        else:
+            diagnostic = "malformed"
+            cause_type = zipfile.lzma.LZMAError
+        raw = _source_epub("<p>Echo.</p>")
+        for member in ("META-INF/container.xml", "OEBPS/content.opf"):
+            with self.subTest(member=member):
+                corrupt = _corrupt_lzma_metadata_member(raw, member)
+                with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as tmp:
+                    source = Path(tmp) / "book.source.epub"
+                    source.write_bytes(corrupt)
+                    for candidate in (io.BytesIO(corrupt), source):
+                        with self.assertRaisesRegex(ValueError, diagnostic) as caught:
+                            er.get_epub_language_from_path(candidate)
+                        self.assertIsInstance(caught.exception.__cause__, cause_type)
 
     def test_unavailable_metadata_codec_diagnostic_is_bounded(self):
         raw = _source_epub("<p>Echo.</p>")
