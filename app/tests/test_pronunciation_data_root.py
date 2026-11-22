@@ -84,6 +84,20 @@ class PronunciationDataRootTests(unittest.TestCase):
         with self._env(pronunciation.REPO):
             self.assertEqual(pronunciation.DEFAULT_PATH, pronunciation.get_pronunciation_path())
 
+    def test_direct_data_root_works_with_a_symlinked_install(self):
+        install = self.base / 'install'
+        install.mkdir()
+        alias = self.base / 'install-link'
+        alias.symlink_to(install, target_is_directory=True)
+        with (self._env(self.a), patch.object(pronunciation, 'REPO', str(alias)),
+              patch.object(pronunciation, 'DEFAULT_PATH', str(alias / 'pronunciation.json'))):
+            _document, current = panel.get_pronunciation_document()
+            self.assertEqual({'Rom': 'Alpha'}, current['names'])
+            panel.save_pronunciation_document(
+                panel.PronunciationSave(names={'Rom': 'Rohm'}, revision=current['revision']))
+            self.assertEqual('Rohm', pronunciation.apply_pronunciation('Rom')[0])
+        self.assertFalse((install / 'pronunciation.json').exists())
+
     def test_missing_new_root_keeps_its_own_spelling(self):
         new_root = self.base / 'not-created-yet'
         with self._env(new_root):

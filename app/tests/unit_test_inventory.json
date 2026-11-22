@@ -10854,6 +10854,7 @@
   ]
   , "test_pronunciation_data_root": [
     "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_admitted_install_root_keeps_the_legacy_default"
+    , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_direct_data_root_works_with_a_symlinked_install"
     , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_explicit_path_and_no_override_default"
     , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_missing_new_root_keeps_its_own_spelling"
     , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_panel_writes_stay_in_their_root_and_leave_install_untouched"
