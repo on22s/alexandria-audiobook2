@@ -24,7 +24,7 @@ import zipfile
 from contextlib import contextmanager, ExitStack
 from typing import Annotated, Any, List, NamedTuple, Optional
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Query, Path as PathParameter
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Query, Request, Path as PathParameter
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse, Response
 from starlette.background import BackgroundTask
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictInt, StrictBool, field_validator
@@ -44,6 +44,7 @@ from export_download import SWITCH_IN_PROGRESS
 from core import (
     _init_task_log,
     AppError,
+    mark_expected_probe_response,
     AUDIOBOOK_PATH,
     CONFIG_PATH,
     DATA_DIR,
@@ -459,22 +460,24 @@ class OutlierCheckRequest(BaseModel):
     expected_book_token: str = Field(pattern=r'^[0-9a-f]{64}$')
 
 
-def _require_export_download(path, missing_detail):
+def _require_export_download(path, missing_detail, *, probe=False):
     """404 for a missing export, 409 while a book switch holds its name.
 
     Downloads run without the book lock. A switch creating or removing an
     export briefly leaves a placeholder there (#1660); serving it would hand
     the user 64 bytes named audiobook.mp3."""
     if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail=missing_detail)
+        with mark_expected_probe_response(expected=probe):
+            raise HTTPException(status_code=404, detail=missing_detail)
     if is_book_placeholder(path):   # early answer; the served descriptor is checked again
         raise HTTPException(status_code=409, detail=SWITCH_IN_PROGRESS)
 
 
 @router.head("/api/audiobook")
 @router.get("/api/audiobook")
-async def get_audiobook():
-    _require_export_download(AUDIOBOOK_PATH, "Audiobook not found")
+async def get_audiobook(request: Request = None):
+    _require_export_download(AUDIOBOOK_PATH, "Audiobook not found",
+                             probe=request is not None and request.method == "HEAD")
     require_scope_export_current(DATA_DIR, AUDIOBOOK_PATH)
     return ExportFileResponse(AUDIOBOOK_PATH, filename="audiobook.mp3", media_type="audio/mpeg")
 
