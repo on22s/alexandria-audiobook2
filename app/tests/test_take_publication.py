@@ -398,6 +398,44 @@ class TakePublicationTests(unittest.TestCase):
             self.assertEqual(Path(manager.chunks_path).read_bytes(),raw)
             self.assertEqual(previous.read_bytes(),audio)
 
+    def test_receipt_binds_effective_seed_and_version(self):
+        for seed in (42, 123):
+            with self.subTest(seed=seed), self.fixture() as (root,manager,_,_), self.owner():
+                engine=self.engine();chunk=manager.load_chunks()[0]
+                parent,admitted=self.admission(manager,engine,chunk,
+                    {'NARRATOR':{'type':'custom','voice':'Ryan','seed':seed}})
+                self.assertEqual(admitted.seed,seed)
+                pcm,preparation,synthesis,observed=self.render(root,engine,parent,chunk)
+                revision='e'*32;synthesis={**synthesis,'audio_revision':revision,'scope':'pre-encoding PCM'}
+                receipt,_=get_take_publication_receipt(admitted,get_chunk_generation_inputs(chunk),
+                    preparation,observed,synthesis,pcm,pcm,revision)
+                self.assertEqual(receipt['version'],2)
+                self.assertEqual(receipt['seed'],seed)
+                self.assertEqual(validate_take_publication({'uid':admitted.uid,
+                    'audio_revision':revision,KEY:receipt}),receipt)
+
+    def test_versioned_validator_reads_legacy_and_refuses_unknown(self):
+        with self.fixture() as (root,manager,_,_), self.owner():
+            engine=self.engine();chunk=manager.load_chunks()[0]
+            parent,admitted=self.admission(manager,engine,chunk)
+            pcm,preparation,synthesis,observed=self.render(root,engine,parent,chunk)
+            revision='e'*32;synthesis={**synthesis,'audio_revision':revision,'scope':'pre-encoding PCM'}
+            receipt,_=get_take_publication_receipt(admitted,get_chunk_generation_inputs(chunk),
+                preparation,observed,synthesis,pcm,pcm,revision)
+            row={'uid':chunk['uid'],'audio_revision':revision,KEY:receipt}
+            legacy=copy.deepcopy(receipt);legacy.pop('seed');legacy['version']=1
+            self.assertEqual(validate_take_publication({**row,KEY:legacy}),legacy)
+            for bad in ({**receipt,'version':1}, {**receipt,'seed':True},
+                        {**receipt,'seed':-1}, {**receipt,'seed':'42'},
+                        {key:value for key,value in receipt.items() if key!='seed'},
+                        {**receipt,'version':0}, {**receipt,'version':'2'},
+                        {**receipt,'future_field':1}):
+                with self.subTest(bad=bad),self.assertRaisesRegex(ValueError,'needs inspection'):
+                    validate_take_publication({**row,KEY:bad})
+            with self.assertRaisesRegex(ValueError,'unsupported receipt version'):
+                validate_take_publication({**row,KEY:{**receipt,'version':3}})
+            self.assertEqual(row[KEY],receipt)
+
 
 if __name__ == '__main__':
     unittest.main()
