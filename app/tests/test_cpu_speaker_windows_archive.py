@@ -63,14 +63,23 @@ class ArchiveLineEndingTests(unittest.TestCase):
 
     def test_archived_bytes_survive_a_checkout_with_autocrlf(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            environment = get_isolated_git_environment()
+            scratch = Path(tmp)
+            root = scratch / 'repo'
+            root.mkdir()
+            empty_settings = scratch / 'empty-git-settings'
+            empty_settings.touch()
+            # Personal attributes can otherwise mask a missing repository rule.
+            environment = get_isolated_git_environment({
+                'GIT_CONFIG_GLOBAL': str(empty_settings),
+                'GIT_ATTR_NOSYSTEM': '1',
+            })
 
             def git(*args):
                 subprocess.run(['git', *args], cwd=root, check=True,
                                capture_output=True, env=environment)
 
-            git('init', '-q')
+            git('init', '-q', '--template=')
+            git('config', 'core.attributesFile', str(empty_settings))
             git('config', 'user.email', 't@example.com')
             git('config', 'user.name', 't')
             (root / '.gitattributes').write_bytes(
