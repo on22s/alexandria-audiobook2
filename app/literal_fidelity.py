@@ -11,33 +11,98 @@ _POLICY = 'literal_words_v1:NFC,case-sensitive,lexical-marks-and-joiners,apostro
 class UnverifiableLexeme(ValueError):
     pass
 
-def _words(text):
-    value=unicodedata.normalize('NFC',text).replace('’', "'")
+def _normalized_with_offsets(text):
+    """Whole-string NFC text with each output character's raw interval.
+
+    Raw characters are decomposed first, so a character whose canonical
+    decomposition begins with a nonstarter (Tibetan U+0F73, for example) joins
+    the preceding combining sequence even though its own combining class is
+    zero. Canonical ordering and composition are then applied per sequence and
+    the result is checked against the exact whole-string NFC baseline.
+    """
+    decomposed = []
+    for index, char in enumerate(text):
+        for piece in unicodedata.normalize('NFD', char):
+            decomposed.append((piece, index, index + 1))
+    sequences, sequence, built = [], [], ''
+    for item in decomposed:
+        char = item[0]
+        if sequence:
+            candidate = unicodedata.normalize('NFC', built + char)
+            if (len(candidate) <= len(built) or unicodedata.combining(char)
+                    or unicodedata.combining(unicodedata.normalize('NFD', char)[0])):
+                sequence.append(item)
+                built = candidate
+                continue
+            sequences.append(sequence)
+            sequence, built = [], ''
+        sequence = [item]
+        built = unicodedata.normalize('NFC', char)
+    if sequence:
+        sequences.append(sequence)
+    pieces = []
+    for sequence in sequences:
+        composed = unicodedata.normalize('NFC', ''.join(item[0] for item in sequence))
+        raw_start = min(item[1] for item in sequence)
+        raw_end = max(item[2] for item in sequence)
+        for output in composed.replace('’', "'"):
+            pieces.append((output, raw_start, raw_end))
+    normalized = ''.join(piece[0] for piece in pieces)
+    baseline = unicodedata.normalize('NFC', text).replace('’', "'")
+    if normalized != baseline:
+        raise ValueError('Literal NFC offset alignment differs from whole-string NFC')
+    return normalized, [(piece[1], piece[2]) for piece in pieces]
+
+
+def _word_spans(value):
+    """Token positions in already normalized text, by the literal word rule."""
     if value.isascii():
-        for match in _WORD.finditer(value):yield match.group()
+        for match in _WORD.finditer(value):
+            yield match.group(), match.start(), match.end()
         return
-    start=None
-    for index,char in enumerate(value):
-        mark=unicodedata.category(char).startswith('M')
+    start = None
+    for index, char in enumerate(value):
+        mark = unicodedata.category(char).startswith('M')
         if char.isalnum() or mark:
             if start is None:
-                if mark:raise UnverifiableLexeme('Combining mark without a lexical base')
-                start=index
+                if mark:
+                    raise UnverifiableLexeme('Combining mark without a lexical base')
+                start = index
             continue
         if char in ('\u200c', '\u200d'):
-            if start is None or index+1==len(value):
+            if start is None or index + 1 == len(value):
                 raise UnverifiableLexeme('Unattached lexical joiner')
-            following=value[index+1]
+            following = value[index + 1]
             if following.isalnum() or unicodedata.category(following).startswith('M'):
                 continue
             raise UnverifiableLexeme('Unsupported lexical joiner chain')
-        if char == "'" and start is not None and index+1<len(value):
-            following=value[index+1]
+        if char == "'" and start is not None and index + 1 < len(value):
+            following = value[index + 1]
             if following.isalnum() or unicodedata.category(following).startswith('M'):
                 continue
-        if start is not None:yield value[start:index]
-        start=None
-    if start is not None:yield value[start:]
+        if start is not None:
+            yield value[start:index], start, index
+        start = None
+    if start is not None:
+        yield value[start:], start, len(value)
+
+
+def iter_literal_words(text):
+    """The single literal tokenizer, yielding (word, raw_start, raw_end)."""
+    if text.isascii():
+        yield from _word_spans(text)
+        return
+    normalized, spans = _normalized_with_offsets(text)
+    for word, start, end in _word_spans(normalized):
+        yield (word, min(span[0] for span in spans[start:end]),
+               max(span[1] for span in spans[start:end]))
+
+
+def _words(text):
+    """Word-only path: whole-string NFC, no per-character offset vector."""
+    value = unicodedata.normalize('NFC', text).replace('’', "'")
+    for word, _, _ in _word_spans(value):
+        yield word
 
 def audit_literal_words(source_text, entries):
     """Compare a streaming source/entry word sequence; never change either.

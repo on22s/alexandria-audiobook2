@@ -10,7 +10,9 @@ from project_scope_admission import is_scope_admitted
 from project_scope_assets import get_scope_asset_snapshot
 from project_scope_exports import (get_scope_export_inventory,
                                    is_scope_export_inventory_compatible)
-from script_selection_binding import BINDING_NAME, binding_for_controlled_edit
+from script_selection_binding import (BINDING_NAME, binding_for_controlled_edit,
+                                      attach_scope_cut_evidence, parse_script_binding,
+                                      get_scope_cut_from_binding)
 
 UNDO = '.project_scope_undo.json'
 LEGACY_FILES = ('state.json', 'annotated_script.json', 'voice_config.json', 'chunks.json',
@@ -99,6 +101,18 @@ def apply_source_scope(root, start_entry, expected_revision):
         before[name] = raw
     if sum(len(raw) for raw in before.values() if raw is not None) > 32 * 1024**2:
         raise ValueError('Scope undo metadata exceeds its 32 MiB input limit.')
+    prior_scope_cut = None
+    if before[BINDING_NAME] is not None:
+        prior_scope_cut = get_scope_cut_from_binding(parse_script_binding(before[BINDING_NAME]))
+    if prior_scope_cut is not None:
+        from project_scope_literal import verify_parent_scope_evidence
+        from project_scope_source import get_scope_source_snapshot
+        _source_file, prepared = get_scope_source_snapshot(json.loads(before['state.json']))
+        verify_parent_scope_evidence(prepared, json.loads(before['annotated_script.json']),
+                                     prior_scope_cut,
+                                     prepared_sha256=plan['source_file']['prepared_text_sha256'])
+        if plan.get('scope_cut_evidence') is None:
+            raise ValueError('Prior scope cut evidence cannot be reused for an unprovable scope.')
     state = json.loads(before['state.json'])
     state['_source_scope'] = plan['source_scope']
     state['_source_scope_exports'] = plan['export_inventory']
@@ -107,6 +121,9 @@ def apply_source_scope(root, start_entry, expected_revision):
              'chunks.json': _encode(plan['selected_chunks']), 'chunks.json.status.jsonl': None}
     after[BINDING_NAME] = binding_for_controlled_edit(
         root, before['annotated_script.json'], after['annotated_script.json'])
+    if after[BINDING_NAME] is not None and plan.get('scope_cut_evidence') is not None:
+        after[BINDING_NAME] = attach_scope_cut_evidence(
+            after[BINDING_NAME], plan['scope_cut_evidence'])
     undo = {'version': 2, 'book_token': plan['book_token'], 'preview_revision': plan['revision'],
             'before': {name: base64.b64encode(raw).decode('ascii') if raw is not None else None
                        for name, raw in before.items()},

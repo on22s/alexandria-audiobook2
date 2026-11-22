@@ -5767,7 +5767,8 @@ def _published_binding_for_selection_locked(data_dir, state, previous_token, pre
     """
     from script_selection_binding import (BINDING_NAME, MAX_BINDING_BYTES,
         is_script_selection_pending, parse_script_binding, check_binding_source,
-        saved_binding_matches, make_script_selection_binding, _validated_script_entries)
+        saved_binding_matches, make_script_selection_binding, _validated_script_entries,
+        carry_scope_cut_evidence)
     from project_scope_files import capture_scope_file
     previous_digest = None
     if is_script_selection_pending(state):
@@ -5792,9 +5793,11 @@ def _published_binding_for_selection_locked(data_dir, state, previous_token, pre
                                      entries=_validated_script_entries(script_bytes)):
             return None, previous_digest
         rebound = make_script_selection_binding(new_token, new_digest, script_bytes,
-                                                source_path=new_path)
+                                                 source_path=new_path)
+        rebound = carry_scope_cut_evidence(raw, rebound)
         return (json.dumps(rebound, sort_keys=True, separators=(',', ':')).encode('utf-8'),
                 previous_digest)
+
     except (ValueError, RecursionError):
         # A validation failure leaves the pending-selection path authoritative;
         # an unexpected I/O error (e.g. EIO reading the script) must propagate
