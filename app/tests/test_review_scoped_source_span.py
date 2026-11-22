@@ -1910,3 +1910,29 @@ class ScopeCutProofTests(unittest.TestCase):
             self.assertEqual([], calls)
             self.assertFalse(changed)
             self.assertEqual(saved, replay)
+
+    def test_legacy_direct_embedded_unproven_prefix_cannot_earn_a_receipt(self):
+        fixture = CutEvidenceTests()
+        raw, parent, chunks, _ = fixture.build()
+        cut = get_scope_partition(parent, chunks, 3)['chunk_start']
+        selected = get_literal_scope(raw, parent, chunks, 3, cut,
+                                     input_sha256=hashlib.sha256(raw.encode()).hexdigest())
+        self.assertEqual([22, 23], selected[0]['source_span'])
+        entries = copy.deepcopy(selected[1:])
+        start = parent[2]['source_span'][0]
+        end = entries[0]['source_span'][1]
+        self.assertEqual(19, start)
+        entries[0].update(text=raw[start:end], source_span=[start, end])
+        entries[0][SCRIPT_POLICY_KEY] = selected[0][SCRIPT_POLICY_KEY]
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, _ = create_book(directory, raw=raw, source=selected)
+            edited = json.dumps(entries).encode()
+            publish_controlled_script_edit(directory, script.read_bytes(), edited)
+            self.assertIsNone(get_scope_cut_from_binding(
+                parse_script_binding((Path(directory) / BINDING_NAME).read_bytes())))
+            first = {key: value for key, value in entries[0].items()
+                     if key not in ('source_span', SCRIPT_POLICY_KEY)}
+            saved, _out, _calls, _changed = run_cli_at(
+                directory, script, [[first] + fixture.split(entries[1:])])
+            self.assertEqual(entries, saved)
+            self.assertFalse(Path(str(script) + '.review_completed.json').exists())

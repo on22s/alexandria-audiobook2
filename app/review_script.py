@@ -1740,8 +1740,8 @@ def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=No
         else:
             first_leading = next((position for position, item in enumerate(entries)
                                   if any(True for _ in iter_literal_words(item['text']))), len(entries))
-            if first_leading:
-                raise ValueError('Ambiguous leading rows require frozen or saved-parent scope evidence')
+            if first_leading or not spans or not expected or spans[0][0] < expected[0][1]:
+                raise ValueError('Ambiguous leading punctuation requires frozen or saved-parent scope evidence')
             retained = None
     first_word = next((position for position, item in enumerate(entries)
                        if any(True for _ in iter_literal_words(item['text']))), len(entries))
