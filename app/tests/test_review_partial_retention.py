@@ -650,4 +650,153 @@ class PartialPublicationTests(unittest.TestCase):
                 benchmark.load_resumable_benchmark_report(path, manifest, new_env)
 
 
+class CompletionMarkerTests(unittest.TestCase):
+    def test_zero_counter_incomplete_summary_marks_status_and_report(self):
+        import core
+        lines = [
+            "Review incomplete: 3 -> 3 entries",
+            "  Text changed:    0",
+            "  Total changes:   0",
+            "Stopped early: GPU VRAM stayed too high to safely continue.",
+        ]
+        stats = core._extract_review_stats(lines)
+        self.assertTrue(stats["review_incomplete"])
+        self.assertEqual((3, 3), (stats["entries_before"], stats["entries_after"]))
+        self.assertEqual((0, 0), (stats["batches_failed"], stats["batches_skipped_vram"]))
+        self.assertTrue(core._review_is_incomplete(stats))
+        self.assertIn("stopped before all entries", core._get_deterministic_review_summary(
+            stats, core._review_is_incomplete(stats)))
+        state = {'running': False, 'logs': [], 'status': '', 'return_code': None}
+        report_dir = Path(tempfile.mkdtemp(prefix='aa2-marker-'))
+        def stream(command, cwd, actual_state, **kwargs):
+            actual_state['logs'].extend(lines)
+            return 0, ''
+        with patch.dict(core.process_state, {'review': state}), \
+             patch.object(core, 'REPORTS_DIR', str(report_dir)), \
+             patch.object(core, '_init_task_log', return_value=None), \
+             patch.object(core, '_stream_subprocess_to_logs', side_effect=stream), \
+             patch.object(core, '_llm_summarize_report', side_effect=AssertionError('No model summary')):
+            self.assertEqual(0, core.run_process(['synthetic-review'], 'review'))
+        self.assertEqual('incomplete', state['status'])
+        self.assertTrue(any('stopped early' in line for line in state['logs']))
+        self.assertFalse(any('completed successfully' in line for line in state['logs']))
+        reports = list(report_dir.glob('*.md'))
+        self.assertEqual(1, len(reports))
+        self.assertIn('only partially reviewed', reports[0].read_text())
+
+    def test_complete_summary_and_old_stats_fallback(self):
+        import core
+        complete = core._extract_review_stats([
+            "Review complete: 3 -> 4 entries", "  Entries added:   1"])
+        self.assertFalse(complete["review_incomplete"])
+        self.assertEqual((3, 4), (complete["entries_before"], complete["entries_after"]))
+        self.assertFalse(core._review_is_incomplete(complete))
+        old_clean = {'batches_failed': 0, 'batches_skipped_vram': 0}
+        self.assertFalse(core._review_is_incomplete(old_clean))
+        self.assertTrue(core._review_is_incomplete({**old_clean, 'batches_failed': 1}))
+        combined = core._combine_pass_stats(old_clean, {
+            'batches_failed': 0, 'batches_skipped_vram': 0, 'review_incomplete': True})
+        self.assertTrue(combined['review_incomplete'])
+        self.assertFalse(core._review_is_incomplete(core._combine_pass_stats(old_clean, old_clean)))
+
+
+class IncompletePublicationTests(unittest.TestCase):
+    def run_review(self, directory, script, *, vram_ok, dedupe=True):
+        config = {'llm_mode': 'remote',
+                  'llm_remote': {'model_name': 'fixture', 'base_url': 'https://api.example.invalid/v1'},
+                  'generation': {'review_batch_size': 3, 'merge_narrators': False}}
+        args = ['review', '--input', str(script), '--output', str(script)]
+        if dedupe:
+            args += ['--dedupe-speakers']
+        log = io.StringIO()
+        with ExitStack() as stack:
+            stack.enter_context(redirect_stdout(log))
+            stack.enter_context(patch.object(review.sys, 'argv', args))
+            for name, value in [('get_runtime_data_dir', str(directory)), ('load_app_config', config),
+                                ('ensure_ideal_settings', (True, {}, 'fixture')),
+                                ('get_active_llm_config', config['llm_remote']),
+                                ('make_run_client', object()),
+                                ('ensure_cached_or_benchmarked_concurrency', 1),
+                                ('get_current_status', {'loaded': False}),
+                                ('is_llm_on_this_gpu', True),
+                                ('wait_for_vram_headroom', vram_ok)]:
+                stack.enter_context(patch.object(review, name, return_value=value))
+            stack.enter_context(patch.object(generation, 'get_response_log_path',
+                return_value=str(Path(directory, 'responses.log'))))
+            stack.enter_context(patch.object(review, 'dedupe_speakers', lambda *a, **k: ({}, 0, [])))
+            if vram_ok:
+                stack.enter_context(patch.object(review, 'review_batch',
+                    side_effect=lambda client, model, batch, *a, **k: get_reply(batch)))
+            review.main()
+        return log.getvalue()
+
+    def test_active_incomplete_keeps_bytes_and_resume_publishes(self):
+        with tempfile.TemporaryDirectory(prefix='aa2-active-') as directory:
+            root = Path(directory)
+            script = root / 'annotated_script.json'
+            original = (json.dumps(SOURCE, ensure_ascii=False, indent=2) + '\n').encode()
+            script.write_bytes(original)
+            chunks = root / 'chunks.json'; chunks.write_text('{"keep":true}')
+            voice = root / 'voice_config.json'; voice.write_text('{"BOB":{"voice":"a"}}')
+            registry = root / 'character_aliases.json'; registry.write_text('{}')
+            log = self.run_review(root, script, vram_ok=False)
+            self.assertEqual(original, script.read_bytes())
+            self.assertEqual('{"keep":true}', chunks.read_text())
+            self.assertEqual('{"BOB":{"voice":"a"}}', voice.read_text())
+            self.assertEqual('{}', registry.read_text())
+            self.assertTrue(Path(str(script) + '.review_checkpoint.json').exists())
+            self.assertFalse(Path(get_review_receipt_path(str(script))).exists())
+            self.assertIn('Review incomplete:', log)
+            self.assertIn('left unchanged', log)
+            self.assertNotIn('Task review completed successfully.', log)
+            self.run_review(root, script, vram_ok=True)
+            published = json.loads(script.read_text())
+            self.assertEqual('ALICE', published[0]['speaker'])
+            self.assertFalse(Path(str(script) + '.review_checkpoint.json').exists())
+            self.assertTrue(Path(get_review_receipt_path(str(script))).exists())
+            self.assertFalse(chunks.exists())
+
+    def test_saved_incomplete_keeps_bytes_and_resume_publishes(self):
+        with tempfile.TemporaryDirectory(prefix='aa2-saved-') as directory:
+            root = Path(directory)
+            saved_dir = root / 'scripts'; saved_dir.mkdir()
+            script = saved_dir / 'book.json'
+            original = (json.dumps(SOURCE, ensure_ascii=False, indent=2) + '\n').encode()
+            script.write_bytes(original)
+            companion = saved_dir / 'book.voice_config.json'
+            companion.write_text('{"BOB":{"voice":"a"}}')
+            registry = root / 'character_aliases.json'; registry.write_text('{}')
+            voice_before = companion.read_bytes()
+            log = self.run_review(root, script, vram_ok=False, dedupe=False)
+            self.assertEqual(original, script.read_bytes())
+            self.assertEqual(voice_before, companion.read_bytes())
+            self.assertEqual('{}', registry.read_text())
+            self.assertTrue(Path(str(script) + '.review_checkpoint.json').exists())
+            self.assertFalse(Path(get_review_receipt_path(str(script))).exists())
+            self.assertIn('left unchanged', log)
+            self.run_review(root, script, vram_ok=True, dedupe=False)
+            self.assertEqual('ALICE', json.loads(script.read_text())[0]['speaker'])
+            self.assertTrue(Path(get_review_receipt_path(str(script))).exists())
+            self.assertFalse(Path(str(script) + '.review_checkpoint.json').exists())
+
+    def test_old_checkpoint_still_resumes(self):
+        import hashlib
+        from completed_review_receipt import get_review_entries_fingerprint
+        with tempfile.TemporaryDirectory(prefix='aa2-oldckpt-') as directory:
+            root = Path(directory)
+            script = root / 'annotated_script.json'
+            script.write_text(json.dumps(SOURCE, ensure_ascii=False, indent=2))
+            checkpoint = {
+                'execution_sha256': None, 'completed_batches': 0, 'total_batches': 1,
+                'batch_size': 3, 'context_window': 0, 'all_corrected': [],
+                'total_stats': {'batches_skipped_vram': 0}, 'previous_tail': None,
+                'batch_lengths': [], 'failed_batches': [],
+                'source_sha256': get_review_entries_fingerprint(SOURCE),
+                'output_sha256': None, 'source_offsets': []}
+            Path(str(script) + '.review_checkpoint.json').write_text(json.dumps(checkpoint))
+            self.run_review(root, script, vram_ok=True, dedupe=False)
+            self.assertEqual('ALICE', json.loads(script.read_text())[0]['speaker'])
+            self.assertFalse(Path(str(script) + '.review_checkpoint.json').exists())
+
+
 if __name__ == '__main__':unittest.main()
