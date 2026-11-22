@@ -357,6 +357,11 @@ class SoundDesignCueApiTests(unittest.IsolatedAsyncioTestCase):
         original_chunks=(self.root/'chunks.json').read_bytes()
         absent_key='error.sound.cues.no_active_book'
         generic='Cue context is busy, changed or unavailable. Refresh the cue editor before retrying.'
+
+        def oversize_chunks():
+            with (self.root/'chunks.json').open('wb') as chunks:
+                chunks.truncate(context._FILES['chunks.json'] + 1)
+
         try:
             async with await self.refused_context_client() as client:
                 valid=await client.get(BASE);self.assertEqual(200,valid.status_code,valid.text)
@@ -369,24 +374,32 @@ class SoundDesignCueApiTests(unittest.IsolatedAsyncioTestCase):
                     ('numeric-id',lambda:self.write('state.json',dict(self.state,active_book_id=7)),None),
                     ('null-id',lambda:self.write('state.json',dict(self.state,active_book_id=None)),None),
                     ('empty-id',lambda:self.write('state.json',dict(self.state,active_book_id='')),None),
+                    ('invalid-id',lambda:self.write('state.json',{'active_book_id':'..'}),None),
+                    ('invalid-source-list',lambda:self.write('state.json',{'input_file_path':[]}),None),
+                    ('invalid-source-number',lambda:self.write('state.json',{'input_file_path':0}),None),
+                    ('invalid-generation',lambda:self.write('state.json',{'book_generation':{}}),None),
                     ('truncated',lambda:(self.root/'state.json').write_text('{"active_book_id":'),None),
                     ('legacy-input-only',lambda:self.write('state.json',{'input_file_path':str(self.source)}),None),
                     ('unselected-bad-chunks',lambda:(self.write('state.json',{}),self.write('chunks.json',{'bad':1})),absent_key),
+                    ('missing-state-oversized-chunks',lambda:((self.root/'state.json').unlink(),oversize_chunks()),absent_key),
+                    ('unselected-oversized-chunks',lambda:(self.write('state.json',{}),oversize_chunks()),absent_key),
+                    ('selected-oversized-chunks',oversize_chunks,None),
                     ('corrupt-chunks',lambda:self.write('chunks.json',{'invalid':'saved dialogue'}),None),
                 ]
                 for label,mutate,expected in cases:
-                    (self.root/'state.json').write_bytes(original_state)
-                    (self.root/'chunks.json').write_bytes(original_chunks)
-                    mutate()
-                    response=await client.get(BASE)
-                    self.assertEqual(409,response.status_code,label+' '+response.text)
-                    body=response.json()
-                    if expected:
-                        self.assertEqual(expected,body['message_key'],label)
-                        self.assertEqual('No active book is selected. Load a saved book before authoring cues.',body['detail'])
-                    else:
-                        self.assertNotIn('message_key',body,label)
-                        self.assertEqual(generic,body['detail'],label)
+                    with self.subTest(state=label):
+                        (self.root/'state.json').write_bytes(original_state)
+                        (self.root/'chunks.json').write_bytes(original_chunks)
+                        mutate()
+                        response=await client.get(BASE)
+                        self.assertEqual(409,response.status_code,response.text)
+                        body=response.json()
+                        if expected:
+                            self.assertEqual(expected,body.get('message_key'),body)
+                            self.assertEqual('No active book is selected. Load a saved book before authoring cues.',body['detail'])
+                        else:
+                            self.assertNotIn('message_key',body)
+                            self.assertEqual(generic,body['detail'])
             (self.root/'state.json').write_bytes(original_state)
             target=self.root/'real-state.json';target.write_text('{"active_book_id":"synthetic-book"}')
             (self.root/'state.json').unlink();(self.root/'state.json').symlink_to(target)
@@ -418,7 +431,7 @@ class SoundDesignCueApiTests(unittest.IsolatedAsyncioTestCase):
                 (self.root/'state.json').write_bytes(original_state)
                 self.write('chunks.json',{'invalid':'saved dialogue'})
                 corrupt=(await client.get(BASE)).json()
-                self.write('state.json',dict(self.state,active_book_id=7))
+                self.write('state.json',{'active_book_id':'..'})
                 malformed=(await client.get(BASE)).json()
                 with patch.object(core,'process_state',{'audio':{'running':True}}):
                     busy=(await client.get(BASE)).json()
