@@ -609,6 +609,42 @@ class DownloadCurrencyTests(_FixtureMixin):
         with self.assertRaises(ValueError):
             qr.get_qwen_device_policy("qwen", "cuda:0", cap)
 
+    def test_corrupt_lzma_metadata_source_is_refused_as_409(self):
+        from fastapi import HTTPException
+        import qwen_runtime as qr
+        import readalong_export
+        from tests.test_qwen_final_epub_repairs import _corrupt_lzma_metadata_member
+        from tests.test_epub_readaloud_sentences import _source_epub
+        tmp = self._mkdtmp()
+        editor, _manager = self._fixture(tmp)
+        corrupt = _corrupt_lzma_metadata_member(
+            _source_epub("<p>Echo.</p>"), "META-INF/container.xml")
+        retained = Path(tmp) / "book.source.epub"
+        retained.write_bytes(corrupt)
+        (Path(tmp) / "state.json").write_text(
+            json.dumps({"input_file_path": str(retained)}), encoding="utf-8")
+        (Path(tmp) / "readalong_timing.json").write_text(
+            json.dumps({"timing_mode": "qwen", "timing_device": "cpu",
+                        "timing_language": None}), encoding="utf-8")
+        cap = self._ready_capability(tmp)
+        cap["runtime_identity"] = cap["runtime"]
+        provider = qr.get_qwen_provider_digest(cap["model_dir"], runtime_identity=dict(
+            qwen_asr_version="0.0.6", torch_version=cap["torch_version"],
+            device="cpu", dtype="float32", identity=cap["runtime"]))
+        receipt = dict(timing_mode="qwen", timing_device="cpu",
+                       timing_language="English", timing_provider=provider)
+        with patch.object(qr, "get_qwen_capability", lambda _r, **k: dict(cap)), \
+                patch.object(qr, "get_qwen_model_candidates",
+                             return_value=[cap["model_dir"]]), \
+                patch.object(readalong_export, "get_retained_epub_candidate_path",
+                             return_value=retained):
+            with self.assertRaises(HTTPException) as caught:
+                editor._require_readaloud_timing_current(receipt)
+        self.assertEqual(409, caught.exception.status_code)
+        self.assertIn("timing language is unavailable", caught.exception.detail)
+        diagnostic = "malformed" if zipfile.lzma is not None else "unsupported or unavailable"
+        self.assertIn(diagnostic, caught.exception.detail)
+
     def test_book_change_during_timing_check_refuses_download(self):
         from fastapi import HTTPException
         from routers.editor import ReadaloudEpubRequest
