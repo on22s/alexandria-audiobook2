@@ -1,6 +1,6 @@
 // Full mixed candidates are private until explicit review and delivery checks.
 const SoundMixes = (() => {
-    let sequence = 0, busy = false, context = null, profiles = null;
+    let sequence = 0, busy = false, context = null, profiles = null, savedRows = null;
     const el = id => document.getElementById(id);
     const box = () => el('sound-mixes-content');
     const message = value => { el('sound-mixes-status').textContent = value; };
@@ -21,6 +21,21 @@ const SoundMixes = (() => {
     async function json(url, body) {
         const response = await fetch(url, body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
         await API._handleError(response); return response.json();
+    }
+    async function getCurrentContext() {
+        const response = await fetch('/api/sound_design/cues?offset=0&limit=1');
+        if (response.status === 409) {
+            let refused = null;
+            try { refused = await response.json(); } catch (_error) { refused = null; }
+            if (refused?.message_key === 'error.sound.cues.no_active_book') { return null; }
+            const failure = new Error(refused?.detail || t('sound.mixes.invalid-context', 'Invalid current book context.'));
+            failure.messageKey = refused?.message_key; failure.status = 409;
+            throw failure;
+        }
+        await API._handleError(response);
+        const snapshot = await response.json();
+        if (!digest(snapshot?.context_revision)) { throw new Error(t('sound.mixes.invalid-context', 'Invalid current book context.')); }
+        return snapshot.context_revision;
     }
     async function sourceJson(response) {
         const limit = 65536, declared = response.headers.get('Content-Length');
@@ -83,29 +98,33 @@ const SoundMixes = (() => {
         return data.candidates;
     }
     async function refresh() {
-        if (busy) { return; }
-        const token = ++sequence; context = null; profiles = null; stopAudio(); box().replaceChildren(); message(t('sound.mixes.loading', 'Loading saved mixes…'));
+        if (busy) { return {status: 'busy'}; }
+        const token = ++sequence; context = null; stopAudio(); box().replaceChildren(); message(t('sound.mixes.loading', 'Loading saved mixes…'));
         try {
             // The cue snapshot needs idle admission; do not race it with the
             // candidate listing's audio task claim.
-            let snapshot = null;
-            try { snapshot = await json('/api/sound_design/cues?offset=0&limit=1'); } catch (_) { /* Saved candidates remain recoverable without an active book. */ }
-            if (token !== sequence) { return; }
-            if (snapshot !== null && !digest(snapshot?.context_revision)) { throw new Error(t('sound.mixes.invalid-context', 'Invalid current book context.')); }
+            const contextRevision = await getCurrentContext();
+            if (token !== sequence) { return {status: 'superseded'}; }
             const inventory = await json('/api/sound_design/candidates');
             const rows = validate(inventory);
-            if (token !== sequence) { return; }
-            context = snapshot?.context_revision || null;
+            if (token !== sequence) { return {status: 'superseded'}; }
+            context = contextRevision;
             profiles = inventory.delivery_profiles;
+            savedRows = rows;
             if (context) {
                 box().append(button(t('sound.mixes.render', 'Render full mix'), () => action(async () => {
                     await json('/api/sound_design/candidates/render', {context_revision: context});
                 })));
             }
             for (const row of rows) { renderRow(row, token); }
-            message(t('sound.mixes.loaded', 'Saved mixes loaded. Playback verifies audio; approval rechecks current sources and takes.'));
+            message(context ? t('sound.mixes.loaded', 'Saved mixes loaded. Playback verifies audio; approval rechecks current sources and takes.')
+                : t('sound.mixes.no-active-book', 'No active book; render is unavailable. Saved mixes remain visible.'));
+            return {status: 'loaded'};
         } catch (error) {
-            if (token === sequence) { context = null; box().replaceChildren(); message(error.message); }
+            if (token !== sequence) { return {status: 'superseded'}; }
+            context = null; box().replaceChildren();
+            if (savedRows && profiles) { for (const row of savedRows) { renderRow(row, token); } }
+            message(error.message); return {status: 'failed'};
         }
     }
     async function action(work, onSuccess = null) {
@@ -114,9 +133,8 @@ const SoundMixes = (() => {
         try { result = await work(); } catch (error) { failure = error.message; }
         finally { setBusy(false); }
         if (token === sequence) {
-            const loading = refresh(), refreshToken = sequence;
-            await loading;
-            if (refreshToken !== sequence) { return; }
+            const loading = refresh(), refreshToken = sequence, outcome = await loading;
+            if (refreshToken !== sequence || outcome.status === 'failed') { return; }
             if (failure) { message(t('sound.mixes.retry-after-error', '{detail} Refresh saved mixes before retrying.', {detail: failure})); }
             else if (onSuccess) { onSuccess(result); }
         }
