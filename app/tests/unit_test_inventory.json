@@ -4147,7 +4147,8 @@
     , "tests.test_cpu_fixture_lock.CpuFixtureLockTests.test_private_lease_is_native_and_external_lease_stays_protected"
   ]
   , "test_cpu_speaker_windows_archive": [
-    "tests.test_cpu_speaker_windows_archive.CpuSpeakerWindowsArchiveTests.test_actual_archive_passes_with_and_without_optimization"
+    "tests.test_cpu_speaker_windows_archive.ArchiveLineEndingTests.test_archived_bytes_survive_a_checkout_with_autocrlf"
+    , "tests.test_cpu_speaker_windows_archive.CpuSpeakerWindowsArchiveTests.test_actual_archive_passes_with_and_without_optimization"
     , "tests.test_cpu_speaker_windows_archive.CpuSpeakerWindowsArchiveTests.test_duplicate_or_missing_cell_is_rejected_even_if_private_copy_checksum_is_updated"
   ]
   , "test_cpu_task_claims": [
