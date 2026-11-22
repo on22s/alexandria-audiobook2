@@ -66,7 +66,8 @@ class ReviewStartupTrace:
             if resource is not None:
                 record['resource_id'] = hashlib.sha256(os.fsencode(resource)).hexdigest()[:16]
             if error is not None:
-                record.update(get_exception_evidence(error))
+                include_frames = stage != 'llm_test_failed'
+                record.update(get_exception_evidence(error, include_frames=include_frames))
                 cause = error if isinstance(error, BaseException) else None
                 seen = {id(error)}
                 causes = []
@@ -77,7 +78,7 @@ class ReviewStartupTrace:
                     if cause is None or id(cause) in seen:
                         break
                     seen.add(id(cause))
-                    causes.append(get_exception_evidence(cause))
+                    causes.append(get_exception_evidence(cause, include_frames=include_frames))
                 if causes:
                     record['causes'] = causes
         for key in ('entries', 'batch', 'context_window', 'dedupe', 'force', 'exit_code', 'manual', 'child_pid', 'status_code'):
@@ -172,16 +173,18 @@ def get_failure_log_path():
                 'logs', 'api', 'diagnostics-latest.log')
 
 
-def get_exception_evidence(error):
+def get_exception_evidence(error, *, include_frames=True):
     if error is None:
         return {}
     if not isinstance(error, BaseException):
         return {'error_type': type(error).__name__[:64]}
     from collections import deque
-    frames = deque(({'file': Path(frame.f_code.co_filename).name[:128],
-                     'function': frame.f_code.co_name[:64], 'line': line_number}
-                    for frame, line_number in traceback.walk_tb(error.__traceback__)), maxlen=12)
-    evidence = {'error_type': type(error).__name__[:64], 'traceback': list(frames)}
+    evidence = {'error_type': type(error).__name__[:64]}
+    if include_frames:
+        frames = deque(({'file': Path(frame.f_code.co_filename).name[:128],
+                         'function': frame.f_code.co_name[:64], 'line': line_number}
+                        for frame, line_number in traceback.walk_tb(error.__traceback__)), maxlen=12)
+        evidence['traceback'] = list(frames)
     for key in ('errno', 'winerror', 'status_code'):
         value = getattr(error, key, None)
         if type(value) is int:

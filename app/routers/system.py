@@ -873,8 +873,9 @@ def _run_llm_test(profile: dict) -> dict:
     model_name = profile.get("model_name", "")
     try:
         _validate_local_llm_base_url(base_url)
-    except LLMConfigError as e:
-        return {"ok": False, "step": "validate", "error": str(e)}
+    except LLMConfigError:
+        return {"ok": False, "step": "validate",
+                "error": "The base URL is not valid for this LLM mode. Enter a valid endpoint URL and try again."}
 
     # Let make_llm_client resolve omitted and blank keys exactly as generation
     # does: a blank official-OpenAI key may inherit OPENAI_API_KEY, and nothing
@@ -883,13 +884,17 @@ def _run_llm_test(profile: dict) -> dict:
     # (no log file, no outbound call) and let the caller release the claim.
     try:
         client = make_llm_client(profile, timeout=30, respect_profile_timeout=False)
-    except (MissingAPIKeyError, ValueError) as e:
+    except MissingAPIKeyError:
+        return {"ok": False, "step": "config",
+                "error": "This endpoint needs an API key. Add a key to the LLM profile and try again."}
+    except ValueError as e:
         return {"ok": False, "step": "config", "error": redact_text(str(e))}
     # Step 1: list models (cheap reachability + model-id check)
     try:
         models = [m.id for m in client.models.list().data]
     except Exception as e:
-        return {"ok": False, "step": "models", "error": str(e),
+        return {"ok": False, "step": "models",
+                "error": "Could not read the model list from the endpoint. Check the base URL and credentials, then try again.",
                 "log_file": _log_llm_failure("test", e, operation='models', resource=base_url)}
     model_present = model_name in models if model_name else None
     # Step 2: tiny chat completion
@@ -901,7 +906,8 @@ def _run_llm_test(profile: dict) -> dict:
         )
         reply = (resp.choices[0].message.content or "").strip()
     except Exception as e:
-        return {"ok": False, "step": "completion", "error": str(e),
+        return {"ok": False, "step": "completion",
+                "error": "The test request did not complete. Check the endpoint and model, then try again.",
                 "models": models, "model_present": model_present,
                 "log_file": _log_llm_failure("test", e, operation='completion', resource=base_url)}
     return {"ok": True, "base_url": base_url, "model": model_name,
