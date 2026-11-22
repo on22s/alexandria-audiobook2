@@ -797,13 +797,20 @@ def are_review_checkpoint_coordinates_valid(data, validate_lengths=True):
             return False
         if any(type(length) is not int or length < 0 for length in lengths):
             return False
-        if lengths and len(lengths) != count:
+        historic_count = data.get('historic_batch_count')
+        expected_lengths = (count - historic_count + 1
+                            if type(historic_count) is int and historic_count > 0
+                            else count)
+        if lengths and len(lengths) != expected_lengths:
             return False
         if validate_lengths and lengths and sum(lengths) != len(corrected):
             return False
     offsets = data.get('source_offsets')
     if offsets is not None:
-        if (not isinstance(offsets, list) or len(offsets) != count
+        historic = data.get('historic_batch_count')
+        expected_offsets = (count - historic + 1
+                            if type(historic) is int and historic > 0 else count)
+        if (not isinstance(offsets, list) or len(offsets) != expected_offsets
                 or any(type(offset) is not int or offset <= 0 for offset in offsets)
                 or offsets != sorted(offsets)):
             return False
@@ -832,6 +839,10 @@ def is_review_checkpoint_evidence_valid(data, *, source_rows=None, published_row
     corrected = data['all_corrected']
     lengths = data.get('batch_lengths') or []
     offsets = data.get('source_offsets')
+    accounting = data.get('review_accounting')
+    historical = data.get('historic_batch_count')
+    expected_lengths = (count - historical + 1
+                        if type(historical) is int and historical > 0 else count)
     source_digest = _entries_fingerprint(source_rows) if source_rows is not None else None
     in_source_space = (source_digest is not None
                        and source_digest == data.get('source_sha256')
@@ -839,9 +850,9 @@ def is_review_checkpoint_evidence_valid(data, *, source_rows=None, published_row
     if in_source_space:
         if count == 0:
             return True
-        if not offsets or len(offsets) != count:
+        if not offsets or len(offsets) != expected_lengths:
             return False
-        if review_windows:
+        if review_windows and len(offsets) == count:
             expected = [end for _start, end in review_windows[:count]]
             if len(expected) != count or offsets != expected:
                 return False
@@ -875,7 +886,10 @@ def is_review_checkpoint_evidence_valid(data, *, source_rows=None, published_row
                   and all(isinstance(row, dict) and type(row.get('output_length')) is int
                           and (offsets is None or type(row.get('source_end')) is int)
                           for row in contributions))
-    if lengths and not structured and outcomes is not None and (count > 1 or failed):
+    unowned = isinstance(accounting, dict) and accounting.get('mode') == 'unowned'
+    if lengths and not structured and (outcomes is not None or unowned) and (count > 1 or failed):
+        return False
+    if failed and outcomes is None and unowned:
         return False
     accounting = data.get('review_accounting')
     recorded_failures = (data.get('total_stats') or {}).get('batches_failed', 0)
@@ -888,7 +902,7 @@ def is_review_checkpoint_evidence_valid(data, *, source_rows=None, published_row
         if first_zero is not None and first_zero != min(failed):
             return False
     if structured:
-        if len(lengths) != count or sum(lengths) != len(corrected):
+        if len(lengths) != expected_lengths or sum(lengths) != len(corrected):
             return False
         for index, row in enumerate(contributions):
             if row['output_length'] != lengths[index]:
@@ -1113,8 +1127,12 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
         print("Review checkpoint coordinates are inconsistent - starting fresh.")
         return None
     offsets = data.get("source_offsets")
+    historic = data.get('historic_batch_count')
+    expected_offsets = (data["completed_batches"] - historic + 1
+                        if type(historic) is int and historic > 0
+                        else data["completed_batches"])
     if offsets is not None and (
-            not isinstance(offsets, list) or len(offsets) != data["completed_batches"]
+            not isinstance(offsets, list) or len(offsets) != expected_offsets
             or any(not isinstance(offset, int) or isinstance(offset, bool) or offset < 0 for offset in offsets)
             or offsets != sorted(offsets)
             or (entries_sha256 == data.get("source_sha256")
@@ -1220,7 +1238,7 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
                       parent_input_sha256=None, parent_publication_sha256=None,
                       parent_entry_count=None, input_path=None, batch_outcomes=None,
                       historic_prefix_count=None, historic_batch_count=None,
-                      retained_sha256=None):
+                      retained_sha256=None, original_entry_count=None):
     path = _checkpoint_path(output_path)
     data = {
         "input_path": os.path.abspath(input_path) if input_path else None,
@@ -1248,6 +1266,7 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
         "historic_prefix_count": historic_prefix_count,
         "historic_batch_count": historic_batch_count,
         "retained_sha256": retained_sha256,
+        "original_entry_count": original_entry_count,
         "companions": dict(companions) if companions is not None else None,
     }
     data["accepted_source_offset"] = data["source_offsets"][-1] if data["source_offsets"] else 0
@@ -1464,9 +1483,9 @@ def publish_standalone_review(script_path, output_path, output_entries, companio
     voice_path = (expected.get('voice') or {}).get('path') if isinstance(expected, dict) else None
     with ExitStack() as locks:
         locks.enter_context(file_lock(output_path))
-        if voice_path and staged_voice_bytes is not None:
+        if voice_path:
             locks.enter_context(file_lock(voice_path))
-        if alias_path and staged_alias_bytes is not None:
+        if alias_path:
             locks.enter_context(file_lock(alias_path))
         if os.path.abspath(script_path) == os.path.abspath(output_path):
             current = get_coherent_output_snapshot(
@@ -1477,10 +1496,15 @@ def publish_standalone_review(script_path, output_path, output_entries, companio
         for path, identity, staged in (
                 (voice_path, expected.get('voice'), staged_voice_bytes),
                 (alias_path, expected.get('aliases'), staged_alias_bytes)):
-            if path and staged is not None and identity \
-                    and is_sha256(identity.get('sha256')):
-                if (get_review_sidecar_identity(path) or {}).get('sha256') != identity['sha256']:
+            if not path or not isinstance(identity, dict):
+                continue
+            observed = get_review_sidecar_identity(path)
+            wanted = identity.get('sha256')
+            if is_sha256(wanted):
+                if not observed or observed.get('sha256') != wanted:
                     raise ValueError(f'Review companion changed during review: {path}')
+            elif wanted is None and observed and observed.get('sha256') is not None:
+                raise ValueError(f'Review companion was created during review: {path}')
         def read_original(path):
             if not path or not os.path.exists(path):
                 return None
@@ -1489,28 +1513,66 @@ def publish_standalone_review(script_path, output_path, output_entries, companio
         original_output = read_original(output_path)
         original_voice = read_original(voice_path)
         original_alias = read_original(alias_path)
+        # Persist checked recovery copies before touching any destination, so
+        # rollback is a rename from durable staged bytes and does not need a
+        # second successful write when storage is failing.
+        recovery = str(output_path) + '.review_publication_recovery'
+        os.makedirs(recovery, exist_ok=True)
+        names = {}
+        for path, payload in ((output_path, original_output),
+                              (voice_path, original_voice),
+                              (alias_path, original_alias)):
+            if not path:
+                continue
+            name = os.path.basename(path)
+            names[path] = os.path.join(recovery, name)
+            if payload is not None:
+                _atomic_write_bytes(names[path], payload)
         committed = []
         try:
             atomic_json_write(output_entries, output_path, allow_nonatomic_fallback=False)
-            committed.append((output_path, original_output))
+            committed.append(output_path)
             if staged_voice_bytes is not None and voice_path:
                 atomic_json_write(staged_voice_bytes, voice_path,
                                   allow_nonatomic_fallback=False)
-                committed.append((voice_path, original_voice))
+                committed.append(voice_path)
             if staged_alias_bytes is not None and alias_path:
                 atomic_json_write(staged_alias_bytes, alias_path,
                                   allow_nonatomic_fallback=False)
-                committed.append((alias_path, original_alias))
-        except Exception:
-            for path, original in reversed(committed):
+                committed.append(alias_path)
+        except Exception as error:
+            unrestored = []
+            for path in reversed(committed):
+                backup = names.get(path)
                 try:
-                    if original is None:
-                        os.remove(path)
+                    if backup and os.path.exists(backup):
+                        os.replace(backup, path)
                     else:
-                        _atomic_write_bytes(path, original)
+                        os.remove(path)
                 except OSError:
-                    pass
+                    unrestored.append(path)
+            if unrestored:
+                record_failure('review_publication_rollback_incomplete', error,
+                               task='review', resource=output_path,
+                               operation='publish_standalone_review')
+                raise OSError(
+                    f"Review publication failed and could not restore: {', '.join(unrestored)}. "
+                    f"Durable originals remain in {recovery} for recovery.") from error
+            try:
+                os.rmdir(recovery)
+            except OSError:
+                pass
             raise
+        for backup in names.values():
+            try:
+                if os.path.exists(backup):
+                    os.remove(backup)
+            except OSError:
+                pass
+        try:
+            os.rmdir(recovery)
+        except OSError:
+            pass
 
 
 def get_locked_sidecar_identity(path):
@@ -1533,7 +1595,7 @@ class DedupeResult(tuple):
 
 def dedupe_speakers(client, model_name, entries, registry_path=None,
                     max_tokens=2000, temperature=0.2, context_length=None, params=None,
-                    registry_staging=None):
+                    registry_staging=None, stage_aliases=False):
     """Ask the LLM to merge speaker labels that are the same character.
     Does not mutate `entries` - the caller applies the returned changes. If
     `registry_path` is given, the shared canonical names there are fed to the
@@ -1692,9 +1754,9 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
                     after=(json.dumps(updated_registry, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
                            if updated_registry != current_registry else None))
             else:
-                # Standalone publication stages companion bytes; the caller
-                # commits them together with the script under one destination
-                # lock and rolls back if that commit fails.
+                # Direct callers keep the historical contract of persisting
+                # accepted aliases. main() opts into staging so standalone
+                # publication can commit companions with the script.
                 if updated_registry != current_registry:
                     alias_bytes = updated_registry
                     alias_payload = json.dumps(alias_bytes, ensure_ascii=False,
@@ -1706,6 +1768,9 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
                         os.path.basename(registry_path), limit=4 * 1024**2,
                         include_bytes=True)
                     alias_bytes = None
+                if not stage_aliases and updated_registry != current_registry:
+                    atomic_json_write(updated_registry, registry_path,
+                                      allow_nonatomic_fallback=False)
                 alias_identity = ({'path': os.path.abspath(registry_path),
                                    'sha256': hashlib.sha256(alias_payload).hexdigest()}
                                   if alias_payload is not None
@@ -3147,6 +3212,8 @@ def main():
             review_source_text, entries=entries, companions=companions)
     consumed_forward_sha256 = None
     consumed_forward_fingerprint = None
+    start_entry_count = len(input_entries)
+    original_entry_count = None
     parent_input_sha256 = None
     parent_publication_sha256 = None
     parent_entry_count = None
@@ -3250,9 +3317,13 @@ def main():
             parent_publication_sha256 = (checkpoint.get('parent_publication_sha256')
                 or forward_fact.get('output_sha256'))
             parent_entry_count = checkpoint.get('parent_entry_count', forward_fact.get('entries_after'))
-    entries_before = (parent_entry_count
-                      if type(parent_entry_count) is int and parent_entry_count > 0
-                      else len(input_entries))
+    original_entry_count = ((checkpoint or {}).get('original_entry_count')
+                            if checkpoint else None)
+    if type(original_entry_count) is not int or original_entry_count <= 0:
+        original_entry_count = (parent_entry_count
+            if type(parent_entry_count) is int and parent_entry_count > 0
+            else start_entry_count)
+    entries_before = original_entry_count
     checkpoint_writer = GenerationCheckpointDeltas(
         _checkpoint_path(output_path), reset=checkpoint is None)
 
@@ -3261,12 +3332,9 @@ def main():
                           batch_lengths, failed_batches, source_sha256, *args, **kwargs):
         """Every checkpoint in this run carries the same execution proof."""
         prefix = (checkpoint or {}).get('historic_prefix_count')
-        historic = (checkpoint or {}).get('historic_batch_count', 1)
         if (isinstance(prefix, int) and prefix > 0 and isinstance(batch_lengths, list)
                 and len(batch_lengths) < completed_batches):
-            missing = completed_batches - len(batch_lengths)
-            batch_lengths = ([prefix] + [0] * (min(missing, historic) - 1)
-                             + list(batch_lengths))
+            batch_lengths = [prefix] + list(batch_lengths)
         kwargs.setdefault('settings_fingerprint', settings_fingerprint)
         kwargs.setdefault('consumed_forward_sha256', consumed_forward_sha256)
         kwargs.setdefault('consumed_forward_fingerprint', consumed_forward_fingerprint)
@@ -3281,6 +3349,7 @@ def main():
         kwargs['batch_outcomes'] = recorded_outcomes
         kwargs.setdefault('retained_sha256',
                           _entries_fingerprint(all_corrected))
+        kwargs.setdefault('original_entry_count', original_entry_count)
         kwargs.setdefault('historic_prefix_count', (checkpoint or {}).get('historic_prefix_count'))
         kwargs.setdefault('historic_batch_count', (checkpoint or {}).get('historic_batch_count'))
         kwargs.setdefault('input_path', script_path)
@@ -3662,12 +3731,16 @@ def main():
     # Skipped on a VRAM abort since this step makes additional LLM calls,
     # which is exactly what we're trying to avoid when VRAM is already low.
     ensure_review_not_cancelled()
-    publication_expected_companions = dict(companions) if isinstance(companions, dict) else None
     dedupe_map = {}
     staged_voice_bytes = None
     staged_alias_bytes = None
     registry_staging = ({} if ((active_review or saved_review) and args.alias_registry
                                and args.dedupe_speakers) else None)
+    def observed_companion_identities():
+        return {
+            'aliases': get_review_sidecar_identity(getattr(args, 'alias_registry', None)),
+            'voice': get_review_sidecar_identity(getattr(args, 'remap_voice_config', None))}
+    post_dedupe_companions = observed_companion_identities()
     if args.dedupe_speakers and not review_complete:
         print("\nSkipping speaker alias resolution until review is complete.")
     elif args.dedupe_speakers:
@@ -3675,9 +3748,11 @@ def main():
         dedupe_result = dedupe_speakers(
             client, model_name, all_corrected, registry_path=args.alias_registry,
             context_length=lm_status.get("context_length"), params=gen_params,
-            **({'registry_staging': registry_staging} if registry_staging is not None else {})
+            **({'registry_staging': registry_staging} if registry_staging is not None else {}),
+            stage_aliases=not (active_review or saved_review)
         )
         dedupe_map, speakers_merged, dedupe_changes = dedupe_result
+        post_dedupe_companions = observed_companion_identities()
         dedupe_alias_identity = getattr(dedupe_result, 'alias_identity', None)
         for idx, key, new_value in dedupe_changes:
             all_corrected[idx][key] = new_value
@@ -3786,7 +3861,7 @@ def main():
     else:
         ensure_review_not_cancelled()
         publish_standalone_review(script_path, output_path, output_entries, companions,
-            expected_companions=publication_expected_companions,
+            expected_companions=post_dedupe_companions,
             expected_sha256=source_sha256 if in_place else None,
             staged_voice_bytes=staged_voice_bytes,
             staged_alias_bytes=staged_alias_bytes)

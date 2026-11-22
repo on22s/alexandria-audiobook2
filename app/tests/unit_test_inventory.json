@@ -12752,6 +12752,11 @@
     , "tests.test_review_receipt_identity_boundary.PublicationTransactionTests.test_hard_interruption_retained_words_are_rejected"
     , "tests.test_review_receipt_identity_boundary.PublicationTransactionTests.test_pre_outcomes_failure_tampering_replays_blue"
     , "tests.test_review_receipt_identity_boundary.PublicationTransactionTests.test_script_write_failure_rolls_back_staged_voice"
+    , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_alias_created_during_review_is_preserved"
+    , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_old_unowned_interior_and_content_tampering_replays_source"
+    , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_persistent_recovery_failure_keeps_all_original_bytes"
+    , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_proven_historic_prefix_survives_the_next_batch_save"
+    , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_standalone_forward_split_reports_original_count"
   ]
   , "test_review_source_binding": [
     "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_annotationless_and_clearing_replies_still_report_unresolved_metadata"

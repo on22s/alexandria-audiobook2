@@ -419,14 +419,21 @@ class NewIntegrityTests(Harness):
                         alias.write_text('{"JANE":"BEA"}')
                     return moved
 
+                if external_edit:
+                    with patch.object(review, '_remap_voice_config', side_effect=remap):
+                        with self.assertRaisesRegex(ValueError, 'companion changed'):
+                            self.cli(path=target, extra=extra, use_real_dedupe=True)
+                    self.assertEqual('{"JANE":"BEA"}', alias.read_text())
+                    self.assertIsNone(self.fact('forward', target))
+                    return
                 with patch.object(review, '_remap_voice_config', side_effect=remap):
                     self.cli(path=target, extra=extra, use_real_dedupe=True)
                 fact = self.fact('forward', target)
                 current = hashlib.sha256(alias.read_bytes()).hexdigest()
-                self.assertEqual(external_edit, fact['companions']['aliases']['sha256'] != current)
+                self.assertEqual(fact['companions']['aliases']['sha256'], current)
                 self.calls.clear()
                 self.cli(path=target, extra=extra, use_real_dedupe=True)
-                self.assertEqual(4 if external_edit else 0, len(self.calls))
+                self.assertEqual([], self.calls)
 
     def test_standalone_own_alias_change_with_no_voice_move_reuses(self):
         target = self.root / 'solo.json'
@@ -1024,6 +1031,128 @@ class PublicationTransactionTests(Harness):
             {**row, 'speaker': 'FIX'} if row['text'] == 'Blue cat.' else row for row in rows])
         self.assertEqual('FIX', next(row['speaker'] for row in
             json.loads(self.book.read_text()) if row['text'] == 'Blue cat.'))
+
+
+class TrustBoundaryTests(Harness):
+    def _old_unowned_checkpoint(self):
+        def split(rows, index):
+            if index == 1:
+                return [{**rows[0], 'text': 'Red'}, {**rows[0], 'text': 'cat.'}, *rows[1:]]
+            return rows
+        self.cli(gates=[True, False], transform=split)
+        path = Path(str(self.book) + '.review_checkpoint.json')
+        document = review.load_generation_checkpoint_document(str(path))
+        for key in ('retained_sha256', 'batch_outcomes', 'historic_prefix_count',
+                    'historic_batch_count', 'parent_input_sha256',
+                    'parent_publication_sha256', 'parent_entry_count', 'input_path'):
+            document.pop(key, None)
+        document['review_accounting']['mode'] = 'unowned'
+        document['review_batch_contributions'] = []
+        writer = gd.GenerationCheckpointDeltas(str(path), reset=True)
+        writer.save_checkpoint(document)
+        return path, document
+
+    def test_old_unowned_interior_and_content_tampering_replays_source(self):
+        for field, value in (('batch_lengths', [1, 2, 1, 1]),
+                             ('batch_lengths', [99, 1, 1, 1]),
+                             ('failed_batches', [3]), ('words', None)):
+            with self.subTest(field=field, value=value):
+                self.setUp()
+                path, document = self._old_unowned_checkpoint()
+                if field == 'words':
+                    document['all_corrected'][0]['text'] = 'Wrong retained words.'
+                else:
+                    document[field] = value
+                writer = gd.GenerationCheckpointDeltas(str(path), reset=True)
+                writer.save_checkpoint(document)
+                self.cli(transform=lambda rows, index: [
+                    {**row, 'speaker': 'FIX'} if row['text'] == 'Blue cat.' else row
+                    for row in rows])
+                published = [row['text'] for row in json.loads(self.book.read_text())]
+                self.assertNotIn('Wrong retained words.', published)
+                self.assertEqual(len(set(published)), len(published))
+                self.assertIn('FIX',
+                    [row['speaker'] for row in json.loads(self.book.read_text())])
+
+    def test_alias_created_during_review_is_preserved(self):
+        target = self.root / 'solo.json'
+        seeded = [self.rows[0], {**self.rows[0], 'speaker': 'BOB'}]
+        target.write_text(json.dumps(seeded))
+        alias = self.root / 'alias.json'
+        voice = self.root / 'voice.json'
+        voice.write_text('{"JANE":{"voice":"one"}}')
+        real_publish = review.publish_standalone_review
+        def interleave(*args, **kwargs):
+            with review.file_lock(str(alias)):
+                alias.write_text('{"EXTERNAL":"KEEP"}')
+            return real_publish(*args, **kwargs)
+        with patch.object(review, 'call_llm_for_object', return_value={'JANE': 'BOB'}), \
+                patch.object(review, 'publish_standalone_review', side_effect=interleave):
+            with self.assertRaisesRegex(ValueError, 'created during review'):
+                self.cli(path=target, extra=('--alias-registry', str(alias),
+                    '--remap-voice-config', str(voice), '--dedupe-speakers'),
+                    use_real_dedupe=True)
+        self.assertEqual('{"EXTERNAL":"KEEP"}', alias.read_text())
+        self.assertEqual('JANE', json.loads(target.read_text())[0]['speaker'])
+
+    def test_persistent_recovery_failure_keeps_all_original_bytes(self):
+        target = self.root / 'solo.json'
+        seeded = [self.rows[0], {**self.rows[0], 'speaker': 'BOB'}]
+        target.write_text(json.dumps(seeded))
+        alias = self.root / 'alias.json'
+        alias.write_text('{ }')
+        voice = self.root / 'voice.json'
+        voice.write_text('{"JANE":{"voice":"one"}}')
+        wanted = [path.read_bytes() for path in (target, voice, alias)]
+        original_restore = review._atomic_write_bytes
+        def fail_restore(path, payload):
+            raise OSError(errno.ENOSPC, 'persistent')
+        with patch.object(review, 'call_llm_for_object', return_value={'JANE': 'BOB'}), \
+                patch.object(review, 'atomic_json_write', side_effect=lambda data, path, *a, **k: (
+                    (_ for _ in ()).throw(OSError(errno.ENOSPC, 'alias'))
+                    if str(path) == str(alias) else __import__('utils').atomic_json_write(data, path, *a, **k))), \
+                patch.object(review, '_atomic_write_bytes', side_effect=fail_restore):
+            with self.assertRaises(OSError):
+                self.cli(path=target, extra=('--alias-registry', str(alias),
+                    '--remap-voice-config', str(voice), '--dedupe-speakers'),
+                    use_real_dedupe=True)
+        self.assertEqual(wanted, [path.read_bytes() for path in (target, voice, alias)])
+        self.assertIsNone(self.fact('forward', target))
+
+    def test_proven_historic_prefix_survives_the_next_batch_save(self):
+        digest = receipts.get_review_entries_fingerprint(self.rows)
+        retained = [{'speaker': 'BOB', 'text': text, 'instruct': ''}
+                    for text in ('Red', 'cat.', 'Blue cat.')]
+        stats = {key: 0 for key in review.REVIEW_EDIT_COUNTERS}
+        review.save_checkpoint(str(self.book), 3, 5, 1, 0, retained, stats,
+            retained[-2:], [3, 1], [], digest, source_offsets=[3, 4],
+            historic_prefix_count=3, historic_batch_count=2,
+            execution_sha256='exec')
+        path = Path(str(self.book) + '.review_checkpoint.json')
+        document = json.loads(path.read_text())
+        self.assertEqual([3, 1], document['batch_lengths'])
+        loaded = review.load_checkpoint(str(self.book), 5, 1, 0, self.rows,
+                                        execution_sha256='exec')
+        self.assertIsNotNone(loaded)
+        self.assertEqual([3, 4], review.get_review_resume_source_offsets(
+            loaded, self.rows, 1, input_sha256=digest))
+
+    def test_standalone_forward_split_reports_original_count(self):
+        def split(rows, index):
+            if index == 1:
+                return [{**rows[0], 'text': 'Red'}, {**rows[0], 'text': 'cat.'}, *rows[1:]]
+            return rows
+        self.cli(gates=[True, False], transform=split)
+        completed = self.cli(transform=split)
+        stats = _extract_review_stats(completed.splitlines())
+        self.assertEqual((4, 5, 1), (stats['entries_before'], stats['entries_after'],
+                                     stats['entries_added']))
+        self.calls.clear()
+        reused = self.cli(transform=split)
+        self.assertEqual([], self.calls)
+        stats = _extract_review_stats(reused.splitlines())
+        self.assertEqual((4, 5, 1), (stats['entries_before'], stats['entries_after'],
+                                     stats['entries_added']))
 
 
 if __name__ == '__main__':
