@@ -85,12 +85,22 @@ class EnricherCpuAdmissionTests(unittest.TestCase):
         (fixture.root/'book.wav').write_bytes(b'audio')
         (fixture.work/'asr_segments.json').write_text(json.dumps({'word_segments':[{'word':'hello','start':0,'end':1}], 'detected_lang':'en'}))
         for allowed in (False, True):
-            def run(command):
+            def run(command, descriptor):
+                self.assertEqual(1, descriptor)
                 self.assertEqual(allowed, '--allow-cpu-fallback' in command)
                 chunks = json.loads((fixture.work/'asr_chunks_for_enrich.json').read_text())
                 (fixture.work/'enriched_segments.json').write_text(json.dumps(chunks))
                 return SimpleNamespace(returncode=0)
             argv = ['preparer','--audio','book.wav','--model','model.gguf','--phase','enrich','--llm-model-path','llm.gguf']
             if allowed: argv.append('--allow-cpu-fallback')
-            with self.subTest(allowed=allowed), patch.object(sys, 'argv', argv), patch.object(preparer, 'LLAMA_CPP_AVAILABLE', True), patch.object(preparer, 'acquire_run_lock', return_value=1), patch.object(preparer, 'get_run_identity', return_value={}), patch.object(preparer, 'ensure_run_manifest'), patch.object(preparer, 'is_verified_artifact', return_value=True), patch.object(preparer, 'mark_artifact_complete'), patch.object(preparer.subprocess, 'run', side_effect=run):
+            with (self.subTest(allowed=allowed),
+                  patch.object(sys, 'argv', argv),
+                  patch.object(preparer, 'LLAMA_CPP_AVAILABLE', True),
+                  patch.object(preparer, 'acquire_run_lock', return_value=1),
+                  patch.object(preparer, 'get_run_identity', return_value={}),
+                  patch.object(preparer, 'ensure_run_manifest'),
+                  patch.object(preparer, 'is_verified_artifact', return_value=True),
+                  patch.object(preparer, 'mark_artifact_complete'),
+                  patch.object(preparer, 'run_phase_with_lock', side_effect=run) as dispatch):
                 self.assertEqual(0, preparer.main())
+                self.assertEqual(1, dispatch.call_count)

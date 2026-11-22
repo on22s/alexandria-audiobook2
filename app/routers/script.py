@@ -102,6 +102,7 @@ from publication_source import (PublicationSourceLimit, get_upload_publication_u
 
 from core import (
     AppError,
+    mark_expected_probe_response,
     _saved_book_meta_path,
     is_task_running,
     get_task_lifecycle,
@@ -1421,7 +1422,7 @@ async def select_existing_upload(request: ExistingUploadRequest):
 SINGLE_NARRATOR_PREVIEW_CHARS = 4000
 
 
-def _get_single_narrator_source_preview(*, include_metrics=False):
+def _get_single_narrator_source_preview(*, include_metrics=False, probe=False):
     """Bounded, book-bound source preview for the single-narrator guide (#1724).
 
     Read-only: takes no path input, reads only the active book's recorded
@@ -1462,7 +1463,8 @@ def _get_single_narrator_source_preview(*, include_metrics=False):
         state = load_book_state()
         source_path = state.get("input_file_path")
         if not isinstance(source_path, str) or not source_path:
-            raise AppError(400, 'No input file selected for the active book.', key='error.upload.no_input_active')
+            with mark_expected_probe_response(expected=probe and (source_path is None or source_path == '')):
+                raise AppError(400, 'No input file selected for the active book.', key='error.upload.no_input_active')
         # Resolve exactly like the shared generation/source capture
         # resolver (_capture_raw_source): relative spellings resolve
         # against the process CWD, never silently against DATA_DIR, so
@@ -1520,11 +1522,12 @@ def _get_single_narrator_source_preview(*, include_metrics=False):
                 # verified prose link survives as readable original text,
                 # and the annotated JSON is not original prose. No
                 # provenance read is attempted here (DS3077).
-                raise HTTPException(status_code=409, detail=(
-                    "Source preview is unavailable for this saved book: no retained "
-                    "original prose is linked to its saved script, and the annotated "
-                    "JSON is not original prose. Inspect the saved script in Script "
-                    "instead."))
+                with mark_expected_probe_response(expected=probe):
+                    raise HTTPException(status_code=409, detail=(
+                        "Source preview is unavailable for this saved book: no retained "
+                        "original prose is linked to its saved script, and the annotated "
+                        "JSON is not original prose. Inspect the saved script in Script "
+                        "instead."))
             if extension not in SELECTABLE_SOURCE_EXTENSIONS:
                 raise HTTPException(status_code=409, detail=(
                     "Source preview is unavailable for this file format; inspect the "
@@ -1631,7 +1634,7 @@ def _get_script_ingest_status(expected_book_token=None):
     source comparison, not proof that any particular model task ran.
     """
     from three_pass_generate import get_cast_from_data
-    source = _get_single_narrator_source_preview(include_metrics=True)
+    source = _get_single_narrator_source_preview(include_metrics=True, probe=True)
     if expected_book_token is not None and source['book_token'] != expected_book_token:
         raise HTTPException(409, 'Selected book changed; refresh ingest status.')
     cast = {'status': 'not_built', 'count': 0}

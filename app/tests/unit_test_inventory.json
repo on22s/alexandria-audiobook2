@@ -2412,6 +2412,7 @@
     "tests.test_bug_report_logging.BugReportLoggingTests.test_background_failure_retains_history_and_releases_state"
     , "tests.test_bug_report_logging.BugReportLoggingTests.test_current_review_correlation_is_retained"
     , "tests.test_bug_report_logging.BugReportLoggingTests.test_diagnostic_disk_failure_still_has_safe_console_evidence"
+    , "tests.test_bug_report_logging.BugReportLoggingTests.test_empty_tab_probes_keep_responses_without_reporting_failures"
     , "tests.test_bug_report_logging.BugReportLoggingTests.test_exception_causes_retain_frames_but_not_messages"
     , "tests.test_bug_report_logging.BugReportLoggingTests.test_failure_download_is_discoverable_and_empty_state_is_explicit"
     , "tests.test_bug_report_logging.BugReportLoggingTests.test_http_refusal_records_no_request_or_detail_payload"
