@@ -33,7 +33,7 @@ class TakeRestorationTests(unittest.TestCase):
     render=publication_cases.TakePublicationTests.render
 
     @contextmanager
-    def prepared(self,journal=False,encoded_suffix=None,before_retake=None,category='custom',chunk_changes=None):
+    def prepared(self,journal=False,encoded_suffix=None,before_retake=None,category='custom',chunk_changes=None,batch_seed=None,reproducible_take=None):
         with self.fixture(journal) as (root,manager,_,fresh),self.owner():
             if chunk_changes:
                 rows=manager.load_chunks()
@@ -52,13 +52,23 @@ class TakeRestorationTests(unittest.TestCase):
                        'character_style':'quietly', 'seed':42}
             voices={'NARRATOR':voice}
             Path(manager.voice_config_path).write_text(json.dumps(voices))
+            published=voices if batch_seed is None else {'NARRATOR':{**voice,'seed':batch_seed}}
             chunk=manager.load_chunks()[0]
+            if reproducible_take is not None:
+                from tts import get_chunk_seed, get_reproducible_voice_config
+                config=json.loads(Path(manager.config_path).read_text())
+                config['tts']['reproducible_takes']=True
+                Path(manager.config_path).write_text(json.dumps(config))
+                manager.invalidate_config_cache()
+                seed=get_chunk_seed(chunk['text'],reproducible_take)
+                published={'NARRATOR':get_reproducible_voice_config(voices,seed,
+                    take=reproducible_take)['NARRATOR']}
             from pronunciation import ensure_occurrence_pronunciation_context
             from project import get_pronunciation_render_context
             if chunk.get('pronunciation_rules'):
                 chunk={**chunk,'_pronunciation_context':get_pronunciation_render_context(
                     voices,chunk,0,engine.get_model_settings())}
-            parent,admitted=self.admission(manager,engine,chunk,voices)
+            parent,admitted=self.admission(manager,engine,chunk,published)
             with ensure_occurrence_pronunciation_context(chunk,chunk.get('_pronunciation_context')):
                 pcm,_,synthesis,observed=self.render(root,engine,parent,chunk,category=category)
             def encode(source,name):
@@ -116,6 +126,103 @@ class TakeRestorationTests(unittest.TestCase):
                         if record['version']==saved['version']),saved)
                 from synthesis_workspace import SynthesisWorkspaceRegistry
                 with SynthesisWorkspaceRegistry(root) as registry:self.assertEqual(registry.body['rows'],{})
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_changed_batch_seed_cannot_erase_proven_take(self):
+        for changed in (999, -1):
+            with self.subTest(changed=changed), self.prepared(batch_seed=123) as args:
+                root,manager,_,request,origin,original,_,_,_=args
+                self.assertEqual(origin[KEY]['version'],2)
+                self.assertEqual(origin[KEY]['seed'],123)
+                config=json.loads(Path(manager.config_path).read_text())
+                config['tts']['batch_seed']=changed
+                Path(manager.config_path).write_text(json.dumps(config))
+                manager.invalidate_config_cache()
+                self.assertEqual(manager._load_tts_config().get('batch_seed'),changed)
+                restored=restore_editor_take(manager,0,request,capture_restore_target(manager,0,request))
+                self.assertEqual((root/restored['audio_path']).read_bytes(),original)
+                self.assertEqual(restored['audio_revision'],origin['audio_revision'])
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_stored_seed_only_change_is_bound_by_proven_seed(self):
+        with self.prepared() as args:
+            root,manager,_,request,_,original,_,_,_=args
+            voices=manager.get_voice_config_for_update()
+            voices['NARRATOR']={**voices['NARRATOR'],'seed':43}
+            Path(manager.voice_config_path).write_text(json.dumps(voices))
+            restored=restore_editor_take(manager,0,request,capture_restore_target(manager,0,request))
+            self.assertEqual((root/restored['audio_path']).read_bytes(),original)
+            self.assertEqual(restored[KEY]['seed'],42)
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_reproducible_take_binds_effective_seed_and_restores(self):
+        from tts import CHUNK_SEED_PRIME
+        with self.prepared(reproducible_take=2,chunk_changes={'take':2}) as args:
+            root,manager,_,request,origin,original,_,_,_=args
+            self.assertEqual(origin[KEY]['seed'],(42+2*CHUNK_SEED_PRIME)%(2**31))
+            self.assertEqual(manager._load_tts_config().get('reproducible_takes'),True)
+            restored=restore_editor_take(manager,0,request,capture_restore_target(manager,0,request))
+            self.assertEqual((root/restored['audio_path']).read_bytes(),original)
+            self.assertEqual(restored[KEY],origin[KEY])
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_legacy_v1_take_restores_when_current_evidence_matches(self):
+        with self.prepared() as args:
+            root,manager,_,request,_,original,_,_,saved=args
+            history=AudioTakeHistory(root)
+            with history._locked() as document:
+                record=next(row for row in document['records'] if row['version']==saved['version'])
+                legacy=copy.deepcopy(record['captured'][KEY])
+                legacy.pop('seed');legacy['version']=1
+                record['captured'][KEY]=legacy
+                history._save(document)
+            restored=restore_editor_take(manager,0,request,capture_restore_target(manager,0,request))
+            self.assertEqual((root/restored['audio_path']).read_bytes(),original)
+            self.assertEqual(restored[KEY]['version'],1)
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_tampered_or_malformed_receipt_seed_refuses_without_replacing_audio(self):
+        for seed,reason in ((44,'voice or seed'),('forty-two','needs inspection')):
+            with self.subTest(seed=seed),self.prepared() as args:
+                root,manager,_,request,_,_,current,displaced,saved=args
+                history=AudioTakeHistory(root)
+                with history._locked() as document:
+                    record=next(row for row in document['records'] if row['version']==saved['version'])
+                    record['captured'][KEY]['seed']=seed
+                    history._save(document)
+                with self.assertRaisesRegex(ValueError,reason):
+                    restore_editor_take(manager,0,request,capture_restore_target(manager,0,request))
+                self.assertEqual((root/current['audio_path']).read_bytes(),displaced)
+                self.assertEqual(manager.load_chunks()[0]['audio_revision'],current['audio_revision'])
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_unknown_receipt_version_refuses_with_distinct_audition_only_reason(self):
+        with self.prepared() as args:
+            root,manager,_,request,_,_,current,displaced,saved=args
+            history=AudioTakeHistory(root)
+            with history._locked() as document:
+                record=next(row for row in document['records'] if row['version']==saved['version'])
+                record['captured'][KEY]['version']=3
+                history._save(document)
+            with patch.object(manager,'get_engine',side_effect=AssertionError('unknown version loaded engine')), \
+                    self.assertRaisesRegex(ValueError,'unsupported receipt version'):
+                capture_restore_target(manager,0,request)
+            self.assertEqual((root/current['audio_path']).read_bytes(),displaced)
+            listed=[row for row in history.list(uid=current['uid'])['records'] if row['sha256']==saved['sha256']]
+            self.assertEqual(len(listed),1)
+            self.assertFalse(listed[0]['has_restore_evidence'])
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_clone_reference_and_lora_adapter_mismatch_refuse(self):
+        for category,field in (('clone','ref_audio'),('lora','adapter_path')):
+            with self.subTest(category=category),self.prepared(category=category) as args:
+                root,manager,_,request,_,_,current,displaced,_=args
+                voices=manager.get_voice_config_for_update()
+                changed=dict(voices['NARRATOR']);changed[field]=str(root/'different-asset')
+                Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':changed}))
+                with self.assertRaisesRegex(ValueError,'voice or seed'):
+                    restore_editor_take(manager,0,request,capture_restore_target(manager,0,request))
+                self.assertEqual((root/current['audio_path']).read_bytes(),displaced)
 
     @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_clone_and_lora_publication_kind_restore_and_cross_kind_refusal(self):
@@ -336,8 +443,10 @@ class TakeRestorationTests(unittest.TestCase):
                 with self.subTest(journal=journal,case=case),self.prepared(journal) as args,ExitStack() as stack:
                     root,manager,engine,request,_,_,current,displaced,saved=args
                     if case=='voice':
+                        # Identity change still refuses; a seed-only change is
+                        # bound by the proven seed in the receipt instead.
                         Path(manager.voice_config_path).write_text(json.dumps(
-                            {'NARRATOR':{'type':'custom','voice':'Ryan','seed':43}}))
+                            {'NARRATOR':{'type':'custom','voice':'Emma','seed':42}}))
                     elif case=='model':
                         engine._max_new_tokens=257
                         config=json.loads(Path(manager.config_path).read_text())

@@ -105,11 +105,19 @@ def _get_matching_request(manager, engine, index, candidate, proof):
         raise ValueError('Current model settings differ from this saved performance.')
     voices = manager.get_voice_config_for_update()
     speaker = manager._resolve_alias(candidate['speaker'], voices)
-    choices = [manager.get_chunk_render_voice_config(voices, speaker, candidate, index)]
-    batch_seed = manager._load_tts_config().get('batch_seed', -1)
-    if type(batch_seed) is int:
-        choices.append(manager.get_chunk_render_voice_config(
-            voices, speaker, candidate, index, batch_seed=batch_seed))
+    seed = proof.get('seed')
+    if seed is not None:
+        # The publication recorded the exact seed; never re-derive it from
+        # mutable batch settings. The voice digest below still binds it.
+        choices = [manager.get_chunk_render_voice_config(voices, speaker, candidate, index,
+                                                        batch_seed=seed)]
+    else:
+        # Legacy receipts carry no seed: keep their original candidate set.
+        choices = [manager.get_chunk_render_voice_config(voices, speaker, candidate, index)]
+        batch_seed = manager._load_tts_config().get('batch_seed', -1)
+        if type(batch_seed) is int:
+            choices.append(manager.get_chunk_render_voice_config(
+                voices, speaker, candidate, index, batch_seed=batch_seed))
     category = NATIVE_TAKE_KINDS[proof['kind']]
     projection = get_occurrence_speech_projection(candidate, index, voices, settings)
     preparation = {key:value for key,value in projection.items() if key != 'context'}
