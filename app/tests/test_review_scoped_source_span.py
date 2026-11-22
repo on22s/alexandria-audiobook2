@@ -22,14 +22,16 @@ from literal_policy import (SCRIPT_POLICY_KEY, bind_literal_chunks, bind_literal
                             is_scope_cut_proof)
 from project import group_into_chunks
 from project_scope_apply import apply_source_scope
-from project_scope_literal import get_literal_scope, get_scope_cut_evidence
+from project_scope_literal import (get_literal_scope, get_scope_cut_evidence,
+                                   ScopeSpanContradiction)
 from project_scope_partition import get_scope_partition
 from project_scope_plan import get_scope_preview
 from project_scope_admission import ensure_scope_admission
 import review_script as review
 from script_selection_binding import (BINDING_NAME, make_script_selection_binding,
                                       attach_scope_cut_evidence, parse_script_binding,
-                                      get_scope_cut_from_binding, binding_for_controlled_edit)
+                                      get_scope_cut_from_binding, binding_for_controlled_edit,
+                                      publish_controlled_script_edit)
 from tests.test_pass_boundary_retry_regressions import client_for
 from tests.test_review_source_binding import row
 from tests.test_review_source_spans import create_book
@@ -274,9 +276,15 @@ def add_scope_evidence(script, raw, parent_rows, active_rows):
                 if [row['text'] for row in parent_rows[index:]] == texts), None)
     if cut is None:
         return None
-    evidence = get_scope_cut_evidence(
-        raw, parent_rows, cut, parent_policy=get_literal_policy(parent_rows),
-        policy=get_literal_policy(active_rows))
+    policy = get_literal_policy(active_rows)
+    prepared = (get_preprocessed_source(raw, strip_front_matter=True)[0]
+                if policy is not None and policy.get('strip_front_matter') is True else raw)
+    try:
+        evidence = get_scope_cut_evidence(
+            prepared, parent_rows, cut, parent_policy=get_literal_policy(parent_rows),
+            policy=policy)
+    except ValueError:
+        return None
     if evidence is None:
         return None
     evidence['parent_policy_sha256'] = get_literal_policy_identity(
@@ -1231,6 +1239,12 @@ class ScopeCutProofTests(unittest.TestCase):
         self.assertEqual(proof['coverage_sha256'], get_scope_coverage_digest(coverage))
 
     def test_real_scope_apply_persists_the_proof_and_review_still_captures_source(self):
+        self.assert_scope_apply_and_undo(with_binding=True)
+
+    def test_real_scope_apply_and_undo_with_no_selection_binding(self):
+        self.assert_scope_apply_and_undo(with_binding=False)
+
+    def assert_scope_apply_and_undo(self, *, with_binding):
         rows = [row(text, 'NARRATOR', instruct='Even.')
                 for text in ('Intro.', 'Exclude me', 'Keep the line.', 'Afterward.')]
         raw = '\n\n'.join(entry['text'] for entry in rows)
@@ -1250,10 +1264,12 @@ class ScopeCutProofTests(unittest.TestCase):
                                ('voice_config.json', {}), ('chunks.json', chunks)):
                 (root / name).write_text(json.dumps(data), encoding='utf-8')
             path = root / 'annotated_script.json'
-            binding = make_script_selection_binding(
-                get_book_operation_token(directory), digest, path.read_bytes(),
-                source_path=str(source))
-            (root / BINDING_NAME).write_text(json.dumps(binding), encoding='utf-8')
+            binding_path = root / BINDING_NAME
+            if with_binding:
+                binding = make_script_selection_binding(
+                    get_book_operation_token(directory), digest, path.read_bytes(),
+                    source_path=str(source))
+                binding_path.write_text(json.dumps(binding), encoding='utf-8')
             with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
                     ensure_scope_admission(root):
                 plan = get_scope_preview(root, 1)
@@ -1263,8 +1279,11 @@ class ScopeCutProofTests(unittest.TestCase):
             applied = json.loads(path.read_bytes())
             proof = applied[0][SCRIPT_POLICY_KEY]['scope_source']['cut_proof']
             self.assertTrue(is_scope_cut_proof(proof))
-            self.assertEqual(raw, review.get_review_source_text(
-                directory, str(path), path.read_bytes(), applied))
+            if with_binding:
+                self.assertEqual(raw, review.get_review_source_text(
+                    directory, str(path), path.read_bytes(), applied))
+            else:
+                self.assertFalse(binding_path.exists())
             with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
                     ensure_scope_admission(root):
                 from project_scope_apply import apply_source_scope_undo
@@ -1272,8 +1291,11 @@ class ScopeCutProofTests(unittest.TestCase):
                 undo = get_source_scope_undo_preview(root)
                 apply_source_scope_undo(root, undo['revision'])
             self.assertEqual(script, json.loads(path.read_bytes()))
-            self.assertIsNone(get_scope_cut_from_binding(
-                parse_script_binding((root / BINDING_NAME).read_bytes())))
+            if with_binding:
+                self.assertIsNone(get_scope_cut_from_binding(
+                    parse_script_binding(binding_path.read_bytes())))
+            else:
+                self.assertFalse(binding_path.exists())
 
     def test_scope_apply_evidence_gates_child_mutations_and_survives_controlled_edit(self):
         rows = [row(text, 'NARRATOR', instruct='Even.') for text in
@@ -1355,3 +1377,122 @@ class ScopeCutProofTests(unittest.TestCase):
             self.assertEqual(raw, review.get_review_source_text(
                 directory, str(path), json.dumps(edited).encode(), edited))
 
+
+    def test_evidence_requires_child_policy_even_for_equivalent_strip_choice(self):
+        rows = [row(text, 'NARRATOR', instruct='Even.') for text in
+                ('Intro.', 'Exclude me', '!', '!', 'Keep the line.')]
+        rows += copy.deepcopy(RAW_ROWS[5:])
+        raw = '\n\n'.join(entry['text'] for entry in rows).replace(
+            'Exclude me\n\n!', 'Exclude me !')
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        full = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
+        chunks = bind_literal_chunks(
+            [dict(entry, id=index, uid=f'u{index}', status='pending', audio_path=None)
+             for index, entry in enumerate(group_into_chunks(full))],
+            get_literal_policy(full))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source.txt'
+            source.write_text(raw, encoding='utf-8')
+            state = {'active_book_id': 'fixture', 'book_generation': 'g1',
+                     'input_file_path': str(source)}
+            for name, data in (('state.json', state), ('annotated_script.json', full),
+                               ('voice_config.json', {}), ('chunks.json', chunks)):
+                (root / name).write_text(json.dumps(data), encoding='utf-8')
+            path = root / 'annotated_script.json'
+            (root / BINDING_NAME).write_bytes(json.dumps(make_script_selection_binding(
+                get_book_operation_token(directory), digest, path.read_bytes(),
+                source_path=str(source)), sort_keys=True, separators=(',', ':')).encode())
+            with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                    ensure_scope_admission(root):
+                plan = get_scope_preview(root, 3)
+                apply_source_scope(root, 3, plan['revision'])
+            applied_bytes = path.read_bytes()
+            applied_binding = (root / BINDING_NAME).read_bytes()
+            applied = json.loads(applied_bytes)
+            self.assertEqual([22, 23], applied[0]['source_span'])
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(path), applied_bytes, applied))
+
+            def refuse(mutated):
+                path.write_bytes(applied_bytes)
+                (root / BINDING_NAME).write_bytes(applied_binding)
+                publish_controlled_script_edit(directory, applied_bytes,
+                                               json.dumps(mutated).encode())
+                self.assertIsNotNone(get_scope_cut_from_binding(
+                    parse_script_binding((root / BINDING_NAME).read_bytes())))
+                self.assertIsNone(review.get_review_source_text(
+                    directory, str(path), json.dumps(mutated).encode(), mutated))
+                saved, _out, _calls, _changed = run_cli_at(
+                    directory, path, [CutEvidenceTests().split(mutated)])
+                self.assertNotIn(NEW_SPEAKER, [entry['speaker'] for entry in saved])
+                self.assertFalse(Path(str(path) + '.review_completed.json').exists())
+                self.assertEqual(mutated, saved)
+
+            removed = copy.deepcopy(applied)
+            removed[0].pop(SCRIPT_POLICY_KEY)
+            removed.insert(0, copy.deepcopy(full[2]))
+            refuse(removed)
+
+            toggled = copy.deepcopy(applied)
+            policy = toggled[0][SCRIPT_POLICY_KEY]
+            policy['strip_front_matter'] = not policy.get('strip_front_matter', False)
+            refuse(toggled)
+
+            inserted = copy.deepcopy(applied)
+            extra = copy.deepcopy(full[2])
+            extra[SCRIPT_POLICY_KEY] = inserted[0].pop(SCRIPT_POLICY_KEY)
+            inserted.insert(0, extra)
+            refuse(inserted)
+
+            path.write_bytes(applied_bytes)
+            (root / BINDING_NAME).write_bytes(applied_binding)
+            genuine = copy.deepcopy(applied)
+            genuine[1]['instruct'] = 'Different.'
+            publish_controlled_script_edit(directory, applied_bytes, json.dumps(genuine).encode())
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(path), json.dumps(genuine).encode(), genuine))
+            saved, _out, _calls, _changed = run_cli_at(
+                directory, path, [CutEvidenceTests().split(genuine)])
+            self.assertIn(NEW_SPEAKER, [entry['speaker'] for entry in saved])
+            self.assertTrue(Path(str(path) + '.review_completed.json').exists())
+            replay, output, calls, changed = run_cli_at(directory, path, [])
+            self.assertEqual([], calls)
+            self.assertFalse(changed)
+            self.assertEqual(saved, replay)
+            self.assertIn('No changes since the completed review', output)
+
+    def test_producer_refuses_contradictory_parent_spans(self):
+        rows = [row(text, 'NARRATOR', instruct='Even.') for text in
+                ('Intro.', 'Exclude me', '!', '!', 'Keep the line.')]
+        rows += copy.deepcopy(RAW_ROWS[5:])
+        raw = '\n\n'.join(entry['text'] for entry in rows).replace(
+            'Exclude me\n\n!', 'Exclude me !')
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        full = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
+        self.assertEqual([19, 20], full[2]['source_span'])
+        full[2]['source_span'] = [18, 19]
+        full[3]['source_span'] = [19, 20]
+        chunks = bind_literal_chunks(
+            [dict(entry, id=index, uid=f'u{index}', status='pending', audio_path=None)
+             for index, entry in enumerate(group_into_chunks(full))],
+            get_literal_policy(full))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source.txt'
+            source.write_text(raw, encoding='utf-8')
+            state = {'active_book_id': 'fixture', 'book_generation': 'g1',
+                     'input_file_path': str(source)}
+            for name, data in (('state.json', state), ('annotated_script.json', full),
+                               ('voice_config.json', {}), ('chunks.json', chunks)):
+                (root / name).write_text(json.dumps(data), encoding='utf-8')
+            path = root / 'annotated_script.json'
+            (root / BINDING_NAME).write_bytes(json.dumps(make_script_selection_binding(
+                get_book_operation_token(directory), digest, path.read_bytes(),
+                source_path=str(source)), sort_keys=True, separators=(',', ':')).encode())
+            with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                    ensure_scope_admission(root):
+                with self.assertRaises(ScopeSpanContradiction):
+                    get_scope_preview(root, 3)
+            self.assertEqual(full, json.loads(path.read_bytes()))
+            self.assertFalse((root / '.project_scope_undo.json').exists())

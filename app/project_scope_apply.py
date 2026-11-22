@@ -108,7 +108,7 @@ def apply_source_scope(root, start_entry, expected_revision):
              'chunks.json': _encode(plan['selected_chunks']), 'chunks.json.status.jsonl': None}
     after[BINDING_NAME] = binding_for_controlled_edit(
         root, before['annotated_script.json'], after['annotated_script.json'])
-    if plan.get('scope_cut_evidence') is not None:
+    if after[BINDING_NAME] is not None and plan.get('scope_cut_evidence') is not None:
         after[BINDING_NAME] = attach_scope_cut_evidence(
             after[BINDING_NAME], plan['scope_cut_evidence'])
     undo = {'version': 2, 'book_token': plan['book_token'], 'preview_revision': plan['revision'],

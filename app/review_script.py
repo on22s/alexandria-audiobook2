@@ -1704,16 +1704,22 @@ def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=No
         if list(exact) != list(span):
             raise ValueError('Scoped row span overruns its exact raw text')
     coverage = get_review_scope_coverage(text, entries)
-    independent = (is_scope_cut_evidence(scope_cut)
-                   and scope_cut['source_sha256'] == hashlib.sha256(text.encode('utf-8')).hexdigest()
-                   and scope_cut['scope_policy_sha256'] == get_scope_identity(policy)
-                   and scope_cut['start_word'] == scope['start_word'])
+    if scope_cut is not None and not is_scope_cut_evidence(scope_cut):
+        raise ValueError('Scope cut evidence is malformed')
+    independent = scope_cut is not None
+    if independent:
+        if (scope_cut['source_sha256'] != hashlib.sha256(text.encode('utf-8')).hexdigest()
+                or scope_cut['scope_policy_sha256'] != get_scope_identity(policy)
+                or scope_cut['start_word'] != scope['start_word']):
+            raise ValueError('Scope evidence does not match the child policy or prepared source')
     leading_bound = None
     if independent and parent_entries is not None:
         parent_policy = get_literal_policy(parent_entries)
-        if (parent_policy is None
-                or scope_cut['parent_policy_sha256'] != get_literal_policy_identity(parent_policy)):
-            independent = False
+        if parent_policy is None:
+            raise ValueError('Scope evidence parent identity differs from the saved source')
+        if scope_cut['parent_policy_sha256'] not in (
+                get_literal_policy_identity(parent_policy), scope['parent_policy_sha256']):
+            raise ValueError('Scope evidence parent identity differs from the saved source')
     if independent:
         if (get_scope_coverage_digest(coverage) != scope_cut['coverage_sha256']
                 or coverage[0][0] != scope_cut['outer_start']
@@ -1852,6 +1858,10 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
         decoded, _encoding = get_decoded_source_text(raw)
         decoded = get_normalized_source_newlines(decoded)
         policy = get_literal_policy(entries)
+        if scope_cut is not None and (policy is None
+                or policy['boundary'] != 'selected_source_words_v1'
+                or get_scope_identity(policy) != scope_cut['scope_policy_sha256']):
+            raise ValueError('Scope evidence requires its established scoped child policy')
         if Path(source_path).suffix.lower() == '.json':
             if _source_depth:
                 raise ValueError('Review source binding chain is not an original book source')

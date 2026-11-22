@@ -9,48 +9,73 @@ from literal_policy import (SCRIPT_POLICY_KEY, CHUNK_POLICY_KEY, ensure_literal_
     get_scope_identity, retain_literal_policy)
 
 
-def _resolved_row_spans(source, rows):
-    """Resolve ordered raw spans for any group of parent rows."""
+class ScopeSpanContradiction(ValueError):
+    """Parent coordinates contradict the raw source; never downgrade to legacy."""
+
+
+class ScopeSpanUnavailable(ValueError):
+    """An unrelated discarded parent row lacks a span; legacy stays possible."""
+
+
+def _ordered_spans(spans):
+    if any(left[1] > right[0] for left, right in zip(spans, spans[1:])):
+        raise ScopeSpanContradiction('Parent source spans are out of order or overlap')
+    return spans
+
+
+def _resolved_row_spans(source, rows, *, allow_missing=False):
+    """Resolve ordered raw spans, checking each against the actual narration."""
     spans = []
+    missing = False
     position = 0
     while position < len(rows):
         entry = rows[position]
         span = entry.get('source_span')
+        if span is None and allow_missing:
+            missing = True
+            position += 1
+            continue
         if (not isinstance(span, (list, tuple)) or len(span) != 2
                 or any(type(value) is not int for value in span)
                 or not 0 <= span[0] < span[1] <= len(source)):
-            raise ValueError('Parent rows require verified source spans')
+            raise ScopeSpanContradiction('Parent rows require verified source spans')
         span = list(span)
         stop = position + 1
         while stop < len(rows) and rows[stop].get('source_span') == span:
             stop += 1
         group = rows[position:stop]
-        if len(group) > 1:
-            texts = [row['text'] for row in group]
-            spans.extend(get_source_span_fragments(source, ' '.join(texts), span, texts))
-        else:
-            spans.append(span)
+        try:
+            if len(group) > 1:
+                texts = [row['text'] for row in group]
+                spans.extend(get_source_span_fragments(source, ' '.join(texts), span, texts))
+            else:
+                exact = get_source_span_fragments(
+                    source, group[0]['text'], span, [group[0]['text']])[0]
+                if list(exact) != span:
+                    raise ScopeSpanContradiction('Parent span overruns its raw narration')
+                spans.append(span)
+        except ValueError as error:
+            raise ScopeSpanContradiction('Parent spans contradict the raw source') from error
         position = stop
-    return spans
+    return _ordered_spans(spans), missing
 
 
 def _partition_spans(source, rows, start_entry):
     """Verify the complete ordered parent partition across the cut boundary."""
-    prefix = _resolved_row_spans(source, rows[:start_entry])
-    suffix = _resolved_row_spans(source, rows[start_entry:])
-    if any(left[1] > right[0] for left, right in zip(prefix, prefix[1:])):
-        raise ValueError('Pre-cut parent spans overlap')
-    if any(left[1] > right[0] for left, right in zip(suffix, suffix[1:])):
-        raise ValueError('Retained parent spans overlap')
-    if prefix and suffix and prefix[-1][1] > suffix[0][0]:
-        raise ValueError('Retained cut overlaps the discarded parent prefix')
+    prefix, prefix_missing = _resolved_row_spans(source, rows[:start_entry], allow_missing=True)
+    suffix, suffix_missing = _resolved_row_spans(source, rows[start_entry:], allow_missing=True)
+    _ordered_spans(prefix + suffix)
+    if prefix_missing or suffix_missing:
+        raise ScopeSpanUnavailable('A parent row has no verified source span')
     return prefix, suffix
 
 
 def _retained_scope_intervals(source, rows, *, start_entry=None):
     """Raw coverage of parent rows, verified across the full cut boundary."""
     if start_entry is None:
-        spans = _resolved_row_spans(source, rows)
+        spans, missing = _resolved_row_spans(source, rows)
+        if missing:
+            raise ScopeSpanUnavailable('A parent row has no verified source span')
     else:
         _prefix, spans = _partition_spans(source, rows, start_entry)
     return get_scope_coverage_intervals(source, spans)
@@ -64,7 +89,7 @@ def get_scope_cut_evidence(source, script, start_entry, *, parent_policy, policy
     scope = policy['scope_source']
     try:
         intervals = _retained_scope_intervals(source, script, start_entry=start_entry)
-    except ValueError:
+    except ScopeSpanUnavailable:
         return None
     return {'version': 1, 'source_sha256': hashlib.sha256(source.encode('utf-8')).hexdigest(),
             'parent_policy_sha256': scope['parent_policy_sha256'],
@@ -123,7 +148,7 @@ def get_literal_scope(source, script, chunks, start_entry, start_chunk, *,
         if input_sha256 is not None:
             proof['input_sha256'] = input_sha256
         scope_source['cut_proof'] = proof
-    except ValueError:
+    except ScopeSpanUnavailable:
         scope_source.pop('cut_proof', None)
     policy.update(boundary='selected_source_words_v1', scope_chunks=lineage,
                   scope_source=scope_source)
