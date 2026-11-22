@@ -242,16 +242,21 @@ class TakeRestorationTests(unittest.TestCase):
 
     @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_loaded_code_release_change_makes_old_receipts_audition_only(self):
-        from synthesis_recovery_native import get_native_custom_code_sha256
+        from synthesis_recovery_code import get_live_callable_sha256
         from synthesis_recovery_serving import _get_aa2_loaded_code
         from take_publication import validate_take_publication
+
+        def fixture_inference():
+            return None
+
+        def fingerprint(loaded_code):
+            return get_live_callable_sha256({'inference':fixture_inference},
+                code_files=[__file__],state={'serving':{'aa2_loaded_code':loaded_code}})
+
         current_code=_get_aa2_loaded_code()
         changed_code={**current_code,'speech_policy':'f'*64}
-        self.assertNotEqual(current_code,changed_code)
-        changed=NativeRecoveryServingIdentity(
-            get_native_custom_code_sha256(state={'aa2_loaded_code':changed_code}),'c'*64,'d'*64)
-        self.assertNotEqual(changed.sha256,
-            get_native_custom_code_sha256(state={'aa2_loaded_code':current_code}))
+        changed=NativeRecoveryServingIdentity(fingerprint(changed_code),'c'*64,'d'*64)
+        self.assertNotEqual(changed.sha256,fingerprint(current_code))
         for version in (2,1):
             with self.subTest(receipt_version=version),self.prepared() as args:
                 root,manager,_,request,_,_,current,displaced,saved=args
