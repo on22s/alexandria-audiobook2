@@ -49,7 +49,8 @@ from script_repair import build_deterministic_repair
 from script_selection_binding import (BINDING_NAME, MAX_BINDING_BYTES,
     capture_generation_selection, check_binding_source, parse_script_binding,
     make_script_selection_binding, saved_binding_matches, updated_saved_binding,
-    _read_selection_state, saved_script_is_active_source, is_script_selection_pending)
+    _read_selection_state, saved_script_is_active_source, is_script_selection_pending,
+    carry_scope_cut_evidence)
 from editor_poll_snapshot import get_snapshot_digest
 from completed_review_receipt import get_review_entries_fingerprint
 from speaker_repair import apply_speaker_selections, build_speaker_review
@@ -562,6 +563,7 @@ def _save_script_sync(request):
                     'Saved script identity requires inspection; existing files were preserved.')) from error
             updated = make_script_selection_binding(get_book_operation_token(DATA_DIR, state=active_state),
                 hashlib.sha256(script_bytes).hexdigest(), script_bytes, source_path=source_path)
+            updated = carry_scope_cut_evidence(binding_raw, updated)
             updated_raw = json.dumps(updated, sort_keys=True, separators=(',', ':')).encode()
             replacements[f'{safe_name}.selection_binding.json'] = saved_binding
             relative = lambda path: os.path.relpath(path, DATA_DIR).replace(os.sep, '/')
@@ -714,6 +716,7 @@ def _load_script_sync(request: ScriptLoadRequest):
             token = get_book_operation_token(DATA_DIR, state=state)
             binding = make_script_selection_binding(token, hashlib.sha256(script_bytes).hexdigest(),
                                                     script_bytes, source_path=src)
+            binding = carry_scope_cut_evidence(saved_binding_raw, binding)
             replacements[BINDING_NAME] = json.dumps(binding, sort_keys=True, separators=(',', ':')).encode()
             state['script_binding_required'] = True
             replacements['state.json'] = json.dumps(state, ensure_ascii=False, indent=2).encode('utf-8')
