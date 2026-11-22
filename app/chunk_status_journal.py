@@ -35,12 +35,18 @@ def get_chunk_audio_key(chunks_path, audio_path):
 def is_active_script_output(data_dir, output_path):
     """Whether a destination replaces the active script rather than a copy.
 
-    Resolving to absolute paths covers the default location and equivalent
-    explicit absolute or relative spellings, matching the review CLI's
-    active-destination rule.
+    Compare the parent directories without following the final entry:
+    publication replaces a destination symlink itself.
     """
-    active_script = os.path.join(data_dir, "annotated_script.json")
-    return os.path.abspath(output_path) == os.path.abspath(active_script)
+    parent, name = os.path.split(output_path)
+    if os.path.normcase(name) != "annotated_script.json":
+        return False
+    parent = parent or os.curdir
+    try:
+        return os.path.samefile(parent, data_dir)
+    except FileNotFoundError:
+        return (os.path.normcase(os.path.realpath(parent))
+                == os.path.normcase(os.path.realpath(data_dir)))
 
 
 def remove_chunk_snapshot(chunks_path):

@@ -71,6 +71,8 @@
     "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_app_owned_three_pass_uses_app_publication_not_cli_retirement"
     , "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_distinct_outputs_preserve_both"
     , "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_failed_publication_preserves_both"
+    , "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_output_leaf_alias_is_replaced_without_retiring_active_chunks"
+    , "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_parent_directory_alias_retires_active_chunks"
     , "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_single_pass_explicit_active_spellings_retire_both"
     , "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_three_pass_explicit_active_spellings_retire_both"
   ]

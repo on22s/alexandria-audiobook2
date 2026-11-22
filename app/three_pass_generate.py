@@ -4230,7 +4230,7 @@ def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     app_dir = os.path.dirname(__file__)
     data_dir = get_runtime_data_dir(root)
-    output_path, chunks_path = get_output_paths(data_dir, args.output)
+    output_path, _ = get_output_paths(data_dir, args.output)
     if (len({args.active_book_token is None, args.active_source_sha256 is None, args.active_run_id is None}) != 1
             or (args.active_book_token is not None and (args.output is not None or args.preflight))
             or (args.require_matching_checkpoint and args.active_book_token is None)):
@@ -4505,8 +4505,10 @@ def main():
         atomic_json_write(entries, output_path, allow_nonatomic_fallback=False,
                           newline="\n", before_replace=require_source_unchanged)
     print(f"Wrote {len(entries)} entries to {output_path}")
-    if args.active_book_token is None and chunks_path is not None and remove_chunk_snapshot(chunks_path):
-        print("Cleared old chunks.json")
+    if args.active_book_token is None:
+        _, chunks_path = get_output_paths(data_dir, output_path)
+        if chunks_path is not None and remove_chunk_snapshot(chunks_path):
+            print("Cleared old chunks.json")
 
 
 if __name__ == "__main__":

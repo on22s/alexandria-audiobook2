@@ -107,6 +107,31 @@ class ActiveScriptChunkRetirementTests(unittest.TestCase):
                 self.assertEqual(TEXT, json.loads(self.active.read_text(encoding='utf-8'))[0]['text'])
                 self.assert_state_retired()
 
+    def test_parent_directory_alias_retires_active_chunks(self):
+        alias = self.root / 'directory-alias'
+        alias.symlink_to(self.root, target_is_directory=True)
+        for generate in (self.run_single_pass, self.run_three_pass):
+            with self.subTest(generator=generate.__name__):
+                self.active.write_text('[{"text":"old"}]', encoding='utf-8')
+                generate(str(alias / self.active.name))
+                self.assertEqual(TEXT, json.loads(self.active.read_text(encoding='utf-8'))[0]['text'])
+                self.assert_state_retired()
+
+    def test_output_leaf_alias_is_replaced_without_retiring_active_chunks(self):
+        other = self.root / 'other'
+        other.mkdir()
+        output = other / self.active.name
+        original = self.active.read_bytes()
+        for generate in (self.run_single_pass, self.run_three_pass):
+            with self.subTest(generator=generate.__name__):
+                output.symlink_to(self.active)
+                generate(str(output))
+                self.assertFalse(output.is_symlink())
+                self.assertEqual(TEXT, json.loads(output.read_text(encoding='utf-8'))[0]['text'])
+                self.assertEqual(original, self.active.read_bytes())
+                self.assert_state_present()
+                output.unlink()
+
     def test_distinct_outputs_preserve_both(self):
         output = str(self.root / 'other.json')
         self.run_single_pass(output)
