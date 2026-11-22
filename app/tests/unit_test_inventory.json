@@ -5119,6 +5119,15 @@
     , "tests.test_dropdown_layers.DropdownLayerTests.test_mobile_navigation_uses_nonoverlapping_layout"
     , "tests.test_dropdown_layers.DropdownLayerTests.test_modal_blocks_navigation"
   ]
+  , "test_ds2224_attempt_identity_js": [
+    "tests.test_ds2224_attempt_identity_js.Ds2224AttemptIdentityJsTests.test_discard_installs_controls_and_expectations_from_one_snapshot"
+    , "tests.test_ds2224_attempt_identity_js.Ds2224AttemptIdentityJsTests.test_older_full_ack_keeps_a_newer_voice_draft"
+    , "tests.test_ds2224_attempt_identity_js.Ds2224AttemptIdentityJsTests.test_older_full_ack_settles_only_its_revision_and_keeps_newer_append"
+    , "tests.test_ds2224_attempt_identity_js.Ds2224AttemptIdentityJsTests.test_return_invalidates_a_held_retry_response_before_and_after_autosave"
+    , "tests.test_ds2224_attempt_identity_js.Ds2224AttemptIdentityJsTests.test_return_keeps_the_latch_until_keep_editing"
+    , "tests.test_ds2224_attempt_identity_js.Ds2224AttemptIdentityJsTests.test_second_failed_discard_still_offers_both_recovery_choices"
+    , "tests.test_ds2224_attempt_identity_js.Ds2224AttemptIdentityJsTests.test_stale_terminal_get_leaves_all_row_components_untouched"
+  ]
   , "test_ds2224_backend": [
     "tests.test_ds2224_backend.Ds2224BackendTests.test_batch_admission_checks_expected_metadata_before_reserving_work"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_ds2224_batch_regeneration_keeps_legacy_row_description"

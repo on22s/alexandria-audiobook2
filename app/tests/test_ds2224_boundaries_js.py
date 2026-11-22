@@ -113,6 +113,7 @@ assert.strictEqual(run("document.getElementById('dsb-description').value"),'new 
     def test_full_receipt_reconciles_survivor_status_and_audio(self):
         self.run_scenario(r'''
 const a='a'.repeat(64),b='b'.repeat(64);context.showToast=()=>{};context._toastSaveError=()=>{};
+context.document.getElementById('dsb-description').value='root';
 run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'first',emotion:'',seed:'',status:'done',audio_url:'/first.wav'},{text:'second',emotion:'',seed:'',status:'done',audio_url:'/second.wav'}];applyDatasetRowRevisions('A',['a'.repeat(64),'b'.repeat(64)],2)");
 let body;context.API.post=async(url,payload)=>{body=payload;return {status:'ok',sample_count:1,description:'root',global_seed:'',
  samples:[{text:'second',emotion:'',seed:'',status:'pending',audio_url:null}],row_revisions:['c'.repeat(64)]};};

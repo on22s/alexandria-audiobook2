@@ -67,8 +67,14 @@ class DatasetBuilderRegressionTests(unittest.TestCase):
                     self.assertEqual(200, response.status_code, response.text)
                     saved = dataset_builder._load_builder_state("voice")
                     sample = saved["samples"][0]
-                    self.assertEqual({"status": "ok", "sample_count": 1,
-                                      "row_revisions": [dataset_builder.get_dataset_row_revision(sample)]}, response.json())
+                    self.assertEqual({
+                        "status": "ok",
+                        "sample_count": 1,
+                        "description": "warm",
+                        "global_seed": "0",
+                        "samples": [sample],
+                        "row_revisions": [dataset_builder.get_dataset_row_revision(sample)],
+                    }, response.json())
                     self.assertEqual(seed, sample["seed"])
                     self.assertIs(type(seed), type(sample["seed"]))
                     self.assertEqual("done", sample["status"])
