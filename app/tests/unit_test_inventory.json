@@ -4539,6 +4539,7 @@
     , "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_legacy_llm_failure_uses_safe_bounded_files_and_keeps_response"
     , "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_legacy_llm_helper_omits_non_exception_error_values"
     , "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_limiter_expires_and_bounds_unique_resource_memory"
+    , "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_llm_test_failure_drops_frames_in_both_files_but_keeps_bounded_fields"
     , "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_non_exception_evidence_never_reads_private_values"
     , "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_optimize_legacy_evidence_rotates_without_touching_old_private_files"
     , "tests.test_deferred_failure_logging.DeferredFailureLoggingTests.test_optional_evaluation_missing_is_normal_but_corruption_is_recorded"
@@ -8337,6 +8338,13 @@
     , "tests.test_llm_review_regressions.ReviewVramTests.test_remote_review_does_not_probe_local_headroom"
     , "tests.test_llm_review_regressions.ReviewVramTests.test_vram_full_at_start_skips_every_batch_as_incomplete"
     , "tests.test_llm_review_regressions.ReviewVramTests.test_watchdog_checks_both_gpu_backends_and_keeps_zero_usage"
+  ]
+  , "test_llm_test_error_sanitization": [
+    "tests.test_llm_test_error_sanitization.LlmTestErrorSanitizationTests.test_completion_exception_never_leaks_provider_text"
+    , "tests.test_llm_test_error_sanitization.LlmTestErrorSanitizationTests.test_missing_key_on_accepted_tenant_host_reports_config_step_without_host"
+    , "tests.test_llm_test_error_sanitization.LlmTestErrorSanitizationTests.test_models_exception_never_leaks_provider_text"
+    , "tests.test_llm_test_error_sanitization.LlmTestErrorSanitizationTests.test_success_and_model_picker_are_unaffected"
+    , "tests.test_llm_test_error_sanitization.LlmTestErrorSanitizationTests.test_validation_exception_never_leaks_provider_text"
   ]
   , "test_lmstudio_cache_lifetime": [
     "tests.test_lmstudio_cache_lifetime.StatusCacheLifetimeTests.test_active_and_waiting_same_key_lock_survives_expiration_and_other_key_churn"
