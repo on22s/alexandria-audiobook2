@@ -1,11 +1,11 @@
 """Frontend discriminators for the #2224 per-project reconciliation model."""
 import unittest
 
-from tests.test_dataset_ui_ownership_js import DatasetUiOwnershipJsTests
+from tests import test_dataset_ui_ownership_js as ownership
 
 
 class Ds2224FrontendJsTests(unittest.TestCase):
-    run_scenario = DatasetUiOwnershipJsTests.run_scenario
+    run_scenario = ownership.DatasetUiOwnershipJsTests.run_scenario
 
     def test_explicit_empty_emotion_survives_cold_load_and_regeneration(self):
         self.run_scenario(r'''

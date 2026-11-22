@@ -164,6 +164,12 @@ class DatasetBuilderUpdateMetaRequest(BaseModel):
     name: str
     description: str = ""
     global_seed: str = ""
+    # Optional CAS over the rows the caller last acknowledged. A matched
+    # receipt proves a metadata-only invalidation is this caller's own write;
+    # a stale one is a 409 instead of silently adopting an external edit.
+    # Omitted fields keep the older, unconditional metadata behaviour.
+    expected_count: Optional[int] = Field(default=None, ge=0)
+    expected_revisions: Optional[Dict[int, Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]]] = None
 
 class DatasetBuilderUpdateRowsRequest(BaseModel):
     name: str
@@ -234,6 +240,30 @@ def _require_existing_builder_state(name):
 def _is_uninitialized_dataset_row(row):
     return isinstance(row, dict) and not any(
         key in row for key in ("text", "emotion", "seed", "description"))
+
+
+def _blank_dataset_row_projection(row):
+    """The UI projection of an untouched status-only placeholder."""
+    return (isinstance(row, dict)
+            and str(row.get("text", "")).strip() == ""
+            and str(row.get("emotion", "")).strip() == ""
+            and str(row.get("seed", "")).strip() == "")
+
+
+def _invalidate_dataset_row_for_metadata(row):
+    """Reset a generated result without losing row-local durable metadata.
+
+    A legacy row whose project root is blank stores its effective description
+    on the row itself. Rebuilding it from the UI fields alone would turn
+    "original voice, calm" into ", calm" on the next inherited-seed change.
+    """
+    if not isinstance(row, dict):
+        return row
+    merged = get_merged_dataset_sample(row)
+    for key in ("description", "generated_seed"):
+        if key in row:
+            merged[key] = row[key]
+    return merged
 
 
 def _canonical_dataset_generation_row(row, state):
@@ -487,12 +517,19 @@ def _dataset_builder_update_meta_sync(request: DatasetBuilderUpdateMetaRequest):
     safe_name = _require_safe_filename(request.name, "Invalid dataset name")
     with ensure_builder_project_mutation(safe_name, "Stop dataset generation before editing its metadata"):
         state = _require_existing_builder_state(safe_name)
+        existing = state.get("samples", [])
+        if request.expected_revisions is not None:
+            if (request.expected_count is None or request.expected_count != len(existing)
+                    or set(request.expected_revisions) != set(range(len(existing)))
+                    or any(get_dataset_row_revision(existing[index]) != request.expected_revisions[index]
+                           for index in request.expected_revisions)):
+                raise HTTPException(status_code=409, detail="Dataset rows changed; reload before saving")
         description_changed = state.get("description", "") != request.description
         seed_changed = get_effective_dataset_seed("", state.get("global_seed", "")) != get_effective_dataset_seed("", request.global_seed)
         state["samples"] = [
-            get_merged_dataset_sample(row) if (description_changed or
+            _invalidate_dataset_row_for_metadata(row) if (description_changed or
                 (seed_changed and get_effective_dataset_seed(row.get("seed", ""), "") < 0))
-            else row for row in state.get("samples", [])]
+            else row for row in existing]
         state["description"] = request.description
         state["global_seed"] = request.global_seed
         _save_builder_state(safe_name, state)
@@ -521,10 +558,19 @@ def _dataset_builder_update_rows_sync(request: DatasetBuilderUpdateRowsRequest):
                     or any(get_dataset_row_revision(existing[index]) != revisions[index]
                            for index in revisions)):
                 raise HTTPException(status_code=409, detail="Dataset rows changed; reload before saving")
-        # Merge: keep status/audio_url only where all generation inputs are unchanged
+        # Merge: keep status/audio_url only where all generation inputs are unchanged.
+        # An untouched status-only placeholder must not be turned into authored
+        # blank text by the UI's empty projection of it during a full-list save:
+        # that would destroy the definition carried by the creation payload and
+        # make the skipped row unrecoverable.
         new_samples = []
         for i, row in enumerate(request.rows):
-            new_samples.append(get_merged_dataset_sample(row, existing[i] if i < len(existing) else None))
+            stored = existing[i] if i < len(existing) else None
+            if (isinstance(stored, dict) and _is_uninitialized_dataset_row(stored)
+                    and _blank_dataset_row_projection(row)):
+                new_samples.append(dict(stored))
+            else:
+                new_samples.append(get_merged_dataset_sample(row, stored))
         state["samples"] = new_samples
         _save_builder_state(safe_name, state)
     return {"status": "ok", "sample_count": len(new_samples),

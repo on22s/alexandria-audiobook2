@@ -230,11 +230,24 @@
             return dsbRowSaveStates.get(name);
         }
 
-        function applyDatasetRowRevisions(name, revisions, count) {
+        function applyDatasetRowRevisions(name, revisions, count, definitions = null) {
             const state = ensureDatasetRowSaveState(name);
             state.tokens = Array.isArray(revisions) && revisions.length === count
                 && revisions.every(token => typeof token === 'string' && /^[0-9a-f]{64}$/.test(token)) ? revisions.slice() : null;
-            if (state.tokens) { state.baseDefinitions = dsbRows.map(datasetRowDefinition); }
+            if (state.tokens) { state.baseDefinitions = (definitions || dsbRows.map(datasetRowDefinition)).map(definition => ({ ...definition })); }
+        }
+
+        // The immutable base every write binds to. It is advanced ONLY by an
+        // own, CAS-verified acknowledgement (or a cold load). A poll, a 409 or
+        // a metadata reconciliation of an external edit never touches it, so
+        // a stale payload can never be re-authorised by a later token adopted
+        // from somewhere else. An empty array is a verified empty base, never
+        // "missing": count 0 and an empty revision map must still be sent.
+        function datasetOwnBase(state) {
+            if (!Array.isArray(state.tokens)) { return null; }
+            const revisions = state.tokens;
+            if (!revisions.every(token => typeof token === 'string' && /^[0-9a-f]{64}$/.test(token))) { return null; }
+            return { count: revisions.length, revisions: revisions.slice() };
         }
 
         function datasetRowDefinition(row) {
@@ -268,30 +281,60 @@
             return true;
         }
 
-        function reconcileDatasetRows(name, samples, revisions, { preserveDrafts = true, sequence = 0 } = {}) {
+        // `own` marks a receipt from one of OUR CAS-verified writes. Only such
+        // a receipt may advance the acknowledged base (count, revisions and
+        // definitions). A status poll (`own:false`) may refresh status/audio
+        // and the visible definition, but must leave the base untouched: the
+        // next write must still fail its CAS against an external edit.
+        function reconcileDatasetRows(name, samples, revisions, { preserveDrafts = true, sequence = 0, own = false } = {}) {
             const state = ensureDatasetRowSaveState(name);
             const validTokens = Array.isArray(revisions) && Array.isArray(samples)
                 && revisions.length === samples.length
                 && revisions.every(token => typeof token === 'string' && /^[0-9a-f]{64}$/.test(token));
-            if (!validTokens) { applyDatasetRowRevisions(name, null, 0); }
+            if (!validTokens) {
+                if (own) { applyDatasetRowRevisions(name, null, 0); return false; }
+                // A status poll may omit revisions (e.g. a lost start response
+                // reconciled from status). Still refresh status/audio; just do
+                // not advance any base from a token-less response.
+            }
             if (!Array.isArray(samples)) { return false; }
-            if (preserveDrafts && state.fullRevision !== null) { return false; }
-            if (sequence && sequence < (state.completedSequence || 0)) { return false; }
+            if (own && preserveDrafts && state.fullRevision !== null) {
+                // A queued full-list draft owns the visible rows, but our own
+                // CAS-verified receipt may still advance the acknowledged base
+                // (e.g. a root change invalidating a row before an append).
+                // Adopt only revisions/definitions that agree with the base
+                // the draft was built from; an external definition never
+                // re-authorises the queued payload.
+                if (validTokens && Array.isArray(state.tokens)
+                        && samples.length === state.tokens.length
+                        && samples.every((serverRow, index) => {
+                            const expected = state.baseDefinitions?.[index];
+                            return !expected || JSON.stringify(expected) === JSON.stringify(datasetRowDefinition(serverRow));
+                        })) {
+                    state.tokens = revisions.slice();
+                    state.baseDefinitions = samples.map(datasetRowDefinition);
+                }
+                return false;
+            }
+            if (own && sequence && sequence < (state.completedSequence || 0)) { return false; }
             if (samples.length !== dsbRows.length) {
-                if (preserveDrafts && state.edits.size) { return false; }
+                // A row-count change in a poll must not replace a refused full
+                // draft that is still waiting for explicit reconciliation.
+                if (preserveDrafts && (state.edits.size || state.fullRevision !== null)) { return false; }
                 dsbRows = samples.map((sample, index) => ({ ...datasetRowDefinition(sample),
                     status: sample.status || 'pending', audio_url: sample.audio_url || null }));
-                if (validTokens) { state.tokens = revisions.slice(); }
                 state.baseDefinitions = samples.map(datasetRowDefinition);
+                if (own) { state.tokens = revisions.slice(); }
                 state.edits.clear();
                 state.conflicted.clear();
                 state.conflictShown = false;
                 dsbRenderTable();
-                return validTokens;
+                return own;
             }
             if (!Array.isArray(state.baseDefinitions)) { state.baseDefinitions = dsbRows.map(datasetRowDefinition); }
             let changedDefinition = false, conflict = false;
             const changedStatus = [];
+            const tbody = document.getElementById('dsb-table-body');
             samples.forEach((serverRow, index) => {
                 const definition = datasetRowDefinition(serverRow);
                 const localDefinition = getDatasetRowDefinition(dsbRows[index]);
@@ -311,30 +354,34 @@
                     if (JSON.stringify(base) !== JSON.stringify(definition)) {
                         // A genuine external edit: the draft keeps its
                         // original base and token, so its CAS still rejects.
+                        // A refused draft is never re-authorised by a later
+                        // revision adopted for an unrelated row.
                         conflict = true;
                         return;
                     }
-                    // Our own metadata/generation acknowledgement: the
-                    // definition is unchanged, so the draft stays valid and
-                    // the shared base token advances with the authoritative
-                    // row rather than leaving the draft to be 409'd.
-                    draft.base = definition;
+                    if (own) { draft.base = definition; }
                 }
                 if (JSON.stringify(state.baseDefinitions[index]) !== JSON.stringify(definition)) {
                     changedDefinition = true;
                 }
                 const before = { status: dsbRows[index].status, audio: dsbRows[index].audio_url };
-                // A registered draft keeps its visible value; only the base,
-                // status, audio and token follow an authoritative own ACK.
-                if (!draft) { Object.assign(dsbRows[index], definition); }
-                state.baseDefinitions[index] = definition;
+                const focused = dsbRowOwnsLiveControl(index, tbody);
+                // A focused, clean control keeps its old edit base until blur:
+                // synchronise the displayed definition and its token together
+                // only when nothing is being typed over it.
+                if (!draft && (!focused || own)) { Object.assign(dsbRows[index], definition); }
+                if (own) {
+                    state.baseDefinitions[index] = definition;
+                    if (state.tokens) { state.tokens[index] = revisions[index]; }
+                } else if (!draft && !focused) {
+                    state.baseDefinitions[index] = definition;
+                }
                 if (serverRow.status) { dsbRows[index].status = serverRow.status; }
                 dsbRows[index].audio_url = serverRow.audio_url || null;
                 if (serverRow.status !== 'error') { delete dsbRows[index].error; }
                 if (before.status !== dsbRows[index].status || before.audio !== dsbRows[index].audio_url) {
                     changedStatus.push(index);
                 }
-                if (validTokens && state.tokens) { state.tokens[index] = revisions[index]; }
             });
             if (changedDefinition) { dsbRenderTable(); }
             else if (changedStatus.length) { dsbRenderTable(changedStatus); }
@@ -346,23 +393,21 @@
             return validTokens && !conflict;
         }
 
-        async function saveDatasetRows(value) {
+        async function saveDatasetRows(value, order = 0) {
             const state = ensureDatasetRowSaveState(value.name);
+            // Bind to the acknowledged base at write time. It advances only on
+            // this tab's own CAS-verified receipts, so a preceding own append
+            // contributes its full new count + revisions while a 409 or an
+            // external edit never re-authorises this payload.
+            const base = datasetOwnBase(state);
             if (value.rows) {
                 const body = { name: value.name, rows: value.rows };
-                const base = value.revisions || [];
-                // Refresh each base token at write time: an earlier edit in
-                // this same serialized chain may have advanced it with its
-                // own ACK, and that is the revision the server now holds.
-                const revisions = base.map((token, index) => state.tokens?.[index] || token);
-                if (revisions.length > 0
-                    && revisions.every(token => /^[0-9a-f]{64}$/.test(token || ''))) {
-                    // A full-list write compares the BASE it was built from
-                    // (which may have fewer/more rows than the new list),
-                    // atomically, against the server's current list.
-                    body.expected_count = revisions.length;
+                if (base) {
+                    // A verified empty base is still a base: count 0 with an
+                    // empty revision map must guard the first external append.
+                    body.expected_count = base.count;
                     body.expected_revisions = Object.fromEntries(
-                        revisions.map((token, index) => [index, token]));
+                        base.revisions.map((token, index) => [index, token]));
                 }
                 let result;
                 try {
@@ -375,10 +420,10 @@
                     }
                     throw error;
                 }
-                applyDatasetRowRevisions(value.name, result.row_revisions, value.rows.length);
+                applyDatasetRowRevisions(value.name, result.row_revisions, value.rows.length, value.rows);
                 state.baseDefinitions = value.rows.map(row => ({ ...row }));
                 state.edits.clear();
-                state.completedSequence = Math.max(state.completedSequence || 0, value.revision || 0);
+                state.completedSequence = Math.max(state.completedSequence || 0, order || value.revision || 0);
                 state.conflicted.clear();
                 state.conflictShown = false;
                 if (state.fullRevision === value.revision) { state.fullRevision = null; }
@@ -386,15 +431,15 @@
             }
             const queuedEdits = value.edits.filter(edit => state.edits.has(edit.index));
             if (!queuedEdits.length) { return; }
-            // Read the base token at write time: only our own acknowledged
-            // commits advance it, so a coalesced draft on the same row still
-            // binds to the now-authoritative revision. An external edit never
-            // advances it (see reconcileDatasetRows), so its CAS fails.
+            // A coalesced draft binds to the same acknowledged base as the
+            // committed chain: only our own receipts advance it, so an
+            // external edit still makes the CAS fail instead of being adopted.
             const edits = queuedEdits.map(edit => ({ index: edit.index, row: edit.row,
-                expected_revision: state.tokens?.[edit.index] }));
+                expected_revision: base ? base.revisions[edit.index] : state.tokens?.[edit.index] }));
             let result;
             try {
-                result = await API.post('/api/dataset_builder/edit_rows', { name: value.name, expected_count: value.count, edits });
+                result = await API.post('/api/dataset_builder/edit_rows', { name: value.name,
+                    expected_count: base ? base.count : value.count, edits });
                 if (!result.row_revisions || edits.some(edit => !/^[0-9a-f]{64}$/.test(result.row_revisions[edit.index] || ''))) {
                     throw new Error('Row save returned no revision acknowledgement');
                 }
@@ -418,7 +463,7 @@
                 state.conflicted.delete(edit.index);
                 if (state.edits.get(edit.index)?.revision === edit.revision) { state.edits.delete(edit.index); }
             });
-            state.completedSequence = Math.max(state.completedSequence || 0, value.revision || 0);
+            state.completedSequence = Math.max(state.completedSequence || 0, order || value.revision || 0);
         }
 
         function isDatasetProjectLoading() {
@@ -430,15 +475,21 @@
         // a metadata ACK can never be applied after a later row ACK carrying
         // an older snapshot of the same rows.
         let dsbCommitTail = null;
+        let dsbCommitOrder = 0;
         function serializeDatasetCommit(write) {
+            // Order is assigned when the write enters the committed chain, NOT
+            // when its debounce slot was enqueued. A metadata change enqueued
+            // first but committed last carries the authoritative after-state;
+            // an enqueue-order guard would discard it as stale.
+            const order = ++dsbCommitOrder;
             // When idle, run synchronously so the first commit is observable
             // immediately; later writes queue behind the previous one.
             const chained = dsbCommitTail !== null;
             let result;
             if (chained) {
-                result = dsbCommitTail.then(write, write);
+                result = dsbCommitTail.then(() => write(order), () => write(order));
             } else {
-                try { result = write(); } catch (error) { result = Promise.reject(error); }
+                try { result = write(order); } catch (error) { result = Promise.reject(error); }
             }
             const settled = Promise.resolve(result).then(() => {}, () => {});
             dsbCommitTail = settled;
@@ -449,12 +500,23 @@
         function ensureDatasetMetaQueue() {
             if (!dsbSaveMetaQueue) {
                 dsbSaveMetaQueue = createSerializedSaveQueue({
-                    write: value => serializeDatasetCommit(async () => {
+                    write: value => serializeDatasetCommit(async order => {
                         const { revision, ...body } = value;
+                        // Bind the metadata mutation to the same acknowledged
+                        // rows as every other write. A matched CAS proves an
+                        // invalidation is our own; a stale one is refused by
+                        // the server instead of silently adopting an external
+                        // edit into the visible model and its token.
+                        const base = datasetOwnBase(ensureDatasetRowSaveState(value.name));
+                        if (base) {
+                            body.expected_count = base.count;
+                            body.expected_revisions = Object.fromEntries(
+                                base.revisions.map((token, index) => [index, token]));
+                        }
                         const result = await API.post('/api/dataset_builder/update_meta', body);
                         if (Array.isArray(result.samples) && Array.isArray(result.row_revisions)) {
                             reconcileDatasetRows(value.name, result.samples, result.row_revisions,
-                                                 { sequence: revision });
+                                                 { own: true, sequence: order });
                         }
                         return result;
                     }),
@@ -467,7 +529,7 @@
         function ensureDatasetRowsQueue() {
             if (!dsbSaveRowsQueue) {
                 dsbSaveRowsQueue = createSerializedSaveQueue({
-                    write: value => serializeDatasetCommit(() => saveDatasetRows(value)),
+                    write: value => serializeDatasetCommit(order => saveDatasetRows(value, order)),
                     onError: error => _toastSaveError('rows', error),
                 });
             }
@@ -613,6 +675,23 @@
                 && 'value' in active);
         }
 
+        // A protected input must never be detached, but its badge and audio
+        // cell are independent of the draft: repaint just those two cells so
+        // a local edit that saves does not leave an obsolete player behind.
+        function dsbRepaintRowStatus(index, row) {
+            const tbody = document.getElementById('dsb-table-body');
+            const existing = tbody?.children?.[index];
+            if (!existing || !existing.children || existing.children.length < 6) { return false; }
+            const temp = document.createElement('tbody');
+            temp.innerHTML = dsbBuildRowHtml(row, index);
+            const fresh = temp.firstElementChild;
+            existing.children[4].replaceWith(fresh.children[4]);
+            existing.children[5].replaceWith(fresh.children[5]);
+            existing.setAttribute('data-dsb-status', row.status || 'pending');
+            existing.setAttribute('data-dsb-audio', row.audio_url || '');
+            return true;
+        }
+
         function dsbRenderTable(changedIndices) {
             applyDatasetTrainingSaveFeedback();
             const tbody = document.getElementById('dsb-table-body');
@@ -640,9 +719,10 @@
                 if (oldStatus === (row.status || 'pending') && oldAudio === (row.audio_url || '')) { continue; }
                 if (protectedRow) {
                     // Never detach a focused/dirty control: a native change on
-                    // detach would otherwise commit a stale visible value. The
-                    // DOM attributes stay stale on purpose, so a later render
-                    // repaints this row once the control is no longer live.
+                    // detach would otherwise commit a stale visible value. Its
+                    // status and audio cells can still follow the acknowledged
+                    // state without touching the protected input.
+                    dsbRepaintRowStatus(i, row);
                     continue;
                 }
                 const temp = document.createElement('tbody');
@@ -905,7 +985,7 @@
                     const serverSamples = result.samples || [];
                     const before = dsbRows.map(row => ({ status: row.status, audio_url: row.audio_url }));
                     const beforeCount = dsbRows.length;
-                    reconcileDatasetRows(name, serverSamples, result.row_revisions);
+                    reconcileDatasetRows(name, serverSamples, result.row_revisions, { own: false });
                     const added = dsbRows.length !== beforeCount;
                     const changed = [];
                     dsbRows.forEach((row, index) => {
