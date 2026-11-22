@@ -49,17 +49,27 @@ def get_pronunciation_path(path=None):
 
     An explicit caller path always wins. Otherwise an isolated
     ALEXANDRIA_DATA_DIR owns the file, while an unconfigured runtime keeps the
-    legacy install-root default. There is deliberately no read-through to the
-    install root when a different data root is configured: two isolated runs
-    must never share (or silently mutate) the same lexicon.
+    legacy install-root default. Admission comes before equivalence: only a
+    verified *direct* directory whose canonical identity is the install root's
+    may fall back to DEFAULT_PATH. A refused alias that realpaths onto the
+    install is never laundered into that fallback - it is refused outright, so
+    no reader or lock can silently land on the install lexicon. A missing/new
+    runtime root keeps its admitted spelling rather than falling back either.
     """
     if path:
         return path
+    from direct_path_admission import get_direct_directory_root, is_plain_path
     from utils import get_runtime_data_dir
     root = get_runtime_data_dir(REPO)
-    if os.path.realpath(root) == os.path.realpath(REPO):
+    if not os.path.exists(root):
+        if not is_plain_path(root):
+            raise ValueError('Pronunciation data root must be a direct directory')
+        return os.path.join(root, "pronunciation.json")
+    canonical, _identity = get_direct_directory_root(root)
+    install, _install_identity = get_direct_directory_root(REPO)
+    if canonical == install:
         return DEFAULT_PATH
-    return os.path.join(root, "pronunciation.json")
+    return os.path.join(str(canonical), "pronunciation.json")
 
 
 _cache = {"path": None, "fingerprint": None, "entries": {}, "pattern": None}

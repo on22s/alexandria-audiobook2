@@ -68,6 +68,27 @@ class PronunciationDataRootTests(unittest.TestCase):
             pronunciation.apply_pronunciation('Rom', str(self.b / 'pronunciation.json'))[0]))
         self.assertEqual(original, install.read_bytes() if install.exists() else None)
 
+    def test_refused_alias_onto_install_never_falls_back_to_it(self):
+        alias = self.base / 'refused-install-alias'
+        alias.symlink_to(pronunciation.REPO, target_is_directory=True)
+        install = Path(pronunciation.DEFAULT_PATH)
+        original = install.read_bytes() if install.exists() else None
+        with self._env(alias):
+            for operation in (pronunciation.get_pronunciation_path, panel.get_pronunciation_document,
+                              lambda: editor.get_audio_repair_revision([])):
+                with self.subTest(operation=operation), self.assertRaises(ValueError):
+                    operation()
+        self.assertEqual(original, install.read_bytes() if install.exists() else None)
+
+    def test_admitted_install_root_keeps_the_legacy_default(self):
+        with self._env(pronunciation.REPO):
+            self.assertEqual(pronunciation.DEFAULT_PATH, pronunciation.get_pronunciation_path())
+
+    def test_missing_new_root_keeps_its_own_spelling(self):
+        new_root = self.base / 'not-created-yet'
+        with self._env(new_root):
+            self.assertEqual(str(new_root / 'pronunciation.json'), pronunciation.get_pronunciation_path())
+
     def test_synthesis_default_and_repair_digest_follow_the_root(self):
         with self._env(self.a):
             speech_a = pronunciation.ensure_speech_pronunciation_result('Rom')

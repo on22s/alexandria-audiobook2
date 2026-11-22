@@ -151,6 +151,7 @@ class GeneratedSpeechPublicationTests(unittest.TestCase):
                         return [tone(.05) for text in kwargs['text']],24000
                     manager.engine=engine
                     with patch.object(pronunciation,'DEFAULT_PATH',str(lexicon)), \
+                            patch.object(pronunciation,'get_pronunciation_path',return_value=str(lexicon)), \
                             patch.object(engine,'_generate_voice_prepared',side_effect=single), \
                             patch.object(engine,'_init_local_custom',return_value=SimpleNamespace(generate_custom_voice=custom)), \
                             patch.dict(sys.modules,{'torch':get_torch()}), \
@@ -190,7 +191,8 @@ class GeneratedSpeechPublicationTests(unittest.TestCase):
         from speech_text import normalize_for_speech
         with tempfile.TemporaryDirectory() as tmp:
             lexicon=Path(tmp)/'lexicon.json'
-            with patch.object(pronunciation,'DEFAULT_PATH',str(lexicon)):
+            with patch.object(pronunciation,'DEFAULT_PATH',str(lexicon)), \
+                    patch.object(pronunciation,'get_pronunciation_path',return_value=str(lexicon)):
                 for content in (None,'{bad','['*2000+'0'+']'*2000):
                     with self.subTest(content='missing' if content is None else content[:8]):
                         if content is None: lexicon.unlink(missing_ok=True)
@@ -228,7 +230,9 @@ class GeneratedSpeechPublicationTests(unittest.TestCase):
                 try:
                     with pronunciation.ensure_pronunciation_snapshot(): return normalize_for_speech('Hero')
                 finally: edited.set()
-            with patch.object(pronunciation,'DEFAULT_PATH',str(lexicon)),ThreadPoolExecutor(max_workers=2) as pool:
+            with patch.object(pronunciation,'DEFAULT_PATH',str(lexicon)), \
+                    patch.object(pronunciation,'get_pronunciation_path',return_value=str(lexicon)), \
+                    ThreadPoolExecutor(max_workers=2) as pool:
                 a,b=pool.submit(first),pool.submit(second)
                 self.assertEqual(('Old.','New.'),(a.result(10),b.result(10)))
             self.assertIsNone(pronunciation._audition_matcher.get())
@@ -263,6 +267,7 @@ class GeneratedSpeechPublicationTests(unittest.TestCase):
                     lexicon.write_text(json.dumps({'Hero':'New'}))
                 return native_worker(index,chunk)
             with patch.object(pronunciation,'DEFAULT_PATH',str(lexicon)), \
+                    patch.object(pronunciation,'get_pronunciation_path',return_value=str(lexicon)), \
                     patch.object(manager,'_generate_captured_chunk_audio',side_effect=ordered_worker), \
                     contextlib.redirect_stdout(io.StringIO()):
                 result=manager.generate_chunks_parallel([0,1],max_workers=2)

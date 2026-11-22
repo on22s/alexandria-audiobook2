@@ -34,6 +34,7 @@ class EditorAudioRepairTests(unittest.TestCase):
                             ('CONFIG_PATH', str(self.root/'config.json'))]:
             active = patch.object(editor, name, value); active.start(); self.addCleanup(active.stop)
         active = patch.object(editor.pronunciation, 'DEFAULT_PATH', str(self.root/'pronunciation.json')); active.start(); self.addCleanup(active.stop)
+        active = patch.object(editor.pronunciation, 'get_pronunciation_path', return_value=str(self.root/'pronunciation.json')); active.start(); self.addCleanup(active.stop)
         app = FastAPI(); app.include_router(editor.router)
         self.client = TestClient(app)
         self.token = editor.get_snapshot_digest(editor.get_editor_book_identity(self.tmp.name))
