@@ -5104,6 +5104,7 @@
   "sound.mixes.listen": "Listen",
   "sound.mixes.loaded": "Saved mixes loaded. Playback verifies audio; approval rechecks current sources and takes.",
   "sound.mixes.loading": "Loading saved mixes…",
+  "sound.mixes.no-active-book": "No active book; render is unavailable. Saved mixes remain visible.",
   "sound.mixes.not-approved": "{size} MiB. No valid approval recorded.",
   "sound.mixes.per-chunk": "Make each dialogue chunk a chapter",
   "sound.mixes.playback-unverified": "Playback could not be verified. Refresh before retrying.",

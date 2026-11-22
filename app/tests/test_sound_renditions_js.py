@@ -123,3 +123,25 @@ requests[4].resolve(current);requests[5].resolve({assets:[asset()]});await tick(
 requests[6].resolve(history());requests[7].resolve({assets:[asset()]});await save;assert.equal(invalidated,1);
 assert(message.textContent.includes('Review the full mix'));
 ''')
+
+    def test_failed_or_malformed_cue_refresh_keeps_the_real_error(self):
+        self.run_js(r'''
+let n=requests.length,p=renditions.recordFromCue(version(),data());
+requests[n].reject(new Error('history offline'));requests[n+1].reject(new Error('history offline'));await p;
+assert(rmessage.textContent.includes('history offline'));assert(!rmessage.textContent.includes('changed'));assert(!rfield('master'));
+n=requests.length;p=renditions.recordFromCue(version(),data());
+requests[n].resolve({...history(),context_revision:'bad'});requests[n+1].resolve({assets:[asset()]});await p;
+assert(rmessage.textContent.includes('Invalid rendition history response.'));assert(!rmessage.textContent.includes('changed'));assert(!rfield('master'));
+''')
+
+    def test_real_cue_history_change_and_stale_history_response_are_distinguished(self):
+        self.run_js(r'''
+let n=requests.length,p=renditions.recordFromCue(version(),data());
+requests[n].resolve({...history(),context_revision:'7'.repeat(64)});requests[n+1].resolve({assets:[asset()]});await p;
+assert(rmessage.textContent.includes('changed'));assert(!rfield('master'));
+const base=requests.length,stale=renditions.recordFromCue(version('old'),data()),latest=renditions.recordFromCue(version('new'),data());
+requests[base+2].resolve(history());requests[base+3].resolve({assets:[asset()]});await latest;
+requests[base].reject(new Error('late failure'));requests[base+1].reject(new Error('late failure'));await stale;
+assert(rbox.querySelectorAll('*').some(n=>n.tagName==='H5'&&n.textContent.includes('new')));
+assert(!rmessage.textContent.includes('late failure'));
+''')

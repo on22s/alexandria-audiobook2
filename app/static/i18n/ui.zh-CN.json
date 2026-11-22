@@ -4578,6 +4578,7 @@
   "sound.mixes.listen": "试听",
   "sound.mixes.loaded": "已加载保存的混音。播放会验证音频；批准会重新检查当前来源和录音。",
   "sound.mixes.loading": "正在加载已保存的混音…",
+  "sound.mixes.no-active-book": "没有活动书籍；无法渲染完整混音。保存的混音仍会显示。",
   "sound.mixes.not-approved": "{size} MiB。没有记录有效的批准。",
   "sound.mixes.per-chunk": "将每个对话分块设为一章",
   "sound.mixes.playback-unverified": "无法验证播放。重试前请刷新。",

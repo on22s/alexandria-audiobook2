@@ -4578,6 +4578,7 @@
   "sound.mixes.listen": "試聴",
   "sound.mixes.loaded": "保存済みミックスを読み込みました。再生は音声を検証し、承認は現在のソースとテイクを再確認します。",
   "sound.mixes.loading": "保存済みミックスを読み込んでいます…",
+  "sound.mixes.no-active-book": "アクティブな本がありません。フルミックスのレンダリングは利用できません。保存済みミックスは表示されます。",
   "sound.mixes.not-approved": "{size} MiB。有効な承認が記録されていません。",
   "sound.mixes.per-chunk": "各対話チャンクを章にする",
   "sound.mixes.playback-unverified": "再生を検証できませんでした。再試行の前に更新してください。",

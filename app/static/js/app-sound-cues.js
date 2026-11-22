@@ -75,17 +75,19 @@ const SoundCues = (() => {
         const response = await fetch(url, options); await API._handleError(response); return response.json();
     }
     async function refresh(page = 0) {
-        if (busy) { return; }
-        if (!Number.isInteger(page) || page < 0 || page > 100000) { return; }
+        if (busy) { return {status: 'busy'}; }
+        if (!Number.isInteger(page) || page < 0 || page > 100000) { return {status: 'invalid'}; }
         const expected = ++sequence; offset = page; view = null;
         el('sound-cues-content').replaceChildren(); message(t('sound.cues.loading', 'Loading cue history and dialogue…'));
         try {
             const [data, library] = await Promise.all([json(`/api/sound_design/cues?offset=${page}&limit=100`), json('/api/sound_design/assets')]);
-            if (expected !== sequence) { return; }
+            if (expected !== sequence) { return {status: 'superseded'}; }
             view = validate(data); assets = SoundAssets.validate(library).filter(row => row.state === 'ready');
             render(); message(t('sound.cues.loaded', 'Cue history loaded. Review a dialogue take before saving a revision.'));
+            return {status: 'loaded', view};
         } catch (error) {
-            if (expected === sequence) { view = null; message(error.message); }
+            if (expected !== sequence) { return {status: 'superseded'}; }
+            view = null; message(error.message); return {status: 'failed'};
         }
     }
     async function action(work) {
@@ -265,12 +267,13 @@ const SoundCues = (() => {
             if (!panel.open) { return; }
         }
         if (invocation !== useSequence) { return; }
-        const expected = sequence + 1; await refresh(offset);
-        if (invocation !== useSequence || sequence !== expected) { return; }
-        if (!view || view.context_revision !== history.context_revision || view.registry_revision !== history.registry_revision
-            || view.book_token !== history.book_token) { message(t('safety.sound.cues.history-changed-master', 'History changed. Refresh recorded renditions before choosing a master.')); return; }
-        const selected = view.registry.selected[record.source.cue_id];
-        const parent = view.registry.versions.find(row => row.version === selected && row.cue_id === record.source.cue_id);
+        const expected = sequence + 1, result = await refresh(offset);
+        if (invocation !== useSequence || sequence !== expected || result.status !== 'loaded') { return; }
+        const current = result.view;
+        if (current.context_revision !== history.context_revision || current.registry_revision !== history.registry_revision
+            || current.book_token !== history.book_token) { message(t('safety.sound.cues.history-changed-master', 'History changed. Refresh recorded renditions before choosing a master.')); return; }
+        const selected = current.registry.selected[record.source.cue_id];
+        const parent = current.registry.versions.find(row => row.version === selected && row.cue_id === record.source.cue_id);
         if (!parent) { message(t('safety.sound.cues.select-before-master', 'Select and review an existing cue revision before using this master.')); return; }
         edit(parent, {record, history});
     }

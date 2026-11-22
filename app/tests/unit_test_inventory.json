@@ -13905,6 +13905,7 @@
   ]
   , "test_sound_cues_js": [
     "tests.test_sound_cues_js.SoundCuesJsTests.test_changed_take_is_visible_and_never_silently_rewrites_history"
+    , "tests.test_sound_cues_js.SoundCuesJsTests.test_failed_or_malformed_master_refresh_keeps_the_real_error"
     , "tests.test_sound_cues_js.SoundCuesJsTests.test_invalid_history_and_asset_responses_do_not_enable_controls"
     , "tests.test_sound_cues_js.SoundCuesJsTests.test_invalid_values_are_refused_before_network_and_failed_anchor_cannot_publish"
     , "tests.test_sound_cues_js.SoundCuesJsTests.test_latest_refresh_wins_and_untrusted_labels_remain_literal"
@@ -13912,6 +13913,7 @@
     , "tests.test_sound_cues_js.SoundCuesJsTests.test_new_cue_converts_all_timing_using_the_explicit_clock"
     , "tests.test_sound_cues_js.SoundCuesJsTests.test_new_cue_requires_an_explicit_valid_clock_before_network"
     , "tests.test_sound_cues_js.SoundCuesJsTests.test_page_navigation_uses_server_offset_and_resets_form"
+    , "tests.test_sound_cues_js.SoundCuesJsTests.test_real_master_history_change_and_stale_master_response_are_distinguished"
     , "tests.test_sound_cues_js.SoundCuesJsTests.test_save_uses_server_anchor_and_frozen_context_and_suppresses_duplicate_click"
     , "tests.test_sound_cues_js.SoundCuesJsTests.test_stale_source_is_labeled_and_exclusion_keeps_exact_cue_identity"
     , "tests.test_sound_cues_js.SoundCuesJsTests.test_unicode_history_and_negative_subsample_fades_are_handled_explicitly"
@@ -14259,6 +14261,8 @@
   , "test_sound_mixes_js": [
     "tests.test_sound_mixes_js.SoundMixesJsTests.test_deliver_saved_approval_and_verified_download_are_identity_bound"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_discard_needs_confirmation_and_binds_inventory_revision"
+    , "tests.test_sound_mixes_js.SoundMixesJsTests.test_failed_context_fetch_reports_the_real_error_and_skips_inventory"
+    , "tests.test_sound_mixes_js.SoundMixesJsTests.test_failed_refresh_after_delivery_does_not_report_a_false_success"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_invalid_inventory_and_missing_book_do_not_enable_render"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_invalidation_drops_pending_inventory_and_approval_without_restoring_controls"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_m4b_metadata_edits_clear_confirmation_and_bind_actual_entered_values"
@@ -14270,14 +14274,17 @@
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_source_pages_replace_text_clear_consent_and_ignore_late_results"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_source_response_limits_precede_json_parsing_and_unavailable_is_explicit"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_source_review_requires_new_explicit_confirmation_and_exact_snapshot"
+    , "tests.test_sound_mixes_js.SoundMixesJsTests.test_successful_context_and_no_active_book_have_truthful_status_and_controls"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_unavailable_profile_preserves_recovery_and_blocks_approval"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_uploaded_preview_requires_image_load_and_explicit_review_and_handles_errors"
   ]
   , "test_sound_renditions_js": [
     "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_cleanup_commits_only_exact_preview_and_does_not_delete_assets"
     , "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_cleanup_protection_stays_locked_after_busy_state_and_selection_change"
+    , "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_failed_or_malformed_cue_refresh_keeps_the_real_error"
     , "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_history_survives_unavailable_assets_and_rejects_approval_claims"
     , "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_late_source_bridge_cannot_replace_newer_form_and_stale_book_refuses_form"
+    , "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_real_cue_history_change_and_stale_history_response_are_distinguished"
     , "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_record_binds_exact_source_and_media_and_requires_renderer_declaration"
     , "tests.test_sound_renditions_js.SoundRenditionsJsTests.test_use_master_binds_current_selected_parent_and_server_anchor"
   ]

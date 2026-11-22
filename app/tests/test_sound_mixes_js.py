@@ -153,8 +153,9 @@ requests[2].resolve({});await tick();requests[3].resolve({context_revision:'c'.r
     def test_invalid_inventory_and_missing_book_do_not_enable_render(self):
         self.run_js(r'''
 await ready([{...row(),frames:Infinity}]);assert.equal(box.querySelectorAll('button').length,0);
-const p=api.refresh();requests.at(-1).reject(new Error('No active book'));await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[row()]});await p;
+const p=api.refresh();requests.at(-1).resolve({},409);await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[row()]});await p;
 assert(!box.querySelectorAll('button').some(n=>n.textContent==='Render full mix'));assert(box.querySelectorAll('button').some(n=>n.textContent==='Discard saved mix'));
+assert(document.getElementById('sound-mixes-status').textContent.includes('No active book'));
 ''')
 
     def test_unavailable_profile_preserves_recovery_and_blocks_approval(self):
@@ -244,3 +245,35 @@ assert.equal(box.querySelectorAll('pre')[0].textContent.length,16384);
 assert(box.querySelectorAll('label').some(n=>n.textContent.includes('without an original-source comparison')));
 assert.strictEqual(box.querySelectorAll('input').at(-1).checked,false);
 """)
+
+    def test_failed_context_fetch_reports_the_real_error_and_skips_inventory(self):
+        self.run_js(r'''
+const status=document.getElementById('sound-mixes-status');
+let p=api.refresh();requests.at(-1).reject(new Error('cues unreachable'));await p;
+assert.equal(box.children.length,0);assert.equal(requests.length,1);
+assert(status.textContent.includes('cues unreachable'));assert(!status.textContent.includes('Saved mixes loaded'));
+p=api.refresh();requests.at(-1).resolve({context_revision:'bad'});await p;
+assert.equal(box.children.length,0);assert.equal(requests.length,2);
+assert(status.textContent.includes('Invalid current book context'));assert(!status.textContent.includes('Saved mixes loaded'));
+''')
+
+    def test_successful_context_and_no_active_book_have_truthful_status_and_controls(self):
+        self.run_js(r'''
+const status=document.getElementById('sound-mixes-status');
+await ready();assert(box.querySelectorAll('button').some(n=>n.textContent==='Render full mix'));
+assert(status.textContent.includes('Saved mixes loaded'));
+const p=api.refresh();requests.at(-1).resolve({},409);await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[row()]});await p;
+assert(!box.querySelectorAll('button').some(n=>n.textContent==='Render full mix'));
+assert(box.querySelectorAll('button').some(n=>n.textContent==='Discard saved mix'));
+assert(status.textContent.includes('No active book'));assert(!status.textContent.includes('Saved mixes loaded'));
+''')
+
+    def test_failed_refresh_after_delivery_does_not_report_a_false_success(self):
+        self.run_js(r'''
+const approved={...row(),approval_status:'recorded',approval_revision:'e'.repeat(64),delivery:{format:'wav'}};
+const status=document.getElementById('sound-mixes-status');
+await ready([approved]);const p=click('Deliver saved WAV approval');
+requests.at(-1).resolve({status:'published',file:'mixed_audiobook.wav',candidate_revision:'b'.repeat(64),approval_revision:'e'.repeat(64),warnings:[],quality:null});
+await tick();requests.at(-1).reject(new Error('refresh dead'));await p;
+assert(status.textContent.includes('refresh dead'));assert(!status.textContent.includes('Published'));
+''')
