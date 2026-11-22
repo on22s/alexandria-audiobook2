@@ -11746,6 +11746,17 @@
     , "tests.test_readalong_sidecar.ReadalongSidecarTests.test_word_map_without_true_trim_is_ambiguous"
     , "tests.test_readalong_sidecar.ReadalongSidecarTests.test_wrong_audio_rejected"
   ]
+  , "test_readalong_timing_preference_reader": [
+    "tests.test_readalong_timing_preference_reader.TimingPreferenceReadTests.test_corrupt_malformed_and_nonregular_states_are_typed"
+    , "tests.test_readalong_timing_preference_reader.TimingPreferenceReadTests.test_editor_reader_enforces_the_same_contract"
+    , "tests.test_readalong_timing_preference_reader.TimingPreferenceReadTests.test_gate_accepts_stable_preference_without_a_swap"
+    , "tests.test_readalong_timing_preference_reader.TimingPreferenceReadTests.test_gate_refuses_stale_expectation_after_swap_during_read"
+    , "tests.test_readalong_timing_preference_reader.TimingPreferenceReadTests.test_growth_during_read_is_refused"
+    , "tests.test_readalong_timing_preference_reader.TimingPreferenceReadTests.test_missing_first_install_keeps_stable_default"
+    , "tests.test_readalong_timing_preference_reader.TimingPreferenceReadTests.test_named_path_identity_change_at_eof_is_refused"
+    , "tests.test_readalong_timing_preference_reader.TimingPreferenceReadTests.test_same_size_atomic_rename_during_read_is_refused"
+    , "tests.test_readalong_timing_preference_reader.TimingPreferenceReadTests.test_truncation_during_read_is_refused"
+  ]
   , "test_readaloud_build_log": [
     "tests.test_readaloud_build_log.ReadaloudBuildLogTests.test_finished_build_log_is_written_and_panel_outcome_stays_last"
     , "tests.test_readaloud_build_log.ReadaloudBuildLogTests.test_unwritable_log_does_not_raise_or_touch_the_panel"
