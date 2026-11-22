@@ -242,23 +242,42 @@ class PreparerRunStateTests(unittest.TestCase):
                 {'word': 'second', 'start': 3.0, 'end': 3.5}],
             'detected_lang': 'en'}))
 
-        def run_enricher(command):
-            self.assertEqual(ROOT / 'llm_enricher.py', Path(command[1]))
-            chunks = json.loads((self.work / 'asr_chunks_for_enrich.json').read_text())
-            self.assertEqual(2, len(chunks))
-            (self.work / 'enriched_segments.json').write_text(json.dumps(chunks))
-            return SimpleNamespace(returncode=0)
+        script = ROOT / 'llm_enricher.py'
+        native_run = subprocess.run
+        owned_phase = preparer.run_phase_with_lock
+
+        def require_owned_enricher(command, **kwargs):
+            self.assertNotEqual(script, Path(command[1]), 'enrichment bypassed the run lock')
+            return native_run(command, **kwargs)
+
+        def run_enricher(command, descriptor):
+            self.assertEqual(script, Path(command[1]))
+            self.assertEqual(2, len(json.loads((self.work / 'asr_chunks_for_enrich.json').read_text())))
+            code = """import os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from alexandria_run_manifest import LOCK_ENV, LOCK_HANDLE_ENV, acquire_run_lock
+assert os.environ.get(LOCK_ENV) or os.environ.get(LOCK_HANDLE_ENV), 'enricher did not inherit the run lock'
+fd = acquire_run_lock('dataset_temp')
+try:
+    Path(sys.argv[3]).write_bytes(Path(sys.argv[2]).read_bytes())
+finally:
+    os.close(fd)
+"""
+            input_file = command[command.index('--input-file') + 1]
+            output_file = command[command.index('--output-file') + 1]
+            return owned_phase([sys.executable, '-c', code, str(ROOT), input_file, output_file], descriptor)
 
         with patch.object(sys, 'argv', ['preparer', '--audio', 'book.wav',
                                         '--model', 'model.gguf', '--phase', 'enrich',
                                         '--chunk-size', '2', '--llm-model-path', 'llm.gguf']), \
              patch.object(preparer, 'LLAMA_CPP_AVAILABLE', True), \
-             patch.object(preparer, 'acquire_run_lock', return_value=1), \
              patch.object(preparer, 'get_run_identity', return_value={}), \
              patch.object(preparer, 'ensure_run_manifest'), \
              patch.object(preparer, 'is_verified_artifact', return_value=True), \
              patch.object(preparer, 'mark_artifact_complete'), \
-             patch.object(preparer.subprocess, 'run', side_effect=run_enricher):
+             patch.object(preparer, 'run_phase_with_lock', side_effect=run_enricher), \
+             patch.object(preparer.subprocess, 'run', side_effect=require_owned_enricher):
             self.assertEqual(0, preparer.main())
 
     def test_keep_unaligned_allows_low_alignment_preflight(self):
