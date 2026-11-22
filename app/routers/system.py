@@ -884,7 +884,10 @@ def _run_llm_test(profile: dict) -> dict:
     # (no log file, no outbound call) and let the caller release the claim.
     try:
         client = make_llm_client(profile, timeout=30, respect_profile_timeout=False)
-    except (MissingAPIKeyError, ValueError) as e:
+    except MissingAPIKeyError:
+        return {"ok": False, "step": "config",
+                "error": "This endpoint needs an API key. Add a key to the LLM profile and try again."}
+    except ValueError as e:
         return {"ok": False, "step": "config", "error": redact_text(str(e))}
     # Step 1: list models (cheap reachability + model-id check)
     try:

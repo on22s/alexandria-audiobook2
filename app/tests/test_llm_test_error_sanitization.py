@@ -112,6 +112,28 @@ class LlmTestErrorSanitizationTests(unittest.TestCase):
                          'Enter a valid endpoint URL and try again.', body['error'])
         release.assert_called_once_with('llm_test', 'owned')
 
+    def test_missing_key_on_accepted_tenant_host_reports_config_step_without_host(self):
+        host = 'synthetic-tenant-4c1d9e2a.thundercompute.net'
+        profile = {'base_url': f'https://{host}/v1', 'api_key': '',
+                   'model_name': 'chosen', 'transport': 'http', 'on_this_gpu': False}
+
+        def make_sdk(**kwargs):
+            self.fail('a missing-key refusal must not construct an SDK client')
+
+        with patch.object(llm_provider, 'OpenAI', side_effect=make_sdk), \
+                patch.object(system, 'claim_gpu_task', return_value='owned'), \
+                patch.object(system, 'release_gpu_task_claim') as release, \
+                TestClient(self.app) as client:
+            response = client.post('/api/llm/test', json=profile)
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual({'ok': False, 'step': 'config',
+                          'error': 'This endpoint needs an API key. '
+                                   'Add a key to the LLM profile and try again.'}, response.json())
+        self.assertNotIn(host, response.text)
+        self.assertNotIn(SECRET, response.text)
+        self.assertNotIn('log_file', response.json())
+        release.assert_called_once_with('llm_test', 'owned')
+
     def test_success_and_model_picker_are_unaffected(self):
         def respond(request):
             if request.url.path.endswith('/models'):

@@ -49,7 +49,10 @@ class DeferredFailureLoggingTests(unittest.TestCase):
         self.assertIn('task', record)
         if error_type:
             self.assertEqual(error_type, record['error_type'])
-            self.assertTrue(record['traceback'])
+            if stage == 'llm_test_failed':
+                self.assertNotIn('traceback', record)
+            else:
+                self.assertTrue(record['traceback'])
         if resource:
             self.assertEqual(hashlib.sha256(os.fsencode(resource)).hexdigest()[:16], record['resource_id'])
         return record
@@ -168,6 +171,39 @@ assert os.environ['ALEXANDRIA_AUTH_PASSWORD'] not in fallback.getvalue()
         self.assertNotIn('error_type', record)
         self.assertNotIn(PRIVATE, Path(path).read_text(encoding='utf-8'))
 
+    def test_llm_test_failure_drops_frames_in_both_files_but_keeps_bounded_fields(self):
+        class CodedError(RuntimeError):
+            status_code = 401
+
+        def build_error():
+            try:
+                try:
+                    raise ValueError('inner ' + PRIVATE)
+                except ValueError as cause:
+                    raise CodedError('outer ' + PRIVATE) from cause
+            except CodedError as error:
+                return error
+
+        resource = 'https://synthetic-tenant-4c1d9e2a.thundercompute.net/v1'
+        with patch.object(system, 'API_LOG_DIR', str(self.root)):
+            path = system._log_llm_failure('test', build_error(), operation='models', resource=resource)
+        record = self.assert_record('llm_test_failed', 'CodedError', resource)
+        self.assertEqual('models', record['operation'])
+        self.assertEqual(401, record['status_code'])
+        self.assertEqual(1, len(record['causes']))
+        self.assertEqual('ValueError', record['causes'][0]['error_type'])
+        self.assertNotIn('traceback', record['causes'][0])
+        expected_hash = hashlib.sha256(os.fsencode(resource)).hexdigest()[:16]
+        central = review_startup.read_trace(review_startup.get_failure_log_path()).decode()
+        for text in (Path(path).read_text(encoding='utf-8'), central):
+            self.assertNotIn('"traceback"', text)
+            self.assertNotIn(PRIVATE, text)
+            self.assertIn('llm_test_failed', text)
+            self.assertIn(expected_hash, text)
+        with patch.object(system, 'API_LOG_DIR', str(self.root)):
+            system._log_llm_failure('optimize', build_error(), operation='reload', resource='synthetic')
+        self.assertTrue(self.assert_record('llm_optimize_failed', 'CodedError')['traceback'])
+
     def test_optional_evaluation_missing_is_normal_but_corruption_is_recorded(self):
         directory = self.root / PRIVATE
         directory.mkdir()
@@ -232,7 +268,8 @@ assert os.environ['ALEXANDRIA_AUTH_PASSWORD'] not in fallback.getvalue()
                 response = system._run_llm_test({'base_url': 'http://localhost/' + PRIVATE, 'api_key': PRIVATE})
                 self.assertEqual(False, response['ok'])
                 self.assertEqual('models', response['step'])
-                self.assertEqual(PRIVATE, response['error'])
+                self.assertEqual('Could not read the model list from the endpoint. '
+                                 'Check the base URL and credentials, then try again.', response['error'])
                 self.assertTrue(Path(response['log_file']).is_file())
             files = [path for path in self.root.glob('llm_*') if path.suffix in ('.log', '.previous')]
             self.assertEqual(2, len(files))
@@ -283,8 +320,10 @@ assert os.environ['ALEXANDRIA_AUTH_PASSWORD'] not in fallback.getvalue()
             chat=SimpleNamespace(completions=SimpleNamespace(create=Mock(side_effect=ValueError(PRIVATE)))))
         with patch.object(system, 'API_LOG_DIR', str(self.root)), patch('llm_provider.make_llm_client', return_value=client), patch.object(system, '_validate_local_llm_base_url'):
             response = system._run_llm_test({'base_url': PRIVATE, 'model_name': PRIVATE, 'api_key': PRIVATE})
-        self.assertEqual({'ok': False, 'step': 'completion', 'error': PRIVATE, 'models': [PRIVATE],
-                          'model_present': True, 'log_file': str(self.root / 'llm_test-latest.log')}, response)
+        self.assertEqual({'ok': False, 'step': 'completion',
+                          'error': 'The test request did not complete. Check the endpoint and model, then try again.',
+                          'models': [PRIVATE], 'model_present': True,
+                          'log_file': str(self.root / 'llm_test-latest.log')}, response)
         record = self.assert_record('llm_test_failed', 'ValueError', PRIVATE)
         self.assertEqual('completion', record['operation'])
         self.assertNotIn(PRIVATE, Path(response['log_file']).read_text(encoding='utf-8'))
