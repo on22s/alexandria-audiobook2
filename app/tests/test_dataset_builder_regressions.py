@@ -67,8 +67,14 @@ class DatasetBuilderRegressionTests(unittest.TestCase):
                     self.assertEqual(200, response.status_code, response.text)
                     saved = dataset_builder._load_builder_state("voice")
                     sample = saved["samples"][0]
-                    self.assertEqual({"status": "ok", "sample_count": 1,
-                                      "row_revisions": [dataset_builder.get_dataset_row_revision(sample)]}, response.json())
+                    self.assertEqual({
+                        "status": "ok",
+                        "sample_count": 1,
+                        "description": "warm",
+                        "global_seed": "0",
+                        "samples": [sample],
+                        "row_revisions": [dataset_builder.get_dataset_row_revision(sample)],
+                    }, response.json())
                     self.assertEqual(seed, sample["seed"])
                     self.assertIs(type(seed), type(sample["seed"]))
                     self.assertEqual("done", sample["status"])
@@ -207,8 +213,13 @@ class DatasetBuilderRegressionTests(unittest.TestCase):
         expected_audio = wav.read_bytes()
         engine = SimpleNamespace(generate_voice_design=Mock(return_value=(str(wav), None)))
         manager = SimpleNamespace(get_engine=lambda: engine)
+        saved = copy.deepcopy(self.state)
+        saved["samples"][0]["text"] = "New text"
+        dataset_builder._save_builder_state("voice", saved)
         request = dataset_builder.DatasetSampleGenRequest(
-            dataset_name="voice", sample_index=0, description="new voice", text="New text", seed=9)
+            dataset_name="voice", sample_index=0, description="new voice", text="New text", seed=9,
+            expected_count=1,
+            expected_revision=dataset_builder.get_dataset_row_revision(saved["samples"][0]))
         with patch.object(dataset_builder, "project_manager", manager), \
              patch.object(dataset_builder, "check_global_gpu_lock"), \
              patch.object(dataset_builder, "claim_gpu_task") as claim:
@@ -318,7 +329,7 @@ class DatasetReferenceIndexTests(unittest.TestCase):
 class GeneratedSampleSeedTests(unittest.TestCase):
     setUp = DatasetBuilderRegressionTests.setUp
 
-    def test_http_regeneration_persists_used_seed_and_preserves_row_fields(self):
+    def test_http_regeneration_uses_persisted_seed_and_preserves_row_fields(self):
         import wave
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
@@ -338,17 +349,23 @@ class GeneratedSampleSeedTests(unittest.TestCase):
              patch.object(dataset_builder.project_manager, "get_engine", return_value=engine):
             for seed in (123, 0, -1):
                 with self.subTest(seed=seed):
-                    request = {"dataset_name": "voice", "sample_index": 0, "description": "warm, calm", "text": " A new line. ", "seed": seed}
+                    request = {"dataset_name": "voice", "sample_index": 0, "description": "warm, calm", "text": " A new line. ", "seed": seed,
+                               "expected_count": 1,
+                               "expected_revision": dataset_builder.get_dataset_row_revision(
+                                   dataset_builder._load_builder_state("voice")["samples"][0])}
                     before = copy.deepcopy(request)
                     source.write_bytes(original)
                     response = client.post("/api/dataset_builder/generate_sample", json=request)
                     self.assertEqual(200, response.status_code, response.text)
                     row = dataset_builder._load_builder_state("voice")["samples"][0]
-                    self.assertEqual(seed, row["seed"])
-                    self.assertEqual(seed, engine.generate_voice_design.call_args.kwargs["seed"])
+                    self.assertEqual("0", row["seed"])
+                    self.assertEqual(0, row["generated_seed"])
+                    self.assertEqual(response.json()["row_revision"],
+                                     dataset_builder.get_dataset_row_revision(row))
+                    self.assertEqual(0, engine.generate_voice_design.call_args.kwargs["seed"])
                     self.assertEqual("calm", row["emotion"])
                     self.assertEqual("done", row["status"])
-                    self.assertEqual("A new line.", row["text"])
+                    self.assertEqual("A sample line.", row["text"])
                     self.assertEqual(original, (self.root / "voice/sample_000.wav").read_bytes())
                     self.assertFalse(source.exists())
                     self.assertFalse(dataset_builder.process_state["dataset_builder"]["running"])
@@ -422,7 +439,8 @@ class DatasetBenchmarkThreadTests(unittest.TestCase):
             return response
         def start_thread(*args, **kwargs):
             worker = real_thread(*args, **kwargs)
-            threads.append(worker)
+            if getattr(kwargs.get("target"), "__name__", "") == "_run_owned_background_task":
+                threads.append(worker)
             return worker
         with tempfile.TemporaryDirectory() as tmp:
             wav = Path(tmp) / "source.wav"
@@ -536,7 +554,7 @@ class DatasetAudioRevisionTests(unittest.TestCase):
                     self.assertEqual(array.array('h', [1024 * index] * 1200).tobytes(), audio.readframes(1200))
                 self.assertFalse(dataset_builder.process_state["dataset_builder"]["running"])
         self.assertEqual(4, len(set(urls)), urls)
-        self.assertEqual([3] * 4, [call["seed"] for call in calls])
+        self.assertEqual([0] * 4, [call["seed"] for call in calls])
 
 
 if __name__ == "__main__":

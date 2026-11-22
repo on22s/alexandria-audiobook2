@@ -265,6 +265,8 @@ curl -X POST http://127.0.0.1:4200/api/dataset_builder/generate_sample \
   -H "Content-Type: application/json" \
   -d '{"dataset_name": "my_voice_dataset", "sample_index": 0, "description": "A warm male voice, cheerful", "text": "Hello world.", "seed": -1}'
 
+# 对已存在的行，生成时会使用已保存的文本以及项目当前的根描述/全局种子；
+# 下面的字段只在首次创建行时使用。
 # render several samples in the background
 curl -X POST http://127.0.0.1:4200/api/dataset_builder/generate_batch \
   -H "Content-Type: application/json" \
