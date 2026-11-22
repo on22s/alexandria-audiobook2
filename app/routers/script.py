@@ -3299,6 +3299,59 @@ def build_recovery_detail(checkpoint):
     }
 
 
+def get_pass2_recovery_evidence(checkpoint):
+    """The source and cast evidence the failed pass-2 batch was gated with.
+
+    Pass 1 froze these entries against the source, so checkpoint["segmented"]
+    at failed["indices"] is the source text the live gate read; failed.entries
+    carries the same text on checkpoints whose segmented slice is unavailable.
+    The roster and the hash-bound frozen cast are the run's cast evidence. A
+    stale or missing cast only loses the extra names it supplied - it never
+    loosens the source check. Without any usable source text, refuse instead of
+    falling back to a source-less gate (which cannot reject an invented name).
+    """
+    failed = checkpoint["failed"]
+    segmented = checkpoint.get("segmented")
+    indices = failed.get("indices")
+    texts = None
+    if (isinstance(indices, list) and indices and isinstance(segmented, list)
+            and all(isinstance(i, int) and 0 <= i < len(segmented)
+                    and isinstance(segmented[i], dict)
+                    and isinstance(segmented[i].get("text"), str)
+                    and segmented[i]["text"] for i in indices)):
+        texts = [segmented[i]["text"] for i in indices]
+    else:
+        entries = failed.get("entries")
+        if (isinstance(entries, list) and entries
+                and all(isinstance(entry, dict)
+                        and isinstance(entry.get("text"), str)
+                        and entry["text"] for entry in entries)):
+            texts = [entry["text"] for entry in entries]
+    if not texts:
+        raise HTTPException(status_code=409, detail=(
+            "The failed batch has no source text to validate against; "
+            "the checkpoint was preserved. Start a new run."))
+    roster = [name for name in (failed.get("roster") or [])
+              if isinstance(name, str) and name]
+    known_names = set(roster)
+    aliases = {}
+    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+    options = state.get("script_generation_options") if isinstance(state, dict) else None
+    expected = options.get("cast_sha256") if isinstance(options, dict) else None
+    cast_path = get_run_cast_path()
+    if isinstance(expected, str) and expected == get_file_sha256(cast_path):
+        try:
+            from three_pass_generate import load_cast
+            cast = load_cast(cast_path)
+        except (OSError, ValueError, UnicodeError):
+            cast = None
+        if cast:
+            known_names |= set(cast.get("known_names") or ())
+            aliases = dict(cast.get("alias_to_name") or {})
+    return {"source_text": "\n".join(texts), "known_names": known_names,
+            "established_names": roster, "speaker_aliases": aliases}
+
+
 def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
                           *, pass_fallback=False):
     """Accept hand-supplied output for the failed unit through the SAME gate
@@ -3324,7 +3377,12 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
         failed = checkpoint["failed"]
         if failed.get("pass") == "attribute":
             frozen = failed.get("entries") or []
-            report = validate_attribution(frozen, entries, None)
+            evidence = get_pass2_recovery_evidence(checkpoint)
+            report = validate_attribution(
+                frozen, entries, evidence["source_text"],
+                known_names=evidence["known_names"],
+                established_names=evidence["established_names"],
+                speaker_aliases=evidence["speaker_aliases"])
             if not report.get("passed"):
                 return {"accepted": False, "report": report}
             by_n = {int(e["n"]): e for e in entries}

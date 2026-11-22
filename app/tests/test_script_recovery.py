@@ -4,6 +4,7 @@ nothing-lost skip."""
 import asyncio
 import copy
 import core
+import hashlib
 from contextlib import contextmanager, redirect_stdout
 import io
 import json
@@ -13,7 +14,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 
 from routers import script as script_module
 from three_pass_generate import three_pass_checkpoint_path, three_pass_manifest_path
@@ -282,6 +284,105 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual("narrated_as_is", result["resolution"])
         self.assertEqual(["NARRATOR", "UNKNOWN", "NARRATOR", "UNKNOWN"],
                          [e["speaker"] for e in checkpoint["named"]])
+
+    def _inject_http(self, entries, setup=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            script_path = _write_failed_attribute_run(tmp)
+            checkpoint_path = three_pass_checkpoint_path(script_path)
+            if setup is not None:
+                setup(tmp)
+            with open(checkpoint_path, "rb") as handle:
+                before = handle.read()
+            app = FastAPI()
+            app.include_router(script_module.router)
+            previous = script_module.process_state["script"]["running"]
+            script_module.process_state["script"]["running"] = False
+            try:
+                with patch.object(script_module, "SCRIPT_PATH", script_path), \
+                     patch.object(script_module, "DATA_DIR", tmp), \
+                     patch.object(script_module, "CONFIG_PATH", os.path.join(tmp, "config.json")):
+                    with TestClient(app) as client:
+                        response = client.post("/api/generate_script/inject",
+                                               json={"entries": entries})
+                with open(checkpoint_path, "rb") as handle:
+                    after = handle.read()
+                return response, before, after
+            finally:
+                script_module.process_state["script"]["running"] = previous
+
+    def test_attribute_inject_refuses_invented_speaker_and_preserves_checkpoint(self):
+        response, before, after = self._inject_http([
+            {"n": 0, "speaker": "FUTURE_ME"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "WATSON"}])
+        self.assertEqual(422, response.status_code)
+        self.assertEqual(["speaker_not_in_source"],
+                         [f["code"] for f in response.json()["detail"]["findings"]])
+        self.assertEqual(before, after)
+
+    def test_attribute_inject_accepts_roster_and_frozen_cast_alias(self):
+        def setup(tmp):
+            cast = json.dumps([{"name": "HOLMES", "aliases": ["SHERLOCK"]},
+                               {"name": "WATSON", "aliases": ["JOHN"]}]).encode("utf-8")
+            with open(os.path.join(tmp, "script_run_cast.json"), "wb") as handle:
+                handle.write(cast)
+            state_path = os.path.join(tmp, "state.json")
+            with open(state_path, encoding="utf-8") as handle:
+                state = json.load(handle)
+            state["script_generation_options"] = {
+                "cast_sha256": hashlib.sha256(cast).hexdigest()}
+            with open(state_path, "w", encoding="utf-8") as handle:
+                json.dump(state, handle)
+
+        response, _, _ = self._inject_http([
+            {"n": 0, "speaker": "SHERLOCK"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "WATSON"}], setup=setup)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("manual", response.json()["resolution"])
+
+    def test_attribute_inject_ignores_a_stale_or_missing_frozen_cast(self):
+        def setup_factory(cast):
+            def setup(tmp):
+                state_path = os.path.join(tmp, "state.json")
+                with open(state_path, encoding="utf-8") as handle:
+                    state = json.load(handle)
+                state["script_generation_options"] = {"cast_sha256": "a" * 64}
+                with open(state_path, "w", encoding="utf-8") as handle:
+                    json.dump(state, handle)
+                if cast is not None:
+                    with open(os.path.join(tmp, "script_run_cast.json"), "wb") as handle:
+                        handle.write(cast)
+            return setup
+
+        for cast in (b'[{"name":"HOLMES","aliases":["SHERLOCK"]}]', None):
+            with self.subTest(cast=cast):
+                response, _, _ = self._inject_http([
+                    {"n": 0, "speaker": "SHERLOCK"},
+                    {"n": 1, "speaker": "NARRATOR"},
+                    {"n": 2, "speaker": "WATSON"}], setup=setup_factory(cast))
+                self.assertEqual(422, response.status_code)
+                self.assertEqual(["speaker_not_in_source"],
+                                 [f["code"] for f in response.json()["detail"]["findings"]])
+
+    def test_attribute_inject_without_recoverable_source_is_refused(self):
+        def setup(tmp):
+            checkpoint_path = three_pass_checkpoint_path(
+                os.path.join(tmp, "annotated_script.json"))
+            with open(checkpoint_path, encoding="utf-8") as handle:
+                checkpoint = json.load(handle)
+            checkpoint["segmented"] = []
+            checkpoint["failed"]["entries"] = [{"type": "SPOKEN", "text": ""}]
+            with open(checkpoint_path, "w", encoding="utf-8") as handle:
+                json.dump(checkpoint, handle)
+
+        response, before, after = self._inject_http([
+            {"n": 0, "speaker": "HOLMES"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "WATSON"}], setup=setup)
+        self.assertEqual(409, response.status_code)
+        self.assertIn("no source text", response.json()["detail"])
+        self.assertEqual(before, after)
 
     def test_old_instruct_checkpoint_inject_keeps_direction_less_rows(self):
         request = script_module.InjectSegmentationRequest(entries=[
