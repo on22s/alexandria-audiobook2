@@ -10718,14 +10718,23 @@
                     return;
                 }
                 pending = true;
+                let completed = false;
                 try {
                     const data = await fetchFn();
                     if (myGen !== _pollGen[key]) { return; }
                     consecutiveErrors = 0;
-                    if (onTick) { await onTick(data); }
-                    if (!data?.ownership_unconfirmed && doneCheck(data)) {
-                        if (onDone) { onDone(data); }
-                        return;
+                    let handler = 'onTick';
+                    try {
+                        if (onTick) { await onTick(data); }
+                        handler = 'doneCheck';
+                        if (myGen !== _pollGen[key]) { return; }
+                        if (!data?.ownership_unconfirmed && doneCheck(data)) {
+                            completed = true;
+                            handler = 'onDone';
+                            if (onDone) { await onDone(data); }
+                        }
+                    } catch (e) {
+                        console.error(`Poll ${handler} error (${key}):`, e);
                     }
                 } catch (e) {
                     consecutiveErrors++;
@@ -10742,7 +10751,7 @@
                 } finally {
                     pending = false;
                 }
-                if (myGen === _pollGen[key]) { setTimeout(tick, intervalMs); }
+                if (!completed && myGen === _pollGen[key]) { setTimeout(tick, intervalMs); }
             };
             if (immediate) { tick(); } else { setTimeout(tick, intervalMs); }
             // Callers that need to stop a poll before its own doneCheck fires
