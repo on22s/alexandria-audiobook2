@@ -109,6 +109,54 @@ MP3_BITRATE = "128k"
 
 _PREFERENCE_DEVICE_RE = re.compile(r"^(auto|cpu|cuda:[0-9]+)$")
 _PREFERENCE_LANGUAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
+_MAX_METADATA_BYTES = 16384
+
+
+def read_bounded_metadata_bytes(path, *, file_description="Timing preference"):
+    """Read one bounded regular file's exact bytes with identity fencing.
+
+    Single source of the bounded-metadata read contract shared by the
+    production timing preference reader and the Editor's raw-metadata
+    reads. Returns None only for a genuinely missing file. A present
+    file that is a symlink, nonregular, oversized, truncated, grown, or
+    replaced (in place or by atomic rename) during the read is refused
+    before any caller can act on its bytes. The descriptor version, the
+    exact byte count and the named-path version are all revalidated
+    after the final byte is read.
+    """
+    import stat as _stat
+    from audio_take_history import _version
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    if _stat.S_ISLNK(info.st_mode) or not _stat.S_ISREG(info.st_mode) \
+            or info.st_size > _MAX_METADATA_BYTES:
+        raise ValueError("%s is not a bounded regular file." % file_description)
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) \
+        | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if not _stat.S_ISREG(opened.st_mode) or _version(opened) != _version(info):
+            raise ValueError("%s changed during read." % file_description)
+        chunks = []
+        total = 0
+        while True:
+            block = os.read(descriptor, 8192)
+            if not block:
+                break
+            total += len(block)
+            if total > _MAX_METADATA_BYTES:
+                raise ValueError("%s exceeds its bound." % file_description)
+            chunks.append(block)
+        if (total != opened.st_size
+                or _version(os.fstat(descriptor)) != _version(opened)
+                or _version(os.lstat(path)) != _version(opened)):
+            raise ValueError("%s changed during read." % file_description)
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
 
 
 def get_readaloud_timing_preference(data_dir):
@@ -123,45 +171,22 @@ def get_readaloud_timing_preference(data_dir):
     always a safe token.
     """
     import json as _json
-    import stat as _stat
     path = os.path.join(data_dir, "readalong_timing.json")
     try:
-        info = os.lstat(path)
-    except FileNotFoundError:
+        data = read_bounded_metadata_bytes(path)
+    except (OSError, ValueError) as error:
+        reason = ("not a bounded regular file"
+                  if "not a bounded regular file" in str(error)
+                  else "unreadable JSON")
+        raise ValueError(
+            "Persisted timing preference is corrupt (%s); "
+            "restore a valid preference and rebuild." % reason) from error
+    if data is None:
         return {"timing_mode": "auto", "timing_device": "auto",
                 "timing_language": None}
-    except OSError as error:
-        raise ValueError(
-            "Persisted timing preference is corrupt (unreadable JSON); "
-            "restore a valid preference and rebuild.") from error
-    # Bounded regular-file read: three small scalars only, so a
-    # present file that is a symlink/FIFO/oversized is corrupt state
-    # and is refused explicitly rather than silently defaulted.
-    if _stat.S_ISLNK(info.st_mode) or not _stat.S_ISREG(info.st_mode) \
-            or info.st_size > 16384:
-        raise ValueError(
-            "Persisted timing preference is corrupt (not a bounded "
-            "regular file); restore a valid preference and rebuild.")
     try:
-        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) \
-            | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
-        descriptor = os.open(path, flags)
-        try:
-            opened = os.fstat(descriptor)
-            if not _stat.S_ISREG(opened.st_mode) or opened.st_size != info.st_size:
-                raise ValueError("changed during read")
-            data = b""
-            while True:
-                block = os.read(descriptor, 8192)
-                if not block:
-                    break
-                data += block
-                if len(data) > 16384:
-                    raise ValueError("oversized")
-        finally:
-            os.close(descriptor)
         raw = _json.loads(data.decode("utf-8"))
-    except (OSError, ValueError, RecursionError) as error:
+    except (ValueError, UnicodeError, RecursionError) as error:
         raise ValueError(
             "Persisted timing preference is corrupt (unreadable JSON); "
             "restore a valid preference and rebuild.") from error
