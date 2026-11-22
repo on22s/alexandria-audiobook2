@@ -18,6 +18,37 @@ context.dsbUpdateRow(0,'text','edited A');run('dsbSaveRows();dsbSaveForm()');awa
 resolve({description:'B voice',samples:[{text:'B row',emotion:'cold',seed:2,status:'pending'}],running:false});await loading;assert.strictEqual(run('dsbLoadedProject'),'B');context.dsbUpdateRow(0,'text','edited B');await flushTimers();assert.strictEqual(posts.length,1);assert.strictEqual(posts[0].data.name,'B');assert.strictEqual(posts[0].data.rows[0].text,'edited B');finished=true;
 ''')
 
+    def test_stale_project_load_cannot_expose_export_for_another_project(self):
+        self.run_scenario(r'''
+const token = 'a'.repeat(64);
+run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'A row',emotion:'',seed:''}]");
+const select = context.document.getElementById('dsb-project-select');
+const form = context.document.getElementById('dsb-form-area');
+const held = {};
+context.API.get = url => new Promise(resolve => { held[url.split('/').pop()] = resolve; });
+const status = name => ({description:name, samples:[{text:name+' row',emotion:'',seed:''}],
+                         row_revisions:[token], running:false, logs:[]});
+select.value = 'B';
+const older = context.dsbOnProjectChange();
+await new Promise(resolve => setImmediate(resolve));
+select.value = 'C';
+const latest = context.dsbOnProjectChange();
+await new Promise(resolve => setImmediate(resolve));
+held.B(status('B'));
+await older;
+assert.strictEqual(form.style.display, 'none', 'B cannot expose the form before C loads');
+held.C(status('C'));
+await latest;
+assert.strictEqual(form.style.display, '');
+let contents, filename;
+context.Blob = class { constructor(parts) { contents = JSON.parse(parts.join('')); } };
+context.URL = {createObjectURL: () => 'blob:fixture', revokeObjectURL() {}};
+context.document.createElement = () => ({click() { filename = this.download; }});
+context.dsbExport();
+assert.strictEqual(filename, 'C_script.json');
+assert.deepStrictEqual(contents, [{emotion:'',text:'C row'}]);
+''')
+
     def test_status_responses_cannot_overwrite_pending_or_completed_optimization(self):
         self.run_scenario(r'''
 let finished=false;process.on('beforeExit',()=>assert(finished,'status assertions must finish'));

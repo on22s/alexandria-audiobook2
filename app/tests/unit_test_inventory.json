@@ -4394,6 +4394,7 @@
     , "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_scientific_seed_values_reach_generation_and_export_without_truncation"
     , "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_single_object_ack_is_applied_by_index_and_retry_uses_it"
     , "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_stale_metadata_ack_is_ignored_after_a_newer_row_ack"
+    , "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_stale_project_load_cannot_expose_export_for_another_project"
     , "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_status_responses_cannot_overwrite_pending_or_completed_optimization"
     , "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_training_save_flushes_rows_and_marks_later_edits_or_regeneration_stale"
     , "tests.test_dataset_ui_ownership_js.DatasetUiOwnershipJsTests.test_training_save_refuses_changed_confirmation_flush_and_old_owner_ack"

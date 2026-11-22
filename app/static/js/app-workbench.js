@@ -125,8 +125,11 @@
             }
             try {
                 const result = prefetched || await datasetFetchStatus(name, { loadSequence });
-                if (!result || loadSequence !== dsbProjectLoadSequence || !isDatasetProjectSelected(name)) {
-                    document.getElementById('dsb-form-area').style.display = '';
+                if (loadSequence !== dsbProjectLoadSequence || !isDatasetProjectSelected(name)) { return; }
+                if (!result) {
+                    if (dsbLoadedProject === name) {
+                        document.getElementById('dsb-form-area').style.display = '';
+                    }
                     return;
                 }
                 finishDatasetLoad(name, result);
