@@ -8228,6 +8228,12 @@
     , "tests.test_llm_review_regressions.ReviewVramTests.test_vram_full_at_start_skips_every_batch_as_incomplete"
     , "tests.test_llm_review_regressions.ReviewVramTests.test_watchdog_checks_both_gpu_backends_and_keeps_zero_usage"
   ]
+  , "test_llm_test_error_sanitization": [
+    "tests.test_llm_test_error_sanitization.LlmTestErrorSanitizationTests.test_completion_exception_never_leaks_provider_text"
+    , "tests.test_llm_test_error_sanitization.LlmTestErrorSanitizationTests.test_models_exception_never_leaks_provider_text"
+    , "tests.test_llm_test_error_sanitization.LlmTestErrorSanitizationTests.test_success_and_model_picker_are_unaffected"
+    , "tests.test_llm_test_error_sanitization.LlmTestErrorSanitizationTests.test_validation_exception_never_leaks_provider_text"
+  ]
   , "test_lmstudio_cache_lifetime": [
     "tests.test_lmstudio_cache_lifetime.StatusCacheLifetimeTests.test_active_and_waiting_same_key_lock_survives_expiration_and_other_key_churn"
     , "tests.test_lmstudio_cache_lifetime.StatusCacheLifetimeTests.test_failed_fetch_releases_unused_lock_without_caching_success"
