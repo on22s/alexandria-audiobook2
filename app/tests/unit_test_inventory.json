@@ -3000,6 +3000,7 @@
     , "tests.test_chapter_input_safety_js.ChapterInputSafetyJsTests.test_import_latest_selection_owns_storage_and_error_feedback"
     , "tests.test_chapter_input_safety_js.ChapterInputSafetyJsTests.test_import_size_is_checked_before_reader_and_boundary_valid_file_round_trips"
     , "tests.test_chapter_input_safety_js.ChapterInputSafetyJsTests.test_invalid_range_is_visible_and_neither_preview_nor_export_sends_request"
+    , "tests.test_chapter_input_safety_js.ChapterInputSafetyJsTests.test_malformed_selection_blocks_both_actions_and_only_blank_means_all"
     , "tests.test_chapter_input_safety_js.ChapterInputSafetyJsTests.test_overwrite_requires_decision_and_rechecks_settings_and_storage"
     , "tests.test_chapter_input_safety_js.ChapterInputSafetyJsTests.test_preview_count_and_export_use_current_selection_and_reject_stale_responses"
     , "tests.test_chapter_input_safety_js.ChapterInputSafetyJsTests.test_prototype_sensitive_alias_and_preset_names_survive_json_save_reload_delete"

@@ -89,6 +89,24 @@ await handlers['chapter-export-btn']();assert.strictEqual(requests.length,0);ass
 el('chapter-selection').value='1,3-4';await handlers['chapter-preview-btn']();assert.strictEqual(requests.length,1);const query=new URL(requests[0],'http://fixture').searchParams;assert.deepStrictEqual(query.getAll('chapters'),['0','2','3']);
 ''')
 
+    def test_malformed_selection_blocks_both_actions_and_only_blank_means_all(self):
+        self.run_js(r'''
+for (const text of ['Chapter 3', '1-5, 7x', '3-', '0-5', '5-3', '0x10', '1e2', ', ,']) {
+    el('chapter-selection').value = text;
+    await handlers['chapter-preview-btn']();
+    assert.strictEqual(requests.length, 0, text);
+    assert.match(toasts.at(-1)[0], /Enter chapter numbers/);
+    await handlers['chapter-export-btn']();
+    assert.strictEqual(requests.length, 0, text);
+    assert.match(el('chapter-status').innerHTML, /Enter chapter numbers/);
+}
+el('chapter-selection').value = ' , 3, 1 - 2, ';
+await handlers['chapter-export-btn']();
+assert.deepStrictEqual(Array.from(requests.at(-1).data.chapters), [0, 1, 2]);
+el('chapter-selection').value = '   ';
+assert.strictEqual(ctx.parseChapterSelection(el('chapter-selection').value), null);
+''')
+
     def test_import_size_is_checked_before_reader_and_boundary_valid_file_round_trips(self):
         self.run_js(r'''
 for(const size of [1048577,4*1024**3]){const input={files:[{size,text:async()=>'{"large":{"template":"fixture"}}'}],value:'selected'};ctx.importChapterTemplatePresets(input);assert.strictEqual(input.value,'');assert.strictEqual(readers.length,0);assert.match(toasts.at(-1)[0],/1 MiB limit/);assert.strictEqual(storage.size,0);}
