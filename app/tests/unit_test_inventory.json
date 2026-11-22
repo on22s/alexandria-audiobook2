@@ -12437,6 +12437,16 @@
     , "tests.test_review_active_prompt_validation.ActiveReviewPromptStartTests.test_invalid_active_prompt_stops_before_client_creation"
     , "tests.test_review_active_prompt_validation.ActiveReviewPromptStartTests.test_labels_only_ignores_the_active_prompt"
   ]
+  , "test_review_bidirectional_resume": [
+    "tests.test_review_bidirectional_resume.AcceptedBoundaryTests.test_failed_batch_makes_aggregate_wording_independent_of_final_checks"
+    , "tests.test_review_bidirectional_resume.AcceptedBoundaryTests.test_split_source_never_invents_output_lengths_and_resumes_after_split"
+    , "tests.test_review_bidirectional_resume.DirectionalResumeTests.test_changed_companion_or_input_invalidates_proof"
+    , "tests.test_review_bidirectional_resume.DirectionalResumeTests.test_force_executes_forward_and_keeps_old_fact_until_success"
+    , "tests.test_review_bidirectional_resume.DirectionalResumeTests.test_forward_and_backward_facts_survive_and_third_run_reuses"
+    , "tests.test_review_bidirectional_resume.DirectionalResumeTests.test_legacy_forward_proof_is_persisted_before_backward_runs"
+    , "tests.test_review_bidirectional_resume.DirectionalResumeTests.test_legacy_forward_receipt_resolves_with_unknown_counts"
+    , "tests.test_review_bidirectional_resume.DirectionalResumeTests.test_malformed_fact_never_yields_completion"
+  ]
   , "test_review_change_accounting": [
     "tests.test_review_change_accounting.ReviewAccountingTests.test_actual_frontend_displays_supplied_warning_and_escapes_live_totals"
     , "tests.test_review_change_accounting.ReviewAccountingTests.test_actual_separate_input_repeated_rewind_counts_one_edit_once_in_both_modes"
@@ -12469,6 +12479,20 @@
     , "tests.test_review_checkpoint_deltas.ReviewResumeCoordinateTests.test_actual_review_cli_keeps_unreviewed_tail_after_a_split_in_both_modes"
     , "tests.test_review_checkpoint_deltas.ReviewResumeCoordinateTests.test_failed_batch_rewind_truncates_recorded_source_offsets"
     , "tests.test_review_checkpoint_deltas.ReviewResumeCoordinateTests.test_source_and_published_output_resume_in_their_own_coordinate_spaces"
+  ]
+  , "test_review_checkpoint_disposition": [
+    "tests.test_review_checkpoint_disposition.DispositionTextTests.test_batch_failure_plus_headroom_abort_never_claims_all_rows"
+    , "tests.test_review_checkpoint_disposition.DispositionTextTests.test_live_and_markdown_mixed_summary_keeps_both_facts"
+    , "tests.test_review_checkpoint_disposition.DispositionTextTests.test_saved_report_respects_explicit_complete_and_keeps_fallback"
+    , "tests.test_review_checkpoint_disposition.LegacyResumeTests.test_contextual_skip_keeps_the_same_safe_boundary"
+    , "tests.test_review_checkpoint_disposition.LegacyResumeTests.test_noncontextual_skip_rewinds_before_unresolved_batch"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_all_writes_fail_never_claims_a_verified_checkpoint"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_compact_failure_keeps_same_input_deltas_but_not_changed_input"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_failed_section_marker_ordinal_matches_next_model_call"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_in_place_retry_after_a_split_rewinds_to_the_failed_input"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_in_place_split_with_no_checkpoint_omits_retry_offset"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_legacy_in_place_split_resumes_after_the_corrected_rows"
+    , "tests.test_review_checkpoint_disposition.RetryDispositionTests.test_misaligned_in_place_split_can_publish_partial_output"
   ]
   , "test_review_checkpoint_summary": [
     "tests.test_review_checkpoint_summary.ReviewCheckpointSummaryTests.test_actual_http_listing_skips_file_removed_at_stat_and_keeps_other_checkpoint"
@@ -12527,6 +12551,18 @@
     , "tests.test_review_dedupe_progress.MergeStageHintTests.test_stage_hint_recognises_the_merge_line_under_a_batch_log_prefix"
     , "tests.test_review_dedupe_progress.MergeStageHintTests.test_stage_hint_still_prefers_the_review_batch_while_reviewing"
   ]
+  , "test_review_directional_proof": [
+    "tests.test_review_directional_proof.DirectionalProofTests.test_balanced_split_and_merge_never_infer_batch_lengths"
+    , "tests.test_review_directional_proof.DirectionalProofTests.test_post_publication_replacement_receives_no_completion_fact"
+    , "tests.test_review_directional_proof.DirectionalProofTests.test_reused_report_keeps_published_entry_counts"
+    , "tests.test_review_directional_proof.DirectionalProofTests.test_unknown_version_and_malformed_path_are_cache_misses_even_when_forced"
+    , "tests.test_review_directional_proof.DirectionalProofTests.test_unrelated_backward_cannot_certify_a_forward_pass"
+    , "tests.test_review_directional_proof.ReportAndRouteTests.test_all_failed_checkpoint_writes_do_not_promise_resume"
+    , "tests.test_review_directional_proof.ReportAndRouteTests.test_mixed_report_keeps_final_check_warning_independently"
+  ]
+  , "test_review_duplex_retry": [
+    "tests.test_review_duplex_retry.DirectionalEvidenceFailClosedTests.test_no_book_colliding_sidecar_and_no_unverified_forward_reuse"
+  ]
   , "test_review_failure_message": [
     "tests.test_review_failure_message.ReviewFailureMarkerTests.test_fatal_cli_path_emits_the_marker_and_reraises"
     , "tests.test_review_failure_message.ReviewFailureMarkerTests.test_js_start_over_decision_uses_the_kind_literal_from_python"
@@ -12538,6 +12574,34 @@
     , "tests.test_review_failure_message.ReviewFailureStatusTests.test_resume_refusal_reaches_status_through_the_real_route"
     , "tests.test_review_failure_message.ReviewFailureStatusTests.test_run_process_stores_message_and_kind_and_clears_both"
     , "tests.test_review_failure_message.ReviewFailureStatusTests.test_status_route_returns_both_fields"
+  ]
+  , "test_review_final_boundaries": [
+    "tests.test_review_final_boundaries.LegacyBoundaryTests.test_three_invocations_keep_accepted_batch_without_inventing_lengths"
+    , "tests.test_review_final_boundaries.LegacyBoundaryTests.test_verified_retry_offset_uses_real_loader_and_rejects_stale_checkpoint"
+    , "tests.test_review_final_boundaries.StageAndReportTests.test_contextual_abort_counts_all_untouched_rows"
+    , "tests.test_review_final_boundaries.StageAndReportTests.test_explicit_complete_suppresses_historical_warnings"
+    , "tests.test_review_final_boundaries.StageAndReportTests.test_mixed_aggregate_reason_is_not_blanket_all_reviewed"
+  ]
+  , "test_review_followup_2222": [
+    "tests.test_review_followup_2222.BatchPassCheckpointTests.test_clean_forward_keeps_checkpoint_and_runs_hindsight"
+    , "tests.test_review_followup_2222.BatchPassCheckpointTests.test_explicit_restart_discards_progress_once_per_book"
+    , "tests.test_review_followup_2222.BatchPassCheckpointTests.test_incomplete_forward_keeps_checkpoint_and_skips_hindsight"
+    , "tests.test_review_followup_2222.DispositionTests.test_legacy_stats_fall_back_to_counters"
+    , "tests.test_review_followup_2222.DispositionTests.test_post_processing_abort_reports_all_rows_and_withheld_publication"
+    , "tests.test_review_followup_2222.DispositionTests.test_skipped_rows_and_explicit_output_keep_distinct_messages"
+    , "tests.test_review_followup_2222.InheritedSpanResumeTests.test_legacy_prefix_without_batch_lengths_still_resumes"
+    , "tests.test_review_followup_2222.InheritedSpanResumeTests.test_normalized_rows_resume_only_with_original_input_identity"
+    , "tests.test_review_followup_2222.RunHistoryOutcomeTests.test_background_task_persists_derived_status"
+    , "tests.test_review_followup_2222.RunHistoryOutcomeTests.test_helper_derives_terminal_and_child_outcomes"
+    , "tests.test_review_followup_2222.VerifiedCheckpointTests.test_cli_does_not_promise_resume_for_obsolete_checkpoint"
+    , "tests.test_review_followup_2222.VerifiedCheckpointTests.test_only_current_bound_checkpoint_promises_resume"
+  ]
+  , "test_review_followup_2222_more": [
+    "tests.test_review_followup_2222_more.MarkerAndBoundaryTests.test_explicit_complete_marker_beats_historical_counters"
+    , "tests.test_review_followup_2222_more.MarkerAndBoundaryTests.test_in_wave_skip_counts_source_rows"
+    , "tests.test_review_followup_2222_more.MarkerAndBoundaryTests.test_legacy_boundary_survives_abort_and_resume"
+    , "tests.test_review_followup_2222_more.MarkerAndBoundaryTests.test_mixed_two_book_aggregate_separates_final_check_aborts"
+    , "tests.test_review_followup_2222_more.NotificationOutcomeJsTests.test_incomplete_has_distinct_notification_outcome"
   ]
   , "test_review_force_js": [
     "tests.test_review_force_js.ReviewForceJsTests.test_all_review_handlers_forward_checkbox"
@@ -12595,7 +12659,12 @@
     , "tests.test_review_narrator_correction.ReviewNarratorCorrectionTests.test_review_labels_do_not_turn_quote_heuristics_into_attribution_locks"
   ]
   , "test_review_partial_retention": [
-    "tests.test_review_partial_retention.PartialPublicationTests.test_actual_saved_partial_resume_keeps_existing_input_policy_without_stale_change_stats"
+    "tests.test_review_partial_retention.CompletionMarkerTests.test_complete_summary_and_old_stats_fallback"
+    , "tests.test_review_partial_retention.CompletionMarkerTests.test_zero_counter_incomplete_summary_marks_status_and_report"
+    , "tests.test_review_partial_retention.IncompletePublicationTests.test_active_incomplete_keeps_bytes_and_resume_publishes"
+    , "tests.test_review_partial_retention.IncompletePublicationTests.test_old_checkpoint_still_resumes"
+    , "tests.test_review_partial_retention.IncompletePublicationTests.test_saved_incomplete_keeps_bytes_and_resume_publishes"
+    , "tests.test_review_partial_retention.PartialPublicationTests.test_actual_saved_partial_resume_keeps_existing_input_policy_without_stale_change_stats"
     , "tests.test_review_partial_retention.PartialPublicationTests.test_benchmark_local_and_remote_report_partial_quality_without_extra_model_attempt"
     , "tests.test_review_partial_retention.PartialPublicationTests.test_contextual_and_concurrent_partial_artifacts_keep_failure_no_seal_and_batch_local_status"
     , "tests.test_review_partial_retention.PartialPublicationTests.test_parent_preserves_original_fallback_and_complete_report_behavior"
@@ -12629,8 +12698,8 @@
     , "tests.test_review_partial_retention.TypedMetadataMergeTests.test_matching_bool_spoken_values_merge_and_keep_bool"
   ]
   , "test_review_pass_direction": [
-    "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_clean_forward_keeps_checkpoint_but_still_marks_backward_child"
-    , "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_failed_forward_clears_checkpoint_and_marks_backward_child"
+    "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_clean_forward_preserves_checkpoint_and_marks_backward_child"
+    , "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_failed_forward_preserves_checkpoint_and_skips_backward_child"
     , "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_single_direction_review_keeps_default_behaviour"
     , "tests.test_review_pass_direction.ReviewPassIdentityTests.test_backward_fingerprint_is_distinct_from_forward"
     , "tests.test_review_pass_direction.ReviewPassIdentityTests.test_forward_and_default_fingerprint_match_main"
@@ -12654,6 +12723,58 @@
     , "tests.test_review_prompt_presets.ReviewPresetModelTests.test_config_accepts_and_round_trips_review_presets"
     , "tests.test_review_prompt_presets.ReviewPresetModelTests.test_missing_or_unknown_placeholders_are_refused_with_a_clear_message"
     , "tests.test_review_prompt_presets.ReviewPresetModelTests.test_old_configs_load_unchanged_and_default_to_default"
+  ]
+  , "test_review_receipt_identity_boundary": [
+    "tests.test_review_receipt_identity_boundary.CheckpointEvidenceTests.test_failed_compaction_and_canonical_delta_replay_review_surviving_rows"
+    , "tests.test_review_receipt_identity_boundary.CheckpointEvidenceTests.test_superseded_backward_fact_is_retired_when_backward_work_starts"
+    , "tests.test_review_receipt_identity_boundary.CoherentEvidenceTests.test_changed_in_place_input_refuses_reuse_before_publishing"
+    , "tests.test_review_receipt_identity_boundary.CoherentEvidenceTests.test_corrupt_saved_checkpoint_evidence_restarts_without_certifying"
+    , "tests.test_review_receipt_identity_boundary.CoherentEvidenceTests.test_in_range_source_offset_and_tampered_prefix_are_rejected"
+    , "tests.test_review_receipt_identity_boundary.CoherentEvidenceTests.test_legacy_split_second_interruption_resumes_remaining_rows"
+    , "tests.test_review_receipt_identity_boundary.CoherentEvidenceTests.test_nonnumeric_length_is_a_miss_in_normal_and_forced_runs"
+    , "tests.test_review_receipt_identity_boundary.CoherentEvidenceTests.test_parent_requires_original_path_and_companions"
+    , "tests.test_review_receipt_identity_boundary.CoherentEvidenceTests.test_published_partial_keeps_parent_through_repeat_and_completion"
+    , "tests.test_review_receipt_identity_boundary.CoherentEvidenceTests.test_required_voice_remap_failure_refuses_publication"
+    , "tests.test_review_receipt_identity_boundary.CoherentEvidenceTests.test_stale_invalidation_cannot_restore_a_newer_forward_fact"
+    , "tests.test_review_receipt_identity_boundary.CompanionProofTests.test_post_commit_companion_edit_is_not_authenticated"
+    , "tests.test_review_receipt_identity_boundary.CompanionProofTests.test_publisher_proof_captures_raw_entry_and_companion_hashes"
+    , "tests.test_review_receipt_identity_boundary.CoordinateAndBatchTests.test_balanced_split_and_merge_rewinds_only_the_failed_batch"
+    , "tests.test_review_receipt_identity_boundary.CoordinateAndBatchTests.test_canonical_destination_deduplication"
+    , "tests.test_review_receipt_identity_boundary.DirectionPairTests.test_half_present_backward_parent_is_rejected_but_standalone_is_reusable"
+    , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_forward_edit_and_split_keep_parent_across_two_interruptions"
+    , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_in_place_replacement_guard_keeps_replacement_and_progress"
+    , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_resumed_backward_reports_original_input_count_after_two_splits"
+    , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_retained_words_are_validated_in_compact_and_delta"
+    , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_strict_voice_read_failures_preserve_publication"
+    , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_unowned_interior_lengths_and_failure_list_must_be_proven"
+    , "tests.test_review_receipt_identity_boundary.FinalBlockerTests.test_alias_created_after_locked_dedupe_snapshot_is_refused"
+    , "tests.test_review_receipt_identity_boundary.FinalBlockerTests.test_genuine_two_batch_prefix_resumes_only_black"
+    , "tests.test_review_receipt_identity_boundary.FinalBlockerTests.test_proven_split_resumes_with_contributions_and_no_optional_lengths"
+    , "tests.test_review_receipt_identity_boundary.FinalBlockerTests.test_writer_hard_interruption_without_content_proof_replays_source"
+    , "tests.test_review_receipt_identity_boundary.FlatIdentityTests.test_double_replacement_migrates_the_validated_digest"
+    , "tests.test_review_receipt_identity_boundary.FlatIdentityTests.test_migrated_flat_reuse_reports_verified_separate_output_count"
+    , "tests.test_review_receipt_identity_boundary.FlatIdentityTests.test_unsupported_version_facts_are_not_promoted_during_invalidation"
+    , "tests.test_review_receipt_identity_boundary.ForwardFallbackTests.test_changed_forward_input_is_not_authorized_by_backward_checkpoint"
+    , "tests.test_review_receipt_identity_boundary.ForwardFallbackTests.test_separate_output_backward_cannot_certify_a_different_source"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_active_review_with_stable_missing_voice_publishes_and_reuses"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_corrupt_checkpoint_coordinates_never_truncate_or_duplicate"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_explicit_partial_backward_publication_resumes_on_retry"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_late_unsupported_receipt_cannot_be_promoted"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_legacy_fingerprint_uses_the_captured_companion_snapshot"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_migrated_flat_receipt_keeps_validated_output_count"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_standalone_companion_identity_comes_from_its_own_operation"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_standalone_own_alias_change_with_no_voice_move_reuses"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_unrelated_output_after_partial_backward_is_a_miss"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_zero_cardinality_and_missing_lengths_remain_loadable"
+    , "tests.test_review_receipt_identity_boundary.PublicationTransactionTests.test_destination_lock_serializes_two_standalone_writers"
+    , "tests.test_review_receipt_identity_boundary.PublicationTransactionTests.test_hard_interruption_retained_words_are_rejected"
+    , "tests.test_review_receipt_identity_boundary.PublicationTransactionTests.test_pre_outcomes_failure_tampering_replays_blue"
+    , "tests.test_review_receipt_identity_boundary.PublicationTransactionTests.test_script_write_failure_rolls_back_staged_voice"
+    , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_alias_created_during_review_is_preserved"
+    , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_old_unowned_interior_and_content_tampering_replays_source"
+    , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_persistent_recovery_failure_keeps_all_original_bytes"
+    , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_proven_historic_prefix_survives_the_next_batch_save"
+    , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_standalone_forward_split_reports_original_count"
   ]
   , "test_review_scoped_source_span": [
     "tests.test_review_scoped_source_span.CutEvidenceTests.test_inserted_excluded_mark_cannot_earn_a_receipt"
