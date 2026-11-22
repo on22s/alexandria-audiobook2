@@ -12697,6 +12697,15 @@
   , "test_review_duplex_retry": [
     "tests.test_review_duplex_retry.DirectionalEvidenceFailClosedTests.test_no_book_colliding_sidecar_and_no_unverified_forward_reuse"
   ]
+  , "test_review_extra_metadata_2144": [
+    "tests.test_review_extra_metadata_2144.ReviewContractReceiptTests.test_changed_response_contract_invalidates_custom_and_literal_receipts"
+    , "tests.test_review_extra_metadata_2144.ReviewExtraMetadata2144Tests.test_merge_without_span_preserves_extra_metadata"
+    , "tests.test_review_extra_metadata_2144.ReviewExtraMetadata2144Tests.test_omitted_altered_and_spoofed_extra_keys_are_restored"
+    , "tests.test_review_extra_metadata_2144.ReviewExtraMetadata2144Tests.test_prompts_state_extra_keys_are_omitted_and_restored"
+    , "tests.test_review_extra_metadata_2144.ReviewExtraMetadata2144Tests.test_sent_prompt_requires_text_only_in_full_review_modes"
+    , "tests.test_review_extra_metadata_2144.ReviewExtraMetadata2144Tests.test_unrecognized_reply_key_is_not_copied_into_bound_entry"
+    , "tests.test_review_extra_metadata_2144.ReviewExtraMetadata2144Tests.test_valid_split_preserves_extra_metadata_on_each_fragment"
+  ]
   , "test_review_failure_message": [
     "tests.test_review_failure_message.ReviewFailureMarkerTests.test_fatal_cli_path_emits_the_marker_and_reraises"
     , "tests.test_review_failure_message.ReviewFailureMarkerTests.test_js_start_over_decision_uses_the_kind_literal_from_python"
@@ -12836,7 +12845,7 @@
     , "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_failed_forward_preserves_checkpoint_and_skips_backward_child"
     , "tests.test_review_pass_direction.BidirectionalCheckpointTests.test_single_direction_review_keeps_default_behaviour"
     , "tests.test_review_pass_direction.ReviewPassIdentityTests.test_backward_fingerprint_is_distinct_from_forward"
-    , "tests.test_review_pass_direction.ReviewPassIdentityTests.test_forward_and_default_fingerprint_match_main"
+    , "tests.test_review_pass_direction.ReviewPassIdentityTests.test_forward_and_default_fingerprint_match_the_pinned_identity"
     , "tests.test_review_pass_direction.ReviewPassIdentityTests.test_forward_checkpoint_is_refused_by_backward_run"
   ]
   , "test_review_preset_js": [
