@@ -5128,6 +5128,7 @@
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_ds2224_placeholder_keeps_shape_after_meta_and_uses_recovery_text"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_ds2224_unchanged_legacy_description_survives_full_list_save"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_ds2224_update_meta_hides_diagnostic_but_token_matches_full_record"
+    , "tests.test_ds2224_backend.Ds2224BackendTests.test_failed_batch_logs_omit_internal_error_details"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_full_list_append_preserves_untouched_legacy_placeholder"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_seed_only_metadata_change_keeps_blank_root_legacy_description"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_update_meta_cas_refuses_external_edit_without_invalidating_rows"

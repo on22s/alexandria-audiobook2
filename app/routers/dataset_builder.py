@@ -859,8 +859,10 @@ def _dataset_builder_generate_batch(request: DatasetBatchGenRequest):
                 except core.WindowsOwnerCleanupError:
                     raise
                 except Exception as e:
-                    logger.error(f"Dataset builder sample {idx} failed: {e}")
-                    process_state["dataset_builder"]["logs"].append(f"  Error: {e}")
+                    logger.error("Dataset builder sample %s failed (%s)", idx, type(e).__name__)
+                    process_state["dataset_builder"]["logs"].append(
+                        f"[ERROR] Sample {idx + 1} generation failed."
+                    )
                     samples_state[idx] = {**samples_state[idx], "status": "error", "error": str(e), "text": text, "emotion": emotion}
 
                 state["samples"] = samples_state
@@ -871,9 +873,9 @@ def _dataset_builder_generate_batch(request: DatasetBatchGenRequest):
             )
         except core.WindowsOwnerCleanupError:
             raise
-        except Exception as e:
-            logger.exception("Dataset builder batch generation crashed")
-            process_state["dataset_builder"]["logs"].append(f"[ERROR] Batch generation crashed: {e}")
+        except Exception as error:
+            logger.error("Dataset builder batch generation failed (%s)", type(error).__name__)
+            process_state["dataset_builder"]["logs"].append("[ERROR] Batch generation stopped unexpectedly.")
         finally:
             process_state["dataset_builder"]["running"] = False
 

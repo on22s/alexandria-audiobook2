@@ -684,9 +684,11 @@
             if (!existing || !existing.children || existing.children.length < 6) { return false; }
             const temp = document.createElement('tbody');
             temp.innerHTML = dsbBuildRowHtml(row, index);
-            const fresh = temp.firstElementChild;
-            existing.children[4].replaceWith(fresh.children[4]);
-            existing.children[5].replaceWith(fresh.children[5]);
+            const newCells = temp.firstElementChild.children;
+            const statusCell = newCells[4];
+            const actionsCell = newCells[5];
+            existing.children[4].replaceWith(statusCell);
+            existing.children[5].replaceWith(actionsCell);
             existing.setAttribute('data-dsb-status', row.status || 'pending');
             existing.setAttribute('data-dsb-audio', row.audio_url || '');
             return true;

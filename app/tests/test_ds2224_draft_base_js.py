@@ -117,15 +117,23 @@ assert.deepStrictEqual(plain(run("ensureDatasetRowSaveState('A').tokens")),[a,c]
     def test_status_audio_cells_repaint_while_a_live_input_is_protected(self):
         self.run_scenario(r'''
 run(source.slice(source.indexOf('function dsbRepaintRowStatus('),source.indexOf('window.dsbUpdateRow')));
-run('globalThis.repainted=[];');
-run("dsbRepaintRowStatus=(i,row)=>{repainted.push([i,row.status,row.audio_url]);return true;};");
 const active={tagName:'TEXTAREA',value:'old'};context.document.activeElement=active;
 const tbody=context.document.getElementById('dsb-table-body');
-tbody.children=[{getAttribute(name){return name==='data-dsb-status'?'done':'/old.wav';},contains(node){return node===active;}}];
+const cellNames=['index','emotion','text','seed','status','actions'];
+const fresh=cellNames.map(name=>({name}));
+const old=cellNames.map(name=>({name:'old '+name,
+ replaceWith(cell){const from=fresh.indexOf(cell);assert(from>=0,'replacement must come from the new row');
+  fresh.splice(from,1); old[old.indexOf(this)]=cell;}}));
+const attrs={'data-dsb-status':'done','data-dsb-audio':'/old.wav'};
+tbody.children=[{children:old,getAttribute(name){return attrs[name];},
+ setAttribute(name,value){attrs[name]=value;},contains(node){return node===active;}}];
+context.document.createElement=()=>({firstElementChild:{children:fresh}});
 run("dsbCurrentProject='A';dsbRows=[{text:'old',emotion:'',seed:'',status:'pending',audio_url:null}];applyDatasetRowRevisions('A',['a'.repeat(64)],1)");
 run('dsbRenderTable([0])');
-assert.deepStrictEqual(plain(run('repainted')),[[0,'pending',null]],
- 'an owned draft keeps its input but its badge and audio must still follow the model');
+assert.strictEqual(attrs['data-dsb-status'],'pending');
+assert.strictEqual(attrs['data-dsb-audio'],'');
+assert.deepStrictEqual(old.map(cell=>cell.name),['old index','old emotion','old text','old seed','status','actions'],
+ 'repaint the status and actions without detaching the live input');
 ''')
 
 

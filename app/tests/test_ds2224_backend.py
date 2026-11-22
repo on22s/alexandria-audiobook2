@@ -267,6 +267,34 @@ class Ds2224BackendTests(unittest.TestCase):
         reserve.assert_not_called()
         self.engine.generate_voice_design.assert_not_called()
 
+    def test_failed_batch_logs_omit_internal_error_details(self):
+        self.save({'description': 'root', 'global_seed': '', 'samples': [
+            {'text': 'fixture text', 'emotion': '', 'seed': '', 'status': 'pending'}]})
+        self.engine.generate_voice_design.side_effect = RuntimeError('PRIVATE-DIAG')
+        request = {'name': 'voice', 'description': 'root',
+                   'samples': [{'text': 'fixture text'}], 'indices': [0]}
+
+        def run_task(_name, _claim, task, *args):
+            task(*args)
+
+        with patch.object(routes, 'reserve_background_task', return_value='owned'), \
+             patch.object(routes, 'start_claimed_task_thread', side_effect=run_task), \
+             TestClient(self.app) as client:
+            response = client.post('/api/dataset_builder/generate_batch', json=request)
+            self.assertEqual(200, response.status_code, response.text)
+            status = client.get('/api/dataset_builder/status/voice')
+            self.assertEqual(200, status.status_code, status.text)
+            self.assertIn('[ERROR] Sample 1 generation failed.', status.json()['logs'])
+            self.assertEqual('error', status.json()['samples'][0]['status'])
+            self.assertNotIn('PRIVATE-DIAG', status.text)
+            with patch.object(routes.project_manager, 'get_engine',
+                              side_effect=RuntimeError('PRIVATE-INIT-DIAG')):
+                response = client.post('/api/dataset_builder/generate_batch', json=request)
+            self.assertEqual(200, response.status_code, response.text)
+            status = client.get('/api/dataset_builder/status/voice')
+            self.assertIn('[ERROR] Batch generation stopped unexpectedly.', status.json()['logs'])
+            self.assertNotIn('PRIVATE-INIT-DIAG', status.text)
+
     def test_ds2224_batch_regeneration_keeps_legacy_row_description(self):
         self.save({'description': '', 'global_seed': '', 'samples': [
             {'text': 'real fixture', 'emotion': 'calm',
