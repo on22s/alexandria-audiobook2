@@ -46,6 +46,7 @@ from synthesis_input import (ensure_speech_input_capture, is_speech_input_captur
 from synthesis_recovery_serving import (ensure_native_recovery_serving_current,
                                         SynthesisRecoveryDependencyChanged)
 from pronunciation import ensure_occurrence_pronunciation_context, get_pronunciation_model_context
+from timeline_anchors import get_style_timeline_index, resolve_timeline_anchors
 from pydub import AudioSegment
 from audio_assembly import AudioSegmentBuilder
 from export_limits import ensure_pause_allowed
@@ -252,18 +253,6 @@ def _resolve_asset_path(rel_path):
 
 DEFAULT_PAUSE_MS = 500  # Pause between different speakers
 SAME_SPEAKER_PAUSE_MS = 250  # Shorter pause for same speaker continuing
-
-
-def get_style_timeline_index(point):
-    """Read a nonnegative integer timeline position, rejecting malformed data."""
-    value = point.get("from_index", 0)
-    try:
-        index = int(value)
-    except (TypeError, ValueError, OverflowError) as exc:
-        raise ValueError("style_timeline from_index must be a nonnegative integer") from exc
-    if isinstance(value, bool) or index < 0 or (not isinstance(value, str) and value != index):
-        raise ValueError("style_timeline from_index must be a nonnegative integer")
-    return index
 
 
 def active_character_style(voice_data, chunk_index=None):
@@ -2897,6 +2886,12 @@ class TTSEngine:
 
         if not chunks or is_audio_generation_cancelled():
             return results
+
+        # Materialize timeline anchors against the submitted row list once, so
+        # native, external and fallback dispatch all select the same voice. A
+        # batch may hold only the pending rows, so anchors outside its range keep
+        # their recorded index instead of being treated as removed.
+        voice_config = resolve_timeline_anchors(voice_config, chunks, sparse=True)
 
         # Resolve each row before its one canonical speech preparation. Stable
         # UID/rules remain on copies through native, external and fallback paths.

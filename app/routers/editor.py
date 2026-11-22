@@ -79,6 +79,7 @@ from runtime_estimate import get_book_runtime_estimate
 from routers.voices import get_script_speaker
 from tts import (voice_config_for_chunk, resolve_narrator_voice_config, voice_category,
                  ExportCancelled, ensure_audio_export_active, get_pause_duration_ms)
+from timeline_anchors import resolve_timeline_anchors
 import voice_drift
 
 
@@ -1711,6 +1712,7 @@ def get_unready_export_speakers(admitted_rows):
         chunks = script
     if not isinstance(chunks, list) or any(not isinstance(chunk, dict) for chunk in chunks):
         raise HTTPException(status_code=503, detail="Export readiness unavailable: rebuild the active chunks")
+    voices = resolve_timeline_anchors(voices, chunks)
     missing = set()
     try:
         for index, chunk in enumerate(chunks):

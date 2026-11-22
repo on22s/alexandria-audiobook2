@@ -22,6 +22,7 @@ import time
 from experiments.library_voice_fidelity import ecapa_pairs
 from utils import is_path_inside
 from tts import get_chunk_voice_inputs, get_resolved_speaker, _resolve_asset_path
+from timeline_anchors import resolve_timeline_anchors
 from voice_manifest import get_resolved_adapter_path
 
 # Same rationale as verify_adapter_identity.py: working adapters score
@@ -88,6 +89,7 @@ def get_reference_for_speaker(speaker, voice_config, chunks, resolve_alias,
 
 def get_drift_voice_groups(chunks, voice_config, resolve_alias=None):
     """Index compatible rendered states without retaining decoded audio."""
+    voice_config = resolve_timeline_anchors(voice_config, chunks)
     groups, keys = {}, {}
     encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), allow_nan=False)
     for index, chunk in enumerate(chunks):
@@ -182,6 +184,7 @@ def _check_voice_drift_batch(chunks, voice_config, root_dir, python_bin, thresho
     from pydub.exceptions import CouldntDecodeError
 
     resolve_asset_path = resolve_asset_path or (lambda p: os.path.join(root_dir, p))
+    voice_config = resolve_timeline_anchors(voice_config, chunks)
     if not python_bin:
         return {"results": [], "error": "not measured: no speechbrain interpreter "
                                         "(set Voice Lab's rocm_python or ALEXANDRIA_SIBLING_PYTHON)"}

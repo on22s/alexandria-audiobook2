@@ -26,6 +26,7 @@ from speech_numbers import STATE_KEY as DATE_ORDER_KEY, get_book_date_order_stat
 from speech_text import get_prelexicon_speech_normalization
 from tts import (get_resolved_speaker, is_voice_config_present, resolve_narrator_voice_config,
                  voice_config_for_chunk)
+from timeline_anchors import resolve_timeline_anchors
 from utils import atomic_json_write, file_lock, safe_load_json
 
 router = APIRouter()
@@ -160,6 +161,7 @@ def generate_pronunciation_audition(request):
                 raise HTTPException(status_code=422, detail='Repair invalid voice configuration before auditioning.') from error
             if not isinstance(voices, dict):
                 raise HTTPException(status_code=422, detail='Voice configuration must contain an object.')
+            voices = resolve_timeline_anchors(voices, chunks)
             speaker = get_resolved_speaker(get_speaker(row), voices)
             voices = copy.deepcopy(voice_config_for_chunk(
                 resolve_narrator_voice_config(speaker, voices, row), speaker, request.index))
@@ -317,7 +319,7 @@ def get_occurrence_editor(request):
             row = get_occurrence_target(request, chunks)
             rules, revision = get_occurrence_rule_document(row)
             require_occurrence_revision(request, revision)
-            voices = project_manager.get_voice_config_for_update()
+            voices = resolve_timeline_anchors(project_manager.get_voice_config_for_update(), chunks)
             settings = project_manager.get_pronunciation_preview_settings()
             effective = rules
             if isinstance(request, PronunciationOccurrenceEdit):
@@ -396,10 +398,10 @@ def _save_occurrence_rules_admitted(request):
     with ensure_book_switch_allowed(operation='save occurrence rules', hold_task_mutex=False):
         with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25), _gpu_lock:
             settings = project_manager.get_pronunciation_preview_settings()
-            voices = project_manager.get_voice_config_for_update()
             with project_manager._chunks_lock, file_lock(project_manager.chunks_path):
                 try:
                     chunks = project_manager._get_saved_chunks_locked()
+                    voices = resolve_timeline_anchors(project_manager.get_voice_config_for_update(), chunks)
                     row = get_occurrence_target(request, chunks)
                     _current_rules, revision = get_occurrence_rule_document(row)
                     require_occurrence_revision(request, revision)

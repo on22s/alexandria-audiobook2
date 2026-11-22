@@ -7500,6 +7500,8 @@
   ]
   , "test_inline_string_arguments_js": [
     "tests.test_inline_string_arguments_js.InlineStringArgumentsJsTests.test_character_names_and_candidate_ids_do_not_execute_after_html_decoding"
+    , "tests.test_inline_string_arguments_js.InlineStringArgumentsJsTests.test_editor_style_dialog_submits_the_uid_and_scope_of_the_selected_row"
+    , "tests.test_inline_string_arguments_js.InlineStringArgumentsJsTests.test_numeric_string_badge_click_deletes_decimal_line"
     , "tests.test_inline_string_arguments_js.InlineStringArgumentsJsTests.test_real_style_remove_handler_uses_exact_character_name_in_api_route"
   ]
   , "test_instruct_audit": [
@@ -9572,6 +9574,7 @@
     , "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_inspector_warns_when_preparation_uses_invalid_files"
     , "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_mutation_holds_admission_through_write_and_write_failure_retains_prior_state"
     , "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_overlap_duplicate_boolean_offsets_and_unknown_fields_are_refused"
+    , "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_preview_and_save_use_the_moved_voice_anchor_and_refuse_unreadable_rows"
     , "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_read_only_missing_corrupt_legacy_and_pending_book_state_never_repair"
     , "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_read_only_status_journal_uses_committed_prefix_without_repairing_torn_tail"
     , "tests.test_occurrence_pronunciation_panel.OccurrencePanelTests.test_save_detaches_only_effective_changed_uid_and_notes_drafts_bypasses_preserve_take"
@@ -16542,6 +16545,36 @@
     , "tests.test_time_split_chain.TimeSplitChainTests.test_unset_environment_uses_checkout_defaults"
     , "tests.test_time_split_chain.TimeSplitChainTests.test_valid_all_stage_caches_remain_unchanged_and_skip_to_prosody"
     , "tests.test_time_split_chain.ValidatedStageDependencyTests.test_failed_prerequisite_prevents_even_cached_checker_and_worker"
+  ]
+  , "test_timeline_anchor_identity": [
+    "tests.test_timeline_anchor_identity.DispatchTests.test_direct_batch_uses_recorded_position_for_duplicate_uid"
+    , "tests.test_timeline_anchor_identity.DispatchTests.test_local_and_external_batch_share_absolute_anchor"
+    , "tests.test_timeline_anchor_identity.IdentityContractTests.test_blank_then_replacement_keep_the_neighbouring_point"
+    , "tests.test_timeline_anchor_identity.IdentityContractTests.test_dedicated_post_refuses_out_of_range_index"
+    , "tests.test_timeline_anchor_identity.IdentityContractTests.test_delete_unknown_uid_never_falls_back_to_index"
+    , "tests.test_timeline_anchor_identity.IdentityContractTests.test_legacy_points_sharing_an_index_are_all_removed"
+    , "tests.test_timeline_anchor_identity.IdentityContractTests.test_snapshot_reports_current_line_without_rewriting_stored_index"
+    , "tests.test_timeline_anchor_identity.IdentityContractTests.test_sparse_batch_uses_full_book_after_anchor_moves_outside_batch"
+    , "tests.test_timeline_anchor_identity.IdentityContractTests.test_state_get_to_insert_to_apply_keeps_stable_identity"
+    , "tests.test_timeline_anchor_identity.ResolverTests.test_duplicate_uid_is_ambiguous_and_falls_back_to_recorded_index"
+    , "tests.test_timeline_anchor_identity.ResolverTests.test_legacy_null_point_does_not_raise_for_unrelated_speaker"
+    , "tests.test_timeline_anchor_identity.ResolverTests.test_missing_and_regenerated_uid_keep_legacy_index"
+    , "tests.test_timeline_anchor_identity.ResolverTests.test_sparse_batch_uses_absolute_book_index"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_clear_timeline_invalidates_moved_anchor_audio"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_damaged_authoritative_rows_refuse_reads_and_echoes_without_writes"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_dedicated_echoes_keep_bytes_and_reject_stale_book_tokens"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_delete_removes_only_one_point_after_insert"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_editor_insert_delete_and_render_preserve_content_voice_and_prior_audio"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_empty_chunk_snapshot_refuses_new_point"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_guarded_save_refuses_mismatched_uid"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_guarded_snapshot_echo_keeps_nullable_and_distinct_point_records"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_invalid_supplied_uids_are_rejected_consistently"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_persona_version_echo_uses_moved_boundary_and_refuses_a_different_uid"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_rejected_state_and_version_requests_never_backfill_legacy_chunks"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_stale_explicit_uid_is_refused"
+    , "tests.test_timeline_anchor_identity.RouteTests.test_style_echo_waits_for_chunk_edit_and_preserves_the_insert"
+    , "tests.test_timeline_anchor_identity.ScopeAndDriftTests.test_drift_groups_follow_moved_anchor"
+    , "tests.test_timeline_anchor_identity.ScopeAndDriftTests.test_scope_from_full_book_keeps_active_anchor_without_orphan"
   ]
   , "test_titled_chapter_headings": [
     "tests.test_titled_chapter_headings.TitledChapterHeadingTests.test_adjacent_titled_labels_are_both_chapters"

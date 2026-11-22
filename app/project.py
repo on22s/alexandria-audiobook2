@@ -81,6 +81,7 @@ from tts import (
                  voice_config_for_chunk, resolve_narrator_voice_config, get_resolved_speaker,
                  get_chunk_voice_inputs)
 from pydub import AudioSegment
+from timeline_anchors import build_uid_index, full_uid_index_context, resolve_timeline_anchors
 from audio_assembly import AudioSegmentBuilder
 from audio_pcm_producer import PCMSourceStore, get_audio_duration_ms
 from audio_streaming import (get_track_wav_plan, get_track_pcm_plan, write_track_wav, write_combined_wav,
@@ -1284,7 +1285,7 @@ class ProjectManager:
     def _apply_pronunciation_settings_invalidation_locked(self, before, after):
         """Fence changed scoped words before publishing settings; retain audio files."""
         chunks = self._get_saved_chunks_locked()
-        voices = self.get_voice_config_for_update()
+        voices = resolve_timeline_anchors(self.get_voice_config_for_update(), chunks)
         updated, changed = list(chunks), []
         with ensure_pronunciation_snapshot():
             for index, chunk in enumerate(chunks):
@@ -1505,23 +1506,31 @@ class ProjectManager:
         """Read the effective TTS inputs, including aliases and ensemble members."""
         return get_chunk_voice_inputs(voices, chunk, index, resolve_alias=self._resolve_alias)
 
-    def _apply_voice_timeline_audio_invalidation_locked(self, before, after):
+    def _apply_voice_timeline_audio_invalidation_locked(self, before, after, *,
+                                                        chunks=None, uids_added=False):
         """Caller holds chunk locks through the subsequent voice-config write.
 
         Invalidate before publishing voices: an interrupted save can require
         extra regeneration, but cannot leave changed voices with current audio.
         """
-        if get_chunk_state_file_version(self.chunks_path) is None:
-            return []
-        chunks = self._read_chunks()
+        if chunks is None:
+            if get_chunk_state_file_version(self.chunks_path) is None:
+                return []
+            chunks = self._read_chunks()
+        uid_index = build_uid_index(chunks)
+        before_resolved = resolve_timeline_anchors(before, uid_index=uid_index)
+        after_resolved = resolve_timeline_anchors(after, uid_index=uid_index)
         changed = [index for index, chunk in enumerate(chunks)
-                   if self.get_chunk_voice_inputs(before, chunk, index) !=
-                      self.get_chunk_voice_inputs(after, chunk, index)]
+                   if self.get_chunk_voice_inputs(before_resolved, chunk, index) !=
+                      self.get_chunk_voice_inputs(after_resolved, chunk, index)]
         updated = copy.deepcopy(chunks)
         for index in changed:
             updated[index].update(status="pending", audio_path=None, error=None, drift=None, outlier=None,
                                   voice_revision=uuid.uuid4().hex)
-        if changed:
+        if changed or uids_added:
+            for row in updated:
+                if not row.get("uid"):
+                    row["uid"] = _new_chunk_uid()
             self._save_chunks_locked(updated, uids_backfilled=True)
         return [updated[index]["uid"] for index in changed]
 
@@ -1584,7 +1593,7 @@ class ProjectManager:
                 return None  # don't allow deleting the last chunk
             before = copy.deepcopy(chunks)
 
-            voices = self.get_voice_config_for_update()
+            voices = resolve_timeline_anchors(self.get_voice_config_for_update(), before)
             deleted = chunks.pop(index)
             deleted["_deleted_voice_inputs"] = self.get_chunk_voice_inputs(voices, deleted, index)
 
@@ -1615,7 +1624,7 @@ class ProjectManager:
                 chunk_data.setdefault("uid", _new_chunk_uid())
             chunks.insert(at_index, chunk_data)
             old_voice_inputs = chunk_data.pop("_deleted_voice_inputs", None)
-            voices = self.get_voice_config_for_update()
+            voices = resolve_timeline_anchors(self.get_voice_config_for_update(), chunks)
             if chunk_data.get("audio_path") and (
                     old_voice_inputs is None or
                     old_voice_inputs != self.get_chunk_voice_inputs(voices, chunk_data, at_index)):
@@ -1645,10 +1654,12 @@ class ProjectManager:
     def _invalidate_reindexed_audio_locked(self, before, after):
         """Keep completed renders only when reindexing preserves their voice."""
         voices = self.get_voice_config_for_update()
+        before_voices = resolve_timeline_anchors(voices, before)
+        after_voices = resolve_timeline_anchors(voices, after)
         previous = {row.get("uid"): (index, row) for index, row in enumerate(before)}
         for index, row in enumerate(after):
             old = previous.get(row.get("uid"))
-            if old is not None and self.get_chunk_voice_inputs(voices, old[1], old[0]) != self.get_chunk_voice_inputs(voices, row, index):
+            if old is not None and self.get_chunk_voice_inputs(before_voices, old[1], old[0]) != self.get_chunk_voice_inputs(after_voices, row, index):
                 row.update(status="pending", audio_path=None, error=None, drift=None, outlier=None,
                            voice_revision=uuid.uuid4().hex)
 
@@ -2291,7 +2302,8 @@ class ProjectManager:
         self.ensure_literal_render_inputs(chunks, [index])
         requests = get_chunk_generation_requests(
             chunks, [index], {index: admitted_chunk} if admitted_chunk is not None else None)
-        return self._generate_captured_chunk_audio(index, requests[index])
+        with full_uid_index_context(build_uid_index(chunks)):
+            return self._generate_captured_chunk_audio(index, requests[index])
 
     def ensure_literal_render_inputs(self, chunks, indices):
         def version():
@@ -2435,6 +2447,7 @@ class ProjectManager:
             # while app.py's voice_library endpoints hold file_lock(voice_config_path)
             # for a read-modify-write — no extra locking needed here.
             voice_config = safe_load_json(self.voice_config_path, default={})
+            voice_config = resolve_timeline_anchors(voice_config)
 
             if chunk.get("pronunciation_rules"):
                 settings = engine.get_model_settings() if callable(getattr(engine, "get_model_settings", None)) else {}
@@ -3942,9 +3955,14 @@ class ProjectManager:
 
         all_indices = list(indices)
         audio_owner = get_audio_generation_owner()
+        uid_index = build_uid_index(chunks)
         speech_retry_budgets = {}
         if self._is_speech_retry_opted_in():
             speech_retry_budgets = {budget_index: None for budget_index in indices if captured.get(budget_index) is not None}
+
+        def render_captured(index, *args):
+            with full_uid_index_context(uid_index):
+                return self._generate_captured_chunk_audio(index, captured.get(index), *args)
 
         def render_with_retry_budget(index):
             if cancel_check and cancel_check():
@@ -3957,7 +3975,7 @@ class ProjectManager:
                     return False, AUDIO_GENERATION_CANCELLED
                 budget.cancel_check = cancel_check
                 speech_retry_budgets[index] = budget
-            return self._generate_captured_chunk_audio(index, captured[index], budget)
+            return render_captured(index, budget)
 
         def _run_round(round_indices, workers):
             """One pass at `workers` concurrency.
@@ -3976,7 +3994,7 @@ class ProjectManager:
                                                 render_with_retry_budget, idx)] = idx
                     else:
                         futures[executor.submit(run_with_audio_generation_owner, audio_owner,
-                                                self._generate_captured_chunk_audio, idx, captured.get(idx))] = idx
+                                                render_captured, idx)] = idx
                 for future in as_completed(futures):
                     if (is_audio_generation_cancelled() or (cancel_check and cancel_check())) and not was_cancelled:
                         was_cancelled = True
@@ -4303,6 +4321,8 @@ class ProjectManager:
         # while app.py's voice_library endpoints hold file_lock(voice_config_path)
         # for a read-modify-write — no extra locking needed here.
         voice_config = safe_load_json(self.voice_config_path, default={})
+        uid_index = build_uid_index(chunks)
+        voice_config = resolve_timeline_anchors(voice_config, uid_index=uid_index)
 
         if is_audio_generation_cancelled():
             results["cancelled"] = total
@@ -4472,7 +4492,7 @@ class ProjectManager:
                                     ensure_synthesis_parent_output(registered,
                                         encoding=_can_register_chunk_encoding(self))))
                     batch_stack.enter_context(ensure_synthesis_batch_outputs(self.root_dir, batch_outputs))
-                    with ensure_synthesis_recovery_batch(recovery_parents):
+                    with ensure_synthesis_recovery_batch(recovery_parents), full_uid_index_context(uid_index):
                         batch_results = (engine.generate_batch(
                             batch_chunks, voice_config, self.root_dir, batch_seed,
                             **({'capture_input':True} if publication_admissions else {}))

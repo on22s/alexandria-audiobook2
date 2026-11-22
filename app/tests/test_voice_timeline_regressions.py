@@ -93,7 +93,7 @@ class StyleAudioInvalidationTests(unittest.TestCase):
                 if action == 'replace':
                     self.save_point(client, 'quiet')
                 else:
-                    response = client.delete('/api/voices/A/style_timeline/2')
+                    response = client.delete('/api/voices/A/style_timeline/2', params={'from_uid': rows[2]['uid']})
                     self.assertEqual(200, response.status_code, response.text)
                 saved = manager.load_chunks()
                 self.assertEqual('pending', saved[2]['status'])

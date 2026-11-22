@@ -54,7 +54,7 @@ const output=payload.map(row=>{
         for name,row in zip(names,result):
             self.assertFalse(row['compromised'],'HTML entity decoding must not enable JavaScript injection')
             self.assertEqual([],row['errors'])
-            self.assertEqual([{'type':'favorite','self':True,'args':[name,True]},{'type':'select','self':True,'args':[name]},{'type':'delete','self':True,'args':[name]},{'type':'style','args':[name,7,{'tag':'button'}]}],row['calls'])
+            self.assertEqual([{'type':'favorite','self':True,'args':[name,True]},{'type':'select','self':True,'args':[name]},{'type':'delete','self':True,'args':[name]},{'type':'style','args':[name,7,{'tag':'button'},None,7]}],row['calls'])
 
     def test_real_style_remove_handler_uses_exact_character_name_in_api_route(self):
         name="O'Brien \" & / café"
@@ -66,3 +66,36 @@ const result=vm.runInContext('(function(){'+payload.handler+'})',context)();asse
 assert.strictEqual(calls[0],'/api/voices/'+encodeURIComponent(payload.name)+'/style_timeline/3');assert.strictEqual(refreshed,1);console.log(JSON.stringify(calls));
 ''',{'name':name,'handler':handler})
         self.assertEqual(1,len(output))
+
+    def test_numeric_string_badge_click_deletes_decimal_line(self):
+        points = [{'from_index': 8, 'character_style': 'eight'},
+                  {'from_index': '010', 'character_style': 'ten'}]
+        markup = self.run_js(
+            "console.log(JSON.stringify(context.renderStyleTimeline('A',{style_timeline:payload})));",
+            points)
+        handlers = HandlerParser(markup).handlers
+        self.assertEqual(2, len(handlers))
+        output = self.run_js(r'''
+const calls=[];context.API={del:async path=>calls.push(path)};context.loadVoices=async()=>{};context.showToast=()=>{};
+vm.runInContext('(function(){'+payload.handler+'})',context)();
+await new Promise(resolve=>setImmediate(resolve));console.log(JSON.stringify(calls));
+''', {'handler': handlers[1]})
+        self.assertEqual(['/api/voices/A/style_timeline/10'], output)
+
+    def test_editor_style_dialog_submits_the_uid_and_scope_of_the_selected_row(self):
+        result = self.run_js(r'''
+const start=source.indexOf('async function voiceChangesHere(');
+vm.runInContext(source.slice(start,source.indexOf('function collectVoiceConfig(', start)),context);
+const row={dataset:{uid:'before',bookToken:'book-A'},querySelector:()=>({value:'A'})};
+context.document={querySelector:()=>row};context.window={};context.loadVoices=async()=>{};
+context.showToast=()=>{};context.showActionError=error=>{throw Error(error);};
+const posts=[];context.API={post:async(url, body)=>posts.push({url,body})};
+context.showPresetEditor=async()=>({name:'aged'});
+await context.voiceChangesHere(3);
+context.showPresetEditor=async()=>{row.dataset.uid='replacement';return {name:'aged'};};
+await context.voiceChangesHere(3);
+console.log(JSON.stringify(posts));
+''', None)
+        self.assertEqual([{'url': '/api/voices/A/style_timeline', 'body': {
+            'from_index': 3, 'from_uid': 'before', 'expected_book_token': 'book-A',
+            'character_style': 'aged'}}], result)

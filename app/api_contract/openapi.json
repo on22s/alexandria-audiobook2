@@ -2984,7 +2984,14 @@
           },
           "voices": {
             "additionalProperties": {
-              "$ref": "#/components/schemas/VoiceConfigItem"
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/VoiceConfigItem"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "title": "Voices",
             "type": "object"
@@ -5552,6 +5559,18 @@
             "title": "Character Style",
             "type": "string"
           },
+          "expected_book_token": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Book Token"
+          },
           "from_index": {
             "minimum": 0.0,
             "title": "From Index",
@@ -6553,11 +6572,25 @@
             "title": "Seed"
           },
           "style_timeline": {
-            "items": {
-              "$ref": "#/components/schemas/VoiceStylePoint"
-            },
-            "title": "Style Timeline",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/VoiceStylePoint"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Timeline"
           },
           "type": {
             "default": "custom",
@@ -6565,11 +6598,25 @@
             "type": "string"
           },
           "version_timeline": {
-            "items": {
-              "$ref": "#/components/schemas/VoiceVersionPoint"
-            },
-            "title": "Version Timeline",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/VoiceVersionPoint"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Timeline"
           },
           "versions": {
             "additionalProperties": {
@@ -7011,6 +7058,7 @@
         "type": "object"
       },
       "VoiceVersionPoint": {
+        "additionalProperties": true,
         "description": "From chunk `from_index` on, the character speaks with voice version\n`version_id` (a settled age/gender state, #653); None = the main voice\nagain, for a state that changes back.",
         "properties": {
           "from_index": {
@@ -14855,7 +14903,14 @@
             "application/json": {
               "schema": {
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/VoiceConfigItem"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/VoiceConfigItem"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "title": "Config Data",
                 "type": "object"
@@ -18616,7 +18671,7 @@
     },
     "/api/voices/{speaker}/style_timeline": {
       "post": {
-        "description": "From this line on, the character sounds like `character_style` (an\naged character, a time skip). Replaces a point at the same index.",
+        "description": "From this line on, the character sounds like `character_style`.",
         "operationId": "add_style_point_api_voices__speaker__style_timeline_post",
         "parameters": [
           {
@@ -18682,6 +18737,22 @@
             "schema": {
               "title": "From Index",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from_uid",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From Uid"
             }
           },
           {
@@ -18777,7 +18848,7 @@
         "summary": "Clear Version Timeline"
       },
       "post": {
-        "description": "Apply a character's voice timeline. Every version must exist, or\nnothing is written.",
+        "description": "Apply a character's voice timeline. Every version must exist.",
         "operationId": "save_version_timeline_api_voices__speaker__version_timeline_post",
         "parameters": [
           {

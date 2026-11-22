@@ -1,9 +1,16 @@
-"""Pure voice-timeline rebasing for retained scope rows."""
+"""Pure voice-timeline rebasing for retained scope rows.
+
+The real caller passes the FULL book; ``chunk_start`` is the first retained
+row. Anchors in the removed prefix become a legacy boundary point (with the
+orphaned uid removed), so retained rows keep the voice they already had.
+"""
 import copy
 import json
 
 MAX_SCOPE_VOICE_MAPPING_BYTES = 8 * 1024**2
-from tts import get_chunk_voice_inputs, get_style_timeline_index
+from tts import get_chunk_voice_inputs
+from timeline_anchors import (TIMELINE_KEYS, build_uid_index, resolve_timeline_anchors,
+                              resolve_timeline_index)
 
 
 def get_scope_voice_plan(voices, chunks, chunk_start):
@@ -16,29 +23,48 @@ def get_scope_voice_plan(voices, chunks, chunk_start):
             or any(not isinstance(row, dict) for row in chunks)
             or type(chunk_start) is not int or not 0 < chunk_start < len(chunks)):
         raise ValueError('A voice configuration and explicit retained chunk boundary are required.')
+    full_uid_index = build_uid_index(chunks)
+    retained = chunks[chunk_start:]
+    retained_uids = {row.get('uid') for row in retained if isinstance(row.get('uid'), str)}
     rebased = copy.deepcopy(voices)
     for data in rebased.values():
         if not isinstance(data, dict):
             raise ValueError('Voice configuration needs inspection before changing source scope.')
-        for key in ('style_timeline', 'version_timeline'):
+        for key in TIMELINE_KEYS:
             if key not in data or data[key] is None:
                 continue
             points = data[key]
             if not isinstance(points, list) or any(not isinstance(point, dict) for point in points):
                 raise ValueError('Voice timeline needs inspection before changing source scope.')
-            ordered = sorted(((get_style_timeline_index(point), point) for point in points),
-                             key=lambda item: item[0])
+            ordered = []
+            for point in points:
+                try:
+                    old_index = resolve_timeline_index(point, full_uid_index)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError('Voice timeline needs inspection before changing source scope.') from exc
+                ordered.append((old_index, point))
+            ordered.sort(key=lambda item: item[0])
+            rebuilt = []
             active = [point for index, point in ordered if index <= chunk_start]
-            future = [(index, point) for index, point in ordered if index > chunk_start]
-            data[key] = ([dict(active[-1], from_index=0)] if active else []) + [
-                dict(point, from_index=index - chunk_start) for index, point in future]
+            if active:
+                boundary = dict(active[-1], from_index=0)
+                uid = boundary.get('from_uid')
+                if isinstance(uid, str) and uid not in retained_uids:
+                    boundary.pop('from_uid', None)
+                rebuilt.append(boundary)
+            rebuilt.extend(dict(point, from_index=index - chunk_start)
+                           for index, point in ordered if index > chunk_start)
+            data[key] = rebuilt
+    after_uid_index = {row['uid']: index for index, row in enumerate(retained)
+                       if isinstance(row.get('uid'), str) and row.get('uid')}
+    before_voices = resolve_timeline_anchors(voices, uid_index=full_uid_index)
+    after_voices = resolve_timeline_anchors(rebased, uid_index=after_uid_index)
     mappings = []
     mapping_bytes = 0
-    for old_index in range(chunk_start, len(chunks)):
-        row = chunks[old_index]
-        new_index = old_index - chunk_start
-        before = get_chunk_voice_inputs(voices, row, old_index)
-        after = get_chunk_voice_inputs(rebased, row, new_index)
+    for new_index, row in enumerate(retained):
+        old_index = chunk_start + new_index
+        before = get_chunk_voice_inputs(before_voices, row, old_index)
+        after = get_chunk_voice_inputs(after_voices, row, new_index)
         if before != after:
             raise ValueError('Changing scope would change a retained chunk voice.')
         mapping = {'uid': row.get('uid'), 'old_index': old_index, 'new_index': new_index,

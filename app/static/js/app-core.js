@@ -7669,18 +7669,19 @@
         // Identity anchors that take over from a line onward (#603): shown under
         // the character's style, added from the Editor ("Voice changes here").
         function renderStyleTimeline(name, config) {
-            const points = (config && config.style_timeline) || [];
+            const points = ((config && config.style_timeline) || []).filter(p => p && typeof p === 'object');
             if (!points.length) { return ''; }
             return `<div class="small text-muted mt-1">${escapeHtml(t('voice.cast.style-changes', 'Changes:'))}` + points.map(p =>
-                ` <span class="badge bg-light text-dark border">${escapeHtml(t('voice.cast.style-from', 'from line {line}: {style}', {line: p.from_index + 1, style: p.character_style}))}` +
-                ` <a href="#" title="${escapeHtml(t('voice.cast.style-remove-title', 'Remove'))}" onclick="removeStylePoint(${getInlineStringArgument(name)}, ${p.from_index}, this); return false;">&times;</a></span>`).join('') + `</div>`;
+                ` <span class="badge bg-light text-dark border">${escapeHtml(t('voice.cast.style-from', 'from line {line}: {style}', {line: Number(p.display_index ?? p.from_index) + 1, style: p.character_style}))}` +
+                ` <a href="#" title="${escapeHtml(t('voice.cast.style-remove-title', 'Remove'))}" onclick="removeStylePoint(${getInlineStringArgument(name)}, ${Number(p.from_index)}, this, ${p.from_uid ? getInlineStringArgument(p.from_uid) : 'null'}, ${Number(p.display_index ?? p.from_index)}); return false;">&times;</a></span>`).join('') + `</div>`;
         }
 
-        async function removeStylePoint(name, fromIndex, button = null) {
+        async function removeStylePoint(name, fromIndex, button = null, fromUid = null, displayIndex = null) {
             try {
-                await applyConfirmedVoiceRemoval(button, formatUiSafetyText('safety.voice.style_remove', 'Remove the voice-style change for {name} from line {line}? Existing rendered audio is not changed.', {name, line: fromIndex + 1}), async () => {
-                    const scope = _voiceCardsBookToken ? `?book_token=${encodeURIComponent(_voiceCardsBookToken)}` : '';
-                    await API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}${scope}`);
+                await applyConfirmedVoiceRemoval(button, formatUiSafetyText('safety.voice.style_remove', 'Remove the voice-style change for {name} from line {line}? Existing rendered audio is not changed.', {name, line: (displayIndex ?? fromIndex) + 1}), async () => {
+                    const scope = _voiceCardsBookToken ? `book_token=${encodeURIComponent(_voiceCardsBookToken)}&` : '';
+                    const anchor = fromUid ? `${scope}from_uid=${encodeURIComponent(fromUid)}` : scope.replace(/&$/, '');
+                    await API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}${anchor ? `?${anchor}` : ''}`);
                     await loadVoices();
                 });
             } catch (e) {
@@ -7693,7 +7694,7 @@
         // ones other characters use, then generating an age version. Nothing
         // changes audio until Apply.
         function getVoiceStateDefault(state, applied, index) {
-            const point = (applied || []).find(p => p.from_index === state.from_index);
+            const point = (applied || []).find(p => p && p.from_index === state.from_index);
             if (point) { return point.version_id ? `version:${point.version_id}` : 'main'; }
             const sources = state.sources || {};
             if (state.state_version && (sources.versions || []).some(version => version.version_id === state.state_version)) {
@@ -7728,7 +7729,7 @@
                     .join('');
                 const generate = sources.offer_generate
                     ? `<button class="btn btn-sm btn-link p-0" type="button" data-age="${escapeHtml(state.age_group)}" onclick="generateAgeVersion(this, this.dataset.age)">${escapeHtml(t('voice.states.generate-age', 'Generate {age} version', {age: state.age_group.replace(/_/g, ' ')}))}</button>` : '';
-                return `<div class="voice-state-row small mt-1" data-from-index="${state.from_index === null || state.from_index === undefined ? '' : Number(state.from_index)}" data-age="${escapeHtml(state.age_group)}">`
+                return `<div class="voice-state-row small mt-1" data-from-index="${state.from_index === null || state.from_index === undefined ? '' : Number(state.from_index)}" data-uid="${escapeHtml(state.uid || '')}" data-age="${escapeHtml(state.age_group)}">`
                     + `<div>${escapeHtml(state.gender)} · ${escapeHtml(state.age_group.replace(/_/g, ' '))}${state.chapter ? `, ${escapeHtml(state.chapter)}` : ''} <span class="text-muted">(${escapeHtml(where)})</span></div>`
                     + (state.possible_gender_reveal ? `<div class="alert alert-warning py-1 px-2 mb-1" role="note">${t('voice.states.identity-reveal', 'Possible identity reveal: the text may have misidentified this character earlier. Review their actual voice; a gender label change alone does not require a different voice.')}</div>` : '')
                     + `<select class="form-select form-select-sm voice-state-source" aria-label="${escapeHtml(t('voice.states.voice-aria', 'Voice for {speaker}, {gender}, {age}, {where}', {speaker, gender: state.gender, age: state.age_group.replace(/_/g, ' '), where}))}"${where.startsWith('from') ? '' : ' disabled'}>${options}</select>${generate}</div>`;
@@ -7837,7 +7838,7 @@
                 }
             }
             const rows = [...card.querySelectorAll('.voice-state-row')].map(row => ({
-                fromIndex: row.dataset.fromIndex, age: row.dataset.age,
+                fromIndex: row.dataset.fromIndex, uid: row.dataset.uid || undefined, age: row.dataset.age,
                 value: row.querySelector('.voice-state-source')?.value || 'main'}));
             const points = [], skipped = [];
             const versions = JSON.parse(JSON.stringify(window._voicesByName?.[speaker]?.config?.versions || {}));
@@ -7854,9 +7855,9 @@
                     }
                     const fromIndex = Number(row.fromIndex);
                     if (value === 'main') {
-                        if (points.length) { points.push({from_index: fromIndex, version_id: null}); }
+                        if (points.length) { points.push({from_index: fromIndex, from_uid: row.uid, version_id: null}); }
                     } else if (value.startsWith('version:')) {
-                        points.push({from_index: fromIndex, version_id: value.slice(8)});
+                        points.push({from_index: fromIndex, from_uid: row.uid, version_id: value.slice(8)});
                     } else if (value.startsWith('library:')) {
                         const chosen = candidates.get(value.slice(8));
                         if (!chosen) { continue; }
@@ -7874,7 +7875,7 @@
                                 version_id: versionId, age_group: row.age, config: chosen.config, book_token: bookToken});
                             versions[versionId] = {...chosen.config, age_group: row.age};
                         }
-                        points.push({from_index: fromIndex, version_id: versionId});
+                        points.push({from_index: fromIndex, from_uid: row.uid, version_id: versionId});
                     }
                 }
                 if (!isCurrent()) { throw new Error(t('safety.voice.clear_states.book_changed_timeline', 'The book changed; the voice timeline was not saved.')); }
@@ -7914,6 +7915,8 @@
             const row = document.querySelector(`#chunks-table-body tr[data-id="${chunkId}"]`);
             const getSpeaker = () => row ? (row.querySelector('.chunk-speaker')?.value || row.querySelector('select')?.value || '') : '';
             const speaker = getSpeaker();
+            const uid = row?.dataset?.uid;
+            const bookToken = row?.dataset?.bookToken;
             if (!speaker) { showToast(t('voice.change.pick-speaker', "Pick the line's speaker first."), 'warning'); return; }
             const book = currentBookFilename;
             const current = (window._voicesByName && window._voicesByName[speaker])?.config || {};
@@ -7923,10 +7926,13 @@
                     allowEmptyName: true, includeDescription: false, actionLabel: t('voice.change.save-action', 'Save change point'),
                     helperText: t('voice.change.help', 'Describe how the character sounds from this line on. Leave empty to remove this change point. Regenerate later lines to hear the change.')});
                 if (!values) { return; }
-                if (book !== currentBookFilename || row?.isConnected === false || getSpeaker() !== speaker) {
+                if (book !== currentBookFilename || row?.isConnected === false || getSpeaker() !== speaker
+                    || row?.dataset?.uid !== uid || row?.dataset?.bookToken !== bookToken) {
                     showToast(t('voice.change.changed', 'The book or line speaker changed. Review it before saving the change point.'), 'warning'); return;
                 }
-                await API.post(`/api/voices/${encodeURIComponent(speaker)}/style_timeline`, { from_index: chunkId, character_style: values.name });
+                await API.post(`/api/voices/${encodeURIComponent(speaker)}/style_timeline`, {
+                    from_index: chunkId, from_uid: uid, expected_book_token: bookToken, character_style: values.name
+                });
                 if (book === currentBookFilename) { await loadVoices(); }
                 showToast(values.name
                     ? t('voice.change.saved', '{speaker} changes from line {line}. Regenerate the later lines to hear it.', {speaker, line: chunkId + 1})
