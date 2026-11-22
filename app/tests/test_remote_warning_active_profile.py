@@ -128,20 +128,26 @@ class ActiveProfileClassificationTests(unittest.TestCase):
 class SupportSummaryTests(unittest.TestCase):
 
     def test_the_voicelab_summary_classifies_the_active_profile(self):
-        """The diagnostics bundle reports the same question as the Setup page,
-        so it must not repeat the mirror's stale answer."""
+        cases = (
+            (
+                {"llm_local": make_profile(HOSTED, "active-model"),
+                 "llm": make_profile(LOOPBACK, "stale-model")},
+                "active-model", True,
+            ),
+            ({"llm": make_profile(LOOPBACK, "legacy-model")}, "legacy-model", False),
+        )
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "config.json")
-            path.write_text(json.dumps({
-                "llm_mode": "local",
-                "llm_local": make_profile(HOSTED),
-                "llm": make_profile(LOOPBACK),
-            }), encoding="utf-8")
-            with patch.object(voicelab, "CONFIG_PATH", str(path)):
-                summary = voicelab._safe_config_summary()
-        self.assertTrue(summary["available"])
-        self.assertEqual("local", summary["llm_mode"])
-        self.assertTrue(summary["is_remote_llm"])
+            for profiles, model_name, is_remote in cases:
+                with self.subTest(model_name=model_name):
+                    path.write_text(json.dumps({"llm_mode": "local", **profiles}),
+                                    encoding="utf-8")
+                    with patch.object(voicelab, "CONFIG_PATH", str(path)):
+                        summary = voicelab._safe_config_summary()
+                    self.assertTrue(summary["available"])
+                    self.assertEqual("local", summary["llm_mode"])
+                    self.assertEqual(model_name, summary["model_name"])
+                    self.assertIs(is_remote, summary["is_remote_llm"])
 
 
 if __name__ == "__main__":
