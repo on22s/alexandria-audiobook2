@@ -278,21 +278,31 @@ def add_scope_evidence(script, raw, parent_rows, active_rows):
     if cut is None:
         return None
     policy = get_literal_policy(active_rows)
+    parent_policy = get_literal_policy(parent_rows)
+    if parent_policy is None:
+        parent_rows = bind_literal_policy(raw, parent_rows)
+        parent_policy = get_literal_policy(parent_rows)
     prepared = (get_preprocessed_source(raw, strip_front_matter=True)[0]
                 if policy is not None and policy.get('strip_front_matter') is True else raw)
     try:
         evidence = get_scope_cut_evidence(
-            prepared, parent_rows, cut, parent_policy=get_literal_policy(parent_rows),
-            policy=policy)
+            prepared, parent_rows, cut, parent_policy=parent_policy, policy=policy)
     except ValueError:
         return None
     if evidence is None:
         return None
-    evidence['parent_policy_sha256'] = get_literal_policy_identity(
-        get_literal_policy(parent_rows))
+    evidence['parent_policy_sha256'] = get_literal_policy_identity(parent_policy)
     binding_path = script.with_suffix('.selection_binding.json')
     binding_path.write_bytes(attach_scope_cut_evidence(binding_path.read_bytes(), evidence))
     return evidence
+
+
+def create_scoped_book(directory, *, raw, parent_rows, active_rows, evidence_rows=None):
+    """Direct book carrying genuine producer-derived frozen scope evidence."""
+    script, source, entries = create_book(directory, raw=raw, source=active_rows)
+    add_scope_evidence(script, raw, parent_rows,
+                       active_rows if evidence_rows is None else evidence_rows)
+    return script, source, entries
 
 
 def make_saved_hop(directory, *, raw, original_rows, active_rows, evidence_rows=None):
@@ -712,14 +722,18 @@ class ResidualAstraFindingsTests(unittest.TestCase):
         retained, _ = build_scoped_rows(raw, rows, 3)
         self.assertEqual(raw[13:14], '!')
         retained[0]['source_span'] = [13, 14]
+        marked = mark_entries(rows, raw)
         with tempfile.TemporaryDirectory() as directory:
-            script, _, entries = create_book(directory, raw=raw, source=retained)
+            script, _, entries = create_scoped_book(
+                directory, raw=raw, parent_rows=marked, active_rows=retained)
             self.assertEqual(raw, review.get_review_source_text(
                 directory, str(script), script.read_bytes(), entries))
         stale = copy.deepcopy(retained)
         stale[0]['source_span'] = [0, 1]
         with tempfile.TemporaryDirectory() as directory:
-            script, _, entries = create_book(directory, raw=raw, source=stale)
+            script, _, entries = create_scoped_book(
+                directory, raw=raw, parent_rows=marked, active_rows=stale,
+                evidence_rows=retained)
             self.assertIsNone(review.get_review_source_text(
                 directory, str(script), script.read_bytes(), entries))
 
@@ -786,21 +800,26 @@ class FinalAstraFindingsTests(unittest.TestCase):
     def test_attached_exclamation_is_not_a_retained_row(self):
         raw, rows = self.punctuation_book('Exclude me!', '!')
         retained, _ = build_scoped_rows(raw, rows, 1)
+        marked = mark_entries(rows, raw)
         self.assertEqual('!', raw[10:11])
         self.assertEqual('!', raw[13:14])
         with tempfile.TemporaryDirectory() as directory:
-            script, _, entries = create_book(directory, raw=raw, source=retained)
+            script, _, entries = create_scoped_book(
+                directory, raw=raw, parent_rows=marked, active_rows=retained)
             self.assertEqual(raw, review.get_review_source_text(
                 directory, str(script), script.read_bytes(), entries))
         tampered = copy.deepcopy(retained)
         tampered[0]['source_span'] = [10, 11]
         with tempfile.TemporaryDirectory() as directory:
-            script, _, entries = create_book(directory, raw=raw, source=tampered)
+            script, _, entries = create_scoped_book(
+                directory, raw=raw, parent_rows=marked, active_rows=tampered,
+                evidence_rows=retained)
             self.assertIsNone(review.get_review_source_text(
                 directory, str(script), script.read_bytes(), entries))
             self.publish(directory, script, tampered, expected=False)
         with tempfile.TemporaryDirectory() as directory:
-            script, _, entries = create_book(directory, raw=raw, source=retained)
+            script, _, entries = create_scoped_book(
+                directory, raw=raw, parent_rows=marked, active_rows=retained)
             saved = self.publish(directory, script, retained, expected=True)
             self.assertEqual([13, 14], saved[0]['source_span'])
 
@@ -810,23 +829,27 @@ class FinalAstraFindingsTests(unittest.TestCase):
         parent = get_literal_policy(parent_rows)
         child_rows, _ = build_scoped_rows(raw, rows, 1, ancestor=parent)
         align_cut(child_rows, parent_rows)
+        marked = mark_entries(rows, raw)
         with tempfile.TemporaryDirectory() as directory:
-            active, _, _ = make_saved_hop(
+            active, original, _ = make_saved_hop(
                 directory, raw=raw, original_rows=parent_rows, active_rows=child_rows)
+            add_scope_evidence(original, raw, marked, parent_rows)
             self.assertEqual(raw, review.get_review_source_text(
                 directory, str(active), active.read_bytes(), child_rows))
         tampered = copy.deepcopy(child_rows)
         tampered[0]['source_span'] = [10, 11]
         with tempfile.TemporaryDirectory() as directory:
-            active, _, _ = make_saved_hop(
+            active, original, _ = make_saved_hop(
                 directory, raw=raw, original_rows=parent_rows, active_rows=tampered,
                 evidence_rows=child_rows)
+            add_scope_evidence(original, raw, marked, parent_rows)
             self.assertIsNone(review.get_review_source_text(
                 directory, str(active), active.read_bytes(), tampered))
             self.publish(directory, active, tampered, expected=False)
         with tempfile.TemporaryDirectory() as directory:
-            active, _, _ = make_saved_hop(
+            active, original, _ = make_saved_hop(
                 directory, raw=raw, original_rows=parent_rows, active_rows=child_rows)
+            add_scope_evidence(original, raw, marked, parent_rows)
             saved = self.publish(directory, active, child_rows, expected=True)
             self.assertEqual([13, 14], saved[0]['source_span'])
 
@@ -914,17 +937,30 @@ class OwnershipAndCompositionTests(unittest.TestCase):
                 with self.subTest(lead=lead, path=path):
                     valid = copy.deepcopy(child)
                     with tempfile.TemporaryDirectory() as directory:
-                        script = (create_book(directory, raw=raw, source=valid)[0] if parent is None
-                                  else make_saved_hop(directory, raw=raw, original_rows=parent,
-                                                      active_rows=valid)[0])
+                        if parent is None:
+                            script = create_scoped_book(
+                                directory, raw=raw, parent_rows=whole,
+                                active_rows=valid)[0]
+                        else:
+                            script, original, _ = make_saved_hop(
+                                directory, raw=raw, original_rows=parent, active_rows=valid)
+                            if path == 'scoped-parent':
+                                add_scope_evidence(original, raw, whole, child)
                         saved = self.publish(directory, script, valid, expected=True)
                         self.assertEqual(right, saved[0]['source_span'])
                     tampered = copy.deepcopy(child)
                     tampered[0]['source_span'] = list(wrong)
                     with tempfile.TemporaryDirectory() as directory:
-                        script = (create_book(directory, raw=raw, source=tampered)[0] if parent is None
-                                  else make_saved_hop(directory, raw=raw, original_rows=parent,
-                                                      active_rows=tampered, evidence_rows=child)[0])
+                        if parent is None:
+                            script = create_scoped_book(
+                                directory, raw=raw, parent_rows=whole,
+                                active_rows=tampered, evidence_rows=child)[0]
+                        else:
+                            script, original, _ = make_saved_hop(
+                                directory, raw=raw, original_rows=parent,
+                                active_rows=tampered, evidence_rows=child)
+                            if path == 'scoped-parent':
+                                add_scope_evidence(original, raw, whole, child)
                         self.publish(directory, script, tampered, expected=False)
 
     def test_adjacent_retained_word_and_punctuation_is_valid(self):
@@ -1093,7 +1129,8 @@ class CutEvidenceTests(unittest.TestCase):
             self.assertEqual([23, 37], child[1]['source_span'])
             for direct, path in ((True, 'direct'), (False, 'saved')):
                 with self.subTest(parent=label, path=path), tempfile.TemporaryDirectory() as directory:
-                    script = (create_book(directory, raw=raw, source=child)[0] if direct else
+                    script = (create_scoped_book(directory, raw=raw, parent_rows=parent,
+                                                 active_rows=child)[0] if direct else
                               make_saved_hop(directory, raw=raw, original_rows=parent,
                                              active_rows=child)[0])
                     saved = self.publish(directory, script, child, expected=True)
@@ -1802,12 +1839,17 @@ class ScopeCutProofTests(unittest.TestCase):
                 apply_source_scope(root, 3, plan['revision'])
             child = json.loads(path.read_bytes())
             self.assertEqual([22, 23], child[0]['source_span'])
+        certified = copy.deepcopy(base)
+        certified[0]['source_span'] = [0, 6]
+        with tempfile.TemporaryDirectory() as directory:
+            active, _, _ = create_scoped_book(
+                directory, raw=raw, parent_rows=certified, active_rows=child)
             self.assertEqual(raw, review.get_review_source_text(
-                directory, str(path), path.read_bytes(), child))
+                directory, str(active), active.read_bytes(), child))
             saved, _out, _calls, _changed = run_cli_at(
-                directory, path, [CutEvidenceTests().split(child)])
+                directory, active, [CutEvidenceTests().split(child)])
             self.assertIn(NEW_SPEAKER, [entry['speaker'] for entry in saved])
-            replay, output, calls, changed = run_cli_at(directory, path, [])
+            replay, output, calls, changed = run_cli_at(directory, active, [])
             self.assertEqual([], calls)
             self.assertFalse(changed)
             self.assertEqual(saved, replay)
@@ -1845,6 +1887,26 @@ class ScopeCutProofTests(unittest.TestCase):
                 directory, path, [CutEvidenceTests().split(child)])
             self.assertIn(NEW_SPEAKER, [entry['speaker'] for entry in saved])
             replay, output, calls, changed = run_cli_at(directory, path, [])
+            self.assertEqual([], calls)
+            self.assertFalse(changed)
+            self.assertEqual(saved, replay)
+
+    def test_legacy_direct_without_ambiguous_prefix_still_captures(self):
+        rows = [row(text, 'NARRATOR') for text in
+                ('Excluded.', 'Keep the line.\n\nAfterward.')]
+        raw = '\n\n'.join(entry['text'] for entry in rows)
+        retained, _ = build_scoped_rows(raw, rows, 1)
+        self.assertTrue(any(True for _ in iter_literal_words(retained[0]['text'])))
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=retained)
+            self.assertIsNone(get_scope_cut_from_binding(
+                parse_script_binding(script.with_suffix('.selection_binding.json').read_bytes())))
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(script), script.read_bytes(), entries))
+            saved, _out, _calls, _changed = run_cli_at(
+                directory, script, [CutEvidenceTests().split(retained)])
+            self.assertIn(NEW_SPEAKER, [entry['speaker'] for entry in saved])
+            replay, output, calls, changed = run_cli_at(directory, script, [])
             self.assertEqual([], calls)
             self.assertFalse(changed)
             self.assertEqual(saved, replay)

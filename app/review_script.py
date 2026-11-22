@@ -1738,10 +1738,11 @@ def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=No
                 text, get_review_source_entries(retained, text))
             leading_intervals = [tuple(interval) for interval in expected_coverage]
         else:
+            first_leading = next((position for position, item in enumerate(entries)
+                                  if any(True for _ in iter_literal_words(item['text']))), len(entries))
+            if first_leading:
+                raise ValueError('Ambiguous leading rows require frozen or saved-parent scope evidence')
             retained = None
-            leading = _retained_leading_region(text, scope, entries)
-            if leading is not None:
-                leading_intervals = [leading]
     first_word = next((position for position, item in enumerate(entries)
                        if any(True for _ in iter_literal_words(item['text']))), len(entries))
     cursor = 0

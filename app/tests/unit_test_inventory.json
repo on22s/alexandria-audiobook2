@@ -12668,6 +12668,7 @@
     , "tests.test_review_scoped_source_span.ScopeCutProofTests.test_direct_forged_cut_cannot_publish_an_excluded_mark"
     , "tests.test_review_scoped_source_span.ScopeCutProofTests.test_evidence_requires_child_policy_even_for_equivalent_strip_choice"
     , "tests.test_review_scoped_source_span.ScopeCutProofTests.test_forged_cut_cannot_publish_an_excluded_mark"
+    , "tests.test_review_scoped_source_span.ScopeCutProofTests.test_legacy_direct_without_ambiguous_prefix_still_captures"
     , "tests.test_review_scoped_source_span.ScopeCutProofTests.test_malformed_proof_is_refused_without_downgrade"
     , "tests.test_review_scoped_source_span.ScopeCutProofTests.test_producer_refuses_contradictory_parent_spans"
     , "tests.test_review_scoped_source_span.ScopeCutProofTests.test_producer_refuses_explicitly_null_discarded_span"
