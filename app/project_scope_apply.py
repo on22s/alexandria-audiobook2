@@ -11,7 +11,8 @@ from project_scope_assets import get_scope_asset_snapshot
 from project_scope_exports import (get_scope_export_inventory,
                                    is_scope_export_inventory_compatible)
 from script_selection_binding import (BINDING_NAME, binding_for_controlled_edit,
-                                      attach_scope_cut_evidence)
+                                      attach_scope_cut_evidence, parse_script_binding,
+                                      get_scope_cut_from_binding)
 
 UNDO = '.project_scope_undo.json'
 LEGACY_FILES = ('state.json', 'annotated_script.json', 'voice_config.json', 'chunks.json',
@@ -100,6 +101,10 @@ def apply_source_scope(root, start_entry, expected_revision):
         before[name] = raw
     if sum(len(raw) for raw in before.values() if raw is not None) > 32 * 1024**2:
         raise ValueError('Scope undo metadata exceeds its 32 MiB input limit.')
+    if plan.get('scope_cut_evidence') is None and before[BINDING_NAME] is not None:
+        prior = parse_script_binding(before[BINDING_NAME])
+        if get_scope_cut_from_binding(prior) is not None:
+            raise ValueError('Prior scope cut evidence cannot be reused for an unprovable scope.')
     state = json.loads(before['state.json'])
     state['_source_scope'] = plan['source_scope']
     state['_source_scope_exports'] = plan['export_inventory']

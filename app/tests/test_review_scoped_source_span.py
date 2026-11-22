@@ -20,8 +20,9 @@ from literal_policy import (SCRIPT_POLICY_KEY, bind_literal_chunks, bind_literal
                             get_literal_policy, get_literal_policy_identity, get_word_identity,
                             get_scope_coverage_digest, get_scope_coverage_intervals,
                             is_scope_cut_proof)
-from project import group_into_chunks
-from project_scope_apply import apply_source_scope
+from project import ProjectManager, group_into_chunks
+from project_scope_apply import (apply_source_scope, apply_source_scope_undo,
+                                 get_source_scope_undo_preview, discard_source_scope_undo)
 from project_scope_literal import (get_literal_scope, get_scope_cut_evidence,
                                    ScopeSpanContradiction)
 from project_scope_partition import get_scope_partition
@@ -1463,6 +1464,12 @@ class ScopeCutProofTests(unittest.TestCase):
             self.assertIn('No changes since the completed review', output)
 
     def test_producer_refuses_contradictory_parent_spans(self):
+        self.assert_producer_refuses_parent_span(null_span=False)
+
+    def test_producer_refuses_explicitly_null_discarded_span(self):
+        self.assert_producer_refuses_parent_span(null_span=True)
+
+    def assert_producer_refuses_parent_span(self, *, null_span):
         rows = [row(text, 'NARRATOR', instruct='Even.') for text in
                 ('Intro.', 'Exclude me', '!', '!', 'Keep the line.')]
         rows += copy.deepcopy(RAW_ROWS[5:])
@@ -1471,8 +1478,11 @@ class ScopeCutProofTests(unittest.TestCase):
         digest = hashlib.sha256(raw.encode()).hexdigest()
         full = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
         self.assertEqual([19, 20], full[2]['source_span'])
-        full[2]['source_span'] = [18, 19]
-        full[3]['source_span'] = [19, 20]
+        if null_span:
+            full[0]['source_span'] = None
+        else:
+            full[2]['source_span'] = [18, 19]
+            full[3]['source_span'] = [19, 20]
         chunks = bind_literal_chunks(
             [dict(entry, id=index, uid=f'u{index}', status='pending', audio_path=None)
              for index, entry in enumerate(group_into_chunks(full))],
@@ -1496,3 +1506,182 @@ class ScopeCutProofTests(unittest.TestCase):
                     get_scope_preview(root, 3)
             self.assertEqual(full, json.loads(path.read_bytes()))
             self.assertFalse((root / '.project_scope_undo.json').exists())
+
+    def _shared_span_fixture(self, directory, full, raw, chunks):
+        root = Path(directory)
+        source = root / 'source.txt'
+        source.write_text(raw, encoding='utf-8')
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        state = {'active_book_id': 'fixture', 'book_generation': 'g1',
+                 'input_file_path': str(source)}
+        for name, data in (('state.json', state), ('annotated_script.json', full),
+                           ('voice_config.json', {}), ('chunks.json', chunks)):
+            (root / name).write_text(json.dumps(data), encoding='utf-8')
+        path = root / 'annotated_script.json'
+        (root / BINDING_NAME).write_bytes(json.dumps(make_script_selection_binding(
+            get_book_operation_token(directory), digest, path.read_bytes(),
+            source_path=str(source)), sort_keys=True, separators=(',', ':')).encode())
+        return path
+
+    def test_shared_parent_span_straddling_cut_resolves_and_publishes(self):
+        rows = [row(text, 'NARRATOR', instruct='Even.') for text in
+                ('Intro.', 'Exclude me', '!', '!', 'Keep the line.')]
+        rows += copy.deepcopy(RAW_ROWS[5:])
+        raw = '\n\n'.join(entry['text'] for entry in rows).replace(
+            'Exclude me\n\n!', 'Exclude me !')
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        full = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
+        self.assertEqual([19, 20], full[2]['source_span'])
+        self.assertEqual([22, 23], full[3]['source_span'])
+        full[2]['source_span'] = [19, 23]
+        full[3]['source_span'] = [19, 23]
+        resolved = review.get_review_source_entries(full, raw)
+        self.assertEqual([[19, 20], [22, 23]],
+                         [entry['source_span'] for entry in resolved[2:4]])
+        chunks = bind_literal_chunks(
+            [dict(entry, id=index, uid=f'u{index}', status='pending', audio_path=None)
+             for index, entry in enumerate(group_into_chunks(full))],
+            get_literal_policy(full))
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._shared_span_fixture(directory, full, raw, chunks)
+            root = Path(directory)
+            with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                    ensure_scope_admission(root):
+                plan = get_scope_preview(root, 3)
+                self.assertEqual(22, plan['scope_cut_evidence']['outer_start'])
+                apply_source_scope(root, 3, plan['revision'])
+            applied = json.loads(path.read_bytes())
+            self.assertEqual([22, 23], applied[0]['source_span'])
+            self.assertEqual('!', applied[0]['text'])
+            self.assertEqual('!', raw[22:23])
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(path), path.read_bytes(), applied))
+            with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                    ensure_scope_admission(root):
+                apply_source_scope_undo(root, get_source_scope_undo_preview(root)['revision'])
+            self.assertEqual(full, json.loads(path.read_bytes()))
+            with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                    ensure_scope_admission(root):
+                again = get_scope_preview(root, 3)
+                apply_source_scope(root, 3, again['revision'])
+            child = json.loads(path.read_bytes())
+            saved, _out, _calls, _changed = run_cli_at(
+                directory, path, [CutEvidenceTests().split(child)])
+            self.assertIn(NEW_SPEAKER, [entry['speaker'] for entry in saved])
+            self.assertTrue(Path(str(path) + '.review_completed.json').exists())
+            replay, output, calls, changed = run_cli_at(directory, path, [])
+            self.assertEqual([], calls)
+            self.assertFalse(changed)
+            self.assertEqual(saved, replay)
+            self.assertIn('No changes since the completed review', output)
+
+    def test_shared_parent_span_variants_are_refused(self):
+        rows = [row(text, 'NARRATOR', instruct='Even.') for text in
+                ('Intro.', 'Exclude me', '!', '!', 'Keep the line.')]
+        rows += copy.deepcopy(RAW_ROWS[5:])
+        raw = '\n\n'.join(entry['text'] for entry in rows).replace(
+            'Exclude me\n\n!', 'Exclude me !')
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        base = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
+        variants = {}
+        clipped = copy.deepcopy(base)
+        clipped[2]['source_span'] = [19, 22]
+        clipped[3]['source_span'] = [19, 22]
+        variants['clipped'] = clipped
+        reordered = copy.deepcopy(base)
+        reordered[2]['source_span'] = [22, 23]
+        reordered[3]['source_span'] = [19, 20]
+        variants['reordered'] = reordered
+        overlap = copy.deepcopy(base)
+        overlap[3]['source_span'] = [19, 20]
+        variants['overlap'] = overlap
+        for name, full in variants.items():
+            with self.subTest(variant=name), tempfile.TemporaryDirectory() as directory:
+                chunks = bind_literal_chunks(
+                    [dict(entry, id=index, uid=f'u{index}', status='pending', audio_path=None)
+                     for index, entry in enumerate(group_into_chunks(full))],
+                    get_literal_policy(full))
+                self._shared_span_fixture(directory, full, raw, chunks)
+                with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                        ensure_scope_admission(Path(directory)):
+                    with self.assertRaises(ScopeSpanContradiction):
+                        get_scope_preview(Path(directory), 3)
+
+    def test_second_scope_without_new_evidence_keeps_prior_state(self):
+        rows = [row(text, 'NARRATOR', instruct='Even.') for text in
+                ('Intro.', 'Exclude me', '!', '!', 'Keep the line.')]
+        rows += copy.deepcopy(RAW_ROWS[5:])
+        raw = '\n\n'.join(entry['text'] for entry in rows).replace(
+            'Exclude me\n\n!', 'Exclude me !')
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        full = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
+        chunks = bind_literal_chunks(
+            [dict(entry, id=index, uid=f'u{index}', status='pending', audio_path=None)
+             for index, entry in enumerate(group_into_chunks(full))],
+            get_literal_policy(full))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self._shared_span_fixture(directory, full, raw, chunks)
+            with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                    ensure_scope_admission(root):
+                plan = get_scope_preview(root, 1)
+                apply_source_scope(root, 1, plan['revision'])
+                discard_source_scope_undo(root, get_source_scope_undo_preview(root)['revision'])
+            prior = json.loads((root / BINDING_NAME).read_bytes())['scope_cut']
+            published = json.loads(path.read_bytes())
+            saved_chunks = (root / 'chunks.json').read_bytes()
+            missing = copy.deepcopy(published)
+            missing[0].pop('source_span')
+            publish_controlled_script_edit(directory, path.read_bytes(),
+                                           json.dumps(missing).encode())
+            (root / 'chunks.json').write_bytes(saved_chunks)
+            ProjectManager(directory).load_chunks()
+            watched = {name: (root / name).read_bytes()
+                       for name in ('annotated_script.json', 'state.json', BINDING_NAME)}
+            self.assertFalse((root / '.project_scope_undo.json').exists())
+            with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                    ensure_scope_admission(root):
+                second = get_scope_preview(root, 2)
+                self.assertIsNone(second['scope_cut_evidence'])
+                with self.assertRaisesRegex(ValueError, 'Prior scope cut evidence'):
+                    apply_source_scope(root, 2, second['revision'])
+            self.assertEqual(watched, {name: (root / name).read_bytes()
+                                       for name in watched})
+            self.assertFalse((root / '.project_scope_undo.json').exists())
+            self.assertEqual(prior, json.loads((root / BINDING_NAME).read_bytes())['scope_cut'])
+
+    def test_second_scope_with_valid_evidence_publishes_and_replays(self):
+        rows = [row(text, 'NARRATOR', instruct='Even.') for text in
+                ('Intro.', 'Exclude me', '!', '!', 'Keep the line.')]
+        rows += copy.deepcopy(RAW_ROWS[5:])
+        raw = '\n\n'.join(entry['text'] for entry in rows).replace(
+            'Exclude me\n\n!', 'Exclude me !')
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        full = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
+        chunks = bind_literal_chunks(
+            [dict(entry, id=index, uid=f'u{index}', status='pending', audio_path=None)
+             for index, entry in enumerate(group_into_chunks(full))],
+            get_literal_policy(full))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self._shared_span_fixture(directory, full, raw, chunks)
+            with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                    ensure_scope_admission(root):
+                plan = get_scope_preview(root, 1)
+                apply_source_scope(root, 1, plan['revision'])
+                discard_source_scope_undo(root, get_source_scope_undo_preview(root)['revision'])
+            ProjectManager(directory).load_chunks()
+            with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                    ensure_scope_admission(root):
+                second = get_scope_preview(root, 2)
+                self.assertIsNotNone(second['scope_cut_evidence'])
+                apply_source_scope(root, 2, second['revision'])
+            child = json.loads(path.read_bytes())
+            self.assertEqual([22, 23], child[0]['source_span'])
+            saved, _out, _calls, _changed = run_cli_at(
+                directory, path, [CutEvidenceTests().split(child)])
+            self.assertIn(NEW_SPEAKER, [entry['speaker'] for entry in saved])
+            replay, output, calls, changed = run_cli_at(directory, path, [])
+            self.assertEqual([], calls)
+            self.assertFalse(changed)
+            self.assertEqual(saved, replay)

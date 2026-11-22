@@ -24,15 +24,18 @@ def _ordered_spans(spans):
 
 
 def _resolved_row_spans(source, rows, *, allow_missing=False):
-    """Resolve ordered raw spans, checking each against the actual narration."""
-    spans = []
-    missing = False
+    """Resolve shared intervals positionally, before any entry-index cut.
+
+    Returns ordered spans plus a per-row list aligned to ``rows`` (None for a
+    row with no span), so a shared span straddling the cut resolves to its
+    exact per-row fragments on both sides of the boundary.
+    """
+    resolved = [None] * len(rows)
     position = 0
     while position < len(rows):
         entry = rows[position]
         span = entry.get('source_span')
-        if span is None and allow_missing:
-            missing = True
+        if allow_missing and 'source_span' not in entry:
             position += 1
             continue
         if (not isinstance(span, (list, tuple)) or len(span) != 2
@@ -47,38 +50,42 @@ def _resolved_row_spans(source, rows, *, allow_missing=False):
         try:
             if len(group) > 1:
                 texts = [row['text'] for row in group]
-                spans.extend(get_source_span_fragments(source, ' '.join(texts), span, texts))
+                fragments = get_source_span_fragments(source, ' '.join(texts), span, texts)
             else:
                 exact = get_source_span_fragments(
                     source, group[0]['text'], span, [group[0]['text']])[0]
                 if list(exact) != span:
                     raise ScopeSpanContradiction('Parent span overruns its raw narration')
-                spans.append(span)
+                fragments = [exact]
         except ValueError as error:
             raise ScopeSpanContradiction('Parent spans contradict the raw source') from error
+        if len(fragments) != len(group):
+            raise ScopeSpanContradiction('Shared parent interval has ambiguous fragments')
+        for index, fragment in enumerate(fragments):
+            resolved[position + index] = list(fragment)
         position = stop
-    return _ordered_spans(spans), missing
+    return _ordered_spans([value for value in resolved if value is not None]), resolved
 
 
-def _partition_spans(source, rows, start_entry):
-    """Verify the complete ordered parent partition across the cut boundary."""
-    prefix, prefix_missing = _resolved_row_spans(source, rows[:start_entry], allow_missing=True)
-    suffix, suffix_missing = _resolved_row_spans(source, rows[start_entry:], allow_missing=True)
-    _ordered_spans(prefix + suffix)
-    if prefix_missing or suffix_missing:
+def _retained_scope_layout(source, rows, start_entry):
+    """Verify the complete partition, then split resolved spans by row index."""
+    _ordered, resolved = _resolved_row_spans(source, rows, allow_missing=True)
+    if any(value is None for value in resolved):
         raise ScopeSpanUnavailable('A parent row has no verified source span')
-    return prefix, suffix
+    prefix = _ordered_spans(resolved[:start_entry])
+    suffix = _ordered_spans(resolved[start_entry:])
+    return prefix, suffix, get_scope_coverage_intervals(source, suffix)
 
 
 def _retained_scope_intervals(source, rows, *, start_entry=None):
     """Raw coverage of parent rows, verified across the full cut boundary."""
     if start_entry is None:
-        spans, missing = _resolved_row_spans(source, rows)
-        if missing:
+        ordered, resolved = _resolved_row_spans(source, rows)
+        if any(value is None for value in resolved):
             raise ScopeSpanUnavailable('A parent row has no verified source span')
-    else:
-        _prefix, spans = _partition_spans(source, rows, start_entry)
-    return get_scope_coverage_intervals(source, spans)
+        return get_scope_coverage_intervals(source, ordered)
+    _prefix, _suffix, intervals = _retained_scope_layout(source, rows, start_entry)
+    return intervals
 
 
 def get_scope_cut_evidence(source, script, start_entry, *, parent_policy, policy):
@@ -140,7 +147,10 @@ def get_literal_scope(source, script, chunks, start_entry, start_chunk, *,
                     'start_word': start, 'end_word': len(words), 'total_words': len(words),
                     'script_start_entry': start_entry}
     try:
-        intervals = _retained_scope_intervals(source, script, start_entry=start_entry)
+        _prefix, retained_spans, intervals = _retained_scope_layout(source, script, start_entry)
+        for row, span in zip(suffix, retained_spans):
+            if 'source_span' in row:
+                row['source_span'] = list(span)
         proof = {'version': 1, 'source_sha256': prepared_sha256,
                  'parent_policy_sha256': scope_source['parent_policy_sha256'],
                  'start_word': start, 'intervals': intervals,
