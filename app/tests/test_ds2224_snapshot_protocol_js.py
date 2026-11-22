@@ -102,15 +102,14 @@ run("dsbRows=[{text:'imported first',emotion:'',seed:'',status:'pending'},{text:
 await assert.rejects(run('dsbSaveRowsQueue.flush()'));
 assert.strictEqual(run("ensureDatasetRowSaveState('A').fullRevision!==null"),true,
  'a refused structural draft must stay dirty');
-run("dsbUpdateRow(0,'text','manually revised first')");
-await assert.rejects(run('dsbSaveRowsQueue.flush()'));
-assert.strictEqual(bodies.length,2);
-assert.strictEqual(bodies[1].url.split('/').pop(),'update_rows',
- 'an unrelated delta must not switch to a granular ack that clears the refused queue');
-assert.deepStrictEqual(plain(bodies[1].body.rows.map(r=>r.text)),['manually revised first','imported second'],
- 'the second imported value is still queued, not silently discarded');
-assert.strictEqual(run('dsbSaveRowsQueue.isDirty()'),true);
-''')
+ run("dsbUpdateRow(0,'text','manually revised first')");
+ await assert.rejects(run('dsbSaveRowsQueue.flush()'));
+ assert.strictEqual(bodies.length,1,
+  'the refused payload is never replayed by a later implicit flush');
+ assert.deepStrictEqual(plain(run('dsbRows.map(r=>r.text)')),['manually revised first','imported second'],
+  'both imported values stay visible until explicit recovery');
+ assert.strictEqual(run('dsbSaveRowsQueue.isDirty()'),true);
+ ''')
 
     def test_explicit_conflict_recovery_reloads_without_replaying_the_refused_write(self):
         self.run_scenario(r'''

@@ -180,6 +180,7 @@
     "'Dataset contains no usable training audio.'",
     "'Dataset generation needs a revision for every requested row'",
     "'Dataset generation needs an expected row count with revisions'",
+    "'Dataset metadata changed; reload before saving'",
     "'Dataset not found'",
     "'Dataset project state could not be read'",
     "'Dataset project state could not be read'",

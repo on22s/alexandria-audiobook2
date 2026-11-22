@@ -213,15 +213,13 @@ def check_expected_dataset_metadata(state, expected_description, expected_global
     """
     if expected_description is None and expected_global_seed is None:
         return
-    if not isinstance(state, dict):
-        return
-    current_description = state.get("description", "")
-    current_global_seed = state.get("global_seed", "")
-    if ((expected_description is not None and current_description != expected_description)
+    if (state is _MISSING_BUILDER_STATE
+            or (expected_description is not None
+                and state.get("description", "") != expected_description)
             or (expected_global_seed is not None
-                and str(current_global_seed) != str(expected_global_seed))):
-        raise HTTPException(status_code=409,
-                            detail="Dataset metadata changed; reload before saving")
+                and str(state.get("global_seed", "")) != str(expected_global_seed))):
+        raise AppError(409, "Dataset metadata changed; reload before saving",
+                       key='error.dataset.metadata_changed')
 
 
 class _MissingBuilderState:
@@ -604,7 +602,14 @@ def _dataset_builder_update_rows_sync(request: DatasetBuilderUpdateRowsRequest):
                 new_samples.append(get_merged_dataset_sample(row, stored))
         state["samples"] = new_samples
         _save_builder_state(safe_name, state)
+    # The same safe projection as /status: a positional merge can invalidate
+    # a surviving row's audio (e.g. deleting the first of two completed rows),
+    # and a receipt carrying only revisions leaves the browser showing a player
+    # for audio no longer in the stored snapshot.
     return {"status": "ok", "sample_count": len(new_samples),
+            "description": state.get("description", ""),
+            "global_seed": state.get("global_seed", ""),
+            "samples": [_browser_safe_dataset_row(row) for row in new_samples],
             "row_revisions": [get_dataset_row_revision(row) for row in new_samples]}
 
 

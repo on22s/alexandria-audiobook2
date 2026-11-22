@@ -120,6 +120,7 @@ KEEP_ENGLISH = frozenset({
     # row data attributes it reads/writes to track status and audio. Identifiers,
     # never display copy; the visible messages remain keyed.
     'dsb-table-body', 'data-dsb-status', 'data-dsb-audio', 'dsb-project-load-status',
+    'dsb-project-select', 'dsb-description', 'dsb-global-seed',
 })
 
 # Measured 2026-11-10 on the P5 tree by the counters below. A pane or file that

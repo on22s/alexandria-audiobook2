@@ -444,6 +444,44 @@ class Ds2224BackendTests(unittest.TestCase):
         self.assertEqual(409, stale.status_code, stale.text)
         reserve.assert_not_called()
 
+    def test_full_list_receipt_carries_the_durable_status_projection(self):
+        self.save({'description': 'root', 'global_seed': '3', 'samples': [
+            {'text': 'first', 'emotion': '', 'seed': '', 'status': 'done', 'audio_url': '/first.wav'},
+            {'text': 'second', 'emotion': '', 'seed': '', 'status': 'done', 'audio_url': '/second.wav'}]})
+        revisions = dict(enumerate(self.load()['row_revisions'] if 'row_revisions' in self.load()
+                                   else [self.revision(row) for row in self.load()['samples']]))
+        with TestClient(self.app) as client:
+            saved = client.post('/api/dataset_builder/update_rows', json={
+                'name': 'voice', 'rows': [{'text': 'second', 'emotion': '', 'seed': ''}],
+                'expected_count': 2, 'expected_revisions': revisions})
+        self.assertEqual(200, saved.status_code, saved.text)
+        body = saved.json()
+        self.assertEqual('root', body['description'])
+        self.assertEqual('3', body['global_seed'])
+        self.assertEqual(1, len(body['samples']))
+        self.assertEqual('pending', body['samples'][0]['status'],
+                         'the survivor moved to index 0 and lost its generated result')
+        self.assertIsNone(body['samples'][0]['audio_url'])
+        self.assertEqual(body['samples'][0]['status'],
+                         self.load()['samples'][0]['status'])
+
+    def test_metadata_bound_batch_cannot_recreate_a_deleted_project(self):
+        path = self.save({'description': 'root', 'global_seed': '77', 'samples': []})
+        path.unlink()
+        path.parent.rmdir()
+        request = {'name': 'voice', 'description': 'root', 'samples': [{'text': 'first'}]}
+        with patch.object(routes, 'reserve_background_task') as reserve, \
+             patch.object(routes, 'start_claimed_task_thread') as start, \
+             TestClient(self.app) as client:
+            for expected in ({'expected_description': 'root'}, {'expected_global_seed': '77'}):
+                with self.subTest(expected=expected):
+                    stale = client.post('/api/dataset_builder/generate_batch',
+                                        json={**request, **expected})
+                    self.assertEqual(409, stale.status_code, stale.text)
+                    self.assertFalse(path.parent.exists())
+            reserve.assert_not_called()
+            start.assert_not_called()
+
     def test_update_meta_cas_refuses_external_edit_without_invalidating_rows(self):
         self.save({'description': 'root', 'global_seed': '', 'samples': [
             {'text': 'external', 'emotion': '', 'seed': '', 'status': 'done'}]})

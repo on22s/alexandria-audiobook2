@@ -7,7 +7,7 @@ from tests import test_dataset_ui_ownership_js as ownership
 class Ds2224DraftBaseJsTests(unittest.TestCase):
     run_scenario = ownership.DatasetUiOwnershipJsTests.run_scenario
 
-    def test_refused_full_draft_keeps_its_original_base_across_meta_and_flush(self):
+    def test_refused_full_draft_keeps_its_original_base_and_blocks_implicit_flushes(self):
         self.run_scenario(r'''
 const a='a'.repeat(64);context.showToast=()=>{};context._toastSaveError=()=>{};
 run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'old',emotion:'',seed:'',status:'pending'}];applyDatasetRowRevisions('A',['a'.repeat(64)],1)");
@@ -23,8 +23,9 @@ await assert.rejects(run('dsbSaveRowsQueue.flush()'));
 context.document.getElementById('dsb-description').value='new root';context.dsbSaveForm();
 await assert.rejects(run('dsbSaveMetaQueue.flush()'));
 await assert.rejects(run('dsbSaveRowsQueue.flush()'));
-assert.deepStrictEqual(plain(sent),[
- {kind:'rows',count:1,rev:a},{kind:'meta',count:1,rev:a},{kind:'rows',count:1,rev:a}]);
+assert.deepStrictEqual(plain(sent),[{kind:'rows',count:1,rev:a}],
+ 'a refused draft is never replayed by an implicit meta or rows flush');
+assert.strictEqual(run('dsbSaveRowsQueue.isDirty()'),true);
 assert.deepStrictEqual(plain(run('dsbRows.map(r=>r.text)')),['old','mine'],
  'the refused draft stays visible and recoverable');
 ''')
