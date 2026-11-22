@@ -255,6 +255,16 @@ def start_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=None,
     Windows and macOS apply SUBPROCESS_TERMINATE_GRACE_SECONDS instead.
     """
     if sys.platform == "win32":
+        unsupported = [name for name, value in (
+            ('stop_receipt_path', stop_receipt_path),
+            ('disconnect_signal', disconnect_signal),
+            ('gpu_lease_fd', gpu_lease_fd),
+            ('task_lease_fd', task_lease_fd),
+        ) if value is not None]
+        if unsupported:
+            raise ValueError(
+                'Windows owned subprocesses do not support ' + ', '.join(unsupported) +
+                '; use the native Job Object owner (exit_notice_path, termination_grace, inherited_handles) instead')
         from windows_subprocess_owner import start_windows_owned_subprocess
         return start_windows_owned_subprocess(
             command, exit_notice_path=exit_notice_path, termination_grace=termination_grace, **kwargs)

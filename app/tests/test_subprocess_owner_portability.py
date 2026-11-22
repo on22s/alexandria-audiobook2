@@ -50,10 +50,11 @@ if sys.argv[1] == 'win32':
         assert exit_notice_path is None and termination_grace is None
         return subprocess.Popen(command, **kwargs)
     windows_subprocess_owner.start_windows_owned_subprocess = start_windows_shim
+options = {} if sys.argv[1] == 'win32' else dict(
+    gpu_lease_fd=12345, task_lease_fd=12346, stop_receipt_path='unused')
 worker = ownership.start_owned_subprocess(
     [sys.executable, '-c', 'import os;print(os.environ["OWNER_FIXTURE"]);print(os.getcwd())'],
-    gpu_lease_fd=12345, task_lease_fd=12346, stop_receipt_path='unused',
-    cwd=sys.argv[2], env={**__import__('os').environ, 'OWNER_FIXTURE':'worker-started'},
+    **options, cwd=sys.argv[2], env={**__import__('os').environ, 'OWNER_FIXTURE':'worker-started'},
     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 stdout, stderr = worker.communicate(timeout=5)
 assert worker.returncode == 0, (worker.returncode, stderr)
