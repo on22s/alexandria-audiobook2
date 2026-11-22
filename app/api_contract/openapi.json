@@ -1938,6 +1938,28 @@
             ],
             "title": "Expected Count"
           },
+          "expected_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Description"
+          },
+          "expected_global_seed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Global Seed"
+          },
           "expected_revisions": {
             "anyOf": [
               {
@@ -2094,6 +2116,28 @@
             ],
             "title": "Expected Count"
           },
+          "expected_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Description"
+          },
+          "expected_global_seed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Global Seed"
+          },
           "expected_revisions": {
             "anyOf": [
               {
@@ -2195,6 +2239,28 @@
               }
             ],
             "title": "Expected Count"
+          },
+          "expected_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Description"
+          },
+          "expected_global_seed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Global Seed"
           },
           "expected_revision": {
             "anyOf": [

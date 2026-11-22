@@ -5120,7 +5120,8 @@
     , "tests.test_dropdown_layers.DropdownLayerTests.test_modal_blocks_navigation"
   ]
   , "test_ds2224_backend": [
-    "tests.test_ds2224_backend.Ds2224BackendTests.test_ds2224_batch_regeneration_keeps_legacy_row_description"
+    "tests.test_ds2224_backend.Ds2224BackendTests.test_batch_admission_checks_expected_metadata_before_reserving_work"
+    , "tests.test_ds2224_backend.Ds2224BackendTests.test_ds2224_batch_regeneration_keeps_legacy_row_description"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_ds2224_configured_empty_project_uses_persisted_description_and_seed"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_ds2224_empty_resolved_text_is_refused_without_engine_call"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_ds2224_full_list_cas_rejects_stale_snapshot_without_writing"
@@ -5128,8 +5129,11 @@
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_ds2224_placeholder_keeps_shape_after_meta_and_uses_recovery_text"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_ds2224_unchanged_legacy_description_survives_full_list_save"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_ds2224_update_meta_hides_diagnostic_but_token_matches_full_record"
+    , "tests.test_ds2224_backend.Ds2224BackendTests.test_expected_metadata_blocks_seed_only_overwrite_of_a_peer_root_edit"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_failed_batch_logs_omit_internal_error_details"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_full_list_append_preserves_untouched_legacy_placeholder"
+    , "tests.test_ds2224_backend.Ds2224BackendTests.test_generation_admission_checks_expected_metadata"
+    , "tests.test_ds2224_backend.Ds2224BackendTests.test_legacy_metadata_write_still_works_without_expected_fields"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_seed_only_metadata_change_keeps_blank_root_legacy_description"
     , "tests.test_ds2224_backend.Ds2224BackendTests.test_update_meta_cas_refuses_external_edit_without_invalidating_rows"
   ]
@@ -5150,6 +5154,15 @@
     , "tests.test_ds2224_frontend_js.Ds2224FrontendJsTests.test_full_list_write_carries_base_count_and_all_revisions"
     , "tests.test_ds2224_frontend_js.Ds2224FrontendJsTests.test_metadata_invalidation_rerenders_status_and_audio"
     , "tests.test_ds2224_frontend_js.Ds2224FrontendJsTests.test_own_metadata_ack_advances_draft_token_so_edit_is_not_rejected"
+  ]
+  , "test_ds2224_snapshot_protocol_js": [
+    "tests.test_ds2224_snapshot_protocol_js.Ds2224SnapshotProtocolJsTests.test_aba_count_change_adopts_the_snapshot_count_and_revisions"
+    , "tests.test_ds2224_snapshot_protocol_js.Ds2224SnapshotProtocolJsTests.test_aba_poll_pairs_visible_definition_with_its_exact_revision"
+    , "tests.test_ds2224_snapshot_protocol_js.Ds2224SnapshotProtocolJsTests.test_batch_completion_then_text_edit_uses_the_completion_revision"
+    , "tests.test_ds2224_snapshot_protocol_js.Ds2224SnapshotProtocolJsTests.test_explicit_conflict_recovery_reloads_without_replaying_the_refused_write"
+    , "tests.test_ds2224_snapshot_protocol_js.Ds2224SnapshotProtocolJsTests.test_metadata_ack_invalidates_status_and_audio_behind_a_pending_append"
+    , "tests.test_ds2224_snapshot_protocol_js.Ds2224SnapshotProtocolJsTests.test_metadata_expectations_track_acknowledged_root_and_seed"
+    , "tests.test_ds2224_snapshot_protocol_js.Ds2224SnapshotProtocolJsTests.test_refused_import_draft_stays_dirty_after_unrelated_delta"
   ]
   , "test_duplicate_classification": [
     "tests.test_duplicate_classification.DuplicateRepairTest.test_a_block_the_source_repeats_is_kept"

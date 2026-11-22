@@ -138,6 +138,8 @@ class DatasetSampleGenRequest(BaseModel):
     inherit_seed: bool = False  # retain the row's global-seed inheritance
     expected_count: Optional[int] = Field(default=None, ge=0)
     expected_revision: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    expected_description: Optional[str] = None
+    expected_global_seed: Optional[str] = None
 
 class DatasetBatchGenRequest(BaseModel):
     name: str
@@ -148,6 +150,8 @@ class DatasetBatchGenRequest(BaseModel):
     seeds: Optional[List[Annotated[int, Field(ge=-1)]]] = None  # per-line seeds (overrides global_seed)
     expected_count: Optional[int] = Field(default=None, ge=0)
     expected_revisions: Optional[Dict[int, Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]]] = None
+    expected_description: Optional[str] = None
+    expected_global_seed: Optional[str] = None
 
 class DatasetSaveRequest(BaseModel):
     name: str
@@ -170,6 +174,8 @@ class DatasetBuilderUpdateMetaRequest(BaseModel):
     # Omitted fields keep the older, unconditional metadata behaviour.
     expected_count: Optional[int] = Field(default=None, ge=0)
     expected_revisions: Optional[Dict[int, Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]]] = None
+    expected_description: Optional[str] = None
+    expected_global_seed: Optional[str] = None
 
 class DatasetBuilderUpdateRowsRequest(BaseModel):
     name: str
@@ -193,6 +199,29 @@ class DatasetBuilderEditRowsRequest(BaseModel):
 def get_dataset_row_revision(row):
     return hashlib.sha256(json.dumps(row, sort_keys=True, ensure_ascii=False,
                                      separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def check_expected_dataset_metadata(state, expected_description, expected_global_seed):
+    """Bind a write to the root metadata the caller last acknowledged.
+
+    A row digest cannot see a peer's root-voice edit: a non-blank root leaves
+    each row's stored description untouched, so a seed-only change can carry
+    an unchanged row map and silently restore the older voice. Both fields are
+    optional; omitting them keeps the unconditional legacy API. Callers hold
+    the project state lock (or the builder mutation lock) across this check
+    and the write it guards.
+    """
+    if expected_description is None and expected_global_seed is None:
+        return
+    if not isinstance(state, dict):
+        return
+    current_description = state.get("description", "")
+    current_global_seed = state.get("global_seed", "")
+    if ((expected_description is not None and current_description != expected_description)
+            or (expected_global_seed is not None
+                and str(current_global_seed) != str(expected_global_seed))):
+        raise HTTPException(status_code=409,
+                            detail="Dataset metadata changed; reload before saving")
 
 
 class _MissingBuilderState:
@@ -518,6 +547,8 @@ def _dataset_builder_update_meta_sync(request: DatasetBuilderUpdateMetaRequest):
     with ensure_builder_project_mutation(safe_name, "Stop dataset generation before editing its metadata"):
         state = _require_existing_builder_state(safe_name)
         existing = state.get("samples", [])
+        check_expected_dataset_metadata(state, request.expected_description,
+                                        request.expected_global_seed)
         if request.expected_revisions is not None:
             if (request.expected_count is None or request.expected_count != len(existing)
                     or set(request.expected_revisions) != set(range(len(existing)))
@@ -638,11 +669,16 @@ def _generate_dataset_sample_sync(request: DatasetSampleGenRequest):
         initial_state = _load_builder_state_for_generation(safe_name)
         if initial_state is not _MISSING_BUILDER_STATE and index >= len(initial_state.get("samples", [])):
             raise HTTPException(status_code=400, detail="Sample index is outside the project's rows")
+        check_expected_dataset_metadata(initial_state, request.expected_description,
+                                        request.expected_global_seed)
         resolve_dataset_generation_inputs(safe_name, requested=requested, require_existing=True,
                                           creation_definitions=creation_definitions, **binding)
         with _builder_task_lock:
             claim_id = claim_gpu_task("dataset_builder", resources=(_get_builder_project_key(safe_name),))
             try:
+                check_expected_dataset_metadata(
+                    _load_builder_state_for_generation(safe_name),
+                    request.expected_description, request.expected_global_seed)
                 resolved = resolve_dataset_generation_inputs(
                     safe_name, requested=requested, require_existing=True,
                     creation_definitions=creation_definitions, **binding)
@@ -882,6 +918,8 @@ def _dataset_builder_generate_batch(request: DatasetBatchGenRequest):
     with _get_builder_state_lock(safe_name):
         initial_state = _load_builder_state_for_generation(safe_name)
         bootstrap_allowed = initial_state is _MISSING_BUILDER_STATE or not initial_state.get("samples", [])
+        check_expected_dataset_metadata(initial_state, request.expected_description,
+                                        request.expected_global_seed)
         resolve_dataset_generation_inputs(safe_name, requested=requested,
                                           creation_definitions=creation_definitions,
                                           creation_metadata=creation_metadata,
@@ -889,6 +927,9 @@ def _dataset_builder_generate_batch(request: DatasetBatchGenRequest):
         with _builder_task_lock:
             claim_id = reserve_background_task("dataset_builder", resources=(_get_builder_project_key(safe_name),))
             try:
+                check_expected_dataset_metadata(
+                    _load_builder_state_for_generation(safe_name),
+                    request.expected_description, request.expected_global_seed)
                 resolved = resolve_dataset_generation_inputs(
                     safe_name, requested=requested, creation_definitions=creation_definitions,
                     creation_metadata=creation_metadata, bootstrap_allowed=bootstrap_allowed, **binding)

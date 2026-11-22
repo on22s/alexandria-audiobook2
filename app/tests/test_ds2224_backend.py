@@ -377,6 +377,73 @@ class Ds2224BackendTests(unittest.TestCase):
         self.assertEqual(200, recovered.status_code, recovered.text)
         self.assertEqual('recover me', self.engine.generate_voice_design.call_args.kwargs['sample_text'])
 
+    def test_expected_metadata_blocks_seed_only_overwrite_of_a_peer_root_edit(self):
+        # A non-blank root leaves a pending row's digest unchanged, so the row
+        # CAS alone cannot see the other tab's voice edit.
+        self.save({'description': 'old root', 'global_seed': '77', 'samples': [
+            {'text': 'first', 'emotion': '', 'seed': '', 'status': 'pending',
+             'audio_url': None}]})
+        token = self.revision(self.load()['samples'][0])
+        with TestClient(self.app) as client:
+            peer = client.post('/api/dataset_builder/update_meta', json={
+                'name': 'voice', 'description': 'peer voice', 'global_seed': '77'})
+            self.assertEqual(200, peer.status_code, peer.text)
+            self.assertEqual(token, peer.json()['row_revisions'][0],
+                             'the row digest must stay unchanged for this to isolate metadata CAS')
+            stale = client.post('/api/dataset_builder/update_meta', json={
+                'name': 'voice', 'description': 'old root', 'global_seed': '31',
+                'expected_description': 'old root', 'expected_global_seed': '77',
+                'expected_count': 1, 'expected_revisions': {0: token}})
+        self.assertEqual(409, stale.status_code, stale.text)
+        self.assertIn('metadata changed', stale.json()['detail'])
+        self.assertEqual('peer voice', self.load()['description'])
+        self.assertEqual('77', self.load()['global_seed'])
+
+    def test_legacy_metadata_write_still_works_without_expected_fields(self):
+        self.save({'description': 'root', 'global_seed': '', 'samples': [
+            {'text': 'first', 'emotion': '', 'seed': '', 'status': 'pending'}]})
+        with TestClient(self.app) as client:
+            legacy = client.post('/api/dataset_builder/update_meta', json={
+                'name': 'voice', 'description': 'new root', 'global_seed': '29'})
+        self.assertEqual(200, legacy.status_code, legacy.text)
+        self.assertEqual('new root', self.load()['description'])
+        self.assertEqual('29', self.load()['global_seed'])
+
+    def test_generation_admission_checks_expected_metadata(self):
+        self.save({'description': 'peer voice', 'global_seed': '77', 'samples': [
+            {'text': 'first', 'emotion': '', 'seed': '', 'status': 'pending'}]})
+        token = self.revision(self.load()['samples'][0])
+        request = {'dataset_name': 'voice', 'sample_index': 0,
+                   'description': 'old root', 'text': 'first', 'seed': 0,
+                   'expected_count': 1, 'expected_revision': token,
+                   'expected_description': 'old root', 'expected_global_seed': '77'}
+        with patch.object(routes, 'claim_gpu_task', return_value='owned'), \
+             patch.object(routes, 'release_gpu_task_claim') as release, \
+             TestClient(self.app) as client:
+            stale = client.post('/api/dataset_builder/generate_sample', json=request)
+            self.assertEqual(409, stale.status_code, stale.text)
+            self.engine.generate_voice_design.assert_not_called()
+            release.assert_not_called()
+            legacy = client.post('/api/dataset_builder/generate_sample', json={
+                key: value for key, value in request.items()
+                if key not in ('expected_description', 'expected_global_seed')})
+        self.assertEqual(200, legacy.status_code, legacy.text)
+        self.assertEqual('peer voice', self.engine.generate_voice_design.call_args.kwargs['description'])
+
+    def test_batch_admission_checks_expected_metadata_before_reserving_work(self):
+        self.save({'description': 'peer voice', 'global_seed': '77', 'samples': [
+            {'text': 'first', 'emotion': '', 'seed': '', 'status': 'pending'}]})
+        token = self.revision(self.load()['samples'][0])
+        with patch.object(routes, 'reserve_background_task') as reserve, \
+             TestClient(self.app) as client:
+            stale = client.post('/api/dataset_builder/generate_batch', json={
+                'name': 'voice', 'description': 'old root',
+                'samples': [{'text': 'first'}], 'indices': [0],
+                'expected_count': 1, 'expected_revisions': {'0': token},
+                'expected_description': 'old root', 'expected_global_seed': '77'})
+        self.assertEqual(409, stale.status_code, stale.text)
+        reserve.assert_not_called()
+
     def test_update_meta_cas_refuses_external_edit_without_invalidating_rows(self):
         self.save({'description': 'root', 'global_seed': '', 'samples': [
             {'text': 'external', 'emotion': '', 'seed': '', 'status': 'done'}]})
