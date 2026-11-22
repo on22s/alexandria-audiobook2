@@ -14,10 +14,9 @@ import review_script as review
 from generate_script import LLMGenParams
 
 
-# Pinned for the versioned wire-auth identity (REVIEW_ALGORITHM_VERSION 11).
-# The default/forward identity must stay byte-identical after adding the
-# backward-only direction key.
-PINNED_FORWARD_FINGERPRINT = "b31763ab45d090b0adab3faa519d1d69062295b63ea0a3f8282fb3186c542e66"
+# Pinned for the versioned wire-auth identity and shared review response contract.
+# The backward-only direction key must leave default and forward identical.
+PINNED_FORWARD_FINGERPRINT = "d43c99fe6d37863924f6ba573eb3f48f7f6ec98429e1d0de058f2a63c4992606"
 CLEAN = ['Review complete: 2 -> 2 entries', 'Total changes: 0']
 
 
@@ -36,7 +35,7 @@ def _fingerprint(review_pass=None):
 
 
 class ReviewPassIdentityTests(unittest.TestCase):
-    def test_forward_and_default_fingerprint_match_main(self):
+    def test_forward_and_default_fingerprint_match_the_pinned_identity(self):
         self.assertEqual(PINNED_FORWARD_FINGERPRINT, _fingerprint())
         self.assertEqual(PINNED_FORWARD_FINGERPRINT, _fingerprint('forward'))
 

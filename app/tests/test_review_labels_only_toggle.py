@@ -22,8 +22,11 @@ from unittest.mock import Mock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from generate_script import LLMGenParams
+import review_script as review
 from routers import system
 from tests import test_prompt_preset_transactions_js as fixtures
+from tests.test_pass_boundary_retry_regressions import client_for
 
 STATIC = Path(__file__).resolve().parent.parent / 'static'
 SOURCE = STATIC / 'js' / 'app-core.js'
@@ -112,7 +115,7 @@ class LabelsOnlyPointerMarkupTests(unittest.TestCase):
 
 
 class LabelsOnlyHelpAccuracyTests(unittest.TestCase):
-    """Labels-only mode replaces both custom review prompts (review_script.py:1594)."""
+    """Labels-only mode replaces both custom review prompts."""
 
     def test_the_switch_help_and_tooltip_say_custom_review_prompts_are_ignored(self):
         english = json.loads((I18N / 'ui.en.json').read_text(encoding='utf-8'))
@@ -129,10 +132,19 @@ class LabelsOnlyHelpAccuracyTests(unittest.TestCase):
                 self.assertGreater(len(catalog[HELP_KEY]), 60, 'the whole switch help is translated')
 
     def test_the_reviewer_really_replaces_both_custom_prompts_in_labels_only_mode(self):
-        source = (Path(__file__).resolve().parent.parent / 'review_script.py').read_text(encoding='utf-8')
-        block = source[source.index('if params.review_labels_only:', source.index('usr_template = params.user_prompt_template')):]
-        self.assertIn('sys_prompt = REVIEW_LABEL_SYSTEM', block[:400])
-        self.assertIn('user_prompt = context', block[:400])
+        params = LLMGenParams(review_labels_only=True,
+                              system_prompt='Custom system marker.',
+                              user_prompt_template='Custom user marker. {context} {batch}')
+        source = [{'speaker': 'NARRATOR', 'text': 'Synthetic line.', 'instruct': ''}]
+        reply = [{'n': 0, 'speaker': 'NARRATOR', 'instruct': ''}]
+        client, calls = client_for([(reply, 'stop')])
+        self.assertEqual(source, review.review_batch(
+            client, 'fixture', source, 1, 1, params, max_retries=0))
+        self.assertEqual(1, len(calls))
+        messages = {message['role']: message['content'] for message in calls[0]['messages']}
+        self.assertEqual(review.REVIEW_LABEL_SYSTEM, messages['system'])
+        self.assertIn('ENTRIES TO REVIEW:', messages['user'])
+        self.assertNotIn('Custom user marker.', messages['user'])
 
 
 class LabelsOnlyMarkupTests(unittest.TestCase):

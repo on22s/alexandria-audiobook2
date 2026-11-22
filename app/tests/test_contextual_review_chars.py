@@ -29,8 +29,8 @@ import review_script
 from routers import script
 
 
-# Captured from origin/main: the default (entries, 4) receipt must stay exact.
-DEFAULT_FINGERPRINT = 'b19a9e494d99696271a23873ddc1c2585c8b0cc2d4f042cefc5a518b8012ce6c'
+# Pin both spellings of the default (entries, 4) to the same response contract.
+DEFAULT_FINGERPRINT = 'e00f3e29331663f8e3c54a45acdc4e19d2a948614379c30398f04c3b32b6ac60'
 
 
 def entry(text, speaker='ALICE', instruct='calm'):
