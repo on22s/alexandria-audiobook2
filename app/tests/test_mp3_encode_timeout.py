@@ -13,6 +13,7 @@ import audio_ffmpeg
 import audio_export
 import pcm_worker_contract
 from audio_streaming import write_combined_pcm
+from tests.export_staging_assertions import delivery_names
 from tts import ExportCancelled
 
 
@@ -71,7 +72,7 @@ class Mp3EncodeTimeoutTests(unittest.TestCase):
             self.assertEqual(b'previous verified MP3', output.read_bytes())
             self.assertEqual(1, len(processes))
             self.assertIsNotNone(processes[0].poll())
-            self.assertEqual([], list(root.glob('.pcm-encode-*')))
+            self.assertEqual({'input.pcm', 'out.mp3'}, delivery_names(self, root))
 
     def test_cancel_still_stops_mp3_encode(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -83,7 +84,7 @@ class Mp3EncodeTimeoutTests(unittest.TestCase):
             with self.assertRaises(ExportCancelled):
                 audio_export.export_pcm_mp3(root / 'input.pcm', output, settings, lambda: True)
             self.assertEqual(b'previous verified MP3', output.read_bytes())
-            self.assertEqual([], list(root.glob('.pcm-encode-*')))
+            self.assertEqual({'input.pcm', 'out.mp3'}, delivery_names(self, root))
 
     def test_successful_encode_still_publishes_output(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -93,4 +94,4 @@ class Mp3EncodeTimeoutTests(unittest.TestCase):
             output = root / 'out.mp3'
             audio_export.export_pcm_mp3(root / 'input.pcm', output, settings, lambda: False)
             self.assertGreater(output.stat().st_size, 0)
-            self.assertEqual([], list(root.glob('.pcm-encode-*')))
+            self.assertEqual({'input.pcm', 'out.mp3'}, delivery_names(self, root))
