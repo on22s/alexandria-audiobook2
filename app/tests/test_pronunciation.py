@@ -262,6 +262,7 @@ class NormalizationIntegrationTest(unittest.TestCase):
         with open(p, "w", encoding="utf-8") as fh:
             json.dump({"names": {"Subaru": "Soo-bah-roo"}}, fh)
         original, pr.DEFAULT_PATH = pr.DEFAULT_PATH, p
+        original_resolver, pr.get_pronunciation_path = pr.get_pronunciation_path, lambda path=None: p
         pr._cache.update({"path": None, "fingerprint": None, "entries": {},
                           "pattern": None})
         try:
@@ -271,6 +272,7 @@ class NormalizationIntegrationTest(unittest.TestCase):
             self.assertIn("pronunciation_lexicon", kinds)
         finally:
             pr.DEFAULT_PATH = original
+            pr.get_pronunciation_path = original_resolver
             pr._cache.update({"path": None, "fingerprint": None, "entries": {},
                               "pattern": None})
 
@@ -378,7 +380,8 @@ class LexiconFailureDiagnosticsTests(unittest.TestCase):
                 with self.subTest(raw=raw):
                     with open(path, 'wb') as stream:
                         stream.write(raw)
-                    with patch.object(pronunciation, 'DEFAULT_PATH', path):
+                    with patch.object(pronunciation, 'DEFAULT_PATH', path), \
+                            patch.object(pronunciation, 'get_pronunciation_path', return_value=path):
                         with self.assertLogs('pronunciation', level='WARNING') as captured:
                             result = get_speech_normalization('Aeliana walked.')
                         self.assertTrue(any('lexicon' in line.lower() for line in captured.output))
@@ -386,7 +389,8 @@ class LexiconFailureDiagnosticsTests(unittest.TestCase):
                         self.assertFalse(result['changed'])
                         with self.assertNoLogs('pronunciation', level='WARNING'):
                             self.assertEqual(result, get_speech_normalization('Aeliana walked.'))
-            with patch.object(pronunciation, 'DEFAULT_PATH', path):
+            with patch.object(pronunciation, 'DEFAULT_PATH', path), \
+                    patch.object(pronunciation, 'get_pronunciation_path', return_value=path):
                 with open(path, 'w', encoding='utf-8') as stream:
                     json.dump({'Aeliana': 'Ay lee ah nah'}, stream)
                 with self.assertNoLogs('pronunciation', level='WARNING'):
