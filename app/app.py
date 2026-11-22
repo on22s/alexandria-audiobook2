@@ -191,9 +191,10 @@ def apply_security_headers(response):
 
 
 async def handle_http_failure(request, error):
-    record_failure('http_request_refused', error, task='http', resource=request.url.path,
-                   operation=getattr(request.scope.get('route'), 'name', 'unmatched'),
-                   status_code=error.status_code, level=logging.WARNING if error.status_code < 500 else logging.ERROR)
+    if error.status_code >= 500 or not getattr(error, 'expected_probe_response', False):
+        record_failure('http_request_refused', error, task='http', resource=request.url.path,
+                       operation=getattr(request.scope.get('route'), 'name', 'unmatched'),
+                       status_code=error.status_code, level=logging.WARNING if error.status_code < 500 else logging.ERROR)
     if isinstance(error, AppError):
         return await handle_app_error(request, error)
     return await http_exception_handler(request, error)

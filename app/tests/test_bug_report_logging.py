@@ -248,6 +248,80 @@ class BugReportLoggingTests(unittest.TestCase):
         self.assertEqual({'detail': 'legacy detail', 'message_key': 'synthetic.key', 'message_values': {'count': 1}}, response.json())
         self.assertEqual('kept', response.headers['X-Fixture'])
 
+    def test_empty_tab_probes_keep_responses_without_reporting_failures(self):
+        from book_placeholder import get_book_placeholder_bytes
+        from routers import editor, script, voicelab
+
+        application = self.make_http_app()
+        for module in (editor, script, voicelab):
+            application.include_router(module.router)
+        state = self.root / 'state.json'
+        saved = self.root / 'saved.json'
+        saved.write_text('[]', encoding='utf-8')
+        audio = self.root / 'audiobook.mp3'
+        default_zips = self.root / 'zips2'
+        configured_zips = self.root / 'operator-zips'
+
+        with (TestClient(application) as client,
+              patch.object(script, 'DATA_DIR', str(self.root)),
+              patch.object(editor, 'AUDIOBOOK_PATH', str(audio)),
+              patch.object(voicelab, 'DATA_DIR', str(self.root)),
+              patch.dict(voicelab.VOICELAB_DEFAULTS, {'zips_dir': str(default_zips)}),
+              patch.object(voicelab, '_load_voicelab_config', return_value={'zips_dir': str(default_zips)}) as config):
+            probes = [
+                ('unselected script', lambda: client.get('/api/script/ingest-status'), 400,
+                 'No input file selected for the active book.'),
+                ('absent audiobook', lambda: client.head('/api/audiobook'), 404, None),
+                ('missing default ZIP folder', lambda: client.get('/api/voicelab/inspect'), 400,
+                 f'Folder not found: {default_zips}'),
+                ('missing default ZIP folder from the form',
+                 lambda: client.get('/api/voicelab/inspect', params={'zips_dir': str(default_zips)}), 400,
+                 f'Folder not found: {default_zips}'),
+            ]
+            for label, request, status, detail in probes:
+                with self.subTest(probe=label), self.assertNoLogs('AlexandriaDiagnostics', level='WARNING'):
+                    response = request()
+                    self.assertEqual(status, response.status_code)
+                    if detail is not None:
+                        self.assertEqual(detail, response.json()['detail'])
+                    if label == 'unselected script':
+                        self.assertEqual('error.upload.no_input_active', response.json()['message_key'])
+
+            state.write_text(json.dumps({'input_file_path': str(saved)}), encoding='utf-8')
+            with self.assertNoLogs('AlexandriaDiagnostics', level='WARNING'):
+                response = client.get('/api/script/ingest-status')
+                self.assertEqual(409, response.status_code)
+                self.assertIn('no retained original prose', response.json()['detail'])
+                config.return_value = {'zips_dir': ''}
+                response = client.get('/api/voicelab/inspect')
+                self.assertEqual(400, response.status_code)
+                self.assertIn('is not configured', response.json()['detail'])
+            self.assertFalse(review_startup.get_failure_log_path().exists())
+
+            with self.assertLogs('AlexandriaDiagnostics', level='WARNING') as captured:
+                self.assertEqual(409, client.get('/api/single-narrator/source-preview').status_code)
+                state.write_text('{', encoding='utf-8')
+                self.assertEqual(409, client.get('/api/script/ingest-status').status_code)
+                state.write_text('{"input_file_path": 12}', encoding='utf-8')
+                self.assertEqual(400, client.get('/api/script/ingest-status').status_code)
+                self.assertEqual(404, client.get('/api/audiobook').status_code)
+                audio.write_bytes(get_book_placeholder_bytes('a' * 32))
+                self.assertEqual(409, client.head('/api/audiobook').status_code)
+                config.return_value = {'zips_dir': str(configured_zips)}
+                self.assertEqual(400, client.get('/api/voicelab/inspect').status_code)
+                default_zips.write_text('wrong file type', encoding='utf-8')
+                self.assertEqual(400, client.get('/api/voicelab/inspect', params={'zips_dir': str(default_zips)}).status_code)
+            self.assertEqual([
+                ('get_single_narrator_source_preview', 409),
+                ('get_script_ingest_status', 409),
+                ('get_script_ingest_status', 400),
+                ('get_audiobook', 404),
+                ('get_audiobook', 409),
+                ('voicelab_inspect', 400),
+                ('voicelab_inspect', 400),
+            ], [(record['operation'], record['status_code'])
+                for record in map(lambda event: json.loads(event.getMessage()), captured.records)])
+
     def test_unhandled_http_failure_retains_default_500_response(self):
         with TestClient(self.make_http_app(), raise_server_exceptions=False) as client, self.capture_failure('http_request_failed', 'http', error_type='RuntimeError'):
             response = client.get('/failure/internal')
