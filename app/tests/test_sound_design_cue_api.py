@@ -347,6 +347,116 @@ class SoundDesignCueApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(200,(await self.client.get(BASE)).status_code)
 
 
+    async def refused_context_client(self):
+        app=FastAPI();app.include_router(api.router)
+        app.add_exception_handler(core.AppError,core.handle_app_error)
+        return httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://fixture')
+
+    async def test_state_matrix_separates_authoritative_absence_from_context_failures(self):
+        original_state=(self.root/'state.json').read_bytes()
+        original_chunks=(self.root/'chunks.json').read_bytes()
+        absent_key='error.sound.cues.no_active_book'
+        generic='Cue context is busy, changed or unavailable. Refresh the cue editor before retrying.'
+
+        def oversize_chunks():
+            with (self.root/'chunks.json').open('wb') as chunks:
+                chunks.truncate(context._FILES['chunks.json'] + 1)
+
+        try:
+            async with await self.refused_context_client() as client:
+                valid=await client.get(BASE);self.assertEqual(200,valid.status_code,valid.text)
+                cases=[
+                    ('missing-state',lambda:(self.root/'state.json').unlink(),absent_key),
+                    ('empty-dict',lambda:self.write('state.json',{}),absent_key),
+                    ('list-state',lambda:self.write('state.json',[]),None),
+                    ('null-state',lambda:(self.root/'state.json').write_text('null'),None),
+                    ('numeric-state',lambda:(self.root/'state.json').write_text('7'),None),
+                    ('numeric-id',lambda:self.write('state.json',dict(self.state,active_book_id=7)),None),
+                    ('null-id',lambda:self.write('state.json',dict(self.state,active_book_id=None)),None),
+                    ('empty-id',lambda:self.write('state.json',dict(self.state,active_book_id='')),None),
+                    ('invalid-id',lambda:self.write('state.json',{'active_book_id':'..'}),None),
+                    ('invalid-source-list',lambda:self.write('state.json',{'input_file_path':[]}),None),
+                    ('invalid-source-number',lambda:self.write('state.json',{'input_file_path':0}),None),
+                    ('invalid-generation',lambda:self.write('state.json',{'book_generation':{}}),None),
+                    ('truncated',lambda:(self.root/'state.json').write_text('{"active_book_id":'),None),
+                    ('legacy-input-only',lambda:self.write('state.json',{'input_file_path':str(self.source)}),None),
+                    ('unselected-bad-chunks',lambda:(self.write('state.json',{}),self.write('chunks.json',{'bad':1})),absent_key),
+                    ('missing-state-oversized-chunks',lambda:((self.root/'state.json').unlink(),oversize_chunks()),absent_key),
+                    ('unselected-oversized-chunks',lambda:(self.write('state.json',{}),oversize_chunks()),absent_key),
+                    ('selected-oversized-chunks',oversize_chunks,None),
+                    ('corrupt-chunks',lambda:self.write('chunks.json',{'invalid':'saved dialogue'}),None),
+                ]
+                for label,mutate,expected in cases:
+                    with self.subTest(state=label):
+                        (self.root/'state.json').write_bytes(original_state)
+                        (self.root/'chunks.json').write_bytes(original_chunks)
+                        mutate()
+                        response=await client.get(BASE)
+                        self.assertEqual(409,response.status_code,response.text)
+                        body=response.json()
+                        if expected:
+                            self.assertEqual(expected,body.get('message_key'),body)
+                            self.assertEqual('No active book is selected. Load a saved book before authoring cues.',body['detail'])
+                        else:
+                            self.assertNotIn('message_key',body)
+                            self.assertEqual(generic,body['detail'])
+            (self.root/'state.json').write_bytes(original_state)
+            target=self.root/'real-state.json';target.write_text('{"active_book_id":"synthetic-book"}')
+            (self.root/'state.json').unlink();(self.root/'state.json').symlink_to(target)
+            async with await self.refused_context_client() as client:
+                linked=await client.get(BASE)
+            self.assertEqual(409,linked.status_code);self.assertNotIn('message_key',linked.json())
+            target.unlink();(self.root/'state.json').write_bytes(original_state)
+            with patch.object(core,'process_state',{'audio':{'running':True}}), \
+                    patch.object(edits,'capture_sound_design_context') as capture:
+                async with await self.refused_context_client() as client:
+                    busy=await client.get(BASE)
+                capture.assert_not_called()
+            self.assertEqual(409,busy.status_code)
+            self.assertEqual('error.book.switch_tasks_running',busy.json()['message_key'])
+            self.assertEqual('audio',busy.json()['message_values']['tasks'])
+        finally:
+            if (self.root/'state.json').is_symlink(): (self.root/'state.json').unlink()
+            (self.root/'state.json').write_bytes(original_state)
+            (self.root/'chunks.json').write_bytes(original_chunks)
+
+    async def test_mix_js_uses_real_captured_context_response_shapes(self):
+        from tests.test_sound_mixes_js import SoundMixesJsTests
+        original_state=(self.root/'state.json').read_bytes()
+        try:
+            async with await self.refused_context_client() as client:
+                self.assertEqual(200,(await client.get(BASE)).status_code)
+                (self.root/'state.json').unlink()
+                absent=(await client.get(BASE)).json()
+                (self.root/'state.json').write_bytes(original_state)
+                self.write('chunks.json',{'invalid':'saved dialogue'})
+                corrupt=(await client.get(BASE)).json()
+                self.write('state.json',{'active_book_id':'..'})
+                malformed=(await client.get(BASE)).json()
+                with patch.object(core,'process_state',{'audio':{'running':True}}):
+                    busy=(await client.get(BASE)).json()
+        finally:
+            (self.root/'state.json').write_bytes(original_state)
+        self.assertEqual('error.sound.cues.no_active_book',absent['message_key'])
+        self.assertNotIn('message_key',corrupt);self.assertNotIn('message_key',malformed)
+        body='''
+const status=document.getElementById('sound-mixes-status');
+const absent=%s,corrupt=%s,malformed=%s,busy=%s;
+async function load(body){const p=api.refresh();requests.at(-1).resolve(body,409);await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[row()]});await p;}
+await load(absent);
+assert(status.textContent.includes('No active book'));
+assert(box.querySelectorAll('button').some(n=>n.textContent==='Discard saved mix'));
+assert(!box.querySelectorAll('button').some(n=>n.textContent==='Render full mix'));
+for(const refused of [corrupt,malformed,busy]){
+ await load(refused);
+ assert(!status.textContent.includes('No active book'));
+ assert(!box.querySelectorAll('button').some(n=>n.textContent==='Render full mix'));
+}
+assert(status.textContent.includes('tasks are running'));
+''' % (json.dumps(absent),json.dumps(corrupt),json.dumps(malformed),json.dumps(busy))
+        SoundMixesJsTests.run_js(self,body)
+
+
 RENDITIONS = '/api/sound_design/renditions'
 
 

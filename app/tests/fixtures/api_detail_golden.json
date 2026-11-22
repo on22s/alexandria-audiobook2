@@ -304,6 +304,7 @@
     "'No API key stored for this server.'",
     "'No LLM base_url configured'",
     "'No LLM model configured'",
+    "'No active book is selected. Load a saved book before authoring cues.'",
     "'No annotated script found'",
     "'No annotated script found'",
     "'No annotated script found. Generate a script first.'",

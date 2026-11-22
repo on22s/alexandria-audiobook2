@@ -153,8 +153,9 @@ requests[2].resolve({});await tick();requests[3].resolve({context_revision:'c'.r
     def test_invalid_inventory_and_missing_book_do_not_enable_render(self):
         self.run_js(r'''
 await ready([{...row(),frames:Infinity}]);assert.equal(box.querySelectorAll('button').length,0);
-const p=api.refresh();requests.at(-1).reject(new Error('No active book'));await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[row()]});await p;
+const p=api.refresh();requests.at(-1).resolve({detail:'No active book is selected.',message_key:'error.sound.cues.no_active_book'},409);await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[row()]});await p;
 assert(!box.querySelectorAll('button').some(n=>n.textContent==='Render full mix'));assert(box.querySelectorAll('button').some(n=>n.textContent==='Discard saved mix'));
+assert(document.getElementById('sound-mixes-status').textContent.includes('No active book'));
 ''')
 
     def test_unavailable_profile_preserves_recovery_and_blocks_approval(self):
@@ -167,7 +168,9 @@ select.value='m4b';select.onchange();box.querySelectorAll('input').find(n=>n.typ
 click('Record full-mix approval');assert.equal(requests.length,2);assert(document.getElementById('sound-mixes-status').textContent.includes('available delivery format'));
 const malformed={...unavailable,m4b:{...unavailable.m4b,available:'false'}};
 const bad=api.refresh();requests.at(-1).resolve({context_revision:'c'.repeat(64)});await tick();requests.at(-1).resolve({delivery_profiles:malformed,candidates:[row()]});await bad;
-assert.equal(box.querySelectorAll('button').length,0);
+assert(document.getElementById('sound-mixes-status').textContent.includes('Invalid delivery profile'));
+assert(!box.querySelectorAll('button').some(n=>n.textContent==='Render full mix'));
+assert(box.querySelectorAll('button').some(n=>n.textContent==='Discard saved mix'));
 ''')
 
     def test_deliver_saved_approval_and_verified_download_are_identity_bound(self):
@@ -244,3 +247,77 @@ assert.equal(box.querySelectorAll('pre')[0].textContent.length,16384);
 assert(box.querySelectorAll('label').some(n=>n.textContent.includes('without an original-source comparison')));
 assert.strictEqual(box.querySelectorAll('input').at(-1).checked,false);
 """)
+
+    def test_failed_context_fetch_reports_the_real_error_and_skips_inventory(self):
+        self.run_js(r'''
+const status=document.getElementById('sound-mixes-status');
+let p=api.refresh();requests.at(-1).reject(new Error('cues unreachable'));await p;
+assert.equal(box.children.length,0);assert.equal(requests.length,1);
+assert(status.textContent.includes('cues unreachable'));assert(!status.textContent.includes('Saved mixes loaded'));
+p=api.refresh();requests.at(-1).resolve({context_revision:'bad'});await p;
+assert.equal(box.children.length,0);assert.equal(requests.length,2);
+assert(status.textContent.includes('Invalid current book context'));assert(!status.textContent.includes('Saved mixes loaded'));
+''')
+
+    def test_successful_context_and_no_active_book_have_truthful_status_and_controls(self):
+        self.run_js(r'''
+const status=document.getElementById('sound-mixes-status');
+await ready();assert(box.querySelectorAll('button').some(n=>n.textContent==='Render full mix'));
+assert(status.textContent.includes('Saved mixes loaded'));
+const p=api.refresh();requests.at(-1).resolve({detail:'No active book is selected.',message_key:'error.sound.cues.no_active_book'},409);await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[row()]});await p;
+assert(!box.querySelectorAll('button').some(n=>n.textContent==='Render full mix'));
+assert(box.querySelectorAll('button').some(n=>n.textContent==='Discard saved mix'));
+assert(status.textContent.includes('No active book'));assert(!status.textContent.includes('Saved mixes loaded'));
+''')
+
+    def test_failed_refresh_after_delivery_does_not_report_a_false_success(self):
+        self.run_js(r'''
+const approved={...row(),approval_status:'recorded',approval_revision:'e'.repeat(64),delivery:{format:'wav'}};
+const status=document.getElementById('sound-mixes-status');
+await ready([approved]);const p=click('Deliver saved WAV approval');
+requests.at(-1).resolve({status:'published',file:'mixed_audiobook.wav',candidate_revision:'b'.repeat(64),approval_revision:'e'.repeat(64),warnings:[],quality:null});
+await tick();requests.at(-1).reject(new Error('refresh dead'));await p;
+assert(status.textContent.includes('refresh dead'));assert(!status.textContent.includes('Published'));
+''')
+
+    def test_corrupt_busy_and_server_error_contexts_are_failures_not_absence(self):
+        self.run_js(r'''
+const status=document.getElementById('sound-mixes-status');
+const native=context.API._handleError;
+context.API._handleError=async response=>{if(response.status>=400){const body=await response.json();throw new Error(body.detail||('HTTP '+response.status));}};
+const shapes=[
+ {status:409,body:{detail:'Cue context is busy, changed or unavailable. Refresh the cue editor before retrying.'},needle:'busy, changed'},
+ {status:409,body:{detail:'Cannot change source scope while tasks are running: audio.',message_key:'error.book.switch_tasks_running'},needle:'tasks are running'},
+ {status:500,body:{detail:'Internal Server Error'},needle:'Internal Server Error'}];
+for(const shape of shapes){
+ const p=api.refresh(),count=requests.length;
+ requests.at(-1).resolve(shape.body,shape.status);await p;
+ assert.equal(requests.length,count);
+ assert.equal(box.children.length,0);
+ assert(status.textContent.includes(shape.needle));
+ assert(!status.textContent.includes('No active book'));
+ assert(!status.textContent.includes('Saved mixes loaded'));
+ assert(!box.querySelectorAll('button').some(n=>n.textContent==='Render full mix'));
+}
+context.API._handleError=native;
+''')
+
+    def test_failure_after_delivery_keeps_prior_safe_rows_and_success_after_delivery_is_truthful(self):
+        self.run_js(r'''
+const approved={...row(),approval_status:'recorded',approval_revision:'e'.repeat(64),delivery:{format:'wav'}};
+const status=document.getElementById('sound-mixes-status');
+async function deliver(refuse){
+ await ready([approved]);const p=click('Deliver saved WAV approval');
+ requests.at(-1).resolve({status:'published',file:'mixed_audiobook.wav',candidate_revision:'b'.repeat(64),approval_revision:'e'.repeat(64),warnings:[],quality:null});
+ await tick();
+ if(refuse){requests.at(-1).resolve({detail:'Cue context is busy, changed or unavailable.'},409);}
+ else{requests.at(-1).resolve({context_revision:'c'.repeat(64)});await tick();requests.at(-1).resolve({delivery_profiles:profiles(),candidates:[approved]});}
+ await p;
+}
+await deliver(true);
+assert(status.textContent.includes('busy, changed'));assert(!status.textContent.includes('Published'));
+assert(box.querySelectorAll('button').some(n=>n.textContent==='Discard saved mix'));
+assert(!box.querySelectorAll('button').some(n=>n.textContent==='Render full mix'));
+await deliver(false);
+assert(status.textContent.includes('Published mixed_audiobook.wav'));
+''')
