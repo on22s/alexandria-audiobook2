@@ -18,6 +18,7 @@ from windows_subprocess_owner import WindowsOwnerCleanupError
 
 from core import (
     get_task_lifecycle,
+    mark_expected_probe_response,
     API_LOG_DIR,
     CONFIG_PATH,
     DATA_DIR,
@@ -711,13 +712,24 @@ async def voicelab_inspect(zips_dir: Optional[str] = None):
     cfg = _load_voicelab_config()
     root = (zips_dir or cfg["zips_dir"]).strip()
     if not root:
-        raise HTTPException(status_code=400, detail="zips_dir is not configured. Set it in Voice Lab settings.")
+        with mark_expected_probe_response(expected=zips_dir is None):
+            raise HTTPException(status_code=400, detail="zips_dir is not configured. Set it in Voice Lab settings.")
     root = _resolve_zips_dir(root)
     # Don't enumerate the app's own upload/generated dirs (consistent with the
     # exec-path guard); an external operator-chosen dataset folder is expected.
     _validate_voicelab_path(root, "zips_dir")
     if not os.path.isdir(root):
-        raise HTTPException(status_code=400, detail=f"Folder not found: {root}")
+        missing_default = False
+        default_root = _resolve_zips_dir(VOICELAB_DEFAULTS["zips_dir"].strip())
+        if os.path.normcase(root) == os.path.normcase(default_root):
+            try:
+                os.lstat(root)
+            except FileNotFoundError:
+                missing_default = True
+            except OSError:
+                pass  # An inaccessible default is still a diagnostic failure.
+        with mark_expected_probe_response(expected=missing_default):
+            raise HTTPException(status_code=400, detail=f"Folder not found: {root}")
 
     narrators = []
     for name in sorted(os.listdir(root)):

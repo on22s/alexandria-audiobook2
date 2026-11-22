@@ -75,6 +75,17 @@ async def handle_app_error(_request, exc: AppError):
     return JSONResponse(status_code=exc.status_code, content=body, headers=exc.headers)
 
 
+@contextmanager
+def mark_expected_probe_response(*, expected: bool = True):
+    """Keep an empty probe's HTTP response without treating it as a diagnostic failure."""
+    try:
+        yield
+    except HTTPException as error:
+        if expected:
+            error.expected_probe_response = True
+        raise
+
+
 def _warn_corrupted_json(kind: str, path: str, action: str, e: Exception) -> None:
     """Log a consistent warning for a corrupted/unreadable JSON file that's
     falling back to some default. Shared by every site that catches a JSON
