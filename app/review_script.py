@@ -2042,8 +2042,10 @@ REVIEW_ANNOTATION_RULE = (
     'Use the passage context and evidence for the corrected speaker at this point '
     'in the story; do not invent traits. Omit type to retain the source role hint. '
     'Omit other annotations to retain their existing value or known-speaker fallback. Use null only to explicitly clear an annotation. '
-    'Source text, source_span, provenance, pause_after and other source metadata '
-    'are protected: do not edit them; they are restored from the original entries. ')
+    'Source text, source_span, provenance, pause_after and every other input-only '
+    'metadata key, including unrecognized extra keys, are protected: do not return '
+    'or edit them; they are restored from the original entries, so omitting them '
+    'does not remove them from the saved script. Do not invent metadata keys. ')
 REVIEW_CLASSIC_RESPONSE_RULE = (
     'REVIEW RESPONSE CONTRACT (takes precedence over conflicting format instructions): '
     'Return a JSON array with speaker, text and instruct string fields in every entry. '
