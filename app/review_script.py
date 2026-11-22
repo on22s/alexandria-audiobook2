@@ -1712,7 +1712,7 @@ def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=No
                 or scope_cut['scope_policy_sha256'] != get_scope_identity(policy)
                 or scope_cut['start_word'] != scope['start_word']):
             raise ValueError('Scope evidence does not match the child policy or prepared source')
-    leading_bound = None
+    leading_intervals = None
     if independent and parent_entries is not None:
         parent_policy = get_literal_policy(parent_entries)
         if parent_policy is None:
@@ -1726,7 +1726,7 @@ def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=No
                 or coverage[-1][1] != scope_cut['outer_end']):
             raise ValueError('Scoped rows exceed the independently verified retained coverage')
         retained = None
-        leading_bound = tuple(coverage[0])
+        leading_intervals = [tuple(interval) for interval in coverage]
     else:
         proof = scope.get('cut_proof')
         if proof is not None and not is_scope_cut_proof(proof):
@@ -1736,19 +1736,24 @@ def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=No
                                              get_literal_policy(parent_entries), policy)
             expected_coverage = get_review_scope_coverage(
                 text, get_review_source_entries(retained, text))
-            leading_bound = tuple(expected_coverage[0])
+            leading_intervals = [tuple(interval) for interval in expected_coverage]
         else:
             retained = None
             leading = _retained_leading_region(text, scope, entries)
             if leading is not None:
-                leading_bound = leading
+                leading_intervals = [leading]
     first_word = next((position for position, item in enumerate(entries)
                        if any(True for _ in iter_literal_words(item['text']))), len(entries))
     cursor = 0
+    leading_end = None
     for index, (entry, span) in enumerate(zip(entries, spans)):
-        if (leading_bound is not None and index < first_word
-                and not (leading_bound[0] <= span[0] and span[1] <= leading_bound[1])):
-            raise ValueError('Leading row span is outside the retained sequence')
+        if leading_intervals is not None and index < first_word:
+            if not any(start <= span[0] and span[1] <= end
+                       for start, end in leading_intervals):
+                raise ValueError('Leading row span is outside the verified retained coverage')
+            if leading_end is not None and span[0] < leading_end:
+                raise ValueError('Leading rows are out of order')
+            leading_end = span[1]
         for word, _, _ in iter_literal_words(entry['text']):
             if cursor >= len(expected) or expected[cursor][0] != word:
                 raise ValueError('Scoped rows do not match the selected source words')

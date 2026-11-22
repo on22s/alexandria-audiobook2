@@ -101,9 +101,17 @@ def apply_source_scope(root, start_entry, expected_revision):
         before[name] = raw
     if sum(len(raw) for raw in before.values() if raw is not None) > 32 * 1024**2:
         raise ValueError('Scope undo metadata exceeds its 32 MiB input limit.')
-    if plan.get('scope_cut_evidence') is None and before[BINDING_NAME] is not None:
-        prior = parse_script_binding(before[BINDING_NAME])
-        if get_scope_cut_from_binding(prior) is not None:
+    prior_scope_cut = None
+    if before[BINDING_NAME] is not None:
+        prior_scope_cut = get_scope_cut_from_binding(parse_script_binding(before[BINDING_NAME]))
+    if prior_scope_cut is not None:
+        from project_scope_literal import verify_parent_scope_evidence
+        from project_scope_source import get_scope_source_snapshot
+        _source_file, prepared = get_scope_source_snapshot(json.loads(before['state.json']))
+        verify_parent_scope_evidence(prepared, json.loads(before['annotated_script.json']),
+                                     prior_scope_cut,
+                                     prepared_sha256=plan['source_file']['prepared_text_sha256'])
+        if plan.get('scope_cut_evidence') is None:
             raise ValueError('Prior scope cut evidence cannot be reused for an unprovable scope.')
     state = json.loads(before['state.json'])
     state['_source_scope'] = plan['source_scope']
