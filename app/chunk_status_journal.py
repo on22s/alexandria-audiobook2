@@ -32,6 +32,23 @@ def get_chunk_audio_key(chunks_path, audio_path):
         os.path.dirname(os.path.abspath(chunks_path)), audio_path)))
 
 
+def is_active_script_output(data_dir, output_path):
+    """Whether a destination replaces the active script rather than a copy.
+
+    Compare the parent directories without following the final entry:
+    publication replaces a destination symlink itself.
+    """
+    parent, name = os.path.split(output_path)
+    if os.path.normcase(name) != "annotated_script.json":
+        return False
+    parent = parent or os.curdir
+    try:
+        return os.path.samefile(parent, data_dir)
+    except FileNotFoundError:
+        return (os.path.normcase(os.path.realpath(parent))
+                == os.path.normcase(os.path.realpath(data_dir)))
+
+
 def remove_chunk_snapshot(chunks_path):
     """Retire generation state when its script has been replaced."""
     removed = False

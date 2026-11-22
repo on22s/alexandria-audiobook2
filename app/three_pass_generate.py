@@ -9,7 +9,7 @@ import hashlib
 import json
 import math
 from generation_checkpoint_deltas import GenerationCheckpointDeltas, load_generation_delta_checkpoint
-from chunk_status_journal import remove_chunk_snapshot
+from chunk_status_journal import is_active_script_output, remove_chunk_snapshot
 import os
 import re
 import sys
@@ -3934,10 +3934,11 @@ def prepare_source_text(book):
 
 def get_output_paths(data_dir, requested_output=None):
     """Resolve output and stale-chunk paths for CLI and application runs."""
+    chunks = os.path.join(data_dir, "chunks.json")
     if requested_output is not None:
-        return requested_output, None
-    return (os.path.join(data_dir, "annotated_script.json"),
-            os.path.join(data_dir, "chunks.json"))
+        return (requested_output, chunks if is_active_script_output(
+            data_dir, requested_output) else None)
+    return (os.path.join(data_dir, "annotated_script.json"), chunks)
 
 
 def _has_explicit_null_pass_status(pass_info):
@@ -4229,7 +4230,7 @@ def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     app_dir = os.path.dirname(__file__)
     data_dir = get_runtime_data_dir(root)
-    output_path, chunks_path = get_output_paths(data_dir, args.output)
+    output_path, _ = get_output_paths(data_dir, args.output)
     if (len({args.active_book_token is None, args.active_source_sha256 is None, args.active_run_id is None}) != 1
             or (args.active_book_token is not None and (args.output is not None or args.preflight))
             or (args.require_matching_checkpoint and args.active_book_token is None)):
@@ -4504,8 +4505,10 @@ def main():
         atomic_json_write(entries, output_path, allow_nonatomic_fallback=False,
                           newline="\n", before_replace=require_source_unchanged)
     print(f"Wrote {len(entries)} entries to {output_path}")
-    if args.active_book_token is None and chunks_path is not None and remove_chunk_snapshot(chunks_path):
-        print("Cleared old chunks.json")
+    if args.active_book_token is None:
+        _, chunks_path = get_output_paths(data_dir, output_path)
+        if chunks_path is not None and remove_chunk_snapshot(chunks_path):
+            print("Cleared old chunks.json")
 
 
 if __name__ == "__main__":

@@ -67,6 +67,15 @@
     , "tests.test_action_error_guidance_js.ActionErrorGuidanceJsTests.test_voice_approval_failure_requires_checking_saved_state"
     , "tests.test_action_error_guidance_js.ActionErrorGuidanceJsTests.test_voicelab_save_failure_keeps_fields_and_requires_saved_state_check"
   ]
+  , "test_active_script_chunk_retirement": [
+    "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_app_owned_three_pass_uses_app_publication_not_cli_retirement"
+    , "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_distinct_outputs_preserve_both"
+    , "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_failed_publication_preserves_both"
+    , "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_output_leaf_alias_is_replaced_without_retiring_active_chunks"
+    , "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_parent_directory_alias_retires_active_chunks"
+    , "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_single_pass_explicit_active_spellings_retire_both"
+    , "tests.test_active_script_chunk_retirement.ActiveScriptChunkRetirementTests.test_three_pass_explicit_active_spellings_retire_both"
+  ]
   , "test_adapter_artifacts": [
     "tests.test_adapter_artifacts.AdapterReusePublicationTests.test_actual_train_one_rejects_success_exit_with_invalid_files_and_preserves_existing_output"
     , "tests.test_adapter_artifacts.AdapterReusePublicationTests.test_manifest_and_prefix_resume_reject_bad_core_and_metadata_then_accept_valid_renamed_adapter"
@@ -6811,6 +6820,7 @@
     "tests.test_generation_dispatch.GenerationDispatchTests.test_active_selection_digests_are_passed_only_to_active_output"
     , "tests.test_generation_dispatch.GenerationDispatchTests.test_batch_generation_uses_same_dispatch_with_output"
     , "tests.test_generation_dispatch.GenerationDispatchTests.test_default_output_and_stale_chunks_share_runtime_data_directory"
+    , "tests.test_generation_dispatch.GenerationDispatchTests.test_explicit_active_output_spellings_clear_active_book_chunks"
     , "tests.test_generation_dispatch.GenerationDispatchTests.test_explicit_batch_output_does_not_clear_active_book_chunks"
     , "tests.test_generation_dispatch.GenerationDispatchTests.test_narrator_metadata_uses_same_dispatch_and_is_normalized"
     , "tests.test_generation_dispatch.GenerationDispatchTests.test_only_failed_or_incomplete_manifest_is_recoverable"
