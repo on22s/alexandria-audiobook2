@@ -20,6 +20,7 @@ from sound_design_registry import ACTIVE_CUES, MAX_REGISTRY_BYTES, get_sound_des
 from source_evidence import MAX_SOURCE_CHARS, _require_text
 from sound_design_renditions import (ACTIVE_RENDITIONS, MAX_RENDITION_BYTES,
     get_sound_rendition_ledger, validate_sound_rendition_consumers)
+from utils import secure_filename
 
 
 MAX_CONTEXT_BYTES = 64 * 1024**2
@@ -33,21 +34,50 @@ def _refuse_nonfinite(_value):
     raise ValueError('Nonfinite cue context metadata is not supported')
 
 
+class SoundDesignNoActiveBook(ValueError):
+    """Authoritative absence from the guarded state capture, not a read failure."""
+
+
 def capture_sound_design_context(root, *, check_active=lambda: None):
     """Do not regenerate UIDs, recover transactions or rewrite selected rows."""
     if not is_scope_admitted(root):
         raise ValueError('Task and book admission are required for cue context')
     root = Path(os.path.abspath(root))
-    proofs, data, retained = {}, {}, 0
     files = {**_FILES, ACTIVE_RENDITIONS: MAX_RENDITION_BYTES}
+    check_active()
+    state_proof, raw_state = capture_scope_file(
+        root, 'state.json', limit=min(files['state.json'], MAX_CONTEXT_BYTES),
+        include_bytes=True, cancel_check=check_active)
+    if not state_proof['exists']:
+        raise SoundDesignNoActiveBook('No active book is selected')
+    state = json.loads(raw_state, object_pairs_hook=get_unique_json_object,
+                       parse_constant=_refuse_nonfinite)
+    if not isinstance(state, dict):
+        raise ValueError('Saved book state must be an object')
+    if state.get('book_generation') is not None:
+        _require_text(state['book_generation'], 1024, 'Selected book generation')
+    input_path = state.get('input_file_path')
+    if input_path is not None and not isinstance(input_path, str):
+        raise ValueError('Selected source path must be text')
+    # A legacy source path still represents a selection. Cue authoring
+    # requires an explicit stable ID, so that selection falls through to refusal.
+    if 'active_book_id' not in state and not input_path:
+        raise SoundDesignNoActiveBook('No active book is selected')
+    _require_text(state.get('active_book_id'), 1024, 'Selected book identity')
+    if not secure_filename(state['active_book_id']):
+        raise ValueError('Selected book identity is invalid')
+
+    proofs, data, retained = {'state.json': state_proof}, {}, len(raw_state)
     for name, limit in files.items():
+        if name == 'state.json':
+            continue
         check_active()
         proofs[name], data[name] = capture_scope_file(root, name, limit=min(limit, MAX_CONTEXT_BYTES-retained or 1),
                                                      include_bytes=True, cancel_check=check_active)
         retained += len(data[name] or b'')
         if retained > MAX_CONTEXT_BYTES:
             raise ValueError('Cue context metadata exceeds its joint byte limit')
-    if any(data[name] is None for name in ('state.json','annotated_script.json','chunks.json')):
+    if any(data[name] is None for name in ('annotated_script.json','chunks.json')):
         raise ValueError('Saved book, script and stable Editor rows are required for cues')
     renditions = (get_sound_rendition_ledger(data[ACTIVE_RENDITIONS])
                   if data[ACTIVE_RENDITIONS] is not None else None)
@@ -58,13 +88,6 @@ def capture_sound_design_context(root, *, check_active=lambda: None):
                    or ('speaker' in row and not isinstance(row['speaker'],str)) for row in script)):
         raise ValueError('Saved script needs inspection in Editor before cue authoring')
     del script
-    state = json.loads(data['state.json'], object_pairs_hook=get_unique_json_object,
-                       parse_constant=_refuse_nonfinite)
-    if not isinstance(state, dict):
-        raise ValueError('Saved book state must be an object')
-    _require_text(state.get('active_book_id'), 1024, 'Selected book identity')
-    if state.get('book_generation') is not None:
-        _require_text(state['book_generation'], 1024, 'Selected book generation')
     identity = {key:state.get(key) for key in ('active_book_id','book_generation')}
     chunks = ChunkStatusJournal(root/'chunks.json', identity).get_rows_from_bytes(
         data['chunks.json'], data['chunks.json.status.jsonl'])

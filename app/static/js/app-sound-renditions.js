@@ -87,12 +87,12 @@ const SoundRenditions = (() => {
     }
     const common = value => ({context_revision: value.context_revision, registry_revision: value.registry_revision, ledger_revision: value.ledger_revision});
     async function refresh(page = 0, cueId = filter) {
-        if (busy || !integer(page, 0, 1024) || !(cueId === null || text(cueId, 128))) { return; }
+        if (busy || !integer(page, 0, 1024) || !(cueId === null || text(cueId, 128))) { return {status: 'invalid'}; }
         const expected = ++sequence; offset = page; filter = cueId; view = null; preview = null; selected = new Set();
         el('sound-renditions-content').replaceChildren(); message(t('sound.renditions.loading', 'Loading recorded renditions…'));
         const query = `offset=${page}&limit=100${cueId === null ? '' : `&cue_id=${encodeURIComponent(cueId)}`}`;
         const results = await Promise.allSettled([json(`/api/sound_design/renditions?${query}`), json('/api/sound_design/assets')]);
-        if (expected !== sequence) { return; }
+        if (expected !== sequence) { return {status: 'superseded'}; }
         try {
             if (results[0].status !== 'fulfilled') { throw results[0].reason; }
             view = validate(results[0].value, page); assets = [];
@@ -100,7 +100,10 @@ const SoundRenditions = (() => {
                 try { assets = SoundAssets.validate(results[1].value).filter(row => row.state === 'ready'); } catch (_error) { assets = []; }
             }
             render(); message(assets.length ? t('sound.renditions.loaded', 'History loaded. Recording and keep flags do not approve a mix.') : t('sound.renditions.loaded-no-assets', 'History loaded. Import or repair audio assets before recording or using a master.'));
-        } catch (error) { view = null; el('sound-renditions-content').replaceChildren(); message(error.message); }
+            return {status: 'loaded', view};
+        } catch (error) {
+            view = null; el('sound-renditions-content').replaceChildren(); message(error.message); return {status: 'failed'};
+        }
     }
     async function action(work) {
         if (busy || !view) { return; }
@@ -285,10 +288,11 @@ const SoundRenditions = (() => {
         const opening = openPanel();
         if (opening && !await opening) { return; }
         if (invocation !== bridgeSequence) { return; }
-        const expected = sequence + 1; await refresh(0, source.cue_id);
-        if (invocation !== bridgeSequence || sequence !== expected) { return; }
-        if (!view || view.context_revision !== cueView.context_revision || view.registry_revision !== cueView.registry_revision
-            || view.book_token !== cueView.book_token) { message(t('safety.sound.renditions.cue-history-changed', 'Cue history changed. Refresh Sound cues before recording.')); return; }
+        const expected = sequence + 1, result = await refresh(0, source.cue_id);
+        if (invocation !== bridgeSequence || sequence !== expected || result.status !== 'loaded') { return; }
+        const current = result.view;
+        if (current.context_revision !== cueView.context_revision || current.registry_revision !== cueView.registry_revision
+            || current.book_token !== cueView.book_token) { message(t('safety.sound.renditions.cue-history-changed', 'Cue history changed. Refresh Sound cues before recording.')); return; }
         recordForm(source);
     }
     return {refresh, showHistory, recordFromCue, validate};

@@ -20,6 +20,7 @@ const book=()=>({book_id:'synthetic book',source_sha256:'e'.repeat(64),script_sh
 const version=(id='rain')=>({schema:1,cue_id:id,parent_version:null,version:'1'.repeat(64),recipe:{book:book(),selection:selection(),asset:{asset_id:sample().asset_id,...sample().canonical},frame_rate:24000,boundary:'start',offset_frames:0,kind:'effect',duration:{mode:'native',frames:null,loop_crossfade_frames:null},mix:{gain_db:0,duck_db:0,fade_in_frames:0,fade_out_frames:0}}});
 const data=()=>({context_revision:'2'.repeat(64),registry_revision:null,book_token:'3'.repeat(64),book:book(),registry:{versions:[],selected:{}},chunks:[{chunk_uid:'line-1',speaker:'NARRATOR',text:'Synthetic <img onerror=bad()> dialogue.',has_recorded_take:true}],total_chunks:1,next_offset:null});
 const anchor=()=>({context_revision:'2'.repeat(64),anchor_revision:'4'.repeat(64),selection:selection()});
+const cueHistory=()=>({context_revision:data().context_revision,registry_revision:data().registry_revision,book_token:data().book_token});
 const tick=()=>new Promise(resolve=>setImmediate(resolve));load();
 const api=vm.runInContext('SoundCues',context),box=document.getElementById('sound-cues-content'),message=document.getElementById('sound-cues-status');
 const click=label=>{const node=box.querySelectorAll('button').find(n=>n.textContent===label);assert(node,'missing '+label);return node.onclick();};
@@ -150,4 +151,29 @@ const current=data();current.total_chunks=201;current.next_offset=100;await read
 const pending=click('Next dialogue');assert(requests[2].url.includes('offset=100'));assert.equal(box.children.length,0);
 requests[2].resolve({...data(),total_chunks:201,next_offset:200});requests[3].resolve({assets:[sample()]});await pending;
 assert(box.querySelectorAll('button').some(n=>n.textContent==='Previous dialogue'));assert(!field('name'));
+''')
+
+    def test_failed_or_malformed_master_refresh_keeps_the_real_error(self):
+        self.run_js(r'''
+const current=data(),row=version();current.registry.versions=[row];current.registry.selected={rain:row.version};await ready(current);
+const record={source:{cue_id:'rain'}};
+let n=requests.length,use=api.useRendition(record,cueHistory());
+requests[n].reject(new Error('bridge offline'));requests[n+1].reject(new Error('bridge offline'));await use;
+assert(message.textContent.includes('bridge offline'));assert(!message.textContent.includes('History changed'));assert(!field('name'));
+n=requests.length;use=api.useRendition(record,cueHistory());
+requests[n].resolve({...current,context_revision:'bad'});requests[n+1].resolve({assets:[sample()]});await use;
+assert(message.textContent.includes('Invalid cue editor response.'));assert(!message.textContent.includes('History changed'));assert(!field('name'));
+''')
+
+    def test_real_master_history_change_and_stale_master_response_are_distinguished(self):
+        self.run_js(r'''
+const current=data(),row=version();current.registry.versions=[row];current.registry.selected={rain:row.version};await ready(current);
+const record={source:{cue_id:'rain'},master:{asset_id:sample().asset_id}};
+let n=requests.length,use=api.useRendition(record,cueHistory());
+requests[n].resolve({...current,context_revision:'7'.repeat(64)});requests[n+1].resolve({assets:[sample()]});await use;
+assert(message.textContent.includes('History changed'));assert(!field('name'));
+const base=requests.length,stale=api.useRendition(record,cueHistory()),latest=api.useRendition(record,cueHistory());
+requests[base+2].resolve(current);requests[base+3].resolve({assets:[sample()]});await latest;
+requests[base].reject(new Error('late failure'));requests[base+1].reject(new Error('late failure'));await stale;
+assert.equal(field('name').value,'rain');assert(!message.textContent.includes('late failure'));
 ''')
