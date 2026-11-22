@@ -138,6 +138,7 @@ from core import (
     _markdown_heads_up_lines,
     _markdown_stats_table,
     _new_review_totals,
+    _review_is_incomplete,
     _pause_task,
     _require_safe_filename,
     _resume_task,
@@ -148,12 +149,12 @@ from core import (
     _warn_corrupted_json,
     check_global_gpu_lock,
     claim_gpu_task, schedule_claimed_background_task, ensure_book_switch_allowed,
-    ensure_saved_book_destination_available,
+    ensure_saved_book_destination_available, get_saved_book_destination_path,
     reserve_background_task, register_claimed_background_task, release_gpu_task_claim,
     process_state,
     run_process,
 )
-from review_script import (clear_checkpoint, get_review_batching, get_review_entry_windows,
+from review_script import (get_review_batching, get_review_entry_windows,
                            get_validated_context_setting, CONTEXT_MODE_CHARS, CONTEXT_MODE_ENTRIES,
                            DEFAULT_CONTEXT_ENTRIES)
 from utils import atomic_json_write, backup_file_with_timestamp, safe_load_json, secure_filename
@@ -229,8 +230,15 @@ def _resolve_batch_review_options(request):
 
 
 def get_review_force_args(force_review, backward=False):
-    """Build the review-child flags; a backward pass always reruns with its own direction identity."""
-    args = ["--force-review"] if force_review or backward else []
+    """Build the review-child flags.
+
+    Direction is part of the child's execution identity, so a backward pass has
+    its own completion proof. It is not forced unconditionally: an ordinary
+    retry of the same batch must be able to honour a verified backward receipt
+    for a book that already finished. An explicit force or Start over still
+    reruns both directions.
+    """
+    args = ["--force-review"] if force_review else []
     if backward:
         args += ["--review-pass", "backward"]
     return args
@@ -3995,6 +4003,28 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
     return await asyncio.to_thread(_with_review_startup, "batch_review", _start_batch_review, request, background_tasks)
 
 
+def get_unique_batch_script_names(names):
+    """Deduplicate requested books by their canonical saved destination.
+
+    ``secure_filename`` and platform case/inode aliasing can map several names
+    onto one saved-book file. Counting them separately would review the same
+    file twice and double-count its changes. The first spelling is kept so
+    user-facing messages do not change.
+    """
+    unique = []
+    seen = set()
+    for name in dict.fromkeys(names):
+        safe_name = secure_filename(name)
+        destination = (get_saved_book_destination_path(os.path.join(SCRIPTS_DIR, f"{safe_name}.json"))
+                       if safe_name else None)
+        if destination is not None and destination in seen:
+            continue
+        if destination is not None:
+            seen.add(destination)
+        unique.append(name)
+    return unique
+
+
 def _start_batch_review(request, background_tasks):
     dedupe, discover, bidirectional = _resolve_batch_review_options(request)
     effective_options = {"bidirectional": bidirectional,
@@ -4006,7 +4036,7 @@ def _start_batch_review(request, background_tasks):
     _, window = get_validated_context_setting(
         CONTEXT_MODE_ENTRIES, request.context_window, 0, minimum=0)
 
-    names = list(request.script_names)
+    names = get_unique_batch_script_names(request.script_names)
     total = len(names)
     pending = {
         "tasks": [{"name": name, "status": "pending"} for name in names],
@@ -4101,25 +4131,12 @@ def _start_batch_review(request, background_tasks):
                         ", ".join(f"'{a['variant']}' -> '{a['canonical']}'" for a in new_aliases)
                     )
 
-            # Clear stale progress at the start of every pass. In a bidirectional
-            # run the forward pass's clean checkpoint is preserved so a crash in
-            # the backward pass can resume from where forward left off; see below.
-            should_clear = True
-            if state.get("bidirectional") and state.get("current_pass") == "bwd":
-                # Preserve the forward pass's checkpoint only when that pass
-                # finished cleanly. Any other status means the forward pass did
-                # not complete: "failed" (subprocess/validation error),
-                # "incomplete" (VRAM abort, failed batches, or missing summary),
-                # "pending"/None (never ran), "cancelled", or "running". In every
-                # one of those cases the on-disk checkpoint is stale forward-pass
-                # progress and must not seed the hindsight (backward) result.
-                should_clear = orig_status != "done"
-
-            if should_clear:
-                if request.start_over:
-                    discard_review_progress(script_path)
-                else:
-                    clear_checkpoint(script_path)
+            # Ordinary retries keep their checkpoint: the child validates its
+            # execution and input identity (including --review-pass) before
+            # resuming, and discards a checkpoint it cannot bind. Only an
+            # explicit Start over retires progress before model work.
+            if request.start_over and tag != " [bwd]":
+                discard_review_progress(script_path)
 
             cmd = [
                 sys.executable, "-u",
@@ -4153,8 +4170,7 @@ def _start_batch_review(request, background_tasks):
                     # or hit a VRAM abort with no recorded summary. Treat as
                     # incomplete rather than silently calling it "done".
                     state["tasks"][i]["status"] = "incomplete"
-                elif (stats.get("batches_failed", 0) > 0 or
-                      stats.get("batches_skipped_vram", 0) > 0):
+                elif _review_is_incomplete(stats):
                     # The reviewer bailed out early to avoid an OOM; entries past the
                     # abort point or failed batches were left unreviewed, and a checkpoint
                     # may remain on disk for a future resume. Don't report this book as done.
@@ -4230,6 +4246,11 @@ def _start_batch_review(request, background_tasks):
                 if state["cancel"]:
                     state["logs"].append("Batch review cancelled.")
                     break
+                forward_task = state["tasks"][i]
+                if (forward_task.get("status") != "done" or not forward_task.get("stats_fwd")):
+                    state["logs"].append(
+                        f"[{i+1}/{total}] [bwd] Skipping hindsight pass: {names[i]} has no verified complete forward review.")
+                    continue
                 if not _process_book(i, names[i], tag=" [bwd]"):
                     break
 
@@ -4251,7 +4272,13 @@ def _start_batch_review(request, background_tasks):
             state["logs"].append(f"Wrote batch review report: {os.path.relpath(report_path, ROOT_DIR)}")
 
         state["running"] = False
-        state["logs"].append("Batch review finished.")
+        incomplete_count = sum(1 for task in state["tasks"] if task.get("status") == "incomplete")
+        if incomplete_count:
+            state["logs"].append(
+                f"Batch review finished with {incomplete_count} incomplete "
+                f"book(s); re-run those reviews to finish them.")
+        else:
+            state["logs"].append("Batch review finished.")
 
     destinations = [os.path.join(SCRIPTS_DIR, f"{secure_filename(name)}.json")
                     for name in names if secure_filename(name)]

@@ -295,8 +295,7 @@ except lib.HTTPException as error:print(json.dumps({'status':error.status_code})
                 self.assertEqual(before, {name: value for name, value in helper.artifacts(root).items()
                                           if not name.startswith('distinct.')})
                 return 0, CLEAN
-            with patch.object(script, 'clear_checkpoint'), \
-                    patch.object(script, '_stream_subprocess_to_logs', side_effect=stream):
+            with patch.object(script, '_stream_subprocess_to_logs', side_effect=stream):
                 asyncio.run(background())
             self.assertEqual([409, 200], observed)
 
