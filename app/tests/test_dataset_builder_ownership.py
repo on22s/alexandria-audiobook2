@@ -114,7 +114,7 @@ class DatasetBuilderOwnershipTests(unittest.TestCase):
                 self.assertEqual((str(work.resolve()),), resources)
                 states[task]['running']=True;return 'pending-fixture'
             with patch.object(routes,'check_global_gpu_lock'),patch.object(routes,'reserve_background_task',side_effect=reserve),patch.object(routes.os,'makedirs',side_effect=OSError('fixture setup disk failure')),patch.object(routes,'release_gpu_task_claim') as release,patch.object(routes,'start_claimed_task_thread') as start:
-                response=client.post('/api/dataset_builder/generate_batch',json={'name':'voice','description':'Warm','samples':[{'text':'Known'}]})
+                response=client.post('/api/dataset_builder/generate_batch',json={'name':'voice','description':'Warm','samples':[{'text':'First reference'},{'text':'Second reference'}]})
             self.assertEqual(500,response.status_code);start.assert_not_called()
             release.assert_called_once_with('dataset_builder','pending-fixture',pending_only=True)
             self.assertEqual('voice',states['dataset_builder']['dataset_name'])

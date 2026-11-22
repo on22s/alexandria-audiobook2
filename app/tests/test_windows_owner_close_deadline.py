@@ -1,6 +1,7 @@
 """Mocked Win32 failures exercise bounded cleanup and real task lifecycle."""
 import asyncio
 import copy
+import functools
 import io
 import json
 from pathlib import Path
@@ -84,17 +85,19 @@ class WindowsOwnerCloseDeadlineTests(unittest.TestCase):
         self.assertEqual([], self.delays)
 
     def test_transient_failure_returns_within_real_wall_clock_deadline(self):
+        timeout = .08
         with patch.object(owner.time, 'monotonic', self.real_monotonic), \
              patch.object(owner.time, 'sleep', self.real_sleep), \
-             patch.object(owner, 'WINDOWS_OWNER_CLOSE_TIMEOUT_SECONDS', .08), \
+             patch.object(owner, 'WINDOWS_OWNER_CLOSE_TIMEOUT_SECONDS', timeout), \
              patch.object(jobs.ctypes, 'get_last_error', return_value=170), \
              patch.object(owner.logging, 'exception'), \
              patch('review_startup.record_failure'):
             started = time.perf_counter()
+            deadline = self.real_monotonic() + timeout
             with self.assertRaisesRegex(OSError, 'deadline exceeded.*Win32 error 170'):
                 self.control.close()
+            self.assertGreaterEqual(self.real_monotonic(), deadline)
             elapsed = time.perf_counter() - started
-        self.assertGreaterEqual(elapsed, .08)
         self.assertLess(elapsed, 1)
 
     def test_transient_failure_exhausts_deadline_with_backoff_and_retains_ownership(self):
@@ -291,8 +294,9 @@ class WindowsOwnerCloseDeadlineTests(unittest.TestCase):
                 failure = owner.WindowsOwnerCleanupError(self.control, OSError(5, 'denied'))
                 engine = Mock()
                 engine.generate_voice_design.side_effect = failure
-                def start(name, claim_id, callback):
-                    return core._run_owned_background_task(name, claim_id, callback)
+                def start(name, claim_id, callback, *args, **kwargs):
+                    return core._run_owned_background_task(
+                        name, claim_id, functools.partial(callback, *args, **kwargs))
                 with patch.object(core, 'process_state', states), \
                      patch.object(routes, 'process_state', states), \
                      patch.object(core, '_task_claims', claims), \

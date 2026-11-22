@@ -8,8 +8,9 @@ import threading
 from fastapi import APIRouter, HTTPException, Path, Query, File, UploadFile, Request
 from fastapi.responses import Response
 
-from core import DATA_DIR
+from core import DATA_DIR, AppError
 from sound_design_assets import SoundDesignAssetStore, validate_sound_asset_display_name
+from sound_design_context import SoundDesignNoActiveBook
 from sound_design_audition import get_sound_asset_audition
 from sound_design_cues import MAX_RATE, MAX_SECONDS
 from sound_design_uploads import import_sound_asset_upload
@@ -97,6 +98,9 @@ def _cue_response(operation, raw, selection, check_active, *, audio_owned=False)
         return Response(encoded,media_type='application/json',headers={'Cache-Control':'no-store'})
     except CueRequestError:
         raise HTTPException(400,'Invalid cue request. Refresh the cue editor and check its fields.') from None
+    except SoundDesignNoActiveBook:
+        raise AppError(409, 'No active book is selected. Load a saved book before authoring cues.',
+                       key='error.sound.cues.no_active_book') from None
     except (AudioGenerationCancelled,ExportCancelled):
         raise HTTPException(409,'Cue operation cancelled. Refresh the cue editor to inspect saved state.') from None
     except (ValueError,OSError,TimeoutError,RecursionError,UnicodeError):

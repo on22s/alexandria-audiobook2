@@ -294,6 +294,8 @@ curl -X POST http://127.0.0.1:4200/api/dataset_builder/generate_sample \
   -H "Content-Type: application/json" \
   -d '{"dataset_name": "my_voice_dataset", "sample_index": 0, "description": "A warm male voice, cheerful", "text": "Hello world.", "seed": -1}'
 
+# For rows that already exist, generation speaks the saved row text and the project's
+# current root description/global seed; the fields below only create rows on first run.
 # render several samples in the background
 curl -X POST http://127.0.0.1:4200/api/dataset_builder/generate_batch \
   -H "Content-Type: application/json" \

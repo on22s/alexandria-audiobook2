@@ -71,13 +71,14 @@ const core=fs.readFileSync(path.join(process.argv[1],'app-core.js'),'utf8');
 const source=fs.readFileSync(path.join(process.argv[1],'app-workbench.js'),'utf8');
 const row={text:'Original line.',emotion:'calm',seed:'',status:'pending'},toasts=[];let fail=true,stale=false;
 const ctx={window:{},dsbRows:[row],dsbCurrentProject:'fixture',dsbBatchRunning:false,
+ dsbBatchStartSequence:0,dsbSaveRowsQueue:null,dsbSaveMetaQueue:null,dsbRowSaveStates:new Map(),
  document:{getElementById:id=>({value:id==='dsb-description'?'Fixture voice':'-1'})},
  showToast:(...args)=>toasts.push(args),console:{error:()=>{}},dsbRenderTable:()=>{},
  isDatasetProjectLoading:()=>false,isDatasetProjectSelected:()=>!stale,API:{post:async()=>{if(fail){throw Error('<img src=x onerror=boom()> bad reference');}return {audio_url:'/new.wav'};}}};
 vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));{const guidanceCore=typeof core==='string'?core:source;vm.runInContext(guidanceCore.slice(guidanceCore.indexOf('function showActionError('),guidanceCore.indexOf('function showConfirm(')),ctx);}
 vm.runInContext(core.slice(core.indexOf('function escapeHtml('),core.indexOf('// Parse a numeric input')),ctx);
 vm.runInContext(source.slice(source.indexOf('function datasetRowStatusLabel('),source.indexOf('function dsbRenderTable(')),ctx);
-vm.runInContext(source.slice(source.indexOf('function getDatasetRowDefinition('),source.indexOf('function ensureDatasetRowSaveState(')),ctx);
+vm.runInContext(source.slice(source.indexOf('function getDatasetRowDefinition('),source.indexOf('async function saveDatasetRows(')),ctx);
 vm.runInContext(source.slice(source.indexOf('function isDatasetRowGenerationRunning('),source.indexOf('function dsbAddRow(')),ctx);
 vm.runInContext(source.slice(source.indexOf('window.dsbGenSample ='),source.indexOf('// Batch generation')),ctx);
 (async()=>{

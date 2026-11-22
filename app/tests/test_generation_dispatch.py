@@ -78,6 +78,15 @@ class GenerationDispatchTests(unittest.TestCase):
         self.assertEqual("/runtime/data/scripts/book.json", output)
         self.assertIsNone(chunks)
 
+    def test_explicit_active_output_spellings_clear_active_book_chunks(self):
+        active = os.path.join("/runtime/data", "annotated_script.json")
+        for output in (active, os.path.relpath(active)):
+            with self.subTest(output=output):
+                resolved, chunks = get_output_paths("/runtime/data", output)
+
+                self.assertEqual(output, resolved)
+                self.assertEqual(os.path.join("/runtime/data", "chunks.json"), chunks)
+
     def test_only_failed_or_incomplete_manifest_is_recoverable(self):
         with tempfile.TemporaryDirectory() as directory:
             output = os.path.join(directory, "annotated_script.json")
