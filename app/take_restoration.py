@@ -245,9 +245,10 @@ def restore_editor_take(manager, index, request, expected):
                 # existing save admission through selection, without waiting
                 # under the owner mutex. Override inherited worker snapshots so
                 # this check compares the current shared document.
+                lexicon_path = pronunciation.get_pronunciation_path()
                 with manager._ensure_automatic_predecessor(current, required=True), _LOCAL_TTS_LOCK, \
-                        file_lock(pronunciation.DEFAULT_PATH), \
-                        pronunciation.ensure_pronunciation_audition(pronunciation.load_lexicon(force=True)):
+                        file_lock(lexicon_path), \
+                        pronunciation.ensure_pronunciation_audition(pronunciation.load_lexicon(lexicon_path, force=True)):
                     _ensure_claim(claim)
                     native_request, _ = _get_matching_request(manager, engine, index, candidate, proof)
                     _ensure_claim(claim)

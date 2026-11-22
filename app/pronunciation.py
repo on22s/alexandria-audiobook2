@@ -43,6 +43,25 @@ import threading
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_PATH = os.path.join(REPO, "pronunciation.json")
 
+
+def get_pronunciation_path(path=None):
+    """The one call-time resolver for the shared lexicon's location.
+
+    An explicit caller path always wins. Otherwise an isolated
+    ALEXANDRIA_DATA_DIR owns the file, while an unconfigured runtime keeps the
+    legacy install-root default. There is deliberately no read-through to the
+    install root when a different data root is configured: two isolated runs
+    must never share (or silently mutate) the same lexicon.
+    """
+    if path:
+        return path
+    from utils import get_runtime_data_dir
+    root = get_runtime_data_dir(REPO)
+    if os.path.realpath(root) == os.path.realpath(REPO):
+        return DEFAULT_PATH
+    return os.path.join(root, "pronunciation.json")
+
+
 _cache = {"path": None, "fingerprint": None, "entries": {}, "pattern": None}
 _cache_lock = threading.RLock()
 logger = logging.getLogger(__name__)
@@ -71,7 +90,7 @@ def load_lexicon(path=None, force=False):
 
 def _load_lexicon(path=None, force=False):
     """Load the cache while the caller holds its lock."""
-    path = path or DEFAULT_PATH
+    path = get_pronunciation_path(path)
     try:
         # Windows st_ctime is creation time. Hash the bytes we parse so an
         # in-place edit with the same size and restored mtime cannot stay cached.

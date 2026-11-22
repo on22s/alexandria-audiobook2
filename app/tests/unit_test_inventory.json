@@ -10852,6 +10852,12 @@
     "tests.test_pronunciation_concurrency.PronunciationConcurrencyTests.test_concurrent_valid_missing_and_malformed_books_keep_results_distinct"
     , "tests.test_pronunciation_concurrency.PronunciationConcurrencyTests.test_other_book_loading_between_load_and_snapshot_cannot_change_output"
   ]
+  , "test_pronunciation_data_root": [
+    "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_explicit_path_and_no_override_default"
+    , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_panel_writes_stay_in_their_root_and_leave_install_untouched"
+    , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_synthesis_default_and_repair_digest_follow_the_root"
+    , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_two_roots_resolve_separate_paths_and_reads"
+  ]
   , "test_pronunciation_dispatch": [
     "tests.test_pronunciation_dispatch.PronunciationDispatchTests.test_all_native_single_direct_and_batch_paths_match_preview"
     , "tests.test_pronunciation_dispatch.PronunciationDispatchTests.test_dynamic_narrator_uses_prepared_input_and_preserves_public_overrides"

@@ -390,7 +390,7 @@ def get_audio_repair_revision(chunks):
     files = []
     for path in (project_manager.voice_config_path,
                  os.path.join(project_manager.root_dir, "character_aliases.json"), CONFIG_PATH,
-                 pronunciation.DEFAULT_PATH):
+                 pronunciation.get_pronunciation_path()):
         try:
             value = hashlib.sha256(Path(path).read_bytes()).hexdigest()
         except FileNotFoundError:
