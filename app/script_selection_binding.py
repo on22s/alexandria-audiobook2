@@ -213,7 +213,12 @@ def _validated_script_entries(script_bytes, *, require_entries=True):
 
 
 def make_script_selection_binding(book_token, source_sha256, published_script, *, source_path):
-    """Build evidence from the captured run and the exact publication bytes."""
+    """Build evidence from the captured run and the exact publication bytes.
+
+    This is the generic publisher used by generation, edits, save/load and
+    rebinding. It deliberately never derives cut coverage: scope evidence must
+    come from the controlled scope-apply transaction over the parent rows.
+    """
     from completed_review_receipt import get_review_entries_fingerprint
     entries = _validated_script_entries(published_script)
     return {'version': 3, 'book_token': _digest(book_token),
@@ -221,6 +226,75 @@ def make_script_selection_binding(book_token, source_sha256, published_script, *
             'source_path_sha256': _path_digest(source_path),
             'published_entries_sha256': get_review_entries_fingerprint(entries),
             'published_script_sha256': hashlib.sha256(published_script).hexdigest()}
+
+
+_SCOPE_CUT_FIELDS = frozenset(('version', 'source_sha256', 'parent_policy_sha256',
+    'scope_policy_sha256', 'coverage_sha256', 'outer_start', 'outer_end', 'start_word'))
+
+
+def is_scope_cut_evidence(value):
+    """Strict, versioned retained-cut evidence carried by a binding.
+
+    The digest is content-free: it is the ordered coverage of the parent's
+    verified retained raw intervals. The endpoints are the exact raw outer
+    endpoints of that coverage, so any right/left overrun changes them.
+    """
+    if not isinstance(value, dict) or set(value) != _SCOPE_CUT_FIELDS:
+        return False
+    if type(value['version']) is not int or value['version'] != 1:
+        return False
+    if any(not isinstance(value[key], str) or not _DIGEST.fullmatch(value[key])
+           for key in ('source_sha256', 'parent_policy_sha256',
+                       'scope_policy_sha256', 'coverage_sha256')):
+        return False
+    if any(type(value[key]) is not int or value[key] < 0
+           for key in ('outer_start', 'outer_end', 'start_word')):
+        return False
+    return 0 <= value['outer_start'] < value['outer_end']
+
+
+def get_scope_cut_from_binding(binding):
+    """Return verified scope evidence from a parsed binding, else None."""
+    if not isinstance(binding, dict):
+        return None
+    value = binding.get('scope_cut')
+    return value if is_scope_cut_evidence(value) else None
+
+
+def _serialize_binding(binding):
+    return json.dumps(binding, sort_keys=True, separators=(',', ':')).encode()
+
+
+def attach_scope_cut_evidence(binding_bytes, evidence):
+    """Attach producer-derived scope evidence inside the book transaction.
+
+    Only the controlled scope-apply path may call this. It never accepts
+    evidence read from a script (child) - the caller must derive it from the
+    parent rows and prepared source.
+    """
+    if not is_scope_cut_evidence(evidence):
+        raise ValueError('Invalid scope cut evidence')
+    if not isinstance(binding_bytes, bytes):
+        raise ValueError('Invalid binding bytes')
+    binding = parse_script_binding(binding_bytes)
+    binding['scope_cut'] = evidence
+    serialized = _serialize_binding(binding)
+    if len(serialized) > MAX_BINDING_BYTES:
+        raise ValueError('Script binding with scope evidence exceeds its byte limit')
+    return serialized
+
+
+def carry_scope_cut_evidence(old_binding_raw, binding):
+    """Carry valid existing scope evidence onto a generic rebuilt binding."""
+    if not isinstance(old_binding_raw, bytes) or not isinstance(binding, dict):
+        return binding
+    try:
+        evidence = get_scope_cut_from_binding(parse_script_binding(old_binding_raw))
+    except (ValueError, RecursionError):
+        return binding
+    if evidence is not None:
+        binding['scope_cut'] = evidence
+    return binding
 
 
 def parse_script_binding(raw):
@@ -231,9 +305,10 @@ def parse_script_binding(raw):
         binding = json.loads(raw, object_pairs_hook=_unique_pairs)
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
         raise ValueError('Invalid script binding') from error
-    if (not isinstance(binding, dict) or set(binding) != {
-            'version', 'book_token', 'source_sha256', 'source_path_sha256',
+    base = {'version', 'book_token', 'source_sha256', 'source_path_sha256',
             'published_entries_sha256', 'published_script_sha256'}
+    if (not isinstance(binding, dict) or not base <= set(binding)
+            or set(binding) - (base | {'scope_cut'})
             or type(binding['version']) is not int or binding['version'] != 3):
         raise ValueError('Invalid script binding structure')
     _digest(binding['book_token'])
@@ -241,6 +316,8 @@ def parse_script_binding(raw):
     _digest(binding['source_path_sha256'])
     _digest(binding['published_entries_sha256'])
     _digest(binding['published_script_sha256'])
+    if 'scope_cut' in binding and not is_scope_cut_evidence(binding['scope_cut']):
+        raise ValueError('Invalid scope cut evidence in script binding')
     return binding
 
 
@@ -299,6 +376,7 @@ def _binding_for_controlled_edit_locked(data_dir, old_script, new_script):
         raise ValueError('Script binding entry fingerprint is inconsistent')
     binding = make_script_selection_binding(selected['book_token'], selected['source_sha256'],
                                             new_script, source_path=selected['source_path'])
+    binding = carry_scope_cut_evidence(raw, binding)
     return json.dumps(binding, sort_keys=True, separators=(',', ':')).encode()
 
 

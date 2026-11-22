@@ -28,6 +28,100 @@ def get_word_identity(texts):
     return {"words": count, "sha256": digest.hexdigest()}
 
 
+def is_literal_word_identity(value):
+    """Bounded positive word count with a full source-word digest."""
+    return (isinstance(value, dict) and set(value) == {'words', 'sha256'}
+            and type(value['words']) is int and 0 < value['words'] < 1_000_000_000
+            and isinstance(value['sha256'], str)
+            and re.fullmatch(r'[0-9a-f]{64}', value['sha256']) is not None)
+
+
+def get_scope_coverage_intervals(text, spans):
+    """Merge ordered, verified raw spans into significant coverage intervals.
+
+    A split introduces a separator gap where the parent row held one inline, so
+    whitespace-only gaps are bridged. Non-whitespace gaps stay distinct, which
+    keeps an inserted excluded row outside the verified retained coverage.
+    """
+    merged = []
+    for span in spans:
+        if (not isinstance(span, (list, tuple)) or len(span) != 2
+                or any(type(value) is not int for value in span)
+                or span[0] < 0 or span[0] >= span[1] or span[1] > len(text)):
+            raise ValueError('Scope coverage requires ordered raw intervals')
+        start, end = span
+        if merged and (start <= merged[-1][1] or not text[merged[-1][1]:start].strip()):
+            if end > merged[-1][1]:
+                merged[-1][1] = end
+        else:
+            merged.append([start, end])
+    if not merged:
+        raise ValueError('Scope coverage requires at least one raw interval')
+    return merged
+
+
+def get_scope_coverage_digest(intervals):
+    """Content-free digest of the ordered retained raw intervals."""
+    return hashlib.sha256(json.dumps(intervals, separators=(',', ':')).encode('utf-8')).hexdigest()
+
+
+def is_scope_cut_proof(value):
+    """Strict, versioned retained-cut coverage proof (no unsafe downgrade)."""
+    if not isinstance(value, dict):
+        return False
+    required = {'version', 'source_sha256', 'parent_policy_sha256',
+                'start_word', 'intervals', 'coverage_sha256'}
+    if not required <= set(value) or set(value) - (required | {'input_sha256'}):
+        return False
+    if type(value['version']) is not int or value['version'] != 1:
+        return False
+    if any(not isinstance(value[key], str) or not re.fullmatch(r'[0-9a-f]{64}', value[key])
+           for key in ('source_sha256', 'parent_policy_sha256', 'coverage_sha256')):
+        return False
+    if ('input_sha256' in value and (not isinstance(value['input_sha256'], str)
+            or not re.fullmatch(r'[0-9a-f]{64}', value['input_sha256']))):
+        return False
+    if type(value['start_word']) is not int or value['start_word'] < 0:
+        return False
+    intervals = value['intervals']
+    if not isinstance(intervals, list) or not intervals or len(intervals) > 1_000_000:
+        return False
+    previous = 0
+    for interval in intervals:
+        if (not isinstance(interval, list) or len(interval) != 2
+                or any(type(value) is not int for value in interval)
+                or interval[0] < previous or interval[0] >= interval[1]):
+            return False
+        previous = interval[1]
+    return get_scope_coverage_digest(intervals) == value['coverage_sha256']
+
+
+def is_literal_chunk_marker(marker):
+    """Shape emitted by bind_literal_chunks; ancestor digests stay valid."""
+    return (isinstance(marker, dict)
+            and set(marker) == {'version', 'source_policy_sha256', 'narration_words',
+                                'projection', 'boundary'}
+            and marker['version'] == POLICY_VERSION
+            and marker['boundary'] == 'before_speech_preparation'
+            and marker['projection'] == 'existing_project_speakable_entries_v1'
+            and isinstance(marker['source_policy_sha256'], str)
+            and re.fullmatch(r'[0-9a-f]{64}', marker['source_policy_sha256']) is not None
+            and is_literal_word_identity(marker['narration_words']))
+
+
+def is_literal_marker_lineage(marker, policy, uid, policy_identity):
+    """Native marker-lineage rule used by chunk checks and inherited policies.
+
+    A marker belongs to the current policy, or is the exact marker already
+    carried by the same UID in the parent's scoped lineage. An unrelated
+    well-shaped ancestor digest is not evidence of inheritance.
+    """
+    if marker.get('source_policy_sha256') == policy_identity:
+        return True
+    return (policy.get('boundary') == 'selected_source_words_v1'
+            and policy.get('scope_chunks', {}).get(uid) == marker)
+
+
 def get_literal_policy(entries):
     policies = [entry[SCRIPT_POLICY_KEY] for entry in entries
                 if isinstance(entry, dict) and SCRIPT_POLICY_KEY in entry]
@@ -40,10 +134,7 @@ def get_literal_policy(entries):
             or any(other != policy for other in policies)):
         raise ValueError("Invalid or conflicting literal-source policy")
     identity = policy.get("source_words")
-    if (not isinstance(identity, dict) or type(identity.get("words")) is not int
-            or identity["words"] < 1
-            or not isinstance(identity.get("sha256"), str)
-            or not re.fullmatch(r"[0-9a-f]{64}", identity["sha256"])
+    if (not is_literal_word_identity(identity)
             or not isinstance(policy.get("source_sha256"), str)
             or not re.fullmatch(r"[0-9a-f]{64}", policy["source_sha256"])):
         raise ValueError("Invalid literal-source identity")
@@ -54,16 +145,23 @@ def get_literal_policy(entries):
         raise ValueError("Invalid literal preprocessing choice")
     if policy['boundary'] == 'selected_source_words_v1':
         scope, chunks = policy.get('scope_source'), policy.get('scope_chunks')
-        if (not isinstance(scope, dict) or set(scope) != {'parent_policy_sha256',
-                'prepared_source_sha256', 'start_word', 'end_word', 'total_words'}
-                or any(not isinstance(scope[key], str) or not re.fullmatch(r'[0-9a-f]{64}', scope[key])
-                       for key in ('parent_policy_sha256', 'prepared_source_sha256'))
+        if (not isinstance(scope, dict) or not {'parent_policy_sha256',
+                'prepared_source_sha256', 'start_word', 'end_word', 'total_words'} <= set(scope)
+                or set(scope) - {'parent_policy_sha256', 'prepared_source_sha256',
+                                 'start_word', 'end_word', 'total_words', 'script_start_entry',
+                                 'cut_proof'}
+                 or ('cut_proof' in scope and not is_scope_cut_proof(scope['cut_proof']))
+                 or any(not isinstance(scope[key], str) or not re.fullmatch(r'[0-9a-f]{64}', scope[key])
+                        for key in ('parent_policy_sha256', 'prepared_source_sha256'))
                 or any(type(scope[key]) is not int for key in ('start_word','end_word','total_words'))
+                or ('script_start_entry' in scope
+                    and (type(scope['script_start_entry']) is not int
+                         or scope['script_start_entry'] < 0))
                 or not 0 < scope['start_word'] < scope['end_word'] == scope['total_words']
                 or identity['words'] != scope['end_word'] - scope['start_word']
                 or not isinstance(chunks, dict) or not chunks
-                or any(not isinstance(uid, str) or not uid or not isinstance(marker, dict)
-                       for uid, marker in chunks.items())):
+                 or any(not isinstance(uid, str) or not uid or not is_literal_chunk_marker(marker)
+                        for uid, marker in chunks.items())):
             raise ValueError('Invalid selected literal-source lineage')
     return copy.deepcopy(policy)
 
@@ -106,6 +204,21 @@ def get_literal_policy_identity(policy):
     return hashlib.sha256(json.dumps(policy, sort_keys=True).encode()).hexdigest()
 
 
+def get_scope_identity(policy):
+    """Identity of a scoped policy without child-editable cut coordinates.
+
+    ``script_start_entry`` and ``cut_proof`` may be edited in a published
+    script; scope evidence must stay keyed to the immutable source/scope fields
+    so tampering with them cannot downgrade the binding evidence away.
+    """
+    if policy is None or policy.get('boundary') != 'selected_source_words_v1':
+        return None
+    stable = dict(policy)
+    stable['scope_source'] = {key: value for key, value in policy['scope_source'].items()
+                              if key not in ('script_start_entry', 'cut_proof')}
+    return get_literal_policy_identity(stable)
+
+
 def bind_literal_chunks(chunks, policy):
     if policy is None:
         return chunks
@@ -138,7 +251,6 @@ def _ensure_literal_chunk(chunk, policy, policy_identity):
             or marker.get("boundary") != "before_speech_preparation"
             or marker.get("narration_words") != get_word_identity([chunk.get("text")])):
         raise ValueError("Literal narration chunk changed or lacks provenance; regenerate chunks")
-    if policy is not None and marker.get("source_policy_sha256") != policy_identity:
-        if (policy.get('boundary') != 'selected_source_words_v1'
-                or policy.get('scope_chunks', {}).get(chunk.get('uid')) != marker):
-            raise ValueError("Literal narration chunk belongs to a different source policy")
+    if (policy is not None
+            and not is_literal_marker_lineage(marker, policy, chunk.get('uid'), policy_identity)):
+        raise ValueError("Literal narration chunk belongs to a different source policy")
