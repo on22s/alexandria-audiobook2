@@ -124,20 +124,12 @@
                 return;
             }
             try {
-                const result = prefetched || await API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`);
-                if (loadSequence !== dsbProjectLoadSequence || !isDatasetProjectSelected(name)) { return; }
-                applyDatasetBatchState(!!(result.running || result.ownership_unconfirmed));
-                applyDatasetLoadedSnapshot(name, result);
-                dsbLoadedProject = name;
-                dsbPendingProjectLoad = null;
-                document.getElementById('dsb-form-area').style.display = '';
-                if (dsbRows.length === 0 && !dsbBatchRunning) { dsbAddRow(); }
-                dsbRenderTable();
-                // Resume polling if batch is running
-                if (result.running || result.ownership_unconfirmed) {
-                    dsbStartPolling(name);
-
+                const result = prefetched || await datasetFetchStatus(name, { loadSequence });
+                if (!result || loadSequence !== dsbProjectLoadSequence || !isDatasetProjectSelected(name)) {
+                    document.getElementById('dsb-form-area').style.display = '';
+                    return;
                 }
+                finishDatasetLoad(name, result);
             } catch (e) {
                 if (loadSequence !== dsbProjectLoadSequence || !isDatasetProjectSelected(name)) { return; }
                 // A transient status-GET failure must NOT destroy the saved
@@ -172,6 +164,7 @@
         window.dsbKeepDatasetDraft = () => {
             const state = ensureDatasetRowSaveState(dsbCurrentProject);
             state.conflictLatch = false;
+            state.awaitingReplacement = false;
             state.attemptId += 1;
             dsbConflictRecoveryShown = false;
             clearDatasetRecoveryBanner();
@@ -216,7 +209,8 @@
             state.awaitingReplacement = true;
             let result;
             try {
-                result = await API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`);
+                result = await datasetFetchStatus(name, {
+                    loadSequence: dsbProjectLoadSequence, attemptId: attempt });
             } catch (error) {
                 if (state.attemptId !== attempt || !isDatasetProjectSelected(name)) { return; }
                 showActionError(t('workbench.project.load-failed.title', 'Could not load dataset "{project}"', {project: name}),
@@ -224,13 +218,11 @@
                 showReloadPendingBanner(name);
                 return;
             }
-            if (state.attemptId !== attempt || !isDatasetProjectSelected(name)) { return; }
+            if (!result || state.attemptId !== attempt || !isDatasetProjectSelected(name)) { return; }
             await dsbSaveRowsQueue?.discard();
             await dsbSaveMetaQueue?.discard();
             if (state.attemptId !== attempt || !isDatasetProjectSelected(name)) { return; }
-            applyDatasetLoadedSnapshot(name, result);
-            document.getElementById('dsb-form-area').style.display = '';
-            if (dsbRows.length === 0 && !dsbBatchRunning) { dsbAddRow(); }
+            finishDatasetLoad(name, result);
         };
 
         window.dsbCreateProject = async () => {
@@ -311,7 +303,7 @@
         // travels with every metadata write and generation admission. It is the
         // root-level counterpart of the row base: a peer's voice edit keeps the
         // row hash unchanged, so row CAS alone cannot detect it.
-        function applyDatasetMetadataAck(name, metadata, { own = false } = {}) {
+        function applyDatasetMetadataAck(name, metadata, { own = false, syncControls = true } = {}) {
             if (!metadata || typeof metadata !== 'object') { return; }
             const state = ensureDatasetRowSaveState(name);
             const next = {};
@@ -325,6 +317,7 @@
             // over the peer's value while still displaying the old draft.
             if (!own && state.metadataDraft) { return; }
             state.metadata = { ...(state.metadata || {}), ...next };
+            if (!syncControls) { return; }
             const description = document.getElementById('dsb-description');
             const seed = document.getElementById('dsb-global-seed');
             if (typeof next.description === 'string' && description) { description.value = next.description; }
@@ -344,6 +337,24 @@
         function markDatasetAck(name) {
             const state = ensureDatasetRowSaveState(name);
             state.lastAckGeneration = ++dsbSnapshotGeneration;
+        }
+
+        // Every status read carries the project load, recovery attempt and
+        // acknowledgement generation it was dispatched against. A superseded
+        // read resolves to null so no obsolete text, audio or token can be
+        // installed and no terminal decision can be made from it.
+        function datasetFetchStatus(name, { loadSequence = null, attemptId = null } = {}) {
+            const state = ensureDatasetRowSaveState(name);
+            const generation = ++dsbSnapshotGeneration;
+            const load = loadSequence ?? dsbProjectLoadSequence;
+            const attempt = attemptId ?? state.attemptId;
+            return API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`).then(result => {
+                const current = ensureDatasetRowSaveState(name);
+                if (!isDatasetProjectSelected(name)) { return null; }
+                if (load !== dsbProjectLoadSequence || attempt !== current.attemptId) { return null; }
+                if (generation < (current.lastAckGeneration || 0)) { return null; }
+                return { ...result, __dsbDispatchGeneration: generation };
+            });
         }
 
         // A refused write latches its queue against implicit replays: switching
@@ -389,6 +400,20 @@
             dsbConflictRecoveryShown = false;
             const el = document.getElementById('dsb-project-load-status');
             if (el) { if (el.dataset) { delete el.dataset.dsbReloadPending; } el.innerHTML = ''; }
+        }
+
+        // Every authoritative project load - ordinary switch or explicit
+        // discard recovery - finishes through this one flow: batch ownership,
+        // snapshot, forced physical table rebuild and worker polling.
+        function finishDatasetLoad(name, result) {
+            applyDatasetBatchState(!!(result.running || result.ownership_unconfirmed));
+            applyDatasetLoadedSnapshot(name, result);
+            dsbLoadedProject = name;
+            dsbPendingProjectLoad = null;
+            document.getElementById('dsb-form-area').style.display = '';
+            dsbRenderTable(null, true);
+            if (dsbRows.length === 0 && !dsbBatchRunning) { dsbAddRow(); }
+            if (result.running || result.ownership_unconfirmed) { dsbStartPolling(name); }
         }
 
         function applyDatasetRowRevisions(name, revisions, count, definitions = null) {
@@ -678,8 +703,8 @@
                 }
                 // A response can be lost after commit. A read may acknowledge
                 // the desired definitions; it never replays or overwrites them.
-                const saved = await API.get(`/api/dataset_builder/status/${encodeURIComponent(value.name)}`);
-                if (!Array.isArray(saved.samples) || saved.samples.length !== value.count
+                const saved = await datasetFetchStatus(value.name);
+                if (!saved || !Array.isArray(saved.samples) || saved.samples.length !== value.count
                     || !Array.isArray(saved.row_revisions) || edits.some(edit =>
                         JSON.stringify(getDatasetRowDefinition(saved.samples[edit.index] || {})) !== JSON.stringify(edit.row)
                         || !/^[0-9a-f]{64}$/.test(saved.row_revisions[edit.index] || ''))) { throw error; }
@@ -765,7 +790,17 @@
                         // draft. A newer typed voice keeps its controls and base.
                         const draft = state.metadataDraft;
                         const settlesDraft = !draft || value.revision >= draft.revision;
-                        if (settlesDraft) { state.metadataDraft = null; }
+                        if (settlesDraft) {
+                            state.metadataDraft = null;
+                        } else if (draft) {
+                            // This receipt is OUR verified predecessor. Advance
+                            // the confirmed metadata and rebase the successor's
+                            // expectation onto it, without repainting its newer
+                            // typed values. External observations never do this.
+                            applyDatasetMetadataAck(value.name, result, { own: true, syncControls: false });
+                            draft.expected = { description: result.description,
+                                global_seed: result.global_seed == null ? '' : String(result.global_seed) };
+                        }
                         if (Array.isArray(result.samples) && Array.isArray(result.row_revisions)) {
                             reconcileDatasetRows(value.name, result.samples, result.row_revisions,
                                                  { own: true, sequence: order,
@@ -968,13 +1003,16 @@
             return true;
         }
 
-        function dsbRenderTable(changedIndices) {
+        function dsbRenderTable(changedIndices, force = false) {
             applyDatasetTrainingSaveFeedback();
             const tbody = document.getElementById('dsb-table-body');
 
             // Full rebuild, unless a live draft/focused control must survive it.
-            if (!changedIndices || tbody.children.length !== dsbRows.length) {
-                if (tbody.children.length === dsbRows.length
+            // An authoritative replacement explicitly discards those controls:
+            // keeping a detached draft in the DOM would write old text under
+            // the newly accepted revision.
+            if (force || !changedIndices || tbody.children.length !== dsbRows.length) {
+                if (!force && tbody.children.length === dsbRows.length
                     && dsbRows.some((row, i) => dsbRowOwnsLiveControl(i, tbody))) {
                     changedIndices = dsbRows.map((row, i) => i);
                 } else {
@@ -1261,15 +1299,11 @@
             if (dsbPolling) { dsbPolling(); }
             const logsEl = document.getElementById('dsb-logs');
             const renderLogs = createTaskLogRenderer(logsEl);
-            dsbPolling = _startPolling(`dataset_builder:${name}`, () => {
-                const dispatchGeneration = ++dsbSnapshotGeneration;
-                return API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`)
-                    .then(result => ({ ...result, __dsbDispatchGeneration: dispatchGeneration }));
-            }, {
+            dsbPolling = _startPolling(`dataset_builder:${name}`, () => datasetFetchStatus(name), {
                 intervalMs: 2000,
-                doneCheck: result => !result.running && !result.ownership_unconfirmed,
+                doneCheck: result => !!result && !result.running && !result.ownership_unconfirmed,
                 onTick: result => {
-                    if (!isDatasetProjectSelected(name)) { return; }
+                    if (!result || !isDatasetProjectSelected(name)) { return; }
                     const state = ensureDatasetRowSaveState(name);
                     const stale = typeof result.__dsbDispatchGeneration === 'number'
                         && result.__dsbDispatchGeneration < (state.lastAckGeneration || 0);
@@ -1277,12 +1311,11 @@
                         // A GET sent before a newer own ACK cannot revive its
                         // rows, audio, revisions or metadata. Refresh identity
                         // from a current read instead of installing it.
-                        const refresh = API.get(`/api/dataset_builder/status/${encodeURIComponent(name)}`)
-                            .then(fresh => {
-                                if (!isDatasetProjectSelected(name)) { return; }
-                                reconcileDatasetRows(name, fresh.samples || [], fresh.row_revisions,
-                                                     { own: false, metadata: fresh });
-                            }).catch(() => {});
+                        const refresh = datasetFetchStatus(name).then(fresh => {
+                            if (!fresh) { return; }
+                            reconcileDatasetRows(name, fresh.samples || [], fresh.row_revisions,
+                                                 { own: false, metadata: fresh });
+                        }).catch(() => {});
                         state.refreshPromise = refresh;
                         refresh.then(() => { if (state.refreshPromise === refresh) { state.refreshPromise = null; } });
                         return;

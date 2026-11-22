@@ -5121,6 +5121,7 @@
   ]
   , "test_ds2224_attempt_identity_js": [
     "tests.test_ds2224_attempt_identity_js.Ds2224AttemptIdentityJsTests.test_discard_installs_controls_and_expectations_from_one_snapshot"
+    , "tests.test_ds2224_attempt_identity_js.Ds2224AttemptIdentityJsTests.test_keep_editing_unblocks_saves_while_discard_is_held"
     , "tests.test_ds2224_attempt_identity_js.Ds2224AttemptIdentityJsTests.test_older_full_ack_keeps_a_newer_voice_draft"
     , "tests.test_ds2224_attempt_identity_js.Ds2224AttemptIdentityJsTests.test_older_full_ack_settles_only_its_revision_and_keeps_newer_append"
     , "tests.test_ds2224_attempt_identity_js.Ds2224AttemptIdentityJsTests.test_return_invalidates_a_held_retry_response_before_and_after_autosave"
@@ -5175,6 +5176,12 @@
     , "tests.test_ds2224_frontend_js.Ds2224FrontendJsTests.test_full_list_write_carries_base_count_and_all_revisions"
     , "tests.test_ds2224_frontend_js.Ds2224FrontendJsTests.test_metadata_invalidation_rerenders_status_and_audio"
     , "tests.test_ds2224_frontend_js.Ds2224FrontendJsTests.test_own_metadata_ack_advances_draft_token_so_edit_is_not_rejected"
+  ]
+  , "test_ds2224_recovery_repaint_js": [
+    "tests.test_ds2224_recovery_repaint_js.Ds2224RecoveryRepaintJsTests.test_discard_forces_physical_table_replacement_over_a_focused_draft"
+    , "tests.test_ds2224_recovery_repaint_js.Ds2224RecoveryRepaintJsTests.test_discard_of_a_running_worker_shares_normal_batch_setup"
+    , "tests.test_ds2224_recovery_repaint_js.Ds2224RecoveryRepaintJsTests.test_guarded_followup_read_cannot_install_a_superseded_row_snapshot"
+    , "tests.test_ds2224_recovery_repaint_js.Ds2224RecoveryRepaintJsTests.test_verified_predecessor_ack_rebases_a_newer_seed_draft_expectation"
   ]
   , "test_ds2224_snapshot_protocol_js": [
     "tests.test_ds2224_snapshot_protocol_js.Ds2224SnapshotProtocolJsTests.test_aba_count_change_adopts_the_snapshot_count_and_revisions"

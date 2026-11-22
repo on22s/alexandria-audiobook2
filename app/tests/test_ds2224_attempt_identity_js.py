@@ -72,6 +72,31 @@ await run('dsbKeepDatasetDraft()');
 assert.strictEqual(run("ensureDatasetRowSaveState('A').conflictLatch"),false);
 ''')
 
+    def test_keep_editing_unblocks_saves_while_discard_is_held(self):
+        self.run_scenario(r'''
+const token = 'a'.repeat(64);
+context.showConfirm = async () => true;
+run("dsbCurrentProject='A';dsbLoadedProject='A';dsbRows=[{text:'draft',emotion:'',seed:'',status:'pending'}]");
+let release;
+context.API.get = async () => new Promise(resolve => { release = resolve; });
+const pending = run('dsbDiscardDatasetDraftAndReload()');
+await new Promise(resolve => setImmediate(resolve));
+assert.strictEqual(run("ensureDatasetRowSaveState('A').awaitingReplacement"), true);
+await run('dsbKeepDatasetDraft()');
+assert.strictEqual(run("ensureDatasetRowSaveState('A').awaitingReplacement"), false);
+release({description:'peer', samples:[{text:'discarded'}], row_revisions:[token]});
+await pending;
+assert.strictEqual(run('dsbRows[0].text'), 'draft');
+let saved;
+context.API.post = async (url, body) => {
+    saved = body.rows[0].text;
+    return {status:'ok', row_revisions:[token]};
+};
+run("dsbRows[0].text='still editing';dsbSaveRows()");
+await run('dsbSaveRowsQueue.flush()');
+assert.strictEqual(saved, 'still editing');
+''')
+
     def test_older_full_ack_keeps_a_newer_voice_draft(self):
         self.run_scenario(r'''
 const a='a'.repeat(64),b='b'.repeat(64),c='c'.repeat(64);context.showToast=()=>{};context._toastSaveError=()=>{};
