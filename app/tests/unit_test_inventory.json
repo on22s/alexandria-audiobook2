@@ -14007,7 +14007,8 @@
     , "tests.test_sound_design_context.SoundDesignContextTests.test_source_script_state_voice_settings_and_rows_change_context_identity"
   ]
   , "test_sound_design_cue_api": [
-    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_actual_create_revise_select_deselect_preserves_originals_and_history"
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_absent_corrupt_and_busy_contexts_have_distinct_error_contracts"
+    , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_actual_create_revise_select_deselect_preserves_originals_and_history"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_anchor_only_review_refuses_late_source_metadata_and_audio_changes"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_asset_changed_during_final_context_recapture_never_publishes"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_asset_duration_errors_refuse_and_explicit_valid_loop_saves"
@@ -14259,10 +14260,12 @@
     , "tests.test_sound_inventory_registry.SoundInventoryRegistryTests.test_registry_refusal_and_unknown_entries_are_not_hidden"
   ]
   , "test_sound_mixes_js": [
-    "tests.test_sound_mixes_js.SoundMixesJsTests.test_deliver_saved_approval_and_verified_download_are_identity_bound"
+    "tests.test_sound_mixes_js.SoundMixesJsTests.test_corrupt_busy_and_server_error_contexts_are_failures_not_absence"
+    , "tests.test_sound_mixes_js.SoundMixesJsTests.test_deliver_saved_approval_and_verified_download_are_identity_bound"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_discard_needs_confirmation_and_binds_inventory_revision"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_failed_context_fetch_reports_the_real_error_and_skips_inventory"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_failed_refresh_after_delivery_does_not_report_a_false_success"
+    , "tests.test_sound_mixes_js.SoundMixesJsTests.test_failure_after_delivery_keeps_prior_safe_rows_and_success_after_delivery_is_truthful"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_invalid_inventory_and_missing_book_do_not_enable_render"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_invalidation_drops_pending_inventory_and_approval_without_restoring_controls"
     , "tests.test_sound_mixes_js.SoundMixesJsTests.test_m4b_metadata_edits_clear_confirmation_and_bind_actual_entered_values"

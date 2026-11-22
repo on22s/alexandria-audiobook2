@@ -1301,6 +1301,7 @@
   "error.review.restart_reservation_lost": "审校进度（检查点和审校完成凭据）已丢弃，但由于任务预留已失效，新审校尚未启动。脚本和编辑内容已保留。请点击开始审校，从第 1 批开始。",
   "error.review.restart_start_failed": "审校进度（检查点和审校完成凭据）已丢弃，但由于无法注册后台任务，新审校尚未启动。脚本和编辑内容已保留。请检查审校日志，然后点击开始审校，从第 1 批开始。",
   "safety.review.restart_book_changed": "书籍已更改，或尚未确认重新开始。请检查当前书籍并再次确认；已保存的进度已保留。",
+  "error.sound.cues.no_active_book": "未选择活动书籍。请先加载已保存的书籍，再创建声音提示。",
   "error.task.already_running": "{task} 已在运行。",
   "error.task.gpu_busy": "无法启动 {task}：{running} 正在运行。请等待其完成或取消它，以释放 GPU 显存。",
   "error.upload.docx_text_too_large": "提取的 DOCX 文本超出源文件上传限制。",

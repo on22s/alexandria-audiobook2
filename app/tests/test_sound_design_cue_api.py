@@ -347,6 +347,39 @@ class SoundDesignCueApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(200,(await self.client.get(BASE)).status_code)
 
 
+    async def test_absent_corrupt_and_busy_contexts_have_distinct_error_contracts(self):
+        app=FastAPI();app.include_router(api.router)
+        app.add_exception_handler(core.AppError,core.handle_app_error)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://fixture') as client:
+            async def refused():
+                response=await client.get(BASE)
+                self.assertEqual(409,response.status_code,response.text)
+                return response.json()
+            valid=await client.get(BASE);self.assertEqual(200,valid.status_code,valid.text)
+            original_state=(self.root/'state.json').read_bytes()
+            original_chunks=(self.root/'chunks.json').read_bytes()
+            try:
+                self.write('state.json',{key:value for key,value in self.state.items() if key!='active_book_id'})
+                absent=await refused()
+                self.assertEqual('error.sound.cues.no_active_book',absent['message_key'])
+                self.assertEqual('No active book is selected. Load a saved book before authoring cues.',absent['detail'])
+                (self.root/'state.json').write_bytes(original_state)
+                self.write('chunks.json',{'invalid':'saved dialogue'})
+                corrupt=await refused()
+                self.assertNotIn('message_key',corrupt)
+                self.assertEqual('Cue context is busy, changed or unavailable. Refresh the cue editor before retrying.',corrupt['detail'])
+                (self.root/'chunks.json').write_bytes(original_chunks)
+                with patch.object(core,'process_state',{'audio':{'running':True}}), \
+                        patch.object(edits,'capture_sound_design_context') as capture:
+                    busy=await refused()
+                    capture.assert_not_called()
+                self.assertEqual('error.book.switch_tasks_running',busy['message_key'])
+                self.assertEqual('audio',busy['message_values']['tasks'])
+            finally:
+                (self.root/'state.json').write_bytes(original_state)
+                (self.root/'chunks.json').write_bytes(original_chunks)
+
+
 RENDITIONS = '/api/sound_design/renditions'
 
 

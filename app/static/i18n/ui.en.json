@@ -1697,6 +1697,7 @@
   "error.review.restart_receipt_discard_failed": "The review checkpoint was discarded, but the completed-review receipt was kept because it could not be removed; the new review didn't start. The script and edits were kept. Enable the option to review again even if nothing changed, then Start Review to begin from batch 1.",
   "error.review.restart_reservation_lost": "Review progress (checkpoint and completed-review receipt) was discarded, but the new review didn't start because its task reservation is no longer active. The script and edits were kept. Start Review to begin from batch 1.",
   "error.review.restart_start_failed": "Review progress (checkpoint and completed-review receipt) was discarded, but the new review didn't start because its background task could not be registered. The script and edits were kept. Check the review log, then Start Review to begin from batch 1.",
+  "error.sound.cues.no_active_book": "No active book is selected. Load a saved book before authoring cues.",
   "error.task.already_running": "{task} is already running.",
   "error.task.gpu_busy": "Cannot start {task}: {running} is currently running. Please wait for it to finish or cancel it to free up GPU VRAM.",
   "error.upload.docx_text_too_large": "Extracted DOCX text exceeds source upload limits.",

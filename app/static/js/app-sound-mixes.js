@@ -1,6 +1,6 @@
 // Full mixed candidates are private until explicit review and delivery checks.
 const SoundMixes = (() => {
-    let sequence = 0, busy = false, context = null, profiles = null;
+    let sequence = 0, busy = false, context = null, profiles = null, savedRows = null;
     const el = id => document.getElementById(id);
     const box = () => el('sound-mixes-content');
     const message = value => { el('sound-mixes-status').textContent = value; };
@@ -24,7 +24,14 @@ const SoundMixes = (() => {
     }
     async function getCurrentContext() {
         const response = await fetch('/api/sound_design/cues?offset=0&limit=1');
-        if (response.status === 409) { return null; }
+        if (response.status === 409) {
+            let refused = null;
+            try { refused = await response.json(); } catch (_error) { refused = null; }
+            if (refused?.message_key === 'error.sound.cues.no_active_book') { return null; }
+            const failure = new Error(refused?.detail || t('sound.mixes.invalid-context', 'Invalid current book context.'));
+            failure.messageKey = refused?.message_key; failure.status = 409;
+            throw failure;
+        }
         await API._handleError(response);
         const snapshot = await response.json();
         if (!digest(snapshot?.context_revision)) { throw new Error(t('sound.mixes.invalid-context', 'Invalid current book context.')); }
@@ -92,7 +99,7 @@ const SoundMixes = (() => {
     }
     async function refresh() {
         if (busy) { return {status: 'busy'}; }
-        const token = ++sequence; context = null; profiles = null; stopAudio(); box().replaceChildren(); message(t('sound.mixes.loading', 'Loading saved mixes…'));
+        const token = ++sequence; context = null; stopAudio(); box().replaceChildren(); message(t('sound.mixes.loading', 'Loading saved mixes…'));
         try {
             // The cue snapshot needs idle admission; do not race it with the
             // candidate listing's audio task claim.
@@ -103,6 +110,7 @@ const SoundMixes = (() => {
             if (token !== sequence) { return {status: 'superseded'}; }
             context = contextRevision;
             profiles = inventory.delivery_profiles;
+            savedRows = rows;
             if (context) {
                 box().append(button(t('sound.mixes.render', 'Render full mix'), () => action(async () => {
                     await json('/api/sound_design/candidates/render', {context_revision: context});
@@ -114,7 +122,9 @@ const SoundMixes = (() => {
             return {status: 'loaded'};
         } catch (error) {
             if (token !== sequence) { return {status: 'superseded'}; }
-            context = null; box().replaceChildren(); message(error.message); return {status: 'failed'};
+            context = null; box().replaceChildren();
+            if (savedRows && profiles) { for (const row of savedRows) { renderRow(row, token); } }
+            message(error.message); return {status: 'failed'};
         }
     }
     async function action(work, onSuccess = null) {
