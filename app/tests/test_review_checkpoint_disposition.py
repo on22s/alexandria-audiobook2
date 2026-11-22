@@ -103,7 +103,8 @@ def seed_legacy(path):
     """Legacy checkpoint: accepted batch 1 but no per-batch output lengths."""
     checkpoint = Path(str(path) + '.review_checkpoint.json')
     data = json.loads(checkpoint.read_text())
-    for key in ('batch_lengths', 'review_accounting', 'review_batch_contributions'):
+    for key in ('batch_lengths', 'review_accounting', 'review_batch_contributions',
+                'retained_sha256'):
         data.pop(key, None)
     accepted = data['all_corrected'][:1]
     data.update(completed_batches=1, source_offsets=[1], accepted_source_offset=1,

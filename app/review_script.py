@@ -857,21 +857,18 @@ def is_review_checkpoint_evidence_valid(data, *, source_rows=None, published_row
             if len(expected) != count or offsets != expected:
                 return False
         retained = data.get('retained_sha256')
-        if is_sha256(retained) and lengths:
-            if retained != _entries_fingerprint(corrected):
+        if is_sha256(retained):
+            if retained != get_review_entries_fingerprint(corrected):
                 return False
         else:
-            # Without the retained digest, the assembled publication digest is
-            # the only independent proof of these retained rows. An older
-            # checkpoint carrying neither must replay from the source.
+            # Older writers may carry a publication digest even when they
+            # did not record individual batch lengths. Resume only if it
+            # proves the retained rows assembled with the remaining source.
             recorded_sha = data.get('output_sha256')
-            if lengths and is_sha256(recorded_sha) and source_rows is not None:
-                assembled = corrected + source_rows[offsets[-1]:]
-                if _entries_fingerprint(assembled) != recorded_sha:
-                    return False
-            elif (lengths and isinstance(data.get('input_path'), str)
-                    and isinstance(accounting, dict) and accounting.get('mode') == 'owned'
-                    and data.get('review_batch_contributions')):
+            if not is_sha256(recorded_sha):
+                return False
+            assembled = corrected + source_rows[offsets[-1]:]
+            if get_review_entries_fingerprint(assembled) != recorded_sha:
                 return False
     if published_rows is not None and not in_source_space:
         if not lengths:
@@ -1246,7 +1243,7 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
                       parent_input_sha256=None, parent_publication_sha256=None,
                       parent_entry_count=None, input_path=None, batch_outcomes=None,
                       historic_prefix_count=None, historic_batch_count=None,
-                      retained_sha256=None, original_entry_count=None):
+                      original_entry_count=None):
     path = _checkpoint_path(output_path)
     data = {
         "input_path": os.path.abspath(input_path) if input_path else None,
@@ -1273,7 +1270,7 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
         "batch_outcomes": list(batch_outcomes) if batch_outcomes is not None else None,
         "historic_prefix_count": historic_prefix_count,
         "historic_batch_count": historic_batch_count,
-        "retained_sha256": retained_sha256,
+        "retained_sha256": get_review_entries_fingerprint(all_corrected),
         "original_entry_count": original_entry_count,
         "companions": dict(companions) if companions is not None else None,
     }
@@ -3364,8 +3361,6 @@ def main():
             recorded_outcomes = (['ok'] * (completed_batches - len(recorded_outcomes))
                                  + list(recorded_outcomes))
         kwargs['batch_outcomes'] = recorded_outcomes
-        kwargs.setdefault('retained_sha256',
-                          _entries_fingerprint(all_corrected))
         kwargs.setdefault('original_entry_count', original_entry_count)
         kwargs.setdefault('historic_prefix_count', (checkpoint or {}).get('historic_prefix_count'))
         kwargs.setdefault('historic_batch_count', (checkpoint or {}).get('historic_batch_count'))
