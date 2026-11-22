@@ -9,6 +9,8 @@ import sys
 import tempfile
 import unittest
 
+from tests.test_support import get_isolated_git_environment
+
 ARCHIVE = Path(__file__).resolve().parents[2] / 'docs/benchmarks/raw/cpu-speaker-windows-20261022'
 
 
@@ -45,6 +47,64 @@ class CpuSpeakerWindowsArchiveTests(unittest.TestCase):
                         self.assertNotEqual(result.returncode, 0)
                         self.assertNotIn('PASS:', result.stdout)
                         self.assertIn('Archive semantic check failed', result.stderr)
+
+
+class ArchiveLineEndingTests(unittest.TestCase):
+    """The byte-attested archive family must not depend on core.autocrlf.
+
+    verify.py hashes these files byte-for-byte against SHA256SUMS.json, so a
+    Windows checkout rewriting LF blobs to CRLF fails every pinned hash while
+    every parsed field stays identical. The other archive test runs verify.py
+    against the current working tree; this one guards the checkout itself so
+    the protection cannot be dropped without a deterministic, platform-
+    independent failure. It asserts the observable byte invariant rather than
+    a particular attribute value, leaving -text or `text eol=lf` both valid.
+    """
+
+    def test_archived_bytes_survive_a_checkout_with_autocrlf(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            environment = get_isolated_git_environment()
+
+            def git(*args):
+                subprocess.run(['git', *args], cwd=root, check=True,
+                               capture_output=True, env=environment)
+
+            git('init', '-q')
+            git('config', 'user.email', 't@example.com')
+            git('config', 'user.name', 't')
+            (root / '.gitattributes').write_bytes(
+                (Path(__file__).resolve().parents[2] / '.gitattributes').read_bytes())
+            pinned = {
+                'docs/benchmarks/raw/cpu-speaker-windows-20261022/RESULTS.md':
+                    b'# result\nline two\n',
+                'docs/benchmarks/raw/cpu-speaker-windows-20261022/run2/results.json':
+                    b'{\n  "status": "complete"\n}\n',
+            }
+            control = 'docs/benchmarks/raw/notes.txt'
+            for relative, content in {**pinned, control: b'one\ntwo\n'}.items():
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+            git('-c', 'core.autocrlf=false', 'add', '-A')
+            git('commit', '-qm', 'fixture')
+
+            for relative in pinned:
+                attrs = subprocess.run(['git', 'check-attr', 'text', '--', relative],
+                                       cwd=root, check=True, capture_output=True,
+                                       env=environment).stdout.decode()
+                self.assertNotIn('%s: text: unspecified' % relative, attrs,
+                                 'archive family has no .gitattributes protection')
+
+            git('config', 'core.autocrlf', 'true')
+            for relative in [*pinned, control]:
+                (root / relative).unlink()
+            git('checkout', '--', '.')
+            for relative, content in pinned.items():
+                self.assertEqual(content, (root / relative).read_bytes(),
+                                 '%s changed bytes under autocrlf=true' % relative)
+            self.assertEqual(b'one\r\ntwo\r\n', (root / control).read_bytes(),
+                             'the harness must actually exercise CRLF conversion')
 
 
 if __name__ == '__main__':
