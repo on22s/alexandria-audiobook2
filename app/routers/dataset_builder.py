@@ -2,19 +2,22 @@ import json
 from contextlib import contextmanager
 import hashlib
 import asyncio
+import math
 import logging
 import os
 import shutil
+import stat
 import tempfile
 import threading
 import time
-from typing import Annotated, List, Optional
+from typing import Annotated, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 import core
 
 from core import (
+    AppError,
     DATASET_BUILDER_DIR,
     LORA_DATASETS_DIR,
     _require_safe_filename,
@@ -133,6 +136,10 @@ class DatasetSampleGenRequest(BaseModel):
     sample_index: int = Field(ge=0, le=4999)  # row number
     seed: int = Field(default=-1, ge=-1)  # effective generation seed
     inherit_seed: bool = False  # retain the row's global-seed inheritance
+    expected_count: Optional[int] = Field(default=None, ge=0)
+    expected_revision: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    expected_description: Optional[str] = None
+    expected_global_seed: Optional[str] = None
 
 class DatasetBatchGenRequest(BaseModel):
     name: str
@@ -141,6 +148,10 @@ class DatasetBatchGenRequest(BaseModel):
     indices: Optional[List[int]] = None  # which rows to generate (None = all)
     global_seed: int = Field(default=-1, ge=-1)  # -1 = random, >= 0 = same seed for all lines
     seeds: Optional[List[Annotated[int, Field(ge=-1)]]] = None  # per-line seeds (overrides global_seed)
+    expected_count: Optional[int] = Field(default=None, ge=0)
+    expected_revisions: Optional[Dict[int, Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]]] = None
+    expected_description: Optional[str] = None
+    expected_global_seed: Optional[str] = None
 
 class DatasetSaveRequest(BaseModel):
     name: str
@@ -157,10 +168,20 @@ class DatasetBuilderUpdateMetaRequest(BaseModel):
     name: str
     description: str = ""
     global_seed: str = ""
+    # Optional CAS over the rows the caller last acknowledged. A matched
+    # receipt proves a metadata-only invalidation is this caller's own write;
+    # a stale one is a 409 instead of silently adopting an external edit.
+    # Omitted fields keep the older, unconditional metadata behaviour.
+    expected_count: Optional[int] = Field(default=None, ge=0)
+    expected_revisions: Optional[Dict[int, Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]]] = None
+    expected_description: Optional[str] = None
+    expected_global_seed: Optional[str] = None
 
 class DatasetBuilderUpdateRowsRequest(BaseModel):
     name: str
     rows: List[dict]  # [{emotion, text, seed}]
+    expected_count: Optional[int] = Field(default=None, ge=0)
+    expected_revisions: Optional[Dict[int, Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]]] = None
 
 
 class DatasetBuilderRowEdit(BaseModel):
@@ -180,6 +201,222 @@ def get_dataset_row_revision(row):
                                      separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
+def check_expected_dataset_metadata(state, expected_description, expected_global_seed):
+    """Bind a write to the root metadata the caller last acknowledged.
+
+    A row digest cannot see a peer's root-voice edit: a non-blank root leaves
+    each row's stored description untouched, so a seed-only change can carry
+    an unchanged row map and silently restore the older voice. Both fields are
+    optional; omitting them keeps the unconditional legacy API. Callers hold
+    the project state lock (or the builder mutation lock) across this check
+    and the write it guards.
+    """
+    if expected_description is None and expected_global_seed is None:
+        return
+    if (state is _MISSING_BUILDER_STATE
+            or (expected_description is not None
+                and state.get("description", "") != expected_description)
+            or (expected_global_seed is not None
+                and str(state.get("global_seed", "")) != str(expected_global_seed))):
+        raise AppError(409, "Dataset metadata changed; reload before saving",
+                       key='error.dataset.metadata_changed')
+
+
+class _MissingBuilderState:
+    pass
+
+
+_MISSING_BUILDER_STATE = _MissingBuilderState()
+
+
+def _load_builder_state_for_generation(name):
+    """Verified absence is first-run; nonregular or unreadable state is a failure."""
+    state_path = os.path.join(DATASET_BUILDER_DIR, name, "state.json")
+    try:
+        os.lstat(state_path)
+    except FileNotFoundError:
+        return _MISSING_BUILDER_STATE
+    except OSError as error:
+        logger.warning("Failed to read builder state '%s' for generation: %s", name, error)
+        raise AppError(500, "Dataset project state could not be read",
+                       key='error.dataset.state_unreadable') from error
+    try:
+        if not stat.S_ISREG(os.stat(state_path).st_mode):
+            raise OSError("State path is not a regular file")
+        with open(state_path, "r", encoding="utf-8") as source:
+            state = json.load(source)
+        if not isinstance(state, dict) or not isinstance(state.get("samples", []), list):
+            raise ValueError("Expected a JSON object with a samples list")
+    except (OSError, json.JSONDecodeError, ValueError) as error:
+        logger.warning("Failed to read builder state '%s' for generation: %s", name, error)
+        raise AppError(500, "Dataset project state could not be read",
+                       key='error.dataset.state_unreadable') from error
+    state.setdefault("description", "")
+    state.setdefault("global_seed", "")
+    state.setdefault("samples", [])
+    return state
+
+
+def _require_existing_builder_state(name):
+    state = _load_builder_state_for_generation(name)
+    if state is _MISSING_BUILDER_STATE:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return state
+
+
+def _is_uninitialized_dataset_row(row):
+    return isinstance(row, dict) and not any(
+        key in row for key in ("text", "emotion", "seed", "description"))
+
+
+def _blank_dataset_row_projection(row):
+    """The UI projection of an untouched status-only placeholder."""
+    return (isinstance(row, dict)
+            and str(row.get("text", "")).strip() == ""
+            and str(row.get("emotion", "")).strip() == ""
+            and str(row.get("seed", "")).strip() == "")
+
+
+def _invalidate_dataset_row_for_metadata(row):
+    """Reset a generated result without losing row-local durable metadata.
+
+    A legacy row whose project root is blank stores its effective description
+    on the row itself. Rebuilding it from the UI fields alone would turn
+    "original voice, calm" into ", calm" on the next inherited-seed change.
+    """
+    if not isinstance(row, dict):
+        return row
+    merged = get_merged_dataset_sample(row)
+    for key in ("description", "generated_seed"):
+        if key in row:
+            merged[key] = row[key]
+    return merged
+
+
+def _canonical_dataset_generation_row(row, state):
+    text = row.get("text", "")
+    emotion = row.get("emotion", "")
+    if not isinstance(text, str):
+        text = ""
+    if not isinstance(emotion, str):
+        emotion = ""
+    raw_seed = row.get("seed", "")
+    seed_field = raw_seed if isinstance(raw_seed, (str, int)) and not isinstance(raw_seed, bool) else ""
+    root_description = state.get("description", "")
+    saved_description = row.get("description")
+    if (not isinstance(root_description, str) or not root_description.strip()) \
+            and isinstance(saved_description, str) and saved_description.strip():
+        description = saved_description
+    else:
+        description = f"{root_description}, {emotion}" if emotion else root_description
+    return {
+        "text": text.strip(), "emotion": emotion, "description": description,
+        "seed_field": seed_field,
+        "generated_seed": get_effective_dataset_seed(seed_field, state.get("global_seed", "")),
+    }
+
+
+def _new_dataset_row(values, state, creation_metadata=None):
+    resolved = _creation_dataset_generation_row(values, state, creation_metadata)
+    return {"emotion": resolved["emotion"], "text": resolved["text"],
+            "seed": resolved["seed_field"], "description": resolved["description"],
+            "status": "pending", "audio_url": None}
+
+
+def _effective_project_metadata(state, creation_metadata):
+    metadata = creation_metadata or {}
+    description = state.get("description", "")
+    if not isinstance(description, str) or not description.strip():
+        description = metadata.get("description", "")
+    global_seed = state.get("global_seed", "")
+    if _coerce_integral_seed(global_seed) is None:
+        global_seed = metadata.get("global_seed", "")
+    return {"description": description, "global_seed": global_seed}
+
+
+def _creation_dataset_generation_row(values, state, creation_metadata=None):
+    text, emotion = values.get("text", ""), values.get("emotion", "")
+    seed_field = values.get("seed_field", "")
+    effective = _effective_project_metadata(state, creation_metadata)
+    root_description = effective["description"]
+    if isinstance(root_description, str) and root_description.strip():
+        description = f"{root_description}, {emotion}" if emotion else root_description
+    else:
+        description = values.get("description", "")
+    return {
+        "text": text.strip() if isinstance(text, str) else "",
+        "emotion": emotion if isinstance(emotion, str) else "",
+        "description": description,
+        "seed_field": seed_field,
+        "generated_seed": get_effective_dataset_seed(seed_field, effective["global_seed"]),
+    }
+
+
+def resolve_dataset_generation_inputs(name, *, requested, expected_count, expected_revisions,
+                                      require_existing=False, creation_definitions=None,
+                                      creation_metadata=None, bootstrap_allowed=None):
+    """Validate the binding and resolve canonical inputs for each generated row.
+
+    Caller holds the per-project state lock both before the kernel lease is
+    taken and again after it has been acquired. Existing rows are always driven
+    by the persisted definition and the project's current root description and
+    global seed; caller-supplied content only creates rows that do not exist.
+    """
+    bound = expected_revisions is not None
+    if bound and expected_count is None:
+        raise AppError(400, "Dataset generation needs an expected row count with revisions",
+                       key='error.dataset.revision_count_required')
+    payload_count = len(creation_definitions) if creation_definitions is not None else len(requested)
+    state = _load_builder_state_for_generation(name)
+    if state is _MISSING_BUILDER_STATE:
+        if require_existing:
+            raise AppError(404, "Project not found", key='error.dataset.project_not_found')
+        if bound or expected_count not in (None, 0):
+            raise AppError(409, "Dataset rows changed; regenerate", key='error.dataset.rows_changed')
+        metadata = creation_metadata or {}
+        state = {"description": metadata.get("description", ""),
+                 "global_seed": metadata.get("global_seed", ""), "samples": []}
+    samples = state.get("samples", [])
+    count = len(samples)
+    if expected_count is not None and expected_count != count:
+        raise AppError(409, "Dataset rows changed; regenerate", key='error.dataset.rows_changed')
+    if bound and set(expected_revisions) != set(requested):
+        raise AppError(400, "Dataset generation needs a revision for every requested row",
+                       key='error.dataset.revision_map_incomplete')
+    if not require_existing and count and payload_count != count:
+        raise AppError(409, "Dataset rows changed; regenerate", key='error.dataset.rows_changed')
+    if count == 0 and (bound or bootstrap_allowed is False):
+        raise AppError(409, "Dataset rows changed; regenerate", key='error.dataset.rows_changed')
+    if count == 0:
+        state = {**state, **_effective_project_metadata(state, creation_metadata)}
+    resolved = {}
+    for index, values in requested.items():
+        row = samples[index] if index < count and isinstance(samples[index], dict) else None
+        placeholder = row is None or _is_uninitialized_dataset_row(row)
+        if row is None:
+            if bound or require_existing or count:
+                raise AppError(409, "Dataset row changed; regenerate", key='error.dataset.row_changed')
+            definition = (creation_definitions or {}).get(index)
+            if definition is None:
+                raise AppError(409, "Dataset row changed; regenerate", key='error.dataset.row_changed')
+            resolved[index] = _creation_dataset_generation_row(definition, state, creation_metadata)
+        else:
+            if bound and get_dataset_row_revision(row) != expected_revisions[index]:
+                raise AppError(409, "Dataset row changed; regenerate", key='error.dataset.row_changed')
+            if _is_uninitialized_dataset_row(row) and creation_definitions and index in creation_definitions:
+                resolved[index] = _creation_dataset_generation_row(creation_definitions[index], state, creation_metadata)
+            else:
+                resolved[index] = _canonical_dataset_generation_row(row, state)
+        if not resolved[index]["text"].strip():
+            definition = (creation_definitions or {}).get(index) if placeholder else None
+            recovery = definition.get("text", "") if isinstance(definition, dict) else ""
+            if not recovery.strip():
+                raise AppError(400, "Dataset row has no text to generate",
+                               key='error.dataset.empty_generated_text')
+            resolved[index] = {**resolved[index], "text": recovery.strip()}
+    return resolved
+
+
 def validate_dataset_row_definitions(rows):
     if any(not isinstance(row, dict)
            or not isinstance(row.get("text", ""), str)
@@ -189,19 +426,40 @@ def validate_dataset_row_definitions(rows):
         raise HTTPException(status_code=400, detail="Each row needs string text and emotion, and a string or integer seed")
 
 
-def get_effective_dataset_seed(row_seed, global_seed):
-    """Per-row seed takes precedence over the global seed; blank means random."""
-    for value in (row_seed, global_seed):
+def _coerce_integral_seed(value):
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value) if math.isfinite(value) and value.is_integer() else None
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        return int(text)
+    except ValueError:
         try:
-            seed = int(value)
-        except (TypeError, ValueError):
-            continue
-        if seed >= 0:
+            number = float(text)
+        except ValueError:
+            return None
+        return int(number) if math.isfinite(number) and number.is_integer() else None
+
+
+def get_effective_dataset_seed(row_seed, global_seed):
+    """Per-row seed takes precedence; whole-number notation, blank means random."""
+    for value in (row_seed, global_seed):
+        seed = _coerce_integral_seed(value)
+        if seed is not None and seed >= 0:
             return seed
     return -1
 
 
 def get_merged_dataset_sample(row, existing=None):
+    if _is_uninitialized_dataset_row(row):
+        return dict(row)
     sample = {"emotion": row.get("emotion", ""), "text": row.get("text", "").strip(),
               "seed": row.get("seed", ""), "status": "pending", "audio_url": None}
     if (existing is not None
@@ -212,7 +470,16 @@ def get_merged_dataset_sample(row, existing=None):
         sample["audio_url"] = existing.get("audio_url")
         if "generated_seed" in existing:
             sample["generated_seed"] = existing["generated_seed"]
+        if isinstance(existing.get("description"), str) and existing["description"].strip():
+            sample["description"] = existing["description"]
     return sample
+
+
+def _browser_safe_dataset_row(row):
+    """Hide stored provider diagnostics while callers still hash the full record."""
+    if not isinstance(row, dict) or "error" not in row:
+        return row
+    return {key: value for key, value in row.items() if key != "error"}
 
 
 ## ── Dataset Builder ──────────────────────────────────────────
@@ -275,21 +542,31 @@ async def dataset_builder_create(request: DatasetBuilderCreateRequest):
 def _dataset_builder_update_meta_sync(request: DatasetBuilderUpdateMetaRequest):
     """Invalidate cached samples whose inherited generation inputs changed."""
     safe_name = _require_safe_filename(request.name, "Invalid dataset name")
-    work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     with ensure_builder_project_mutation(safe_name, "Stop dataset generation before editing its metadata"):
-        if not os.path.exists(work_dir):
-            raise HTTPException(status_code=404, detail="Project not found")
-        state = _load_builder_state(safe_name)
+        state = _require_existing_builder_state(safe_name)
+        existing = state.get("samples", [])
+        check_expected_dataset_metadata(state, request.expected_description,
+                                        request.expected_global_seed)
+        if request.expected_revisions is not None:
+            if (request.expected_count is None or request.expected_count != len(existing)
+                    or set(request.expected_revisions) != set(range(len(existing)))
+                    or any(get_dataset_row_revision(existing[index]) != request.expected_revisions[index]
+                           for index in request.expected_revisions)):
+                raise HTTPException(status_code=409, detail="Dataset rows changed; reload before saving")
         description_changed = state.get("description", "") != request.description
         seed_changed = get_effective_dataset_seed("", state.get("global_seed", "")) != get_effective_dataset_seed("", request.global_seed)
         state["samples"] = [
-            get_merged_dataset_sample(row) if (description_changed or
+            _invalidate_dataset_row_for_metadata(row) if (description_changed or
                 (seed_changed and get_effective_dataset_seed(row.get("seed", ""), "") < 0))
-            else row for row in state.get("samples", [])]
+            else row for row in existing]
         state["description"] = request.description
         state["global_seed"] = request.global_seed
         _save_builder_state(safe_name, state)
-    return {"status": "ok"}
+    full_samples = state["samples"]
+    return {"status": "ok", "description": state["description"],
+            "global_seed": state["global_seed"],
+            "samples": [_browser_safe_dataset_row(row) for row in full_samples],
+            "row_revisions": [get_dataset_row_revision(row) for row in full_samples]}
 
 
 @router.post("/api/dataset_builder/update_meta")
@@ -299,20 +576,40 @@ async def dataset_builder_update_meta(request: DatasetBuilderUpdateMetaRequest):
 def _dataset_builder_update_rows_sync(request: DatasetBuilderUpdateRowsRequest):
     """Update row definitions, preserving existing generation status/audio."""
     safe_name = _require_safe_filename(request.name, "Invalid dataset name")
-    work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
     validate_dataset_row_definitions(request.rows)
     with ensure_builder_project_mutation(safe_name, "Stop dataset generation before editing its rows"):
-        if not os.path.exists(work_dir):
-            raise HTTPException(status_code=404, detail="Project not found")
-        state = _load_builder_state(safe_name)
+        state = _require_existing_builder_state(safe_name)
         existing = state.get("samples", [])
-        # Merge: keep status/audio_url only where all generation inputs are unchanged
+        if request.expected_revisions is not None:
+            revisions = request.expected_revisions
+            if (request.expected_count is None or request.expected_count != len(existing)
+                    or set(revisions) != set(range(len(existing)))
+                    or any(get_dataset_row_revision(existing[index]) != revisions[index]
+                           for index in revisions)):
+                raise HTTPException(status_code=409, detail="Dataset rows changed; reload before saving")
+        # Merge: keep status/audio_url only where all generation inputs are unchanged.
+        # An untouched status-only placeholder must not be turned into authored
+        # blank text by the UI's empty projection of it during a full-list save:
+        # that would destroy the definition carried by the creation payload and
+        # make the skipped row unrecoverable.
         new_samples = []
         for i, row in enumerate(request.rows):
-            new_samples.append(get_merged_dataset_sample(row, existing[i] if i < len(existing) else None))
+            stored = existing[i] if i < len(existing) else None
+            if (isinstance(stored, dict) and _is_uninitialized_dataset_row(stored)
+                    and _blank_dataset_row_projection(row)):
+                new_samples.append(dict(stored))
+            else:
+                new_samples.append(get_merged_dataset_sample(row, stored))
         state["samples"] = new_samples
         _save_builder_state(safe_name, state)
+    # The same safe projection as /status: a positional merge can invalidate
+    # a surviving row's audio (e.g. deleting the first of two completed rows),
+    # and a receipt carrying only revisions leaves the browser showing a player
+    # for audio no longer in the stored snapshot.
     return {"status": "ok", "sample_count": len(new_samples),
+            "description": state.get("description", ""),
+            "global_seed": state.get("global_seed", ""),
+            "samples": [_browser_safe_dataset_row(row) for row in new_samples],
             "row_revisions": [get_dataset_row_revision(row) for row in new_samples]}
 
 
@@ -327,9 +624,7 @@ def _dataset_builder_edit_rows_sync(request: DatasetBuilderEditRowsRequest):
     if len(set(indices)) != len(indices):
         raise HTTPException(status_code=400, detail="Each row may appear only once in an edit")
     with ensure_builder_project_mutation(safe_name, "Stop dataset generation before editing its rows"):
-        if not os.path.isfile(os.path.join(DATASET_BUILDER_DIR, safe_name, "state.json")):
-            raise HTTPException(status_code=404, detail="Project not found")
-        state = _load_builder_state(safe_name)
+        state = _require_existing_builder_state(safe_name)
         samples = state.get("samples", [])
         if len(samples) != request.expected_count:
             raise HTTPException(status_code=409, detail="Dataset rows changed; reload before editing")
@@ -362,47 +657,76 @@ def _generate_dataset_sample_sync(request: DatasetSampleGenRequest):
     check_global_gpu_lock("dataset_builder")
 
     work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
+    index = request.sample_index
+    if not request.text.strip():
+        raise AppError(400, "This row has no text to generate", key='error.dataset.row_has_no_text')
+    requested = {index: {"text": request.text.strip(), "emotion": "", "description": request.description}}
+    recovery = {"text": request.text.strip(), "emotion": "",
+                "description": request.description,
+                "seed_field": "" if request.inherit_seed else request.seed}
+    creation_definitions = {index: recovery}
+    expected_revisions = (None if request.expected_revision is None
+                          else {index: request.expected_revision})
+    binding = {"expected_count": request.expected_count, "expected_revisions": expected_revisions,
+               "bootstrap_allowed": False}
+
     with _get_builder_state_lock(safe_name):
-        if not os.path.isfile(os.path.join(work_dir, "state.json")):
-            raise HTTPException(status_code=404, detail="Project not found")
-        samples = _load_builder_state(safe_name).get("samples", [])
-        if request.sample_index >= len(samples):
+        initial_state = _load_builder_state_for_generation(safe_name)
+        if initial_state is not _MISSING_BUILDER_STATE and index >= len(initial_state.get("samples", [])):
             raise HTTPException(status_code=400, detail="Sample index is outside the project's rows")
+        check_expected_dataset_metadata(initial_state, request.expected_description,
+                                        request.expected_global_seed)
+        resolve_dataset_generation_inputs(safe_name, requested=requested, require_existing=True,
+                                          creation_definitions=creation_definitions, **binding)
         with _builder_task_lock:
             claim_id = claim_gpu_task("dataset_builder", resources=(_get_builder_project_key(safe_name),))
-            apply_builder_task_owner(safe_name)
+            try:
+                check_expected_dataset_metadata(
+                    _load_builder_state_for_generation(safe_name),
+                    request.expected_description, request.expected_global_seed)
+                resolved = resolve_dataset_generation_inputs(
+                    safe_name, requested=requested, require_existing=True,
+                    creation_definitions=creation_definitions, **binding)
+                apply_builder_task_owner(safe_name)
+            except BaseException:
+                release_gpu_task_claim("dataset_builder", claim_id)
+                raise
+    inputs = resolved[index]
     try:
         engine = project_manager.get_engine()
         if not engine:
             raise HTTPException(status_code=500, detail="Failed to initialize TTS engine")
 
-        dest_filename = f"sample_{request.sample_index:03d}.wav"
+        dest_filename = f"sample_{index:03d}.wav"
         dest_path = os.path.join(work_dir, dest_filename)
-        generate_sample_audio(engine, dest_path, description=request.description,
-                              sample_text=request.text, seed=request.seed)
+        generate_sample_audio(engine, dest_path, description=inputs["description"],
+                              sample_text=inputs["text"], seed=inputs["generated_seed"])
 
         # Update state (cache-bust URL so browser loads fresh audio on regen)
         cache_bust = time.time_ns()
         audio_url = f"/dataset_builder/{safe_name}/{dest_filename}?t={cache_bust}"
         with _get_builder_state_lock(safe_name):
-            state = _load_builder_state(safe_name)
+            state = _load_builder_state_for_generation(safe_name)
             samples = state.get("samples", [])
-            while len(samples) <= request.sample_index:
-                samples.append({"status": "pending"})
-            existing_sample = samples[request.sample_index]
-            samples[request.sample_index] = {
-                **existing_sample, "status": "done", "audio_url": audio_url,
-                "text": request.text.strip(), "description": request.description,
-                "seed": "" if request.inherit_seed else request.seed,
-                "generated_seed": request.seed,
+            if index >= len(samples) or not isinstance(samples[index], dict):
+                raise AppError(409, "Dataset row changed; regenerate", key='error.dataset.row_changed')
+            samples[index] = {
+                **{key: value for key, value in samples[index].items() if key != "error"},
+                "status": "done", "audio_url": audio_url,
+                "text": inputs["text"], "emotion": inputs["emotion"],
+                "description": inputs["description"], "seed": inputs["seed_field"],
+                "generated_seed": inputs["generated_seed"],
             }
             state["samples"] = samples
             _save_builder_state(safe_name, state)
+            new_revision = get_dataset_row_revision(samples[index])
 
         return {
             "status": "done",
-            "sample_index": request.sample_index,
+            "sample_index": index,
             "audio_url": audio_url,
+            "row_revision": new_revision,
+            "row": samples[index],
         }
     except HTTPException:
         raise
@@ -411,18 +735,20 @@ def _generate_dataset_sample_sync(request: DatasetSampleGenRequest):
         raise
     except Exception as e:
         logger.exception("Dataset builder sample generation failed")
-        # Mark as error in state
+        committed, revision = None, None
         with _get_builder_state_lock(safe_name):
-            state = _load_builder_state(safe_name)
+            state = _load_builder_state_for_generation(safe_name)
             samples = state.get("samples", [])
-            while len(samples) <= request.sample_index:
-                samples.append({"status": "pending"})
-            samples[request.sample_index] = {
-                **samples[request.sample_index], "status": "error", "error": str(e),
-            }
-            state["samples"] = samples
-            _save_builder_state(safe_name, state)
-        raise HTTPException(status_code=500, detail="Sample generation failed — see server logs for details.") from e
+            if index < len(samples) and isinstance(samples[index], dict):
+                samples[index] = {**samples[index], "status": "error", "error": str(e)}
+                state["samples"] = samples
+                _save_builder_state(safe_name, state)
+                committed, revision = samples[index], get_dataset_row_revision(samples[index])
+        detail = {"message": "Sample generation failed — see server logs for details."}
+        if revision is not None:
+            detail["row_revision"] = revision
+            detail["row"] = {key: value for key, value in committed.items() if key != "error"}
+        raise HTTPException(status_code=500, detail=detail) from e
     finally:
         release_gpu_task_claim("dataset_builder", claim_id)
 
@@ -435,6 +761,10 @@ async def dataset_builder_generate_sample(request: DatasetSampleGenRequest):
 @router.post("/api/dataset_builder/generate_batch")
 async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
     """Batch generate dataset samples as a background task."""
+    return await asyncio.to_thread(_dataset_builder_generate_batch, request)
+
+
+def _dataset_builder_generate_batch(request: DatasetBatchGenRequest):
     check_global_gpu_lock("dataset_builder")
 
     if not request.samples or len(request.samples) == 0:
@@ -468,13 +798,28 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
                             detail=f"indices out of range for {len(request.samples)} sample(s): {bad_indices}")
 
     total = len(to_generate)
-
-    # Snapshot request data for the thread (request object may not survive)
-    samples_snapshot = [(s.emotion.strip(), s.text.strip()) for s in request.samples]
+    sample_count = len(request.samples)
     global_seed = request.global_seed
     per_seeds = request.seeds
 
-    def task():
+    # Full definitions for every supplied row: first-run creation and recovery
+    # of legacy status-only placeholders use these, never an existing row edit.
+    creation_definitions = {}
+    for idx, sample in enumerate(request.samples):
+        emotion, text = sample.emotion.strip(), sample.text.strip()
+        seed_field = (per_seeds[idx] if per_seeds and idx < len(per_seeds) and per_seeds[idx] >= 0
+                      else "")
+        creation_definitions[idx] = {
+            "text": text, "emotion": emotion,
+            "description": f"{root_desc}, {emotion}" if emotion else root_desc,
+            "seed_field": seed_field,
+        }
+    requested = {idx: creation_definitions[idx] for idx in to_generate}
+    creation_metadata = {"description": root_desc, "global_seed": global_seed}
+    binding = {"expected_count": request.expected_count,
+               "expected_revisions": request.expected_revisions}
+
+    def task(resolved, definitions):
         process_state["dataset_builder"]["running"] = True
         process_state["dataset_builder"]["logs"] = []
         # Wrapped in try/finally so ANY unexpected exception in this thread -
@@ -490,11 +835,28 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
                 process_state["dataset_builder"]["logs"].append("[ERROR] Failed to initialize TTS engine")
                 return
 
-            state = _load_builder_state(safe_name)
+            state = _load_builder_state_for_generation(safe_name)
+            if state is _MISSING_BUILDER_STATE:
+                state = {"description": "", "global_seed": "", "samples": []}
+            if not state.get("samples"):
+                state.update(_effective_project_metadata(state, creation_metadata))
             samples_state = state.get("samples", [])
-            # Ensure list is large enough for all samples
-            while len(samples_state) < len(samples_snapshot):
-                samples_state.append({"status": "pending"})
+            if len(samples_state) < sample_count:
+                if len(samples_state) > 0:
+                    raise ValueError("Dataset rows changed during generation")
+                samples_state = [_new_dataset_row(definitions[i], state, creation_metadata)
+                                 for i in range(sample_count)]
+                state["samples"] = samples_state
+                _save_builder_state(safe_name, state)
+            else:
+                repaired = False
+                for i, values in definitions.items():
+                    if i < len(samples_state) and _is_uninitialized_dataset_row(samples_state[i]):
+                        samples_state[i] = _new_dataset_row(values, state, creation_metadata)
+                        repaired = True
+                if repaired:
+                    state["samples"] = samples_state
+                    _save_builder_state(safe_name, state)
 
             completed = 0
             for i, idx in enumerate(to_generate):
@@ -502,12 +864,15 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
                     process_state["dataset_builder"]["logs"].append(f"[CANCEL] Stopped at {completed}/{total}")
                     break
 
-                emotion, text = samples_snapshot[idx]
-                description = f"{root_desc}, {emotion}" if emotion else root_desc
+                text = resolved[idx]["text"]
+                emotion = resolved[idx]["emotion"]
+                description = resolved[idx]["description"]
 
                 # Mark as generating (preserve existing fields like emotion, seed)
                 existing_s = samples_state[idx] if idx < len(samples_state) else {}
-                samples_state[idx] = {**existing_s, "status": "generating", "text": text, "emotion": emotion, "description": description}
+                samples_state[idx] = {
+                    **{key: value for key, value in existing_s.items() if key != "error"},
+                    "status": "generating", "text": text, "emotion": emotion, "description": description}
                 state["samples"] = samples_state
                 _save_builder_state(safe_name, state)
 
@@ -516,10 +881,7 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
                 )
 
                 try:
-                    # Resolve seed: per-line > global > random
-                    seed = get_effective_dataset_seed(
-                        per_seeds[idx] if per_seeds and idx < len(per_seeds) else -1,
-                        global_seed)
+                    seed = resolved[idx]["generated_seed"]
 
                     dest_filename = f"sample_{idx:03d}.wav"
                     dest_path = os.path.join(work_dir, dest_filename)
@@ -527,7 +889,7 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
                                           sample_text=text, seed=seed)
 
                     samples_state[idx] = {
-                        **samples_state[idx],
+                        **{key: value for key, value in samples_state[idx].items() if key != "error"},
                         "status": "done",
                         "audio_url": f"/dataset_builder/{safe_name}/{dest_filename}?t={time.time_ns()}",
                         "text": text,
@@ -538,8 +900,10 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
                 except core.WindowsOwnerCleanupError:
                     raise
                 except Exception as e:
-                    logger.error(f"Dataset builder sample {idx} failed: {e}")
-                    process_state["dataset_builder"]["logs"].append(f"  Error: {e}")
+                    logger.error("Dataset builder sample %s failed (%s)", idx, type(e).__name__)
+                    process_state["dataset_builder"]["logs"].append(
+                        f"[ERROR] Sample {idx + 1} generation failed."
+                    )
                     samples_state[idx] = {**samples_state[idx], "status": "error", "error": str(e), "text": text, "emotion": emotion}
 
                 state["samples"] = samples_state
@@ -550,19 +914,33 @@ async def dataset_builder_generate_batch(request: DatasetBatchGenRequest):
             )
         except core.WindowsOwnerCleanupError:
             raise
-        except Exception as e:
-            logger.exception("Dataset builder batch generation crashed")
-            process_state["dataset_builder"]["logs"].append(f"[ERROR] Batch generation crashed: {e}")
+        except Exception as error:
+            logger.error("Dataset builder batch generation failed (%s)", type(error).__name__)
+            process_state["dataset_builder"]["logs"].append("[ERROR] Batch generation stopped unexpectedly.")
         finally:
             process_state["dataset_builder"]["running"] = False
 
     with _get_builder_state_lock(safe_name):
+        initial_state = _load_builder_state_for_generation(safe_name)
+        bootstrap_allowed = initial_state is _MISSING_BUILDER_STATE or not initial_state.get("samples", [])
+        check_expected_dataset_metadata(initial_state, request.expected_description,
+                                        request.expected_global_seed)
+        resolve_dataset_generation_inputs(safe_name, requested=requested,
+                                          creation_definitions=creation_definitions,
+                                          creation_metadata=creation_metadata,
+                                          bootstrap_allowed=bootstrap_allowed, **binding)
         with _builder_task_lock:
             claim_id = reserve_background_task("dataset_builder", resources=(_get_builder_project_key(safe_name),))
-            apply_builder_task_owner(safe_name)
             try:
+                check_expected_dataset_metadata(
+                    _load_builder_state_for_generation(safe_name),
+                    request.expected_description, request.expected_global_seed)
+                resolved = resolve_dataset_generation_inputs(
+                    safe_name, requested=requested, creation_definitions=creation_definitions,
+                    creation_metadata=creation_metadata, bootstrap_allowed=bootstrap_allowed, **binding)
+                apply_builder_task_owner(safe_name)
                 os.makedirs(work_dir, exist_ok=True)
-                start_claimed_task_thread("dataset_builder", claim_id, task)
+                start_claimed_task_thread("dataset_builder", claim_id, task, resolved, creation_definitions)
             except BaseException:
                 release_gpu_task_claim("dataset_builder", claim_id, pending_only=True)
                 raise
@@ -584,14 +962,15 @@ async def dataset_builder_cancel(name: Optional[str] = None):
 async def dataset_builder_status(name: str):
     """Get per-sample generation status for a dataset builder project."""
     safe_name = _require_safe_filename(name, "Invalid dataset name")
-    if not os.path.isfile(os.path.join(DATASET_BUILDER_DIR, safe_name, "state.json")):
+    state = await asyncio.to_thread(_load_builder_state_for_generation, safe_name)
+    if state is _MISSING_BUILDER_STATE:
         raise HTTPException(status_code=404, detail="Dataset builder project not found")
-    state = _load_builder_state(safe_name)
+    samples = state["samples"]
     return {
         "description": state.get("description", ""),
         "global_seed": state.get("global_seed", ""),
-        "samples": state.get("samples", []),
-        "row_revisions": [get_dataset_row_revision(row) for row in state.get("samples", [])],
+        "samples": [_browser_safe_dataset_row(row) for row in samples],
+        "row_revisions": [get_dataset_row_revision(row) for row in samples],
         "dataset_name": safe_name,
         **get_builder_activity(safe_name),
     }
@@ -602,10 +981,7 @@ def _dataset_builder_save_sync(request: DatasetSaveRequest):
 
     with ensure_builder_project_mutation(safe_name, "Wait for dataset generation before saving"):
         work_dir = os.path.join(DATASET_BUILDER_DIR, safe_name)
-        if not os.path.exists(work_dir):
-            raise HTTPException(status_code=404, detail="Dataset builder project not found")
-
-        state = _load_builder_state(safe_name)
+        state = _require_existing_builder_state(safe_name)
         samples = state.get("samples", [])
 
         # Collect completed samples

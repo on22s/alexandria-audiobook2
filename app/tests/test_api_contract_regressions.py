@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import threading
 import sys
 import tempfile
 import unittest
@@ -104,6 +105,13 @@ class ApiContractTests(unittest.TestCase):
 
     def test_dataset_builder_thread_start_failure_releases_gpu_claim(self):
         import asyncio
+        real_start = threading.Thread.start
+
+        def fail_owned_worker_start(thread, *args, **kwargs):
+            if getattr(thread, '_target', None) is core._run_owned_background_task:
+                raise RuntimeError('thread unavailable')
+            return real_start(thread, *args, **kwargs)
+
         state = dataset_builder_router.process_state['dataset_builder']
         original = state['running'];state['running'] = False
         request = dataset_builder_router.DatasetBatchGenRequest(
@@ -118,7 +126,7 @@ class ApiContractTests(unittest.TestCase):
                  patch.object(core, 'acquire_gpu_lock', return_value=None), \
                  patch.object(core, 'llm_is_on_this_gpu', return_value=True), \
                  patch.object(core, 'release_gpu_task_claim', wraps=core.release_gpu_task_claim) as released, \
-                 patch.object(dataset_builder_router.threading.Thread, 'start', side_effect=RuntimeError('thread unavailable')):
+                 patch.object(threading.Thread, 'start', fail_owned_worker_start):
                 with self.assertRaisesRegex(RuntimeError, 'thread unavailable'):
                     asyncio.run(dataset_builder_router.dataset_builder_generate_batch(request))
                 self.assertFalse(core.is_task_running('dataset_builder'))

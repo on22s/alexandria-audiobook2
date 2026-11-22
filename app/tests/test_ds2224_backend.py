@@ -1,0 +1,499 @@
+"""Backend guards for dataset-builder row CAS, persisted metadata and safe acks."""
+import json
+import os
+import tempfile
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
+
+import numpy as np
+import soundfile as sf
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+import core
+from routers import dataset_builder as routes
+
+
+class Ds2224BackendTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.builder = self.root / 'builder'
+        self.data = self.root / 'data'
+        self.builder.mkdir()
+        self.data.mkdir()
+        source = self.root / 'source.wav'
+        sf.write(source, np.full(240, 0.25), 24000)
+
+        def render(**kwargs):
+            sf.write(source, np.full(240, 0.25), 24000)
+            return str(source), kwargs['sample_text']
+
+        self.engine = SimpleNamespace(generate_voice_design=Mock(side_effect=render))
+        self.patches = [
+            patch.object(routes, 'DATASET_BUILDER_DIR', str(self.builder)),
+            patch.object(core, 'DATA_DIR', str(self.data)),
+            patch.object(routes, 'process_state', {
+                'dataset_builder': {'running': False, 'logs': [], 'cancel': False}}),
+            patch.object(routes, 'check_global_gpu_lock'),
+            patch.object(routes.project_manager, 'get_engine', return_value=self.engine),
+        ]
+        for patcher in self.patches:
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.app = FastAPI()
+        self.app.add_exception_handler(core.AppError, core.handle_app_error)
+        self.app.include_router(routes.router)
+
+    def save(self, state, name='voice'):
+        work = self.builder / name
+        work.mkdir(exist_ok=True)
+        path = work / 'state.json'
+        path.write_text(json.dumps(state), encoding='utf-8')
+        return path
+
+    def load(self, name='voice'):
+        return routes._load_builder_state(name)
+
+    def revision(self, row):
+        return routes.get_dataset_row_revision(row)
+
+    def test_ds2224_full_list_cas_rejects_stale_snapshot_without_writing(self):
+        path = self.save({'description': 'root', 'global_seed': '', 'samples': [
+            {'text': 'one', 'emotion': '', 'seed': '', 'status': 'done'},
+            {'text': 'two', 'emotion': '', 'seed': '', 'status': 'pending'}]})
+        before = path.read_bytes()
+        revisions = {index: self.revision(row)
+                     for index, row in enumerate(self.load()['samples'])}
+        rows = [{'text': 'changed', 'emotion': '', 'seed': ''},
+                {'text': 'other', 'emotion': '', 'seed': ''}]
+        stale = {**revisions, 1: '0' * 64}
+        with TestClient(self.app) as client:
+            conflict = client.post('/api/dataset_builder/update_rows', json={
+                'name': 'voice', 'rows': rows,
+                'expected_count': 2, 'expected_revisions': stale})
+            missing_count = client.post('/api/dataset_builder/update_rows', json={
+                'name': 'voice', 'rows': rows, 'expected_revisions': revisions})
+            extra_key = client.post('/api/dataset_builder/update_rows', json={
+                'name': 'voice', 'rows': rows, 'expected_count': 2,
+                'expected_revisions': {**revisions, 2: 'a' * 64}})
+            self.assertEqual(before, path.read_bytes())
+            legacy = client.post('/api/dataset_builder/update_rows', json={
+                'name': 'voice', 'rows': rows})
+            current = {index: self.revision(row)
+                       for index, row in enumerate(self.load()['samples'])}
+            accepted = client.post('/api/dataset_builder/update_rows', json={
+                'name': 'voice', 'rows': rows,
+                'expected_count': 2, 'expected_revisions': current})
+        for response in (conflict, missing_count, extra_key):
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual('Dataset rows changed; reload before saving',
+                             response.json()['detail'])
+        self.assertEqual(200, legacy.status_code, legacy.text)
+        self.assertEqual(200, accepted.status_code, accepted.text)
+        self.assertEqual(['changed', 'other'],
+                         [row['text'] for row in self.load()['samples']])
+        self.assertEqual([self.revision(row) for row in self.load()['samples']],
+                         accepted.json()['row_revisions'])
+
+    def test_ds2224_configured_empty_project_uses_persisted_description_and_seed(self):
+        self.save({'description': 'configured voice', 'global_seed': '37', 'samples': []})
+        captured = {}
+
+        def start(*args, **kwargs):
+            captured['task'], captured['resolved'] = args[2], args[3]
+            captured['definitions'] = args[4]
+            return SimpleNamespace()
+
+        body = {'name': 'voice', 'description': 'posted root',
+                'samples': [{'text': 'later'}], 'indices': [0], 'global_seed': 5}
+        with patch.object(routes, 'reserve_background_task', return_value='owned'), \
+             patch.object(routes, 'apply_builder_task_owner'), \
+             patch.object(routes, 'start_claimed_task_thread', side_effect=start), \
+             patch.object(routes, 'release_gpu_task_claim'), \
+             TestClient(self.app) as client:
+            first = client.post('/api/dataset_builder/generate_batch', json=body)
+            self.assertEqual(200, first.status_code, first.text)
+            initial = captured['resolved'][0]
+            captured['task'](captured['resolved'], captured['definitions'])
+            self.assertEqual('configured voice', self.load()['samples'][0]['description'])
+            self.assertEqual('configured voice',
+                             self.engine.generate_voice_design.call_args.kwargs['description'])
+            captured.clear()
+            second = client.post('/api/dataset_builder/generate_batch', json=body)
+            self.assertEqual(200, second.status_code, second.text)
+            renewed = captured['resolved'][0]
+        self.assertEqual(('configured voice', 37),
+                         (initial['description'], initial['generated_seed']))
+        self.assertEqual(('configured voice', 37),
+                         (renewed['description'], renewed['generated_seed']))
+
+    def test_ds2224_placeholder_keeps_shape_after_meta_and_uses_recovery_text(self):
+        self.save({'description': 'configured voice', 'global_seed': '37',
+                   'samples': [{'status': 'pending'}]})
+        with patch.object(routes, 'claim_gpu_task', return_value='owned'), \
+             patch.object(routes, 'release_gpu_task_claim'), \
+             TestClient(self.app) as client:
+            meta = client.post('/api/dataset_builder/update_meta', json={
+                'name': 'voice', 'description': 'new root', 'global_seed': '37'})
+            self.assertEqual(200, meta.status_code, meta.text)
+            stored = self.load()['samples'][0]
+            self.assertEqual({'status': 'pending'}, stored)
+            token = meta.json()['row_revisions'][0]
+            self.assertEqual(self.revision(stored), token)
+            generated = client.post('/api/dataset_builder/generate_sample', json={
+                'dataset_name': 'voice', 'sample_index': 0,
+                'description': 'posted voice', 'text': 'recovered line',
+                'seed': 0, 'inherit_seed': True,
+                'expected_count': 1, 'expected_revision': token})
+        self.assertEqual(200, generated.status_code, generated.text)
+        call = self.engine.generate_voice_design.call_args.kwargs
+        self.assertEqual(('recovered line', 'new root', 37),
+                         (call['sample_text'], call['description'], call['seed']))
+        self.assertEqual('recovered line', self.load()['samples'][0]['text'])
+
+    def test_ds2224_unchanged_legacy_description_survives_full_list_save(self):
+        self.save({'description': '', 'global_seed': '', 'samples': [
+            {'text': 'real fixture', 'emotion': 'calm',
+             'description': 'original voice, calm', 'status': 'done',
+             'audio_url': '/old.wav', 'generated_seed': -1},
+            {'status': 'pending'}]})
+        with patch.object(routes, 'claim_gpu_task', return_value='owned'), \
+             patch.object(routes, 'release_gpu_task_claim'), \
+             TestClient(self.app) as client:
+            saved = client.post('/api/dataset_builder/update_rows', json={
+                'name': 'voice',
+                'rows': [{'text': 'real fixture', 'emotion': 'calm', 'seed': ''},
+                         {'text': 'appended', 'emotion': '', 'seed': ''}]})
+            self.assertEqual(200, saved.status_code, saved.text)
+            row0 = self.load()['samples'][0]
+            self.assertEqual('original voice, calm', row0['description'])
+            self.assertEqual('done', row0['status'])
+            self.assertEqual(-1, row0['generated_seed'])
+            token = saved.json()['row_revisions'][0]
+            self.assertEqual(self.revision(row0), token)
+            generated = client.post('/api/dataset_builder/generate_sample', json={
+                'dataset_name': 'voice', 'sample_index': 0,
+                'description': 'posted root', 'text': 'real fixture', 'seed': 9,
+                'expected_count': 2, 'expected_revision': token})
+        self.assertEqual(200, generated.status_code, generated.text)
+        self.assertEqual('original voice, calm',
+                         self.engine.generate_voice_design.call_args.kwargs['description'])
+
+    def test_ds2224_lstat_permission_error_is_not_first_run_or_missing(self):
+        expected = {'description': 'root', 'global_seed': '', 'samples': [
+            {'text': 'existing', 'emotion': '', 'seed': ''}]}
+        self.save(expected)
+        state_path = str(self.builder / 'voice' / 'state.json')
+        original_lstat = os.lstat
+
+        def denied(target, *args, **kwargs):
+            if os.fspath(target) == state_path:
+                raise PermissionError(13, 'Permission denied', state_path)
+            return original_lstat(target, *args, **kwargs)
+
+        with patch.object(routes.os, 'lstat', side_effect=denied), \
+             patch.object(routes, 'claim_gpu_task') as single_claim, \
+             patch.object(routes, 'reserve_background_task') as batch_claim, \
+             TestClient(self.app) as client:
+            single = client.post('/api/dataset_builder/generate_sample', json={
+                'dataset_name': 'voice', 'sample_index': 0,
+                'description': 'root', 'text': 'existing', 'seed': 0})
+            batch = client.post('/api/dataset_builder/generate_batch', json={
+                'name': 'voice', 'description': 'root',
+                'samples': [{'text': 'existing'}], 'indices': [0]})
+            status = client.get('/api/dataset_builder/status/voice')
+        self.assertEqual(500, single.status_code, single.text)
+        self.assertEqual('error.dataset.state_unreadable', single.json()['message_key'])
+        self.assertEqual(500, batch.status_code, batch.text)
+        self.assertEqual('error.dataset.state_unreadable', batch.json()['message_key'])
+        self.assertEqual(500, status.status_code, status.text)
+        self.assertEqual('error.dataset.state_unreadable', status.json()['message_key'])
+        self.assertIn('could not be read', status.json()['detail'])
+        single_claim.assert_not_called()
+        batch_claim.assert_not_called()
+        self.assertEqual(expected, self.load())
+        Path(state_path).write_bytes(b'{')
+        with TestClient(self.app) as client:
+            truncated = client.get('/api/dataset_builder/status/voice')
+        self.assertEqual(500, truncated.status_code, truncated.text)
+        self.assertEqual('error.dataset.state_unreadable', truncated.json()['message_key'])
+        self.assertEqual(b'{', Path(state_path).read_bytes())
+
+    def test_ds2224_update_meta_hides_diagnostic_but_token_matches_full_record(self):
+        self.save({'description': 'root', 'global_seed': '', 'samples': [
+            {'text': 'failed', 'emotion': '', 'seed': '', 'status': 'error',
+             'error': 'PRIVATE-DS2224-DIAGNOSTIC'},
+            {'text': 'healthy', 'emotion': '', 'seed': '', 'status': 'done'}]})
+        with TestClient(self.app) as client:
+            response = client.post('/api/dataset_builder/update_meta', json={
+                'name': 'voice', 'description': 'root', 'global_seed': ''})
+            status = client.get('/api/dataset_builder/status/voice')
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertNotIn('PRIVATE-DS2224-DIAGNOSTIC', response.text)
+        body = response.json()
+        self.assertNotIn('PRIVATE-DS2224-DIAGNOSTIC', json.dumps(body['samples']))
+        self.assertNotIn('error', body['samples'][0])
+        full = self.load()['samples']
+        self.assertIn('error', full[0])
+        self.assertEqual([self.revision(row) for row in full], body['row_revisions'])
+        self.assertEqual(200, status.status_code, status.text)
+        self.assertNotIn('PRIVATE-DS2224-DIAGNOSTIC', status.text)
+        self.assertEqual(body['row_revisions'], status.json()['row_revisions'])
+        with patch.object(routes, 'claim_gpu_task', return_value='owned'), \
+             patch.object(routes, 'release_gpu_task_claim'), \
+             TestClient(self.app) as client:
+            retry = client.post('/api/dataset_builder/generate_sample', json={
+                'dataset_name': 'voice', 'sample_index': 0,
+                'description': 'root', 'text': 'failed', 'seed': 0,
+                'expected_count': 2, 'expected_revision': status.json()['row_revisions'][0]})
+        self.assertEqual(200, retry.status_code, retry.text)
+
+    def test_ds2224_empty_resolved_text_is_refused_without_engine_call(self):
+        self.save({'description': 'root', 'global_seed': '', 'samples': [
+            {'text': '   ', 'emotion': '', 'seed': '', 'status': 'pending'}]})
+        token = self.revision(self.load()['samples'][0])
+        with patch.object(routes, 'reserve_background_task') as reserve, \
+             TestClient(self.app) as client:
+            batch = client.post('/api/dataset_builder/generate_batch', json={
+                'name': 'voice', 'description': 'root',
+                'samples': [{'text': ''}], 'indices': [0],
+                'expected_count': 1, 'expected_revisions': {'0': token}})
+        self.assertEqual(400, batch.status_code, batch.text)
+        self.assertEqual('error.dataset.empty_generated_text', batch.json()['message_key'])
+        reserve.assert_not_called()
+        self.engine.generate_voice_design.assert_not_called()
+
+    def test_failed_batch_logs_omit_internal_error_details(self):
+        self.save({'description': 'root', 'global_seed': '', 'samples': [
+            {'text': 'fixture text', 'emotion': '', 'seed': '', 'status': 'pending'}]})
+        self.engine.generate_voice_design.side_effect = RuntimeError('PRIVATE-DIAG')
+        request = {'name': 'voice', 'description': 'root',
+                   'samples': [{'text': 'fixture text'}], 'indices': [0]}
+
+        def run_task(_name, _claim, task, *args):
+            task(*args)
+
+        with patch.object(routes, 'reserve_background_task', return_value='owned'), \
+             patch.object(routes, 'start_claimed_task_thread', side_effect=run_task), \
+             TestClient(self.app) as client:
+            response = client.post('/api/dataset_builder/generate_batch', json=request)
+            self.assertEqual(200, response.status_code, response.text)
+            status = client.get('/api/dataset_builder/status/voice')
+            self.assertEqual(200, status.status_code, status.text)
+            self.assertIn('[ERROR] Sample 1 generation failed.', status.json()['logs'])
+            self.assertEqual('error', status.json()['samples'][0]['status'])
+            self.assertNotIn('PRIVATE-DIAG', status.text)
+            with patch.object(routes.project_manager, 'get_engine',
+                              side_effect=RuntimeError('PRIVATE-INIT-DIAG')):
+                response = client.post('/api/dataset_builder/generate_batch', json=request)
+            self.assertEqual(200, response.status_code, response.text)
+            status = client.get('/api/dataset_builder/status/voice')
+            self.assertIn('[ERROR] Batch generation stopped unexpectedly.', status.json()['logs'])
+            self.assertNotIn('PRIVATE-INIT-DIAG', status.text)
+
+    def test_ds2224_batch_regeneration_keeps_legacy_row_description(self):
+        self.save({'description': '', 'global_seed': '', 'samples': [
+            {'text': 'real fixture', 'emotion': 'calm',
+             'description': 'original voice, calm', 'status': 'done',
+             'audio_url': '/old.wav'}]})
+        token = self.revision(self.load()['samples'][0])
+        captured = {}
+
+        def start(*args, **kwargs):
+            captured['task'], captured['resolved'] = args[2], args[3]
+            captured['definitions'] = args[4]
+            return SimpleNamespace()
+
+        with patch.object(routes, 'reserve_background_task', return_value='owned'), \
+             patch.object(routes, 'apply_builder_task_owner'), \
+             patch.object(routes, 'start_claimed_task_thread', side_effect=start), \
+             patch.object(routes, 'release_gpu_task_claim'), \
+             TestClient(self.app) as client:
+            response = client.post('/api/dataset_builder/generate_batch', json={
+                'name': 'voice', 'description': 'posted root',
+                'samples': [{'text': 'real fixture', 'emotion': 'calm'}], 'indices': [0],
+                'expected_count': 1, 'expected_revisions': {'0': token}})
+            self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual('original voice, calm', captured['resolved'][0]['description'])
+
+    def test_seed_only_metadata_change_keeps_blank_root_legacy_description(self):
+        # A real #2219 batch row: blank root, durable description on the row.
+        self.save({'description': '', 'global_seed': '37', 'samples': [
+            {'text': 'first', 'emotion': 'calm', 'description': 'original voice, calm',
+             'status': 'done', 'audio_url': '/old.wav'}]})
+        token = self.revision(self.load()['samples'][0])
+        with patch.object(routes, 'claim_gpu_task', return_value='owned'), \
+             patch.object(routes, 'release_gpu_task_claim'), \
+             TestClient(self.app) as client:
+            changed = client.post('/api/dataset_builder/update_meta', json={
+                'name': 'voice', 'description': '', 'global_seed': '29',
+                'expected_count': 1, 'expected_revisions': {0: token}})
+            self.assertEqual(200, changed.status_code, changed.text)
+            invalidated = self.load()['samples'][0]
+            self.assertEqual('original voice, calm', invalidated['description'])
+            self.assertEqual('pending', invalidated['status'])
+            self.assertIsNone(invalidated['audio_url'])
+            generated = client.post('/api/dataset_builder/generate_sample', json={
+                'dataset_name': 'voice', 'sample_index': 0,
+                'description': 'posted root', 'text': 'first', 'seed': 0,
+                'inherit_seed': True, 'expected_count': 1,
+                'expected_revision': changed.json()['row_revisions'][0]})
+        self.assertEqual(200, generated.status_code, generated.text)
+        call = self.engine.generate_voice_design.call_args.kwargs
+        self.assertEqual('original voice, calm', call['description'])
+        self.assertEqual(29, call['seed'])
+
+    def test_full_list_append_preserves_untouched_legacy_placeholder(self):
+        # #2219 wrote a genuine status-only row; the UI projects it to blank
+        # text/emotion/seed. A guarded append must not authorise that blank
+        # projection into the stored placeholder and make recovery impossible.
+        self.save({'description': '', 'global_seed': '', 'samples': [
+            {'text': 'first', 'emotion': 'calm', 'description': 'original voice, calm',
+             'status': 'done', 'audio_url': '/old.wav'},
+            {'status': 'pending'}]})
+        with TestClient(self.app) as client:
+            status = client.get('/api/dataset_builder/status/voice')
+            revisions = dict(enumerate(status.json()['row_revisions']))
+            rows = [{key: row.get(key, '') for key in ('text', 'emotion', 'seed')}
+                    for row in status.json()['samples']]
+            appended = client.post('/api/dataset_builder/update_rows', json={
+                'name': 'voice', 'rows': rows + [{'text': 'added', 'emotion': '', 'seed': ''}],
+                'expected_count': 2, 'expected_revisions': revisions})
+            self.assertEqual(200, appended.status_code, appended.text)
+            stored = self.load()['samples'][1]
+            self.assertEqual({'status': 'pending'}, stored)
+            token = appended.json()['row_revisions'][1]
+            with patch.object(routes, 'claim_gpu_task', return_value='owned'), \
+                 patch.object(routes, 'release_gpu_task_claim'):
+                recovered = client.post('/api/dataset_builder/generate_sample', json={
+                    'dataset_name': 'voice', 'sample_index': 1,
+                    'description': 'posted root', 'text': 'recover me', 'seed': 0,
+                    'inherit_seed': True, 'expected_count': 3,
+                    'expected_revision': token})
+        self.assertEqual(200, recovered.status_code, recovered.text)
+        self.assertEqual('recover me', self.engine.generate_voice_design.call_args.kwargs['sample_text'])
+
+    def test_expected_metadata_blocks_seed_only_overwrite_of_a_peer_root_edit(self):
+        # A non-blank root leaves a pending row's digest unchanged, so the row
+        # CAS alone cannot see the other tab's voice edit.
+        self.save({'description': 'old root', 'global_seed': '77', 'samples': [
+            {'text': 'first', 'emotion': '', 'seed': '', 'status': 'pending',
+             'audio_url': None}]})
+        token = self.revision(self.load()['samples'][0])
+        with TestClient(self.app) as client:
+            peer = client.post('/api/dataset_builder/update_meta', json={
+                'name': 'voice', 'description': 'peer voice', 'global_seed': '77'})
+            self.assertEqual(200, peer.status_code, peer.text)
+            self.assertEqual(token, peer.json()['row_revisions'][0],
+                             'the row digest must stay unchanged for this to isolate metadata CAS')
+            stale = client.post('/api/dataset_builder/update_meta', json={
+                'name': 'voice', 'description': 'old root', 'global_seed': '31',
+                'expected_description': 'old root', 'expected_global_seed': '77',
+                'expected_count': 1, 'expected_revisions': {0: token}})
+        self.assertEqual(409, stale.status_code, stale.text)
+        self.assertIn('metadata changed', stale.json()['detail'])
+        self.assertEqual('peer voice', self.load()['description'])
+        self.assertEqual('77', self.load()['global_seed'])
+
+    def test_legacy_metadata_write_still_works_without_expected_fields(self):
+        self.save({'description': 'root', 'global_seed': '', 'samples': [
+            {'text': 'first', 'emotion': '', 'seed': '', 'status': 'pending'}]})
+        with TestClient(self.app) as client:
+            legacy = client.post('/api/dataset_builder/update_meta', json={
+                'name': 'voice', 'description': 'new root', 'global_seed': '29'})
+        self.assertEqual(200, legacy.status_code, legacy.text)
+        self.assertEqual('new root', self.load()['description'])
+        self.assertEqual('29', self.load()['global_seed'])
+
+    def test_generation_admission_checks_expected_metadata(self):
+        self.save({'description': 'peer voice', 'global_seed': '77', 'samples': [
+            {'text': 'first', 'emotion': '', 'seed': '', 'status': 'pending'}]})
+        token = self.revision(self.load()['samples'][0])
+        request = {'dataset_name': 'voice', 'sample_index': 0,
+                   'description': 'old root', 'text': 'first', 'seed': 0,
+                   'expected_count': 1, 'expected_revision': token,
+                   'expected_description': 'old root', 'expected_global_seed': '77'}
+        with patch.object(routes, 'claim_gpu_task', return_value='owned'), \
+             patch.object(routes, 'release_gpu_task_claim') as release, \
+             TestClient(self.app) as client:
+            stale = client.post('/api/dataset_builder/generate_sample', json=request)
+            self.assertEqual(409, stale.status_code, stale.text)
+            self.engine.generate_voice_design.assert_not_called()
+            release.assert_not_called()
+            legacy = client.post('/api/dataset_builder/generate_sample', json={
+                key: value for key, value in request.items()
+                if key not in ('expected_description', 'expected_global_seed')})
+        self.assertEqual(200, legacy.status_code, legacy.text)
+        self.assertEqual('peer voice', self.engine.generate_voice_design.call_args.kwargs['description'])
+
+    def test_batch_admission_checks_expected_metadata_before_reserving_work(self):
+        self.save({'description': 'peer voice', 'global_seed': '77', 'samples': [
+            {'text': 'first', 'emotion': '', 'seed': '', 'status': 'pending'}]})
+        token = self.revision(self.load()['samples'][0])
+        with patch.object(routes, 'reserve_background_task') as reserve, \
+             TestClient(self.app) as client:
+            stale = client.post('/api/dataset_builder/generate_batch', json={
+                'name': 'voice', 'description': 'old root',
+                'samples': [{'text': 'first'}], 'indices': [0],
+                'expected_count': 1, 'expected_revisions': {'0': token},
+                'expected_description': 'old root', 'expected_global_seed': '77'})
+        self.assertEqual(409, stale.status_code, stale.text)
+        reserve.assert_not_called()
+
+    def test_full_list_receipt_carries_the_durable_status_projection(self):
+        self.save({'description': 'root', 'global_seed': '3', 'samples': [
+            {'text': 'first', 'emotion': '', 'seed': '', 'status': 'done', 'audio_url': '/first.wav'},
+            {'text': 'second', 'emotion': '', 'seed': '', 'status': 'done', 'audio_url': '/second.wav'}]})
+        revisions = dict(enumerate(self.load()['row_revisions'] if 'row_revisions' in self.load()
+                                   else [self.revision(row) for row in self.load()['samples']]))
+        with TestClient(self.app) as client:
+            saved = client.post('/api/dataset_builder/update_rows', json={
+                'name': 'voice', 'rows': [{'text': 'second', 'emotion': '', 'seed': ''}],
+                'expected_count': 2, 'expected_revisions': revisions})
+        self.assertEqual(200, saved.status_code, saved.text)
+        body = saved.json()
+        self.assertEqual('root', body['description'])
+        self.assertEqual('3', body['global_seed'])
+        self.assertEqual(1, len(body['samples']))
+        self.assertEqual('pending', body['samples'][0]['status'],
+                         'the survivor moved to index 0 and lost its generated result')
+        self.assertIsNone(body['samples'][0]['audio_url'])
+        self.assertEqual(body['samples'][0]['status'],
+                         self.load()['samples'][0]['status'])
+
+    def test_metadata_bound_batch_cannot_recreate_a_deleted_project(self):
+        path = self.save({'description': 'root', 'global_seed': '77', 'samples': []})
+        path.unlink()
+        path.parent.rmdir()
+        request = {'name': 'voice', 'description': 'root', 'samples': [{'text': 'first'}]}
+        with patch.object(routes, 'reserve_background_task') as reserve, \
+             patch.object(routes, 'start_claimed_task_thread') as start, \
+             TestClient(self.app) as client:
+            for expected in ({'expected_description': 'root'}, {'expected_global_seed': '77'}):
+                with self.subTest(expected=expected):
+                    stale = client.post('/api/dataset_builder/generate_batch',
+                                        json={**request, **expected})
+                    self.assertEqual(409, stale.status_code, stale.text)
+                    self.assertFalse(path.parent.exists())
+            reserve.assert_not_called()
+            start.assert_not_called()
+
+    def test_update_meta_cas_refuses_external_edit_without_invalidating_rows(self):
+        self.save({'description': 'root', 'global_seed': '', 'samples': [
+            {'text': 'external', 'emotion': '', 'seed': '', 'status': 'done'}]})
+        stale = self.revision({'text': 'old', 'emotion': '', 'seed': '', 'status': 'done'})
+        with TestClient(self.app) as client:
+            refused = client.post('/api/dataset_builder/update_meta', json={
+                'name': 'voice', 'description': 'new root', 'global_seed': '',
+                'expected_count': 1, 'expected_revisions': {0: stale}})
+        self.assertEqual(409, refused.status_code, refused.text)
+        self.assertEqual('external', self.load()['samples'][0]['text'])
+        self.assertEqual('root', self.load()['description'])
+
+
+if __name__ == '__main__':
+    unittest.main()
