@@ -10126,7 +10126,8 @@
     , "tests.test_playback_sequence_epochs_js.PlaybackSequenceEpochJsTests.test_zero_trim_start_resets_stale_audio_position"
   ]
   , "test_polling_recovery_guidance_js": [
-    "tests.test_polling_recovery_guidance_js.PollingRecoveryGuidanceJsTests.test_native_warning_cadence_labels_recovery_and_stop"
+    "tests.test_polling_recovery_guidance_js.PollingRecoveryGuidanceJsTests.test_completion_is_final_and_handler_errors_are_reported_once"
+    , "tests.test_polling_recovery_guidance_js.PollingRecoveryGuidanceJsTests.test_native_warning_cadence_labels_recovery_and_stop"
   ]
   , "test_pooled_take_restoration": [
     "tests.test_pooled_take_restoration.PooledTakeRestorationTests.test_cancelled_and_replaced_owner"
