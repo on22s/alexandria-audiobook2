@@ -1,6 +1,7 @@
 """Mocked Win32 failures exercise bounded cleanup and real task lifecycle."""
 import asyncio
 import copy
+import functools
 import io
 import json
 from pathlib import Path
@@ -291,8 +292,9 @@ class WindowsOwnerCloseDeadlineTests(unittest.TestCase):
                 failure = owner.WindowsOwnerCleanupError(self.control, OSError(5, 'denied'))
                 engine = Mock()
                 engine.generate_voice_design.side_effect = failure
-                def start(name, claim_id, callback):
-                    return core._run_owned_background_task(name, claim_id, callback)
+                def start(name, claim_id, callback, *args, **kwargs):
+                    return core._run_owned_background_task(
+                        name, claim_id, functools.partial(callback, *args, **kwargs))
                 with patch.object(core, 'process_state', states), \
                      patch.object(routes, 'process_state', states), \
                      patch.object(core, '_task_claims', claims), \
