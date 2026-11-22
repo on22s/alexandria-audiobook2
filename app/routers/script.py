@@ -64,22 +64,24 @@ from three_pass_generate import (build_attribute_request,
                                   get_three_pass_preflight_capacity,
                                   get_three_pass_unchecked_count,
                                   get_context_rescue_windows,
-                                 is_three_pass_context_required,
-                                 LARGE_CONTEXT_CHARS,
-                                 validate_instruct_context_chars,
-                                 apply_segment_gate_controls,
-                                 default_instruct,
-                                 get_directed_entry,
-                                 read_source_text,
+                                  get_named_from_answer,
+                                  get_prepared_source,
+                                  is_three_pass_context_required,
+                                  LARGE_CONTEXT_CHARS,
+                                  validate_instruct_context_chars,
+                                  apply_segment_gate_controls,
+                                  default_instruct,
+                                  get_directed_entry,
+                                  read_source_text,
                                  resolve_three_pass_generation_settings,
                                  three_pass_checkpoint_path,
                                  three_pass_manifest_path)
-from merge_integrity import get_source_integrity
+from merge_integrity import get_source_integrity, get_source_preparation
 from cast_list import get_cast_list_path, save_cast_list
 from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
-from pass_quality import (split_outer_quote_regions, validate_attribution,
-                          validate_instruct, validate_segment_quality)
+from pass_quality import (index_head_check, split_outer_quote_regions, validate_attribution,
+                           validate_instruct, validate_segment_quality)
 from speaker_identity import stabilize_speaker_identities
 from generate_script import LLMGenParams
 from utils import file_lock, is_path_inside
@@ -3299,23 +3301,59 @@ def build_recovery_detail(checkpoint):
     }
 
 
-def get_pass2_recovery_evidence(checkpoint):
-    """The source and cast evidence the failed pass-2 batch was gated with.
+_RECOVERY_PROOF_REFUSAL = (
+    'The failed batch source could not be verified; the checkpoint was preserved. '
+    'Start a new run.')
+_RECOVERY_DESTINATION_REFUSAL = (
+    'The failed batch does not map to unique saved rows; the checkpoint was preserved. '
+    'Start a new run.')
 
-    Pass 1 froze these entries against the source, so checkpoint["segmented"]
-    at failed["indices"] is the source text the live gate read; failed.entries
-    carries the same text on checkpoints whose segmented slice is unavailable.
-    The roster and the hash-bound frozen cast are the run's cast evidence. A
-    stale or missing cast only loses the extra names it supplied - it never
-    loosens the source check. Without any usable source text, refuse instead of
-    falling back to a source-less gate (which cannot reject an invented name).
+
+def _digest_is_sha256(value):
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def get_pass2_recovery_source(checkpoint):
+    """Recover the full prepared source the live pass-2 gate read.
+
+    A fingerprinted checkpoint proves its source by the prepared-text digest in
+    its fingerprint. Rebuild that text through the run's own admitted source and
+    saved preparation options; the digest passed to get_prepared_source is the
+    RAW upload hash from the run's selection, not the prepared hash, so the
+    prepared digest is compared separately. Any mismatch, malformed evidence or
+    unsafe source is a stable 409 - never a silent downgrade. Only a checkpoint
+    with no fingerprint source digest uses the older segmented-slice evidence.
     """
+    fingerprint = checkpoint.get("fingerprint")
+    if isinstance(fingerprint, dict) and "source_sha256" in fingerprint:
+        expected = fingerprint["source_sha256"]
+        if not _digest_is_sha256(expected):
+            raise HTTPException(status_code=409, detail=_RECOVERY_PROOF_REFUSAL)
+        try:
+            state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+            path, strip_front_matter = get_source_preparation(state)
+            selection = state.get("script_generation_selection")
+            raw = selection.get("source_sha256") if isinstance(selection, dict) else None
+            if raw is not None:
+                if (not _digest_is_sha256(raw)
+                        or selection.get("source_path") != path):
+                    raise ValueError('run selection mismatch')
+            prepared, _report = get_prepared_source(
+                path, strip_front_matter, report=lambda message: None,
+                owning_root=DATA_DIR,
+                **({'expected_source_sha256': raw} if raw is not None else {}))
+            actual = hashlib.sha256(prepared.encode('utf-8')).hexdigest()
+        except (ValueError, OSError, UnicodeError, RecursionError, TypeError):
+            raise HTTPException(status_code=409, detail=_RECOVERY_PROOF_REFUSAL)
+        if actual != expected:
+            raise HTTPException(status_code=409, detail=_RECOVERY_PROOF_REFUSAL)
+        return prepared
     failed = checkpoint["failed"]
     segmented = checkpoint.get("segmented")
     indices = failed.get("indices")
     texts = None
     if (isinstance(indices, list) and indices and isinstance(segmented, list)
-            and all(isinstance(i, int) and 0 <= i < len(segmented)
+            and all(type(i) is int and 0 <= i < len(segmented)
                     and isinstance(segmented[i], dict)
                     and isinstance(segmented[i].get("text"), str)
                     and segmented[i]["text"] for i in indices)):
@@ -3328,28 +3366,69 @@ def get_pass2_recovery_evidence(checkpoint):
                         and entry["text"] for entry in entries)):
             texts = [entry["text"] for entry in entries]
     if not texts:
-        raise HTTPException(status_code=409, detail=(
-            "The failed batch has no source text to validate against; "
-            "the checkpoint was preserved. Start a new run."))
+        raise HTTPException(status_code=409, detail=_RECOVERY_PROOF_REFUSAL)
+    return "\n".join(texts)
+
+
+def get_pass2_recovery_destination(checkpoint, frozen):
+    """The unique, in-range saved rows this batch may replace, checked before
+    any failed evidence is retired. A missing `indices` key is the one explicit
+    legacy shape: an all-empty named prefix maps consecutively from zero. A
+    present but partial, duplicated, boolean or out-of-range index is refused.
+    """
+    failed = checkpoint["failed"]
+    named = checkpoint.get("named")
+    segmented = checkpoint.get("segmented")
+    if not isinstance(named, list):
+        raise HTTPException(status_code=409, detail=_RECOVERY_DESTINATION_REFUSAL)
+    if "indices" in failed:
+        indices = failed["indices"]
+        if (not isinstance(indices, list) or len(indices) != len(frozen)
+                or any(type(i) is not int or not 0 <= i < len(named) for i in indices)
+                or len(set(indices)) != len(indices)):
+            raise HTTPException(status_code=409, detail=_RECOVERY_DESTINATION_REFUSAL)
+        destinations = list(indices)
+    else:
+        if named and (len(named) != len(frozen) or any(row is not None for row in named)):
+            raise HTTPException(status_code=409, detail=_RECOVERY_DESTINATION_REFUSAL)
+        destinations = list(range(len(frozen)))
+    if isinstance(segmented, list) and all(0 <= index < len(segmented) for index in destinations):
+        for index, entry in zip(destinations, frozen):
+            retained = segmented[index]
+            if (not isinstance(retained, dict)
+                    or retained.get("text") != entry.get("text")
+                    or retained.get("type") != entry.get("type")):
+                raise HTTPException(status_code=409, detail=_RECOVERY_DESTINATION_REFUSAL)
+    return destinations
+
+
+def get_pass2_recovery_evidence(checkpoint):
+    """The live gate's source and cast inputs, recovered from the failed run.
+
+    The roster is established identity evidence, but only the run's verified
+    cast supplies known_names/aliases that bypass the source-attestation check.
+    A stale or missing cast just drops those extra names; it never loosens the
+    gate for roster-only labels.
+    """
+    failed = checkpoint["failed"]
     roster = [name for name in (failed.get("roster") or [])
               if isinstance(name, str) and name]
-    known_names = set(roster)
-    aliases = {}
+    cast = None
     state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
     options = state.get("script_generation_options") if isinstance(state, dict) else None
     expected = options.get("cast_sha256") if isinstance(options, dict) else None
     cast_path = get_run_cast_path()
-    if isinstance(expected, str) and expected == get_file_sha256(cast_path):
+    if _digest_is_sha256(expected) and expected == get_file_sha256(cast_path):
         try:
             from three_pass_generate import load_cast
             cast = load_cast(cast_path)
         except (OSError, ValueError, UnicodeError):
             cast = None
-        if cast:
-            known_names |= set(cast.get("known_names") or ())
-            aliases = dict(cast.get("alias_to_name") or {})
-    return {"source_text": "\n".join(texts), "known_names": known_names,
-            "established_names": roster, "speaker_aliases": aliases}
+    return {"source_text": get_pass2_recovery_source(checkpoint),
+            "known_names": set((cast or {}).get("known_names") or ()),
+            "established_names": roster,
+            "speaker_aliases": dict((cast or {}).get("alias_to_name") or {}),
+            "cast": cast}
 
 
 def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
@@ -3385,12 +3464,14 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
                 speaker_aliases=evidence["speaker_aliases"])
             if not report.get("passed"):
                 return {"accepted": False, "report": report}
-            by_n = {int(e["n"]): e for e in entries}
-            bound = [{k: v for k, v in f.items() if k != "type"} | {"speaker": by_n[i]["speaker"]}
-                     for i, f in enumerate(frozen)]
-            bound = stabilize_speaker_identities(bound, established_speakers=failed.get("roster") or [])["entries"]
+            destinations = get_pass2_recovery_destination(checkpoint, frozen)
+            ordered = index_head_check(frozen, entries)[2]
+            bound = get_named_from_answer(frozen, ordered, cast=evidence["cast"],
+                                          speaker_traits=False)
+            bound = stabilize_speaker_identities(
+                bound, established_speakers=evidence["established_names"])["entries"]
             named = list(checkpoint.get("named") or [])
-            for index, entry in zip(failed.get("indices") or [], bound):
+            for index, entry in zip(destinations, bound):
                 while len(named) <= index:
                     named.append(None)
                 named[index] = entry

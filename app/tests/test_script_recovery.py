@@ -18,11 +18,61 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from routers import script as script_module
-from three_pass_generate import three_pass_checkpoint_path, three_pass_manifest_path
+from three_pass_generate import (get_prepared_source, three_pass_checkpoint_path,
+                                 three_pass_fingerprint, three_pass_manifest_path)
 from utils import atomic_json_write
 
 SOURCE = ('"Where is he?" asked Holmes. "Gone," said I. Sherlock Holmes frowned and '
           'looked at the door for a long moment before he spoke again.')
+FILLER = 'The quiet river moved past the old stone bridge. Nothing else happened that day. '
+ATTESTED = ['Holmes watched the door.', 'Holmes looked at the window.',
+            'Watson waited outside.', 'Watson closed the door.']
+
+
+def _long_source(mentions=(), length=10834):
+    text = (' '.join(mentions) + ' ') if mentions else ''
+    while len(text) < length:
+        text += FILLER
+    return text[:length]
+
+
+def _write_fingerprinted_attribute_run(tmp, source_text, entries, roster=('HOLMES', 'WATSON'),
+                                       cast=None, strip_front_matter=False, selection=True,
+                                       source_digest=None):
+    """A genuine writer-shaped checkpoint: prepared-text fingerprint, saved
+    preparation options and a raw selection digest all agree with the source."""
+    script_path = os.path.join(tmp, 'annotated_script.json')
+    book = os.path.join(tmp, 'book.txt')
+    Path(book).write_text(source_text, encoding='utf-8')
+    prepared, _ = get_prepared_source(book, strip_front_matter, owning_root=tmp)
+    cast_sha = hashlib.sha256(cast).hexdigest() if cast is not None else None
+    fingerprint = three_pass_fingerprint(prepared, 'fixture-model', 4000,
+                                         cast_sha256=cast_sha)
+    if source_digest is not None:
+        fingerprint['source_sha256'] = source_digest
+    atomic_json_write({**fingerprint, 'status': 'failed', 'failed_pass': 'attribute',
+                       'chunks': [], 'counts': {}, 'passes': {}, 'diagnostic_failures': []},
+                      three_pass_manifest_path(script_path))
+    segmented = [{'type': 'NARRATOR', 'text': 'Prelude.'}] + list(entries)
+    atomic_json_write({
+        'fingerprint': fingerprint, 'stage': 'attribute_failed', 'chunks_done': 1,
+        'segmented': segmented,
+        'named': [{'text': 'Prelude.', 'speaker': 'NARRATOR'}, None, None, None],
+        'annotated': [], 'resolutions': ['clean'], 'elapsed_s': {}, 'diagnostic_failures': [],
+        'failed': {'pass': 'attribute', 'indices': [1, 2, 3], 'entries': list(entries),
+                   'roster': list(roster), 'reason': 'attribute LLM unavailable; refusing fallback output',
+                   'attempts': []}}, three_pass_checkpoint_path(script_path))
+    state = {'input_file_path': book, 'script_generation_input_file': book,
+             'script_generation_options': {'strip_front_matter': strip_front_matter,
+                                           'cast_sha256': cast_sha}}
+    if selection:
+        state['script_generation_selection'] = {
+            'source_sha256': hashlib.sha256(Path(book).read_bytes()).hexdigest(),
+            'source_path': book, 'book_token': 'b' * 64}
+    atomic_json_write(state, os.path.join(tmp, 'state.json'))
+    if cast is not None:
+        Path(os.path.join(tmp, 'script_run_cast.json')).write_bytes(cast)
+    return script_path
 
 
 def _write_failed_attribute_run(tmp):
@@ -30,7 +80,8 @@ def _write_failed_attribute_run(tmp):
     atomic_json_write({"fingerprint": "fp", "status": "failed", "failed_pass": "attribute",
                        "chunks": [], "counts": {}, "passes": {}, "diagnostic_failures": []},
                       three_pass_manifest_path(script_path))
-    entries = [{"type": "SPOKEN", "text": "Where is he?"}, {"type": "NARRATOR", "text": "asked Holmes."},
+    entries = [{"type": "SPOKEN", "text": "Where is he?"},
+               {"type": "NARRATOR", "text": "asked Holmes. Watson watched the door."},
                {"type": "SPOKEN", "text": "Gone,"}]
     atomic_json_write({
         "fingerprint": "fp", "stage": "attribute_failed", "chunks_done": 1,
@@ -285,14 +336,17 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(["NARRATOR", "UNKNOWN", "NARRATOR", "UNKNOWN"],
                          [e["speaker"] for e in checkpoint["named"]])
 
-    def _inject_http(self, entries, setup=None):
+    def _inject_http(self, entries, writer=_write_failed_attribute_run, setup=None):
         with tempfile.TemporaryDirectory() as tmp:
-            script_path = _write_failed_attribute_run(tmp)
+            script_path = writer(tmp)
             checkpoint_path = three_pass_checkpoint_path(script_path)
+            manifest_path = three_pass_manifest_path(script_path)
             if setup is not None:
                 setup(tmp)
             with open(checkpoint_path, "rb") as handle:
-                before = handle.read()
+                before_checkpoint = handle.read()
+            with open(manifest_path, "rb") as handle:
+                before_manifest = handle.read()
             app = FastAPI()
             app.include_router(script_module.router)
             previous = script_module.process_state["script"]["running"]
@@ -305,84 +359,228 @@ class RecoveryTests(unittest.TestCase):
                         response = client.post("/api/generate_script/inject",
                                                json={"entries": entries})
                 with open(checkpoint_path, "rb") as handle:
-                    after = handle.read()
-                return response, before, after
+                    after_checkpoint = handle.read()
+                with open(manifest_path, "rb") as handle:
+                    after_manifest = handle.read()
+                return (response, before_checkpoint, after_checkpoint,
+                        before_manifest, after_manifest)
             finally:
                 script_module.process_state["script"]["running"] = previous
 
-    def test_attribute_inject_refuses_invented_speaker_and_preserves_checkpoint(self):
-        response, before, after = self._inject_http([
+    def _fingerprinted_writer(self, source_text, **kwargs):
+        entries = [{"type": "SPOKEN", "text": "Where is he?"},
+                   {"type": "NARRATOR", "text": "said Holmes."},
+                   {"type": "SPOKEN", "text": "Gone,"}]
+        def write(tmp):
+            return _write_fingerprinted_attribute_run(tmp, source_text, entries, **kwargs)
+        return write
+
+    def test_attribute_inject_refuses_invented_speaker_and_preserves_both_artifacts(self):
+        response, checkpoint_before, checkpoint_after, manifest_before, manifest_after = self._inject_http([
             {"n": 0, "speaker": "FUTURE_ME"},
             {"n": 1, "speaker": "NARRATOR"},
             {"n": 2, "speaker": "WATSON"}])
         self.assertEqual(422, response.status_code)
         self.assertEqual(["speaker_not_in_source"],
                          [f["code"] for f in response.json()["detail"]["findings"]])
-        self.assertEqual(before, after)
+        self.assertEqual(checkpoint_before, checkpoint_after)
+        self.assertEqual(manifest_before, manifest_after)
 
-    def test_attribute_inject_accepts_roster_and_frozen_cast_alias(self):
-        def setup(tmp):
-            cast = json.dumps([{"name": "HOLMES", "aliases": ["SHERLOCK"]},
-                               {"name": "WATSON", "aliases": ["JOHN"]}]).encode("utf-8")
-            with open(os.path.join(tmp, "script_run_cast.json"), "wb") as handle:
-                handle.write(cast)
-            state_path = os.path.join(tmp, "state.json")
-            with open(state_path, encoding="utf-8") as handle:
-                state = json.load(handle)
-            state["script_generation_options"] = {
-                "cast_sha256": hashlib.sha256(cast).hexdigest()}
-            with open(state_path, "w", encoding="utf-8") as handle:
-                json.dump(state, handle)
+    def test_book_name_attested_twice_outside_failed_batch_is_accepted(self):
+        source = _long_source(['MIRA walked beside the river.', 'MIRA waited at the gate.'])
+        self.assertGreater(len(source), 5000)
+        response, _, _, _, _ = self._inject_http([
+            {"n": 0, "speaker": "MIRA"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "MIRA"}], writer=self._fingerprinted_writer(source, roster=['MIRA']))
+        self.assertEqual(200, response.status_code)
+        self.assertEqual('manual', response.json()['resolution'])
 
-        response, _, _ = self._inject_http([
+    def test_book_name_attested_once_in_long_source_is_refused(self):
+        source = _long_source(['MIRA walked beside the river.'])
+        self.assertEqual(10834, len(source))
+        response, checkpoint_before, checkpoint_after, _, _ = self._inject_http([
+            {"n": 0, "speaker": "MIRA"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "MIRA"}], writer=self._fingerprinted_writer(source, roster=['MIRA']))
+        self.assertEqual(422, response.status_code)
+        self.assertIn('speaker_not_in_source',
+                      [f['code'] for f in response.json()['detail']['findings']])
+        self.assertEqual(checkpoint_before, checkpoint_after)
+
+    def test_source_speech_tag_contradiction_is_refused(self):
+        source = ('"Where is he?" said Holmes. "Gone," said Watson. ' + ' '.join(ATTESTED) + ' ' + FILLER * 130)
+        response, _, _, _, _ = self._inject_http([
+            {"n": 0, "speaker": "WATSON"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "WATSON"}], writer=self._fingerprinted_writer(source))
+        self.assertEqual(422, response.status_code)
+        self.assertIn('speaker_contradicts_source_tag',
+                      [f['code'] for f in response.json()['detail']['findings']])
+
+    def test_roster_only_lowercase_attestation_is_refused_like_live(self):
+        source = _long_source(['She planted a rose by the wall.', 'Another rose grew near the gate.'])
+        response, _, _, _, _ = self._inject_http([
+            {"n": 0, "speaker": "ROSE"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "ROSE"}], writer=self._fingerprinted_writer(source, roster=['ROSE']))
+        self.assertEqual(422, response.status_code)
+        self.assertIn('speaker_not_in_source',
+                      [f['code'] for f in response.json()['detail']['findings']])
+
+    def test_verified_cast_alias_persists_the_canonical_name(self):
+        source = _long_source(ATTESTED)
+        cast = json.dumps([{"name": "HOLMES", "aliases": ["SHERLOCK"]},
+                           {"name": "WATSON", "aliases": ["JOHN"]}]).encode('utf-8')
+        response, _, checkpoint_after, _, _ = self._inject_http([
             {"n": 0, "speaker": "SHERLOCK"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "WATSON"}],
+            writer=self._fingerprinted_writer(source, cast=cast))
+        self.assertEqual(200, response.status_code)
+        self.assertEqual('HOLMES', json.loads(checkpoint_after)['named'][1]['speaker'])
+
+    def test_stale_or_unbound_cast_cannot_admit_an_alias(self):
+        source = _long_source(ATTESTED)
+        for cast in (None, b'[{"name":"HOLMES","aliases":["SHERLOCK"]}]'):
+            with self.subTest(cast=cast):
+                writer = self._fingerprinted_writer(source)
+                def setup(tmp):
+                    if cast is not None:
+                        Path(os.path.join(tmp, 'script_run_cast.json')).write_bytes(cast)
+                response, _, _, _, _ = self._inject_http([
+                    {"n": 0, "speaker": "SHERLOCK"},
+                    {"n": 1, "speaker": "NARRATOR"},
+                    {"n": 2, "speaker": "WATSON"}], writer=writer, setup=setup)
+                self.assertEqual(422, response.status_code)
+                self.assertIn('speaker_not_in_source',
+                              [f['code'] for f in response.json()['detail']['findings']])
+
+    def test_changed_or_missing_source_is_refused_without_legacy_downgrade(self):
+        source = _long_source(ATTESTED)
+        for change in ('changed', 'missing'):
+            with self.subTest(change=change):
+                writer = self._fingerprinted_writer(source)
+                def setup(tmp):
+                    book = os.path.join(tmp, 'book.txt')
+                    if change == 'missing':
+                        os.unlink(book)
+                    else:
+                        Path(book).write_text(source + ' A different ending.', encoding='utf-8')
+                response, checkpoint_before, checkpoint_after, manifest_before, manifest_after = self._inject_http([
+                    {"n": 0, "speaker": "HOLMES"},
+                    {"n": 1, "speaker": "NARRATOR"},
+                    {"n": 2, "speaker": "WATSON"}], writer=writer, setup=setup)
+                self.assertEqual(409, response.status_code)
+                self.assertNotIn('book.txt', response.json()['detail'])
+                self.assertEqual(checkpoint_before, checkpoint_after)
+                self.assertEqual(manifest_before, manifest_after)
+
+    def test_saved_front_matter_option_is_used_for_the_source_proof(self):
+        source = ('Publisher notice about pricing.\n\n' +
+                  _long_source(ATTESTED))
+        entries = [{"type": "SPOKEN", "text": "Where is he?"},
+                   {"type": "NARRATOR", "text": "said Holmes."},
+                   {"type": "SPOKEN", "text": "Gone,"}]
+        def write(tmp):
+            return _write_fingerprinted_attribute_run(
+                tmp, source, entries, roster=['HOLMES', 'WATSON'], strip_front_matter=True)
+        response, _, _, _, _ = self._inject_http([
+            {"n": 0, "speaker": "HOLMES"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "WATSON"}], writer=write)
+        self.assertEqual(200, response.status_code)
+
+    def test_malformed_fingerprint_digest_is_not_downgraded(self):
+        source = _long_source(ATTESTED)
+        writer = self._fingerprinted_writer(source, source_digest='not-a-digest')
+        response, checkpoint_before, checkpoint_after, manifest_before, manifest_after = self._inject_http([
+            {"n": 0, "speaker": "HOLMES"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "WATSON"}], writer=writer)
+        self.assertEqual(409, response.status_code)
+        self.assertEqual(checkpoint_before, checkpoint_after)
+        self.assertEqual(manifest_before, manifest_after)
+
+    def test_retained_text_or_type_mismatch_is_refused(self):
+        source = _long_source(ATTESTED)
+        for field in ('text', 'type'):
+            with self.subTest(field=field):
+                writer = self._fingerprinted_writer(source)
+                def setup(tmp):
+                    path = three_pass_checkpoint_path(os.path.join(tmp, 'annotated_script.json'))
+                    checkpoint = json.loads(Path(path).read_text(encoding='utf-8'))
+                    checkpoint['segmented'][1][field] = 'CHANGED'
+                    Path(path).write_text(json.dumps(checkpoint), encoding='utf-8')
+                response, checkpoint_before, checkpoint_after, manifest_before, manifest_after = self._inject_http([
+                    {"n": 0, "speaker": "HOLMES"},
+                    {"n": 1, "speaker": "NARRATOR"},
+                    {"n": 2, "speaker": "WATSON"}], writer=writer, setup=setup)
+                self.assertEqual(409, response.status_code)
+                self.assertEqual(checkpoint_before, checkpoint_after)
+                self.assertEqual(manifest_before, manifest_after)
+
+    def test_malformed_indices_are_refused_before_failed_evidence_is_retired(self):
+        for indices in ([], [1, 1, 2], [1, 2, 9], [1, 2], [1, 2, True]):
+            with self.subTest(indices=indices):
+                writer = self._fingerprinted_writer(_long_source(ATTESTED))
+                def setup(tmp):
+                    path = three_pass_checkpoint_path(os.path.join(tmp, 'annotated_script.json'))
+                    checkpoint = json.loads(Path(path).read_text(encoding='utf-8'))
+                    checkpoint['failed']['indices'] = indices
+                    Path(path).write_text(json.dumps(checkpoint), encoding='utf-8')
+                response, checkpoint_before, checkpoint_after, manifest_before, manifest_after = self._inject_http([
+                    {"n": 0, "speaker": "HOLMES"},
+                    {"n": 1, "speaker": "NARRATOR"},
+                    {"n": 2, "speaker": "WATSON"}], writer=writer, setup=setup)
+                self.assertEqual(409, response.status_code)
+                self.assertEqual(checkpoint_before, checkpoint_after)
+                self.assertEqual(manifest_before, manifest_after)
+
+    def test_explicit_legacy_shape_without_indices_maps_the_empty_prefix(self):
+        def setup(tmp):
+            path = three_pass_checkpoint_path(os.path.join(tmp, 'annotated_script.json'))
+            checkpoint = json.loads(Path(path).read_text(encoding='utf-8'))
+            checkpoint['failed'].pop('indices')
+            checkpoint['segmented'] = list(checkpoint['failed']['entries'])
+            checkpoint['named'] = [None, None, None]
+            Path(path).write_text(json.dumps(checkpoint), encoding='utf-8')
+        response, _, checkpoint_after, _, _ = self._inject_http([
+            {"n": 0, "speaker": "HOLMES"},
             {"n": 1, "speaker": "NARRATOR"},
             {"n": 2, "speaker": "WATSON"}], setup=setup)
         self.assertEqual(200, response.status_code)
-        self.assertEqual("manual", response.json()["resolution"])
+        self.assertEqual(['HOLMES', 'NARRATOR', 'WATSON'],
+                         [row['speaker'] for row in json.loads(checkpoint_after)['named']])
 
-    def test_attribute_inject_ignores_a_stale_or_missing_frozen_cast(self):
-        def setup_factory(cast):
-            def setup(tmp):
-                state_path = os.path.join(tmp, "state.json")
-                with open(state_path, encoding="utf-8") as handle:
-                    state = json.load(handle)
-                state["script_generation_options"] = {"cast_sha256": "a" * 64}
-                with open(state_path, "w", encoding="utf-8") as handle:
-                    json.dump(state, handle)
-                if cast is not None:
-                    with open(os.path.join(tmp, "script_run_cast.json"), "wb") as handle:
-                        handle.write(cast)
-            return setup
-
-        for cast in (b'[{"name":"HOLMES","aliases":["SHERLOCK"]}]', None):
-            with self.subTest(cast=cast):
-                response, _, _ = self._inject_http([
-                    {"n": 0, "speaker": "SHERLOCK"},
-                    {"n": 1, "speaker": "NARRATOR"},
-                    {"n": 2, "speaker": "WATSON"}], setup=setup_factory(cast))
-                self.assertEqual(422, response.status_code)
-                self.assertEqual(["speaker_not_in_source"],
-                                 [f["code"] for f in response.json()["detail"]["findings"]])
+    def test_parenthetical_alias_echo_cannot_persist_an_unvalidated_label(self):
+        response, _, checkpoint_after, _, _ = self._inject_http([
+            {"n": 0, "speaker": "HOLMES (also: FUTURE_ME)"},
+            {"n": 1, "speaker": "NARRATOR"},
+            {"n": 2, "speaker": "WATSON"}])
+        self.assertEqual(200, response.status_code)
+        named = json.loads(checkpoint_after)['named']
+        self.assertEqual('HOLMES', named[1]['speaker'])
+        self.assertNotIn('FUTURE_ME', json.dumps(named))
 
     def test_attribute_inject_without_recoverable_source_is_refused(self):
         def setup(tmp):
             checkpoint_path = three_pass_checkpoint_path(
                 os.path.join(tmp, "annotated_script.json"))
-            with open(checkpoint_path, encoding="utf-8") as handle:
-                checkpoint = json.load(handle)
+            with open(checkpoint_path, "rb") as handle:
+                checkpoint = json.loads(handle.read())
             checkpoint["segmented"] = []
             checkpoint["failed"]["entries"] = [{"type": "SPOKEN", "text": ""}]
             with open(checkpoint_path, "w", encoding="utf-8") as handle:
                 json.dump(checkpoint, handle)
-
-        response, before, after = self._inject_http([
+        response, checkpoint_before, checkpoint_after, manifest_before, manifest_after = self._inject_http([
             {"n": 0, "speaker": "HOLMES"},
             {"n": 1, "speaker": "NARRATOR"},
             {"n": 2, "speaker": "WATSON"}], setup=setup)
         self.assertEqual(409, response.status_code)
-        self.assertIn("no source text", response.json()["detail"])
-        self.assertEqual(before, after)
+        self.assertIn("could not be verified", response.json()["detail"])
+        self.assertEqual(checkpoint_before, checkpoint_after)
+        self.assertEqual(manifest_before, manifest_after)
 
     def test_old_instruct_checkpoint_inject_keeps_direction_less_rows(self):
         request = script_module.InjectSegmentationRequest(entries=[
