@@ -1196,44 +1196,69 @@ class FinalBlockerTests(Harness):
         self.assertEqual(original_voice, voice.read_bytes())
         self.assertIsNone(self.fact('forward', target))
 
-    def test_writer_hard_interruption_without_content_proof_replays_source(self):
+    def get_interrupted_split(self, book):
         self.config['generation'] = {'review_batch_size': 3, 'review_target_chars': 1,
                                      'merge_narrators': False}
-        scripts = self.root / 'scripts'
-        scripts.mkdir()
-        original_texts = [row['text'] for row in self.rows]
-
         def split_then_interrupt(rows, index):
             if index > 1:
                 raise KeyboardInterrupt
             return [{**rows[0], 'text': 'Red'}, {**rows[0], 'text': 'cat.'}]
 
+        book.parent.mkdir(exist_ok=True)
+        book.write_text(json.dumps(self.rows))
+        with self.assertRaises(KeyboardInterrupt):
+            self.cli(path=book, transform=split_then_interrupt)
+        self.assertEqual(self.rows, json.loads(book.read_text()))
+        path = str(book) + '.review_checkpoint.json'
+        checkpoint = review.load_generation_checkpoint_document(path)
+        self.assertEqual([2], checkpoint['batch_lengths'])
+        for key in ('retained_sha256', 'output_sha256', 'batch_outcomes', 'input_path'):
+            checkpoint.pop(key, None)
+        return path, checkpoint
+
+    def test_writer_hard_interruption_without_content_proof_replays_source(self):
+        original_texts = [row['text'] for row in self.rows]
+        for storage in ('compact', 'delta'):
+            for count in (0, 1):
+                with self.subTest(storage=storage, count=count):
+                    book = self.root / 'scripts' / f'{storage}-{count}.json'
+                    path, current = self.get_interrupted_split(book)
+                    writer = gd.GenerationCheckpointDeltas(path, reset=True)
+                    writer.save_checkpoint(current)
+                    tampered = {**current, 'all_corrected': [
+                        {**current['all_corrected'][0], 'text': 'Changed retained word.'},
+                        *current['all_corrected'][1:]]}
+                    if count == 0:
+                        tampered.update(completed_batches=0, batch_lengths=[], source_offsets=[],
+                                        review_batch_contributions=[])
+                    writer.save_checkpoint(tampered, compact=storage == 'compact')
+                    self.assertEqual(tampered, review.load_generation_checkpoint_document(path))
+
+                    self.calls.clear()
+                    self.cli(path=book)
+                    self.assertEqual([[text] for text in original_texts], self.calls)
+                    self.assertEqual(original_texts,
+                                     [row['text'] for row in json.loads(book.read_text())])
+                    self.assertIsNotNone(self.fact('forward', book))
+
+    def test_proven_split_resumes_with_contributions_and_no_optional_lengths(self):
         for storage in ('compact', 'delta'):
             with self.subTest(storage=storage):
-                book = scripts / f'{storage}.json'
-                book.write_text(json.dumps(self.rows))
-                with self.assertRaises(KeyboardInterrupt):
-                    self.cli(path=book, transform=split_then_interrupt)
-                self.assertEqual(self.rows, json.loads(book.read_text()))
-                path = str(book) + '.review_checkpoint.json'
-                current = review.load_generation_checkpoint_document(path)
-                self.assertEqual([2], current['batch_lengths'])
-                for key in ('retained_sha256', 'output_sha256', 'batch_outcomes', 'input_path'):
-                    current.pop(key, None)
+                book = self.root / 'scripts' / f'{storage}-proven.json'
+                path, current = self.get_interrupted_split(book)
+                expected = current['all_corrected'] + self.rows[1:]
+                current['output_sha256'] = receipts.get_review_entries_fingerprint(expected)
+                self.assertEqual(2, current['review_batch_contributions'][0]['output_length'])
                 writer = gd.GenerationCheckpointDeltas(path, reset=True)
                 writer.save_checkpoint(current)
-                tampered = {**current, 'all_corrected': [
-                    {**current['all_corrected'][0], 'text': 'Changed retained word.'},
-                    *current['all_corrected'][1:]]}
-                writer.save_checkpoint(tampered, compact=storage == 'compact')
-                self.assertEqual(tampered, review.load_generation_checkpoint_document(path))
-
+                del current['batch_lengths']
+                writer.save_checkpoint(current, compact=storage == 'compact')
+                self.assertEqual(current, review.load_generation_checkpoint_document(path))
                 self.calls.clear()
                 self.cli(path=book)
-                self.assertEqual([[text] for text in original_texts], self.calls)
-                self.assertEqual(original_texts,
-                                 [row['text'] for row in json.loads(book.read_text())])
-                self.assertIsNotNone(self.fact('forward', book))
+                self.assertEqual([[row['text']] for row in self.rows[1:]], self.calls)
+                self.assertEqual(expected, json.loads(book.read_text()))
+                self.assertEqual(current['output_sha256'], self.fact('forward', book)['output_sha256'])
 
     def test_genuine_two_batch_prefix_resumes_only_black(self):
         self.config['generation'] = {'review_batch_size': 3, 'review_target_chars': 1}

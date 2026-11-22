@@ -791,6 +791,8 @@ def are_review_checkpoint_coordinates_valid(data, validate_lengths=True):
     corrected = data.get('all_corrected')
     if type(count) is not int or count < 0 or not isinstance(corrected, list):
         return False
+    if count == 0 and corrected:
+        return False
     lengths = data.get('batch_lengths')
     if lengths is not None:
         if not isinstance(lengths, list):
@@ -907,11 +909,16 @@ def is_review_checkpoint_evidence_valid(data, *, source_rows=None, published_row
         if first_zero is not None and first_zero != min(failed):
             return False
     if structured:
-        if len(lengths) != expected_lengths or sum(lengths) != len(corrected):
+        # These contributions can corroborate the cumulative retained
+        # boundary even when an older checkpoint omits batch_lengths. Do
+        # not use them as replacement rewind coordinates.
+        contribution_lengths = [row['output_length'] for row in contributions]
+        if (len(contribution_lengths) != expected_lengths
+                or any(length < 0 for length in contribution_lengths)
+                or sum(contribution_lengths) != len(corrected)
+                or (lengths and lengths != contribution_lengths)):
             return False
         for index, row in enumerate(contributions):
-            if row['output_length'] != lengths[index]:
-                return False
             if offsets is not None and row['source_end'] != offsets[index]:
                 return False
         if outcomes is not None:

@@ -12741,6 +12741,7 @@
     , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_unowned_interior_lengths_and_failure_list_must_be_proven"
     , "tests.test_review_receipt_identity_boundary.FinalBlockerTests.test_alias_created_after_locked_dedupe_snapshot_is_refused"
     , "tests.test_review_receipt_identity_boundary.FinalBlockerTests.test_genuine_two_batch_prefix_resumes_only_black"
+    , "tests.test_review_receipt_identity_boundary.FinalBlockerTests.test_proven_split_resumes_with_contributions_and_no_optional_lengths"
     , "tests.test_review_receipt_identity_boundary.FinalBlockerTests.test_writer_hard_interruption_without_content_proof_replays_source"
     , "tests.test_review_receipt_identity_boundary.FlatIdentityTests.test_double_replacement_migrates_the_validated_digest"
     , "tests.test_review_receipt_identity_boundary.FlatIdentityTests.test_migrated_flat_reuse_reports_verified_separate_output_count"
