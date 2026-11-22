@@ -57,3 +57,29 @@ class SubprocessLeaseDispatchTests(unittest.TestCase):
             exit_notice_path='exit', termination_grace=2, env=environment,
             cwd='workdir', stdout=1, stderr=2, start_new_session=True)
         self.assertEqual({'FIXTURE': 'preserved'}, environment)
+
+    def test_windows_dispatch_refuses_posix_only_owner_options(self):
+        launcher = Mock()
+        module = SimpleNamespace(start_windows_owned_subprocess=launcher)
+        unsupported = (
+            {'gpu_lease_fd': 37}, {'task_lease_fd': 38},
+            {'stop_receipt_path': 'receipt'}, {'disconnect_signal': 15},
+            {'gpu_lease_fd': 37, 'task_lease_fd': 38,
+             'stop_receipt_path': 'receipt', 'disconnect_signal': 15},
+        )
+        for option in unsupported:
+            with self.subTest(option=option), patch.object(ownership, 'sys', SimpleNamespace(platform='win32')), \
+                 patch.dict(sys.modules, {'windows_subprocess_owner': module}):
+                with self.assertRaises(ValueError):
+                    ownership.start_owned_subprocess(['worker'], **option)
+        launcher.assert_not_called()
+
+    def test_windows_dispatch_forwards_supported_native_owner_options(self):
+        launcher = Mock(return_value=object())
+        module = SimpleNamespace(start_windows_owned_subprocess=launcher)
+        with patch.object(ownership, 'sys', SimpleNamespace(platform='win32')), \
+             patch.dict(sys.modules, {'windows_subprocess_owner': module}):
+            ownership.start_owned_subprocess(['worker'], exit_notice_path='exit',
+                                             termination_grace=5, cwd='workdir')
+        launcher.assert_called_once_with(['worker'], exit_notice_path='exit',
+                                         termination_grace=5, cwd='workdir')

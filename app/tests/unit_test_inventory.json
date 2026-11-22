@@ -15509,6 +15509,8 @@
     , "tests.test_subprocess_lease_dispatch.SubprocessLeaseDispatchTests.test_foreign_or_unmarked_gpu_claim_cannot_be_borrowed"
     , "tests.test_subprocess_lease_dispatch.SubprocessLeaseDispatchTests.test_supported_owners_borrow_verified_caller_leases_without_changing_environment"
     , "tests.test_subprocess_lease_dispatch.SubprocessLeaseDispatchTests.test_unsupported_platform_does_not_interpret_posix_descriptors"
+    , "tests.test_subprocess_lease_dispatch.SubprocessLeaseDispatchTests.test_windows_dispatch_forwards_supported_native_owner_options"
+    , "tests.test_subprocess_lease_dispatch.SubprocessLeaseDispatchTests.test_windows_dispatch_refuses_posix_only_owner_options"
   ]
   , "test_subprocess_log_batches": [
     "tests.test_subprocess_log_batches.SubprocessLogBatchTests.test_control_message_appended_during_publication_is_preserved"
