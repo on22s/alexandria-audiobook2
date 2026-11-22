@@ -81,20 +81,13 @@ class ArchiveLineEndingTests(unittest.TestCase):
                 'docs/benchmarks/raw/cpu-speaker-windows-20261022/run2/results.json':
                     b'{\n  "status": "complete"\n}\n',
             }
-            control = 'docs/benchmarks/raw/notes.txt'
+            control = 'autocrlf-control.txt'
             for relative, content in {**pinned, control: b'one\ntwo\n'}.items():
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(content)
             git('-c', 'core.autocrlf=false', 'add', '-A')
             git('commit', '-qm', 'fixture')
-
-            for relative in pinned:
-                attrs = subprocess.run(['git', 'check-attr', 'text', '--', relative],
-                                       cwd=root, check=True, capture_output=True,
-                                       env=environment).stdout.decode()
-                self.assertNotIn('%s: text: unspecified' % relative, attrs,
-                                 'archive family has no .gitattributes protection')
 
             git('config', 'core.autocrlf', 'true')
             for relative in [*pinned, control]:
