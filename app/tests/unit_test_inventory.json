@@ -9044,6 +9044,12 @@
   , "test_mp3_bitrate": [
     "tests.test_mp3_bitrate.Mp3BitrateTests.test_chunk_export_is_at_least_96_kbps"
   ]
+  , "test_mp3_encode_timeout": [
+    "tests.test_mp3_encode_timeout.Mp3EncodeTimeoutTests.test_cancel_still_stops_mp3_encode"
+    , "tests.test_mp3_encode_timeout.Mp3EncodeTimeoutTests.test_successful_encode_still_publishes_output"
+    , "tests.test_mp3_encode_timeout.Mp3EncodeTimeoutTests.test_timeout_exit_reaps_encoder_and_keeps_prior_output"
+    , "tests.test_mp3_encode_timeout.Mp3EncodeTimeoutTests.test_timeout_uses_shared_duration_contract_and_scales"
+  ]
   , "test_mps_batch_padding": [
     "tests.test_mps_batch_padding.MpsAttentionLoadTests.test_eager_attention_only_on_mps"
     , "tests.test_mps_batch_padding.MpsAttentionLoadTests.test_every_local_model_family_loads_with_the_device_attention_kwargs"

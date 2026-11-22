@@ -445,11 +445,12 @@ def export_pcm_mp3(raw_path, output_path, settings, cancel_check, mastering=None
                 from audio_encoding_layout import get_audio_encoding_layout
                 layout = get_audio_encoding_layout('mp3', rate, channels)
                 output_parameters = ['-ar', str(layout['frame_rate']), '-ac', str(layout['channels'])]
-            # Preserve the legacy MP3 encoder's cancellation-driven lifetime.
+            from pcm_worker_contract import get_duration_encode_timeout
+            timeout = get_duration_encode_timeout(settings['frames'] / settings['frame_rate'])
             run_audio_ffmpeg(['-f', formats[width], '-ar', str(rate), '-ac', str(channels),
                               '-i', str(raw_path), '-b:a', bitrate, '-id3v2_version', '3',
                               *output_parameters, '-f', 'mp3', str(output)], cancel_check,
-                             timeout=None, environment=environment, executable=AudioSegment.converter)
+                             timeout=timeout, environment=environment, executable=AudioSegment.converter)
             report = None
         ensure_audio_export_active(cancel_check)
         if not output.is_file() or not output.stat().st_size:
