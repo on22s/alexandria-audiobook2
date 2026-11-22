@@ -140,13 +140,17 @@ def is_sha256(value):
             and all(char in '0123456789abcdef' for char in value))
 
 
-def load_review_receipt_document(output_path):
+def _read_receipt_unlocked(path):
     try:
-        with open(get_review_receipt_path(output_path), encoding='utf-8') as stream:
+        with open(path, encoding='utf-8') as stream:
             document = json.load(stream)
     except (OSError, ValueError, TypeError):
         return None
     return document if isinstance(document, dict) else None
+
+
+def load_review_receipt_document(output_path):
+    return _read_receipt_unlocked(get_review_receipt_path(output_path))
 
 
 def _absolute_string_path(value):
@@ -231,8 +235,9 @@ def read_durable_review_fact(output_path, direction):
 
 def build_review_fact(input_path, output_path, input_sha256, output_sha256, fingerprint,
                       companions, summary, *, settings_fingerprint=None,
-                      consumed_forward_sha256=None, consumed_forward_fingerprint=None,
-                      entries_before=0, entries_after=0):
+                       consumed_forward_sha256=None, consumed_forward_fingerprint=None,
+                       parent_input_sha256=None, parent_entry_count=None,
+                       entries_before=0, entries_after=0):
     """Build one durable fact from the publication transaction's own digests.
 
     ``output_sha256`` is the digest of the bytes the publisher committed, and
@@ -249,6 +254,8 @@ def build_review_fact(input_path, output_path, input_sha256, output_sha256, fing
         'settings_fingerprint': settings_fingerprint,
         'consumed_forward_sha256': consumed_forward_sha256,
         'consumed_forward_fingerprint': consumed_forward_fingerprint,
+        'parent_input_sha256': parent_input_sha256,
+        'parent_entry_count': parent_entry_count,
         'entries_before': entries_before,
         'entries_after': entries_after,
         'companions': dict(companions),
@@ -289,18 +296,29 @@ def invalidate_flat_review_receipt(output_path, direction='forward'):
     strict-validated forward fact is retained. Facts from an unsupported
     version are never promoted into a current-version receipt.
     """
-    if direction == 'forward':
-        remove_completed_review_receipt(output_path)
-        return
-    document = load_review_receipt_document(output_path)
-    forward = get_durable_review_fact(document, 'forward')
-    supported = (isinstance(document, dict) and type(document.get('version')) is int
-                 and document['version'] == VERSION)
-    if supported and forward is not None:
-        atomic_json_write({'version': VERSION, 'facts': {'forward': forward}},
-                          get_review_receipt_path(output_path), allow_nonatomic_fallback=False)
-    else:
-        remove_completed_review_receipt(output_path)
+    path = get_review_receipt_path(output_path)
+    # Observation only: writers may interleave here, so the authoritative read,
+    # validation and replacement below all happen under the receipt's own lock.
+    load_review_receipt_document(output_path)
+    with file_lock(path):
+        document = _read_receipt_unlocked(path)
+        if direction == 'forward':
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
+            return
+        forward = get_durable_review_fact(document, 'forward')
+        supported = (isinstance(document, dict) and type(document.get('version')) is int
+                     and document['version'] == VERSION)
+        if supported and forward is not None:
+            atomic_json_write({'version': VERSION, 'facts': {'forward': forward}},
+                              path, allow_nonatomic_fallback=False)
+        else:
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
 
 
 def resolve_legacy_review_fact(input_path, output_path, input_sha256, output_sha256,

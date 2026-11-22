@@ -1,5 +1,6 @@
 """Receipt/identity evidence-boundary discriminators for #2222 residuals."""
 import copy
+import errno
 import hashlib
 import io
 import json
@@ -11,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import completed_review_receipt as receipts
+from core import _extract_review_stats
 import generation_checkpoint_deltas as gd
 import review_script as review
 import script_selection_binding as binding
@@ -215,6 +217,29 @@ class CheckpointEvidenceTests(Harness):
 
 
 class FlatIdentityTests(Harness):
+    def test_migrated_flat_reuse_reports_verified_separate_output_count(self):
+        out = self.root / 'out.json'
+
+        def split(rows, index):
+            if index == 1:
+                return [{**rows[0], 'text': 'Red'}, {**rows[0], 'text': 'cat.'}]
+            return rows
+
+        self.cli(out=out, transform=split)
+        receipt_path = Path(receipts.get_review_receipt_path(str(out)))
+        document = json.loads(receipt_path.read_text())
+        document.pop('facts')
+        receipt_path.write_text(json.dumps(document))
+        self.calls.clear()
+        for attempt in ('migration', 'subsequent reuse'):
+            with self.subTest(attempt=attempt):
+                log = self.cli(out=out)
+                self.assertEqual([], self.calls)
+                self.assertIn('Review complete: 4 -> 5 entries', log)
+                stats = _extract_review_stats(log.splitlines())
+                self.assertEqual((4, 5), (stats['entries_before'], stats['entries_after']))
+                self.assertTrue(stats['accounting_unverified'])
+
     def test_double_replacement_migrates_the_validated_digest(self):
         saved = self.root / 'scripts' / 'book.json'
         saved.parent.mkdir(parents=True, exist_ok=True)
@@ -405,15 +430,18 @@ class NewIntegrityTests(Harness):
 
     def test_standalone_own_alias_change_with_no_voice_move_reuses(self):
         target = self.root / 'solo.json'
-        target.write_text(json.dumps(self.rows))
+        seeded = [self.rows[0], {**self.rows[0], 'speaker': 'BOB'}]
+        target.write_text(json.dumps(seeded))
         alias = self.root / 'registry.json'
         alias.write_text('{}')
         voice = self.root / 'voice.json'
         voice.write_text('{}')
         extra = ('--dedupe-speakers', '--alias-registry', str(alias),
                  '--remap-voice-config', str(voice))
-        with patch.object(review, 'call_llm_for_object', return_value={'JANE': 'ANN'}):
+        with patch.object(review, 'call_llm_for_object', return_value={'JANE': 'BOB'}):
             self.cli(path=target, extra=extra, use_real_dedupe=True)
+        self.assertEqual({'JANE': 'BOB'}, json.loads(alias.read_text()))
+        self.assertEqual('{}', voice.read_text(), 'no voice key required a move')
         fact = self.fact('forward', target)
         self.assertEqual(hashlib.sha256(alias.read_bytes()).hexdigest(),
                          fact['companions']['aliases']['sha256'])
@@ -518,6 +546,205 @@ class NewIntegrityTests(Harness):
                 self.calls.clear()
                 self.cli(path=target)
                 self.assertEqual([], self.calls)
+
+
+class CoherentEvidenceTests(Harness):
+    def _saved_failed_split(self):
+        target = self.root / 'scripts' / 'book.json'
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(self.rows))
+        def answer(rows, index):
+            if index == 2:
+                return None
+            if index == 1:
+                return [{**rows[0], 'text': 'Red'}, {**rows[0], 'text': 'cat.'}, *rows[1:]]
+            return rows
+        self.cli(path=target, transform=answer)
+        return target
+
+    def test_corrupt_saved_checkpoint_evidence_restarts_without_certifying(self):
+        for field, value in (('batch_lengths', [99]), ('batch_lengths', [0]),
+                             ('batch_lengths', [1, 2, 1, 1]), ('failed_batches', [5])):
+            with self.subTest(field=field, value=value):
+                self.setUp()
+                target = self._saved_failed_split()
+                path = Path(str(target) + '.review_checkpoint.json')
+                document = json.loads(path.read_text())
+                document[field] = value
+                path.write_text(json.dumps(document))
+                self.calls.clear()
+                self.cli(path=target)
+                self.assertEqual([row['text'] for row in self.rows],
+                                 [row['text'] for row in json.loads(target.read_text())])
+
+    def test_in_range_source_offset_and_tampered_prefix_are_rejected(self):
+        for field, value in (('source_offsets', [4]), ('all_corrected', None)):
+            with self.subTest(field=field):
+                self.setUp()
+                target = self.root / 'book.json'
+                target.write_text(json.dumps(self.rows))
+                def split(rows, index):
+                    if index == 1:
+                        return [{**rows[0], 'text': 'Red'}, {**rows[0], 'text': 'cat.'}, *rows[1:]]
+                    return rows
+                self.cli(path=target, gates=[True, False], transform=split)
+                path = Path(str(target) + '.review_checkpoint.json')
+                document = json.loads(path.read_text())
+                if field == 'source_offsets':
+                    document[field] = value
+                else:
+                    document['all_corrected'][0]['text'] = 'Wrong text.'
+                path.write_text(json.dumps(document))
+                self.calls.clear()
+                self.cli(path=target)
+                self.assertNotIn('Wrong text.',
+                                 [row['text'] for row in json.loads(target.read_text())])
+
+    def test_legacy_split_second_interruption_resumes_remaining_rows(self):
+        self.config['generation'] = {'review_batch_size': 3, 'review_target_chars': 9}
+        def split(rows, index):
+            if index == 1:
+                return [{**rows[0], 'text': 'Red'}, {**rows[0], 'text': 'cat.'}, *rows[1:]]
+            return rows
+        self.cli(gates=[True, False], transform=split)
+        path = Path(str(self.book) + '.review_checkpoint.json')
+        document = json.loads(path.read_text())
+        document.pop('batch_lengths')
+        path.write_text(json.dumps(document))
+        self.cli(gates=[True, False])
+        self.calls.clear()
+        self.cli()
+        reviewed = [text for call in self.calls for text in call]
+        self.assertNotIn('Red cat.', reviewed, 'the historic prefix must not be re-reviewed')
+        self.assertEqual(['Red', 'cat.'],
+                         [row['text'] for row in json.loads(self.book.read_text())][:2])
+
+    def test_nonnumeric_length_is_a_miss_in_normal_and_forced_runs(self):
+        def edit(rows, index):
+            return [{**row, 'speaker': 'BEA'} for row in rows]
+        self.cli()
+        self.cli(direction='backward', gates=[True, False], transform=edit)
+        path = Path(str(self.book) + '.review_checkpoint.json')
+        document = json.loads(path.read_text())
+        document['batch_lengths'] = ['1']
+        path.write_text(json.dumps(document))
+        for extra in ((), ('--force-review',)):
+            with self.subTest(extra=extra):
+                self.calls.clear()
+                self.cli(extra=extra)
+                self.assertTrue(self.calls)
+
+    def test_parent_requires_original_path_and_companions(self):
+        for variation in ('other_input', 'registry_edited'):
+            with self.subTest(variation=variation):
+                self.setUp()
+                source = self.root / 'one.json'
+                source.write_text(json.dumps(self.rows))
+                alias = self.root / 'registry.json'
+                alias.write_text('{"JANE":"ANN"}')
+                extra = ('--alias-registry', str(alias), '--dedupe-speakers')
+                self.cli(path=source, extra=extra, use_real_dedupe=True)
+                if variation == 'other_input':
+                    other = self.root / 'two.json'
+                    other.write_bytes(source.read_bytes())
+                    backward_input, out = other, source
+                else:
+                    alias.write_text('{"ANN":"BEA"}')
+                    backward_input, out = source, source
+                self.cli(path=backward_input, out=out, direction='backward', extra=extra,
+                         transform=lambda rows, index: [
+                             {**row, 'instruct': 'softly'} for row in rows])
+                self.calls.clear()
+                self.cli(path=source, extra=extra, use_real_dedupe=True)
+                self.assertEqual(4, len(self.calls))
+
+    def test_changed_output_during_reuse_snapshot_is_a_miss(self):
+        def edit(rows, index):
+            return [{**row, 'speaker': 'BEA'} for row in rows]
+        self.cli()
+        self.cli(direction='backward', gates=[True, False], transform=edit)
+        original = review.get_coherent_output_snapshot
+        def swap(*args, **kwargs):
+            self.book.write_text(json.dumps([{'speaker': 'X', 'text': 'Replacement.'}]))
+            return original(*args, **kwargs)
+        with patch.object(review, 'get_coherent_output_snapshot', side_effect=swap):
+            log = self.cli()
+        self.assertTrue(self.calls)
+        self.assertNotIn('verified backward checkpoint consumes', log)
+
+    def test_published_partial_keeps_parent_through_repeat_and_completion(self):
+        def edit(rows, index):
+            return [{**row, 'speaker': 'BEA'} for row in rows]
+        self.cli()
+        self.cli(direction='backward', gates=[True, False], transform=edit)
+        for gates in ([True, False], None):
+            self.calls.clear()
+            self.cli(direction='backward', gates=gates, transform=edit)
+            fact = self.fact('backward') if gates is None else None
+            if fact is not None:
+                forward = self.fact('forward')
+                self.assertEqual(forward['output_sha256'], fact['consumed_forward_sha256'])
+                self.assertEqual(forward['fingerprint'], fact['consumed_forward_fingerprint'])
+        self.calls.clear()
+        self.cli()
+        self.assertEqual([], self.calls)
+
+    def test_required_voice_remap_failure_refuses_publication(self):
+        for failure in ('write', 'lock'):
+            with self.subTest(failure=failure):
+                self.setUp()
+                target = self.root / 'solo.json'
+                target.write_text(json.dumps(self.rows))
+                alias = self.root / 'registry.json'
+                alias.write_text('{"JANE":"ANN"}')
+                voice = self.root / 'voice.json'
+                voice.write_text('{"JANE":{"voice":"one"}}')
+                original_bytes = voice.read_bytes()
+                extra = ('--dedupe-speakers', '--alias-registry', str(alias),
+                         '--remap-voice-config', str(voice))
+                original_write = review.atomic_json_write
+                original_lock = review.file_lock
+                def write(data, path, *args, **kwargs):
+                    if failure == 'write' and path == str(voice):
+                        raise OSError(errno.ENOSPC, 'fixture')
+                    return original_write(data, path, *args, **kwargs)
+                def lock(path, *args, **kwargs):
+                    if failure == 'lock' and path == str(voice):
+                        raise TimeoutError('fixture')
+                    return original_lock(path, *args, **kwargs)
+                with patch.object(review, 'atomic_json_write', side_effect=write), \
+                        patch.object(review, 'file_lock', side_effect=lock):
+                    with self.assertRaises(OSError):
+                        self.cli(path=target, extra=extra, use_real_dedupe=True)
+                self.assertEqual(original_bytes, voice.read_bytes())
+                self.assertEqual('JANE', json.loads(target.read_text())[0]['speaker'])
+                self.assertIsNone(self.fact('forward', target))
+
+    def test_stale_invalidation_cannot_restore_a_newer_forward_fact(self):
+        target = self.root / 'scripts' / 'book.json'
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(self.rows))
+        self.cli(path=target)
+        older = self.fact('forward', target)
+        path = Path(receipts.get_review_receipt_path(str(target)))
+        load = receipts.load_review_receipt_document
+        def interleave(*args, **kwargs):
+            result = load(*args, **kwargs)
+            with patch.object(receipts, 'load_review_receipt_document', load):
+                self.cli(path=target, extra=('--force-review',),
+                         transform=lambda rows, index: [
+                             {**row, 'speaker': 'BEA'} for row in rows])
+            return result
+        with patch.object(receipts, 'load_review_receipt_document', interleave):
+            try:
+                self.cli(path=target, direction='backward')
+            except ValueError:
+                pass
+        current = self.fact('forward', target)
+        self.assertNotEqual(older['output_sha256'], current['output_sha256'])
+        self.calls.clear()
+        self.cli(path=target)
+        self.assertEqual([], self.calls)
 
 
 if __name__ == '__main__':
