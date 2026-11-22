@@ -1,7 +1,6 @@
 """Server-owned cue edits using existing scope guards and book transactions."""
 import hashlib
 import json
-from pathlib import Path
 import re
 
 from book_state_transaction import apply_book_state_locked
@@ -28,20 +27,6 @@ class CueRequestError(ValueError):
 
 def _nonfinite(_value):
     raise ValueError('Nonfinite cue requests are not supported')
-
-
-def require_active_book_for_cues(root):
-    from core import AppError
-    try:
-        with (Path(root) / 'state.json').open('rb') as handle:
-            raw = handle.read(2 * 1024**2)
-        state = json.loads(raw, object_pairs_hook=get_unique_json_object, parse_constant=_nonfinite)
-    except (OSError, ValueError, TypeError, UnicodeError, RecursionError):
-        return
-    book_id = state.get('active_book_id') if isinstance(state, dict) else None
-    if not isinstance(book_id, str) or not book_id.strip():
-        raise AppError(409, 'No active book is selected. Load a saved book before authoring cues.',
-                       key='error.sound.cues.no_active_book')
 
 
 def parse_sound_design_cue_request(operation, raw):
@@ -130,7 +115,6 @@ def run_sound_design_cue_operation(root, operation, *, raw=None, chunk_uid=None,
     check_active()
     admission = ensure_audio_scope_admission if audio_owned else ensure_scope_admission
     with admission(root):
-        require_active_book_for_cues(root)
         snapshot = capture_sound_design_context(root,check_active=check_active)
         if operation == 'metadata':
             return get_sound_design_cue_view(snapshot,offset,limit)

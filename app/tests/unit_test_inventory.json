@@ -14013,8 +14013,7 @@
     , "tests.test_sound_design_context.SoundDesignContextTests.test_source_script_state_voice_settings_and_rows_change_context_identity"
   ]
   , "test_sound_design_cue_api": [
-    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_absent_corrupt_and_busy_contexts_have_distinct_error_contracts"
-    , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_actual_create_revise_select_deselect_preserves_originals_and_history"
+    "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_actual_create_revise_select_deselect_preserves_originals_and_history"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_anchor_only_review_refuses_late_source_metadata_and_audio_changes"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_asset_changed_during_final_context_recapture_never_publishes"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_asset_duration_errors_refuse_and_explicit_valid_loop_saves"
@@ -14025,6 +14024,7 @@
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_failed_atomic_replacement_restores_previous_exact_registry"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_historical_invalid_loop_can_be_excluded_but_not_selected"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_hostile_body_fields_and_size_refuse_before_task_or_source_admission"
+    , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_mix_js_uses_real_captured_context_response_shapes"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_public_metadata_and_errors_do_not_expose_paths_or_private_configuration"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_real_ui_can_explicitly_correct_a_stale_clock_without_rewriting_history"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_real_ui_explicit_24khz_cue_reaches_candidate_render"
@@ -14032,6 +14032,7 @@
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_source_changed_during_final_anchor_read_cannot_publish_old_context"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_stale_context_and_changed_audio_refuse_before_registry_publication"
     , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_stale_historical_selection_refuses_but_explicit_deselection_still_works"
+    , "tests.test_sound_design_cue_api.SoundDesignCueApiTests.test_state_matrix_separates_authoritative_absence_from_context_failures"
     , "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_bad_shape_stale_context_and_missing_stem_refuse_without_partial_history"
     , "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_cleanup_fences_candidate_topology_without_pcm_reads_or_encoder_probes"
     , "tests.test_sound_design_cue_api.SoundRenditionApiTests.test_cleanup_protects_kept_parent_and_current_cue_and_retains_empty_ledger"

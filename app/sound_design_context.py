@@ -33,6 +33,10 @@ def _refuse_nonfinite(_value):
     raise ValueError('Nonfinite cue context metadata is not supported')
 
 
+class SoundDesignNoActiveBook(ValueError):
+    """Authoritative absence from the guarded state capture, not a read failure."""
+
+
 def capture_sound_design_context(root, *, check_active=lambda: None):
     """Do not regenerate UIDs, recover transactions or rewrite selected rows."""
     if not is_scope_admitted(root):
@@ -47,6 +51,22 @@ def capture_sound_design_context(root, *, check_active=lambda: None):
         retained += len(data[name] or b'')
         if retained > MAX_CONTEXT_BYTES:
             raise ValueError('Cue context metadata exceeds its joint byte limit')
+    if not proofs['state.json']['exists']:
+        raise SoundDesignNoActiveBook('No active book is selected')
+    state = json.loads(data['state.json'], object_pairs_hook=get_unique_json_object,
+                       parse_constant=_refuse_nonfinite)
+    if not isinstance(state, dict):
+        raise ValueError('Saved book state must be an object')
+    from core import get_active_book_id
+    explicit = state.get('active_book_id')
+    malformed_explicit = 'active_book_id' in state and not (isinstance(explicit, str) and explicit.strip())
+    if not malformed_explicit:
+        try:
+            active_identity = get_active_book_id(state=state)
+        except (TypeError, ValueError, OSError):
+            active_identity = ''
+        if active_identity is None:
+            raise SoundDesignNoActiveBook('No active book is selected')
     if any(data[name] is None for name in ('state.json','annotated_script.json','chunks.json')):
         raise ValueError('Saved book, script and stable Editor rows are required for cues')
     renditions = (get_sound_rendition_ledger(data[ACTIVE_RENDITIONS])
@@ -58,10 +78,6 @@ def capture_sound_design_context(root, *, check_active=lambda: None):
                    or ('speaker' in row and not isinstance(row['speaker'],str)) for row in script)):
         raise ValueError('Saved script needs inspection in Editor before cue authoring')
     del script
-    state = json.loads(data['state.json'], object_pairs_hook=get_unique_json_object,
-                       parse_constant=_refuse_nonfinite)
-    if not isinstance(state, dict):
-        raise ValueError('Saved book state must be an object')
     _require_text(state.get('active_book_id'), 1024, 'Selected book identity')
     if state.get('book_generation') is not None:
         _require_text(state['book_generation'], 1024, 'Selected book generation')
