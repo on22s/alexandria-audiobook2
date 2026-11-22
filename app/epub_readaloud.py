@@ -966,6 +966,13 @@ def get_epub_language_from_path(retained_path):
     import zipfile as _zf
     import os as _os
     from contextlib import nullcontext
+    try:
+        import lzma as _lzma
+        _malformed = (_zf.BadZipFile, ET.ParseError, RecursionError, KeyError,
+                      _lzma.LZMAError)
+    except ImportError:
+        # An absent stdlib codec is an unsupported-read error, not corruption.
+        _malformed = (_zf.BadZipFile, ET.ParseError, RecursionError, KeyError)
     if isinstance(retained_path, (str, _os.PathLike)):
         # Lazy import keeps the in-memory builder API free of an import cycle.
         from readalong_export import _open_retained_epub
@@ -980,7 +987,7 @@ def get_epub_language_from_path(retained_path):
         namespace = package.tag.split('}')[0] + '}' if '}' in package.tag else ''
         metadata = package.find(namespace + 'metadata')
         return _get_validated_epub_language(metadata) or ""
-    except (_zf.BadZipFile, ET.ParseError, RecursionError, KeyError) as error:
+    except _malformed as error:
         raise ValueError("Retained EPUB archive or publication metadata is malformed.") from error
     except RuntimeError as error:  # Includes NotImplementedError from ZIP codecs/features.
         raise ValueError("Retained EPUB ZIP reading is unsupported or unavailable: %s"

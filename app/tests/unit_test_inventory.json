@@ -11203,6 +11203,7 @@
   ]
   , "test_qwen_final_epub_repairs": [
     "tests.test_qwen_final_epub_repairs.FinalEpubAdmissionTests.test_bounded_member_rejects_short_declared_payload"
+    , "tests.test_qwen_final_epub_repairs.FinalEpubAdmissionTests.test_corrupt_lzma_metadata_has_malformed_value_error_contract"
     , "tests.test_qwen_final_epub_repairs.FinalEpubAdmissionTests.test_language_parser_has_value_error_contract"
     , "tests.test_qwen_final_epub_repairs.FinalEpubAdmissionTests.test_language_path_requires_current_named_identity"
     , "tests.test_qwen_final_epub_repairs.FinalEpubAdmissionTests.test_language_paths_obey_alias_admission"
@@ -11359,6 +11360,7 @@
     , "tests.test_qwen_review_v2_repairs.DeepSeekV3Tests.test_zip64_known_size_stream"
     , "tests.test_qwen_review_v2_repairs.DevicePolicyContractTests.test_automatic_mode_respects_an_explicit_device"
     , "tests.test_qwen_review_v2_repairs.DownloadCurrencyTests.test_book_change_during_timing_check_refuses_download"
+    , "tests.test_qwen_review_v2_repairs.DownloadCurrencyTests.test_corrupt_lzma_metadata_source_is_refused_as_409"
     , "tests.test_qwen_review_v2_repairs.DownloadCurrencyTests.test_explicit_chunk_choice_refuses_qwen_receipt_without_probe"
     , "tests.test_qwen_review_v2_repairs.DownloadCurrencyTests.test_explicit_gpu_receipt_download_does_not_require_free_vram"
     , "tests.test_qwen_review_v2_repairs.DownloadCurrencyTests.test_legacy_chunk_auto_qwen_ready_refused_auto_chunk_allowed"
