@@ -430,6 +430,7 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
             profiles[-1]['resolved_api_key'] = resolve_client_api_key(profile)
     identity = {'algorithm': REVIEW_ALGORITHM_VERSION, 'profiles': profiles,
         'model_binding': get_run_model_binding(client, model_name),
+        'review_response_contract': get_review_response_contract(params),
         'params': {field.name: getattr(params, field.name) for field in fields(params) if field.compare
                    and (field.name != 'literal_source_preserving' or params.literal_source_preserving)
                    and (field.name != 'review_labels_only' or params.review_labels_only)},
@@ -505,7 +506,7 @@ def _legacy_dispatch_is_equivalent(profile):
 
 def get_legacy_review_fingerprint(config, llm_config, params, args, client, model_name,
                                   source_text=None, *, entries=(), companions=None):
-    """The pre-fix digest for effectively unchanged profiles, else None.
+    """The historical credential digest for the current contract, else None.
 
     ``resolve_client_api_key`` replaced the old resolver in the receipt. The old
     digest can be reused only when it describes the same dispatched credential:
@@ -2041,16 +2042,20 @@ REVIEW_ANNOTATION_RULE = (
     + ', '.join(AGE_GROUP_NAMES) + '), speaker_ageless (Boolean). '
     'Use the passage context and evidence for the corrected speaker at this point '
     'in the story; do not invent traits. Omit type to retain the source role hint. '
-    'Omit other annotations to retain their existing value or known-speaker fallback. Use null only to explicitly clear an annotation. '
-    'Source text, source_span, provenance, pause_after and other source metadata '
-    'are protected: do not edit them; they are restored from the original entries. ')
+    'Omit spoken, speaker_gender, speaker_age_group and speaker_ageless to retain '
+    'their existing values when the speaker stays the same or use known values for '
+    'a corrected speaker. Stale speaker attributes are cleared and reported when '
+    'the corrected speaker has unknown or conflicting attributes and you supply '
+    'none. Use null only to explicitly clear an annotation. '
+    'The keys source_span, provenance and pause_after, and all other input-only '
+    'metadata keys, including unrecognized extra keys, are protected: do not return '
+    'or edit them; they are restored from the original entries, so omitting them '
+    'does not remove them from the saved script. Do not invent metadata keys. ')
 REVIEW_CLASSIC_RESPONSE_RULE = (
     'REVIEW RESPONSE CONTRACT (takes precedence over conflicting format instructions): '
     'Return a JSON array with speaker, text and instruct string fields in every entry. '
     + REVIEW_ANNOTATION_RULE +
-    'When a speaker changes and no explicit annotations are supplied, known '
-    'attributes follow that corrected speaker; unknown or conflicting attributes '
-    'are cleared and reported. Preserve all text in its original order. Split or '
+    'Preserve all text in its original order. Split or '
     'merge only when text and source metadata can be preserved. Never omit '
     'speaker, text or instruct.')
 REVIEW_LABEL_SCHEMA = {"name": "review_labels", "schema": {
@@ -2065,6 +2070,10 @@ REVIEW_LABEL_SYSTEM = (
     'object per input index including unchanged entries. Speaker names are '
     'UPPERCASE; narration uses NARRATOR. Never return text, change entry boundaries, '
     'or label the surrounding context. ' + REVIEW_ANNOTATION_RULE + REVIEW_ATTRIBUTION_RULE)
+
+
+def get_review_response_contract(params):
+    return REVIEW_LABEL_SYSTEM if params.review_labels_only else REVIEW_CLASSIC_RESPONSE_RULE
 
 
 def get_review_annotations(entry):
@@ -2883,7 +2892,7 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
         from literal_prompts import REVIEW_SYSTEM, REVIEW_USER
         sys_prompt, usr_template = REVIEW_SYSTEM, REVIEW_USER
     if not params.review_labels_only:
-        sys_prompt += '\n\n' + REVIEW_CLASSIC_RESPONSE_RULE
+        sys_prompt += '\n\n' + get_review_response_contract(params)
 
     # Build context
     context_parts = []
@@ -2903,7 +2912,7 @@ def review_batch(client, model_name, batch_entries, batch_num, total_batches, pa
     context = "\n".join(context_parts)
     batch_json = json.dumps([get_review_prompt_entry(e) for e in batch_entries], indent=2, ensure_ascii=False)
     if params.review_labels_only:
-        sys_prompt = REVIEW_LABEL_SYSTEM
+        sys_prompt = get_review_response_contract(params)
         indexed = [{**get_review_prompt_entry(entry), "n": i}
                    for i, entry in enumerate(batch_entries)]
         user_prompt = context + "\n\nENTRIES TO REVIEW:\n" + json.dumps(indexed, ensure_ascii=False)
