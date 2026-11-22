@@ -60,10 +60,11 @@ class PronunciationAudition(BaseModel):
     replacement: str | None = Field(default=None, min_length=1, max_length=256)
 
 
-def get_pronunciation_document():
+def get_pronunciation_document(path=None):
     """Strict editor read; malformed data must not be silently replaced on Save."""
+    path = pronunciation.get_pronunciation_path(path)
     try:
-        with open(pronunciation.DEFAULT_PATH, 'rb') as source:
+        with open(path, 'rb') as source:
             raw = source.read(MAX_DOCUMENT_BYTES + 1)
     except FileNotFoundError:
         raw = b''
@@ -99,8 +100,9 @@ async def save_pronunciation_endpoint(request: PronunciationSave):
 
 
 def save_pronunciation_document(request):
-    with file_lock(pronunciation.DEFAULT_PATH):
-        document, current = get_pronunciation_document()
+    path = pronunciation.get_pronunciation_path()
+    with file_lock(path):
+        document, current = get_pronunciation_document(path)
         if request.revision != current['revision']:
             raise HTTPException(status_code=409, detail='Pronunciation rules changed elsewhere. Reload before saving.')
         updated = ({**document, 'names': dict(request.names)}
@@ -108,8 +110,8 @@ def save_pronunciation_document(request):
                    {'names': dict(request.names)} if 'names' in request.names else dict(request.names))
         if len(json.dumps(updated, ensure_ascii=False, indent=2).encode('utf-8')) > MAX_DOCUMENT_BYTES:
             raise HTTPException(status_code=422, detail='Pronunciation file would exceed the 1 MiB editor limit.')
-        atomic_json_write(updated, pronunciation.DEFAULT_PATH, allow_nonatomic_fallback=False)
-        _document, result = get_pronunciation_document()
+        atomic_json_write(updated, path, allow_nonatomic_fallback=False)
+        _document, result = get_pronunciation_document(path)
         return result
 
 

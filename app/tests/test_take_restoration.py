@@ -553,6 +553,7 @@ class TakeRestorationTests(unittest.TestCase):
                         lexicon=root/'changed-pronunciation.json'
                         lexicon.write_text(json.dumps({'Original':'Alternate'}))
                         stack.enter_context(patch('pronunciation.DEFAULT_PATH',str(lexicon)))
+                        stack.enter_context(patch('pronunciation.get_pronunciation_path',return_value=str(lexicon)))
                     elif case in ('inputs','recipe','speech','synthesis'):
                         history=AudioTakeHistory(root)
                         with history._locked() as document:
@@ -618,6 +619,7 @@ class TakeRestorationTests(unittest.TestCase):
                         names={'Original':'Different'},revision=snapshot['revision']))
                     return result
                 with patch.object(pronunciation,'DEFAULT_PATH',str(lexicon)), \
+                        patch.object(pronunciation,'get_pronunciation_path',return_value=str(lexicon)), \
                         pronunciation.ensure_pronunciation_audition({}), \
                         patch.object(AudioTakeHistory,'verify_retained',save_before_final), \
                         self.assertRaisesRegex(ValueError,'pronunciation or synthesis windows'):
@@ -639,6 +641,7 @@ class TakeRestorationTests(unittest.TestCase):
                 attempted=threading.Event();finished=threading.Event();errors=[];threads=[];calls=[]
                 real_lock=file_lock
                 def tracked_lock(path,*args,**kwargs):
+                    if path != pronunciation.get_pronunciation_path():errors.append(AssertionError('lexicon lock path diverged from resolver'))
                     if threading.current_thread() is not threading.main_thread():attempted.set()
                     return real_lock(path,*args,**kwargs)
                 def save():
@@ -660,6 +663,7 @@ class TakeRestorationTests(unittest.TestCase):
                         ensure_audio_generation_active()
                     return NativeRecoveryServingIdentity('b'*64,'c'*64,'d'*64)
                 with patch.object(pronunciation,'DEFAULT_PATH',str(lexicon)), \
+                        patch.object(pronunciation,'get_pronunciation_path',return_value=str(lexicon)), \
                         patch('routers.pronunciation_panel.file_lock',side_effect=tracked_lock), \
                         patch('synthesis_recovery_serving.capture_native_custom_serving_identity',side_effect=identity):
                     try:

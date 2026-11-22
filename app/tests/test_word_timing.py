@@ -86,6 +86,8 @@ class WordTimingTests(unittest.TestCase):
         self.check = lambda *_: None
         patcher = patch.object(pronunciation, 'DEFAULT_PATH', str(self.root / 'pronunciation.json'))
         patcher.start(); self.addCleanup(patcher.stop)
+        patcher = patch.object(pronunciation, 'get_pronunciation_path', return_value=str(self.root / 'pronunciation.json'))
+        patcher.start(); self.addCleanup(patcher.stop)
 
     def render(self, _audio, _runtime, text, _cancel, _directory):
         rows = [{'word': 'Amber', 'start': .1, 'end': .5}, {'word': 'arrives', 'start': .7, 'end': 1.2}]

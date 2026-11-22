@@ -34,6 +34,7 @@ class PronunciationPanelTests(unittest.TestCase):
                                  (panel, 'SCRIPT_PATH', str(self.root/'annotated_script.json')),
                                  (editor, 'SCRIPT_PATH', str(self.root/'annotated_script.json'))]:
             active = patch.object(obj, name, value); active.start(); self.addCleanup(active.stop)
+        active = patch.object(pronunciation, 'get_pronunciation_path', return_value=str(self.path)); active.start(); self.addCleanup(active.stop)
         self.token = editor.get_snapshot_digest(editor.get_editor_book_identity(self.tmp.name))
         app = FastAPI(); app.include_router(panel.router)
         self.client = TestClient(app)
