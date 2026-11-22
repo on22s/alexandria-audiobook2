@@ -19,6 +19,40 @@ BINDING_NAME = 'annotated_script.selection_binding.json'
 STALE_SOURCE_MESSAGE = 'Selected source changed during generation; preserving prior output'
 
 
+class PublicationProof(int):
+    """The moved count plus the exact bytes a publisher committed.
+
+    It is an ``int`` so every existing caller of the publishers keeps seeing a
+    plain count. Review's completion evidence reads only these captured bytes;
+    it never re-reads a mutable output/companion path after publication.
+    """
+
+    def __new__(cls, moved, *, output_raw_sha256, output_entries_sha256, companions):
+        proof = int.__new__(cls, moved)
+        proof.output_raw_sha256 = output_raw_sha256
+        proof.output_entries_sha256 = output_entries_sha256
+        proof.companions = dict(companions)
+        return proof
+
+
+def _committed_identity(path, committed):
+    """Identity of exact committed bytes, including an unchanged companion."""
+    if not path:
+        return None
+    return {'path': os.path.abspath(path),
+            'sha256': hashlib.sha256(committed).hexdigest() if isinstance(committed, bytes) else None}
+
+
+def _output_proof_values(new_script):
+    from completed_review_receipt import get_review_entries_fingerprint
+    try:
+        entries = json.loads(new_script)
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, TypeError):
+        entries = None
+    return (hashlib.sha256(new_script).hexdigest(),
+            get_review_entries_fingerprint(entries) if isinstance(entries, list) and entries else None)
+
+
 def is_script_selection_pending(state):
     """Only an absent flag or explicit False permits published-script access."""
     return 'script_selection_pending' in state and state['script_selection_pending'] is not False
@@ -281,6 +315,11 @@ def binding_for_controlled_edit(data_dir, old_script, new_script):
 
 
 def _voice_remap_bytes(root, name, mapping, remap):
+    """Return (exact committed bytes, moved) for the voice companion.
+
+    An unchanged voice config is committed as the bytes read here under the
+    publication lock, so an external edit cannot lend its identity to a fact.
+    """
     from project_scope_files import capture_scope_file
     _, raw = capture_scope_file(root, name, limit=16 * 1024**2, include_bytes=True)
     if raw is None:
@@ -294,9 +333,11 @@ def _voice_remap_bytes(root, name, mapping, remap):
         raise ValueError('Invalid voice configuration; review was not published') from error
     if not isinstance(config, dict):
         raise ValueError('Invalid voice configuration; review was not published')
+    if not mapping or not callable(remap):
+        return raw, 0
     config, moved = remap(config, mapping)
     return (json.dumps(config, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
-            if moved else None), moved
+            if moved else raw), moved
 
 
 def _staged_registry_path(data_dir, staging):
@@ -338,8 +379,9 @@ def _staged_registry_path(data_dir, staging):
 
 
 def _add_staged_registry(data_dir, staging, registry, replacements):
+    """Stage an alias registry and return the exact bytes committed for it."""
     if registry is None:
-        return
+        return None
     from project_scope_files import capture_scope_file
     _, raw = capture_scope_file(data_dir, registry.name, limit=MAX_SELECTION_STATE_BYTES, include_bytes=True)
     if raw != staging['before']:
@@ -355,6 +397,8 @@ def _add_staged_registry(data_dir, staging, registry, replacements):
             raise ValueError('Invalid staged alias registry') from error
     if staging['after'] is not None:
         replacements[registry.name] = staging['after']
+        return staging['after']
+    return raw
 
 
 def verify_review_source_identity(data_dir, expected):
@@ -386,7 +430,7 @@ def verify_review_source_identity(data_dir, expected):
 def publish_controlled_script_edit(data_dir, old_script, new_script, *,
                                    voice_config_path=None, voice_mapping=None,
                                    remap_voice_config=None, registry_staging=None,
-                                   expected_source_identity=None):
+                                   alias_registry_path=None, expected_source_identity=None):
     """Publish a review edit and its voice remap in one recoverable commit."""
     import contextlib
     from book_state_transaction import apply_book_state_locked, reuse_book_state
@@ -399,21 +443,29 @@ def publish_controlled_script_edit(data_dir, old_script, new_script, *,
     chunks = root / 'chunks.json'
     journal = Path(get_chunk_status_journal_path(chunks))
     registry = _staged_registry_path(data_dir, registry_staging)
+    alias_capture = Path(alias_registry_path) if alias_registry_path else None
+    if (alias_capture is not None and registry is not None
+            and os.path.abspath(alias_capture) != os.path.abspath(registry)):
+        raise ValueError('Review alias registry differs from its staged path')
     voice = root / 'voice_config.json'
+    capture_voice = bool(voice_config_path) and (
+        os.path.abspath(voice_config_path) == os.path.abspath(voice))
     if voice_mapping and not voice_config_path:
         raise ValueError('Voice remap requires the active book voice config')
     if voice_mapping and voice_config_path:
-        if os.path.abspath(voice_config_path) != os.path.abspath(voice):
+        if not capture_voice:
             raise ValueError('Active review voice config must belong to the active book')
         if not callable(remap_voice_config):
             raise ValueError('Voice remap is unavailable')
     with (reuse_book_state(data_dir), contextlib.ExitStack() as locks):
         for path in (root / 'state.json', script, chunks, root / BINDING_NAME):
             locks.enter_context(file_lock(str(path)))
-        if voice_mapping and voice_config_path:
+        if capture_voice:
             locks.enter_context(file_lock(str(voice)))
         if registry is not None:
             locks.enter_context(file_lock(str(registry)))
+        elif alias_capture is not None:
+            locks.enter_context(file_lock(str(alias_capture)))
         _, current = capture_scope_file(data_dir, script.name, limit=512 * 1024**2, include_bytes=True)
         if current != old_script:
             raise ValueError('Active script changed during review; edits were preserved')
@@ -422,18 +474,26 @@ def publish_controlled_script_edit(data_dir, old_script, new_script, *,
         replacements = {script.name: new_script}
         if binding is not None:
             replacements[BINDING_NAME] = binding
-        _add_staged_registry(data_dir, registry_staging, registry, replacements)
+        alias_committed = _add_staged_registry(data_dir, registry_staging, registry, replacements)
+        if alias_committed is None and registry is None and alias_capture is not None:
+            _, alias_committed = capture_scope_file(
+                data_dir, alias_capture.name, limit=MAX_SELECTION_STATE_BYTES, include_bytes=True)
         moved = 0
-        if voice_mapping and voice_config_path:
-            voice_bytes, moved = _voice_remap_bytes(data_dir, voice.name, voice_mapping,
-                                                     remap_voice_config)
-            if voice_bytes is not None:
-                replacements[voice.name] = voice_bytes
+        voice_committed = None
+        if capture_voice:
+            voice_committed, moved = _voice_remap_bytes(data_dir, voice.name, voice_mapping,
+                                                         remap_voice_config)
+            if moved:
+                replacements[voice.name] = voice_committed
         for old in (chunks, journal):
             if os.path.lexists(old) and (old.is_symlink() or not old.is_file()):
                 raise ValueError('Existing chunk artifact requires inspection')
         apply_book_state_locked(data_dir, replacements, [chunks.name, journal.name])
-        return moved
+        companions = {'aliases': _committed_identity(alias_capture or registry, alias_committed),
+                      'voice': _committed_identity(voice if capture_voice else None, voice_committed)}
+        raw_sha, entries_sha = _output_proof_values(new_script)
+        return PublicationProof(moved, output_raw_sha256=raw_sha,
+                                output_entries_sha256=entries_sha, companions=companions)
 
 
 def updated_saved_binding(raw, old_script, new_script):
@@ -470,7 +530,8 @@ def saved_script_is_active_source(data_dir, script_path):
 
 def publish_saved_script_edit(data_dir, scripts_dir, script_path, old_script, new_script, *,
                               voice_config_path=None, voice_mapping=None, remap_voice_config=None,
-                              registry_staging=None, expected_source_identity=None):
+                              registry_staging=None, alias_registry_path=None,
+                              expected_source_identity=None):
     """Commit a saved review and its companions after exact-input validation."""
     import contextlib
     from book_state_transaction import apply_book_state_locked, reuse_book_state, ensure_saved_book_state
@@ -489,19 +550,27 @@ def publish_saved_script_edit(data_dir, scripts_dir, script_path, old_script, ne
     voice = directory / (script.stem + '.voice_config.json')
     publication = Path(get_publication_source_path(str(script)))
     registry = _staged_registry_path(data_dir, registry_staging)
+    alias_capture = Path(alias_registry_path) if alias_registry_path else None
+    if (alias_capture is not None and registry is not None
+            and os.path.abspath(alias_capture) != os.path.abspath(registry)):
+        raise ValueError('Review alias registry differs from its staged path')
+    capture_voice = bool(voice_config_path) and (
+        os.path.abspath(voice_config_path) == os.path.abspath(voice))
     if voice_mapping and not voice_config_path:
         raise ValueError('Voice remap requires this saved book voice config')
     if voice_mapping and voice_config_path:
-        if os.path.abspath(voice_config_path) != os.path.abspath(voice) or not callable(remap_voice_config):
+        if not capture_voice or not callable(remap_voice_config):
             raise ValueError('Saved review voice config must belong to this book')
     with reuse_book_state(data_dir), ensure_saved_book_state(data_dir, scripts_dir), contextlib.ExitStack() as locks:
         locks.enter_context(file_lock(str(root / 'state.json')))
         for path in (script, binding, publication):
             locks.enter_context(file_lock(str(path)))
-        if voice_mapping and voice_config_path:
+        if capture_voice:
             locks.enter_context(file_lock(str(voice)))
         if registry is not None:
             locks.enter_context(file_lock(str(registry)))
+        elif alias_capture is not None:
+            locks.enter_context(file_lock(str(alias_capture)))
         if saved_script_is_active_source(data_dir, str(script)):
             raise ValueError('This saved book is currently loaded; switch books before reviewing it')
         _, current = capture_scope_file(scripts_dir, script.name, limit=512 * 1024**2, include_bytes=True)
@@ -513,19 +582,27 @@ def publish_saved_script_edit(data_dir, scripts_dir, script_path, old_script, ne
         publication_bytes = get_saved_publication_source_bytes(str(script), new_script)
         relative = lambda path: os.path.relpath(path, data_dir).replace(os.sep, '/')
         replacements = {relative(script): new_script}
-        _add_staged_registry(data_dir, registry_staging, registry, replacements)
+        alias_committed = _add_staged_registry(data_dir, registry_staging, registry, replacements)
+        if alias_committed is None and registry is None and alias_capture is not None:
+            _, alias_committed = capture_scope_file(
+                data_dir, alias_capture.name, limit=MAX_SELECTION_STATE_BYTES, include_bytes=True)
         if binding_bytes is not None:
             replacements[relative(binding)] = binding_bytes
         if publication_bytes is not None:
             replacements[relative(publication)] = publication_bytes
         moved = 0
-        if voice_mapping and voice_config_path:
-            voice_bytes, moved = _voice_remap_bytes(scripts_dir, voice.name, voice_mapping,
-                                                     remap_voice_config)
-            if voice_bytes is not None:
-                replacements[relative(voice)] = voice_bytes
+        voice_committed = None
+        if capture_voice:
+            voice_committed, moved = _voice_remap_bytes(scripts_dir, voice.name, voice_mapping,
+                                                         remap_voice_config)
+            if moved:
+                replacements[relative(voice)] = voice_committed
         apply_book_state_locked(data_dir, replacements, [])
-        return moved
+        companions = {'aliases': _committed_identity(alias_capture or registry, alias_committed),
+                      'voice': _committed_identity(voice if capture_voice else None, voice_committed)}
+        raw_sha, entries_sha = _output_proof_values(new_script)
+        return PublicationProof(moved, output_raw_sha256=raw_sha,
+                                output_entries_sha256=entries_sha, companions=companions)
 
 
 def check_script_selection_binding(raw, book_token, source_sha256, current_script,

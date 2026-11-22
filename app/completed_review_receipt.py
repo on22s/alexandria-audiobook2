@@ -35,42 +35,57 @@ def get_review_receipt_path(output_path):
     return get_review_progress_paths(output_path)[1]
 
 
-def get_completed_review_match(input_path, output_path, input_sha256, fingerprint,
-                               legacy_fingerprints=()):
-    """Return a reason on a cache miss; never change output or checkpoint.
+def read_validated_completed_review(input_path, output_path, input_sha256, fingerprint,
+                                    legacy_fingerprints=(), *, companions=None):
+    """Validate the flat receipt once and return (matched, reason, identity).
 
-    `legacy_fingerprints` are additional digests accepted only when the caller
-    has verified the effective settings are unchanged (e.g. Manual transport);
-    a receipt for any other profile still fails.
+    `identity` carries the exact digests and companion identities validated by
+    this one read. A caller migrating a legacy receipt MUST use these values:
+    a digest captured before validation or a later re-read of a mutable path
+    can authenticate unrelated bytes that were never part of the reviewed
+    publication (the flat ABA/double-replacement race).
     """
     acceptable = {fingerprint}
     acceptable.update(item for item in legacy_fingerprints if isinstance(item, str))
+    identity = {'output_sha256': None, 'input_sha256': None,
+                'companions': companions if isinstance(companions, dict)
+                else {'aliases': None, 'voice': None}}
     path = get_review_receipt_path(output_path)
     try:
         with open(path, encoding='utf-8') as stream:
             receipt = json.load(stream)
         if (not isinstance(receipt, dict) or type(receipt.get('version')) is not int
                 or receipt['version'] != VERSION):
-            return False, 'unsupported completed-review receipt'
+            return False, 'unsupported completed-review receipt', identity
         if (receipt.get('input_path') != os.path.abspath(input_path)
                 or receipt.get('output_path') != os.path.abspath(output_path)
                 or receipt.get('fingerprint') not in acceptable):
-            return False, 'completed-review settings changed'
+            return False, 'completed-review settings changed', identity
         with open(output_path, encoding='utf-8') as stream:
             output = json.load(stream)
         if not isinstance(output, list) or not output:
-            return False, 'completed-review output is invalid'
+            return False, 'completed-review output is invalid', identity
         output_sha = get_review_entries_fingerprint(output)
         if receipt.get('output_sha256') != output_sha:
-            return False, 'completed-review output changed'
+            return False, 'completed-review output changed', identity
         expected = output_sha if os.path.abspath(input_path) == os.path.abspath(output_path) else receipt.get('input_sha256')
         if input_sha256 != expected:
-            return False, 'completed-review input changed'
+            return False, 'completed-review input changed', identity
         if os.path.exists(get_review_progress_paths(output_path)[0]):
-            return False, 'an incomplete review checkpoint remains'
-        return True, 'No changes since the completed review; use --force-review to rerun.'
+            return False, 'an incomplete review checkpoint remains', identity
+        identity['output_sha256'] = output_sha
+        identity['input_sha256'] = expected
+        return True, 'No changes since the completed review; use --force-review to rerun.', identity
     except (OSError, ValueError, TypeError) as error:
-        return False, f'completed-review receipt unavailable: {type(error).__name__}'
+        return False, f'completed-review receipt unavailable: {type(error).__name__}', identity
+
+
+def get_completed_review_match(input_path, output_path, input_sha256, fingerprint,
+                               legacy_fingerprints=()):
+    """Return (matched, reason). See ``read_validated_completed_review``."""
+    matched, reason, _identity = read_validated_completed_review(
+        input_path, output_path, input_sha256, fingerprint, legacy_fingerprints)
+    return matched, reason
 
 
 def save_completed_review_receipt(input_path, output_path, input_sha256, output_sha256, fingerprint, review_pass='forward'):
@@ -162,12 +177,15 @@ def get_durable_review_fact(document, direction):
         if type(fact.get(key)) is not int or fact[key] < 0:
             return None
     consumed = fact.get('consumed_forward_sha256')
+    consumed_fp = fact.get('consumed_forward_fingerprint')
     if consumed is not None and not is_sha256(consumed):
         return None
-    consumed_fp = fact.get('consumed_forward_fingerprint')
     if consumed_fp is not None and not is_sha256(consumed_fp):
         return None
-    if direction == 'backward' and not is_sha256(consumed) and not is_sha256(consumed_fp):
+    # The cross-direction proof is a pair. A half-present pair is never a valid
+    # fact: it cannot be a standalone completion (both fields absent) nor a
+    # verified bound proof (both fields present).
+    if is_sha256(consumed) != is_sha256(consumed_fp):
         return None
     companions = fact.get('companions')
     if not isinstance(companions, dict):
@@ -252,15 +270,20 @@ def invalidate_flat_review_receipt(output_path, direction='forward'):
     """Retire prior completion for a new run.
 
     A new forward run supersedes any earlier completion, so its whole receipt
-    is removed. A backward run runs after a completed forward pass and must
-    retain the forward proof: only the stale flat fields are retired.
+    is removed. A new backward run supersedes only the previous backward pass:
+    the stale flat fields and the superseded backward fact are retired while a
+    strict-validated forward fact is retained. Facts from an unsupported
+    version are never promoted into a current-version receipt.
     """
     if direction == 'forward':
         remove_completed_review_receipt(output_path)
         return
     document = load_review_receipt_document(output_path)
-    if isinstance(document, dict) and isinstance(document.get('facts'), dict) and document['facts']:
-        atomic_json_write({'version': VERSION, 'facts': document['facts']},
+    forward = get_durable_review_fact(document, 'forward')
+    supported = (isinstance(document, dict) and type(document.get('version')) is int
+                 and document['version'] == VERSION)
+    if supported and forward is not None:
+        atomic_json_write({'version': VERSION, 'facts': {'forward': forward}},
                           get_review_receipt_path(output_path), allow_nonatomic_fallback=False)
     else:
         remove_completed_review_receipt(output_path)

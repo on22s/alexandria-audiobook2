@@ -12710,6 +12710,19 @@
     , "tests.test_review_prompt_presets.ReviewPresetModelTests.test_missing_or_unknown_placeholders_are_refused_with_a_clear_message"
     , "tests.test_review_prompt_presets.ReviewPresetModelTests.test_old_configs_load_unchanged_and_default_to_default"
   ]
+  , "test_review_receipt_identity_boundary": [
+    "tests.test_review_receipt_identity_boundary.CheckpointEvidenceTests.test_failed_compaction_and_canonical_delta_replay_review_surviving_rows"
+    , "tests.test_review_receipt_identity_boundary.CheckpointEvidenceTests.test_superseded_backward_fact_is_retired_when_backward_work_starts"
+    , "tests.test_review_receipt_identity_boundary.CompanionProofTests.test_post_commit_companion_edit_is_not_authenticated"
+    , "tests.test_review_receipt_identity_boundary.CompanionProofTests.test_publisher_proof_captures_raw_entry_and_companion_hashes"
+    , "tests.test_review_receipt_identity_boundary.CoordinateAndBatchTests.test_balanced_split_and_merge_rewinds_only_the_failed_batch"
+    , "tests.test_review_receipt_identity_boundary.CoordinateAndBatchTests.test_canonical_destination_deduplication"
+    , "tests.test_review_receipt_identity_boundary.DirectionPairTests.test_half_present_backward_parent_is_rejected_but_standalone_is_reusable"
+    , "tests.test_review_receipt_identity_boundary.FlatIdentityTests.test_double_replacement_migrates_the_validated_digest"
+    , "tests.test_review_receipt_identity_boundary.FlatIdentityTests.test_unsupported_version_facts_are_not_promoted_during_invalidation"
+    , "tests.test_review_receipt_identity_boundary.ForwardFallbackTests.test_changed_forward_input_is_not_authorized_by_backward_checkpoint"
+    , "tests.test_review_receipt_identity_boundary.ForwardFallbackTests.test_separate_output_backward_cannot_certify_a_different_source"
+  ]
   , "test_review_source_binding": [
     "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_annotationless_and_clearing_replies_still_report_unresolved_metadata"
     , "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_cli_publishes_the_new_speaker_split_with_its_explicit_annotations"

@@ -149,7 +149,7 @@ from core import (
     _warn_corrupted_json,
     check_global_gpu_lock,
     claim_gpu_task, schedule_claimed_background_task, ensure_book_switch_allowed,
-    ensure_saved_book_destination_available,
+    ensure_saved_book_destination_available, get_saved_book_destination_path,
     reserve_background_task, register_claimed_background_task, release_gpu_task_claim,
     process_state,
     run_process,
@@ -4003,6 +4003,28 @@ async def review_script_batch_start(request: BatchReviewRequest, background_task
     return await asyncio.to_thread(_with_review_startup, "batch_review", _start_batch_review, request, background_tasks)
 
 
+def get_unique_batch_script_names(names):
+    """Deduplicate requested books by their canonical saved destination.
+
+    ``secure_filename`` and platform case/inode aliasing can map several names
+    onto one saved-book file. Counting them separately would review the same
+    file twice and double-count its changes. The first spelling is kept so
+    user-facing messages do not change.
+    """
+    unique = []
+    seen = set()
+    for name in dict.fromkeys(names):
+        safe_name = secure_filename(name)
+        destination = (get_saved_book_destination_path(os.path.join(SCRIPTS_DIR, f"{safe_name}.json"))
+                       if safe_name else None)
+        if destination is not None and destination in seen:
+            continue
+        if destination is not None:
+            seen.add(destination)
+        unique.append(name)
+    return unique
+
+
 def _start_batch_review(request, background_tasks):
     dedupe, discover, bidirectional = _resolve_batch_review_options(request)
     effective_options = {"bidirectional": bidirectional,
@@ -4014,7 +4036,7 @@ def _start_batch_review(request, background_tasks):
     _, window = get_validated_context_setting(
         CONTEXT_MODE_ENTRIES, request.context_window, 0, minimum=0)
 
-    names = list(dict.fromkeys(request.script_names))
+    names = get_unique_batch_script_names(request.script_names)
     total = len(names)
     pending = {
         "tasks": [{"name": name, "status": "pending"} for name in names],

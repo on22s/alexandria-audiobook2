@@ -41,10 +41,11 @@ from llm_provider import (make_llm_client, make_run_client, get_run_model_bindin
                           resolve_historical_api_key)
 from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SPAN_ALGORITHM_VERSION,
     get_review_entries_fingerprint, get_review_sidecar_identity, get_completed_review_match,
-    get_review_progress_paths, get_review_receipt_path, save_completed_review_receipt,
-    remove_completed_review_receipt, REVIEW_SUMMARY_FIELDS, load_review_receipt_document,
-    get_durable_review_fact, read_durable_review_fact, build_review_fact,
-    save_durable_review_fact, resolve_legacy_review_fact, invalidate_flat_review_receipt)
+    read_validated_completed_review, get_review_progress_paths, get_review_receipt_path,
+    save_completed_review_receipt, remove_completed_review_receipt, REVIEW_SUMMARY_FIELDS,
+    load_review_receipt_document, get_durable_review_fact, read_durable_review_fact,
+    build_review_fact, save_durable_review_fact, resolve_legacy_review_fact,
+    invalidate_flat_review_receipt)
 from llm_bench import ensure_cached_or_benchmarked_concurrency
 from review_prompts import (REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT,
                             REVIEW_TEMPLATE_FIELDS, validate_active_review_user_prompt)
@@ -405,7 +406,7 @@ def _wire_authorization_digest(profile):
 
 
 def get_completed_review_fingerprint(config, llm_config, params, args, client, model_name, source_text=None,
-                                      *, entries=(), legacy=False):
+                                      *, entries=(), legacy=False, companions=None):
     generation_config = config.get('generation') or {}
     batch_size, target_chars = get_review_batching(generation_config)
     profiles = []
@@ -433,8 +434,10 @@ def get_completed_review_fingerprint(config, llm_config, params, args, client, m
         'context_window': args.context_window, 'dedupe_speakers': args.dedupe_speakers,
         'merge_narrators': generation_config.get('merge_narrators', False),
         'batch_size': batch_size,
-        'aliases': get_review_sidecar_identity(args.alias_registry),
-        'voice_config': get_review_sidecar_identity(args.remap_voice_config)}
+        'aliases': (companions.get('aliases') if companions is not None
+                    else get_review_sidecar_identity(args.alias_registry)),
+        'voice_config': (companions.get('voice') if companions is not None
+                         else get_review_sidecar_identity(args.remap_voice_config))}
     # Add the key only when opted in, so default (0) configs keep the exact
     # same receipt identity as before this setting existed.
     if target_chars:
@@ -557,35 +560,20 @@ def get_review_companion_identity(args):
     }
 
 
-def get_published_companion_identity(args, dedupe_map, registry_staging):
-    """Companion digests as committed by the publication transaction.
+def get_published_companion_identity(args, dedupe_map, registry_staging, proof=None,
+                                      fallback=None):
+    """Companion digests from the exact bytes the publisher committed.
 
-    The alias registry is taken from the staged bytes the publisher wrote; the
-    voice config is derived from the bytes read before publication through the
-    same deterministic remap the publisher applies. Nothing is re-read from the
-    output paths after the commit, so a post-publication replacement cannot
-    lend its identity to the completed review.
+    Only a publication proof captured under the publisher's locks is trusted.
+    On the standalone write path the caller supplies the companion snapshot
+    taken at the start of this run; a mutable path is never re-read after the
+    output commit to lend its identity to a fact.
     """
-    result = get_review_companion_identity(args)
-    alias_path = getattr(args, 'alias_registry', None)
-    if (alias_path and isinstance(registry_staging, dict)
-            and isinstance(registry_staging.get('after'), bytes)):
-        result['aliases'] = {'path': os.path.abspath(alias_path),
-                             'sha256': hashlib.sha256(registry_staging['after']).hexdigest()}
-    voice_path = getattr(args, 'remap_voice_config', None)
-    if voice_path and dedupe_map:
-        try:
-            with open(voice_path, encoding='utf-8') as stream:
-                config = json.load(stream)
-            remapped, moved = _remapped_voice_config(config, dedupe_map)
-            if moved:
-                published = json.dumps(remapped, ensure_ascii=False, indent=2,
-                                       allow_nan=False).encode('utf-8')
-                result['voice'] = {'path': os.path.abspath(voice_path),
-                                   'sha256': hashlib.sha256(published).hexdigest()}
-        except (OSError, ValueError, TypeError):
-            pass
-    return result
+    if proof is not None and isinstance(getattr(proof, 'companions', None), dict):
+        return dict(proof.companions)
+    if fallback is not None:
+        return dict(fallback)
+    return get_review_companion_identity(args)
 
 
 def get_current_output_fingerprint(output_path):
@@ -600,17 +588,31 @@ def get_current_output_fingerprint(output_path):
     return None
 
 
+def get_current_output_entry_count(output_path):
+    """Entry count of the currently published output, for layout validation."""
+    try:
+        with open(output_path, encoding='utf-8') as stream:
+            published = json.load(stream)
+        if isinstance(published, list):
+            return len(published)
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
 def get_reusable_review_completion(input_path, output_path, input_sha256, output_sha256,
                                    fingerprint, legacy_fingerprints, direction, companions,
-                                   *, settings_fingerprint=None, backward_fingerprint=None):
+                                   *, settings_fingerprint=None, backward_fingerprint=None,
+                                   output_entry_count=None):
     """Return (matched, reason, summary, unverified, legacy_fact) from the receipt.
 
     The child is the only authority on execution identity. A fact is accepted
     only when strict-valid, bound to these exact paths, the current published
     bytes/companions and the current settings, and not superseded by an active
     same-direction checkpoint. A forward completion is additionally preserved
-    across a shared-registry transition only through a backward proof that is
-    bound to that exact forward publication and the same settings identity.
+    across a shared-registry transition only through a backward proof bound to
+    that exact forward publication, the exact requested paths and source, the
+    current output layout, the backward execution identity and the companions.
     """
     acceptable = {fingerprint, *(item for item in legacy_fingerprints if isinstance(item, str))}
     in_place = os.path.abspath(input_path) == os.path.abspath(output_path)
@@ -618,10 +620,10 @@ def get_reusable_review_completion(input_path, output_path, input_sha256, output
     checkpoint_path = get_review_progress_paths(output_path)[0]
 
     def read_checkpoint():
+        # Canonical replay: an indexed delta checkpoint stores its current state
+        # in shards, so a raw read of the header cannot authenticate a run.
         try:
-            with open(checkpoint_path, encoding='utf-8') as stream:
-                on_disk = json.load(stream)
-            return on_disk if isinstance(on_disk, dict) else None
+            return load_generation_checkpoint_document(checkpoint_path)
         except (OSError, ValueError, TypeError):
             return None
 
@@ -630,7 +632,8 @@ def get_reusable_review_completion(input_path, output_path, input_sha256, output
                 'entries_after': fact.get('entries_after', 0)}
 
     def direct_hit(fact, checkpoint):
-        if fact is None or checkpoint is not None and checkpoint.get('execution_sha256') in acceptable:
+        if fact is None or (checkpoint is not None
+                and checkpoint.get('execution_sha256') in acceptable):
             return False
         if (fact.get('input_path') != os.path.abspath(input_path)
                 or fact.get('output_path') != os.path.abspath(output_path)
@@ -644,7 +647,18 @@ def get_reusable_review_completion(input_path, output_path, input_sha256, output
         return True
 
     def bound_to_forward(proof, forward, *, completed):
-        if not isinstance(proof, dict):
+        """Validate a backward proof against this exact forward request.
+
+        The forward fact must name the requested paths; the backward proof must
+        carry its own source digest (the bytes it consumed, separate from the
+        forward output digest), the current output layout, the backward
+        execution identity and the same companions. Nothing may be inferred
+        from a mutable path re-read after either pass published.
+        """
+        if not isinstance(proof, dict) or not isinstance(forward, dict):
+            return False
+        if (forward.get('input_path') != os.path.abspath(input_path)
+                or forward.get('output_path') != os.path.abspath(output_path)):
             return False
         if (proof.get('settings_fingerprint') != forward.get('settings_fingerprint')
                 or settings_fingerprint is None
@@ -654,8 +668,30 @@ def get_reusable_review_completion(input_path, output_path, input_sha256, output
             return False
         if proof.get('companions') != companions:
             return False
+        proof_execution = (proof.get('fingerprint') if completed
+                           else proof.get('execution_sha256'))
+        if proof_execution is None or proof_execution != backward_fingerprint:
+            return False
+        proof_source = proof.get('input_sha256') if completed else proof.get('source_sha256')
+        if proof_source != forward.get('output_sha256'):
+            return False
+        if in_place:
+            # The duplex overwrote this path: the current bytes must be the
+            # proof's own output, and the proof consumed the forward output.
+            if input_sha256 != (proof.get('output_sha256') if completed else proof_source):
+                return False
+        else:
+            if input_sha256 != forward.get('input_sha256'):
+                return False
+            if output_sha256 != (proof.get('output_sha256') if completed else proof_source):
+                return False
         if completed:
-            return proof.get('output_sha256') == output_sha256
+            if proof.get('output_sha256') != output_sha256:
+                return False
+            if (output_entry_count is not None
+                    and (proof.get('entries_before') != forward.get('entries_after')
+                         or proof.get('entries_after') != output_entry_count)):
+                return False
         return True
 
     checkpoint = read_checkpoint()
@@ -666,8 +702,7 @@ def get_reusable_review_completion(input_path, output_path, input_sha256, output
 
     if direction == 'forward' and fact is not None:
         backward = get_durable_review_fact(document, 'backward')
-        if (backward_fingerprint is not None and backward is not None
-                and backward.get('fingerprint') == backward_fingerprint
+        if (backward is not None and backward_fingerprint is not None
                 and bound_to_forward(backward, fact, completed=True)):
             return True, 'verified backward pass consumed this forward publication', \
                 with_counts(fact), fact['summary']['accounting_unverified'], None
@@ -677,13 +712,15 @@ def get_reusable_review_completion(input_path, output_path, input_sha256, output
 
     facts = document.get('facts') if isinstance(document, dict) else None
     if not isinstance(facts, dict) or not facts:
-        matched, reason = get_completed_review_match(
-            input_path, output_path, input_sha256, fingerprint, legacy_fingerprints)
+        matched, reason, identity = read_validated_completed_review(
+            input_path, output_path, input_sha256, fingerprint, legacy_fingerprints,
+            companions=companions)
         recorded_direction = document.get('review_pass', 'forward') if isinstance(document, dict) else None
         if matched and recorded_direction == direction:
             resolved = resolve_legacy_review_fact(
-                input_path, output_path, input_sha256, output_sha256 or '', fingerprint, direction,
-                companions=companions, settings_fingerprint=settings_fingerprint)
+                input_path, output_path, identity['input_sha256'], identity['output_sha256'],
+                fingerprint, direction, companions=identity['companions'],
+                settings_fingerprint=settings_fingerprint)
             return True, reason + ' (legacy proof; original counts unavailable)', \
                 resolved['summary'], True, resolved
     return False, 'no verified completion for this direction', None, False, None
@@ -2721,15 +2758,15 @@ def main():
         get_review_source_snapshot(data_dir, script_path, original_script_bytes, entries))
     review_source_text = review_source_snapshot['text'] if review_source_snapshot is not None else None
     review_source_identity = review_source_snapshot['identity'] if review_source_snapshot is not None else None
+    companions = get_review_companion_identity(args)
     receipt_fingerprint = get_completed_review_fingerprint(config, llm_config, gen_params, args, client,
-                                                         model_name, review_source_text, entries=entries)
+        model_name, review_source_text, entries=entries, companions=companions)
     legacy_fingerprint = get_legacy_review_fingerprint(config, llm_config, gen_params, args, client,
-                                                       model_name, review_source_text, entries=entries)
+                                                        model_name, review_source_text, entries=entries)
     legacy_fingerprints = (() if legacy_fingerprint in (None, receipt_fingerprint)
                            else (legacy_fingerprint,))
     direction = getattr(args, 'review_pass', 'forward')
     current_output_sha = get_current_output_fingerprint(output_path)
-    companions = get_review_companion_identity(args)
     settings_fingerprint = get_review_settings_fingerprint(
         config, llm_config, gen_params, args, client, model_name, review_source_text, entries)
     backward_fingerprint = None
@@ -2738,7 +2775,7 @@ def main():
         backward_args.review_pass = 'backward'
         backward_fingerprint = get_completed_review_fingerprint(
             config, llm_config, gen_params, backward_args, client, model_name,
-            review_source_text, entries=entries)
+            review_source_text, entries=entries, companions=companions)
     consumed_forward_sha256 = None
     consumed_forward_fingerprint = None
     if direction == 'backward':
@@ -2751,7 +2788,8 @@ def main():
     matched, receipt_reason, reused_summary, reused_unverified, legacy_fact = get_reusable_review_completion(
         script_path, output_path, source_sha256, current_output_sha, receipt_fingerprint,
         legacy_fingerprints, direction, companions, settings_fingerprint=settings_fingerprint,
-        backward_fingerprint=backward_fingerprint)
+        backward_fingerprint=backward_fingerprint,
+        output_entry_count=get_current_output_entry_count(output_path))
     if matched and not args.force_review:
         if legacy_fact is not None:
             save_durable_review_fact(output_path, direction, legacy_fact,
@@ -3212,6 +3250,7 @@ def main():
                 moved = _remap_voice_config(args.remap_voice_config, dedupe_map)
                 if moved:
                     print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
+                    companions = get_review_companion_identity(args)
         else:
             print("No duplicate character names found.")
 
@@ -3264,39 +3303,50 @@ def main():
         elif unreviewed_entries:
             print(f"{unreviewed_entries} entries were left unreviewed.")
     # Keep active script identity and old chunks in the same recoverable commit.
+    # The publisher's proof is the only post-publication identity authority.
+    publication_proof = None
     if publication_withheld:
         pass
     elif active_review:
         from script_selection_binding import publish_controlled_script_edit
         ensure_review_not_cancelled()
-        moved = publish_controlled_script_edit(data_dir, original_script_bytes,
+        publication_proof = publish_controlled_script_edit(data_dir, original_script_bytes,
             output_bytes,
             voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
             remap_voice_config=_remapped_voice_config, registry_staging=registry_staging,
+            alias_registry_path=args.alias_registry,
             expected_source_identity=review_source_identity)
+        moved = publication_proof
         if moved:
             print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
     elif saved_review:
         from script_selection_binding import publish_saved_script_edit
         ensure_review_not_cancelled()
-        moved = publish_saved_script_edit(data_dir, saved_dir, output_path, original_script_bytes,
+        publication_proof = publish_saved_script_edit(data_dir, saved_dir, output_path, original_script_bytes,
             output_bytes,
             voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
             remap_voice_config=_remapped_voice_config, registry_staging=registry_staging,
+            alias_registry_path=args.alias_registry,
             expected_source_identity=review_source_identity)
+        moved = publication_proof
         if moved:
             print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
     else:
         ensure_review_not_cancelled()
         atomic_json_write(output_entries, output_path, allow_nonatomic_fallback=False)
+    committed_companions = get_published_companion_identity(
+        args, dedupe_map, registry_staging, proof=publication_proof, fallback=companions)
+    committed_output_sha = (getattr(publication_proof, 'output_entries_sha256', None)
+                            or output_sha256)
 
     # Checkpoint is only needed while a run is incomplete; clear it once the
     # full review (and any post-processing) has finished successfully.
     if review_complete:
         completion_fingerprint = get_completed_review_fingerprint(
-            config, llm_config, gen_params, args, client, model_name, review_source_text, entries=entries)
+            config, llm_config, gen_params, args, client, model_name, review_source_text,
+            entries=entries, companions=committed_companions)
         save_completed_review_receipt(script_path, output_path, source_sha256,
-            output_sha256, completion_fingerprint, review_pass=direction)
+            committed_output_sha, completion_fingerprint, review_pass=direction)
         if direction == 'backward':
             provenance_sha = (consumed_forward_sha256 if consumed_forward_sha256 is not None
                               else source_sha256)
@@ -3312,16 +3362,15 @@ def main():
                        accounting_unverified=bool(
                            (accounting.get('metadata') or {}).get('inherited_unverified')))
         save_durable_review_fact(output_path, direction,
-            build_review_fact(script_path, output_path, provenance_sha, output_sha256,
-                completion_fingerprint,
-                get_published_companion_identity(args, dedupe_map, registry_staging), summary,
+            build_review_fact(script_path, output_path, provenance_sha, committed_output_sha,
+                completion_fingerprint, committed_companions, summary,
                 settings_fingerprint=settings_fingerprint,
                 consumed_forward_sha256=consumed_forward_sha256,
                 consumed_forward_fingerprint=consumed_forward_fingerprint,
                 entries_before=len(input_entries), entries_after=len(output_entries)),
             top_level={'version': 1, 'input_path': os.path.abspath(script_path),
                        'output_path': os.path.abspath(output_path), 'input_sha256': source_sha256,
-                       'output_sha256': output_sha256, 'fingerprint': completion_fingerprint,
+                       'output_sha256': committed_output_sha, 'fingerprint': completion_fingerprint,
                        'review_pass': direction})
         clear_checkpoint(output_path)
 
