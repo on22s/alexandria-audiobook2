@@ -53,7 +53,7 @@ from run_history import list_runs, update_run
 from runtime_info import get_runtime_info
 from routers.lora import list_adapters_needing_recovery
 from config_settings import load_app_config
-from lmstudio_settings import is_active_llm_remote
+from lmstudio_settings import get_active_llm_config, is_active_llm_remote
 import diagnostics as diagnostics_module
 
 
@@ -556,15 +556,12 @@ def _safe_config_summary() -> dict:
     except Exception:
         logger.exception("Could not load app config for diagnostics")
         return {"available": False}
-    llm = cfg.get("llm") or {}
+    llm = get_active_llm_config(cfg)
     llm_mode = cfg.get("llm_mode", "local")
     return {
         "available": True,
         "llm_mode": llm_mode,
         "model_name": llm.get("model_name"),
-        # The classification resolves the active profile, not the `llm` mirror
-        # this summary reads the model name from (#2007) - a support report must
-        # not repeat the drift the Setup page was fixed for.
         "is_remote_llm": is_active_llm_remote(cfg),
         "remote_ssh_configured": bool((cfg.get("llm_remote_ssh") or "").strip()),
     }
