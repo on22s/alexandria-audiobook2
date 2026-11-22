@@ -1,7 +1,7 @@
 import argparse
 import hashlib
 import uuid
-from chunk_status_journal import remove_chunk_snapshot
+from chunk_status_journal import is_active_script_output, remove_chunk_snapshot
 from generation_checkpoint_shards import (GenerationCheckpointShards,
     load_generation_shard_checkpoint, remove_generation_shard_checkpoint)
 import os
@@ -2639,8 +2639,9 @@ def main():
                                  input_file_path, input_sha256)
     clear_generation_checkpoint(output_path)
 
-    # Only clear chunks when writing to the default annotated_script.json location
-    if args.output is None:
+    # Clear chunks whenever publication replaced the active script, including
+    # an explicit spelling of its default path.
+    if is_active_script_output(data_dir, output_path):
         chunks_path = os.path.join(data_dir, "chunks.json")
         if remove_chunk_snapshot(chunks_path):
             print("Cleared old chunks.json")

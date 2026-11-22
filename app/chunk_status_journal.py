@@ -32,6 +32,17 @@ def get_chunk_audio_key(chunks_path, audio_path):
         os.path.dirname(os.path.abspath(chunks_path)), audio_path)))
 
 
+def is_active_script_output(data_dir, output_path):
+    """Whether a destination replaces the active script rather than a copy.
+
+    Resolving to absolute paths covers the default location and equivalent
+    explicit absolute or relative spellings, matching the review CLI's
+    active-destination rule.
+    """
+    active_script = os.path.join(data_dir, "annotated_script.json")
+    return os.path.abspath(output_path) == os.path.abspath(active_script)
+
+
 def remove_chunk_snapshot(chunks_path):
     """Retire generation state when its script has been replaced."""
     removed = False

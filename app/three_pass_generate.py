@@ -9,7 +9,7 @@ import hashlib
 import json
 import math
 from generation_checkpoint_deltas import GenerationCheckpointDeltas, load_generation_delta_checkpoint
-from chunk_status_journal import remove_chunk_snapshot
+from chunk_status_journal import is_active_script_output, remove_chunk_snapshot
 import os
 import re
 import sys
@@ -3934,10 +3934,11 @@ def prepare_source_text(book):
 
 def get_output_paths(data_dir, requested_output=None):
     """Resolve output and stale-chunk paths for CLI and application runs."""
+    chunks = os.path.join(data_dir, "chunks.json")
     if requested_output is not None:
-        return requested_output, None
-    return (os.path.join(data_dir, "annotated_script.json"),
-            os.path.join(data_dir, "chunks.json"))
+        return (requested_output, chunks if is_active_script_output(
+            data_dir, requested_output) else None)
+    return (os.path.join(data_dir, "annotated_script.json"), chunks)
 
 
 def _has_explicit_null_pass_status(pass_info):
