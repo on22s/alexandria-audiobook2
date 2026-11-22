@@ -49,13 +49,15 @@ def get_pronunciation_path(path=None):
 
     An explicit caller path always wins. Otherwise an isolated
     ALEXANDRIA_DATA_DIR owns the file, while an unconfigured runtime keeps the
-    legacy install-root default. Admit the selected data root before using
-    it, and keep DEFAULT_PATH when the admitted spelling is the install
-    directory. A separate data root works even if the code was imported
-    through an alias. A missing root keeps its admitted spelling.
+    legacy install-root default, including standalone imports through an
+    alias. Admit configured data roots before using them and keep DEFAULT_PATH
+    when the admitted spelling is the install directory. A missing configured
+    root keeps its admitted spelling.
     """
     if path:
         return path
+    if not os.environ.get("ALEXANDRIA_DATA_DIR", "").strip():
+        return DEFAULT_PATH
     from direct_path_admission import get_direct_directory_root, is_plain_path
     from utils import get_runtime_data_dir
     root = get_runtime_data_dir(REPO)

@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pronunciation
 from routers import editor, pronunciation_panel as panel
+from speech_text import normalize_for_speech
 
 
 class PronunciationDataRootTests(unittest.TestCase):
@@ -97,6 +98,19 @@ class PronunciationDataRootTests(unittest.TestCase):
                 panel.PronunciationSave(names={'Rom': 'Rohm'}, revision=current['revision']))
             self.assertEqual('Rohm', pronunciation.apply_pronunciation('Rom')[0])
         self.assertFalse((install / 'pronunciation.json').exists())
+
+    def test_standalone_speech_uses_legacy_lexicon_through_symlinked_install(self):
+        install = self.base / 'install'
+        install.mkdir()
+        (install / 'pronunciation.json').write_text('{"names":{"Rom":"Rohm"}}', encoding='utf-8')
+        alias = self.base / 'install-link'
+        alias.symlink_to(install, target_is_directory=True)
+        with (patch.dict(os.environ), patch.object(pronunciation, 'REPO', str(alias)),
+              patch.object(pronunciation, 'DEFAULT_PATH', str(alias / 'pronunciation.json'))):
+            os.environ.pop('ALEXANDRIA_DATA_DIR', None)
+            self.assertEqual('Rohm.', normalize_for_speech('Rom'))
+            with self._env(alias), self.assertRaises(ValueError):
+                pronunciation.get_pronunciation_path()
 
     def test_missing_new_root_keeps_its_own_spelling(self):
         new_root = self.base / 'not-created-yet'

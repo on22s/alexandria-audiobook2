@@ -10995,6 +10995,7 @@
     , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_missing_new_root_keeps_its_own_spelling"
     , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_panel_writes_stay_in_their_root_and_leave_install_untouched"
     , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_refused_alias_onto_install_never_falls_back_to_it"
+    , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_standalone_speech_uses_legacy_lexicon_through_symlinked_install"
     , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_synthesis_default_and_repair_digest_follow_the_root"
     , "tests.test_pronunciation_data_root.PronunciationDataRootTests.test_two_roots_resolve_separate_paths_and_reads"
   ]
