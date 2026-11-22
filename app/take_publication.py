@@ -2,6 +2,12 @@
 
 This records evidence for future explicit restoration; it never selects audio.
 Unsupported/older renders remain unproven. Browsing does not inspect a model.
+
+The proof binds the active native serving fingerprint, which includes the loaded
+AA2 module code. A release that changes that code yields a different fingerprint,
+so older receipts become audition-only instead of restorable; this is not a
+promise of restoration across releases. The supported schemas apply only while
+every proven dependency still matches.
 """
 from dataclasses import asdict, dataclass
 import os
@@ -165,8 +171,12 @@ def capture_take_publication_admission(engine, parent, book_token, uid, index, i
         if (parent.uid_sha256 != get_recovery_digest(uid)
                 or parent.inputs_sha256 != get_recovery_digest(dict(index=index, inputs=inputs))):
             return None
+        # v2 binds the admitted integer seed. Editor saves it as a string at the
+        # generation boundary, so canonicalize only that field; every other
+        # voice field still participates and legacy v1 digests are untouched.
+        voice_sha256 = get_recovery_digest({**selected, 'seed': seed})
         return TakePublicationAdmission(engine, parent, book_token, uid, index,
-            get_recovery_digest(inputs), get_recovery_digest(selected), get_recovery_digest(model), seed, category)
+            get_recovery_digest(inputs), voice_sha256, get_recovery_digest(model), seed, category)
 
 
 def _read_audio(root, path, cancel_check, *, decode=True):

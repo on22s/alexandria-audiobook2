@@ -16,6 +16,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+import numpy as np
+
 from audio_take_history import AudioTakeHistory
 from book_state_transaction import get_book_operation_token
 from synthesis_recovery_serving import NativeRecoveryServingIdentity
@@ -144,6 +146,64 @@ class TakeRestorationTests(unittest.TestCase):
                 self.assertEqual(restored['audio_revision'],origin['audio_revision'])
 
     @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_real_generate_loop_editor_string_seed_and_later_changes(self):
+        class Model:
+            def generate_custom_voice(self, **kwargs):
+                return [np.sin(np.arange(2400) * .1) * .2], 24000
+        identity=NativeRecoveryServingIdentity('b'*64,'c'*64,'d'*64)
+        for case in ('string_seed','seed_only_change','tampered_seed','voice_mismatch'):
+            with self.subTest(case=case), self.fixture() as (root,manager,_,fresh), self.owner():
+                engine=self.engine();engine._local_custom_model=Model()
+                Path(manager.config_path).write_text(json.dumps({'tts':{
+                    **engine.get_model_settings(),'synthesis_recovery':engine._synthesis_recovery}}))
+                manager.invalidate_config_cache()
+                saved={'type':'custom','voice':'Ryan','seed':'42' if case=='string_seed' else 42}
+                Path(manager.voice_config_path).write_text(json.dumps({'NARRATOR':saved}))
+                with patch.object(manager,'get_engine',return_value=engine), \
+                        patch('synthesis_recovery.capture_native_serving_identity',return_value=identity), \
+                        patch('synthesis_recovery_serving.capture_native_custom_serving_identity',return_value=identity), \
+                        patch('speech_verification.verify_finished_speech',side_effect=AssertionError('ASR must stay off')):
+                    success,payload=manager.generate_chunk_audio(0)
+                    self.assertTrue(success,payload)
+                    origin=copy.deepcopy(manager.load_chunks()[0])
+                    original=(root/origin['audio_path']).read_bytes()
+                    self.assertEqual(origin[KEY]['seed'],42)
+                    self.assertEqual(origin[KEY]['version'],2)
+                    manager.update_chunk(0,{'take':3})
+                    manager._publish_generated_chunk_audio(manager.load_chunks()[0],str(fresh),'NARRATOR')
+                current=copy.deepcopy(manager.load_chunks()[0]);displaced=(root/current['audio_path']).read_bytes()
+                self.assertNotEqual(original,displaced)
+                with AudioTakeHistory(root)._locked() as document:
+                    saved_row=copy.deepcopy(next(row for row in document['records']
+                        if row['audio_revision']==origin['audio_revision']))
+                request=SimpleNamespace(expected_book_token=get_book_operation_token(root),
+                    source_book_token=get_book_operation_token(root),expected_uid=current['uid'],
+                    expected_audio_revision=current['audio_revision'],expected_audio_path=current['audio_path'],
+                    expected_take=current['take'],version=saved_row['version'],sha256=saved_row['sha256'])
+                with patch.object(manager,'get_engine',return_value=engine), \
+                        patch('synthesis_recovery_serving.capture_native_custom_serving_identity',return_value=identity):
+                    if case=='seed_only_change':
+                        voices=manager.get_voice_config_for_update()
+                        voices['NARRATOR']={**voices['NARRATOR'],'seed':43}
+                        Path(manager.voice_config_path).write_text(json.dumps(voices))
+                    elif case=='voice_mismatch':
+                        Path(manager.voice_config_path).write_text(json.dumps(
+                            {'NARRATOR':{'type':'custom','voice':'Emma','seed':42}}))
+                    elif case=='tampered_seed':
+                        history=AudioTakeHistory(root)
+                        with history._locked() as document:
+                            record=next(row for row in document['records'] if row['version']==saved_row['version'])
+                            record['captured'][KEY]['seed']=44;history._save(document)
+                    if case in ('tampered_seed','voice_mismatch'):
+                        with self.assertRaises(ValueError):
+                            restore_editor_take(manager,0,request,capture_restore_target(manager,0,request))
+                        self.assertEqual((root/current['audio_path']).read_bytes(),displaced)
+                    else:
+                        restored=restore_editor_take(manager,0,request,capture_restore_target(manager,0,request))
+                        self.assertEqual((root/restored['audio_path']).read_bytes(),original)
+                        self.assertEqual(restored[KEY],origin[KEY])
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_stored_seed_only_change_is_bound_by_proven_seed(self):
         with self.prepared() as args:
             root,manager,_,request,_,original,_,_,_=args
@@ -179,6 +239,38 @@ class TakeRestorationTests(unittest.TestCase):
             restored=restore_editor_take(manager,0,request,capture_restore_target(manager,0,request))
             self.assertEqual((root/restored['audio_path']).read_bytes(),original)
             self.assertEqual(restored[KEY]['version'],1)
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_loaded_code_release_change_makes_old_receipts_audition_only(self):
+        from synthesis_recovery_native import get_native_custom_code_sha256
+        from synthesis_recovery_serving import _get_aa2_loaded_code
+        from take_publication import validate_take_publication
+        current_code=_get_aa2_loaded_code()
+        changed_code={**current_code,'speech_policy':'f'*64}
+        self.assertNotEqual(current_code,changed_code)
+        changed=NativeRecoveryServingIdentity(
+            get_native_custom_code_sha256(state={'aa2_loaded_code':changed_code}),'c'*64,'d'*64)
+        self.assertNotEqual(changed.sha256,
+            get_native_custom_code_sha256(state={'aa2_loaded_code':current_code}))
+        for version in (2,1):
+            with self.subTest(receipt_version=version),self.prepared() as args:
+                root,manager,_,request,_,_,current,displaced,saved=args
+                if version==1:
+                    history=AudioTakeHistory(root)
+                    with history._locked() as document:
+                        record=next(row for row in document['records'] if row['version']==saved['version'])
+                        legacy=copy.deepcopy(record['captured'][KEY])
+                        legacy.pop('seed');legacy['version']=1
+                        record['captured'][KEY]=legacy;history._save(document)
+                    self.assertIsNotNone(validate_take_publication({'uid':record['uid'],
+                        'audio_revision':record['audio_revision'],KEY:legacy}))
+                with patch('synthesis_recovery_serving.capture_native_custom_serving_identity',
+                           return_value=changed):
+                    with self.assertRaisesRegex(ValueError,'native execution dependencies differ'):
+                        restore_editor_take(manager,0,request,capture_restore_target(manager,0,request))
+                self.assertEqual((root/current['audio_path']).read_bytes(),displaced)
+                self.assertEqual(len([row for row in AudioTakeHistory(root).list(uid=current['uid'])['records']
+                    if row['sha256']==saved['sha256']]),1)
 
     @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_tampered_or_malformed_receipt_seed_refuses_without_replacing_audio(self):

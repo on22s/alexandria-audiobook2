@@ -2,6 +2,11 @@
 
 The original artifact revision and generation receipts stay intact. Restoration
 copies encoded bytes; it neither synthesizes speech nor edits authored words.
+
+Restoration stays conditional on the current serving fingerprint, which includes
+loaded module code. A release that changes it makes older saved takes
+audition-only under the existing serving check; no universal cross-version
+restoration is claimed.
 """
 from contextlib import closing
 import copy
