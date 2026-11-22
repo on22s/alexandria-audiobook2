@@ -236,7 +236,8 @@ def read_durable_review_fact(output_path, direction):
 def build_review_fact(input_path, output_path, input_sha256, output_sha256, fingerprint,
                       companions, summary, *, settings_fingerprint=None,
                        consumed_forward_sha256=None, consumed_forward_fingerprint=None,
-                       parent_input_sha256=None, parent_entry_count=None,
+                       parent_input_sha256=None, parent_publication_sha256=None,
+                       parent_entry_count=None,
                        entries_before=0, entries_after=0):
     """Build one durable fact from the publication transaction's own digests.
 
@@ -255,6 +256,7 @@ def build_review_fact(input_path, output_path, input_sha256, output_sha256, fing
         'consumed_forward_sha256': consumed_forward_sha256,
         'consumed_forward_fingerprint': consumed_forward_fingerprint,
         'parent_input_sha256': parent_input_sha256,
+        'parent_publication_sha256': parent_publication_sha256,
         'parent_entry_count': parent_entry_count,
         'entries_before': entries_before,
         'entries_after': entries_after,
@@ -297,9 +299,6 @@ def invalidate_flat_review_receipt(output_path, direction='forward'):
     version are never promoted into a current-version receipt.
     """
     path = get_review_receipt_path(output_path)
-    # Observation only: writers may interleave here, so the authoritative read,
-    # validation and replacement below all happen under the receipt's own lock.
-    load_review_receipt_document(output_path)
     with file_lock(path):
         document = _read_receipt_unlocked(path)
         if direction == 'forward':
