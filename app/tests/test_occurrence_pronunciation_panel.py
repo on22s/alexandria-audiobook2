@@ -122,6 +122,7 @@ class OccurrencePanelTests(unittest.TestCase):
                                  (core, 'DATA_DIR', str(self.root)), (core, 'process_state', states),
                                  (panel, 'process_state', states), (core, '_task_claims', {}), (core, '_gpu_leases', {})):
             active = patch.object(obj, name, value); active.start(); self.addCleanup(active.stop)
+        active = patch.object(pronunciation, 'get_pronunciation_path', return_value=str(self.lexicon)); active.start(); self.addCleanup(active.stop)
         api = FastAPI(); api.include_router(panel.router)
         self.client = TestClient(api); self.addCleanup(self.client.close)
         self.request = {'expected_book_token': panel.get_snapshot_digest(panel.get_editor_book_identity(str(self.root))),

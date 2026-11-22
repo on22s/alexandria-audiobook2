@@ -10510,25 +10510,26 @@
         function parseChapterSelection(value) {
             const text = value || '';
             if (text.length > 65536) { throw new Error('Chapter selection exceeds the 65,536-character input limit.'); }
+            if (!text.trim()) { return null; }
             const selected = new Set();
             let expanded = 0;
-            text.split(',').forEach(part => {
-                const bits = part.trim().split('-').map(Number);
-                if (bits.some(n => Number.isInteger(n) && !Number.isSafeInteger(n))) {
+            for (const part of text.split(',')) {
+                const token = part.trim();
+                if (!token) { continue; }
+                const [first, last = first] = token.split('-').map(Number);
+                if (!/^\d+(?:\s*-\s*\d+)?$/.test(token) || first < 1 || last < first) {
+                    throw new Error(t('editor.chapters.enter', 'Enter chapter numbers, for example 1-3, 5.'));
+                }
+                if (!Number.isSafeInteger(first) || !Number.isSafeInteger(last)) {
                     throw new Error('Chapter numbers must be safe whole numbers.');
                 }
-                let first, last;
-                if (bits.length === 1 && Number.isSafeInteger(bits[0]) && bits[0] > 0) { first = last = bits[0]; }
-                if (bits.length === 2 && Number.isSafeInteger(bits[0]) && Number.isSafeInteger(bits[1]) && bits[0] > 0 && bits[1] >= bits[0]) {
-                    [first, last] = bits;
-                }
-                if (first === undefined) { return; }
                 const count = last - first + 1;
                 if (count > 10000 - expanded) { throw new Error('Chapter selection exceeds the 10,000-entry expansion limit.'); }
                 expanded += count;
                 for (let n = first; n <= last; n += 1) { selected.add(n - 1); }
-            });
-            return selected.size ? Array.from(selected).sort((a, b) => a - b) : null;
+            }
+            if (!selected.size) { throw new Error(t('editor.chapters.enter', 'Enter chapter numbers, for example 1-3, 5.')); }
+            return Array.from(selected).sort((a, b) => a - b);
         }
         function chapterExportParams() {
             return {

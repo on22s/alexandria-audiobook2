@@ -135,6 +135,7 @@ class OccurrenceGenerationTests(unittest.TestCase):
                 def prepared(text, instruct, speaker, voices, output):
                     seen.append(text); sf.write(output, np.full(2400, .2), 24000); return True
                 with patch.object(pronunciation, 'DEFAULT_PATH', str(lexicon)), \
+                        patch.object(pronunciation, 'get_pronunciation_path', return_value=str(lexicon)), \
                         patch.object(engine, '_generate_voice_prepared', side_effect=prepared), \
                         patch.object(engine, '_init_local_custom', return_value=model), \
                         patch.dict('sys.modules', {'torch': get_torch()}), contextlib.redirect_stdout(io.StringIO()):

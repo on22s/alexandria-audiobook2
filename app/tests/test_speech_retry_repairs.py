@@ -48,6 +48,7 @@ class SpeechRetryRepairTests(unittest.TestCase):
                                       status='corroborated_content_difference')
                 return get_report(path, text)
             with patch('pronunciation.DEFAULT_PATH', str(lexicon)), \
+                    patch('pronunciation.get_pronunciation_path', return_value=str(lexicon)), \
                     patch('speech_verification.verify_finished_speech', side_effect=verify):
                 self.assertTrue(manager.generate_chunk_audio(0)[0])
                 self.assertEqual(2, len(texts))
