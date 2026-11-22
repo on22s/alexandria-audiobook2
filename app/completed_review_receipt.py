@@ -2,7 +2,7 @@
 import hashlib
 import json
 import os
-from utils import atomic_json_write
+from utils import atomic_json_write, file_lock
 
 VERSION = 1
 REVIEW_ALGORITHM_VERSION = 11
@@ -47,7 +47,7 @@ def read_validated_completed_review(input_path, output_path, input_sha256, finge
     """
     acceptable = {fingerprint}
     acceptable.update(item for item in legacy_fingerprints if isinstance(item, str))
-    identity = {'output_sha256': None, 'input_sha256': None,
+    identity = {'output_sha256': None, 'input_sha256': None, 'output_entry_count': None,
                 'companions': companions if isinstance(companions, dict)
                 else {'aliases': None, 'voice': None}}
     path = get_review_receipt_path(output_path)
@@ -75,6 +75,7 @@ def read_validated_completed_review(input_path, output_path, input_sha256, finge
             return False, 'an incomplete review checkpoint remains', identity
         identity['output_sha256'] = output_sha
         identity['input_sha256'] = expected
+        identity['output_entry_count'] = len(output)
         return True, 'No changes since the completed review; use --force-review to rerun.', identity
     except (OSError, ValueError, TypeError) as error:
         return False, f'completed-review receipt unavailable: {type(error).__name__}', identity
@@ -89,14 +90,26 @@ def get_completed_review_match(input_path, output_path, input_sha256, fingerprin
 
 
 def save_completed_review_receipt(input_path, output_path, input_sha256, output_sha256, fingerprint, review_pass='forward'):
+    """Publish flat fields and retain only facts validated in one read.
+
+    A concurrent replacement with an unsupported version must never carry its
+    facts into a current-version receipt, so the read, validation and write are
+    one locked operation over the exact document seen here.
+    """
     payload = {'version': VERSION, 'input_path': os.path.abspath(input_path),
         'output_path': os.path.abspath(output_path), 'input_sha256': input_sha256,
         'output_sha256': output_sha256, 'fingerprint': fingerprint,
         'review_pass': review_pass}
-    existing = load_review_receipt_document(output_path)
-    if isinstance(existing, dict) and isinstance(existing.get('facts'), dict) and existing['facts']:
-        payload['facts'] = existing['facts']
-    atomic_json_write(payload, get_review_receipt_path(output_path), allow_nonatomic_fallback=False)
+    path = get_review_receipt_path(output_path)
+    with file_lock(path):
+        existing = load_review_receipt_document(output_path)
+        if isinstance(existing, dict) and type(existing.get('version')) is int \
+                and existing['version'] == VERSION:
+            retained = {direction: fact for direction in REVIEW_DIRECTIONS
+                if (fact := get_durable_review_fact(existing, direction)) is not None}
+            if retained:
+                payload['facts'] = retained
+        atomic_json_write(payload, path, allow_nonatomic_fallback=False)
 
 
 def remove_completed_review_receipt(output_path):
@@ -252,18 +265,19 @@ def save_durable_review_fact(output_path, direction, fact, *, top_level=None):
     bidirectional reuse.
     """
     path = get_review_receipt_path(output_path)
-    document = load_review_receipt_document(output_path)
-    if document is None or type(document.get('version')) is not int or document['version'] != VERSION:
-        document = {'version': VERSION}
-    if top_level:
-        document.update(top_level)
-    facts = document.get('facts')
-    if not isinstance(facts, dict):
-        facts = document['facts'] = {}
-    stored = dict(fact)
-    stored['direction'] = direction
-    facts[direction] = stored
-    atomic_json_write(document, path, allow_nonatomic_fallback=False)
+    with file_lock(path):
+        document = load_review_receipt_document(output_path)
+        if document is None or type(document.get('version')) is not int or document['version'] != VERSION:
+            document = {'version': VERSION}
+        if top_level:
+            document.update(top_level)
+        facts = document.get('facts')
+        if not isinstance(facts, dict):
+            facts = document['facts'] = {}
+        stored = dict(fact)
+        stored['direction'] = direction
+        facts[direction] = stored
+        atomic_json_write(document, path, allow_nonatomic_fallback=False)
 
 
 def invalidate_flat_review_receipt(output_path, direction='forward'):

@@ -314,15 +314,19 @@ def binding_for_controlled_edit(data_dir, old_script, new_script):
         return _binding_for_controlled_edit_locked(data_dir, old_script, new_script)
 
 
-def _voice_remap_bytes(root, name, mapping, remap):
+def _voice_remap_bytes(root, name, mapping, remap, expected_sha256=None):
     """Return (exact committed bytes, moved) for the voice companion.
 
     An unchanged voice config is committed as the bytes read here under the
     publication lock, so an external edit cannot lend its identity to a fact.
+    Absence is stable only when it was already absent at run start and no remap
+    needs the file; an unexpected removal still refuses.
     """
     from project_scope_files import capture_scope_file
     _, raw = capture_scope_file(root, name, limit=16 * 1024**2, include_bytes=True)
     if raw is None:
+        if not mapping and expected_sha256 is None:
+            return None, 0
         raise ValueError('Voice configuration disappeared during review; edits were preserved')
     def reject_constant(value):
         raise ValueError('Nonfinite value in voice configuration')
@@ -430,7 +434,8 @@ def verify_review_source_identity(data_dir, expected):
 def publish_controlled_script_edit(data_dir, old_script, new_script, *,
                                    voice_config_path=None, voice_mapping=None,
                                    remap_voice_config=None, registry_staging=None,
-                                   alias_registry_path=None, expected_source_identity=None):
+                                   alias_registry_path=None, expected_voice_sha256=None,
+                                   expected_source_identity=None):
     """Publish a review edit and its voice remap in one recoverable commit."""
     import contextlib
     from book_state_transaction import apply_book_state_locked, reuse_book_state
@@ -482,7 +487,7 @@ def publish_controlled_script_edit(data_dir, old_script, new_script, *,
         voice_committed = None
         if capture_voice:
             voice_committed, moved = _voice_remap_bytes(data_dir, voice.name, voice_mapping,
-                                                         remap_voice_config)
+                                                         remap_voice_config, expected_voice_sha256)
             if moved:
                 replacements[voice.name] = voice_committed
         for old in (chunks, journal):
@@ -531,7 +536,7 @@ def saved_script_is_active_source(data_dir, script_path):
 def publish_saved_script_edit(data_dir, scripts_dir, script_path, old_script, new_script, *,
                               voice_config_path=None, voice_mapping=None, remap_voice_config=None,
                               registry_staging=None, alias_registry_path=None,
-                              expected_source_identity=None):
+                              expected_voice_sha256=None, expected_source_identity=None):
     """Commit a saved review and its companions after exact-input validation."""
     import contextlib
     from book_state_transaction import apply_book_state_locked, reuse_book_state, ensure_saved_book_state
@@ -594,7 +599,7 @@ def publish_saved_script_edit(data_dir, scripts_dir, script_path, old_script, ne
         voice_committed = None
         if capture_voice:
             voice_committed, moved = _voice_remap_bytes(scripts_dir, voice.name, voice_mapping,
-                                                         remap_voice_config)
+                                                         remap_voice_config, expected_voice_sha256)
             if moved:
                 replacements[relative(voice)] = voice_committed
         apply_book_state_locked(data_dir, replacements, [])

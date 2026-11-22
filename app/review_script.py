@@ -15,7 +15,6 @@ if __name__ == '__main__':
 
 from chunk_status_journal import remove_chunk_snapshot
 import errno
-import hashlib
 import os
 import stat
 from core import (llm_timeout_seconds, is_llm_on_this_gpu, get_review_accounting_warning,
@@ -40,7 +39,7 @@ from llm_provider import (make_llm_client, make_run_client, get_run_model_bindin
                           is_authorization_header_unambiguous, resolve_client_api_key,
                           resolve_historical_api_key)
 from completed_review_receipt import (REVIEW_ALGORITHM_VERSION, REVIEW_SOURCE_SPAN_ALGORITHM_VERSION,
-    get_review_entries_fingerprint, get_review_sidecar_identity, get_completed_review_match,
+    get_review_entries_fingerprint, get_review_sidecar_identity, is_sha256,
     read_validated_completed_review, get_review_progress_paths, get_review_receipt_path,
     save_completed_review_receipt, remove_completed_review_receipt, REVIEW_SUMMARY_FIELDS,
     load_review_receipt_document, get_durable_review_fact, read_durable_review_fact,
@@ -502,7 +501,7 @@ def _legacy_dispatch_is_equivalent(profile):
 
 
 def get_legacy_review_fingerprint(config, llm_config, params, args, client, model_name,
-                                  source_text=None, *, entries=()):
+                                  source_text=None, *, entries=(), companions=None):
     """The pre-fix digest for effectively unchanged profiles, else None.
 
     ``resolve_client_api_key`` replaced the old resolver in the receipt. The old
@@ -521,10 +520,10 @@ def get_legacy_review_fingerprint(config, llm_config, params, args, client, mode
     try:
         historical_digest = get_completed_review_fingerprint(
             config, llm_config, params, args, client, model_name, source_text,
-            entries=entries, legacy=True)
+            entries=entries, legacy=True, companions=companions)
         current_digest = get_completed_review_fingerprint(
             config, llm_config, params, args, client, model_name, source_text,
-            entries=entries)
+            entries=entries, companions=companions)
     except Exception:
         return None
     return historical_digest if historical_digest != current_digest else None
@@ -676,9 +675,19 @@ def get_reusable_review_completion(input_path, output_path, input_sha256, output
         if proof_source != forward.get('output_sha256'):
             return False
         if in_place:
-            # The duplex overwrote this path: the current bytes must be the
-            # proof's own output, and the proof consumed the forward output.
-            if input_sha256 != (proof.get('output_sha256') if completed else proof_source):
+            # An explicit in-place partial backward publishes its edited prefix.
+            # Its digest and validated layout must match the checkpoint while
+            # the forward parent stays bound separately by proof_source.
+            retained = proof.get('all_corrected') or []
+            accepted = proof.get('accepted_output_count', len(retained))
+            published_partial = (not completed
+                and is_sha256(proof.get('output_sha256'))
+                and input_sha256 == proof.get('output_sha256')
+                and output_entry_count is not None
+                and type(accepted) is int and 0 <= accepted <= output_entry_count
+                and sum(proof.get('batch_lengths') or []) == accepted)
+            if (not published_partial
+                    and input_sha256 != (proof.get('output_sha256') if completed else proof_source)):
                 return False
         else:
             if input_sha256 != forward.get('input_sha256'):
@@ -720,7 +729,8 @@ def get_reusable_review_completion(input_path, output_path, input_sha256, output
             resolved = resolve_legacy_review_fact(
                 input_path, output_path, identity['input_sha256'], identity['output_sha256'],
                 fingerprint, direction, companions=identity['companions'],
-                settings_fingerprint=settings_fingerprint)
+                settings_fingerprint=settings_fingerprint,
+                entries_after=identity['output_entry_count'] or 0)
             return True, reason + ' (legacy proof; original counts unavailable)', \
                 resolved['summary'], True, resolved
     return False, 'no verified completion for this direction', None, False, None
@@ -736,6 +746,37 @@ def get_review_edit_counts(stats, *, required=True):
             raise ValueError("Saved review edit counters are unavailable; checkpoint preserved.")
         return None
     return {key: stats[key] for key in REVIEW_EDIT_COUNTERS}
+
+
+def are_review_checkpoint_coordinates_valid(data, validate_lengths=True):
+    """Reject checkpoint coordinates that could truncate or duplicate output.
+
+    A missing length list keeps the legacy single-batch rebuild path. Present
+    coordinates must be non-negative, internally consistent with the retained
+    output and bounded by this input; a corrupt length must never drive a
+    rewind or certify an unpublished prefix.
+    """
+    count = data.get('completed_batches')
+    corrected = data.get('all_corrected')
+    if type(count) is not int or count < 0 or not isinstance(corrected, list):
+        return False
+    lengths = data.get('batch_lengths')
+    if lengths is not None:
+        if not isinstance(lengths, list):
+            return False
+        if any(type(length) is not int or length < 0 for length in lengths):
+            return False
+        if lengths and len(lengths) != count:
+            return False
+        if validate_lengths and lengths and sum(lengths) != len(corrected):
+            return False
+    offsets = data.get('source_offsets')
+    if offsets is not None:
+        if (not isinstance(offsets, list) or len(offsets) != count
+                or any(type(offset) is not int or offset <= 0 for offset in offsets)
+                or offsets != sorted(offsets)):
+            return False
+    return True
 
 
 def is_review_accounting_coordinates(count, offsets, lengths, source_count, output_count):
@@ -927,6 +968,11 @@ def load_checkpoint(output_path, total_batches, batch_size, context_window, entr
             not isinstance(data.get("batch_lengths", []), list) or
             not isinstance(data.get("failed_batches", []), list)):
         print("Invalid review checkpoint fields - starting fresh.")
+        return None
+    lengths_are_cursor = entries_sha256 != data.get("source_sha256")
+    if not are_review_checkpoint_coordinates_valid(
+            data, validate_lengths=lengths_are_cursor):
+        print("Review checkpoint coordinates are inconsistent - starting fresh.")
         return None
     offsets = data.get("source_offsets")
     if offsets is not None and (
@@ -1234,6 +1280,23 @@ def _collect_speaker_samples(entries, max_per_speaker=4):
     return samples
 
 
+def get_locked_sidecar_identity(path):
+    """Identity read under the companion's own lock, for non-reporting writers."""
+    if not path:
+        return None
+    with file_lock(path):
+        return get_review_sidecar_identity(path)
+
+
+class DedupeResult(tuple):
+    """The usual three-tuple plus the alias identity this operation committed."""
+
+    def __new__(cls, mapping, renamed, changes, alias_identity=None):
+        result = super().__new__(cls, (mapping, renamed, changes))
+        result.alias_identity = alias_identity
+        return result
+
+
 def dedupe_speakers(client, model_name, entries, registry_path=None,
                     max_tokens=2000, temperature=0.2, context_length=None, params=None,
                     registry_staging=None):
@@ -1255,7 +1318,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
     samples = _collect_speaker_samples(entries)
     speakers = sorted(samples.keys())
     if not speakers:
-        return {}, 0, []
+        return DedupeResult({}, 0, [])
 
     planned_calls = 1 if len(speakers) >= 2 else 0
     plan = "1 model call" if planned_calls else "no model call needed"
@@ -1372,6 +1435,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
                 clean[actual] = canonical
         return updated, clean
 
+    alias_identity = None
     if registry_path:
         # Revalidate while locked before deriving either saved aliases or the
         # changes returned to the caller. Keep human registry entries verbatim.
@@ -1391,15 +1455,20 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
                 registry_staging.update(path=os.path.abspath(registry_path), before=raw,
                     after=(json.dumps(updated_registry, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
                            if updated_registry != current_registry else None))
-            elif updated_registry != current_registry:
-                atomic_json_write(updated_registry, registry_path, allow_nonatomic_fallback=False)
+            else:
+                if updated_registry != current_registry:
+                    atomic_json_write(updated_registry, registry_path,
+                                      allow_nonatomic_fallback=False)
+                # Standalone publication has no publisher proof: capture the
+                # exact bytes this operation committed, including absence.
+                alias_identity = get_review_sidecar_identity(registry_path)
     else:
         _, clean_map = get_updated_registry({})
 
     if not clean_map:
         print(f"{SPEAKER_MERGE_MARKER} no duplicate names found in "
               f"{time.monotonic() - started:.1f}s", flush=True)
-        return {}, 0, []
+        return DedupeResult({}, 0, [], alias_identity)
 
     renamed = 0
     changes = []
@@ -1415,7 +1484,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
 
     print(f"{SPEAKER_MERGE_MARKER} {len(clean_map)} label(s) merged, {renamed} "
           f"entries updated in {time.monotonic() - started:.1f}s", flush=True)
-    return clean_map, renamed, changes
+    return DedupeResult(clean_map, renamed, changes, alias_identity)
 
 
 def _remapped_voice_config(cfg, mapping):
@@ -1467,10 +1536,12 @@ def _remapped_voice_config(cfg, mapping):
     return result, moved
 
 
-def _remap_voice_config(voice_config_path, mapping):
-    """Rename keys in a voice_config.json so configured voices follow renamed speakers."""
+def _remap_voice_config(voice_config_path, mapping, *, return_identity=False):
+    """Rename voice keys and, on request, return the identity committed here."""
+    def result(moved, identity=None):
+        return (moved, identity) if return_identity else moved
     if not voice_config_path or not os.path.exists(voice_config_path) or not mapping:
-        return 0
+        return result(0, get_review_sidecar_identity(voice_config_path))
     # Hold the lock across the whole read-modify-write so this can't lose an
     # update to (or clobber) a concurrent write from the UI, e.g. "apply cast
     # to multiple books" writing the same companion voice_config.json.
@@ -1478,7 +1549,7 @@ def _remap_voice_config(voice_config_path, mapping):
         with file_lock(voice_config_path):
             cfg = safe_load_json(voice_config_path)
             if cfg is None:
-                return 0
+                return result(0, get_review_sidecar_identity(voice_config_path))
             cfg, moved = _remapped_voice_config(cfg, mapping)
             if moved:
                 try:
@@ -1498,10 +1569,10 @@ def _remap_voice_config(voice_config_path, mapping):
                             "The voice config on disk is unchanged.") from e
                     print(f"  Warning: failed to write {voice_config_path}: {e}")
                     moved = 0
+            return result(moved, get_review_sidecar_identity(voice_config_path))
     except TimeoutError as e:
         print(f"  Warning: could not lock {voice_config_path} for speaker remap ({e}); skipping.")
-        return 0
-    return moved
+        return result(0, get_review_sidecar_identity(voice_config_path))
 
 
 def _is_section_break(text):
@@ -2762,7 +2833,7 @@ def main():
     receipt_fingerprint = get_completed_review_fingerprint(config, llm_config, gen_params, args, client,
         model_name, review_source_text, entries=entries, companions=companions)
     legacy_fingerprint = get_legacy_review_fingerprint(config, llm_config, gen_params, args, client,
-                                                        model_name, review_source_text, entries=entries)
+        model_name, review_source_text, entries=entries, companions=companions)
     legacy_fingerprints = (() if legacy_fingerprint in (None, receipt_fingerprint)
                            else (legacy_fingerprint,))
     direction = getattr(args, 'review_pass', 'forward')
@@ -3237,20 +3308,29 @@ def main():
         print("\nSkipping speaker alias resolution until review is complete.")
     elif args.dedupe_speakers:
         print("\nResolving character aliases (merging duplicate names)...")
-        dedupe_map, speakers_merged, dedupe_changes = dedupe_speakers(
+        dedupe_result = dedupe_speakers(
             client, model_name, all_corrected, registry_path=args.alias_registry,
             context_length=lm_status.get("context_length"), params=gen_params,
             **({'registry_staging': registry_staging} if registry_staging is not None else {})
         )
+        dedupe_map, speakers_merged, dedupe_changes = dedupe_result
+        dedupe_alias_identity = getattr(dedupe_result, 'alias_identity', None)
         for idx, key, new_value in dedupe_changes:
             all_corrected[idx][key] = new_value
         if speakers_merged > 0:
             print(f"Merged {len(dedupe_map)} alias label(s), updating {speakers_merged} entries.")
-            if not active_review and not saved_review:
-                moved = _remap_voice_config(args.remap_voice_config, dedupe_map)
+        if not active_review and not saved_review:
+            if dedupe_alias_identity is None:
+                dedupe_alias_identity = get_locked_sidecar_identity(args.alias_registry)
+            if dedupe_alias_identity is not None:
+                companions['aliases'] = dedupe_alias_identity
+            if dedupe_map:
+                moved, voice_identity = _remap_voice_config(
+                    args.remap_voice_config, dedupe_map, return_identity=True)
+                if voice_identity is not None:
+                    companions['voice'] = voice_identity
                 if moved:
                     print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
-                    companions = get_review_companion_identity(args)
         else:
             print("No duplicate character names found.")
 
@@ -3305,6 +3385,8 @@ def main():
     # Keep active script identity and old chunks in the same recoverable commit.
     # The publisher's proof is the only post-publication identity authority.
     publication_proof = None
+    expected_voice_sha256 = ((companions.get('voice') or {}).get('sha256')
+                             if isinstance(companions, dict) else None)
     if publication_withheld:
         pass
     elif active_review:
@@ -3315,6 +3397,7 @@ def main():
             voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
             remap_voice_config=_remapped_voice_config, registry_staging=registry_staging,
             alias_registry_path=args.alias_registry,
+            expected_voice_sha256=expected_voice_sha256,
             expected_source_identity=review_source_identity)
         moved = publication_proof
         if moved:
@@ -3327,6 +3410,7 @@ def main():
             voice_config_path=args.remap_voice_config, voice_mapping=dedupe_map,
             remap_voice_config=_remapped_voice_config, registry_staging=registry_staging,
             alias_registry_path=args.alias_registry,
+            expected_voice_sha256=expected_voice_sha256,
             expected_source_identity=review_source_identity)
         moved = publication_proof
         if moved:

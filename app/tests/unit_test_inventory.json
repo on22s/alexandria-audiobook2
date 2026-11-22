@@ -12722,6 +12722,16 @@
     , "tests.test_review_receipt_identity_boundary.FlatIdentityTests.test_unsupported_version_facts_are_not_promoted_during_invalidation"
     , "tests.test_review_receipt_identity_boundary.ForwardFallbackTests.test_changed_forward_input_is_not_authorized_by_backward_checkpoint"
     , "tests.test_review_receipt_identity_boundary.ForwardFallbackTests.test_separate_output_backward_cannot_certify_a_different_source"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_active_review_with_stable_missing_voice_publishes_and_reuses"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_corrupt_checkpoint_coordinates_never_truncate_or_duplicate"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_explicit_partial_backward_publication_resumes_on_retry"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_late_unsupported_receipt_cannot_be_promoted"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_legacy_fingerprint_uses_the_captured_companion_snapshot"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_migrated_flat_receipt_keeps_validated_output_count"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_standalone_companion_identity_comes_from_its_own_operation"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_standalone_own_alias_change_with_no_voice_move_reuses"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_unrelated_output_after_partial_backward_is_a_miss"
+    , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_zero_cardinality_and_missing_lengths_remain_loadable"
   ]
   , "test_review_source_binding": [
     "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_annotationless_and_clearing_replies_still_report_unresolved_metadata"
