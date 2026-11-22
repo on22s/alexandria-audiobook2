@@ -1101,18 +1101,33 @@ class TrustBoundaryTests(Harness):
         target.write_text(json.dumps(seeded))
         alias = self.root / 'alias.json'
         alias.write_text('{ }')
-        voice = self.root / 'voice.json'
+        voice = self.root / 'voices' / target.name
+        voice.parent.mkdir()
         voice.write_text('{"JANE":{"voice":"one"}}')
         wanted = [path.read_bytes() for path in (target, voice, alias)]
-        original_restore = review._atomic_write_bytes
-        def fail_restore(path, payload):
-            raise OSError(errno.ENOSPC, 'persistent')
+        real_write = review.atomic_json_write
+        real_backup = review._atomic_write_bytes
+        failed = False
+
+        def fail_publication(data, path, *args, **kwargs):
+            nonlocal failed
+            if Path(path) == alias:
+                self.assertNotEqual(wanted[0], target.read_bytes())
+                self.assertNotEqual(wanted[1], voice.read_bytes())
+                failed = True
+            if failed:
+                raise OSError(errno.ENOSPC, 'persistent alias failure')
+            return real_write(data, path, *args, **kwargs)
+
+        def fail_backup_after_publication(path, payload):
+            if failed:
+                raise OSError(errno.ENOSPC, 'persistent backup failure')
+            return real_backup(path, payload)
+
         with patch.object(review, 'call_llm_for_object', return_value={'JANE': 'BOB'}), \
-                patch.object(review, 'atomic_json_write', side_effect=lambda data, path, *a, **k: (
-                    (_ for _ in ()).throw(OSError(errno.ENOSPC, 'alias'))
-                    if str(path) == str(alias) else __import__('utils').atomic_json_write(data, path, *a, **k))), \
-                patch.object(review, '_atomic_write_bytes', side_effect=fail_restore):
-            with self.assertRaises(OSError):
+                patch.object(review, 'atomic_json_write', side_effect=fail_publication), \
+                patch.object(review, '_atomic_write_bytes', side_effect=fail_backup_after_publication):
+            with self.assertRaisesRegex(OSError, 'persistent alias failure'):
                 self.cli(path=target, extra=('--alias-registry', str(alias),
                     '--remap-voice-config', str(voice), '--dedupe-speakers'),
                     use_real_dedupe=True)
@@ -1153,6 +1168,85 @@ class TrustBoundaryTests(Harness):
         stats = _extract_review_stats(reused.splitlines())
         self.assertEqual((4, 5, 1), (stats['entries_before'], stats['entries_after'],
                                      stats['entries_added']))
+
+
+class FinalBlockerTests(Harness):
+    def test_alias_created_after_locked_dedupe_snapshot_is_refused(self):
+        target = self.root / 'solo.json'
+        seeded = [self.rows[0], {**self.rows[0], 'speaker': 'BOB'}]
+        target.write_text(json.dumps(seeded))
+        alias = self.root / 'alias.json'
+        voice = self.root / 'voice.json'
+        voice.write_text('{"JANE":{"voice":"one"}}')
+        original_script, original_voice = target.read_bytes(), voice.read_bytes()
+        real_dedupe = review.dedupe_speakers
+        def interleave(*args, **kwargs):
+            result = real_dedupe(*args, **kwargs)
+            with review.file_lock(str(alias)):
+                alias.write_text('{"EXTERNAL":"KEEP"}')
+            return result
+        extra = ('--alias-registry', str(alias), '--remap-voice-config', str(voice),
+                 '--dedupe-speakers')
+        with patch.object(review, 'call_llm_for_object', return_value={'JANE': 'BOB'}), \
+                patch.object(review, 'dedupe_speakers', side_effect=interleave):
+            with self.assertRaisesRegex(ValueError, 'created during review'):
+                self.cli(path=target, extra=extra, use_real_dedupe=True)
+        self.assertEqual('{"EXTERNAL":"KEEP"}', alias.read_text())
+        self.assertEqual(original_script, target.read_bytes())
+        self.assertEqual(original_voice, voice.read_bytes())
+        self.assertIsNone(self.fact('forward', target))
+
+    def test_writer_hard_interruption_without_content_proof_replays_source(self):
+        self.config['generation'] = {'review_batch_size': 3, 'review_target_chars': 1}
+        def split(rows, index):
+            if index == 1:
+                return [{**rows[0], 'text': 'Red'}, {**rows[0], 'text': 'cat.'}, *rows[1:]]
+            return rows
+        self.cli(gates=[True, False], transform=split)
+        path = Path(str(self.book) + '.review_checkpoint.json')
+        current = review.load_generation_checkpoint_document(str(path))
+        for key in ('retained_sha256', 'output_sha256', 'batch_outcomes'):
+            current.pop(key, None)
+        current['input_path'] = str(self.book)
+        current['review_accounting']['mode'] = 'owned'
+        current['review_batch_contributions'] = [
+            {'source_end': 1, 'output_length': 2,
+             **{key: 0 for key in receipts.REVIEW_SUMMARY_FIELDS}}]
+        writer = gd.GenerationCheckpointDeltas(str(path), reset=True)
+        writer.save_checkpoint(current)
+        tampered = {**current, 'all_corrected': [
+            {**current['all_corrected'][0], 'text': 'Changed retained word.'},
+            *current['all_corrected'][1:]]}
+        writer.save_checkpoint(tampered)
+        self.cli()
+        published = [row['text'] for row in json.loads(self.book.read_text())]
+        self.assertNotIn('Changed retained word.', published)
+        self.assertEqual(len(set(published)), len(published))
+
+    def test_genuine_two_batch_prefix_resumes_only_black(self):
+        self.config['generation'] = {'review_batch_size': 3, 'review_target_chars': 1}
+        def split(rows, index):
+            if index == 1:
+                return [{**rows[0], 'text': 'Red'}, {**rows[0], 'text': 'cat.'}, *rows[1:]]
+            return rows
+        self.cli(gates=[True, True, False], transform=split)
+        path = Path(str(self.book) + '.review_checkpoint.json')
+        document = review.load_generation_checkpoint_document(str(path))
+        document.pop('batch_lengths', None)
+        writer = gd.GenerationCheckpointDeltas(str(path), reset=True)
+        writer.save_checkpoint(document)
+        self.calls.clear()
+        self.cli(gates=[True, False], transform=split)
+        again = review.load_generation_checkpoint_document(str(path))
+        lengths = again.get('batch_lengths') or []
+        self.assertTrue(lengths)
+        self.assertEqual(sum(lengths), len(again['all_corrected']))
+        self.assertEqual(len(lengths), len(again.get('source_offsets') or []))
+        self.calls.clear()
+        self.cli()
+        self.assertTrue(any('Black cat.' in call for call in self.calls))
+        published = [row['text'] for row in json.loads(self.book.read_text())]
+        self.assertEqual(len(set(published)), len(published))
 
 
 if __name__ == '__main__':

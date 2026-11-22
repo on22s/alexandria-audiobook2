@@ -860,12 +860,19 @@ def is_review_checkpoint_evidence_valid(data, *, source_rows=None, published_row
         if is_sha256(retained) and lengths:
             if retained != _entries_fingerprint(corrected):
                 return False
-        elif not lengths:
+        else:
+            # Without the retained digest, the assembled publication digest is
+            # the only independent proof of these retained rows. An older
+            # checkpoint carrying neither must replay from the source.
             recorded_sha = data.get('output_sha256')
-            if is_sha256(recorded_sha) and source_rows is not None:
+            if lengths and is_sha256(recorded_sha) and source_rows is not None:
                 assembled = corrected + source_rows[offsets[-1]:]
                 if _entries_fingerprint(assembled) != recorded_sha:
                     return False
+            elif (lengths and isinstance(data.get('input_path'), str)
+                    and isinstance(accounting, dict) and accounting.get('mode') == 'owned'
+                    and data.get('review_batch_contributions')):
+                return False
     if published_rows is not None and not in_source_space:
         if not lengths:
             # Unknown historic output prefix: the retained rows are still the
@@ -887,7 +894,8 @@ def is_review_checkpoint_evidence_valid(data, *, source_rows=None, published_row
                           and (offsets is None or type(row.get('source_end')) is int)
                           for row in contributions))
     unowned = isinstance(accounting, dict) and accounting.get('mode') == 'unowned'
-    if lengths and not structured and (outcomes is not None or unowned) and (count > 1 or failed):
+    if (lengths and not structured and (outcomes is not None or unowned)
+            and (count > 1 or failed) and historical is None):
         return False
     if failed and outcomes is None and unowned:
         return False
@@ -1519,15 +1527,13 @@ def publish_standalone_review(script_path, output_path, output_entries, companio
         recovery = str(output_path) + '.review_publication_recovery'
         os.makedirs(recovery, exist_ok=True)
         names = {}
-        for path, payload in ((output_path, original_output),
-                              (voice_path, original_voice),
-                              (alias_path, original_alias)):
-            if not path:
+        for name, path, payload in (('script.json', output_path, original_output),
+                                    ('voice.json', voice_path, original_voice),
+                                    ('aliases.json', alias_path, original_alias)):
+            if payload is None:
                 continue
-            name = os.path.basename(path)
             names[path] = os.path.join(recovery, name)
-            if payload is not None:
-                _atomic_write_bytes(names[path], payload)
+            _atomic_write_bytes(names[path], payload)
         committed = []
         try:
             atomic_json_write(output_entries, output_path, allow_nonatomic_fallback=False)
@@ -1545,7 +1551,7 @@ def publish_standalone_review(script_path, output_path, output_entries, companio
             for path in reversed(committed):
                 backup = names.get(path)
                 try:
-                    if backup and os.path.exists(backup):
+                    if backup is not None:
                         os.replace(backup, path)
                     else:
                         os.remove(path)
@@ -1586,10 +1592,12 @@ def get_locked_sidecar_identity(path):
 class DedupeResult(tuple):
     """The usual three-tuple plus the alias identity this operation committed."""
 
-    def __new__(cls, mapping, renamed, changes, alias_identity=None, alias_bytes=None):
+    def __new__(cls, mapping, renamed, changes, alias_identity=None, alias_bytes=None,
+                alias_expected=None):
         result = super().__new__(cls, (mapping, renamed, changes))
         result.alias_identity = alias_identity
         result.alias_bytes = alias_bytes
+        result.alias_expected = alias_expected
         return result
 
 
@@ -1734,6 +1742,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
 
     alias_identity = None
     alias_bytes = None
+    alias_expected = None
     if registry_path:
         # Revalidate while locked before deriving either saved aliases or the
         # changes returned to the caller. Keep human registry entries verbatim.
@@ -1757,16 +1766,20 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
                 # Direct callers keep the historical contract of persisting
                 # accepted aliases. main() opts into staging so standalone
                 # publication can commit companions with the script.
+                from project_scope_files import capture_scope_file
+                parent = os.path.dirname(os.path.abspath(registry_path))
+                _, observed_alias = capture_scope_file(parent,
+                    os.path.basename(registry_path), limit=4 * 1024**2,
+                    include_bytes=True)
+                alias_expected = ({'path': os.path.abspath(registry_path),
+                    'sha256': hashlib.sha256(observed_alias).hexdigest()
+                    if observed_alias is not None else None})
                 if updated_registry != current_registry:
                     alias_bytes = updated_registry
                     alias_payload = json.dumps(alias_bytes, ensure_ascii=False,
                         indent=2, allow_nan=False).encode('utf-8')
                 else:
-                    from project_scope_files import capture_scope_file
-                    parent = os.path.dirname(os.path.abspath(registry_path))
-                    _, alias_payload = capture_scope_file(parent,
-                        os.path.basename(registry_path), limit=4 * 1024**2,
-                        include_bytes=True)
+                    alias_payload = observed_alias
                     alias_bytes = None
                 if not stage_aliases and updated_registry != current_registry:
                     atomic_json_write(updated_registry, registry_path,
@@ -1781,7 +1794,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
     if not clean_map:
         print(f"{SPEAKER_MERGE_MARKER} no duplicate names found in "
               f"{time.monotonic() - started:.1f}s", flush=True)
-        return DedupeResult({}, 0, [], alias_identity, alias_bytes)
+        return DedupeResult({}, 0, [], alias_identity, alias_bytes, alias_expected)
 
     renamed = 0
     changes = []
@@ -1797,7 +1810,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
 
     print(f"{SPEAKER_MERGE_MARKER} {len(clean_map)} label(s) merged, {renamed} "
           f"entries updated in {time.monotonic() - started:.1f}s", flush=True)
-    return DedupeResult(clean_map, renamed, changes, alias_identity, alias_bytes)
+    return DedupeResult(clean_map, renamed, changes, alias_identity, alias_bytes, alias_expected)
 
 
 def _remapped_voice_config(cfg, mapping):
@@ -3335,6 +3348,10 @@ def main():
         if (isinstance(prefix, int) and prefix > 0 and isinstance(batch_lengths, list)
                 and len(batch_lengths) < completed_batches):
             batch_lengths = [prefix] + list(batch_lengths)
+        offsets = kwargs.get('source_offsets')
+        if (isinstance(offsets, list) and isinstance(batch_lengths, list)
+                and len(offsets) > len(batch_lengths)):
+            kwargs['source_offsets'] = offsets[-len(batch_lengths):]
         kwargs.setdefault('settings_fingerprint', settings_fingerprint)
         kwargs.setdefault('consumed_forward_sha256', consumed_forward_sha256)
         kwargs.setdefault('consumed_forward_fingerprint', consumed_forward_fingerprint)
@@ -3754,6 +3771,11 @@ def main():
         dedupe_map, speakers_merged, dedupe_changes = dedupe_result
         post_dedupe_companions = observed_companion_identities()
         dedupe_alias_identity = getattr(dedupe_result, 'alias_identity', None)
+        dedupe_alias_expected = getattr(dedupe_result, 'alias_expected', None)
+        if dedupe_alias_expected is not None:
+            # The alias baseline was sampled inside the dedicated lock; a
+            # later sample could belong to a different writer's change.
+            post_dedupe_companions['aliases'] = dedupe_alias_expected
         for idx, key, new_value in dedupe_changes:
             all_corrected[idx][key] = new_value
         if speakers_merged > 0:
