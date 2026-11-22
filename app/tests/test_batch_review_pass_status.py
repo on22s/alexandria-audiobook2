@@ -18,8 +18,8 @@ CLEAN = ['Review complete: 2 -> 2 entries', 'Total changes: 0']
 class BatchReviewPassStatusTests(unittest.TestCase):
     def test_actual_batch_route_and_report_keep_both_passes_completion_requirements(self):
         cases = (
-            ('forward_failed_batches', True, 0, CLEAN + ['Batches failed: 1'], 0, CLEAN, False, 'incomplete'),
-            ('forward_vram_abort', True, 0, CLEAN + ['Batches skipped (low GPU VRAM): 1'], 0, CLEAN, False, 'incomplete'),
+            ('forward_failed_batches', True, 0, ['Review incomplete: 2 -> 2 entries', 'Batches failed: 1'], 0, CLEAN, False, 'incomplete'),
+            ('forward_vram_abort', True, 0, ['Review incomplete: 2 -> 2 entries', 'Batches skipped (low GPU VRAM): 1'], 0, CLEAN, False, 'incomplete'),
             ('forward_process_failed', True, 1, ['fixture reviewer crashed'], 0, CLEAN, False, 'failed'),
             ('forward_fatal_marker', False, 1,
              ['REVIEW_FAILURE_JSON: {"message": "Checkpoint write failed: disk full", '
@@ -49,7 +49,7 @@ class BatchReviewPassStatusTests(unittest.TestCase):
                     calls.append((phase,'nickname' if nickname else 'review'))
                     if nickname:
                         return (1,['fixture discovery crashed']) if nick_failure and phase == 'fwd' else (0,[])
-                    self.assertEqual(phase == 'bwd' or label == 'single_forced', '--force-review' in command)
+                    self.assertEqual(label == 'single_forced', '--force-review' in command)
                     return (fwd_rc,fwd_lines) if phase == 'fwd' else (bwd_rc,bwd_lines)
 
                 def summary(lines, _insert, _totals, incomplete):
@@ -102,7 +102,11 @@ class BatchReviewPassStatusTests(unittest.TestCase):
                     self.assertNotIn('only partially reviewed',report)
                     self.assertNotIn('could not be reviewed',report)
                 self.assertEqual(1,sum(phase=='fwd' and kind=='review' for phase,kind in calls) if not nick_failure else sum(phase=='fwd' and kind=='nickname' for phase,kind in calls))
-                self.assertEqual(int(bidirectional),sum(phase=='bwd' and kind=='review' for phase,kind in calls))
+                fwd_done = (not nick_failure and fwd_rc == 0 and any('Review complete:' in line for line in fwd_lines)
+                            and not any('Batches failed:' in line or 'Batches skipped' in line
+                                        for line in fwd_lines))
+                self.assertEqual(int(bidirectional and fwd_done),
+                                 sum(phase=='bwd' and kind=='review' for phase,kind in calls))
                 self.assertEqual(1,len(list(reports.glob('*.md'))))
 
 

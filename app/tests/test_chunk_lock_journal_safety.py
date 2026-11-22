@@ -604,7 +604,9 @@ class SavedBookLoadLockOrderTests(unittest.TestCase):
     def test_load_waits_for_book_without_gpu_mutex_while_insert_proceeds(self):
         with bypass_routes_fixture() as (root, client, _states, _run_id):
             real_gpu = library._gpu_lock
+            real_book_state = library.ensure_book_state
             insert_has_book, allow_insert = threading.Event(), threading.Event()
+            load_reached_book = threading.Event()
 
             class PausingGpu:
                 def __enter__(self):
@@ -623,7 +625,13 @@ class SavedBookLoadLockOrderTests(unittest.TestCase):
             def do_load():
                 results['load'] = client.post('/api/scripts/load', json={'name': 'book_b'})
 
-            with patch.object(editor, '_gpu_lock', PausingGpu()):
+            def wait_for_book(data_dir, *, timeout):
+                load_reached_book.set()
+                # Give the deliberately paused insert time to finish on a loaded runner.
+                return real_book_state(data_dir, timeout=max(timeout, 3))
+
+            with (patch.object(editor, '_gpu_lock', PausingGpu()),
+                  patch.object(library, 'ensure_book_state', wait_for_book)):
                 insert_thread = threading.Thread(target=do_insert, daemon=True)
                 load_thread = None
                 try:
@@ -631,7 +639,7 @@ class SavedBookLoadLockOrderTests(unittest.TestCase):
                     self.assertTrue(insert_has_book.wait(2), 'insert never held the book journal')
                     load_thread = threading.Thread(target=do_load, daemon=True)
                     load_thread.start()
-                    time.sleep(0.05)
+                    self.assertTrue(load_reached_book.wait(2), 'load never reached the book journal')
                     self.assertTrue(load_thread.is_alive(), 'load did not wait for the book journal')
                     self.assertFalse(real_gpu.locked(),
                                      'load held the GPU mutex while waiting for the book journal')
@@ -639,8 +647,9 @@ class SavedBookLoadLockOrderTests(unittest.TestCase):
                     allow_insert.set()
                     insert_thread.join(3)
                     if load_thread is not None:
-                        load_thread.join(3)
+                        load_thread.join(5)
             self.assertFalse(insert_thread.is_alive())
+            self.assertFalse(load_thread.is_alive())
             self.assertEqual(200, results['insert'].status_code, results['insert'].text)
             self.assertEqual(200, results['load'].status_code, results['load'].text)
             self.assertEqual([{'speaker': 'B', 'text': 'Loaded book sentence.'}],
