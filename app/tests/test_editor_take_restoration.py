@@ -112,7 +112,9 @@ class EditorTakeRestorationTests(unittest.TestCase):
         for journal in (False,True):
             with self.subTest(journal=journal),self.fixture(journal) as (args,client,state):
                 root,manager,_,request,_,_,current,displaced,_=args
-                Path(manager.voice_config_path).write_text('{"NARRATOR":{"type":"custom","voice":"Ryan","seed":43}}')
+                # Identity change still refuses; a seed-only change is bound
+                # by the exact seed proven in the receipt.
+                Path(manager.voice_config_path).write_text('{"NARRATOR":{"type":"custom","voice":"Emma","seed":42}}')
                 response=client.post('/api/chunks/0/take_restore',json=vars(request))
                 self.assertEqual(response.status_code,200,response.text)
                 self.assertEqual(state['audio']['status'],'failed')
