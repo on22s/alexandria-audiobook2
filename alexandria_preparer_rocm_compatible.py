@@ -3726,7 +3726,7 @@ def main():
                 enrich_cmd.append("--emotional-tone")
 
             logger.info(f"▶ Running LLM enrichment: {' '.join(enrich_cmd)}")
-            res = subprocess.run(enrich_cmd)
+            res = run_phase(enrich_cmd)
             if res.returncode != 0:
                 logger.error(f"LLM enrichment failed with exit code {res.returncode}")
                 sys.exit(res.returncode)
