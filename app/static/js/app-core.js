@@ -795,6 +795,16 @@
         // navigated away from the tab (no point popping up a notification for
         // something they're already watching).
         function getTaskCompletionOutcome(status) {
+            const children = status ? (status.tasks || []) : [];
+            if (status && (status.status === 'failed' || children.some(task => task.status === 'failed'))) {
+                return 'failed';
+            }
+            if (status && (status.status === 'cancelled' || children.some(task => task.status === 'cancelled'))) {
+                return 'cancelled';
+            }
+            if (status && (status.status === 'incomplete' || children.some(task => task.status === 'incomplete'))) {
+                return 'incomplete';
+            }
             if (isTaskFailed(status)) { return 'failed'; }
             if (status.status === 'cancelled' || (status.tasks || []).some(task => task.status === 'cancelled')) { return 'cancelled'; }
             for (const line of (status.logs || []).slice().reverse()) {
@@ -808,8 +818,12 @@
             if (!('Notification' in window) || Notification.permission !== 'granted') { return; }
             if (document.visibilityState === 'visible' && document.hasFocus()) { return; }
             const completion = status ? getTaskCompletionOutcome(status) : outcome;
-            const title = `${getTaskLabel(taskName)} ${completion}`;
-            const message = detail || (completion === 'failed' || completion === 'cancelled'
+            const title = completion === 'incomplete'
+                ? t('core.notify.incomplete-title', '{task} review incomplete', {task: getTaskLabel(taskName)})
+                : `${getTaskLabel(taskName)} ${completion}`;
+            const message = detail || (completion === 'incomplete'
+                ? t('core.notify.incomplete-body-stage-neutral', 'Some review work is still unfinished. Re-run the review to finish it.')
+                : completion === 'failed' || completion === 'cancelled'
                 ? t('core.notify.failed-body', 'Open Alexandria to review the activity log and your recovery options.')
                 : t('core.notify.finished-body', 'Switch back to Alexandria to see the results.'));
             try {

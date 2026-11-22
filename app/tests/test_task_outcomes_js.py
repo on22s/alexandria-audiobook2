@@ -64,9 +64,10 @@ ctx.document.visibilityState='visible';ctx.document.hasFocus=()=>true;await ctx.
 for(const line of ['Errors: 0. All sections rendered.','errors=0','Errors count: 0','0 errors','Failures: 0']){
  const status={logs:[line]};assert.strictEqual(ctx.isTaskFailed(status),false,line);assert.strictEqual(ctx.getTaskCompletionOutcome(status),'finished',line);ctx._onReviewDone(status);assert.strictEqual(el('review-recovery-panel').style.display,'none');
 }
-for(const status of [{logs:['Errors: 2']},{logs:['Errors: 10']},{logs:['errors=01']},{logs:['Errors: 0.2']},{logs:['Errors: 0; failure writing output']},{logs:['[ERROR] zero exit code did not publish audio']},{logs:['Errors: 0'],status:'failed'},{logs:['Errors: 0'],tasks:[{status:'incomplete'}]}]){
+for(const status of [{logs:['Errors: 2']},{logs:['Errors: 10']},{logs:['errors=01']},{logs:['Errors: 0.2']},{logs:['Errors: 0; failure writing output']},{logs:['[ERROR] zero exit code did not publish audio']},{logs:['Errors: 0'],status:'failed'}]){
  assert.strictEqual(ctx.isTaskFailed(status),true,JSON.stringify(status));assert.strictEqual(ctx.getTaskCompletionOutcome(status),'failed');
 }
+const incomplete={logs:['Errors: 0'],tasks:[{status:'incomplete'}]};assert.strictEqual(ctx.isTaskFailed(incomplete),true);assert.strictEqual(ctx.getTaskCompletionOutcome(incomplete),'incomplete');
 assert.strictEqual(ctx.getTaskCompletionOutcome({logs:['Errors: 0'],status:'cancelled'}),'cancelled');
 """)
 
