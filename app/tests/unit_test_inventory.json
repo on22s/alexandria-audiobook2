@@ -12729,6 +12729,7 @@
     , "tests.test_review_receipt_identity_boundary.DirectionPairTests.test_half_present_backward_parent_is_rejected_but_standalone_is_reusable"
     , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_forward_edit_and_split_keep_parent_across_two_interruptions"
     , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_in_place_replacement_guard_keeps_replacement_and_progress"
+    , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_resumed_backward_reports_original_input_count_after_two_splits"
     , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_retained_words_are_validated_in_compact_and_delta"
     , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_strict_voice_read_failures_preserve_publication"
     , "tests.test_review_receipt_identity_boundary.EvidenceBoundaryTests.test_unowned_interior_lengths_and_failure_list_must_be_proven"
@@ -12747,6 +12748,10 @@
     , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_standalone_own_alias_change_with_no_voice_move_reuses"
     , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_unrelated_output_after_partial_backward_is_a_miss"
     , "tests.test_review_receipt_identity_boundary.NewIntegrityTests.test_zero_cardinality_and_missing_lengths_remain_loadable"
+    , "tests.test_review_receipt_identity_boundary.PublicationTransactionTests.test_destination_lock_serializes_two_standalone_writers"
+    , "tests.test_review_receipt_identity_boundary.PublicationTransactionTests.test_hard_interruption_retained_words_are_rejected"
+    , "tests.test_review_receipt_identity_boundary.PublicationTransactionTests.test_pre_outcomes_failure_tampering_replays_blue"
+    , "tests.test_review_receipt_identity_boundary.PublicationTransactionTests.test_script_write_failure_rolls_back_staged_voice"
   ]
   , "test_review_source_binding": [
     "tests.test_review_source_binding.ReviewNewSpeakerSplitTests.test_annotationless_and_clearing_replies_still_report_unresolved_metadata"

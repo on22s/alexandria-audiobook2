@@ -836,6 +836,29 @@ class EvidenceBoundaryTests(Harness):
         self.assertEqual(forward_fact['output_sha256'], fact['consumed_forward_sha256'])
         self.assertEqual(forward_fact['entries_after'], fact['parent_entry_count'])
 
+    def test_resumed_backward_reports_original_input_count_after_two_splits(self):
+        def forward(rows, index):
+            if index == 4:
+                return [{**rows[0], 'text': 'Black'}, {**rows[0], 'text': 'cat.'}]
+            return rows
+
+        def backward(rows, index):
+            if index == 1:
+                return [{**rows[0], 'text': 'Red'}, {**rows[0], 'text': 'cat.'}]
+            return rows
+
+        self.cli(transform=forward)
+        self.cli(direction='backward', gates=[True, False], transform=backward)
+        completed = self.cli(direction='backward', transform=backward)
+        self.calls.clear()
+        reused = self.cli(direction='backward', transform=backward)
+        self.assertEqual([], self.calls)
+        self.assertEqual(5, self.fact('backward')['entries_before'])
+        for log in (completed, reused):
+            stats = _extract_review_stats(log.splitlines())
+            self.assertEqual((5, 6, 1),
+                             (stats['entries_before'], stats['entries_after'], stats['entries_added']))
+
     def test_strict_voice_read_failures_preserve_publication(self):
         for failure in ('eio', 'malformed', 'removed'):
             with self.subTest(failure=failure):
@@ -902,6 +925,105 @@ class EvidenceBoundaryTests(Harness):
                 self.assertEqual([], self.calls)
                 self.assertEqual(replacement, target.read_bytes())
                 self.assertEqual(progress, [Path(path).read_bytes() for path in paths])
+
+
+class PublicationTransactionTests(Harness):
+    def test_destination_lock_serializes_two_standalone_writers(self):
+        import threading
+        target = self.root / 'solo.json'
+        target.write_text(json.dumps(self.rows))
+        started, release, done = threading.Event(), threading.Event(), threading.Event()
+        results = []
+        def first():
+            original = review.atomic_json_write
+            def barrier(data, path, *args, **kwargs):
+                if str(path) == str(target):
+                    started.set()
+                    release.wait(10)
+                return original(data, path, *args, **kwargs)
+            with patch.object(review, 'atomic_json_write', side_effect=barrier):
+                try:
+                    review.publish_standalone_review(str(target), str(target), self.rows, {})
+                    results.append('first')
+                except Exception as error:
+                    results.append(type(error).__name__)
+        def second():
+            started.wait(10)
+            release.set()
+            try:
+                review.publish_standalone_review(str(target), str(target),
+                    [{'speaker': 'X', 'text': 'Replacement.'}], {})
+                results.append('second')
+            except Exception as error:
+                results.append(type(error).__name__)
+            finally:
+                done.set()
+        a = threading.Thread(target=first)
+        b = threading.Thread(target=second)
+        a.start(); b.start(); a.join(20); b.join(20)
+        self.assertTrue(done.is_set())
+        self.assertIn('first', results)
+        self.assertIn('second', results)
+        self.assertEqual('Replacement.', json.loads(target.read_text())[0]['text'])
+
+    def test_script_write_failure_rolls_back_staged_voice(self):
+        target = self.root / 'solo.json'
+        target.write_text(json.dumps(self.rows))
+        voice = self.root / 'voice.json'
+        original_voice = b'{"JANE":{"voice":"one"}}'
+        voice.write_bytes(original_voice)
+        alias = self.root / 'registry.json'
+        alias.write_text('{"JANE":"ANN"}')
+        original_script = target.read_bytes()
+        real_write = review.atomic_json_write
+        def fail_script(data, path, *args, **kwargs):
+            if str(path) == str(target):
+                raise OSError(errno.ENOSPC, 'fixture')
+            return real_write(data, path, *args, **kwargs)
+        with patch.object(review, 'atomic_json_write', side_effect=fail_script):
+            with self.assertRaises(OSError):
+                self.cli(path=target, extra=('--alias-registry', str(alias),
+                    '--remap-voice-config', str(voice), '--dedupe-speakers'),
+                    use_real_dedupe=True)
+        self.assertEqual(original_script, target.read_bytes())
+        self.assertEqual(original_voice, voice.read_bytes())
+        self.assertIsNone(self.fact('forward', target))
+
+    def test_hard_interruption_retained_words_are_rejected(self):
+        def split(rows, index):
+            if index == 1:
+                return [{**rows[0], 'text': 'Red'}, {**rows[0], 'text': 'cat.'}, *rows[1:]]
+            return rows
+        def halt(rows, index):
+            if index == 2:
+                raise KeyboardInterrupt('fixture')
+            return split(rows, index)
+        with self.assertRaises(KeyboardInterrupt):
+            self.cli(transform=halt)
+        path = Path(str(self.book) + '.review_checkpoint.json')
+        document = review.load_generation_checkpoint_document(str(path))
+        document['all_corrected'][0]['text'] = 'Changed retained word.'
+        writer = gd.GenerationCheckpointDeltas(str(path), reset=True)
+        writer.save_checkpoint(document)
+        self.cli()
+        self.assertNotIn('Changed retained word.',
+                         [row['text'] for row in json.loads(self.book.read_text())])
+
+    def test_pre_outcomes_failure_tampering_replays_blue(self):
+        def split(rows, index):
+            if index == 1:
+                return [{**rows[0], 'text': 'Red'}, {**rows[0], 'text': 'cat.'}, *rows[1:]]
+            return rows
+        self.cli(transform=lambda rows, index: None if index == 2 else split(rows, index))
+        path = Path(str(self.book) + '.review_checkpoint.json')
+        document = json.loads(path.read_text())
+        document.pop('batch_outcomes', None)
+        document['failed_batches'] = []
+        path.write_text(json.dumps(document))
+        self.cli(transform=lambda rows, index: [
+            {**row, 'speaker': 'FIX'} if row['text'] == 'Blue cat.' else row for row in rows])
+        self.assertEqual('FIX', next(row['speaker'] for row in
+            json.loads(self.book.read_text()) if row['text'] == 'Blue cat.'))
 
 
 if __name__ == '__main__':

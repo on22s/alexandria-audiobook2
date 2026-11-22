@@ -845,13 +845,16 @@ def is_review_checkpoint_evidence_valid(data, *, source_rows=None, published_row
             expected = [end for _start, end in review_windows[:count]]
             if len(expected) != count or offsets != expected:
                 return False
-        accounting = data.get('review_accounting')
-        recorded_sha = data.get('output_sha256')
-        if (isinstance(accounting, dict) and accounting.get('mode') == 'owned'
-                and is_sha256(recorded_sha) and source_rows is not None):
-            assembled = corrected + source_rows[offsets[-1]:]
-            if _entries_fingerprint(assembled) != recorded_sha:
+        retained = data.get('retained_sha256')
+        if is_sha256(retained) and lengths:
+            if retained != _entries_fingerprint(corrected):
                 return False
+        elif not lengths:
+            recorded_sha = data.get('output_sha256')
+            if is_sha256(recorded_sha) and source_rows is not None:
+                assembled = corrected + source_rows[offsets[-1]:]
+                if _entries_fingerprint(assembled) != recorded_sha:
+                    return False
     if published_rows is not None and not in_source_space:
         if not lengths:
             # Unknown historic output prefix: the retained rows are still the
@@ -874,6 +877,16 @@ def is_review_checkpoint_evidence_valid(data, *, source_rows=None, published_row
                           for row in contributions))
     if lengths and not structured and outcomes is not None and (count > 1 or failed):
         return False
+    accounting = data.get('review_accounting')
+    recorded_failures = (data.get('total_stats') or {}).get('batches_failed', 0)
+    if ((failed or recorded_failures) and outcomes is None and isinstance(accounting, dict)
+            and recorded_failures != len(failed)):
+        return False
+    if failed and outcomes is None and isinstance(accounting, dict) and structured:
+        first_zero = next((index + 1 for index, row in enumerate(contributions)
+                           if all(not row.get(key, 0) for key in REVIEW_EDIT_COUNTERS)), None)
+        if first_zero is not None and first_zero != min(failed):
+            return False
     if structured:
         if len(lengths) != count or sum(lengths) != len(corrected):
             return False
@@ -1206,7 +1219,8 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
                       consumed_forward_fingerprint=None, companions=None,
                       parent_input_sha256=None, parent_publication_sha256=None,
                       parent_entry_count=None, input_path=None, batch_outcomes=None,
-                      historic_prefix_count=None, historic_batch_count=None):
+                      historic_prefix_count=None, historic_batch_count=None,
+                      retained_sha256=None):
     path = _checkpoint_path(output_path)
     data = {
         "input_path": os.path.abspath(input_path) if input_path else None,
@@ -1233,6 +1247,7 @@ def save_checkpoint(output_path, completed_batches, total_batches, batch_size,
         "batch_outcomes": list(batch_outcomes) if batch_outcomes is not None else None,
         "historic_prefix_count": historic_prefix_count,
         "historic_batch_count": historic_batch_count,
+        "retained_sha256": retained_sha256,
         "companions": dict(companions) if companions is not None else None,
     }
     data["accepted_source_offset"] = data["source_offsets"][-1] if data["source_offsets"] else 0
@@ -1429,6 +1444,75 @@ def _collect_speaker_samples(entries, max_per_speaker=4):
     return samples
 
 
+def _atomic_write_bytes(path, payload):
+    """Write exact bytes atomically beside the destination."""
+    temporary = f"{path}.tmp-{os.getpid()}"
+    with open(temporary, 'wb') as stream:
+        stream.write(payload)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)
+
+
+def publish_standalone_review(script_path, output_path, output_entries, companions, *,
+                              expected_sha256=None, staged_voice_bytes=None,
+                              staged_alias_bytes=None, expected_companions=None):
+    """Publish a standalone review under one destination lock with rollback."""
+    from contextlib import ExitStack
+    expected = expected_companions if isinstance(expected_companions, dict) else companions
+    alias_path = (expected.get('aliases') or {}).get('path') if isinstance(expected, dict) else None
+    voice_path = (expected.get('voice') or {}).get('path') if isinstance(expected, dict) else None
+    with ExitStack() as locks:
+        locks.enter_context(file_lock(output_path))
+        if voice_path and staged_voice_bytes is not None:
+            locks.enter_context(file_lock(voice_path))
+        if alias_path and staged_alias_bytes is not None:
+            locks.enter_context(file_lock(alias_path))
+        if os.path.abspath(script_path) == os.path.abspath(output_path):
+            current = get_coherent_output_snapshot(
+                output_path, expected_sha256=expected_sha256)
+            if current is None:
+                raise ValueError(
+                    'The review input changed or could not be read. Retry from the current script.')
+        for path, identity, staged in (
+                (voice_path, expected.get('voice'), staged_voice_bytes),
+                (alias_path, expected.get('aliases'), staged_alias_bytes)):
+            if path and staged is not None and identity \
+                    and is_sha256(identity.get('sha256')):
+                if (get_review_sidecar_identity(path) or {}).get('sha256') != identity['sha256']:
+                    raise ValueError(f'Review companion changed during review: {path}')
+        def read_original(path):
+            if not path or not os.path.exists(path):
+                return None
+            with open(path, 'rb') as stream:
+                return stream.read()
+        original_output = read_original(output_path)
+        original_voice = read_original(voice_path)
+        original_alias = read_original(alias_path)
+        committed = []
+        try:
+            atomic_json_write(output_entries, output_path, allow_nonatomic_fallback=False)
+            committed.append((output_path, original_output))
+            if staged_voice_bytes is not None and voice_path:
+                atomic_json_write(staged_voice_bytes, voice_path,
+                                  allow_nonatomic_fallback=False)
+                committed.append((voice_path, original_voice))
+            if staged_alias_bytes is not None and alias_path:
+                atomic_json_write(staged_alias_bytes, alias_path,
+                                  allow_nonatomic_fallback=False)
+                committed.append((alias_path, original_alias))
+        except Exception:
+            for path, original in reversed(committed):
+                try:
+                    if original is None:
+                        os.remove(path)
+                    else:
+                        _atomic_write_bytes(path, original)
+                except OSError:
+                    pass
+            raise
+
+
 def get_locked_sidecar_identity(path):
     """Identity read under the companion's own lock, for non-reporting writers."""
     if not path:
@@ -1440,9 +1524,10 @@ def get_locked_sidecar_identity(path):
 class DedupeResult(tuple):
     """The usual three-tuple plus the alias identity this operation committed."""
 
-    def __new__(cls, mapping, renamed, changes, alias_identity=None):
+    def __new__(cls, mapping, renamed, changes, alias_identity=None, alias_bytes=None):
         result = super().__new__(cls, (mapping, renamed, changes))
         result.alias_identity = alias_identity
+        result.alias_bytes = alias_bytes
         return result
 
 
@@ -1463,6 +1548,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
     list goes to the model in ONE call, so its count is that call's number:
     "call 1/1". The lines are plain stdout like the review's own, so they land
     in the task log the UI reads and in the downloadable review log."""
+    import hashlib
     started = time.monotonic()
     samples = _collect_speaker_samples(entries)
     speakers = sorted(samples.keys())
@@ -1585,6 +1671,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
         return updated, clean
 
     alias_identity = None
+    alias_bytes = None
     if registry_path:
         # Revalidate while locked before deriving either saved aliases or the
         # changes returned to the caller. Keep human registry entries verbatim.
@@ -1605,19 +1692,31 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
                     after=(json.dumps(updated_registry, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
                            if updated_registry != current_registry else None))
             else:
+                # Standalone publication stages companion bytes; the caller
+                # commits them together with the script under one destination
+                # lock and rolls back if that commit fails.
                 if updated_registry != current_registry:
-                    atomic_json_write(updated_registry, registry_path,
-                                      allow_nonatomic_fallback=False)
-                # Standalone publication has no publisher proof: capture the
-                # exact bytes this operation committed, including absence.
-                alias_identity = get_review_sidecar_identity(registry_path)
+                    alias_bytes = updated_registry
+                    alias_payload = json.dumps(alias_bytes, ensure_ascii=False,
+                        indent=2, allow_nan=False).encode('utf-8')
+                else:
+                    from project_scope_files import capture_scope_file
+                    parent = os.path.dirname(os.path.abspath(registry_path))
+                    _, alias_payload = capture_scope_file(parent,
+                        os.path.basename(registry_path), limit=4 * 1024**2,
+                        include_bytes=True)
+                    alias_bytes = None
+                alias_identity = ({'path': os.path.abspath(registry_path),
+                                   'sha256': hashlib.sha256(alias_payload).hexdigest()}
+                                  if alias_payload is not None
+                                  else {'path': os.path.abspath(registry_path), 'sha256': None})
     else:
         _, clean_map = get_updated_registry({})
 
     if not clean_map:
         print(f"{SPEAKER_MERGE_MARKER} no duplicate names found in "
               f"{time.monotonic() - started:.1f}s", flush=True)
-        return DedupeResult({}, 0, [], alias_identity)
+        return DedupeResult({}, 0, [], alias_identity, alias_bytes)
 
     renamed = 0
     changes = []
@@ -1633,7 +1732,7 @@ def dedupe_speakers(client, model_name, entries, registry_path=None,
 
     print(f"{SPEAKER_MERGE_MARKER} {len(clean_map)} label(s) merged, {renamed} "
           f"entries updated in {time.monotonic() - started:.1f}s", flush=True)
-    return DedupeResult(clean_map, renamed, changes, alias_identity)
+    return DedupeResult(clean_map, renamed, changes, alias_identity, alias_bytes)
 
 
 def _remapped_voice_config(cfg, mapping):
@@ -1686,9 +1785,12 @@ def _remapped_voice_config(cfg, mapping):
 
 
 def _remap_voice_config(voice_config_path, mapping, *, return_identity=False, strict=False,
-                        expected_sha256=None):
-    """Rename voice keys and, on request, return the identity committed here."""
-    def result(moved, identity=None):
+                        expected_sha256=None, stage_only=False):
+    """Rename voice keys; optionally stage bytes for a shared commit."""
+    import hashlib
+    def result(moved, identity=None, staged=None):
+        if stage_only:
+            return moved, identity, staged
         return (moved, identity) if return_identity else moved
     if not voice_config_path or not mapping:
         return result(0, get_review_sidecar_identity(voice_config_path))
@@ -1716,7 +1818,10 @@ def _remap_voice_config(voice_config_path, mapping, *, return_identity=False, st
             if cfg is None:
                 return result(0, get_review_sidecar_identity(voice_config_path))
             cfg, moved = _remapped_voice_config(cfg, mapping)
-            if moved:
+            staged = cfg if moved else None
+            staged_payload = (json.dumps(cfg, ensure_ascii=False, indent=2,
+                                 allow_nan=False).encode('utf-8') if moved else None)
+            if moved and not stage_only:
                 try:
                     atomic_json_write(cfg, voice_config_path, allow_nonatomic_fallback=False)
                 except OSError as e:
@@ -1742,6 +1847,13 @@ def _remap_voice_config(voice_config_path, mapping, *, return_identity=False, st
                             "was kept; retry after the storage error is resolved.") from e
                     print(f"  Warning: failed to write {voice_config_path}: {e}")
                     moved = 0
+                    staged = None
+            if stage_only:
+                identity = ({'path': os.path.abspath(voice_config_path),
+                             'sha256': hashlib.sha256(staged_payload).hexdigest()}
+                            if staged is not None
+                            else get_review_sidecar_identity(voice_config_path))
+                return result(moved, identity, staged)
             return result(moved, get_review_sidecar_identity(voice_config_path))
     except TimeoutError as e:
         if mapping and strict:
@@ -3138,6 +3250,9 @@ def main():
             parent_publication_sha256 = (checkpoint.get('parent_publication_sha256')
                 or forward_fact.get('output_sha256'))
             parent_entry_count = checkpoint.get('parent_entry_count', forward_fact.get('entries_after'))
+    entries_before = (parent_entry_count
+                      if type(parent_entry_count) is int and parent_entry_count > 0
+                      else len(input_entries))
     checkpoint_writer = GenerationCheckpointDeltas(
         _checkpoint_path(output_path), reset=checkpoint is None)
 
@@ -3164,6 +3279,8 @@ def main():
             recorded_outcomes = (['ok'] * (completed_batches - len(recorded_outcomes))
                                  + list(recorded_outcomes))
         kwargs['batch_outcomes'] = recorded_outcomes
+        kwargs.setdefault('retained_sha256',
+                          _entries_fingerprint(all_corrected))
         kwargs.setdefault('historic_prefix_count', (checkpoint or {}).get('historic_prefix_count'))
         kwargs.setdefault('historic_batch_count', (checkpoint or {}).get('historic_batch_count'))
         kwargs.setdefault('input_path', script_path)
@@ -3545,7 +3662,10 @@ def main():
     # Skipped on a VRAM abort since this step makes additional LLM calls,
     # which is exactly what we're trying to avoid when VRAM is already low.
     ensure_review_not_cancelled()
+    publication_expected_companions = dict(companions) if isinstance(companions, dict) else None
     dedupe_map = {}
+    staged_voice_bytes = None
+    staged_alias_bytes = None
     registry_staging = ({} if ((active_review or saved_review) and args.alias_registry
                                and args.dedupe_speakers) else None)
     if args.dedupe_speakers and not review_complete:
@@ -3568,11 +3688,12 @@ def main():
                 dedupe_alias_identity = get_locked_sidecar_identity(args.alias_registry)
             if dedupe_alias_identity is not None:
                 companions['aliases'] = dedupe_alias_identity
+            staged_alias_bytes = getattr(dedupe_result, 'alias_bytes', None)
             if dedupe_map:
-                moved, voice_identity = _remap_voice_config(
+                moved, voice_identity, staged_voice_bytes = _remap_voice_config(
                     args.remap_voice_config, dedupe_map, return_identity=True, strict=True,
                     expected_sha256=(companions.get('voice') or {}).get('sha256')
-                    if isinstance(companions, dict) else None)
+                    if isinstance(companions, dict) else None, stage_only=True)
                 if voice_identity is not None:
                     companions['voice'] = voice_identity
                 if moved:
@@ -3664,17 +3785,11 @@ def main():
             print(f"Remapped {moved} voice config entr(y/ies) to canonical names.")
     else:
         ensure_review_not_cancelled()
-        if in_place:
-            with file_lock(output_path):
-                current = get_coherent_output_snapshot(
-                    output_path, expected_sha256=source_sha256)
-                if current is None or current[0] != current_output_sha:
-                    raise ValueError(
-                        'The review input changed or could not be read. Retry from the current script.')
-                atomic_json_write(output_entries, output_path,
-                                  allow_nonatomic_fallback=False)
-        else:
-            atomic_json_write(output_entries, output_path, allow_nonatomic_fallback=False)
+        publish_standalone_review(script_path, output_path, output_entries, companions,
+            expected_companions=publication_expected_companions,
+            expected_sha256=source_sha256 if in_place else None,
+            staged_voice_bytes=staged_voice_bytes,
+            staged_alias_bytes=staged_alias_bytes)
     committed_companions = get_published_companion_identity(
         args, dedupe_map, registry_staging, proof=publication_proof, fallback=companions)
     committed_output_sha = (getattr(publication_proof, 'output_entries_sha256', None)
@@ -3711,7 +3826,7 @@ def main():
                 parent_input_sha256=parent_input_sha256,
                 parent_publication_sha256=parent_publication_sha256,
                 parent_entry_count=parent_entry_count,
-                entries_before=len(input_entries), entries_after=len(output_entries)),
+                entries_before=entries_before, entries_after=len(output_entries)),
             top_level={'version': 1, 'input_path': os.path.abspath(script_path),
                        'output_path': os.path.abspath(output_path), 'input_sha256': source_sha256,
                        'output_sha256': committed_output_sha, 'fingerprint': completion_fingerprint,
@@ -3747,7 +3862,7 @@ def main():
                      total_stats["entries_removed"] + narrator_merges + speakers_merged)
 
     print(f"\n{'='*60}")
-    print(f"Review {'complete' if review_complete else 'incomplete'}: {len(entries)} -> {len(output_entries)} entries")
+    print(f"Review {'complete' if review_complete else 'incomplete'}: {entries_before} -> {len(output_entries)} entries")
     partial_batches = sum(section['category'] == REVIEW_PARTIAL_EVENT for section in failed_sections)
     if partial_batches:
         print(f"  Partial label retention: {partial_batches} batch(es); unresolved review remains pending.")
