@@ -204,6 +204,21 @@ def get_literal_policy_identity(policy):
     return hashlib.sha256(json.dumps(policy, sort_keys=True).encode()).hexdigest()
 
 
+def get_scope_identity(policy):
+    """Identity of a scoped policy without child-editable cut coordinates.
+
+    ``script_start_entry`` and ``cut_proof`` may be edited in a published
+    script; scope evidence must stay keyed to the immutable source/scope fields
+    so tampering with them cannot downgrade the binding evidence away.
+    """
+    if policy is None or policy.get('boundary') != 'selected_source_words_v1':
+        return None
+    stable = dict(policy)
+    stable['scope_source'] = {key: value for key, value in policy['scope_source'].items()
+                              if key not in ('script_start_entry', 'cut_proof')}
+    return get_literal_policy_identity(stable)
+
+
 def bind_literal_chunks(chunks, policy):
     if policy is None:
         return chunks

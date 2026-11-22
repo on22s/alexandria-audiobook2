@@ -10,7 +10,8 @@ from project_scope_admission import is_scope_admitted
 from project_scope_assets import get_scope_asset_snapshot
 from project_scope_exports import (get_scope_export_inventory,
                                    is_scope_export_inventory_compatible)
-from script_selection_binding import BINDING_NAME, binding_for_controlled_edit
+from script_selection_binding import (BINDING_NAME, binding_for_controlled_edit,
+                                      attach_scope_cut_evidence)
 
 UNDO = '.project_scope_undo.json'
 LEGACY_FILES = ('state.json', 'annotated_script.json', 'voice_config.json', 'chunks.json',
@@ -107,6 +108,9 @@ def apply_source_scope(root, start_entry, expected_revision):
              'chunks.json': _encode(plan['selected_chunks']), 'chunks.json.status.jsonl': None}
     after[BINDING_NAME] = binding_for_controlled_edit(
         root, before['annotated_script.json'], after['annotated_script.json'])
+    if plan.get('scope_cut_evidence') is not None:
+        after[BINDING_NAME] = attach_scope_cut_evidence(
+            after[BINDING_NAME], plan['scope_cut_evidence'])
     undo = {'version': 2, 'book_token': plan['book_token'], 'preview_revision': plan['revision'],
             'before': {name: base64.b64encode(raw).decode('ascii') if raw is not None else None
                        for name, raw in before.items()},

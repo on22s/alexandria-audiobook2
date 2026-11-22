@@ -6,11 +6,11 @@ from literal_fidelity import _words
 from literal_policy import (SCRIPT_POLICY_KEY, CHUNK_POLICY_KEY, ensure_literal_narration,
     ensure_literal_chunks, bind_literal_policy, get_literal_policy, get_literal_policy_identity,
     get_word_identity, get_scope_coverage_digest, get_scope_coverage_intervals,
-    retain_literal_policy)
+    get_scope_identity, retain_literal_policy)
 
 
-def _retained_scope_intervals(source, rows):
-    """Raw coverage of retained rows, bound to the original captured script."""
+def _resolved_row_spans(source, rows):
+    """Resolve ordered raw spans for any group of parent rows."""
     spans = []
     position = 0
     while position < len(rows):
@@ -19,7 +19,7 @@ def _retained_scope_intervals(source, rows):
         if (not isinstance(span, (list, tuple)) or len(span) != 2
                 or any(type(value) is not int for value in span)
                 or not 0 <= span[0] < span[1] <= len(source)):
-            raise ValueError('Retained rows require verified source spans')
+            raise ValueError('Parent rows require verified source spans')
         span = list(span)
         stop = position + 1
         while stop < len(rows) and rows[stop].get('source_span') == span:
@@ -31,7 +31,47 @@ def _retained_scope_intervals(source, rows):
         else:
             spans.append(span)
         position = stop
+    return spans
+
+
+def _partition_spans(source, rows, start_entry):
+    """Verify the complete ordered parent partition across the cut boundary."""
+    prefix = _resolved_row_spans(source, rows[:start_entry])
+    suffix = _resolved_row_spans(source, rows[start_entry:])
+    if any(left[1] > right[0] for left, right in zip(prefix, prefix[1:])):
+        raise ValueError('Pre-cut parent spans overlap')
+    if any(left[1] > right[0] for left, right in zip(suffix, suffix[1:])):
+        raise ValueError('Retained parent spans overlap')
+    if prefix and suffix and prefix[-1][1] > suffix[0][0]:
+        raise ValueError('Retained cut overlaps the discarded parent prefix')
+    return prefix, suffix
+
+
+def _retained_scope_intervals(source, rows, *, start_entry=None):
+    """Raw coverage of parent rows, verified across the full cut boundary."""
+    if start_entry is None:
+        spans = _resolved_row_spans(source, rows)
+    else:
+        _prefix, spans = _partition_spans(source, rows, start_entry)
     return get_scope_coverage_intervals(source, spans)
+
+
+def get_scope_cut_evidence(source, script, start_entry, *, parent_policy, policy):
+    """Derive compact retained-cut evidence from the parent, never the child."""
+    if (parent_policy is None or policy is None
+            or policy.get('boundary') != 'selected_source_words_v1'):
+        return None
+    scope = policy['scope_source']
+    try:
+        intervals = _retained_scope_intervals(source, script, start_entry=start_entry)
+    except ValueError:
+        return None
+    return {'version': 1, 'source_sha256': hashlib.sha256(source.encode('utf-8')).hexdigest(),
+            'parent_policy_sha256': scope['parent_policy_sha256'],
+            'scope_policy_sha256': get_scope_identity(policy),
+            'coverage_sha256': get_scope_coverage_digest(intervals),
+            'outer_start': intervals[0][0], 'outer_end': intervals[-1][1],
+            'start_word': scope['start_word']}
 
 
 def get_literal_scope(source, script, chunks, start_entry, start_chunk, *,
@@ -75,7 +115,7 @@ def get_literal_scope(source, script, chunks, start_entry, start_chunk, *,
                     'start_word': start, 'end_word': len(words), 'total_words': len(words),
                     'script_start_entry': start_entry}
     try:
-        intervals = _retained_scope_intervals(source, script[start_entry:])
+        intervals = _retained_scope_intervals(source, script, start_entry=start_entry)
         proof = {'version': 1, 'source_sha256': prepared_sha256,
                  'parent_policy_sha256': scope_source['parent_policy_sha256'],
                  'start_word': start, 'intervals': intervals,

@@ -49,7 +49,7 @@ from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_obj
 from literal_policy import (get_literal_policy, get_literal_policy_identity,
                             ensure_literal_narration, retain_literal_policy,
                             get_word_identity, get_scope_coverage_digest,
-                            get_scope_coverage_intervals, is_scope_cut_proof,
+                            get_scope_coverage_intervals, is_scope_cut_proof, get_scope_identity,
                             is_literal_marker_lineage, SCRIPT_POLICY_KEY)
 from literal_fidelity import audit_literal_words, iter_literal_words
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
@@ -1612,26 +1612,22 @@ def get_review_scope_coverage(text, entries):
 def _retained_parent_rows(text, scope, entries, parent_entries, parent_policy, active_policy):
     """Select the unique native parent suffix, then bind exact raw coverage.
 
-    The cut comes from the recorded boundary or word-count inference over the
-    parent alone; child text never selects the cut. Verification compares the
-    merged raw intervals, so a legitimate split or merge is accepted but an
-    inserted excluded row cannot borrow the retained region's authority.
+    The legacy cut is inferred solely from the parent's own word partition;
+    the child's ``script_start_entry`` and its local proof never select it.
+    Verification compares merged raw intervals, so a genuine split or merge
+    is accepted but an inserted excluded row cannot borrow retained authority.
     """
     if active_policy == parent_policy:
         retained = parent_entries
     else:
         cuts = []
-        recorded = scope.get('script_start_entry')
-        if recorded is not None:
-            cuts.append(recorded)
-        else:
-            cursor = (parent_policy['scope_source']['start_word']
-                      if parent_policy and parent_policy['boundary'] == 'selected_source_words_v1' else 0)
-            for index, row in enumerate(parent_entries):
-                count = sum(1 for _ in iter_literal_words(row['text']))
-                if cursor == scope['start_word']:
-                    cuts.append(index)
-                cursor += count
+        cursor = (parent_policy['scope_source']['start_word']
+                  if parent_policy and parent_policy['boundary'] == 'selected_source_words_v1' else 0)
+        for index, row in enumerate(parent_entries):
+            count = sum(1 for _ in iter_literal_words(row['text']))
+            if cursor == scope['start_word']:
+                cuts.append(index)
+            cursor += count
         cuts = [cut for cut in dict.fromkeys(cuts) if type(cut) is int
                 and 0 <= cut < len(parent_entries)]
         if len(cuts) != 1:
@@ -1687,53 +1683,65 @@ def _get_scoped_row_span(entry, source_length):
     return span
 
 
-def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=None):
-    """Bind inherited row spans to ordered words and the verified retained cut."""
+def verify_review_scoped_source_rows(text, entries, policy, *, parent_entries=None, scope_cut=None):
+    """Bind inherited row spans to ordered words and an independently verified cut.
+
+    Binding-level ``scope_cut`` evidence (produced by the scope-apply transaction
+    over the parent rows) is the authority. A child-local ``cut_proof`` is only a
+    hint and never grants authority. Legacy books without binding evidence fall
+    back to parent-partition inference that never trusts child coordinates.
+    """
     import hashlib
+    from script_selection_binding import is_scope_cut_evidence
     scope = policy['scope_source']
     words = list(iter_literal_words(text))
     if scope['total_words'] != len(words) or scope['end_word'] != len(words):
         raise ValueError('Scoped source word count differs')
     expected = words[scope['start_word']:]
     spans = [_get_scoped_row_span(entry, len(text)) for entry in entries]
+    for entry, span in zip(entries, spans):
+        exact = get_source_span_fragments(text, entry['text'], list(span), [entry['text']])[0]
+        if list(exact) != list(span):
+            raise ValueError('Scoped row span overruns its exact raw text')
     coverage = get_review_scope_coverage(text, entries)
-    proof = scope.get('cut_proof')
-    leading = None
-    if proof is not None:
-        if not is_scope_cut_proof(proof):
-            raise ValueError('Scope cut proof is malformed')
-        if (proof['source_sha256'] != hashlib.sha256(text.encode('utf-8')).hexdigest()
-                or proof['start_word'] != scope['start_word']
-                or get_scope_coverage_digest(coverage) != proof['coverage_sha256']):
-            raise ValueError('Scoped rows do not cover the verified retained source intervals')
-        if (('input_sha256' in proof) != ('input_sha256' in policy)
-                or (policy.get('input_sha256') is not None
-                    and proof.get('input_sha256') != policy['input_sha256'])):
-            raise ValueError('Scope cut proof root identity differs')
-        if parent_entries is not None:
-            parent_policy = get_literal_policy(parent_entries)
-            if parent_policy is None:
-                raise ValueError('Scope cut proof parent identity differs')
-            if (parent_policy != policy
-                    and proof['parent_policy_sha256'] != get_literal_policy_identity(parent_policy)):
-                raise ValueError('Scope cut proof parent identity differs')
-            parent_spans = [_get_scoped_row_span(row, len(text))
-                            for row in get_review_source_entries(parent_entries, text)]
-            if any(not any(a <= start and end <= b for a, b in parent_spans)
-                   for start, end in spans):
-                raise ValueError('Scoped rows exceed the verified parent partition')
+    independent = (is_scope_cut_evidence(scope_cut)
+                   and scope_cut['source_sha256'] == hashlib.sha256(text.encode('utf-8')).hexdigest()
+                   and scope_cut['scope_policy_sha256'] == get_scope_identity(policy)
+                   and scope_cut['start_word'] == scope['start_word'])
+    leading_bound = None
+    if independent and parent_entries is not None:
+        parent_policy = get_literal_policy(parent_entries)
+        if (parent_policy is None
+                or scope_cut['parent_policy_sha256'] != get_literal_policy_identity(parent_policy)):
+            independent = False
+    if independent:
+        if (get_scope_coverage_digest(coverage) != scope_cut['coverage_sha256']
+                or coverage[0][0] != scope_cut['outer_start']
+                or coverage[-1][1] != scope_cut['outer_end']):
+            raise ValueError('Scoped rows exceed the independently verified retained coverage')
+        retained = None
+        leading_bound = tuple(coverage[0])
     else:
+        proof = scope.get('cut_proof')
+        if proof is not None and not is_scope_cut_proof(proof):
+            raise ValueError('Scope cut proof is malformed')
         if parent_entries is not None:
-            _retained_parent_rows(text, scope, entries, parent_entries,
-                                  get_literal_policy(parent_entries), policy)
+            retained = _retained_parent_rows(text, scope, entries, parent_entries,
+                                             get_literal_policy(parent_entries), policy)
+            expected_coverage = get_review_scope_coverage(
+                text, get_review_source_entries(retained, text))
+            leading_bound = tuple(expected_coverage[0])
         else:
+            retained = None
             leading = _retained_leading_region(text, scope, entries)
+            if leading is not None:
+                leading_bound = leading
     first_word = next((position for position, item in enumerate(entries)
                        if any(True for _ in iter_literal_words(item['text']))), len(entries))
     cursor = 0
     for index, (entry, span) in enumerate(zip(entries, spans)):
-        if (leading is not None and index < first_word
-                and not (leading[0] <= span[0] and span[1] <= leading[1])):
+        if (leading_bound is not None and index < first_word
+                and not (leading_bound[0] <= span[0] and span[1] <= leading_bound[1])):
             raise ValueError('Leading row span is outside the retained sequence')
         for word, _, _ in iter_literal_words(entry['text']):
             if cursor >= len(expected) or expected[cursor][0] != word:
@@ -1797,7 +1805,8 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
     from project_scope_files import capture_scope_file
     from script_selection_binding import (_read_selection_state, _read_source_snapshot,
         _path_digest, parse_script_binding, saved_binding_matches, check_binding_source,
-        is_script_selection_pending, BINDING_NAME, MAX_BINDING_BYTES)
+        is_script_selection_pending, BINDING_NAME, MAX_BINDING_BYTES,
+        get_scope_cut_from_binding)
     from source_encoding import get_decoded_source_text, get_normalized_source_newlines
     from generate_script import get_preprocessed_source
     from three_pass_generate import prepare_source_text
@@ -1809,6 +1818,7 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
             state = _read_selection_state(data_dir, required=active)
             _, raw_binding = capture_scope_file(directory, name, limit=MAX_BINDING_BYTES, include_bytes=True)
             binding = parse_script_binding(raw_binding)
+            scope_cut = get_scope_cut_from_binding(binding)
             if not saved_binding_matches(binding, script_sha256=hashlib.sha256(script_bytes).hexdigest(),
                                          entries=entries):
                 raise ValueError('Review script has no matching source binding')
@@ -1863,7 +1873,7 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
             resolved = get_review_source_entries(entries, text)
             if policy and policy['boundary'] == 'selected_source_words_v1':
                 verify_review_scoped_source_rows(
-                    text, resolved, policy, parent_entries=source_entries)
+                    text, resolved, policy, parent_entries=source_entries, scope_cut=scope_cut)
             choices = set(original.get('strip_choices', (False, True)))
             if source_policy is not None and 'strip_front_matter' in source_policy:
                 parent_choice = source_policy['strip_front_matter']
@@ -1894,7 +1904,7 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
                 try:
                     resolved = get_review_source_entries(entries, text)
                     if policy and policy['boundary'] == 'selected_source_words_v1':
-                        verify_review_scoped_source_rows(text, resolved, policy)
+                        verify_review_scoped_source_rows(text, resolved, policy, scope_cut=scope_cut)
                 except ValueError:
                     continue
                 sources.add(text)

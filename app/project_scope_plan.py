@@ -12,7 +12,8 @@ from project_scope_partition import get_scope_partition
 from project_scope_voices import get_scope_voice_plan
 from project_scope_audio import get_scope_audio_plan
 from project_scope_history import get_scope_history_plan
-from project_scope_literal import get_literal_scope
+from project_scope_literal import get_literal_scope, get_scope_cut_evidence
+from literal_policy import get_literal_policy
 from project_scope_assets import get_scope_voice_artifacts
 from take_retention import get_retained_audio_paths
 from project_scope_exports import get_scope_export_inventory
@@ -83,6 +84,9 @@ def get_scope_preview(root, start_entry, *, cancel_check=None):
     start_chunk = partition['chunk_start']
     selected_script = get_literal_scope(prepared, script, chunks, start_entry, start_chunk,
         input_sha256=source_file['sha256'], strip_front_matter=source_file['strip_front_matter'])
+    scope_cut_evidence = get_scope_cut_evidence(
+        prepared, script, start_entry, parent_policy=get_literal_policy(script),
+        policy=get_literal_policy(selected_script))
     voice_plan = get_scope_voice_plan(voices, chunks, start_chunk)
     voice_artifacts = get_scope_voice_artifacts(voice_plan, cancel_check=cancel_check)
     audio = get_scope_audio_plan(root, chunks, start_chunk, cancel_check=cancel_check)
@@ -105,7 +109,7 @@ def get_scope_preview(root, start_entry, *, cancel_check=None):
             'removed_script': script[:start_entry],
             'export_inventory': get_scope_export_inventory(root),
             'source_file': source_file, 'source_scope': source_scope, 'partition': partition,
-            'selected_script': selected_script,
+            'selected_script': selected_script, 'scope_cut_evidence': scope_cut_evidence,
             'selected_chunks': selected_chunks,
             'preserved_files': preserved_files,
             'voices': voice_plan, 'voice_artifacts': voice_artifacts, 'audio': audio, 'history': history,

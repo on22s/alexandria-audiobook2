@@ -18,15 +18,18 @@ import literal_fidelity
 from literal_fidelity import _words, iter_literal_words
 from literal_policy import (SCRIPT_POLICY_KEY, bind_literal_chunks, bind_literal_policy,
                             get_literal_policy, get_literal_policy_identity, get_word_identity,
-                            get_scope_coverage_digest, is_scope_cut_proof)
+                            get_scope_coverage_digest, get_scope_coverage_intervals,
+                            is_scope_cut_proof)
 from project import group_into_chunks
 from project_scope_apply import apply_source_scope
-from project_scope_literal import get_literal_scope
+from project_scope_literal import get_literal_scope, get_scope_cut_evidence
 from project_scope_partition import get_scope_partition
 from project_scope_plan import get_scope_preview
 from project_scope_admission import ensure_scope_admission
 import review_script as review
-from script_selection_binding import BINDING_NAME, make_script_selection_binding
+from script_selection_binding import (BINDING_NAME, make_script_selection_binding,
+                                      attach_scope_cut_evidence, parse_script_binding,
+                                      get_scope_cut_from_binding, binding_for_controlled_edit)
 from tests.test_pass_boundary_retry_regressions import client_for
 from tests.test_review_source_binding import row
 from tests.test_review_source_spans import create_book
@@ -260,8 +263,36 @@ def build_scoped_rows(raw, source_rows, start_entry, *, input_sha256=None, strip
     return retained, parent
 
 
-def make_saved_hop(directory, *, raw, original_rows, active_rows):
-    """A saved book whose selected source is another saved script."""
+def add_scope_evidence(script, raw, parent_rows, active_rows):
+    """Attach producer-derived cut evidence the way scope apply does.
+
+    The cut is located by matching the parent's ordered suffix to the child's
+    rows, never by trusting the child's recorded ``script_start_entry``.
+    """
+    texts = [row['text'] for row in active_rows]
+    cut = next((index for index in range(len(parent_rows))
+                if [row['text'] for row in parent_rows[index:]] == texts), None)
+    if cut is None:
+        return None
+    evidence = get_scope_cut_evidence(
+        raw, parent_rows, cut, parent_policy=get_literal_policy(parent_rows),
+        policy=get_literal_policy(active_rows))
+    if evidence is None:
+        return None
+    evidence['parent_policy_sha256'] = get_literal_policy_identity(
+        get_literal_policy(parent_rows))
+    binding_path = script.with_suffix('.selection_binding.json')
+    binding_path.write_bytes(attach_scope_cut_evidence(binding_path.read_bytes(), evidence))
+    return evidence
+
+
+def make_saved_hop(directory, *, raw, original_rows, active_rows, evidence_rows=None):
+    """A saved book whose selected source is another saved script.
+
+    ``evidence_rows`` is the unmodified scoped child the scope-apply transaction
+    would have certified. A later forged active script keeps that evidence, so
+    tampering with the child cannot rewrite its own authority.
+    """
     original_script, source_path, _ = create_book(
         directory, raw=raw, source=original_rows, saved=True)
     root = Path(directory)
@@ -277,6 +308,8 @@ def make_saved_hop(directory, *, raw, original_rows, active_rows):
     state = json.loads(state_path.read_text(encoding='utf-8'))
     state['input_file_path'] = str(original_script)
     state_path.write_text(json.dumps(state), encoding='utf-8')
+    add_scope_evidence(active, raw, original_rows,
+                       active_rows if evidence_rows is None else evidence_rows)
     return active, original_script, source_path
 
 
@@ -777,7 +810,8 @@ class FinalAstraFindingsTests(unittest.TestCase):
         tampered[0]['source_span'] = [10, 11]
         with tempfile.TemporaryDirectory() as directory:
             active, _, _ = make_saved_hop(
-                directory, raw=raw, original_rows=parent_rows, active_rows=tampered)
+                directory, raw=raw, original_rows=parent_rows, active_rows=tampered,
+                evidence_rows=child_rows)
             self.assertIsNone(review.get_review_source_text(
                 directory, str(active), active.read_bytes(), tampered))
             self.publish(directory, active, tampered, expected=False)
@@ -881,7 +915,7 @@ class OwnershipAndCompositionTests(unittest.TestCase):
                     with tempfile.TemporaryDirectory() as directory:
                         script = (create_book(directory, raw=raw, source=tampered)[0] if parent is None
                                   else make_saved_hop(directory, raw=raw, original_rows=parent,
-                                                      active_rows=tampered)[0])
+                                                      active_rows=tampered, evidence_rows=child)[0])
                         self.publish(directory, script, tampered, expected=False)
 
     def test_adjacent_retained_word_and_punctuation_is_valid(self):
@@ -933,7 +967,8 @@ class OwnershipAndCompositionTests(unittest.TestCase):
                     entries = copy.deepcopy(child)
                     entries[0]['source_span'] = span
                     script, _, _ = make_saved_hop(
-                        directory, raw=raw, original_rows=parent, active_rows=entries)
+                        directory, raw=raw, original_rows=parent, active_rows=entries,
+                        evidence_rows=child)
                     saved = self.publish(directory, script, entries, expected=expected)
                     if expected:
                         self.assertEqual(retained_span, saved[0]['source_span'])
@@ -1032,7 +1067,8 @@ class CutEvidenceTests(unittest.TestCase):
             self.assertEqual([19, 20], inserted[0]['source_span'])
             with self.subTest(parent=label), tempfile.TemporaryDirectory() as directory:
                 script, _, _ = make_saved_hop(
-                    directory, raw=raw, original_rows=parent, active_rows=inserted)
+                    directory, raw=raw, original_rows=parent, active_rows=inserted,
+                    evidence_rows=child)
                 self.assertIsNone(review.get_review_source_text(
                     directory, str(script), script.read_bytes(), inserted))
                 self.publish(directory, script, inserted, expected=False)
@@ -1093,7 +1129,8 @@ class ScopeCutProofTests(unittest.TestCase):
                 with self.subTest(parent=label, mode=mode), tempfile.TemporaryDirectory() as directory:
                     entries = self.forged(parent, start, child, mode)
                     script, _, _ = make_saved_hop(
-                        directory, raw=raw, original_rows=parent, active_rows=entries)
+                        directory, raw=raw, original_rows=parent, active_rows=entries,
+                        evidence_rows=child)
                     self.assertIsNone(review.get_review_source_text(
                         directory, str(script), script.read_bytes(), entries))
                     self.cut.publish(directory, script, entries, expected=False)
@@ -1106,6 +1143,7 @@ class ScopeCutProofTests(unittest.TestCase):
         entries = self.forged(whole, start, child, 'cut')
         with tempfile.TemporaryDirectory() as directory:
             script, _, _ = create_book(directory, raw=raw, source=entries)
+            add_scope_evidence(script, raw, whole, child)
             self.assertIsNone(review.get_review_source_text(
                 directory, str(script), script.read_bytes(), entries))
             self.cut.publish(directory, script, entries, expected=False)
@@ -1234,4 +1272,86 @@ class ScopeCutProofTests(unittest.TestCase):
                 undo = get_source_scope_undo_preview(root)
                 apply_source_scope_undo(root, undo['revision'])
             self.assertEqual(script, json.loads(path.read_bytes()))
+            self.assertIsNone(get_scope_cut_from_binding(
+                parse_script_binding((root / BINDING_NAME).read_bytes())))
+
+    def test_scope_apply_evidence_gates_child_mutations_and_survives_controlled_edit(self):
+        rows = [row(text, 'NARRATOR', instruct='Even.') for text in
+                ('Intro.', 'Exclude me !', '!', 'Keep the line.', 'Afterward.')]
+        raw = '\n\n'.join(entry['text'] for entry in rows)
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        full = bind_literal_policy(raw, mark_entries(rows, raw), input_sha256=digest)
+        chunks = bind_literal_chunks(
+            [dict(entry, id=index, uid=f'u{index}', status='pending', audio_path=None)
+             for index, entry in enumerate(group_into_chunks(full))],
+            get_literal_policy(full))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source.txt'
+            source.write_text(raw, encoding='utf-8')
+            state = {'active_book_id': 'fixture', 'book_generation': 'g1',
+                     'input_file_path': str(source)}
+            for name, data in (('state.json', state), ('annotated_script.json', full),
+                               ('voice_config.json', {}), ('chunks.json', chunks)):
+                (root / name).write_text(json.dumps(data), encoding='utf-8')
+            path = root / 'annotated_script.json'
+            original_binding = make_script_selection_binding(
+                get_book_operation_token(directory), digest, path.read_bytes(),
+                source_path=str(source))
+            (root / BINDING_NAME).write_bytes(
+                json.dumps(original_binding, sort_keys=True, separators=(',', ':')).encode())
+            with patch('core.DATA_DIR', directory), patch('core.process_state', {}), \
+                    ensure_scope_admission(root):
+                plan = get_scope_preview(root, 3)
+                apply_source_scope(root, 3, plan['revision'])
+            applied_bytes = path.read_bytes()
+            applied_binding = (root / BINDING_NAME).read_bytes()
+            applied = json.loads(applied_bytes)
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(path), applied_bytes, applied))
+            evidence = get_scope_cut_from_binding(
+                parse_script_binding((root / BINDING_NAME).read_bytes()))
+            self.assertIsNotNone(evidence)
+            resolved = review.get_review_source_entries(copy.deepcopy(applied), raw)
+            self.assertEqual(evidence['coverage_sha256'], get_scope_coverage_digest(
+                review.get_review_scope_coverage(raw, resolved)))
+
+            def reject(mutated):
+                (root / BINDING_NAME).write_bytes(applied_binding)
+                rebuilt = binding_for_controlled_edit(directory, applied_bytes,
+                                                      json.dumps(mutated).encode())
+                self.assertIsNotNone(get_scope_cut_from_binding(parse_script_binding(rebuilt)))
+                (root / BINDING_NAME).write_bytes(rebuilt)
+                self.assertIsNone(review.get_review_source_text(
+                    directory, str(path), json.dumps(mutated).encode(), mutated))
+
+            moved = copy.deepcopy(applied)
+            scope = moved[0][SCRIPT_POLICY_KEY]['scope_source']
+            del scope['cut_proof']
+            scope['script_start_entry'] = 2
+            insert = copy.deepcopy(full[2])
+            insert[SCRIPT_POLICY_KEY] = moved[0].pop(SCRIPT_POLICY_KEY)
+            moved.insert(0, insert)
+            reject(moved)
+            recomputed = copy.deepcopy(applied)
+            recomputed[0]['source_span'] = [19, 20]
+            proof = recomputed[0][SCRIPT_POLICY_KEY]['scope_source']['cut_proof']
+            intervals = get_scope_coverage_intervals(
+                raw, [row['source_span'] for row in recomputed])
+            proof.update(intervals=intervals,
+                         coverage_sha256=get_scope_coverage_digest(intervals))
+            reject(recomputed)
+            overrun = copy.deepcopy(applied)
+            overrun[0]['source_span'][1] += 1
+            reject(overrun)
+
+            (root / BINDING_NAME).write_bytes(applied_binding)
+            edited = copy.deepcopy(applied)
+            edited[1]['instruct'] = 'Different.'
+            rebuilt = binding_for_controlled_edit(directory, applied_bytes,
+                                                  json.dumps(edited).encode())
+            (root / BINDING_NAME).write_bytes(rebuilt)
+            self.assertIsNotNone(get_scope_cut_from_binding(parse_script_binding(rebuilt)))
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(path), json.dumps(edited).encode(), edited))
 
