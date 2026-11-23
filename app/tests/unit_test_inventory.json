@@ -18800,6 +18800,17 @@
     , "tests.test_workspace_guidance.WorkspaceGuidanceTests.test_guidance_producers_have_no_unkeyed_english_sentences"
     , "tests.test_workspace_guidance.WorkspaceGuidanceTests.test_projection_retains_dynamic_values_when_evidence_becomes_reason"
   ]
+  , "test_workspace_navigation_capability_js": [
+    "tests.test_workspace_navigation_capability_js.WorkspaceNavigationCapabilityJsTests.test_continue_dispatches_only_client_supported_destinations"
+    , "tests.test_workspace_navigation_capability_js.WorkspaceNavigationCapabilityJsTests.test_explicit_not_found_keeps_no_file_wording"
+  ]
+  , "test_workspace_schema_forward_compat_js": [
+    "tests.test_workspace_schema_forward_compat_js.WorkspaceSchemaForwardCompatJsTests.test_backend_declared_enum_additions_still_admit_continue"
+    , "tests.test_workspace_schema_forward_compat_js.WorkspaceSchemaForwardCompatJsTests.test_malformed_enum_blocks_fall_back_without_admitting_unsafe_values"
+    , "tests.test_workspace_schema_forward_compat_js.WorkspaceSchemaForwardCompatJsTests.test_older_and_newer_payloads_are_both_accepted_with_safe_fallback"
+    , "tests.test_workspace_schema_forward_compat_js.WorkspaceSchemaForwardCompatJsTests.test_real_producer_payload_is_accepted_by_browser_validator"
+    , "tests.test_workspace_schema_forward_compat_js.WorkspaceSchemaForwardCompatJsTests.test_structural_and_count_checks_still_reject_malformed_snapshots"
+  ]
   , "test_worktree_gpu_lock": [
     "tests.test_worktree_gpu_lock.WorktreeGpuLockTests.test_linked_worktree_and_primary_share_actual_kernel_lock"
     , "tests.test_worktree_gpu_lock.WorktreeGpuLockTests.test_stage4_loads_without_preexisting_app_pythonpath"

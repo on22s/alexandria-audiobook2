@@ -75,7 +75,7 @@ function renderBookWorkspace(data) {
     document.getElementById('workspace-next-reason').textContent = getWorkspaceGuidance(data.next, 'reason');
     const button = document.getElementById('workspace-continue');
     button.textContent = getWorkspaceGuidance(data.next, 'label');
-    button.disabled = workspaceContinuePending;
+    button.disabled = workspaceContinuePending || !getWorkspaceContinueTab(data);
     const audio = data.audio;
     const review = audio.review;
     const speech = review?.status === 'observed'
@@ -85,9 +85,11 @@ function renderBookWorkspace(data) {
     const exportNote = exported?.status === 'observed'
         ? t('home.workspace.export.note', '{passed} passed at export; {review} needed review; {unavailable} receipts no longer match output metadata; {failed} failed attempts; {running} running. Checks are from this app session. Current script and voice inputs have not been rechecked; confirm book content before sharing.', {passed: exported.verified_at_export, review: exported.review_at_export, unavailable: exported.unavailable, failed: exported.failed_attempts, running: exported.running})
         : t('safety.home.export.unavailable', 'Saved export checks are unavailable. Check that each output belongs to this book before sharing it.');
-    const outputs = data.outputs.map(row => `${row.format}: ${row.status === 'present_unverified'
-        ? t('home.workspace.output.present-unverified', 'file present; book match unverified') : row.status === 'historical_source_scope'
-            ? t('home.workspace.output.older-scope', 'older scope; rebuild before download') : row.status === 'unavailable' ? t('home.workspace.output.unavailable', 'could not inspect') : t('home.workspace.output.missing', 'no file found')}`).join(' · ');
+    const outputs = data.outputs.map(row => `${row.format}: ${row.status === 'not_found'
+        ? t('home.workspace.output.missing', 'no file found') : row.status === 'present_unverified'
+            ? t('home.workspace.output.present-unverified', 'file present; book match unverified') : row.status === 'historical_source_scope'
+                ? t('home.workspace.output.older-scope', 'older scope; rebuild before download') : row.status === 'unavailable'
+                    ? t('home.workspace.output.unavailable', 'could not inspect') : t('home.workspace.output.unrecognized', 'status not recognized')}`).join(' · ');
     document.getElementById('workspace-stages').replaceChildren(
         renderWorkspaceStage(t('home.workspace.stage.script', 'Script'), data.script.entries ? t('home.workspace.script.entries', 'Entries saved: {count}', {count: data.script.entries}) : t('home.workspace.not-started', 'Not started'), data.script.recovery?.status === 'candidate'
             ? t('safety.home.script.recovery', 'Interrupted script run has saved recovery evidence. Inspect it in Script; source and settings eligibility must be rechecked before resuming.')
@@ -289,29 +291,63 @@ async function openCollectionBook(row, button) {
     await openWorkspaceSavedBook(row.name, button, row.revision);
 }
 
+function getWorkspaceEnums(data) {
+    const fallback = {
+        recoveryStatus: ['candidate', 'not_reported'],
+        recoveryEligibility: ['not_rechecked'],
+        reviewStatus: ['not_prepared', 'unavailable', 'observed'],
+        exportStatus: ['unavailable', 'observed'],
+        exportInputs: ['not_rechecked'],
+        audioStatus: ['not_started', 'files_present', 'needs_attention', 'unavailable'],
+        outputStatus: ['present_unverified', 'historical_source_scope', 'not_found', 'unavailable'],
+        nextTab: ['script', 'voices', 'editor', 'audio']
+    };
+    const declared = data?.enums;
+    if (!declared || typeof declared !== 'object' || Array.isArray(declared)) { return fallback; }
+    const enums = {...fallback};
+    for (const key of Object.keys(fallback)) {
+        const values = declared[key];
+        if (Array.isArray(values) && values.length && values.every(value => typeof value === 'string' && value.length > 0)) {
+            enums[key] = values;
+        }
+    }
+    return enums;
+}
+
+const WORKSPACE_CONTINUE_TABS = new Set(['script', 'voices', 'editor', 'audio']);
+
+function getWorkspaceContinueTab(data) {
+    const tab = data?.next?.tab;
+    if (!WORKSPACE_CONTINUE_TABS.has(tab)) { return null; }
+    const link = Array.from(document.querySelectorAll('.nav-link')).find(row => row.dataset.tab === tab);
+    return link && document.getElementById(tab + '-tab') ? tab : null;
+}
+
 function isWorkspaceSnapshotValid(data) {
     const count = value => Number.isSafeInteger(value) && value >= 0;
+    const enums = getWorkspaceEnums(data);
+    const allows = (name, value) => typeof value === 'string' && enums[name].includes(value);
     const review = data?.audio?.review;
     const exported = data?.export_review;
     const recovery = data?.script?.recovery;
-    const recoveryValid = !recovery || (['candidate', 'not_reported'].includes(recovery.status)
-        && recovery.eligibility === 'not_rechecked');
-    const reviewValid = !review || ['not_prepared', 'unavailable'].includes(review.status)
-        || (review.status === 'observed' && ['speech_current_metadata', 'speech_not_current',
+    const recoveryValid = !recovery || (allows('recoveryStatus', recovery.status)
+        && allows('recoveryEligibility', recovery.eligibility));
+    const reviewValid = !review || allows('reviewStatus', review.status)
+        && (review.status !== 'observed' || ['speech_current_metadata', 'speech_not_current',
             'speech_not_checked', 'speech_attention', 'drift_flagged', 'unknown_speakers'].every(key => count(review[key])));
-    const exportValid = !exported || exported.status === 'unavailable'
-        || (exported.status === 'observed' && exported.current_inputs === 'not_rechecked'
-            && ['verified_at_export', 'review_at_export', 'unavailable', 'failed_attempts', 'running'].every(key => count(exported[key])));
+    const exportValid = !exported || allows('exportStatus', exported.status)
+        && (exported.status !== 'observed' || (allows('exportInputs', exported.current_inputs)
+            && ['verified_at_export', 'review_at_export', 'unavailable', 'failed_attempts', 'running'].every(key => count(exported[key]))));
     return recoveryValid && reviewValid && exportValid && !!data && typeof data.name === 'string' && /^[a-f0-9]{64}$/.test(data.book_token)
         && count(data.script?.entries) && count(data.cast?.total) && count(data.cast?.pending)
         && data.cast.pending <= data.cast.total
-        && ['not_started', 'files_present', 'needs_attention', 'unavailable'].includes(data.audio?.status)
+        && allows('audioStatus', data.audio?.status)
         && typeof data.audio.message === 'string'
         && ['total', 'present', 'failed', 'missing', 'generating'].every(key => count(data.audio[key]))
         && data.audio.present <= data.audio.total
         && Array.isArray(data.outputs) && data.outputs.every(row => row && typeof row.format === 'string'
-            && ['present_unverified', 'historical_source_scope', 'not_found', 'unavailable'].includes(row.status))
-        && ['script', 'voices', 'editor', 'audio'].includes(data.next?.tab)
+            && allows('outputStatus', row.status))
+        && allows('nextTab', data.next?.tab)
         && typeof data.next.label === 'string' && typeof data.next.reason === 'string';
 }
 
@@ -394,10 +430,11 @@ async function continueBookWorkspace() {
     document.getElementById('workspace-continue').disabled = true;
     try {
         const data = await refreshBookWorkspace();
-        if (data && isWorkspaceVisible() && epoch === workspaceMonitorEpoch) { activateTab(data.next.tab); }
+        const tab = getWorkspaceContinueTab(data);
+        if (tab && isWorkspaceVisible() && epoch === workspaceMonitorEpoch) { activateTab(tab); }
     } finally {
         workspaceContinuePending = false;
-        document.getElementById('workspace-continue').disabled = !workspaceBookSnapshot;
+        document.getElementById('workspace-continue').disabled = !getWorkspaceContinueTab(workspaceBookSnapshot);
     }
 }
 
