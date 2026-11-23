@@ -2291,6 +2291,7 @@
   "home.workspace.output.older-scope": "较旧的来源范围；下载前请重新构建",
   "home.workspace.output.present-unverified": "文件存在；尚未验证与本书匹配",
   "home.workspace.output.unavailable": "无法检查",
+  "home.workspace.output.unrecognized": "状态无法识别",
   "home.workspace.refresh": "刷新工作区",
   "home.workspace.running": "正在运行的工作",
   "home.workspace.saved-books": "已保存的书",

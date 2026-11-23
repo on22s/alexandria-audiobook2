@@ -19,6 +19,17 @@ from script_recovery_facts import get_saved_script_recovery_manifest, three_pass
 
 logger = logging.getLogger('AlexandriaUI')
 
+WORKSPACE_ENUMS = {
+    'recoveryStatus': ['candidate', 'not_reported'],
+    'recoveryEligibility': ['not_rechecked'],
+    'reviewStatus': ['not_prepared', 'unavailable', 'observed'],
+    'exportStatus': ['unavailable', 'observed'],
+    'exportInputs': ['not_rechecked'],
+    'audioStatus': ['not_started', 'files_present', 'needs_attention', 'unavailable'],
+    'outputStatus': ['present_unverified', 'historical_source_scope', 'not_found', 'unavailable'],
+    'nextTab': ['script', 'voices', 'editor', 'audio'],
+}
+
 
 def _get_audio_review(chunks, get_audio_path, book_token, voices):
     """Summarize existing editor evidence; never run or certify a check."""
@@ -176,6 +187,7 @@ def get_book_workspace(data_dir, output_paths, get_voice_rows, get_audio_path, *
     if get_book_operation_token(data_dir) != book_token:
         raise ValueError('Selected book changed while reading workspace facts')
     return {'book_token': book_token, 'name': name or (get_workspace_message('workspace.name.unnamed') if entries else get_workspace_message('workspace.name.no-book-selected')),
+            'enums': WORKSPACE_ENUMS,
             'script': {'status': 'available' if entries else 'not_started', 'entries': len(entries),
                        'recovery': script_recovery,
                        'sha256': snapshot['script_sha256']},

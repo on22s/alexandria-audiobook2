@@ -2291,6 +2291,7 @@
   "home.workspace.output.older-scope": "alcance anterior; vuelve a crear antes de descargar",
   "home.workspace.output.present-unverified": "archivo presente; coincidencia con el libro sin verificar",
   "home.workspace.output.unavailable": "no se pudo inspeccionar",
+  "home.workspace.output.unrecognized": "estado no reconocido",
   "home.workspace.refresh": "Actualizar espacio de trabajo",
   "home.workspace.running": "Trabajo en ejecución",
   "home.workspace.saved-books": "Libros guardados",

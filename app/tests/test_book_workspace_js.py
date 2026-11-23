@@ -19,6 +19,10 @@ Element.prototype.focus=function(){document.activeElement=this;};
 for(const id of ['workspace-book-name','workspace-next-reason','workspace-continue','workspace-stages',
  'workspace-feedback','workspace-library-feedback','workspace-library','workspace-monitor-feedback',
  'workspace-monitor','workspace-monitor-title']){body.appendChild(new Element('div',{id}));}
+for(const id of ['script','voices','editor','audio']){
+ body.appendChild(new Element('a',{class:'nav-link','data-tab':id}));
+ body.appendChild(new Element('div',{class:'tab-content',id:id+'-tab'}));
+}
 const elements=id=>document.getElementById(id);
 const requests=[],activated=[],timers=[],actionErrors=[];let responses={},fail=false;
 context.window=context;context.currentTabName='home';document.visibilityState='visible';
