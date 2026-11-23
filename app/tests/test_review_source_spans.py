@@ -29,13 +29,13 @@ REPLY = [row('Rain fell.', speaker='NARRATOR'),
          row('Please open the gate. Take the blue cup.')]
 
 
-def create_book(directory, *, saved=False, raw=RAW, source=None):
+def create_book(directory, *, saved=False, raw=RAW, source=None, upload_path=None):
     root = Path(directory)
-    uploads = root / 'uploads'
-    uploads.mkdir(exist_ok=True)
-    source_path = uploads / 'fixture.txt'
+    selected = upload_path or str(root / 'uploads' / 'fixture.txt')
+    source_path = Path(selected)
+    source_path.parent.mkdir(parents=True, exist_ok=True)
     source_path.write_bytes(raw.encode('utf-8'))
-    state = {'input_file_path': str(source_path), 'active_book_id': 'fixture', 'book_generation': 1}
+    state = {'input_file_path': selected, 'active_book_id': 'fixture', 'book_generation': 1}
     (root / 'state.json').write_text(json.dumps(state), encoding='utf-8')
     script = root / 'scripts' / 'fixture.json' if saved else root / 'annotated_script.json'
     script.parent.mkdir(exist_ok=True)
@@ -43,7 +43,7 @@ def create_book(directory, *, saved=False, raw=RAW, source=None):
     script_bytes = json.dumps(entries).encode('utf-8')
     script.write_bytes(script_bytes)
     binding = make_script_selection_binding(get_book_operation_token(directory),
-        hashlib.sha256(source_path.read_bytes()).hexdigest(), script_bytes, source_path=str(source_path))
+        hashlib.sha256(source_path.read_bytes()).hexdigest(), script_bytes, source_path=selected)
     script.with_suffix('.selection_binding.json').write_text(json.dumps(binding), encoding='utf-8')
     return script, source_path, entries
 
@@ -924,6 +924,50 @@ class ReviewSourceSpanTests(unittest.TestCase):
             saved_script.with_suffix('.selection_binding.json').unlink()
             self.assertIsNone(review.get_review_source_text(
                 directory, str(script), script.read_bytes(), source))
+
+    def test_contextual_review_finds_default_upload_for_saved_and_loaded_scripts(self):
+        intro = 'The watch began.'
+        context = [row(intro, source_span=[0, len(intro)]), row('Everyone waited.')]
+        prefix = intro + '\n\nEveryone waited.\n\n'
+        raw = prefix + RAW
+        entries = context + copy.deepcopy(SOURCE)
+        for entry in entries[2:]:
+            entry['source_span'] = [offset + len(prefix) for offset in entry['source_span']]
+        for loaded, forward_slashes in product((False, True), repeat=2):
+            with self.subTest(loaded=loaded, forward_slashes=forward_slashes), \
+                    tempfile.TemporaryDirectory() as directory:
+                app_dir = Path(directory, 'app')
+                upload = app_dir / 'uploads' / 'fixture.txt'
+                saved, _, _ = create_book(directory, saved=True, source=entries,
+                    raw=raw.replace('\n', '\r\n'),
+                    upload_path=upload.as_posix() if forward_slashes else str(upload))
+                state_path = Path(directory, 'state.json')
+                state = json.loads(state_path.read_bytes())
+                state['input_file_path'] = str(saved) if loaded else str(saved.with_name('other.json'))
+                state_path.write_text(json.dumps(state), encoding='utf-8')
+                script = saved
+                if loaded:
+                    script = Path(directory, 'annotated_script.json')
+                    original = saved.read_bytes()
+                    script.write_bytes(original)
+                    binding = make_script_selection_binding(get_book_operation_token(directory),
+                        hashlib.sha256(original).hexdigest(), original, source_path=str(saved))
+                    script.with_suffix('.selection_binding.json').write_text(
+                        json.dumps(binding), encoding='utf-8')
+                client, calls = client_for([(context, 'stop'), *((REPLY, 'stop'),) * 3])
+                with self.cli(directory, client, script=None if loaded else saved), \
+                        patch.multiple('core', BASE_DIR=str(app_dir), ROOT_DIR=directory), \
+                        patch.object(review, 'record_failure') as diagnostic:
+                    review.sys.argv.extend(['--context-window', '1'])
+                    review.main()
+                diagnostic.assert_not_called()
+                self.assertEqual(2, len(calls))
+                output = json.loads(script.read_bytes())
+                self.assertEqual([[start + len(prefix), end + len(prefix)]
+                                  for start, end in ((0, 10), (11, 32), (34, 52))],
+                                 [entry['source_span'] for entry in output[2:]])
+                self.assertTrue(Path(str(script) + '.review_completed.json').is_file())
+                self.assertEqual(raw.replace('\n', '\r\n').encode(), upload.read_bytes())
 
     def test_capture_reuses_generation_decoding_and_newline_coordinates(self):
         for encoding, text in (('utf-8', RAW.replace('\n', '\r\n')),
