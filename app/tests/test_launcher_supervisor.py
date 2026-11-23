@@ -307,11 +307,12 @@ try {
     if (step.method === 'script.stop' ||
         (['stop_writers', 'recover_active_book'].includes(step.method) && step.uri === 'launcher_lifecycle.js')) {
       // Shutdown and recovery are stubbed here; native lifecycle fixtures exercise both.
+    } else if (step.method === 'clear_active_book' && step.uri === 'launcher_lifecycle.js') {
+      for (const name of activeFiles) {
+        fs.rmSync(path.join(root, name), {recursive: true, force: true});
+      }
     } else {
-      assert.equal(step.method, 'fs.rm');
-      const target = path.resolve(root, step.params.path);
-      assert.ok(target.startsWith(root + path.sep));
-      fs.rmSync(target, {recursive: true, force: true});
+      assert.fail(`unexpected reset step: ${step.method}`);
     }
   }
   for (const name of activeFiles) {
@@ -319,7 +320,7 @@ try {
   }
   assert.deepEqual(fs.readFileSync(library), libraryBytes);
   assert.deepEqual(fs.readFileSync(cast), castBytes);
-  console.log(JSON.stringify({activeFilesRemoved: activeFiles, savedBookPreserved: true, castPreserved: true, note: 'Configured deletion steps executed with Node fs only in a temporary fixture; shutdown and recovery mocked in this artifact-only fixture; awaited lifecycle and native recovery are exercised separately.'}));
+  console.log(JSON.stringify({activeFilesRemoved: activeFiles, savedBookPreserved: true, castPreserved: true, note: 'Backend active-book cleanup emulated in a temporary fixture; shutdown and recovery mocked in this artifact-only fixture; awaited lifecycle and native recovery are exercised separately.'}));
 } finally {
   fs.rmSync(root, {recursive: true, force: true});
 }

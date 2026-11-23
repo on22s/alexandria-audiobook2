@@ -36,16 +36,21 @@ class LauncherLifecycle {
     }
   }
 
-  async recover_active_book(req, ondata, kernel) {
-    if (this.get_caller(req) !== "reset.js") {
-      throw new Error("Active-book recovery requires a reset caller")
-    }
+  get_environment_python(kernel) {
     const environmentPython = path.join(__dirname, "app", "env",
       process.platform === "win32" ? "Scripts/python.exe" : "bin/python")
     const python = fs.existsSync(environmentPython) ? environmentPython : kernel.which("python")
     if (!python) {
-      throw new Error("Python is required to settle active-book recovery before Reset")
+      throw new Error("Python is required to settle active-book state before Reset")
     }
+    return python
+  }
+
+  async recover_active_book(req, ondata, kernel) {
+    if (this.get_caller(req) !== "reset.js") {
+      throw new Error("Active-book recovery requires a reset caller")
+    }
+    const python = this.get_environment_python(kernel)
     const code = [
       "import sys",
       "from book_state_transaction import ensure_book_state",
@@ -58,6 +63,29 @@ class LauncherLifecycle {
       cwd: path.join(__dirname, "app"), timeout: 15000, windowsHide: true
     })
     ondata({ raw: "Active-book recovery settled.\r\n" })
+  }
+
+  async clear_active_book(req, ondata, kernel) {
+    if (this.get_caller(req) !== "reset.js") {
+      throw new Error("Active-book reset requires a reset caller")
+    }
+    const python = this.get_environment_python(kernel)
+    const code = [
+      "import sys",
+      "from reset_artifact_roots import print_reset_result",
+      "print_reset_result(sys.argv[1])"
+    ].join("\n")
+    // Removal runs under the same book admission that just settled recovery,
+    // so a refused root or a failed child cannot delete published user data.
+    // Cleanup length is data-dependent: no fixed execFile timeout here, so a
+    // long directory cannot be killed mid-removal without a receipt. Pinokio's
+    // awaited script step remains the lifecycle owner.
+    const result = await runFile(python, ["-c", code, __dirname], {
+      cwd: path.join(__dirname, "app"), windowsHide: true
+    })
+    const receipt = JSON.parse(result.stdout.trim().split("\n").pop())
+    ondata({ raw: `Active-book reset settled: ${receipt.removed.length} removed, ${receipt.skipped.length} skipped, ${receipt.failed.length} failed.\r\n` })
+    return receipt
   }
 }
 
