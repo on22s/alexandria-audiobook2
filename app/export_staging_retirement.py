@@ -16,12 +16,12 @@ import stat
 import time
 
 from export_staging_directory import StageDirectoryChanged, identity, stage_directory, stage_owner_lock
+from export_file_io import EXPORT_RETIREMENT_DIRECTORY as DIRECTORY
 from utils import file_lock, open_or_create_file
 from audio_take_history import _version
 from export_staging_records import (decode_creation_receipt, decode_receipt,
                                     decode_record, receipt_owner_identity)
 
-DIRECTORY = '.aa2-export-retirement'
 LOCK = 'owner.lock'
 MAX_SLOTS = 128
 # Normal work keeps its original bound. One fixed extra slot lets cleanup

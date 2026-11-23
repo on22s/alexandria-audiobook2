@@ -10,6 +10,7 @@ import stat
 import uuid
 from audio_take_history import _ensure_plain_path, _version
 from editor_poll_snapshot import get_snapshot_digest
+from export_file_io import PUBLICATION_JOURNAL, PUBLICATION_SET_JOURNAL
 from project_scope_files import capture_scope_file
 
 LEGACY_EXPORTS = ('cloned_audiobook.mp3', 'audiobook.m4b', 'audacity_export.zip', 'chapter_exports')
@@ -26,8 +27,6 @@ EXPORTS = BASE_EXPORTS + MIXED_DELIVERIES
 SUPPORTED_INVENTORIES = (set(LEGACY_EXPORTS), set(BASE_EXPORTS), set(EXPORTS))
 MAX_SCOPE_EXPORT_ROWS = 4096
 PUBLICATIONS_FILE = '.export_publications.json'
-PUBLICATION_JOURNAL = '.export_publication.json'
-PUBLICATION_SET_JOURNAL = '.export_set_publication.json'
 MAX_PUBLICATION_ROWS = 4096
 MAX_BOOK_METADATA_BYTES = 4 * 1024**2
 MAX_PUBLICATION_JOURNAL_BYTES = MAX_BOOK_METADATA_BYTES + 4 * ((MAX_BOOK_METADATA_BYTES + 2) // 3)
@@ -197,8 +196,7 @@ def _parse_publication_receipts(raw):
     return records
 
 
-def get_compacted_publication_receipts(root, token, scope_token):
-    records = read_publication_receipts(root)
+def get_compacted_publication_receipts(records, token, scope_token):
     retained = {name: receipt for name, receipt in records.items()
                 if receipt.get('book_token') == token
                 and receipt.get('scope_token') == scope_token}
@@ -1540,7 +1538,9 @@ def require_scope_export_current(root, path, *, expected_sha256=None, expected_v
         reason = get_historical_export_reason(root, path,
             expected_sha256=expected_sha256, expected_version=expected_version) if not force_stale else 'book'
     if reason is not None:
-        from fastapi import HTTPException
+        from core import AppError
         if reason == 'book':
-            raise HTTPException(status_code=409, detail='This export belongs to a previous book; rebuild it before downloading.')
-        raise HTTPException(status_code=409, detail='This export predates the selected source scope. Rebuild it before downloading.')
+            raise AppError(409, 'This export belongs to a previous book; rebuild it before downloading.',
+                           key='safety.export.previous_book')
+        raise AppError(409, 'This export predates the selected source scope. Rebuild it before downloading.',
+                       key='safety.export.previous_scope')

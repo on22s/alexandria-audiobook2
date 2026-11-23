@@ -20,13 +20,13 @@ import time
 from contextlib import ExitStack
 
 from audio_take_history import _version
+from export_file_io import EXPORT_RETIREMENT_DIRECTORY as DIRECTORY
 from export_staging_directory import (OWNER_FILE, StageDirectoryChanged, identity,
                                       stage_directory, stage_owner_lock)
 from export_staging_records import (decode_creation_receipt, decode_receipt,
                                     receipt_owner_identity)
 from utils import file_lock
 
-DIRECTORY = '.aa2-export-retirement'
 LOCK = 'owner.lock'
 MAX_SLOTS = 128
 RETIREMENT_RESERVE = '0' * 32

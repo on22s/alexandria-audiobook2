@@ -14,7 +14,8 @@ class FinalAudioRestoreTests(unittest.TestCase):
     def test_head_checks_the_real_download_without_transferring_audio(self):
         app = FastAPI()
         app.include_router(editor.router)
-        with tempfile.TemporaryDirectory() as tmp, patch.object(editor, 'AUDIOBOOK_PATH', str(Path(tmp) / 'book.mp3')):
+        with tempfile.TemporaryDirectory() as tmp, patch.multiple(
+                editor, DATA_DIR=tmp, AUDIOBOOK_PATH=str(Path(tmp) / 'book.mp3')):
             with TestClient(app) as client:
                 self.assertEqual(404, client.head('/api/audiobook').status_code)
                 Path(editor.AUDIOBOOK_PATH).write_bytes(b'existing audiobook bytes')

@@ -21,6 +21,8 @@ from utils import file_lock
 from adapter_publication import (get_adapter_bundle_sha256, sync_adapter_directory,
                                  save_adapter_publication_bytes)
 from book_placeholder import PLACEHOLDER_SIZE, get_book_placeholder_bytes
+from export_file_io import (EXPORT_RETIREMENT_DIRECTORY, PUBLICATION_JOURNAL,
+                            PUBLICATION_SET_JOURNAL)
 
 JOURNAL = '.active_book_transaction.json'
 MAX_BOOK_JOURNAL_BYTES = 32 * 1024**2
@@ -1298,14 +1300,13 @@ def is_book_state_admitted(data_dir):
 
 
 def _has_book_transaction(root):
-    """Distinguish an absent marker from a failed lookup at admission.
+    return _has_book_entry(root, JOURNAL)
 
-    Uses only pathlib so the native launcher lifecycle bundles can import this
-    module without the app's scoped-file package. A no-follow lstat means a
-    dangling link is present; only a genuine not-found is absent.
-    """
+
+def _has_book_entry(root, name):
+    """Distinguish an absent entry from a failed no-follow lookup."""
     try:
-        (Path(root) / JOURNAL).lstat()
+        (Path(root) / name).lstat()
     except (FileNotFoundError, NotADirectoryError):
         return False
     return True
@@ -4904,12 +4905,13 @@ def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None,
                     # from a pinned descriptor); only the outer class changes.
                     raise BookTransactionError(str(refusal)) from refusal.__cause__
                 raise
-            from project_scope_exports import (PUBLICATION_JOURNAL, PUBLICATION_SET_JOURNAL,
-                                               recover_publication_journal, recover_set_journal)
-            recover_publication_journal(root)
-            recover_set_journal(root)
-            if not any(os.path.lexists(root / name)
-                       for name in (PUBLICATION_JOURNAL, PUBLICATION_SET_JOURNAL)):
+            export_journals = (PUBLICATION_JOURNAL, PUBLICATION_SET_JOURNAL)
+            if any(_has_book_entry(root, name) for name in export_journals):
+                from project_scope_exports import recover_publication_journal, recover_set_journal
+                recover_publication_journal(root)
+                recover_set_journal(root)
+            if (_has_book_entry(root, EXPORT_RETIREMENT_DIRECTORY)
+                    and not any(_has_book_entry(root, name) for name in export_journals)):
                 # Registered stages have their own owner locks. This also
                 # recovers a builder killed before it wrote export intent.
                 from export_staging import reclaim_registered_export_staging
@@ -6123,13 +6125,12 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
             from project_scope_exports import (PUBLICATIONS_FILE,
                 get_compacted_publication_receipts, get_scope_export_inventory,
                 read_publication_receipts, serialize_publication_receipts)
+            records, ledger_raw = read_publication_receipts(data_dir, include_bytes=True)
             receipt_bytes = None
-            receipt_removal = False
             if same_bytes and rebound_binding is not None:
                 scope = state.get('_source_scope')
                 previous_scope_token = (get_snapshot_digest(scope)
                                         if scope is not None else None)
-                records = read_publication_receipts(data_dir)
                 rebound = {}
                 for name, receipt in records.items():
                     if (receipt['book_token'] == previous_token
@@ -6142,8 +6143,8 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
             else:
                 state.pop('_source_scope', None)
                 state['_source_scope_exports'] = get_scope_export_inventory(data_dir)
-                receipt_bytes = get_compacted_publication_receipts(
-                    data_dir, new_token, None)
+                if ledger_raw is not None:
+                    receipt_bytes = get_compacted_publication_receipts(records, new_token, None)
             from speech_numbers import STATE_KEY as date_order_key
             state.pop(date_order_key, None)        # a new book starts on auto (#1546)
             # An explicit input selection starts a new book context. Validate
@@ -6165,8 +6166,6 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
                 if receipt_bytes is not None:
                     replacements[PUBLICATIONS_FILE] = receipt_bytes
                 removals = list(companions) + list(chunk_removals)
-                if receipt_removal:
-                    removals.append(PUBLICATIONS_FILE)
                 if before_publication is not None:
                     before_publication()
                 if replacements or removals:

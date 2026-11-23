@@ -1311,6 +1311,8 @@
   "error.review.restart_receipt_discard_failed": "Se descartó el punto de control de revisión, pero se conservó el comprobante de revisión completada porque no se pudo eliminar; la nueva revisión no comenzó. Se conservaron el guion y las ediciones. Activa la opción para revisar de nuevo aunque nada haya cambiado y después inicia la revisión desde el lote 1.",
   "error.review.restart_reservation_lost": "Se descartó el progreso de revisión (el punto de control y el comprobante de revisión completada), pero la nueva revisión no comenzó porque la reserva de su tarea ya no está activa. Se conservaron el guion y las ediciones. Inicia la revisión para comenzar desde el lote 1.",
   "error.review.restart_start_failed": "Se descartó el progreso de revisión (el punto de control y el comprobante de revisión completada), pero la nueva revisión no comenzó porque no se pudo registrar su tarea en segundo plano. Se conservaron el guion y las ediciones. Revisa el registro de revisión y después inicia la revisión desde el lote 1.",
+  "safety.export.previous_book": "Esta exportación pertenece a un libro anterior. Vuelve a crearla antes de descargarla.",
+  "safety.export.previous_scope": "Esta exportación es anterior al alcance de origen seleccionado. Vuelve a crearla antes de descargarla.",
   "safety.review.restart_book_changed": "El libro cambió o no se confirmó empezar de nuevo. Revisa el libro actual y confirma otra vez; se conservó el progreso guardado.",
   "error.sound.cues.no_active_book": "No hay ningún libro activo seleccionado. Carga un libro guardado antes de crear señales de sonido.",
   "error.task.already_running": "{task} ya se está ejecutando.",

@@ -720,11 +720,11 @@ def _load_script_sync(request: ScriptLoadRequest):
         _capture_sound_companions(DATA_DIR, ACTIVE_CUES, ACTIVE_RENDITIONS, state.get('active_book_id'))
         state.update(active_book_id=book_id, input_file_path=src,
                      book_generation=uuid.uuid4().hex)
-        _ledger_raw = read_publication_receipts(DATA_DIR, include_bytes=True)[1]
+        receipts, _ledger_raw = read_publication_receipts(DATA_DIR, include_bytes=True)
         if _ledger_raw is not None:
             write_publication_ledger(DATA_DIR, _ledger_raw)
-        compacted_receipts = get_compacted_publication_receipts(DATA_DIR,
-            get_book_operation_token(DATA_DIR, state=state), None)
+            compacted_receipts = get_compacted_publication_receipts(receipts,
+                get_book_operation_token(DATA_DIR, state=state), None)
         state.pop('script_selection_pending', None)
         state.pop('script_binding_required', None)
         state.pop('_source_scope', None)

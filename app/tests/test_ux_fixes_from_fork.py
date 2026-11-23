@@ -83,8 +83,9 @@ class ExportProgressTests(unittest.TestCase):
 class ExportZipRouteTests(unittest.TestCase):
     def test_404_when_nothing_exported(self):
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.object(editor_module, "AUDIOBOOK_PATH", os.path.join(tmp, "a.mp3")), \
-                 patch.object(editor_module, "M4B_PATH", os.path.join(tmp, "b.m4b")):
+            with patch.multiple(editor_module, DATA_DIR=tmp,
+                                AUDIOBOOK_PATH=os.path.join(tmp, "a.mp3"),
+                                M4B_PATH=os.path.join(tmp, "b.m4b")):
                 with self.assertRaises(HTTPException) as ctx:
                     asyncio.run(editor_module.export_zip())
         self.assertEqual(404, ctx.exception.status_code)
@@ -94,8 +95,8 @@ class ExportZipRouteTests(unittest.TestCase):
             mp3 = os.path.join(tmp, "a.mp3")
             with open(mp3, "wb") as fh:
                 fh.write(b"MP3BYTES")
-            with patch.object(editor_module, "AUDIOBOOK_PATH", mp3), \
-                 patch.object(editor_module, "M4B_PATH", os.path.join(tmp, "b.m4b")):
+            with patch.multiple(editor_module, DATA_DIR=tmp, AUDIOBOOK_PATH=mp3,
+                                M4B_PATH=os.path.join(tmp, "b.m4b")):
                 resp = asyncio.run(editor_module.export_zip())
             with zipfile.ZipFile(resp.path) as zf:
                 self.assertEqual(["audiobook.mp3"], zf.namelist())
