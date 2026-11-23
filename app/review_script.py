@@ -2534,7 +2534,7 @@ def is_review_inherited_literal_policy(active, original):
                for uid, marker in active['scope_chunks'].items())
 
 
-def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _source_depth=0):
+def get_review_source_text(data_dir, script_path, script_bytes, entries):
     """Legacy text-only view of capture.
 
     A proven contradiction is reported distinctly by ``get_review_source_snapshot``
@@ -2543,8 +2543,7 @@ def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _sou
     usable source.
     """
     try:
-        snapshot = get_review_source_snapshot(data_dir, script_path, script_bytes, entries,
-                                             _source_depth=_source_depth)
+        snapshot = get_review_source_snapshot(data_dir, script_path, script_bytes, entries)
     except ReviewSourceContradiction:
         return None
     return snapshot['text'] if snapshot is not None else None
@@ -2585,21 +2584,27 @@ def _resolve_source_ambiguity(candidates, entries, policy):
     raise ValueError('Prepared review source coordinates are unavailable or ambiguous')
 
 
-def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, _source_depth=0):
+# Loading a saved script adds one link to the same budget as saved copies.
+MAX_REVIEW_SAVED_SOURCE_HOPS = 8
+
+
+def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, _saved_ancestors=()):
     """Capture only a bound book source whose prepared coordinates verify."""
     if not is_review_source_span_script(entries):
         return None
     import hashlib
     from pathlib import Path
     from book_state_transaction import reuse_book_state, get_book_operation_token
+    from core import BASE_DIR, ROOT_DIR
     from project_scope_files import capture_scope_file
     from script_selection_binding import (_read_selection_state, _read_source_snapshot,
-        _path_digest, parse_script_binding, saved_binding_matches, check_binding_source,
-        is_script_selection_pending, BINDING_NAME, MAX_BINDING_BYTES,
+        _path_digest, _validated_script_entries, parse_script_binding, saved_binding_matches,
+        check_binding_source, is_script_selection_pending, BINDING_NAME, MAX_BINDING_BYTES,
         get_scope_cut_from_binding)
     from source_encoding import get_decoded_source_text, get_normalized_source_newlines
     from generate_script import get_preprocessed_source
     from three_pass_generate import prepare_source_text
+    from utils import get_app_storage_path
     try:
         active = os.path.abspath(script_path) == os.path.abspath(os.path.join(data_dir, 'annotated_script.json'))
         directory = data_dir if active else os.path.dirname(os.path.abspath(script_path))
@@ -2619,15 +2624,34 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
                 candidates = [selected]
             else:
                 candidates = [selected] if isinstance(selected, str) else []
-                uploads = Path(data_dir, 'uploads')
-                if uploads.is_dir():
-                    for path in uploads.iterdir():
+                uploads = get_app_storage_path(data_dir, ROOT_DIR, BASE_DIR, 'uploads')
+                if os.path.isdir(uploads):
+                    for path in Path(uploads).iterdir():
                         candidates.extend((str(path), path.as_posix(),
-                                           os.path.join(data_dir, 'uploads', path.name)))
+                                           os.path.join(uploads, path.name)))
             paths = {path for path in candidates if _path_digest(path) == binding['source_path_sha256']}
+            if not paths and not active:
+                from direct_path_admission import is_plain_path
+                from routers.scripts_library import _is_saved_book_filename
+
+                # Save As copies the active binding, whose source can be another
+                # saved book. Existing bindings contain only a path hash. Match
+                # direct library names before opening any candidate's bytes.
+                library = Path(os.path.abspath(data_dir), 'scripts')
+                if is_plain_path(library) and library.is_dir():
+                    paths = {str(path) for path in library.iterdir()
+                             if _is_saved_book_filename(path.name)
+                             and _path_digest(str(path)) == binding['source_path_sha256']}
             if len(paths) != 1:
                 raise ValueError('Review source path cannot be verified')
             source_path = paths.pop()
+            saved_source = Path(source_path).suffix.lower() == '.json'
+            if saved_source:
+                ancestors = (*_saved_ancestors, os.path.normcase(os.path.abspath(script_path)))
+                if os.path.normcase(os.path.abspath(source_path)) in ancestors:
+                    raise ValueError('Review saved-source binding cycle')
+                if len(ancestors) > MAX_REVIEW_SAVED_SOURCE_HOPS:
+                    raise ValueError('Review saved-source binding hop limit exceeded')
             digest, raw = _read_source_snapshot(source_path, include_bytes=True, owning_root=data_dir)
             if digest != binding['source_sha256']:
                 raise ValueError('Review source bytes changed')
@@ -2639,19 +2663,14 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
                         'sources': [{'source_path': source_path, 'source_sha256': digest,
                                      'binding_path': os.path.join(directory, name),
                                      'binding_sha256': hashlib.sha256(raw_binding).hexdigest()}]}
-        decoded, _encoding = get_decoded_source_text(raw)
-        decoded = get_normalized_source_newlines(decoded)
         policy = get_literal_policy(entries)
         scope_policy_mismatch = scope_cut is not None and (policy is None
             or policy['boundary'] != 'selected_source_words_v1'
             or get_scope_identity(policy) != scope_cut['scope_policy_sha256'])
-        if Path(source_path).suffix.lower() == '.json':
-            if _source_depth:
-                raise ValueError('Review source binding chain is not an original book source')
-            source_entries = json.loads(raw)
-            if not isinstance(source_entries, list) or any(not isinstance(row, dict) for row in source_entries):
-                raise ValueError('Selected saved source is not a script')
-            original = get_review_source_snapshot(data_dir, source_path, raw, source_entries, _source_depth=1)
+        if saved_source:
+            source_entries = _validated_script_entries(raw)
+            original = get_review_source_snapshot(data_dir, source_path, raw, source_entries,
+                                                  _saved_ancestors=ancestors)
             if original is None:
                 raise ValueError('Selected saved source has no verified original coordinates')
             if scope_policy_mismatch:
@@ -2660,7 +2679,7 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
             # The parent may be provable only at its own intervals. Keep every
             # candidate it admitted: a child adding coverage has to verify at
             # all of them, or it borrows authority the parent never established.
-            parent_candidates = original.get('candidates') or {original['text']}
+            parent_candidates = original['candidates']
             child_candidates = set()
             for candidate in parent_candidates:
                 if not is_review_literal_source(candidate, policy):
@@ -2709,11 +2728,14 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
                         'Child literal preprocessing choice differs from the captured source')
                 choices = {child_choice}
             identity['sources'].extend(original['identity']['sources'])
-            return {'text': text, 'identity': identity, 'strip_choices': choices}
+            return {'text': text, 'identity': identity, 'strip_choices': choices,
+                    'candidates': frozenset(child_candidates)}
         if scope_policy_mismatch:
             raise ValueError('Scope evidence requires its established scoped child policy')
         if policy and policy.get('input_sha256', digest) != digest:
             raise ValueError('Literal source identity differs from the captured source')
+        decoded, _encoding = get_decoded_source_text(raw)
+        decoded = get_normalized_source_newlines(decoded)
         strip_choices = ((policy['strip_front_matter'],) if policy
                          and 'strip_front_matter' in policy else (False, True))
         sources, valid_choices = set(), set()

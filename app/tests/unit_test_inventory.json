@@ -13243,6 +13243,14 @@
     , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_proven_historic_prefix_survives_the_next_batch_save"
     , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_standalone_forward_split_reports_original_count"
   ]
+  , "test_review_save_as_source": [
+    "tests.test_review_save_as_source.ReviewSaveAsSourceTests.test_contextual_direct_and_batch_review_bound_copies_in_both_layouts"
+    , "tests.test_review_save_as_source.ReviewSaveAsSourceTests.test_copy_rejects_missing_renamed_or_changed_evidence_and_modified_replies"
+    , "tests.test_review_save_as_source.ReviewSaveAsSourceTests.test_cycles_and_excessive_saved_ancestry_end_without_reading_more_links"
+    , "tests.test_review_save_as_source.ReviewSaveAsSourceTests.test_multiple_saved_hops_cannot_drop_an_ambiguous_parent_witness"
+    , "tests.test_review_save_as_source.ReviewSaveAsSourceTests.test_publication_refuses_when_a_deep_parent_binding_changes_during_review"
+    , "tests.test_review_save_as_source.ReviewSaveAsSourceTests.test_repeated_save_as_preserves_scoped_cut_and_refuses_a_child_span_overrun"
+  ]
   , "test_review_scoped_source_span": [
     "tests.test_review_scoped_source_span.CutEvidenceTests.test_inserted_excluded_mark_cannot_earn_a_receipt"
     , "tests.test_review_scoped_source_span.CutEvidenceTests.test_retained_mark_without_gap_publishes"
@@ -13373,6 +13381,7 @@
     , "tests.test_review_source_spans.ReviewSourceSpanTests.test_cli_remaps_verified_source_or_keeps_original_entries_with_checkpoint"
     , "tests.test_review_source_spans.ReviewSourceSpanTests.test_cli_resolves_shared_parent_spans_before_batch_boundaries"
     , "tests.test_review_source_spans.ReviewSourceSpanTests.test_conflicting_child_refuses_annotation_edits_over_repeated_runs"
+    , "tests.test_review_source_spans.ReviewSourceSpanTests.test_contextual_review_finds_default_upload_for_saved_and_loaded_scripts"
     , "tests.test_review_source_spans.ReviewSourceSpanTests.test_heading_split_passes_when_real_repair_differs_outside_saved_span"
     , "tests.test_review_source_spans.ReviewSourceSpanTests.test_historical_receipt_from_unproven_witness_is_not_reused"
     , "tests.test_review_source_spans.ReviewSourceSpanTests.test_invalid_source_or_original_spans_refuse_instead_of_inventing_offsets"
