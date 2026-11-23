@@ -28,6 +28,18 @@ from tests import test_take_publication as publication_cases
 
 
 class TakeRestorationTests(unittest.TestCase):
+    @staticmethod
+    def legacy_receipt(manager, receipt, version):
+        from take_publication import get_receipt_voice_digest
+        legacy = copy.deepcopy(receipt)
+        if version == 1:
+            legacy.pop('seed')
+        legacy['version'] = version
+        selected = manager.get_voice_config_for_update().get('NARRATOR') or {}
+        legacy['dependencies']['voice_sha256'] = get_receipt_voice_digest(
+            version, selected, legacy.get('seed'))
+        return legacy
+
     fixture=publication_cases.TakePublicationTests.fixture
     owner=publication_cases.TakePublicationTests.owner
     engine=publication_cases.TakePublicationTests.engine
@@ -134,7 +146,7 @@ class TakeRestorationTests(unittest.TestCase):
         for changed in (999, -1):
             with self.subTest(changed=changed), self.prepared(batch_seed=123) as args:
                 root,manager,_,request,origin,original,_,_,_=args
-                self.assertEqual(origin[KEY]['version'],2)
+                self.assertEqual(origin[KEY]['version'],3)
                 self.assertEqual(origin[KEY]['seed'],123)
                 config=json.loads(Path(manager.config_path).read_text())
                 config['tts']['batch_seed']=changed
@@ -168,7 +180,7 @@ class TakeRestorationTests(unittest.TestCase):
                     origin=copy.deepcopy(manager.load_chunks()[0])
                     original=(root/origin['audio_path']).read_bytes()
                     self.assertEqual(origin[KEY]['seed'],42)
-                    self.assertEqual(origin[KEY]['version'],2)
+                    self.assertEqual(origin[KEY]['version'],3)
                     manager.update_chunk(0,{'take':3})
                     manager._publish_generated_chunk_audio(manager.load_chunks()[0],str(fresh),'NARRATOR')
                 current=copy.deepcopy(manager.load_chunks()[0]);displaced=(root/current['audio_path']).read_bytes()
@@ -232,8 +244,7 @@ class TakeRestorationTests(unittest.TestCase):
             history=AudioTakeHistory(root)
             with history._locked() as document:
                 record=next(row for row in document['records'] if row['version']==saved['version'])
-                legacy=copy.deepcopy(record['captured'][KEY])
-                legacy.pop('seed');legacy['version']=1
+                legacy=self.legacy_receipt(manager,record['captured'][KEY],1)
                 record['captured'][KEY]=legacy
                 history._save(document)
             restored=restore_editor_take(manager,0,request,capture_restore_target(manager,0,request))
@@ -260,15 +271,14 @@ class TakeRestorationTests(unittest.TestCase):
         for version in (2,1):
             with self.subTest(receipt_version=version),self.prepared() as args:
                 root,manager,_,request,_,_,current,displaced,saved=args
-                if version==1:
-                    history=AudioTakeHistory(root)
-                    with history._locked() as document:
-                        record=next(row for row in document['records'] if row['version']==saved['version'])
-                        legacy=copy.deepcopy(record['captured'][KEY])
-                        legacy.pop('seed');legacy['version']=1
-                        record['captured'][KEY]=legacy;history._save(document)
-                    self.assertIsNotNone(validate_take_publication({'uid':record['uid'],
-                        'audio_revision':record['audio_revision'],KEY:legacy}))
+                history=AudioTakeHistory(root)
+                with history._locked() as document:
+                    record=next(row for row in document['records'] if row['version']==saved['version'])
+                    legacy=self.legacy_receipt(manager,record['captured'][KEY],version)
+                    record['captured'][KEY]=legacy;history._save(document)
+                self.assertEqual(legacy['version'],version)
+                self.assertIsNotNone(validate_take_publication({'uid':record['uid'],
+                    'audio_revision':record['audio_revision'],KEY:legacy}))
                 with patch('synthesis_recovery_serving.capture_native_custom_serving_identity',
                            return_value=changed):
                     with self.assertRaisesRegex(ValueError,'native execution dependencies differ'):
@@ -299,7 +309,7 @@ class TakeRestorationTests(unittest.TestCase):
             history=AudioTakeHistory(root)
             with history._locked() as document:
                 record=next(row for row in document['records'] if row['version']==saved['version'])
-                record['captured'][KEY]['version']=3
+                record['captured'][KEY]['version']=4
                 history._save(document)
             with patch.object(manager,'get_engine',side_effect=AssertionError('unknown version loaded engine')), \
                     self.assertRaisesRegex(ValueError,'unsupported receipt version'):

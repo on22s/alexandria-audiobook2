@@ -312,19 +312,28 @@ def active_version_id(voice_data, chunk_index):
     return current
 
 
+def get_voice_alias(entry):
+    alias = entry.get("alias_of") or entry.get("alias")
+    return alias if isinstance(alias, str) and alias.strip() else None
+
+
+class VoiceAliasResolutionError(ValueError):
+    """An alias chain is cyclic or exceeds the supported depth."""
+
+
 def get_resolved_speaker(speaker, voice_config):
     """Follow speaker aliases, refusing cycles or an excessive chain."""
     name, seen = speaker, set()
     for _ in range(16):
         if name in seen:
-            raise ValueError(f"Alias cycle detected for speaker '{speaker}'")
+            raise VoiceAliasResolutionError(f"Alias cycle detected for speaker '{speaker}'")
         seen.add(name)
         entry = voice_config.get(name) or {}
-        alias = entry.get("alias_of") or entry.get("alias")
-        if not isinstance(alias, str) or not alias.strip():
+        alias = get_voice_alias(entry)
+        if alias is None:
             return name
         name = alias
-    raise ValueError(f"Alias chain for '{speaker}' exceeded 16 iterations")
+    raise VoiceAliasResolutionError(f"Alias chain for '{speaker}' exceeded 16 iterations")
 
 
 def voice_config_for_chunk(voice_config, speaker, chunk_index):
@@ -348,23 +357,57 @@ def voice_config_for_chunk(voice_config, speaker, chunk_index):
         if data.get("style_timeline"):
             data = {**data, "character_style": active_character_style(data, chunk_index)}
             updates[name] = data
-        alias = data.get("alias_of") or data.get("alias")
-        if isinstance(alias, str) and alias.strip():
+        alias = get_voice_alias(data)
+        if alias is not None:
             pending.append(alias)
         if voice_category(data) == "ensemble" and isinstance(data.get("members"), list):
             pending.extend(member for member in data["members"] if isinstance(member, str))
     return {**voice_config, **updates} if updates else voice_config
 
 
+VOICE_RENDER_IDENTITY_FIELDS = ("type", "voice", "character_style", "default_style", "seed",
+    "ref_audio", "ref_text", "description", "adapter_id", "adapter_path",
+    "adapter_generation_sha256", "members")
+VOICE_PRONUNCIATION_EXCLUSIONS = frozenset(("character_style", "default_style", "seed"))
+
+
+def finalize_resolved_voice_config(resolved, speaker):
+    """Make a row-resolved narrator choice final for every downstream reader."""
+    if str(speaker or '').upper() != 'NARRATOR':
+        return resolved
+    entry = resolved.get(speaker)
+    if not isinstance(entry, dict) or entry.get('narrator_strategy') in (None, 'global'):
+        return resolved
+    final = {key: value for key, value in entry.items() if key != 'narrator_strategy'}
+    return {**resolved, speaker: final}
+
+
+def get_chunk_render_voice_selection(voices, speaker, chunk, index):
+    """Return the row's canonical speaker, materialized voices and native-batch eligibility."""
+    name, aliases = speaker, {}
+    native_batch = True
+    for _ in range(16):
+        if name in aliases:
+            raise VoiceAliasResolutionError(f"Alias cycle detected for speaker '{speaker}'")
+        saved_alias = get_voice_alias(voices.get(name) or {})
+        selected = voices if saved_alias else resolve_narrator_voice_config(name, voices, chunk)
+        effective = voice_config_for_chunk(selected, name, index)
+        alias = get_voice_alias(effective.get(name) or {})
+        native_batch = native_batch and selected is voices and alias == saved_alias
+        if alias is None:
+            if aliases:
+                effective = {**effective, **aliases}
+            return name, finalize_resolved_voice_config(effective, name), native_batch
+        aliases[name] = effective[name]
+        name = alias
+    raise VoiceAliasResolutionError(f"Alias chain for '{speaker}' exceeded 16 iterations")
+
+
 def get_chunk_voice_inputs(voices, chunk, index, resolve_alias=None):
     """Read effective inputs with the selected root first, then member voices."""
     resolve_alias = resolve_alias or get_resolved_speaker
-    speaker = resolve_alias(chunk.get("speaker"), voices)
-    effective = voice_config_for_chunk(
-        resolve_narrator_voice_config(speaker, voices, chunk), speaker, index)
-    fields = ("type", "voice", "character_style", "default_style", "seed",
-              "ref_audio", "ref_text", "description", "adapter_id", "adapter_path",
-              "adapter_generation_sha256", "members")
+    speaker, effective, _ = get_chunk_render_voice_selection(voices, chunk.get("speaker"), chunk, index)
+    fields = VOICE_RENDER_IDENTITY_FIELDS
     inputs, pending = {}, [speaker]
     while pending:
         name = resolve_alias(pending.pop(), effective)
@@ -381,8 +424,8 @@ def get_pronunciation_render_context(voices, chunk, index, model_settings, *, so
     """Identify the selected root/group assignment and actual speech mode."""
     inputs = get_chunk_voice_inputs(voices, chunk, index)
     identity = {name: {key: value for key, value in fields.items()
-                       if key not in {"character_style", "default_style", "seed"}}
-                for name, fields in inputs.items()}
+                        if key not in VOICE_PRONUNCIATION_EXCLUSIONS}
+                 for name, fields in inputs.items()}
     encoded = json.dumps(identity, sort_keys=True, ensure_ascii=False,
                          separators=(",", ":"), allow_nan=False).encode("utf-8", errors="surrogatepass")
     context = {"speaker": chunk.get("speaker") if source_speaker is None else source_speaker,
@@ -424,6 +467,11 @@ def get_reproducible_voice_config(resolved, seed, *, take=0):
 def get_batch_voice_config(voice_config, speaker, chunk_index, batch_seed):
     """Override seeds after timeline selection without mutating stored voices."""
     resolved = voice_config_for_chunk(voice_config, speaker, chunk_index)
+    return get_seeded_batch_voice_config(resolved, batch_seed)
+
+
+def get_seeded_batch_voice_config(resolved, batch_seed):
+    """Apply a batch seed to an already materialized selection."""
     if batch_seed < 0:
         return resolved
     return {name: {**data, "seed": batch_seed} if isinstance(data, dict) else data
@@ -2861,7 +2909,7 @@ class TTSEngine:
     def _generate_prepared_batch_parent(self, chunk, voice_config, output_dir, batch_seed):
         idx = chunk["index"]
         output_path = get_synthesis_batch_output_path(output_dir, idx)
-        resolved = get_batch_voice_config(voice_config, chunk.get("speaker"), idx, batch_seed)
+        resolved = get_seeded_batch_voice_config(voice_config, batch_seed)
         with (ensure_synthesis_recovery_batch_parent(chunk.get("uid")),
               ensure_synthesis_receipts() as receipts):
             success = self._dispatch_prepared_voice(
@@ -2901,54 +2949,50 @@ class TTSEngine:
         # Resolve each row before its one canonical speech preparation. Stable
         # UID/rules remain on copies through native, external and fallback paths.
         dynamic_chunks = []
+        native_chunks = []
+        row_voices = {}
         for chunk in chunks:
-            source_speaker = chunk.get("_source_speaker", chunk.get("speaker"))
+            requested_speaker = chunk.get("speaker")
+            source_speaker = chunk.get("_source_speaker", requested_speaker)
             try:
-                speaker = get_resolved_speaker(chunk.get("speaker"), voice_config)
-                chunk = {**chunk, "speaker": speaker, "_source_speaker": source_speaker}
-                resolved = resolve_narrator_voice_config(speaker, voice_config, chunk)
+                speaker, resolved, native_batch = get_chunk_render_voice_selection(
+                    voice_config, requested_speaker, chunk, chunk["index"])
                 if not is_voice_config_present(speaker, resolved):
                     results["failed"].append((chunk["index"],
                         f"No voice configuration for '{speaker}'."))
                     continue
-                effective_config = voice_config_for_chunk(resolved, speaker, chunk["index"])
-                self.get_voice_backend(voice_category(effective_config.get(speaker)))
+                self.get_voice_backend(voice_category(resolved.get(speaker)))
+                context = (get_pronunciation_render_context(
+                    voice_config, chunk, chunk["index"],
+                    {"mode": self._mode, "language": self._language}, source_speaker=source_speaker)
+                    if chunk.get("pronunciation_rules") else None)
             except (UnsupportedVoiceBackendError, ValueError, TypeError, OverflowError) as error:
                 results["failed"].append((chunk["index"], str(error)))
                 continue
-            context = (get_pronunciation_render_context(
-                voice_config, chunk, chunk["index"],
-                {"mode": self._mode, "language": self._language},
-                source_speaker=chunk.get("_source_speaker", chunk.get("speaker")))
-                if chunk.get("pronunciation_rules") else None)
             with ensure_occurrence_pronunciation_context(chunk, context):
                 prepared = get_speech_preparation(chunk.get("text"), chunk.get("instruct", ""))
-            dynamic_chunks.append(({**chunk, **prepared}, resolved))
-        chunks = [chunk for chunk, _ in dynamic_chunks]
+            chunk = {**chunk, **prepared, "speaker": speaker, "_source_speaker": source_speaker}
+            row_voices[chunk["index"]] = resolved
+            (native_chunks if native_batch else dynamic_chunks).append(chunk)
+        # Row-dependent selections use the settled config directly. Keep native
+        # batching where its own timeline, speaker and seed inputs still match.
+        for chunk in dynamic_chunks:
+            if is_audio_generation_cancelled():
+                return results
+            idx = chunk["index"]
+            try:
+                success, receipt = self._generate_prepared_batch_parent(chunk, row_voices[idx], output_dir, batch_seed)
+                if success:
+                    results["completed"].append(idx)
+                    if receipt is not None:
+                        results.setdefault("synthesis_receipts", {})[idx] = receipt
+                else:
+                    results["failed"].append((idx, "Row voice generation failed"))
+            except Exception as e:
+                results["failed"].append((idx, str(e)))
+        chunks = native_chunks
         if not chunks:
             return results
-        if any(resolved is not voice_config for _, resolved in dynamic_chunks):
-            # A dynamic narrator may use different configs per chunk; keep those
-            # chunks on the established single-item path to avoid mixing voices.
-            for chunk, resolved in dynamic_chunks:
-                if is_audio_generation_cancelled():
-                    return results
-                if resolved is voice_config:
-                    continue
-                idx = chunk["index"]
-                try:
-                    success, receipt = self._generate_prepared_batch_parent(chunk, resolved, output_dir, batch_seed)
-                    if success:
-                        results["completed"].append(idx)
-                        if receipt is not None:
-                            results.setdefault("synthesis_receipts", {})[idx] = receipt
-                    else:
-                        results["failed"].append((idx, "Narrator voice generation failed"))
-                except Exception as e:
-                    results["failed"].append((idx, str(e)))
-            chunks = [chunk for chunk, resolved in dynamic_chunks if resolved is voice_config]
-            if not chunks:
-                return results
 
         # Reset torch.compile state to prevent progressive slowdown
         # from dynamo guard accumulation across batches
@@ -2964,13 +3008,13 @@ class TTSEngine:
                     return results
                 idx, speaker = chunk["index"], chunk.get("speaker")
                 try:
-                    effective = get_batch_voice_config(voice_config, speaker, idx, batch_seed)
+                    effective = row_voices[idx]
                     data = effective.get(speaker, {})
                     plan = self._get_synthesis_window_plan(chunk["text"], voice_category(data), data, effective)
                     if plan is None:
                         native_chunks.append(chunk)
                         continue
-                    success, receipt = self._generate_prepared_batch_parent(chunk, voice_config, output_dir, batch_seed)
+                    success, receipt = self._generate_prepared_batch_parent(chunk, effective, output_dir, batch_seed)
                     if success:
                         results["completed"].append(idx)
                         if receipt is not None:
@@ -2992,7 +3036,7 @@ class TTSEngine:
 
         for chunk in chunks:
             speaker = chunk.get("speaker")
-            voice_data = voice_config_for_chunk(voice_config, speaker, chunk["index"]).get(speaker, {})
+            voice_data = row_voices[chunk["index"]].get(speaker, {})
             category = voice_category(voice_data)
 
             if category == "clone":
@@ -3011,7 +3055,7 @@ class TTSEngine:
         if ensemble_chunks:
             if is_audio_generation_cancelled():
                 return results
-            batch_results = self._sequential_ensemble(ensemble_chunks, voice_config, output_dir, batch_seed)
+            batch_results = self._sequential_ensemble(ensemble_chunks, row_voices, output_dir, batch_seed)
             results["completed"].extend(batch_results["completed"])
             results["failed"].extend(batch_results["failed"])
             self._clear_gpu_cache()
@@ -3877,23 +3921,15 @@ class TTSEngine:
             apply_tts_failure(e)
             return False
 
-    def _sequential_ensemble(self, chunks, voice_config, output_dir, batch_seed=-1):
+    def _sequential_ensemble(self, chunks, row_voices, output_dir, batch_seed=-1):
         """Render ensemble chunks one at a time (each needs several voices)."""
         results = {"completed": [], "failed": []}
 
         for chunk in chunks:
             idx = chunk["index"]
-            output_path = get_synthesis_batch_output_path(output_dir, idx)
             try:
-                from synthesis_recovery_context import ensure_synthesis_recovery_batch_parent
-                with ensure_synthesis_recovery_batch_parent(chunk.get("uid")):
-                    success = self._dispatch_prepared_voice(
-                        chunk.get("text", ""),
-                        chunk.get("instruct", ""),
-                        chunk.get("speaker"),
-                        get_batch_voice_config(voice_config, chunk.get("speaker"), idx, batch_seed),
-                        output_path,
-                    )
+                success, _ = self._generate_prepared_batch_parent(
+                    chunk, row_voices[idx], output_dir, batch_seed)
                 if success:
                     results["completed"].append(idx)
                 else:
