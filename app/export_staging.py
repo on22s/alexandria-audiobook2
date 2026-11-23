@@ -29,7 +29,9 @@ import tempfile
 import time
 import threading
 
-from export_staging_directory import stage_directory, stage_owner_lock, identity
+from export_staging_directory import (RECOVERY_FILE, StageDirectoryChanged,
+                                      stage_directory, stage_owner_lock, identity)
+from json_metadata import get_unique_json_object
 
 
 MARKER = '.export-staging.json'
@@ -52,13 +54,15 @@ _scan_iterators = {}
 _sequence_lock = threading.Lock()
 _sequence_turns = OrderedDict()
 MAX_RECLAIM = 64
-RECOVERY = '.export-staging-recovery'
+RECOVERY = RECOVERY_FILE
 PREFIXES = {
     'chapter': '.chapter-export-',
     'chapters': '.chapter-export-',
     'sidecar': '.readalong-sidecar-',
     'epub-readaloud': '.readaloud-epub-',
     'mp3': '.mp3-merge-',
+    'audacity': '.audacity-export-',
+    'publication': '.export-publication-',
     'm4b': '.m4b-',
     'progress': '.m4b-progress-',
     'wave': '.stream-wave-',
@@ -252,9 +256,11 @@ def _cleanup_admitted(path, *, authority, release_owner, owner_stream):
         retirement.cleanup_verified_stage(release_owner, owner_stream)
 
 
-def _remove_contents(path, *, authority, retirement=None, nested_owner_stream=None):
+def _remove_contents(path, *, authority, retirement=None, nested_owner_stream=None,
+                     recovery_guard=None):
     """Remove only payloads in the directory admitted by the caller."""
-    if authority.has_recovery_guard():
+    if authority.has_recovery_guard() and (
+            recovery_guard is None or authority.read_recovery_guard() != recovery_guard):
         raise OSError('Export recovery guard requires preserving the staging payload')
     if os.name != 'nt':
         from export_staging_nested import retire_nested_registry
@@ -268,7 +274,8 @@ def _remove_contents(path, *, authority, retirement=None, nested_owner_stream=No
                 os.fsync(authority.fd)
                 authority.unlink(RECEIPT)
         return
-    authority.remove_contents(frozenset((MARKER, OWNER_LOCK + '.lock', RECOVERY)))
+    authority.remove_contents(frozenset((MARKER, OWNER_LOCK + '.lock', RECOVERY)),
+                              recovery_guard=recovery_guard)
 
 
 def _finish_removal(path, *, authority, release_owner=lambda: None):
@@ -345,7 +352,7 @@ def decode_staging_marker(raw):
     if type(raw) is not bytes or not 0 < len(raw) <= MAX_MARKER_BYTES:
         return None
     try:
-        value = json.loads(raw)
+        value = json.loads(raw, object_pairs_hook=get_unique_json_object)
     except (ValueError, TypeError, RecursionError, MemoryError):
         return None
     if not isinstance(value, dict) or type(value.get('schema')) is not int or value['schema'] != 1:
@@ -370,6 +377,48 @@ def owner_identity_matches(marker, stream):
     # admission behavior. New markers bind the actual independently locked inode.
     expected = marker.get('owner_identity')
     return expected is None or expected == list(identity(os.fstat(stream.fileno())))
+
+
+def read_registered_stage_marker(authority, expected, *, settled=False):
+    """The original owner and a settled set can authorize a guarded stage."""
+    try:
+        raw = authority.read_marker_bytes(MAX_MARKER_BYTES)
+    except FileNotFoundError:
+        if not settled or not authority.has_recovery_guard():
+            raise
+        return None, authority.read_recovery_guard()
+    marker = decode_staging_marker(raw)
+    if marker is None or any(marker.get(key) != value for key, value in expected.items()):
+        raise StageDirectoryChanged('Initialized marker authority mismatch')
+    guard = None
+    if settled and authority.has_recovery_guard():
+        guard = authority.read_recovery_guard(allow_empty=True)
+    return raw, guard
+
+
+def retire_interrupted_recovery_guard(authority, raw, guard):
+    if guard is None or guard[2] != 0:
+        return guard
+    # Keep the independently verified marker through guard removal. A retry
+    # can still prove an empty guard if its removal was interrupted.
+    if raw is None or authority.read_marker_bytes(MAX_MARKER_BYTES) != raw:
+        raise StageDirectoryChanged('Initialized marker changed')
+    authority.unlink_recovery_guard(guard)
+    return None
+
+
+def retire_registered_stage_marker(authority, raw, guard):
+    if guard is not None and authority.read_recovery_guard() != guard:
+        raise StageDirectoryChanged('Staging recovery guard changed')
+    if raw is not None:
+        if authority.read_marker_bytes(MAX_MARKER_BYTES) != raw:
+            raise StageDirectoryChanged('Initialized marker changed')
+        if os.name == 'nt' and guard is not None:
+            authority.retire_marker_for_recovery(MARKER)
+        else:
+            authority.unlink(MARKER)
+    if guard is not None:
+        authority.unlink_recovery_guard(guard)
 
 
 def create_export_staging(parent, kind):
@@ -657,6 +706,47 @@ def _scan_entries(parent, budget, *, expected_parent_identity=None, pinned_paren
             raise
 
 
+def reclaim_registered_export_staging(parent, *, expected_parent_identity, max_remove=MAX_RECLAIM):
+    """Reclaim registered slots under the caller's admitted parent identity."""
+    if os.name == 'nt':
+        from windows_export_staging_retirement import reclaim_windows_retired_slots as reclaim
+    else:
+        from export_staging_retirement import reclaim_retired_slots as reclaim
+    return reclaim(parent, max_remove=max_remove, expected_parent_identity=expected_parent_identity)
+
+
+def retire_settled_export_staging(path, identities):
+    """Retire the private slot bound by a durably settled export set."""
+    parent, slot = path.parents[2], path.parent.name
+    parent_id, registry_id, slot_id, stage_id = map(tuple, identities)
+    if os.name == 'nt':
+        from windows_export_staging_retirement import WindowsRetirement
+        with WindowsRetirement(parent=parent, create=False,
+                               expected_parent_identity=parent_id) as retirement:
+            if identity(retirement.registry_info) != registry_id:
+                raise StageDirectoryChanged('Settled retirement registry changed')
+            try:
+                retirement.open_slot(slot)
+            except FileNotFoundError:
+                return
+            retirement.recover_slot(slot, settled_stage=stage_id, expected_slot=slot_id)
+            retirement.check()
+        return
+
+    from export_staging_retirement import PosixRetirement
+    with PosixRetirement(parent=parent, create=False, expected_parent_identity=parent_id,
+                         expected_registry_identity=registry_id) as retirement:
+        try:
+            retirement.open_slot(slot)
+        except FileNotFoundError:
+            # The prior attempt may have removed the name but failed its sync.
+            os.fsync(retirement.fd)
+            return
+        if identity(os.fstat(retirement.slot_fd)) != slot_id:
+            raise StageDirectoryChanged('Settled retirement slot changed')
+        retirement.recover_creation_slot(slot, settled_stage=stage_id)
+
+
 def reclaim_export_staging(parents, *, max_remove=MAX_RECLAIM,
                            max_scan=MAX_SCAN_ENTRIES,
                            max_total_scan=MAX_TOTAL_LEGACY_SCAN):
@@ -809,9 +899,8 @@ def reclaim_export_staging(parents, *, max_remove=MAX_RECLAIM,
                 result['errors'].append(f'{display_parent}: {error}')
                 continue
             if os.name == 'nt' and removed < max_remove:
-                from windows_export_staging_retirement import reclaim_windows_retired_slots
                 try:
-                    retired = reclaim_windows_retired_slots(
+                    retired = reclaim_registered_export_staging(
                         scan_parent, max_remove=max_remove - removed,
                         expected_parent_identity=expected_parent_identity)
                 except FileNotFoundError:
@@ -827,10 +916,10 @@ def reclaim_export_staging(parents, *, max_remove=MAX_RECLAIM,
                     result['errors'].append('reclaim limit reached')
                     return result
             if os.name != 'nt' and removed < max_remove:
-                from export_staging_retirement import reclaim_retired_slots
                 try:
-                    retired = reclaim_retired_slots(scan_parent, max_remove=max_remove - removed,
-                                                   expected_parent_identity=expected_parent_identity)
+                    retired = reclaim_registered_export_staging(
+                        scan_parent, max_remove=max_remove - removed,
+                        expected_parent_identity=expected_parent_identity)
                 except FileNotFoundError:
                     continue
                 except (OSError, RuntimeError) as error:

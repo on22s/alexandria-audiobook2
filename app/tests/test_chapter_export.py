@@ -20,6 +20,7 @@ from fastapi import HTTPException
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import book_state_transaction
 from chapter_timing_cache import CACHE_FILENAME
 from project import (CHAPTER_EXPORT_DIR, ProjectManager, build_chapter_filename,
                      build_chapter_filenames)
@@ -239,14 +240,15 @@ class ExportChaptersTests(unittest.TestCase):
                         self.assertTrue(pm.export_chapters(fmt='wav')[0])
                     before = {name: (out / name).read_bytes() for name in delivery_names(self, out)} if existing else {}
                     _tone(str(Path(tmp, 'voicelines', 'c0.wav')), 0.9, hz=700)
-                    replace = os.replace
+                    move = book_state_transaction._move
                     def cancel_after_first_publication(src, dst, **kwargs):
                         nonlocal cancelled
-                        result = replace(src, dst, **kwargs)
+                        result = move(src, dst, **kwargs)
                         if Path(dst).parent == out and Path(dst).suffix == '.wav':
                             cancelled = True
                         return result
-                    with patch('project.os.replace', side_effect=cancel_after_first_publication):
+                    with patch.object(book_state_transaction, '_move',
+                                      side_effect=cancel_after_first_publication):
                         result = pm.export_chapters(fmt='wav', cancel_check=lambda: cancelled)
                     self.assertEqual((False, 'Export cancelled'), result)
                     self.assertEqual(set(before), delivery_names(self, out))
@@ -262,14 +264,14 @@ class ExportChaptersTests(unittest.TestCase):
                 old = (out / '01 - Chapter 1.wav').read_bytes()
                 old_manifest = (out / 'manifest.json').read_bytes()
                 _tone(str(Path(tmp, 'voicelines', 'c0.wav')), 0.9, hz=700)
-                replace = os.replace
+                move = book_state_transaction._move
                 def refuse_publish_and_restore(src, dst, **kwargs):
                     target = Path(dst)
                     if target.parent == out and (target.name == '02 - Chapter 2.wav'
                             or Path(src).parent.name == 'old'):
                         raise OSError('synthetic publish/restore failure')
-                    return replace(src, dst, **kwargs)
-                with patch('project.os.replace', side_effect=refuse_publish_and_restore):
+                    return move(src, dst, **kwargs)
+                with patch.object(book_state_transaction, '_move', side_effect=refuse_publish_and_restore):
                     with self.assertRaisesRegex(RuntimeError, 'recovery files kept at') as error:
                         pm.export_chapters(fmt='wav')
                 staging = (list(out.glob('.chapter-export-*'))
@@ -303,7 +305,7 @@ class ExportChaptersTests(unittest.TestCase):
                         cache.write_bytes(baseline_cache)
                     _tone(str(source), 0.9, hz=700)
                     from project import _export_audio_segment
-                    replace = os.replace
+                    move = book_state_transaction._move
                     def fail_encode(segment, path, fmt, **kwargs):
                         if boundary == 'encode' and Path(path).name == names[1]:
                             raise OSError('synthetic encode failure')
@@ -315,10 +317,10 @@ class ExportChaptersTests(unittest.TestCase):
                             # Only reject publication, allowing restoration of old files.
                             if Path(src).parent.name != 'old':
                                 raise OSError('synthetic publication failure')
-                        return replace(src, dst, **kwargs)
+                        return move(src, dst, **kwargs)
                     with patch.object(pm, 'load_chunks', return_value=chunks), \
                             patch('project._export_audio_segment', side_effect=fail_encode), \
-                            patch('project.os.replace', side_effect=fail_publish):
+                            patch.object(book_state_transaction, '_move', side_effect=fail_publish):
                         with self.assertRaises(OSError):
                             pm.export_chapters(fmt='wav')
                     for name, contents in before.items():

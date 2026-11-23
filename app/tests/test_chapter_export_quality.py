@@ -10,6 +10,7 @@ from unittest.mock import patch
 from pydub import AudioSegment
 from pydub.generators import Sine
 
+import book_state_transaction
 import export_quality as quality
 import chapter_export_quality
 import project
@@ -205,10 +206,10 @@ class ChapterExportQualityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             manager, out = self.fixture(root, publish=True)
             before = self.saved(out)
-            replace, moved = project.os.replace, False
+            move, moved = book_state_transaction._move, False
             def observe_move(source, target, **kwargs):
                 nonlocal moved
-                result = replace(source, target, **kwargs)
+                result = move(source, target, **kwargs)
                 if Path(target).parent == out and Path(target).suffix == '.wav':
                     moved = True
                 return result
@@ -221,7 +222,7 @@ class ChapterExportQualityTests(unittest.TestCase):
                     rows[0]['uid'] = 'new-editor-identity'
                     manager.save_chunks(rows)
                 return False
-            with patch.object(project.os, 'replace', side_effect=observe_move):
+            with patch.object(book_state_transaction, '_move', side_effect=observe_move):
                 result = manager.export_chapters(fmt='wav', cancel_check=edit_between_phases)
             self.assertFalse(result[0], result)
             self.assertIn('rows changed', result[1])

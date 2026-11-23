@@ -230,7 +230,11 @@ def save_sound_delivery(manager, stage_name, candidate_revision, approval_revisi
             candidate_revision=candidate_revision, approval_revision=approval_revision,
             quality=None, mastering=mastering, encoding=encoding, warnings=[])
         with snapshot.ensure_publication(str(output), report):
-            replace_export_output(output, destination)
+            from project_scope_exports import publish_export_with_receipt
+            publish_export_with_receipt(manager.root_dir, str(output), destination,
+                report.get('sha256'),
+                lambda: replace_export_output(output, destination),
+                expected_version=report.get('file_version'))
             try:
                 version = get_export_file_version(destination)
                 if version[:4] != report['file_version'][:4]:

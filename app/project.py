@@ -36,6 +36,7 @@ from chunk_status_journal import (ChunkStatusJournal, get_chunk_status_journal_p
                                    get_chunk_state_file_version, _decode_json,
                                    _ensure_supported_depth)
 from adapter_publication import sync_adapter_directory
+from pathlib import Path
 from export_file_io import replace_export_output
 from config_settings import load_app_config
 from export_limits import ensure_legacy_pcm_allowed
@@ -204,6 +205,10 @@ def get_chapter_reuse_duration(plan, old, wanted, changed_only, out_dir):
         path = os.path.join(out_dir, filename)
         if not is_path_inside(path, out_dir) or not os.path.isfile(path):
             return None
+        if os.path.basename(out_dir) == CHAPTER_EXPORT_DIR:
+            from project_scope_exports import is_scope_export_historical
+            if is_scope_export_historical(os.path.dirname(out_dir), path):
+                return None
         size = os.path.getsize(path)
     except (KeyError, TypeError, ValueError, OSError):
         return None
@@ -2878,8 +2883,18 @@ class ProjectManager:
             ensure_audio_export_active(cancel_check)
             ensure_export_stage_current(pending_output, quality_report, cancel_check)
             source_snapshot.verify_sources()
-            with source_snapshot.ensure_publication(pending_output, quality_report):
-                replace_export_output(pending_output, output_path)
+            publication_outputs = {pending_output: quality_report}
+            with source_snapshot.ensure_publication_transaction(publication_outputs) as admit:
+                from project_scope_exports import publish_export_with_receipt
+
+                def replace():
+                    replace_export_output(pending_output, output_path)
+                    # The publisher verifies the installed file separately.
+                    publication_outputs.pop(pending_output)
+
+                publish_export_with_receipt(self.root_dir, pending_output, output_path,
+                    quality_report.get('sha256'), replace,
+                    expected_version=quality_report.get('file_version'), admit_replace=admit)
             quality_report = {**quality_report, 'skipped_chunks': skipped}
             notify_completed_export(output_path, output_filename, quality_report, export_quality_callback)
             if mastering_report and mastering_callback:
@@ -2973,7 +2988,8 @@ class ProjectManager:
                 # failure mid-write can't leave a truncated zip the download route serves
                 # as valid (or clobber a previous good export with garbage).
                 zip_path = os.path.join(self.root_dir, "audacity_export.zip")
-                tmp_zip = zip_path + f".pending.{uuid.uuid4().hex}"
+                staging = create_export_staging(self.root_dir, 'audacity')
+                tmp_zip = os.fspath(staging.path / "audacity_export.zip")
                 track_shapes = {}
                 try:
                     ensure_audio_export_active(cancel_check)
@@ -3031,16 +3047,19 @@ class ProjectManager:
                     ensure_export_stage_current(tmp_zip, quality_report, cancel_check)
                     source_snapshot.verify_sources()
                     with source_snapshot.ensure_publication(tmp_zip, quality_report):
-                        os.replace(tmp_zip, zip_path)
+                        from project_scope_exports import publish_export_with_receipt
+                        publish_export_with_receipt(self.root_dir, tmp_zip, zip_path,
+                            quality_report.get('sha256'),
+                            lambda: os.replace(tmp_zip, zip_path),
+                            expected_version=quality_report.get('file_version'))
                     notify_completed_export(zip_path, 'audacity_export.zip', quality_report,
                                             export_quality_callback)
-                except BaseException as error:
+                finally:
                     try:
-                        if os.path.exists(tmp_zip):
-                            os.remove(tmp_zip)
-                    except OSError:
-                        pass
-                    raise
+                        staging.finish(remove=True)
+                    except OSError as error:
+                        logging.getLogger('AlexandriaUI').warning(
+                            'Audacity export staging cleanup failed: %s', error)
 
                 if skipped:
                     return True, f"{zip_path} ({skipped} chunk(s) skipped — missing/corrupt audio)"
@@ -3205,7 +3224,11 @@ class ProjectManager:
             ensure_export_stage_current(pending_output, quality_report, cancel_check)
             source_snapshot.verify_sources()
             with source_snapshot.ensure_publication(pending_output, quality_report):
-                replace_export_output(pending_output, output_path)
+                from project_scope_exports import publish_export_with_receipt
+                publish_export_with_receipt(self.root_dir, pending_output, output_path,
+                    quality_report.get('sha256'),
+                    lambda: replace_export_output(pending_output, output_path),
+                    expected_version=quality_report.get('file_version'))
             quality_report = {**quality_report, 'skipped_chunks': skipped}
             notify_completed_export(output_path, 'audiobook.m4b', quality_report, export_quality_callback)
             if mastering_report and mastering_callback:
@@ -3422,8 +3445,7 @@ class ProjectManager:
                     cancel_check, staging_dir, publication_outputs, get_current_quality_plan)
                 if not result or not result[0]:
                     return result
-                from export_quality import (get_export_file_identity, get_export_file_version,
-                                            ensure_export_stage_current)
+                from export_quality import get_export_file_identity, ensure_export_stage_current
                 # Final byte proofs precede every publication lock. Retained
                 # chapters participate in the same set admission as new files.
                 for path, report in publication_outputs:
@@ -3443,24 +3465,35 @@ class ProjectManager:
                 names = sorted(os.path.basename(path) for path in outputs
                                if os.path.dirname(path) == staging_dir
                                and path != manifest_path)
-                touched = []
+                sources = [os.path.join(staging_dir, name) for name in names] + [manifest_path]
 
                 def publish(name):
                     source = os.path.join(staging_dir, name)
                     target = os.path.join(out_dir, name)
-                    backup = os.path.join(backup_dir, name)
-                    existed = os.path.lexists(target)
-                    if existed:
-                        os.replace(target, backup)
-                    touched.append((target, backup, existed))
-                    os.replace(source, target)
                     report = outputs.pop(source)
-                    version = get_export_file_version(target)
-                    if version[:4] != report['file_version'][:4]:
-                        raise ValueError('Finished chapter changed during publication. Retry the export.')
-                    outputs[target] = {**report, 'file_version': version}
+                    outputs[target] = publish_export_set_member(self.root_dir, members[name], report)
 
+                from project_scope_exports import (
+                    ExportCommitUncertain, ExportSetChanged, publish_export_set_member,
+                    get_export_set_cleanup_pending_detail, recover_failed_export_set,
+                    preflight_export_publication_batch, read_publication_journal,
+                    read_set_journal, record_export_publication,
+                    write_set_journal)
                 with source_snapshot.ensure_publication_transaction(outputs) as admit:
+                    preflight_export_publication_batch(self.root_dir,
+                        [os.path.join(out_dir, name) for name in names]
+                        + [os.path.join(out_dir, 'manifest.json')])
+                    _targets = ([os.path.join(out_dir, name) for name in names]
+                                + [os.path.join(out_dir, 'manifest.json')])
+                    _backups = ([os.path.join(backup_dir, name) for name in names]
+                                + [os.path.join(backup_dir, 'manifest.json')])
+                    if (read_publication_journal(self.root_dir) is not None
+                            or read_set_journal(self.root_dir) is not None):
+                        raise ValueError('An unresolved export set is pending; retry after recovery.')
+                    write_set_journal(self.root_dir, _targets, _backups,
+                        staged=[outputs[source] for source in sources], sources=sources)
+                    members = {Path(member['target']).name: member
+                               for member in read_set_journal(self.root_dir)['members']}
                     try:
                         with admit():
                             for name in names:
@@ -3470,24 +3503,30 @@ class ProjectManager:
                         ensure_audio_export_active(cancel_check)
                         with admit():
                             publish('manifest.json')
-                    except BaseException as error:
-                        failures = []
-                        for target, backup, existed in reversed(touched):
-                            try:
-                                if existed:
-                                    os.replace(backup, target)
-                                elif os.path.lexists(target):
-                                    os.unlink(target)
-                            except OSError as rollback_error:
-                                failures.append(f"{target}: {rollback_error}")
-                        if failures:
-                            retain_backup = True
-                            raise RuntimeError(
-                                f"Chapter export rollback failed; recovery files kept at {staging_dir}: "
-                                + "; ".join(failures)) from error
-                        if isinstance(error, ExportCancelled):
-                            return False, "Export cancelled"
+                        for target in _targets:
+                            report = outputs.get(target, {})
+                            digest = report.get('sha256')
+                            if isinstance(digest, str):
+                                record_export_publication(self.root_dir, target, digest,
+                                    report.get('file_version'), export_set=True)
+                        retain_backup = not write_set_journal(
+                            self.root_dir, _targets, _backups, committed=True)
+                    except ExportCommitUncertain:
+                        retain_backup = True
                         raise
+                    except BaseException as error:
+                        try:
+                            retain_backup = not recover_failed_export_set(self.root_dir, staging_dir)
+                        except BaseException:
+                            retain_backup = True
+                            raise
+                        if isinstance(error, ExportCancelled) and not retain_backup:
+                            return False, "Export cancelled"
+                        if isinstance(error, ExportSetChanged):
+                            return False, str(error)
+                        raise
+                if retain_backup:
+                    return False, get_export_set_cleanup_pending_detail(staging_dir)
                 return result
             except ExportCancelled:
                 return False, "Export cancelled"

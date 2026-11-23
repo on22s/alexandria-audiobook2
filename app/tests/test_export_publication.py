@@ -14,6 +14,77 @@ from tests import test_project_export_quality as fixtures
 
 
 class ExportPublicationTests(unittest.TestCase):
+    def test_real_mp3_rebuild_keeps_artifact_reads_outside_the_editor_lock(self):
+        import project_scope_exports as exports
+
+        with tempfile.TemporaryDirectory() as directory:
+            manager, _ = fixtures.ProjectExportQualityTests().fixture(directory)
+            self.assertTrue(manager.merge_audio()[0])
+            capture = exports.capture_scope_file
+            observed = []
+
+            def inspect(root, name, *args, **kwargs):
+                if any(part in name for part in ('.mp3', '.export-copy-', '.export-previous-')):
+                    self.assertFalse(manager._chunks_lock.locked(), name)
+                    observed.append(name)
+                return capture(root, name, *args, **kwargs)
+
+            with patch.object(exports, 'capture_scope_file', inspect):
+                self.assertTrue(manager.merge_audio()[0])
+            self.assertIn('cloned_audiobook.mp3', observed)
+
+    def test_nested_export_uses_canonical_prior_receipt_key(self):
+        import project_scope_exports as exports
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target, backup = root / 'chapter_exports' / 'one.wav', root / 'backup'
+            target.parent.mkdir()
+            target.write_bytes(b'original')
+            exports.record_export_publication(root, target)
+            key = 'chapter_exports/one.wav'
+            prior = exports.read_publication_receipts(root)[key]
+            for historical in (False, True):
+                if historical:
+                    target.write_bytes(b'changed predecessor')
+                member, = exports.set_journal_members(root, [target], [backup])
+                self.assertEqual(key, member['target'])
+                self.assertEqual(prior, member['prior'])
+                self.assertEqual(not historical, member['prior_eligible'])
+
+    def test_historical_rebuild_refuses_a_concurrent_target_replacement(self):
+        import project_scope_exports as exports
+        from book_state_transaction import ensure_book_state
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target, stage = root / 'cloned_audiobook.mp3', root / 'stage'
+            target.write_bytes(b'original')
+            exports.record_export_publication(root, target)
+            target.write_bytes(b'historical damaged bytes')
+            self.assertTrue(exports.is_scope_export_historical(root, target))
+            stage.write_bytes(b'fresh rebuild')
+            with ensure_book_state(root):
+                exports.publish_export_with_receipt(root, stage, target, None,
+                                                    lambda: stage.replace(target))
+            self.assertEqual(b'fresh rebuild', target.read_bytes())
+            self.assertFalse(exports.is_scope_export_historical(root, target))
+
+            target.write_bytes(b'another damaged predecessor')
+            stage.write_bytes(b'next rebuild')
+            write_ledger = exports.write_publication_ledger
+
+            def change_target_after_ledger(root, raw, **kwargs):
+                write_ledger(root, raw, **kwargs)
+                target.write_bytes(b'independent writer')
+
+            with ensure_book_state(root), \
+                    patch.object(exports, 'write_publication_ledger', change_target_after_ledger):
+                with self.assertRaisesRegex(ValueError, 'target changed outside publication'):
+                    exports.publish_export_with_receipt(root, stage, target, None,
+                                                        lambda: stage.replace(target))
+            self.assertEqual(b'independent writer', target.read_bytes())
+            self.assertEqual(b'next rebuild', stage.read_bytes())
+            self.assertTrue(exports.is_scope_export_historical(root, target))
+
     def test_changes_after_media_validation_preserve_prior_delivery_and_source_edits(self):
         for change in ('bytes-restored-mtime', 'uid', 'text', 'pause', 'revision', 'order', 'book', 'script'):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as tmp:
@@ -50,6 +121,59 @@ class ExportPublicationTests(unittest.TestCase):
                 self.assertEqual(b'prior complete delivery', prior.read_bytes())
                 self.assertEqual([], reports)
                 fixtures.ProjectExportQualityTests().assert_clean(tmp)
+
+    def test_real_mp3_publication_records_current_receipt_and_identical_restore_is_historical(self):
+        from project_scope_exports import get_scope_export_inventory, is_scope_export_historical
+        with tempfile.TemporaryDirectory() as tmp:
+            manager, source = fixtures.ProjectExportQualityTests().fixture(tmp)
+            root = Path(tmp)
+            state_path = root / 'state.json'
+            state_path.write_text(json.dumps({'active_book_id': 'book',
+                'book_generation': 'gen', 'input_file_path': str(source)}))
+            state = json.loads(state_path.read_text())
+            state['_source_scope_exports'] = get_scope_export_inventory(root)
+            state_path.write_text(json.dumps(state))
+            manager.merge_audio()
+            output = root / 'cloned_audiobook.mp3'
+            raw = output.read_bytes()
+            self.assertTrue(raw)
+            self.assertFalse(is_scope_export_historical(root, output))
+            restored = root / 'byte-identical.restore'
+            restored.write_bytes(raw)
+            restored.replace(output)
+            self.assertEqual(raw, output.read_bytes())
+            self.assertTrue(is_scope_export_historical(root, output))
+            manager.merge_audio()
+            self.assertFalse(is_scope_export_historical(root, output))
+
+    def test_receipt_write_failure_before_replacement_keeps_previous_export(self):
+        from project_scope_exports import (PUBLICATIONS_FILE, is_scope_export_historical,
+                                           read_publication_receipts)
+        with tempfile.TemporaryDirectory() as tmp:
+            manager, _source = fixtures.ProjectExportQualityTests().fixture(tmp)
+            root = Path(tmp)
+            (root / 'state.json').write_text(json.dumps({'active_book_id': 'book',
+                'book_generation': 'gen', 'input_file_path': str(root / 'source.wav')}))
+            manager.merge_audio()
+            output = root / 'cloned_audiobook.mp3'
+            original = output.read_bytes()
+            receipts_before = read_publication_receipts(root)
+            self.assertFalse(is_scope_export_historical(root, output))
+            import project_scope_exports
+            original_save = project_scope_exports.write_publication_ledger
+
+            def fail_once(root, raw, **kwargs):
+                raise OSError('injected ledger failure')
+
+            with patch.object(project_scope_exports, 'write_publication_ledger', fail_once):
+                with self.assertRaisesRegex(OSError, 'ledger failure'):
+                    manager.merge_audio()
+            from book_state_transaction import ensure_book_state
+            with ensure_book_state(root):
+                pass
+            self.assertEqual(original, output.read_bytes())
+            self.assertEqual(receipts_before, read_publication_receipts(root))
+            self.assertFalse(is_scope_export_historical(root, output))
 
     def test_edit_after_final_hash_is_refused_by_short_metadata_admission(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -244,3 +368,36 @@ print('owner-aware export completed')
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ExportReceiptSettlementTests(unittest.TestCase):
+    def test_settlement_write_failure_restores_bytes_receipt_and_backup(self):
+        from project_scope_exports import PUBLICATIONS_FILE, read_publication_receipts
+        with tempfile.TemporaryDirectory() as tmp:
+            manager, _source = fixtures.ProjectExportQualityTests().fixture(tmp)
+            root = Path(tmp)
+            (root / 'state.json').write_text(json.dumps({'active_book_id': 'book',
+                'book_generation': 'gen', 'input_file_path': str(root / 'source.wav')}))
+            manager.merge_audio()
+            output = root / 'cloned_audiobook.mp3'
+            original = output.read_bytes()
+            receipts_before = read_publication_receipts(root)
+            calls = []
+            import project_scope_exports
+            original_save = project_scope_exports.write_publication_ledger
+
+            def fail_on_settlement(root, raw, **kwargs):
+                calls.append(root)
+                if len(calls) == 2:
+                    raise OSError('settlement failure')
+                return original_save(root, raw, **kwargs)
+
+            with patch.object(project_scope_exports, 'write_publication_ledger',
+                              fail_on_settlement):
+                with self.assertRaisesRegex(OSError, 'settlement failure'):
+                    manager.merge_audio()
+            self.assertEqual(original, output.read_bytes())
+            from project_scope_exports import is_scope_export_historical
+            self.assertFalse(is_scope_export_historical(root, output))
+            self.assertEqual([], list(root.glob('.export-previous-*')))
+            self.assertFalse((root / 'export_publication.json').exists())

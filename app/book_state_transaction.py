@@ -21,6 +21,8 @@ from utils import file_lock
 from adapter_publication import (get_adapter_bundle_sha256, sync_adapter_directory,
                                  save_adapter_publication_bytes)
 from book_placeholder import PLACEHOLDER_SIZE, get_book_placeholder_bytes
+from export_file_io import (EXPORT_RETIREMENT_DIRECTORY, PUBLICATION_JOURNAL,
+                            PUBLICATION_SET_JOURNAL)
 
 JOURNAL = '.active_book_transaction.json'
 MAX_BOOK_JOURNAL_BYTES = 32 * 1024**2
@@ -1298,14 +1300,13 @@ def is_book_state_admitted(data_dir):
 
 
 def _has_book_transaction(root):
-    """Distinguish an absent marker from a failed lookup at admission.
+    return _has_book_entry(root, JOURNAL)
 
-    Uses only pathlib so the native launcher lifecycle bundles can import this
-    module without the app's scoped-file package. A no-follow lstat means a
-    dangling link is present; only a genuine not-found is absent.
-    """
+
+def _has_book_entry(root, name):
+    """Distinguish an absent entry from a failed no-follow lookup."""
     try:
-        (Path(root) / JOURNAL).lstat()
+        (Path(root) / name).lstat()
     except (FileNotFoundError, NotADirectoryError):
         return False
     return True
@@ -3370,6 +3371,15 @@ def _retire_unpublished_journal(root, data, journal_version, root_fd, targets=No
 def _finish_transaction(root, workspace, *, journal_version, stream_data=None,
                         byte_data=None, targets=None, cancel_check=None):
     _require_book_journal_version(root, journal_version)
+    rollback = (byte_data.get('export_rollback') if byte_data is not None
+                and byte_data['phase'] == 'recovered' else None)
+    if rollback is not None and 'ledger' in rollback:
+        if _is_book_workspace_present(workspace):
+            raise ValueError('Unexpected workspace during export receipt renewal')
+        if _is_recovered_export_ledger_installed(root, byte_data, targets, cancel_check):
+            _sync_recovered_export_ledger(root, rollback)
+            _unlink_owned_book_journal(root, journal_version)
+            return
     if byte_data is not None and targets is not None:
         _validate_byte_cleanup_targets(
             byte_data['entries'], targets, byte_data['phase'], cancel_check=cancel_check)
@@ -3387,7 +3397,70 @@ def _finish_transaction(root, workspace, *, journal_version, stream_data=None,
         # A crash may leave only the journal. Validate the targets again
         # before retiring that final recovery evidence.
         _verify_stream_cleanup_targets(root, stream_data, cancel_check=cancel_check)
+    if rollback is not None:
+        journal_version = _renew_recovered_export_receipts(root, byte_data, targets,
+                                                           journal_version)
     _unlink_owned_book_journal(root, journal_version)
+
+
+def _is_recovered_export_ledger_installed(root, data, targets, cancel_check):
+    from project_scope_exports import PUBLICATIONS_FILE
+    plan = data['export_rollback']['ledger']
+    ledger = root / PUBLICATIONS_FILE
+    if list(_book_target_version(ledger)[:2]) != plan['new_file_identity']:
+        return False
+    _validate_byte_replacement(plan, ledger, cancel_check=cancel_check)
+    originals = [(row, target) for row, target in zip(data['entries'], targets)
+                 if row['path'] != PUBLICATIONS_FILE]
+    rows, paths = zip(*originals)
+    _validate_byte_cleanup_targets(rows, paths, 'recovered', cancel_check=cancel_check)
+    return True
+
+
+def _sync_recovered_export_ledger(root, rollback):
+    from project_scope_exports import sync_parent_directory
+    _require_restored_export_versions(root, rollback['versions'])
+    sync_parent_directory(root)
+
+
+def _require_restored_export_versions(root, versions):
+    # Book cleanup has revalidated the restored files' digests and ownership.
+    # Keep that proof tied to the exact versions being recorded here.
+    if any(list(_book_target_version(root / name)[:5]) != version
+           for name, version in versions.items()):
+        raise ValueError('Restored exports changed during receipt renewal')
+
+
+def _renew_recovered_export_receipts(root, data, targets, journal_version):
+    from project_scope_exports import get_restored_export_versions, refresh_publication_versions
+    rollback = data['export_rollback']
+    receipts = rollback['receipts']
+    if 'versions' not in rollback:
+        versions = get_restored_export_versions(root, receipts)
+        if all(version == receipts[name]['file_version'] for name, version in versions.items()):
+            return journal_version
+        rollback['versions'] = versions
+        journal_version = _save_journal(root, data, expected_version=journal_version)
+
+    def authorize_replace(staged, raw):
+        nonlocal journal_version
+        rollback['ledger'] = {
+            'new_file_identity': list(_book_target_version(staged)[:2]),
+            'new_sha256': hashlib.sha256(raw).hexdigest(),
+        }
+        # Keep both accepted states durable before replacing the restored
+        # ledger. Recovery can then distinguish its original from our install.
+        journal_version = _save_journal(root, data, expected_version=journal_version)
+        _validate_byte_cleanup_targets(data['entries'], targets, 'recovered')
+        _validate_byte_replacement(rollback['ledger'], staged)
+        _require_restored_export_versions(root, rollback['versions'])
+
+    refresh_publication_versions(root, rollback['versions'], prior_receipts=receipts,
+                                 before_replace=authorize_replace)
+    if not _is_recovered_export_ledger_installed(root, data, targets, None):
+        raise ValueError('Renewed export ledger changed before recovery completed')
+    _sync_recovered_export_ledger(root, rollback)
+    return journal_version
 
 
 def _validate_committed_byte_backups(workspace, rows, targets, cancel_check=None):
@@ -3593,7 +3666,56 @@ def _validate_recovery_journal_shape(root, journal, data):
                     raise ValueError('Invalid active-book creation placeholder')
             if set(row) != expected_keys:
                 raise ValueError('Invalid active-book exchange entry')
+    if 'export_rollback' in data:
+        _validate_export_rollback_evidence(data, rows)
     return workspace, persisted_workspace_identity, rows, names, limits, parent_identities
+
+
+def _validate_export_rollback_evidence(data, rows):
+    from project_scope_exports import (PUBLICATIONS_FILE, SAVED_BOOK_FILE_REMOVALS,
+                                       _is_valid_receipt)
+    rollback = data['export_rollback']
+    by_name = {row['path']: row for row in rows}
+    ledger = by_name.get(PUBLICATIONS_FILE)
+    if (data['version'] not in (3, 4) or 'stream_limits' in data
+            or not isinstance(rollback, dict)
+            or not {'receipts'} <= set(rollback) <= {'receipts', 'versions', 'ledger'}
+            or ledger is None or not ledger['existed'] or ledger['new_sha256'] is None
+            or not stat.S_ISREG(ledger['old_file_identity'][4])):
+        raise ValueError('Invalid export rollback evidence')
+    receipts = rollback['receipts']
+    if (not isinstance(receipts, dict) or not receipts
+            or not receipts.keys() <= set(SAVED_BOOK_FILE_REMOVALS)):
+        raise ValueError('Invalid export rollback receipts')
+    for name, receipt in receipts.items():
+        row = by_name.get(name)
+        if (row is None or not row['existed'] or row['new_sha256'] is not None
+                or not stat.S_ISREG(row['old_file_identity'][4])
+                or not _is_valid_receipt(receipt)
+                or receipt['sha256'] != row['old_sha256']
+                or receipt['file_version'][:4] != row['old_file_identity'][:4]):
+            raise ValueError('Invalid export rollback receipt')
+    if 'versions' in rollback:
+        versions = rollback['versions']
+        if (data['phase'] != 'recovered' or not isinstance(versions, dict)
+                or versions.keys() != receipts.keys()
+                or any(not _is_valid_receipt({**receipts[name], 'file_version': version})
+                       or version[:4] != receipts[name]['file_version'][:4]
+                       for name, version in versions.items())
+                or all(version == receipts[name]['file_version']
+                       for name, version in versions.items())):
+            raise ValueError('Invalid restored export versions')
+    if 'ledger' in rollback:
+        install = rollback['ledger']
+        if ('versions' not in rollback or not isinstance(install, dict)
+                or set(install) != {'new_sha256', 'new_file_identity'}
+                or not _valid_book_digest(install['new_sha256'])
+                or install['new_sha256'] == ledger['old_sha256']
+                or not isinstance(install['new_file_identity'], list)
+                or len(install['new_file_identity']) != 2
+                or any(type(item) is not int or item < 0 for item in install['new_file_identity'])
+                or install['new_file_identity'] == ledger['old_file_identity'][:2]):
+            raise ValueError('Invalid renewed export ledger evidence')
 
 
 def _get_recovery_targets(root, journal, workspace, rows, limits):
@@ -4249,8 +4371,9 @@ def _get_quarantine_eligibility(root, root_identity, data, cancel_check=None, *,
     Eligible only when the journal passes recovery's own shape checks and every
     target already holds what the journal's phase says it must: the originals
     for publishing/recovered, the replacements for committed. Then the live
-    book is consistent and only the workspace is in doubt. Decided from the
-    files, never from the refusal's message. An unreadable, non-directory or
+    book is consistent and only the workspace is in doubt. Any pending export
+    receipt renewal still requires the live journal. Decided from the files,
+    never from the refusal's message. An unreadable, non-directory or
     reparse-point workspace stays refused.
 
     force (the operator's quarantine) skips only the target checks: the
@@ -4270,6 +4393,16 @@ def _get_quarantine_eligibility(root, root_identity, data, cancel_check=None, *,
                 _validate_byte_cleanup_targets(
                     rows, targets, 'committed' if data['phase'] == 'committed' else 'recovered',
                     cancel_check=cancel_check)
+            rollback = data.get('export_rollback')
+            if rollback is not None and data['phase'] != 'committed':
+                if 'versions' in rollback:
+                    return None
+                # Recovery may have restored names while still publishing.
+                # The old receipts are only settled if their full versions
+                # also stayed intact, regardless of workspace presence.
+                _require_restored_export_versions(root, {
+                    name: receipt['file_version'] for name, receipt in rollback['receipts'].items()
+                })
         try:
             info = os.lstat(workspace)
         except FileNotFoundError:
@@ -4772,6 +4905,23 @@ def ensure_book_state(data_dir, timeout=10, *, recover=True, cancel_check=None,
                     # from a pinned descriptor); only the outer class changes.
                     raise BookTransactionError(str(refusal)) from refusal.__cause__
                 raise
+            export_journals = (PUBLICATION_JOURNAL, PUBLICATION_SET_JOURNAL)
+            if any(_has_book_entry(root, name) for name in export_journals):
+                from project_scope_exports import recover_publication_journal, recover_set_journal
+                recover_publication_journal(root)
+                recover_set_journal(root)
+            if (_has_book_entry(root, EXPORT_RETIREMENT_DIRECTORY)
+                    and not any(_has_book_entry(root, name) for name in export_journals)):
+                # Registered stages have their own owner locks. This also
+                # recovers a builder killed before it wrote export intent.
+                from export_staging import reclaim_registered_export_staging
+                try:
+                    staging = reclaim_registered_export_staging(root, expected_parent_identity=identity)
+                except (OSError, RuntimeError) as error:
+                    logger.warning('Export staging recovery: %s', error)
+                else:
+                    for error in staging['errors']:
+                        logger.warning('Export staging recovery: %s', error)
         elif _has_book_transaction(root):
             if get_book_journal_status(root) == 'legacy':
                 raise BookJournalMigrationRequired(
@@ -5023,7 +5173,7 @@ def ensure_saved_book_state(data_dir, scripts_dir, timeout=10, *, recover=True):
 
 def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_limit=None,
                             cancel_check=None, before_replace=None,
-                            on_recovered_commit_error=None):
+                            on_recovered_commit_error=None, restore_export_receipts=False):
     """Stage and publish a switch; streams require an admitted, bounded caller.
 
     Stream objects must already be pinned by the caller. Their extent and hash
@@ -5035,12 +5185,15 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
     evidence that changed during staging or final validation cannot be published.
     on_recovered_commit_error can verify and report a committed outcome after
     recovery finishes cleaning up a transient storage error.
+    Saved-book loads opt into journaled renewal for receipts on removed exports.
     """
     root, root_identity = _book_operation_root(data_dir)
     if _has_book_transaction(root):
         raise ValueError('Recover the pending book transaction first')
     operations = list(replacements.items()) + [(name, None) for name in removals]
     streams = [value for _, value in operations if isinstance(value, BookStateStream)]
+    if restore_export_receipts and streams:
+        raise ValueError('Saved-book receipt recovery requires a byte transaction')
     from book_recovery_archive import MAX_FILES, _relative_name, _validate_names
     if len(operations) > MAX_FILES:
         raise ValueError('Book transaction exceeds its entry limit')
@@ -5337,6 +5490,12 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             root_guard.check()
         if before_replace is not None:
             before_replace()
+        if restore_export_receipts:
+            from project_scope_exports import get_saved_book_rollback_receipts
+            receipts = get_saved_book_rollback_receipts(root, rows, target_versions)
+            if receipts:
+                data['export_rollback'] = {'receipts': receipts}
+                _validate_export_rollback_evidence(data, rows)
         journal_version = _save_journal(
             root, data, create=True, root_fd=root_fd,
             on_publish_attempt=lambda: journal_publication_attempted.append(True))
@@ -5684,8 +5843,10 @@ def get_book_operation_identity(data_dir, *, state=None):
     """Read the selected book generation independently of edits within the book."""
     root, _identity = _direct_book_root(data_dir)
     if state is None:
-        state_path = root / "state.json"
-        state = json.loads(state_path.read_bytes()) if state_path.exists() else {}
+        from project_scope_files import capture_scope_file
+        proof, raw = capture_scope_file(root, 'state.json',
+            limit=4 * 1024**2, include_bytes=True)
+        state = json.loads(raw) if proof['exists'] else {}
     if not isinstance(state, dict):
         raise ValueError("Invalid book identity")
     return [str(root), state.get("active_book_id"), state.get("book_generation")]
@@ -5961,8 +6122,29 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
                 state.pop('script_selection_pending', None)
             else:
                 state['script_selection_pending'] = True
-            state.pop('_source_scope', None)
-            state.pop('_source_scope_exports', None)
+            from project_scope_exports import (PUBLICATIONS_FILE,
+                get_compacted_publication_receipts, get_scope_export_inventory,
+                read_publication_receipts, serialize_publication_receipts)
+            records, ledger_raw = read_publication_receipts(data_dir, include_bytes=True)
+            receipt_bytes = None
+            if same_bytes and rebound_binding is not None:
+                scope = state.get('_source_scope')
+                previous_scope_token = (get_snapshot_digest(scope)
+                                        if scope is not None else None)
+                rebound = {}
+                for name, receipt in records.items():
+                    if (receipt['book_token'] == previous_token
+                            and receipt.get('scope_token') == previous_scope_token):
+                        rebound[name] = {**receipt, 'book_token': new_token}
+                    else:
+                        rebound[name] = receipt
+                if rebound:
+                    receipt_bytes = serialize_publication_receipts(rebound)
+            else:
+                state.pop('_source_scope', None)
+                state['_source_scope_exports'] = get_scope_export_inventory(data_dir)
+                if ledger_raw is not None:
+                    receipt_bytes = get_compacted_publication_receipts(records, new_token, None)
             from speech_numbers import STATE_KEY as date_order_key
             state.pop(date_order_key, None)        # a new book starts on auto (#1546)
             # An explicit input selection starts a new book context. Validate
@@ -5981,12 +6163,14 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
                 replacements = dict(chunk_replacements)
                 if rebound_binding is not None:
                     replacements[BINDING_NAME] = rebound_binding
+                if receipt_bytes is not None:
+                    replacements[PUBLICATIONS_FILE] = receipt_bytes
+                removals = list(companions) + list(chunk_removals)
                 if before_publication is not None:
                     before_publication()
-                if companions or replacements or chunk_removals:
+                if replacements or removals:
                     apply_book_state_locked(data_dir,
-                        {'state.json': state_bytes, **replacements},
-                        list(companions) + list(chunk_removals))
+                        {'state.json': state_bytes, **replacements}, removals)
                 else:
                     save_adapter_publication_bytes(str(state_path), state_bytes)
                 return get_book_operation_token(data_dir)

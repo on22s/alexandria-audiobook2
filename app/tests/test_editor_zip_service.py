@@ -39,8 +39,14 @@ class EditorZipServiceTests(unittest.TestCase):
             def open_source(path, *args, **kwargs):
                 stream = original_open(path, *args, **kwargs)
                 return BoundedReader(stream) if str(path) in sources and args and args[0] == 'rb' else stream
-            def build(members, filename):
-                response = builder(members, filename)
+            import export_file_io
+            original_reader = export_file_io.open_export_reader
+            def pinned_source(path, *args, **kwargs):
+                stream = original_reader(path, *args, **kwargs)
+                return BoundedReader(stream) if str(path) in sources else stream
+            def build(members, filename, **kwargs):
+                self.assertEqual(str(root), kwargs.get('fence_root'))
+                response = builder(members, filename, **kwargs)
                 self.assertTrue(Path(response.path).is_file())
                 calls.append((filename, response.path))
                 return response
@@ -49,7 +55,9 @@ class EditorZipServiceTests(unittest.TestCase):
                  patch.object(editor, 'AUDIOBOOK_PATH', str(audio)), \
                  patch.object(editor, 'M4B_PATH', str(m4b)), \
                  patch.object(editor, 'build_zip_download', side_effect=build), \
-                 patch.object(builtins, 'open', side_effect=open_source), TestClient(app) as client:
+                 patch.object(builtins, 'open', side_effect=open_source), \
+                 patch.object(export_file_io, 'open_export_reader', side_effect=pinned_source), \
+                 TestClient(app) as client:
                 for route, expected in (('/api/export_zip', {'audiobook.mp3': sources[str(audio)], 'audiobook.m4b': sources[str(m4b)]}),
                                         ('/api/chapter_exports/zip', {'one.wav': sources[str(chapter)]})):
                     response = client.get(route)

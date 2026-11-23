@@ -145,7 +145,7 @@ class SoundDeliveryExportTests(unittest.TestCase):
                     replace(source, destination, **kwargs)
                     if str(destination).endswith('mixed_audiobook.mp3'):
                         published = True
-                def fail_cleanup(authority, retained_names):
+                def fail_cleanup(authority, retained_names, **kwargs):
                     if published and stages and authority.path == stages[0].path:
                         self.assertIsNone(stages[0]._registry_slot)
                         self.assertEqual(candidate.parent, authority.path.parent)
@@ -165,7 +165,7 @@ class SoundDeliveryExportTests(unittest.TestCase):
                         payloads.append(payload)
                         if nested:
                             try:
-                                cleanup(authority, retained_names)
+                                cleanup(authority, retained_names, **kwargs)
                             except StageDirectoryChanged as error:
                                 self.assertIn('Nested staging owner', str(error))
                                 faults.append(str(error))
@@ -173,7 +173,7 @@ class SoundDeliveryExportTests(unittest.TestCase):
                             self.fail('Native cleanup did not refuse the independently owned nested stage')
                         faults.append('synthetic public cleanup failure')
                         raise PermissionError(faults[-1])
-                    return cleanup(authority, retained_names)
+                    return cleanup(authority, retained_names, **kwargs)
                 stack.enter_context(patch.object(export_staging, 'create_export_staging', side_effect=record_stage))
                 stack.enter_context(patch('sound_design_delivery.os.replace', side_effect=record_publication))
                 stack.enter_context(patch.object(WindowsStageDirectory, 'remove_contents', new=fail_cleanup))

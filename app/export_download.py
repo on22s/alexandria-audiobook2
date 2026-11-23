@@ -15,6 +15,10 @@ SWITCH_IN_PROGRESS = 'A book switch is in progress. Wait a moment and download a
 class ExportFileResponse(FileResponse):
     """Keep Starlette's HEAD/range dispatch, but serve one delete-shared descriptor."""
 
+    def __init__(self, *args, stream=None, **kwargs):
+        self._pinned_stream = stream
+        super().__init__(*args, **kwargs)
+
     async def _io(self, operation, *args):
         result, cancellation = await await_upload_operation(asyncio.to_thread(operation, *args))
         if cancellation is not None:
@@ -22,7 +26,10 @@ class ExportFileResponse(FileResponse):
         return result
 
     async def __call__(self, scope, receive, send):
-        self.stream, cancellation = await await_upload_operation(asyncio.to_thread(open_export_reader, self.path))
+        if self._pinned_stream is not None:
+            self.stream, cancellation = self._pinned_stream, None
+        else:
+            self.stream, cancellation = await await_upload_operation(asyncio.to_thread(open_export_reader, self.path))
         try:
             if cancellation is not None:
                 raise cancellation

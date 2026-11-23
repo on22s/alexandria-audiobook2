@@ -3,6 +3,11 @@ import os
 import stat
 
 
+PUBLICATION_JOURNAL = '.export_publication.json'
+PUBLICATION_SET_JOURNAL = '.export_set_publication.json'
+EXPORT_RETIREMENT_DIRECTORY = '.aa2-export-retirement'
+
+
 def _windows_api():
     import ctypes
     api = ctypes.WinDLL('kernel32', use_last_error=True)

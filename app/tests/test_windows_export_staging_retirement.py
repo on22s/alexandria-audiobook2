@@ -28,6 +28,80 @@ with WindowsRetirement(sys.argv[2], wait=True, create=True) as retirement:
 
 
 class WindowsRetirementTests(unittest.TestCase):
+    def test_only_settled_slot_can_retire_guarded_payload(self):
+        from export_staging import RECOVERY
+        from export_staging_directory import StageDirectoryChanged
+
+        with tempfile.TemporaryDirectory() as base:
+            root = Path(base)
+            with WindowsRetirement(root) as retirement:
+                path, expected, _, owner, _, slot = retirement.initialize_creation('sidecar')
+                slot_id = _stat_identity(path.parent.stat())
+            payload = path / 'payload.bin'
+            try:
+                payload.write_bytes(b'owned')
+                with stage_directory(path, expected) as authority:
+                    authority.create_recovery_guard(RECOVERY)
+                    if os.name == 'nt':
+                        authority.retire_marker_for_recovery(MARKER)
+                    else:
+                        authority.unlink(MARKER)
+            finally:
+                owner.__exit__(None, None, None)
+
+            with WindowsRetirement(root, create=False) as retirement:
+                with self.assertRaises(StageDirectoryChanged):
+                    retirement.recover_slot(slot)
+                self.assertEqual(b'owned', payload.read_bytes())
+            with WindowsRetirement(root, create=False) as retirement:
+                with self.assertRaises(StageDirectoryChanged):
+                    retirement.recover_slot(slot, settled_stage=(0, 0), expected_slot=slot_id)
+                self.assertEqual(b'owned', payload.read_bytes())
+            with WindowsRetirement(root, create=False) as retirement:
+                self.assertEqual('stage_removed', retirement.recover_slot(
+                    slot, settled_stage=expected, expected_slot=slot_id))
+                self.assertFalse(path.parent.exists())
+
+    def test_empty_guard_requires_settled_slot_and_bound_marker(self):
+        from export_staging import RECOVERY
+        from export_staging_directory import StageDirectoryChanged
+
+        with tempfile.TemporaryDirectory() as base:
+            root = Path(base)
+            with WindowsRetirement(root) as retirement:
+                path, expected, _, owner, _, slot = retirement.initialize_creation('sidecar')
+                slot_id = _stat_identity(path.parent.stat())
+            marker, guard = path / MARKER, path / RECOVERY
+            payload = path / 'payload.bin'
+            try:
+                payload.write_bytes(b'owned')
+                os.close(os.open(guard, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600))
+            finally:
+                owner.__exit__(None, None, None)
+            with WindowsRetirement(root, create=False) as retirement:
+                with self.assertRaises(StageDirectoryChanged):
+                    retirement.recover_slot(slot)
+                self.assertEqual(b'owned', payload.read_bytes())
+
+            saved = root / 'original-marker'
+            marker.rename(saved)
+            with WindowsRetirement(root, create=False) as retirement:
+                with self.assertRaises(StageDirectoryChanged):
+                    retirement.recover_slot(slot, settled_stage=expected, expected_slot=slot_id)
+                self.assertEqual(b'owned', payload.read_bytes())
+                self.assertEqual(b'', guard.read_bytes())
+            wrong = {**json.loads(saved.read_bytes()), 'token': 'x' * 32}
+            marker.write_text(json.dumps(wrong), encoding='utf-8')
+            with WindowsRetirement(root, create=False) as retirement:
+                with self.assertRaises(StageDirectoryChanged):
+                    retirement.recover_slot(slot, settled_stage=expected, expected_slot=slot_id)
+                self.assertEqual(b'owned', payload.read_bytes())
+            saved.replace(marker)
+            with WindowsRetirement(root, create=False) as retirement:
+                self.assertEqual('stage_removed', retirement.recover_slot(
+                    slot, settled_stage=expected, expected_slot=slot_id))
+                self.assertFalse(path.parent.exists())
+
     def test_admitted_stage_constructor_uses_export_parent(self):
         with tempfile.TemporaryDirectory() as base:
             root = Path(base) / 'book'

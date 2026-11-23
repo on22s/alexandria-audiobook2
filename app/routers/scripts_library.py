@@ -39,6 +39,10 @@ from core import (
     process_state, is_task_running,
 )
 from project import CHAPTER_EXPORT_DIR
+from project_scope_exports import (PUBLICATIONS_FILE,
+                                   get_compacted_publication_receipts,
+                                   get_scope_export_inventory, read_book_state_bounded,
+                                   read_publication_receipts, write_publication_ledger)
 from translated_edition import PROPOSALS_DIR as TRANSLATION_PROPOSALS_DIR
 from review_script import _checkpoint_path, clear_checkpoint
 from completed_review_receipt import get_review_receipt_path
@@ -591,6 +595,10 @@ class ScriptLoadRequest(BaseModel):
     name: str
     expected_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
+def _refuse_inspection(detail):
+    raise HTTPException(status_code=409, detail=detail)
+
+
 @router.post("/api/scripts/load")
 async def load_script(request: ScriptLoadRequest):
     'Load a saved script, replacing the current annotated_script.json and chunks.'
@@ -668,14 +676,27 @@ def _load_script_sync(request: ScriptLoadRequest):
             raise HTTPException(status_code=409, detail='Saved script identity requires inspection; existing files were preserved.') from error
         try:
             capture_scope_file(DATA_DIR, BINDING_NAME, limit=MAX_BINDING_BYTES)
-        except (OSError, ValueError) as error:
-            raise HTTPException(status_code=409, detail='Active script identity requires inspection; existing files were preserved.') from error
+        except (OSError, ValueError):
+            _refuse_inspection('Active script identity requires inspection; existing files were preserved.')
         try:
             get_publication_source_capture(src)
         except (OSError, ValueError) as error:
             raise HTTPException(status_code=409, detail=f'Saved publication provenance requires review: {error}') from error
-        state_path = os.path.join(DATA_DIR, "state.json")
-        state = safe_load_json(state_path, default={})
+        from project_scope_exports import read_publication_journal, read_set_journal
+        if (read_publication_journal(DATA_DIR) is not None
+                or read_set_journal(DATA_DIR) is not None):
+            _refuse_inspection('An export publication is pending; retry the load after recovery.')
+        prior_state_valid = True
+        try:
+            state = read_book_state_bounded(DATA_DIR)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # Loading a saved book can replace malformed active JSON. The
+            # prior bytes still belong to the switch's rollback, but they
+            # cannot establish an eligible export receipt.
+            state = {}
+            prior_state_valid = False
+        except (OSError, ValueError):
+            _refuse_inspection('Active book state requires inspection; existing files were preserved.')
         # The previous book's identity, read through the same snapshot the
         # translation preview uses for its book binding. Proposals are kept
         # only when the loaded book is that same book; a different book must
@@ -699,10 +720,15 @@ def _load_script_sync(request: ScriptLoadRequest):
         _capture_sound_companions(DATA_DIR, ACTIVE_CUES, ACTIVE_RENDITIONS, state.get('active_book_id'))
         state.update(active_book_id=book_id, input_file_path=src,
                      book_generation=uuid.uuid4().hex)
+        receipts, _ledger_raw = read_publication_receipts(DATA_DIR, include_bytes=True)
+        if _ledger_raw is not None:
+            write_publication_ledger(DATA_DIR, _ledger_raw)
+            compacted_receipts = get_compacted_publication_receipts(receipts,
+                get_book_operation_token(DATA_DIR, state=state), None)
         state.pop('script_selection_pending', None)
         state.pop('script_binding_required', None)
         state.pop('_source_scope', None)
-        state.pop('_source_scope_exports', None)
+        state['_source_scope_exports'] = get_scope_export_inventory(DATA_DIR)
         # The book's date order travels with it (#1546); absent means auto.
         saved_order = safe_load_json(_saved_book_meta_path(safe_name), default={})
         saved_order = saved_order.get(DATE_ORDER_KEY) if isinstance(saved_order, dict) else None
@@ -712,6 +738,8 @@ def _load_script_sync(request: ScriptLoadRequest):
             state.pop(DATE_ORDER_KEY, None)
         replacements = {os.path.relpath(SCRIPT_PATH, DATA_DIR): script_bytes,
                         "state.json": json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8")}
+        if _ledger_raw is not None:
+            replacements[PUBLICATIONS_FILE] = compacted_receipts
         if saved_binding_raw is not None:
             token = get_book_operation_token(DATA_DIR, state=state)
             binding = make_script_selection_binding(token, hashlib.sha256(script_bytes).hexdigest(),
@@ -758,8 +786,11 @@ def _load_script_sync(request: ScriptLoadRequest):
             replacements[os.path.relpath(VOICE_CONFIG_PATH, DATA_DIR)] = voice_bytes
         else:
             removals.append(VOICE_CONFIG_PATH)
+        if len(replacements['state.json']) > 4 * 1024**2:
+            _refuse_inspection('Loaded book state exceeds the readable bound; existing files were preserved.')
         apply_book_state_locked(DATA_DIR, replacements,
-                                [os.path.relpath(path, DATA_DIR) for path in removals])
+                                [os.path.relpath(path, DATA_DIR) for path in removals],
+                                restore_export_receipts=prior_state_valid and _ledger_raw is not None)
         if discard_another_book_proposals:
             _discard_another_book_proposals()
         # Identity seam for the loading tab (DS3074): derive the response

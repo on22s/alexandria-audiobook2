@@ -2,7 +2,7 @@
 
 Production-builder tests with ProjectManager persistent rows, the real
 audio loader, real PCM assembly and the real ffmpeg encoder. Faults are
-injected only at OS boundaries (os.replace, cancellation, staleness).
+injected at guarded file moves, cancellation and staleness.
 """
 import hashlib
 import io
@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 from pydub import AudioSegment
 
+import book_state_transaction
 from project import ProjectManager
 from readalong_export import (
     build_epub_export,
@@ -462,9 +463,9 @@ class R4PublicationTests(unittest.TestCase):
             self.assertEqual(b"new staged EPUB", target.read_bytes())
             self.assertEqual(b"prior linked EPUB", other.read_bytes())
 
-    def _fail_once_on_target(self, target_suffix):
-        import readalong_export
-        orig_replace = readalong_export.os.replace
+    def _fail_once_on_target(self, target_suffix, move=None):
+        if move is None:
+            move = book_state_transaction._move
         state = {"failed": False}
 
         def flaky(src, dst, **kwargs):
@@ -472,13 +473,13 @@ class R4PublicationTests(unittest.TestCase):
                     and str(src).endswith(target_suffix)):
                 state["failed"] = True
                 raise OSError("injected target failure")
-            return orig_replace(src, dst, **kwargs)
+            return move(src, dst, **kwargs)
         return flaky
 
     def test_fault_injector_forwards_descriptor_relative_staging_renames(self):
         import readalong_export
         with patch.object(readalong_export.os, "replace") as replace:
-            inject = self._fail_once_on_target("readalong.sidecar.json")
+            inject = self._fail_once_on_target("readalong.sidecar.json", replace)
             inject("receipt.pending", "allocation.json", src_dir_fd=11, dst_dir_fd=11)
             replace.assert_called_once_with(
                 "receipt.pending", "allocation.json", src_dir_fd=11, dst_dir_fd=11)
@@ -498,8 +499,7 @@ class R4PublicationTests(unittest.TestCase):
             chunks = json.loads((Path(tmp) / "chunks.json").read_text(encoding="utf-8"))
             chunks[0]["pause_after"] = 500
             (Path(tmp) / "chunks.json").write_text(json.dumps(chunks), encoding="utf-8")
-            import readalong_export
-            with patch.object(readalong_export.os, "replace",
+            with patch.object(book_state_transaction, "_move",
                               side_effect=self._fail_once_on_target("readalong.sidecar.json")):
                 ok, _msg = build_sidecar_export(manager, lambda: False)
             self.assertFalse(ok)
@@ -510,8 +510,7 @@ class R4PublicationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             _setup_book(tmp, [(4800, 24000, 1, 2)] * 2)
             manager = ProjectManager(tmp)
-            import readalong_export
-            with patch.object(readalong_export.os, "replace",
+            with patch.object(book_state_transaction, "_move",
                               side_effect=self._fail_once_on_target("readalong.sidecar.json")):
                 ok, _msg = build_sidecar_export(manager, lambda: False)
             self.assertFalse(ok)
@@ -535,8 +534,7 @@ class R4PublicationTests(unittest.TestCase):
                 chunks = json.loads(chunks_path.read_text(encoding="utf-8"))
                 chunks[0]["pause_after"] = 500
                 chunks_path.write_text(json.dumps(chunks), encoding="utf-8")
-                import readalong_export
-                with patch.object(readalong_export.os, "replace",
+                with patch.object(book_state_transaction, "_move",
                                   side_effect=self._fail_once_on_target("readaloud.receipt.json")):
                     ok, msg = build_epub_export(manager, lambda: False)
                 self.assertFalse(ok)
@@ -561,11 +559,11 @@ class R4PublicationTests(unittest.TestCase):
             (Path(tmp) / "chunks.json").write_text(json.dumps(chunks), encoding="utf-8")
             import readalong_export
             orig_ensure = readalong_export.ensure_audio_export_active
-            orig_replace = readalong_export.os.replace
+            move = book_state_transaction._move
             published = []
 
             def flaky_replace(src, dst, **kwargs):
-                result = orig_replace(src, dst, **kwargs)
+                result = move(src, dst, **kwargs)
                 if str(dst) == str(Path(tmp) / "cloned_audiobook.mp3"):
                     published.append(True)
                 return result
@@ -576,7 +574,7 @@ class R4PublicationTests(unittest.TestCase):
                     raise ExportCancelled("cancelled between publications")
                 return orig_ensure(check)
 
-            with patch.object(readalong_export.os, "replace", side_effect=flaky_replace), \
+            with patch.object(book_state_transaction, "_move", side_effect=flaky_replace), \
                     patch.object(readalong_export, "ensure_audio_export_active",
                                  side_effect=cancel_after_publish):
                 ok, msg = build_sidecar_export(manager, lambda: False)
@@ -593,12 +591,11 @@ class R4PublicationTests(unittest.TestCase):
             self.assertTrue(ok, msg)
             old_mp3 = (Path(tmp) / "cloned_audiobook.mp3").read_bytes()
             old_side = (Path(tmp) / "readalong.sidecar.json").read_bytes()
-            import readalong_export
-            orig_replace = readalong_export.os.replace
+            move = book_state_transaction._move
             mutated = []
 
             def stale_after_mp3(src, dst, **kwargs):
-                result = orig_replace(src, dst, **kwargs)
+                result = move(src, dst, **kwargs)
                 if str(dst) == str(Path(tmp) / "cloned_audiobook.mp3") and not mutated:
                     mutated.append(True)
                     chunks = json.loads((Path(tmp) / "chunks.json").read_text(encoding="utf-8"))
@@ -606,7 +603,7 @@ class R4PublicationTests(unittest.TestCase):
                     (Path(tmp) / "chunks.json").write_text(json.dumps(chunks), encoding="utf-8")
                 return result
 
-            with patch.object(readalong_export.os, "replace", side_effect=stale_after_mp3):
+            with patch.object(book_state_transaction, "_move", side_effect=stale_after_mp3):
                 ok, _msg = build_sidecar_export(manager, lambda: False)
             self.assertFalse(ok)
             self.assertEqual(old_mp3, (Path(tmp) / "cloned_audiobook.mp3").read_bytes())
@@ -623,8 +620,7 @@ class R4PublicationTests(unittest.TestCase):
             chunks = json.loads((Path(tmp) / "chunks.json").read_text(encoding="utf-8"))
             chunks[0]["pause_after"] = 500
             (Path(tmp) / "chunks.json").write_text(json.dumps(chunks), encoding="utf-8")
-            import readalong_export
-            orig_replace = readalong_export.os.replace
+            move = book_state_transaction._move
             second = {"failed": False}
             restore_attempts = []
 
@@ -636,9 +632,9 @@ class R4PublicationTests(unittest.TestCase):
                 if Path(src).parent.name == "old" and Path(dst).name == "cloned_audiobook.mp3":
                     restore_attempts.append(Path(src))
                     raise OSError("injected rollback failure")
-                return orig_replace(src, dst, **kwargs)
+                return move(src, dst, **kwargs)
 
-            with patch.object(readalong_export.os, "replace", side_effect=flaky):
+            with patch.object(book_state_transaction, "_move", side_effect=flaky):
                 ok, msg = build_sidecar_export(manager, lambda: False)
             self.assertFalse(ok)
             self.assertTrue(second["failed"], "must reach the second-target publication failure")

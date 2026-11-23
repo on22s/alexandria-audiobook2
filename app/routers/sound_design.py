@@ -370,7 +370,7 @@ def download_sound_delivery(format_name:Literal['mp3','wav','m4b'],
     from sound_design_download import open_sound_delivery
     try:
         stream,size,suffix = open_sound_delivery(DATA_DIR,format_name,sha256)
-    except (ValueError,OSError):
+    except (ValueError,OSError,TimeoutError):
         raise HTTPException(409,'Mixed delivery is missing or changed; export it again.') from None
     try:
         return AudioStreamResponse(stream,size,suffix,filename='mixed_audiobook'+suffix)

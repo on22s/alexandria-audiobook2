@@ -14,6 +14,7 @@ import httpx
 
 import book_state_transaction as books
 import core
+from project_scope_exports import PUBLICATIONS_FILE
 from routers import script
 from sound_design_registry import ACTIVE_CUES, get_sound_design_registry_bytes
 from tests.test_sound_design_registry import registry
@@ -123,6 +124,7 @@ class SoundDesignUploadSelectionTests(unittest.IsolatedAsyncioTestCase):
             selected = Path(json.loads((root / 'state.json').read_text())['input_file_path'])
             self.assertEqual(TEXT, selected.read_bytes())
             self.assertTrue(Path(str(selected) + '.publication.json').is_file())
+            self.assertFalse((root / PUBLICATIONS_FILE).exists())
             self.assertGreaterEqual(script.get_upload_storage_bytes(), len(TEXT))
 
     async def test_bad_metadata_refuses_selection_but_retains_publicly_visible_source(self):

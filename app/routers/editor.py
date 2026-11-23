@@ -32,10 +32,12 @@ from publication_preview import get_publication_review, get_publication_preview,
 from config_settings import load_app_config
 from export_limits import MAX_PAUSE_MS
 from audio_mastering import MasteringOptions, get_audio_sha256
+from audio_take_history import _version
 from export_quality import ExportQualityOptions
 from export_quality_session import ExportQualityAttempt, get_session_evidence
 from export_publication import get_export_editor_revision
-from project_scope_exports import require_scope_export_current
+from project_scope_exports import (get_export_reader_identity, open_current_export_reader,
+                                   require_scope_export_current)
 from audio_stream_response import AudioStreamResponse
 from export_download import ExportFileResponse, open_export_reader
 
@@ -87,7 +89,7 @@ logger = logging.getLogger("AlexandriaUI")
 router = APIRouter()
 
 
-def build_zip_download(members, filename):
+def build_zip_download(members, filename, *, fence_root=None, expected=None):
     """Build a ZIP on disk and remove it after FileResponse finishes.
 
     Each member is copied from one opened file, so a book switch's
@@ -99,7 +101,9 @@ def build_zip_download(members, filename):
         written = 0
         with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as archive:
             for source, name in members:
-                with open(source, "rb") as stream:
+                stream = (open_current_export_reader(fence_root, source, expected=expected)
+                          if fence_root is not None else open(source, "rb"))
+                with stream:
                     info = os.fstat(stream.fileno())
                     if is_book_placeholder_stream(stream, info.st_size):
                         continue
@@ -477,10 +481,14 @@ def _require_export_download(path, missing_detail, *, probe=False):
 @router.head("/api/audiobook")
 @router.get("/api/audiobook")
 async def get_audiobook(request: Request = None):
+    expected = get_export_reader_identity(DATA_DIR)
     _require_export_download(AUDIOBOOK_PATH, "Audiobook not found",
                              probe=request is not None and request.method == "HEAD")
     require_scope_export_current(DATA_DIR, AUDIOBOOK_PATH)
-    return ExportFileResponse(AUDIOBOOK_PATH, filename="audiobook.mp3", media_type="audio/mpeg")
+    stream = await asyncio.to_thread(open_current_export_reader, DATA_DIR,
+                                      AUDIOBOOK_PATH, expected=expected)
+    return ExportFileResponse(AUDIOBOOK_PATH, filename="audiobook.mp3",
+                              media_type="audio/mpeg", stream=stream)
 
 # --- Chunk Management Endpoints ---
 
@@ -1671,10 +1679,11 @@ async def export_audacity_endpoint(background_tasks: BackgroundTasks):
 
 @router.get("/api/export_zip")
 async def export_zip():
-    return await asyncio.to_thread(_build_export_zip_response)
+    expected = get_export_reader_identity(DATA_DIR)
+    return await asyncio.to_thread(_build_export_zip_response, expected=expected)
 
 
-def _build_export_zip_response():
+def _build_export_zip_response(expected=None):
     """One zip of whatever exported audio exists (MP3, M4B); 404 when nothing does."""
     members = [(path, name) for path, name in ((AUDIOBOOK_PATH, "audiobook.mp3"), (M4B_PATH, "audiobook.m4b"))
                if os.path.exists(path) and not is_book_placeholder(path)]
@@ -1682,14 +1691,19 @@ def _build_export_zip_response():
         raise HTTPException(status_code=404, detail="No exported audio found. Merge or export first.")
     for path, _name in members:
         require_scope_export_current(DATA_DIR, path)
-    return build_zip_download(members, "alexandria_export.zip")
+    return build_zip_download(members, "alexandria_export.zip",
+                              fence_root=DATA_DIR, expected=expected)
 
 @router.get("/api/export_audacity")
 async def get_audacity_export():
     zip_path = os.path.join(DATA_DIR, "audacity_export.zip")
+    expected = get_export_reader_identity(DATA_DIR)
     _require_export_download(zip_path, "Audacity export not found. Generate it first.")
     require_scope_export_current(DATA_DIR, zip_path)
-    return ExportFileResponse(zip_path, filename="audacity_export.zip", media_type="application/zip")
+    stream = await asyncio.to_thread(open_current_export_reader, DATA_DIR,
+                                      zip_path, expected=expected)
+    return ExportFileResponse(zip_path, filename="audacity_export.zip",
+                              media_type="application/zip", stream=stream)
 
 def get_unready_export_speakers(admitted_rows):
     """Read readiness without treating unusable state as an empty roster.
@@ -2052,9 +2066,13 @@ def _exported_chapter_path(name):
 
 @router.get("/api/chapter_exports/file/{name}")
 async def download_chapter(name: str):
+    expected = get_export_reader_identity(DATA_DIR)
     path, safe = await asyncio.to_thread(_get_listed_chapter_path, name)
     media = "audio/mpeg" if safe.lower().endswith(".mp3") else "audio/wav"
-    return ExportFileResponse(path, filename=safe, media_type=media)
+    require_scope_export_current(DATA_DIR, path)
+    stream = await asyncio.to_thread(open_current_export_reader, DATA_DIR,
+                                      path, expected=expected)
+    return ExportFileResponse(path, filename=safe, media_type=media, stream=stream)
 
 
 def _get_listed_chapter_path(name):
@@ -2066,26 +2084,65 @@ def _get_listed_chapter_path(name):
 
 @router.get("/api/chapter_exports/zip")
 async def download_chapters_zip(names: Optional[str] = None):
-    return await asyncio.to_thread(_build_chapter_zip_response, names)
+    expected = get_export_reader_identity(DATA_DIR)
+    return await asyncio.to_thread(_build_chapter_zip_response, names, expected=expected)
 
 
-def _build_chapter_zip_response(names: Optional[str] = None):
+def _build_chapter_zip_response(names: Optional[str] = None, expected=None):
     """All exported chapters, or the comma-separated `names`, in one zip."""
-    manifest = safe_load_json(os.path.join(_chapter_export_dir(), "manifest.json"), {}) or {}
-    wanted = set(n for n in (names or "").split(",") if n) or None
-    members = []
-    for row in get_chapter_export_rows(manifest):
-        if wanted is not None and row["file"] not in wanted:
-            continue
-        try:
-            members.append(_exported_chapter_path(row["file"]))
-        except HTTPException:
-            continue
-    if not members:
-        raise HTTPException(status_code=404, detail="No exported chapters found. Export first.")
-    return build_zip_download(
-        members,
-        "chapters.zip")
+    from project_scope_exports import (export_reader_admission, is_export_set_pending, read_prior_export_set_member,
+                                       read_set_journal)
+    with export_reader_admission(DATA_DIR):
+        directory = _chapter_export_dir()
+        manifest_path = os.path.join(directory, "manifest.json")
+        wanted = set(n for n in (names or "").split(",") if n) or None
+        pending_set = read_set_journal(DATA_DIR)
+        pending_manifest = None
+        if is_export_set_pending(pending_set):
+            relative_dir = Path(os.path.relpath(directory, DATA_DIR))
+            for member in pending_set['members']:
+                target = Path(member['target'])
+                if target.parent != relative_dir:
+                    continue
+                if wanted is None or target.name in wanted:
+                    require_scope_export_current(DATA_DIR, os.path.join(directory, target.name))
+                if target.name == 'manifest.json':
+                    pending_manifest = member
+        if pending_manifest is None:
+            manifest = safe_load_json(manifest_path, {}) or {}
+        else:
+            try:
+                raw = read_prior_export_set_member(DATA_DIR, pending_manifest)
+                manifest = json.loads(raw) if raw is not None else None
+            except (OSError, ValueError):
+                manifest = None
+            if not isinstance(manifest, dict) or not isinstance(manifest.get('chapters'), list):
+                require_scope_export_current(DATA_DIR, manifest_path)
+        members = []
+        for row in get_chapter_export_rows(manifest):
+            name = row["file"]
+            if wanted is not None and name not in wanted:
+                continue
+            valid = (isinstance(name, str) and name == os.path.basename(name)
+                     and "\\" not in name and ":" not in name
+                     and not is_windows_reserved_device_name(name)
+                     and os.path.splitext(name)[1].lower() in {".mp3", ".wav"}
+                     and is_path_inside(os.path.join(_chapter_export_dir(), name),
+                                        _chapter_export_dir()))
+            if not valid:
+                continue
+            try:
+                members.append(_exported_chapter_path(name))
+            except HTTPException as error:
+                if error.status_code == 409 or (error.status_code == 404
+                        and wanted is not None):
+                    raise
+                continue
+        if not members:
+            raise HTTPException(status_code=404, detail="No exported chapters found. Export first.")
+        return build_zip_download(
+            members,
+            "chapters.zip", fence_root=DATA_DIR, expected=expected)
 
 
 class ReadalongSidecarRequest(BaseModel):
@@ -2474,7 +2531,11 @@ def _serve_bound_audio(expected_sha256, filename, label):
     except OSError as error:
         raise HTTPException(status_code=404, detail="Read-along MP3 is unavailable. Build the sidecar first.") from error
     try:
-        size = os.fstat(stream.fileno()).st_size
+        from project_scope_exports import require_scope_export_current
+        opened = os.fstat(stream.fileno())
+        require_scope_export_current(DATA_DIR, AUDIOBOOK_PATH,
+                                     expected_version=list(_version(opened)))
+        size = opened.st_size
         digest = hashlib.sha256()
         while True:
             block = stream.read(1024 * 1024)
@@ -2500,12 +2561,21 @@ def _validated_sidecar_doc():
     path = get_sidecar_output_path(DATA_DIR)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Read-along sidecar not found. Build it from the Result tab first.")
-    require_scope_export_current(DATA_DIR, path)
+    stream = None
     try:
-        raw = Path(path).read_bytes()
+        stream = open_current_export_reader(DATA_DIR, path)
+        from readalong_sidecar import MAX_SIDECAR_BYTES
+        raw = stream.read(MAX_SIDECAR_BYTES + 1)
+        if len(raw) > MAX_SIDECAR_BYTES:
+            raise ValueError('sidecar exceeds its bound')
         doc = get_validated_sidecar(raw)
+    except HTTPException:
+        raise
     except (ValueError, OSError) as error:
         raise HTTPException(status_code=409, detail=f"Read-along sidecar is invalid: {error}") from error
+    finally:
+        if stream is not None:
+            stream.close()
     if not os.path.isfile(AUDIOBOOK_PATH):
         raise HTTPException(status_code=409, detail="Read-along sidecar needs its MP3; rebuild the sidecar.")
     try:
@@ -2902,6 +2972,7 @@ def _validated_epub_bytes():
     from audio_source_io import read_bounded_audio_hash
     try:
         with ensure_export_file(path) as (stream, version):
+            require_scope_export_current(DATA_DIR, path, expected_version=list(version))
             digest, size = read_bounded_audio_hash(stream, version[2], lambda: None)
             if size != version[2] or digest != receipt["epub_sha256"]:
                 raise HTTPException(status_code=409, detail="EPUB read-aloud does not match its receipt. Rebuild the EPUB read-aloud.")
@@ -3000,9 +3071,13 @@ async def download_readaloud_epub_audio():
 
 @router.get("/api/audiobook_m4b")
 async def get_audiobook_m4b():
+    expected = get_export_reader_identity(DATA_DIR)
     _require_export_download(M4B_PATH, "M4B audiobook not found. Export it first.")
     require_scope_export_current(DATA_DIR, M4B_PATH)
-    return ExportFileResponse(M4B_PATH, filename="audiobook.m4b", media_type="audio/mp4")
+    stream = await asyncio.to_thread(open_current_export_reader, DATA_DIR,
+                                      M4B_PATH, expected=expected)
+    return ExportFileResponse(M4B_PATH, filename="audiobook.m4b",
+                              media_type="audio/mp4", stream=stream)
 
 def _apply_m4b_cover(cover_tmp, cover_path):
     """Validate uploaded image data before publishing an MP4-compatible cover."""
