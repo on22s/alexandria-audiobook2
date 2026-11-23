@@ -11524,8 +11524,8 @@
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_identity_cleanup_failure_is_not_translated_to_value_error"
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_interpreter_swap_changes_identity"
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_metadata_change_changes_identity"
+    , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_named_interpreter_version_recheck_during_final_hash_is_refused"
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_provider_digest_binds_runtime_not_strings"
-    , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_runtime_directory_replacement_during_final_hash_is_refused"
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_unknown_interpreter_fails"
   ]
   , "test_qwen_scenarios": [
