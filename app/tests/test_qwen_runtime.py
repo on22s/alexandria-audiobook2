@@ -34,6 +34,28 @@ class CapabilityTests(unittest.TestCase):
         from tests.test_qwen_repairs import _complete_model
         return _complete_model(self.root / "tmp")
 
+    def test_status_probe_contract_is_timeout_bounded_not_callback_bounded(self):
+        model = self._complete()
+        payload = {"ready": True, "qwen_asr_version": "0.0.6",
+                   "devices": ["cuda:0"], "torch_version": "2.10.0+cpu"}
+        completed = unittest.mock.Mock(returncode=0, stdout=json.dumps(payload).encode(), stderr=b"")
+        seen, polls = {}, []
+
+        def capture(command, **kwargs):
+            seen.update(kwargs)
+            return completed
+
+        with unittest.mock.patch.dict(os.environ, {
+                "ALEXANDRIA_QWEN_MODEL": model, "ALEXANDRIA_QWEN_PYTHON": sys.executable}), \
+                unittest.mock.patch.object(qr, "run_owned_capture", side_effect=capture):
+            result = qr.get_qwen_capability(
+                str(self.root), cancel_check=lambda: polls.append(1) or False,
+                status_only=True)
+        self.assertTrue(result["available"], result.get("reason"))
+        self.assertIn("timeout", seen)
+        self.assertNotIn("cancel_check", seen)
+        self.assertEqual(1, len(polls))
+
     def test_ready_with_cuda(self):
         model = self._complete()
         probe = _write_probe(self.root / "probe.py", {
@@ -108,6 +130,36 @@ class CapabilityTests(unittest.TestCase):
              self.assertRaises(WindowsOwnerCleanupError) as raised:
             qr.get_qwen_capability(str(self.root))
         self.assertIs(failure, raised.exception)
+
+    def test_probe_timeout_reports_owned_stop_failure(self):
+        import io
+        import subprocess
+        from types import SimpleNamespace
+        import subprocess_ownership as owned
+
+        model = self._complete()
+        command = ['controlled-probe']
+        for cleanup_error, reason in (
+                (None, "Qwen capability probe timed out."),
+                (OSError("controlled stop failure"),
+                 "Qwen capability probe failed: controlled stop failure")):
+            with self.subTest(cleanup_error=cleanup_error):
+                process = SimpleNamespace(
+                    stdout=io.BytesIO(), stderr=io.BytesIO(),
+                    communicate=unittest.mock.Mock(
+                        side_effect=subprocess.TimeoutExpired(command, 1)))
+                with unittest.mock.patch.dict(os.environ, {
+                        "ALEXANDRIA_QWEN_MODEL": str(model),
+                        "ALEXANDRIA_QWEN_PYTHON": sys.executable}), \
+                        unittest.mock.patch.object(owned, 'start_owned_subprocess', return_value=process), \
+                        unittest.mock.patch.object(owned, 'stop_owned_subprocess',
+                                                   side_effect=cleanup_error) as stop:
+                    result = qr.get_qwen_capability(str(self.root), timeout=1, probe_command=command)
+                self.assertFalse(result["available"])
+                self.assertEqual(reason, result["reason"])
+                stop.assert_called_once_with(process, timeout=1)
+                self.assertTrue(process.stdout.closed)
+                self.assertTrue(process.stderr.closed)
 
     def test_probe_compile(self):
         # The default production probe must at least compile.

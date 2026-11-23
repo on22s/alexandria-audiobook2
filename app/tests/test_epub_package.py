@@ -72,6 +72,19 @@ class EpubPackageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'ambiguous'):
                 get_epub_package(archive, max_xml_bytes=4096, require_unique=True)
 
+    def test_root_alias_member_is_refused_before_parsing_in_both_modes(self):
+        container = ('<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                     '<rootfiles><rootfile full-path="."/></rootfiles></container>')
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, 'w') as archive:
+            archive.writestr('META-INF/container.xml', container)
+            archive.writestr('.', '<package/>')
+        with zipfile.ZipFile(io.BytesIO(raw.getvalue())) as archive:
+            self.assertIn('.', archive.namelist())
+            for options in ({}, {'max_xml_bytes': 4096, 'require_unique': True}):
+                with self.subTest(options=options), self.assertRaisesRegex(ValueError, 'Unsafe'):
+                    get_epub_package(archive, **options)
+
     def test_review_confines_package_member_names_without_extracting(self):
         for path in ('../book.opf', '/book.opf', 'C:/book.opf', 'dir\\book.opf', './book.opf'):
             with self.subTest(path=path), self.archive(path=path) as archive:

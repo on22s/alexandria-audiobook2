@@ -343,6 +343,25 @@ class FinalOwnedCaptureCancellationTests(unittest.TestCase):
                 owned.run_owned_capture(['controlled-not-executed'], timeout=1, cancel_check=cancelled)
         start.assert_not_called()
 
+    def test_stop_failure_preserves_cancellation_and_still_stops(self):
+        import subprocess_ownership as owned
+        command = ['controlled']
+        process = types.SimpleNamespace(
+            stdout=io.BytesIO(), stderr=io.BytesIO(),
+            communicate=Mock(side_effect=subprocess.TimeoutExpired(command, .1)))
+        cancelled = Mock(side_effect=[False, False, True])
+        failure = OSError('controlled physical stop failure')
+        with patch.object(owned, 'start_owned_subprocess', return_value=process), \
+             patch.object(owned, 'stop_owned_subprocess', side_effect=failure) as stop:
+            with self.assertRaisesRegex(ValueError, 'Owned capture cancelled') as caught:
+                owned.run_owned_capture(command, timeout=5, cancel_check=cancelled)
+        self.assertEqual(3, cancelled.call_count)
+        process.communicate.assert_called_once()
+        stop.assert_called_once_with(process, timeout=1)
+        self.assertIs(failure, caught.exception.__cause__)
+        self.assertTrue(process.stdout.closed)
+        self.assertTrue(process.stderr.closed)
+
     def test_default_capture_uses_exact_single_communicate_call(self):
         import subprocess_ownership as owned
 

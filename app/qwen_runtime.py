@@ -781,6 +781,7 @@ def get_qwen_runtime_identity(python_path, cancel_check=None, timeout=60):
         if stream.read(1):
             raise ValueError("Qwen interpreter grew during identity capture.")
         if file_version(os.fstat(stream.fileno())) != file_version(before_file) \
+                or file_version(os.lstat(exe)) != file_version(before_file) \
                 or str(Path(selected).resolve()) != canonical:
             raise ValueError("Qwen interpreter changed during identity capture.")
     finally:

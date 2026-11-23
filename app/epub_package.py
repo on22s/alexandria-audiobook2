@@ -16,8 +16,10 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
     def read_member(name):
         if not isinstance(name, str) or not name:
             raise ValueError('Invalid EPUB package member')
+        path = PurePosixPath(name)
+        if not path.parts:
+            raise ValueError('Unsafe EPUB package member')
         if require_unique:
-            path = PurePosixPath(name)
             if ('\\' in name or '\0' in name or path.is_absolute()
                     or PureWindowsPath(name).drive or '..' in path.parts
                     or name != path.as_posix()):

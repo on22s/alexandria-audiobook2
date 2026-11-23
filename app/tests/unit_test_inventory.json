@@ -5652,6 +5652,7 @@
     , "tests.test_epub_package.EpubPackageTests.test_review_bounds_container_and_opf_without_changing_default_parser"
     , "tests.test_epub_package.EpubPackageTests.test_review_confines_package_member_names_without_extracting"
     , "tests.test_epub_package.EpubPackageTests.test_review_refuses_duplicate_selected_member_instead_of_guessing"
+    , "tests.test_epub_package.EpubPackageTests.test_root_alias_member_is_refused_before_parsing_in_both_modes"
     , "tests.test_epub_package.EpubPackageTests.test_text_extraction_first_root_is_preserved_but_review_refuses_ambiguity"
   ]
   , "test_epub_publication": [
@@ -5668,6 +5669,7 @@
   ]
   , "test_epub_readaloud": [
     "tests.test_epub_readaloud.EpubReadaloudTests.test_ambiguous_mapping_fails_closed"
+    , "tests.test_epub_readaloud.EpubReadaloudTests.test_bound_member_reader_refuses_root_alias"
     , "tests.test_epub_readaloud.EpubReadaloudTests.test_dangling_smil_reference_fails_validation"
     , "tests.test_epub_readaloud.EpubReadaloudTests.test_edited_script_fails_closed"
     , "tests.test_epub_readaloud.EpubReadaloudTests.test_mapping_retains_original_segment_indexes_after_wordless_segments"
@@ -11247,6 +11249,7 @@
     , "tests.test_qwen_final_runtime_repairs.FinalOwnedCaptureCancellationTests.test_identity_cancellation_stops_and_reaps_metadata_child"
     , "tests.test_qwen_final_runtime_repairs.FinalOwnedCaptureCancellationTests.test_polling_deadline_preserves_original_timeout_and_partial_bytes"
     , "tests.test_qwen_final_runtime_repairs.FinalOwnedCaptureCancellationTests.test_prelaunch_callback_exception_does_not_start_child"
+    , "tests.test_qwen_final_runtime_repairs.FinalOwnedCaptureCancellationTests.test_stop_failure_preserves_cancellation_and_still_stops"
     , "tests.test_qwen_final_runtime_repairs.FinalPunctuationPlannerTests.test_punctuation_fold_does_not_rescan_all_spoken_candidates"
     , "tests.test_qwen_final_runtime_repairs.FinalWorkerBridgeTests.test_collector_retains_distinct_gpu_and_task_descriptors"
   ]
@@ -11498,8 +11501,10 @@
     , "tests.test_qwen_runtime.CapabilityTests.test_probe_keeps_plain_reason_for_ascii_path_or_other_platform"
     , "tests.test_qwen_runtime.CapabilityTests.test_probe_names_non_ascii_install_path_on_windows"
     , "tests.test_qwen_runtime.CapabilityTests.test_probe_timeout_not_ready"
+    , "tests.test_qwen_runtime.CapabilityTests.test_probe_timeout_reports_owned_stop_failure"
     , "tests.test_qwen_runtime.CapabilityTests.test_ready_cpu_only"
     , "tests.test_qwen_runtime.CapabilityTests.test_ready_with_cuda"
+    , "tests.test_qwen_runtime.CapabilityTests.test_status_probe_contract_is_timeout_bounded_not_callback_bounded"
     , "tests.test_qwen_runtime.DevicePolicyTests.test_auto_cpu_ready_uses_qwen_cpu"
     , "tests.test_qwen_runtime.DevicePolicyTests.test_auto_falls_back_to_chunk_with_reason"
     , "tests.test_qwen_runtime.DevicePolicyTests.test_auto_prefers_ready_gpu_qwen"
@@ -11519,6 +11524,7 @@
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_identity_cleanup_failure_is_not_translated_to_value_error"
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_interpreter_swap_changes_identity"
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_metadata_change_changes_identity"
+    , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_named_interpreter_version_recheck_during_final_hash_is_refused"
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_provider_digest_binds_runtime_not_strings"
     , "tests.test_qwen_runtime_identity.IdentityCaptureTests.test_unknown_interpreter_fails"
   ]
