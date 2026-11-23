@@ -11,7 +11,7 @@ SOURCE = Path(__file__).resolve().parent.parent / "static/js/app-core.js"
 
 PRELUDE = r'''
 const fs=require('fs'),vm=require('vm'),source=fs.readFileSync(process.argv[1],'utf8'),payload=JSON.parse(process.argv[2]);
-const calls=[];const context={window:{},currentBookFilename:'A',_voiceSaveSnapshot:{book_token:'a'.repeat(64)},calls,
+const calls=[];const context={window:{},currentBookFilename:'A',_voiceSaveSnapshot:{book_token:'a'.repeat(64)},calls,URLSearchParams,
   API:{get:async u=>payload.suggestion,post:async(u,b)=>{calls.push(['POST',u,b]);return {};},del:async u=>{calls.push(['DEL',u]);return {};}},
   flushVoiceSaves:async()=>{},loadVoices:async()=>{},showToast:(m,k)=>calls.push(['TOAST',k,m])};
 vm.createContext(context),context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values)),context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]])),context.showActionError=context.showActionError||((action,error,recovery)=>context.t('core.action.details','{action}. {guidance} Details: {detail}',{action,guidance:recovery,detail:String(error&&error.message||error)}));
@@ -125,7 +125,8 @@ console.log(JSON.stringify(calls.filter(c=>c[0]!=='TOAST')));''', {"suggestion":
         self.assertEqual([["POST", "/api/voices/RUDY/version_timeline",
                            {"points": [{"from_index": 1, "version_id": "kid"},
                                        {"from_index": 29, "version_id": None}], "book_token": "a" * 64}],
-                          ["DEL", "/api/voices/RUDY/version_timeline?book_token=" + "a" * 64]], calls)
+                          ["POST", "/api/voices/RUDY/version_timeline",
+                           {"points": [], "book_token": "a" * 64}]], calls)
 
 
 if __name__ == "__main__":

@@ -88,7 +88,9 @@ class VoiceTimelineAudioTests(unittest.TestCase):
                 current = manager.load_chunks(); current[2].update(status='done', audio_path=rows[2]['audio_path'])
                 manager.save_chunks(current)
                 token = client.get('/api/voice_config/snapshot').json()['book_token']
-                response = client.delete('/api/voices/A/version_timeline', params={'book_token': token})
+                view = client.get('/api/voices/A/state_timeline').json()
+                response = client.delete('/api/voices/A/version_timeline', params={
+                    'book_token': token, 'expected_timeline_revision': view['timeline_revision']})
                 self.assertEqual(response.status_code, 200, response.text)
                 self.assertEqual([r['id'] for r in manager.load_chunks() if r['status'] != 'done'], [2])
 
@@ -316,10 +318,12 @@ class RevealReviewTests(unittest.TestCase):
         self.assertIn('Choose Main voice throughout', html)
         self.assertNotIn('Possible identity reveal', runner.render(ui.suggestion()))
         result = runner.run_js(r'''
-const selects=[{value:'version:a',disabled:false},{value:'version:b',disabled:false},{value:'version:unsafe',disabled:true}];
+const selects=[{value:'version:a',disabled:false},{value:'version:b',disabled:false},{value:'version:unsafe',disabled:true}]
+  .map(select=>({...select,dataset:{}}));
 context.chooseMainVoiceStates({disabled:false,closest:()=>({querySelectorAll:()=>selects})});
-console.log(JSON.stringify({values:selects.map(s=>s.value),calls}));''', {})
+console.log(JSON.stringify({values:selects.map(s=>s.value),changes:selects.map(s=>s.dataset.changed),calls}));''', {})
         self.assertEqual(result['values'], ['main', 'main', 'version:unsafe'])
+        self.assertEqual(result['changes'], ['true', 'true', None])
         self.assertEqual(result['calls'], [])
 
     def test_main_voice_save_finishes_before_apply_and_failure_stops_the_action(self):

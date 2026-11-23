@@ -483,7 +483,6 @@ class FrontendTests(unittest.TestCase):
         js = _read_frontend_source()
         self.assertIn('onclick="voiceChangesHere(${chunk.id})"', js)
         self.assertIn("API.post(`/api/voices/${encodeURIComponent(speaker)}/style_timeline`", js)
-        self.assertIn("API.del(`/api/voices/${encodeURIComponent(name)}/style_timeline/${fromIndex}${scope}`)", js)
         self.assertIn("renderStyleTimeline(voice.name, config)", js)
         # Exercise metadata preservation rather than require a particular key whitelist.
         import subprocess
@@ -493,7 +492,7 @@ const source=fs.readFileSync(process.argv[1],'utf8');
 const indexStart=source.indexOf('function getLoraModelsById(');const indexHelper=indexStart>=0?source.slice(indexStart,source.indexOf('async function suggestVoices(',indexStart)):'';
 const cardHelpers=source.slice(source.indexOf('function getVoiceCardMetadata('),source.indexOf('function createVoiceCard('));
 const code=indexHelper+cardHelpers+source.slice(source.indexOf('function collectVoiceConfig()'),source.indexOf('function onVoiceReadyChange('));
-const timeline=[{from_index:0,character_style:'Warm'},{from_index:8,character_style:'Tense'}];
+const timeline=[{from_index:0,character_style:'Warm'},{from_index:8,from_uid:'row/8',display_index:10,character_style:'Tense'}];
 const metadata={type:'custom',voice:'Ryan',style_timeline:timeline,seed:0};
 const before=JSON.stringify(metadata);
 const fields={'.voice-type:checked':{value:'custom'},'.voice-select':{value:'Aiden'},'.character-style':{value:'Calm'}};
@@ -505,6 +504,40 @@ assert.deepStrictEqual(collected.ALICE.style_timeline,timeline);
 assert.strictEqual(collected.ALICE.voice,'Aiden');
 assert.strictEqual(collected.ALICE.seed,'0');
 assert.strictEqual(JSON.stringify(metadata),before);
+const calls=[], posts=[];
+Object.assign(context, {
+ currentBookFilename:'synthetic', showPresetEditor:async()=>({name:'Warm'}),
+ URLSearchParams, _voiceCardsBookToken:'b'.repeat(64), _voiceSaveSnapshot:{book_token:'b'.repeat(64)},
+ formatUiSafetyText:(_key,text)=>text, t:(_key,text)=>text,
+ applyConfirmedVoiceRemoval:async(_button,_message,action)=>action(),
+ API:{post:async(url,data)=>posts.push({url,data}),del:async url=>calls.push(url)},
+ loadVoices:async()=>calls.push('refresh'), showToast:()=>{},
+ showActionError:(_message,error)=>{throw error;}
+});
+context.document.querySelector=()=>({querySelector:()=>({value:'ALICE'})});
+const removeStart=source.indexOf('function getStyleTimelineActionIndex(');
+const editorStart=source.indexOf('async function voiceChangesHere(');
+vm.runInContext(source.slice(removeStart,source.indexOf('// Voices tab:',removeStart))
+ +source.slice(editorStart,source.indexOf('function collectVoiceConfig(',editorStart)),context);
+(async()=>{
+ await context.voiceChangesHere(0);
+ assert.deepStrictEqual(JSON.parse(JSON.stringify(posts)),[
+  {url:'/api/voices/ALICE/style_timeline',data:{from_index:0,character_style:'Warm'}}
+ ]);
+ assert.deepStrictEqual(calls.splice(0),['refresh']);
+ await context.removeStylePoint('ALICE',0);
+ const legacy=new URL(calls[0],'http://test');
+ assert.strictEqual(legacy.pathname,'/api/voices/ALICE/style_timeline/0');
+ assert.strictEqual(legacy.searchParams.get('legacy_only'),'true');
+ assert.strictEqual(legacy.searchParams.get('book_token'),'b'.repeat(64));
+ assert.strictEqual(calls.splice(0)[1],'refresh');
+ await context.removeStylePoint('ALICE',8,null,'row/8',10);
+ const request=new URL(calls[0],'http://test');
+ assert.strictEqual(request.pathname,'/api/voices/ALICE/style_timeline/8');
+ assert.strictEqual(request.searchParams.get('from_uid'),'row/8');
+ assert.strictEqual(request.searchParams.get('book_token'),'b'.repeat(64));
+ assert.strictEqual(calls[1],'refresh');
+})().catch(error=>{console.error(error);process.exitCode=1;});
 """
         result = subprocess.run(['node', '-e', script, str(_STATIC_DIR / 'js/app-core.js')],
                                 capture_output=True, text=True, timeout=10)

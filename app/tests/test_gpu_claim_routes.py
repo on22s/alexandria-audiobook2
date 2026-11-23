@@ -92,8 +92,7 @@ class GpuClaimRouteTests(unittest.TestCase):
         project.insert_chunk.return_value = [{}]
         project.restore_chunk.return_value = [{}]
         snapshot = [{"id": 0, "uid": "row", "speaker": "Synthetic", "text": "Placeholder line."}]
-        project.load_chunks.return_value = snapshot
-        project.delete_chunk.return_value = (snapshot[0], [])
+        project.delete_chunk.return_value = (snapshot[0], [], editor.get_snapshot_digest(snapshot))
         with patch.object(core, "process_state", state), \
              patch.object(core, "llm_is_on_this_gpu", return_value=True), \
              patch.object(editor, "process_state", state), \
@@ -118,8 +117,7 @@ class GpuClaimRouteTests(unittest.TestCase):
                 call.update_chunk(0, {"text": "new"}),
                 call.insert_chunk(0),
                 call.restore_chunk(0, {}),
-                call.load_chunks(),
-                call.delete_chunk(0),
+                call.delete_chunk(0, expected_uid=None, include_before_revision=True),
             ], project.mock_calls)
 
     @use_private_cpu_fixture_lock()

@@ -21,6 +21,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 TIMELINE_KEYS = ("style_timeline", "version_timeline")
+TIMELINE_VIEW_FIELDS = ("display_index", "delete_key", "saved_point", "book_token")
 
 _full_uid_index = ContextVar("timeline_full_uid_index", default=None)
 
@@ -140,51 +141,69 @@ def _stored_index(point):
         return None
 
 
-def replace_style_point(points, from_index, uid, character_style):
+def get_timeline_point_at_anchor(points, from_index, uid):
+    """Find an existing UID record, or the legacy point at the selected line."""
+    legacy = None
+    for point in reversed(points or []):
+        if not isinstance(point, dict):
+            continue
+        if uid and point.get("from_uid") == uid:
+            return point
+        if legacy is None and not point.get("from_uid") and _stored_index(point) == from_index:
+            legacy = point
+    return legacy
+
+
+def replace_style_point(points, from_index, uid, character_style, *, uid_index=None):
     """Replace the point identified by uid (or legacy index), keeping others."""
+    previous = get_timeline_point_at_anchor(points, from_index, uid)
     result = []
     for point in points or []:
         if not isinstance(point, dict):
             result.append(point)
             continue
-        if isinstance(uid, str) and uid:
-            keep = point.get("from_uid") != uid
-        else:
-            keep = bool(point.get("from_uid")) or _stored_index(point) != from_index
-        if keep:
+        point_uid = point.get("from_uid")
+        if (point_uid and point_uid != uid) or (not point_uid and _stored_index(point) != from_index):
             result.append(point)
     if character_style:
-        point = {"from_index": from_index, "character_style": character_style}
+        point = {**(previous or {}), "from_index": from_index, "character_style": character_style}
         if isinstance(uid, str) and uid:
             point["from_uid"] = uid
         result.append(point)
-    return sorted(result, key=lambda item: get_style_timeline_index(item)
+    return sorted(result, key=lambda item: resolve_timeline_index(item, uid_index)
                   if isinstance(item, dict) else -1)
 
 
-def delete_style_points(points, from_index, uid=None):
-    """Delete one uid-identified point, or all legacy points at an index."""
+def delete_style_points(points, from_index, uid=None, *, current_uid=None):
+    """Delete a badge by its recorded identity, or remove points at a live index."""
     rows = points or []
     if isinstance(uid, str) and uid:
         target = [point for point in rows if isinstance(point, dict)
                   and point.get("from_uid") == uid and _stored_index(point) == from_index]
         return [point for point in rows if point not in target]
-    bare = [point for point in rows if isinstance(point, dict)
-            and not point.get("from_uid") and _stored_index(point) == from_index]
-    if bare:
-        return [point for point in rows if point not in bare]
-    return rows
+    return [point for point in rows if not isinstance(point, dict)
+            or (point.get("from_uid") != current_uid if point.get("from_uid")
+                else _stored_index(point) != from_index)]
 
 
-def canonical_point_payload(point):
-    """Optional-null-insensitive, read-only identity of a timeline point."""
-    data = {key: value for key, value in point.items()
-            if key not in ("from_uid", "display_index", "book_token") and value is not None}
-    try:
-        data["from_index"] = get_style_timeline_index(point)
-    except (TypeError, ValueError):
-        pass
+def canonical_point_payload(point, kind, *, exact=False):
+    """Compare saved JSON exactly, or normalize legacy equivalents for compatibility."""
+    data = {key: value for key, value in point.items() if key not in TIMELINE_VIEW_FIELDS}
+    if not exact:
+        data.pop("from_uid", None)
+        field = "character_style" if kind == "style_timeline" else "version_id"
+        if data.get(field) is None or (kind == "style_timeline" and data[field] == ""):
+            data.pop(field, None)
+        try:
+            data["from_index"] = get_style_timeline_index(point)
+        except (TypeError, ValueError):
+            pass
     return json.dumps(data, sort_keys=True, ensure_ascii=False, default=str)
+
+
+def get_timeline_index_spelling(point):
+    """Exact JSON spelling and presence of a point's fallback index."""
+    return json.dumps(point["from_index"], ensure_ascii=False) if "from_index" in point else None
 
 
 def _resolve_points(points, uid_index):

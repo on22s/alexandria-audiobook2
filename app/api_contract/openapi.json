@@ -6196,13 +6196,50 @@
             ],
             "title": "Book Token"
           },
+          "expected_chunks_revision": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Chunks Revision"
+          },
+          "expected_timeline_revision": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Timeline Revision"
+          },
           "points": {
-            "items": {
-              "$ref": "#/components/schemas/VoiceVersionPoint"
-            },
-            "maxItems": 50,
-            "title": "Points",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/VoiceVersionPoint"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
           }
         },
         "required": [
@@ -6950,9 +6987,19 @@
             "title": "Character Style"
           },
           "from_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
             "default": 0,
-            "title": "From Index",
-            "type": "integer"
+            "title": "From Index"
           }
         },
         "title": "VoiceStylePoint",
@@ -7062,9 +7109,19 @@
         "description": "From chunk `from_index` on, the character speaks with voice version\n`version_id` (a settled age/gender state, #653); None = the main voice\nagain, for a state that changes back.",
         "properties": {
           "from_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
             "default": 0,
-            "title": "From Index",
-            "type": "integer"
+            "title": "From Index"
           },
           "version_id": {
             "anyOf": [
@@ -18671,7 +18728,7 @@
     },
     "/api/voices/{speaker}/style_timeline": {
       "post": {
-        "description": "From this line on, the character sounds like `character_style`.",
+        "description": "Set the character's style from the chosen line onward, or clear it with an empty style.",
         "operationId": "add_style_point_api_voices__speaker__style_timeline_post",
         "parameters": [
           {
@@ -18719,6 +18776,7 @@
     },
     "/api/voices/{speaker}/style_timeline/{from_index}": {
       "delete": {
+        "description": "Remove a style change by live index or by its exact saved badge identity.",
         "operationId": "remove_style_point_api_voices__speaker__style_timeline__from_index__delete",
         "parameters": [
           {
@@ -18735,6 +18793,8 @@
             "name": "from_index",
             "required": true,
             "schema": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
               "title": "From Index",
               "type": "integer"
             }
@@ -18770,6 +18830,32 @@
               ],
               "title": "Book Token"
             }
+          },
+          {
+            "in": "query",
+            "name": "legacy_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Legacy Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "delete_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Delete Key"
+            }
           }
         ],
         "responses": {
@@ -18797,6 +18883,7 @@
     },
     "/api/voices/{speaker}/version_timeline": {
       "delete": {
+        "description": "Clear a voice timeline using the required timeline revision from the State snapshot.",
         "operationId": "clear_version_timeline_api_voices__speaker__version_timeline_delete",
         "parameters": [
           {
@@ -18805,6 +18892,18 @@
             "required": true,
             "schema": {
               "title": "Speaker",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Current timeline_revision from the State snapshot.",
+            "in": "query",
+            "name": "expected_timeline_revision",
+            "required": true,
+            "schema": {
+              "description": "Current timeline_revision from the State snapshot.",
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Expected Timeline Revision",
               "type": "string"
             }
           },
@@ -18848,7 +18947,7 @@
         "summary": "Clear Version Timeline"
       },
       "post": {
-        "description": "Apply a character's voice timeline. Every version must exist.",
+        "description": "Apply a character's voice timeline. Every version must exist.\n\nAn empty list for an unconfigured speaker is a no-op when\nexpected_timeline_revision matches the State snapshot. Without that\nrevision the request returns 422. A stale revision returns 409.",
         "operationId": "save_version_timeline_api_voices__speaker__version_timeline_post",
         "parameters": [
           {

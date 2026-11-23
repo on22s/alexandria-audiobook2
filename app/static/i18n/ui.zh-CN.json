@@ -6554,5 +6554,18 @@
   "core.editor.save-line-failed": "无法保存这一行",
   "core.editor.save-line-recovery": "修复报告的问题，然后再次编辑并保存这一行。如果持续被拒绝，请重新加载 Editor。",
   "editor.integrity.save-failed": "{count} 行编辑保存失败 — {reason}",
-  "editor.integrity.save-failed-one": "第 {line} 行保存失败 — {reason}"
+  "editor.integrity.save-failed-one": "第 {line} 行保存失败 — {reason}",
+  "safety.voice.timeline_editor_book_changed": "当前书籍已更改，保存前请重新加载编辑器。",
+  "error.voice.timeline_voice_read": "无法读取当前语音配置。",
+  "error.voice.invalid_adapter_id": "LoRA 适配器 ID 必须是有效的适配器名称。",
+  "error.voice.timeline_malformed": "已保存的语音变更点格式有误。编辑前请恢复语音配置。",
+  "error.voice.timeline_invalid_uid": "语音变更点所在行的标识无效。请重新加载编辑器并重新选择该行。",
+  "error.voice.timeline_write_conflict": "无法保存语音变更点。请重新加载语音配置和编辑器后重试。",
+  "error.voice.timeline_invalid_voice_data": "已保存的语音数据无效。请恢复语音配置后重新加载。",
+  "error.voice.timeline_guarded_anchor": "语音变更点与对应的行不再匹配。请重新加载编辑器并重新选择该行。",
+  "error.voice.timeline_chunks_unverified": "无法验证当前行。请恢复书籍状态或重新加载编辑器。",
+  "error.voice.timeline_point_limit": "语音时间轴最多可包含 50 个新的变更点。",
+  "error.voice.timeline_point_object": "新的语音变更点必须是对象。",
+  "error.voice.timeline_null_speaker": "只有尚未配置语音的角色才能保存为空值。",
+  "error.voice.timeline_null_clear": "请使用空列表清除语音变更点。"
 }

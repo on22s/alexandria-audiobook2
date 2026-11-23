@@ -1,5 +1,6 @@
-from book_state_transaction import (ensure_book_state, get_book_snapshot, get_book_snapshot_token,
-                                    get_book_operation_token)
+from book_state_transaction import (JOURNAL, ensure_book_state, get_admitted_book_root,
+                                    get_book_snapshot, get_book_snapshot_token, get_book_operation_token)
+from chunk_status_journal import capture_chunk_state_file, get_chunk_status_journal_path
 import copy
 import asyncio
 import gc
@@ -11,12 +12,16 @@ import signal
 import sys
 import time
 from collections import defaultdict, deque
-from typing import Dict, List, Optional, Literal
+from dataclasses import dataclass
+from typing import Annotated, Callable, Dict, List, Optional, Literal
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
-from pydantic import BaseModel, Field, model_validator, field_validator
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Path, Query
+from pydantic import BaseModel, Field, ValidationError, model_validator, field_validator
 from config_settings import load_app_config
-from voice_config_store import apply_voice_config_update, get_voice_config_revision, ensure_voice_config_storable, VoiceConfigConflict
+from editor_poll_snapshot import get_snapshot_digest
+from voice_config_store import (apply_voice_config_update, get_voice_config_revision,
+                                ensure_voice_config_storable, InvalidVoiceConfigError,
+                                read_voice_config, VoiceConfigConflict, VoiceConfigReadError)
 from project import ProjectManager, _new_chunk_uid
 
 from core import (
@@ -54,10 +59,11 @@ from core import (
 )
 from lmstudio_settings import get_active_llm_config, get_current_status, get_effective_max_tokens
 from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows, get_resolved_adapter_id_mapping, validate_adapter_name
-from tts import VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, get_version_fields, resolve_narrator_voice_config, voice_category, voice_is_set
-from timeline_anchors import (TIMELINE_KEYS, ambiguous_uids, build_uid_index, delete_style_points,
+from tts import (VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, get_version_fields,
+                 get_voice_config_for_version, resolve_narrator_voice_config, voice_category, voice_is_set)
+from timeline_anchors import (TIMELINE_KEYS, TIMELINE_VIEW_FIELDS, ambiguous_uids, build_uid_index, delete_style_points,
                               canonical_point_payload,
-                              get_anchor_uid, replace_style_point, resolve_timeline_anchors,
+                              get_anchor_uid, get_timeline_index_spelling, replace_style_point,
                               resolve_timeline_index, validate_write_anchor)
 from speaker_traits import (get_age_distance, get_library_age_group,
                             get_entry_speaker, get_normalized_age_group, get_normalized_gender,
@@ -95,31 +101,34 @@ def _normalize_anchor_uid(value):
         raise ValueError("from_uid must be a non-empty string without surrounding whitespace")
     if len(value) > 128:
         raise ValueError("from_uid is too long")
+    value.encode("utf-8")
     return value
 
 
 class VoiceStylePoint(BaseModel):
     model_config = {"extra": "allow"}
-    from_index: int = 0
+    from_index: int | float | str = 0
     character_style: Optional[str] = ""
 
     @field_validator("from_index", mode="before")
     @classmethod
     def validate_from_index(cls, value):
-        return get_style_timeline_index({"from_index": value})
+        index = get_style_timeline_index({"from_index": value})
+        return value if isinstance(value, (float, str)) else index
 
 class VoiceVersionPoint(BaseModel):
     """From chunk `from_index` on, the character speaks with voice version
     `version_id` (a settled age/gender state, #653); None = the main voice
     again, for a state that changes back."""
     model_config = {"extra": "allow"}
-    from_index: int = 0
+    from_index: int | float | str = 0
     version_id: Optional[str] = Field(default=None, min_length=1, max_length=80)
 
     @field_validator("from_index", mode="before")
     @classmethod
     def validate_from_index(cls, value):
-        return get_style_timeline_index({"from_index": value})
+        index = get_style_timeline_index({"from_index": value})
+        return value if isinstance(value, (float, str)) else index
 
 class VoiceConfigItem(BaseModel):
     voice_presentation: Optional[str] = Field(default="", max_length=500)
@@ -299,10 +308,11 @@ class PersonaVoiceAuditRequest(VoiceTargetScope):
     suggestion_reason: Optional[str] = Field(default=None, max_length=500)
 
 
-def _get_book_voice_manager(config_path):
+def _get_book_voice_manager(config_path, *, read_only=False):
     root = os.path.dirname(config_path)
     chunks_path = CHUNKS_PATH if os.path.dirname(CHUNKS_PATH) == root else os.path.join(root, "chunks.json")
-    manager = project_manager if project_manager.chunks_path == chunks_path else ProjectManager(root)
+    manager = (project_manager if project_manager.chunks_path == chunks_path else
+               ProjectManager(root, create_audio_dir=not read_only))
     if manager is not project_manager:
         manager.chunks_path = chunks_path
         manager.voice_config_path = config_path
@@ -322,6 +332,7 @@ def _apply_book_voice_update(transform, expected_revision=None, config_path=None
     with admit_take_history_edit(manager.root_dir), manager._chunks_lock, file_lock(manager.chunks_path):
         def update(current):
             if timeline_edit:
+                _validate_editable_timeline_document(current)
                 chunks = _get_authoritative_chunks_locked(manager)
                 old_uids = [row.get("uid") for row in chunks or []]
                 updated = transform(current, chunks)
@@ -345,18 +356,39 @@ def _apply_book_voice_update(transform, expected_revision=None, config_path=None
                     current, updated, chunks=chunks,
                     uids_added=old_uids != [row.get("uid") for row in chunks])
             return updated
-        return apply_voice_config_update(config_path, update, expected_revision=expected_revision,
-                                         publish=publish)
+        try:
+            return apply_voice_config_update(config_path, update, expected_revision=expected_revision,
+                                             publish=publish)
+        except InvalidVoiceConfigError as exc:
+            if not timeline_edit:
+                raise
+            _refuse_invalid_timeline_voice_document(exc)
+        except VoiceConfigReadError as exc:
+            if not timeline_edit:
+                raise
+            _refuse_timeline_voice_read(exc)
 
 
-def _mutate_book_voice_entry(speaker, mutator, book_token=None, *, timeline_edit=False,
-                             expected_book_token=None):
+@dataclass(frozen=True)
+class _TimelineMutation:
+    apply: Callable
+    expected_book_token: Optional[str] = None
+    replay_unconfigured: bool = False
+
+    def __call__(self, entry, chunks=None):
+        self.apply(entry, chunks)
+
+
+def _mutate_book_voice_entry(speaker, mutator, book_token=None):
+    timeline_edit = isinstance(mutator, _TimelineMutation)
     root = os.path.dirname(VOICE_CONFIG_PATH)
     with ensure_book_state(root):
+        expected_book_token = mutator.expected_book_token if timeline_edit else None
         if expected_book_token is not None and get_book_operation_token(root) != expected_book_token:
-            raise HTTPException(status_code=409, detail="Active book changed; reload Editor before saving")
+            raise AppError(409, 'Active book changed; reload Editor before saving',
+                           key='safety.voice.timeline_editor_book_changed')
         if book_token is not None:
-            snapshot = get_book_snapshot(root)
+            snapshot = get_book_snapshot(root, include_voices=False)
             if get_book_snapshot_token(snapshot) != book_token:
                 raise AppError(409, 'Active book changed; reload voices before saving', key='safety.voice.book_changed_before_save')
         if speaker == "NARRATOR":
@@ -369,8 +401,12 @@ def _mutate_book_voice_entry(speaker, mutator, book_token=None, *, timeline_edit
             # clearly (422) instead of crashing on None or fabricating
             # defaults. Absent keys keep the existing create-{} behavior;
             # explicit ordinary/bulk assignment never reaches this seam.
-            _stored_entry = config.get(speaker)
+            _stored_entry = _get_timeline_voice_entry(config, speaker) if timeline_edit else config.get(speaker)
             if speaker in config and _stored_entry is None:
+                if timeline_edit and mutator.replay_unconfigured:
+                    # An empty State replay checks its fences but cannot initialize a voice.
+                    mutator({}, *args)
+                    raise _NoOpEcho([])
                 raise HTTPException(status_code=422, detail=(
                     f"Speaker '{speaker}' has no voice configured; "
                     "assign a voice before modifying it."))
@@ -434,6 +470,21 @@ def _require_versions_dict(speaker, entry):
     return versions
 
 
+def _get_lora_adapter_id(config, *, status_code=422):
+    """Validate the identifier consumed by an effective voice configuration."""
+    if voice_category(config) != "lora":
+        return None
+    adapter_id = config.get("adapter_id")
+    if adapter_id is None or adapter_id == "":
+        return None
+    try:
+        validate_adapter_name(adapter_id)
+    except ValueError as exc:
+        raise AppError(status_code, 'A LoRA adapter ID must be a valid adapter name.',
+                       key='error.voice.invalid_adapter_id') from exc
+    return adapter_id
+
+
 def get_validated_voice_changes(speaker, before, after, *, check_timeline=False, allow_state_removal=False,
                                 trusted_states=(), timeline_chunks=None):
     """Validate state invariants for every public voice-config write path.
@@ -446,8 +497,12 @@ def get_validated_voice_changes(speaker, before, after, *, check_timeline=False,
     # above (HTTPException so every facade answers 4xx, never 500).
     old_versions = _require_versions_dict(speaker, before)
     versions = _require_versions_dict(speaker, after)
+    _get_lora_adapter_id(after)
     for version_id, version in versions.items():
-        if not isinstance(version, dict) or version_id in trusted_states:
+        if not isinstance(version, dict):
+            continue
+        _get_lora_adapter_id(get_voice_config_for_version(after, version_id))
+        if version_id in trusted_states:
             continue
         old_version = old_versions.get(version_id)
         old_state = old_version.get("persona_state") if isinstance(old_version, dict) else None
@@ -539,10 +594,11 @@ def get_script_speaker(entry):
     return get_entry_speaker(entry)
 
 
-def get_script_narrator_speaker():
+def get_script_narrator_speaker(*, script=None):
     """Resolve only the supported modern and legacy narrator spellings."""
-    _require_script_speaker(None)
-    script = safe_load_json(SCRIPT_PATH, default=[])
+    if script is None:
+        _require_script_speaker(None)
+        script = safe_load_json(SCRIPT_PATH, default=[])
     speakers = {get_script_speaker(entry) for entry in script}
     for name in ("NARRATOR", "Narrator"):
         if name in speakers:
@@ -550,12 +606,14 @@ def get_script_narrator_speaker():
     raise HTTPException(status_code=404, detail="Narrator is not present in the active script")
 
 
-def _require_script_speaker(speaker):
-    if not os.path.isfile(SCRIPT_PATH):
-        raise HTTPException(status_code=422, detail="Generate or open an active script first")
+def _require_script_speaker(speaker, *, script=None):
+    if script is None:
+        if not os.path.isfile(SCRIPT_PATH):
+            raise HTTPException(status_code=422, detail="Generate or open an active script first")
+        if speaker is not None:
+            script = safe_load_json(SCRIPT_PATH, default=[])
     if speaker is None:
         return
-    script = safe_load_json(SCRIPT_PATH, default=[])
     speakers = {get_script_speaker(entry) for entry in script}
     if speaker not in speakers:
         raise HTTPException(status_code=404, detail="Speaker is not present in the active script")
@@ -588,7 +646,8 @@ def _validate_consumed_description(speaker, entry):
 def _validate_consumed_overlay(speaker, overlaid):
     """Refuse a card as a version or candidate would leave it when it carries
     a consumed value the top-level save refuses (#1804, #1799): a malformed
-    custom/design description or adapter generation pin. -> HTTP 422."""
+    custom/design description, adapter identifier, or generation pin. -> HTTP 422."""
+    _get_lora_adapter_id(overlaid)
     try:
         _validate_consumed_description(speaker, overlaid)
         get_validated_adapter_generation(overlaid.get("adapter_generation_sha256"))
@@ -787,7 +846,7 @@ async def save_voice_version(speaker: str, request: VoiceVersionRequest):
         age = previous.get("age_group", request.age_group) if "persona_state" in previous and "age_group" not in request.model_fields_set else request.age_group
         updated = {**current, "versions": {**_versions,
                     request.version_id: {**config, "age_group": age}}}
-        _validate_consumed_overlay(speaker, {**current, **get_version_fields(updated, request.version_id)})
+        _validate_consumed_overlay(speaker, get_voice_config_for_version(updated, request.version_id))
         get_validated_voice_changes(speaker, current, updated)
         current["versions"] = updated["versions"]
     entry, _revision = await asyncio.to_thread(_mutate_book_voice_entry, speaker, save_version, request.book_token)
@@ -822,8 +881,9 @@ async def select_voice_version(speaker: str, version_id: str, request: VoiceBook
             # A state voice belongs to its part of the book: it is applied on
             # the voice timeline, never copied over the whole character (C3).
             raise HTTPException(status_code=409, detail="This is a character-state voice; apply it from Voice changes on its state card")
-        after = {**entry, **get_version_fields(entry, version_id), "age_group": version.get("age_group"),
+        after = {**get_voice_config_for_version(entry, version_id), "age_group": version.get("age_group"),
                  "active_version": version_id, "voice_status": "assigned"}
+        _get_lora_adapter_id(after)
         # DS3010: if the chosen version does not explicitly define a
         # pin and its adapter differs from the entry's, the old pin
         # must not follow the new asset. Same-adapter versions keep it.
@@ -962,34 +1022,51 @@ class StylePointRequest(VoiceStylePoint):
     book_token: Optional[str] = Field(default=None, pattern=BOOK_TOKEN_PATTERN)
     expected_book_token: Optional[str] = Field(default=None, pattern=BOOK_TOKEN_PATTERN)
 
+    @field_validator("from_index", mode="before")
+    @classmethod
+    def validate_from_index(cls, value):
+        return get_style_timeline_index({"from_index": value})
+
 
 @router.post("/api/voices/{speaker}/style_timeline")
 async def add_style_point(speaker: str, request: StylePointRequest):
-    """From this line on, the character sounds like `character_style`."""
+    """Set the character's style from the chosen line onward, or clear it with an empty style."""
     style = request.character_style.strip()
     display = None
     def add(current, chunks):
         nonlocal display
         request_uid = _request_anchor_uid(request)
-        points = current.get("style_timeline") or []
+        points = _get_stored_timeline(current, "style_timeline")
+        uid_index = build_uid_index(chunks)
+        live_uid = request_uid or get_anchor_uid(chunks, request.from_index)
         submitted = {"from_index": request.from_index, "from_uid": request_uid,
                      "character_style": style}
-        echo = bool(style) and _has_matching_point(points, submitted, chunks)
+        effective = next((point for point in reversed(points) if isinstance(point, dict)
+                          and resolve_timeline_index(point, uid_index) ==
+                              uid_index.get(live_uid, request.from_index)), None)
+        echo = bool(style) and any(_get_matching_point([effective], {**submitted, "from_uid": candidate},
+            "character_style") is not None for candidate in {request_uid, live_uid})
         index, uid = validate_write_anchor(chunks, request.from_index, request_uid, exact=echo)
         if echo:
             raise _NoOpEcho(_with_display_index(points, build_uid_index(chunks)))
         if style and uid is None and chunks is not None:
             uid = _ensure_timeline_uid(chunks[index])
-        current["style_timeline"] = replace_style_point(
-            points, index, uid, style)
-        display = _with_display_index(current["style_timeline"], build_uid_index(chunks))
+        updated = replace_style_point(points, index, uid, style, uid_index=build_uid_index(chunks))
+        display = _with_display_index(updated, build_uid_index(chunks))
+        if updated == points:
+            raise _NoOpEcho(display)
+        current["style_timeline"] = updated
     try:
-        await asyncio.to_thread(_mutate_book_voice_entry, speaker, add, request.book_token,
-                                timeline_edit=True, expected_book_token=request.expected_book_token)
+        entry, _revision = await asyncio.to_thread(
+            _mutate_book_voice_entry, speaker, _TimelineMutation(add, request.expected_book_token),
+            request.book_token)
     except _NoOpEcho as echo:
         display = echo.points
     except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        _refuse_timeline_write_conflict(exc)
+    else:
+        if display is None:
+            display = entry.get("style_timeline", [])
     return {"status": "saved", "speaker": speaker, "style_timeline": display}
 
 
@@ -1019,13 +1096,10 @@ def get_adapter_users(voice_config, candidates=()):
     for name, entry in (voice_config or {}).items():
         if not isinstance(entry, dict):
             continue
-        versions = entry.get("versions")
-        if versions is not None and not isinstance(versions, dict):
-            raise HTTPException(status_code=400,
-                                detail=f"Voice versions for '{name}' are malformed; reload voices.")
-        configs = [entry, *[v for v in (versions or {}).values() if isinstance(v, dict)]]
-        for config in configs:
-            adapter_id = config.get("adapter_id") if config.get("type") in ("lora", "builtin_lora") else None
+        versions = _require_versions_dict(name, entry)
+        configs = [(None, entry), *((key, v) for key, v in versions.items() if isinstance(v, dict))]
+        for version_id, config in configs:
+            adapter_id = _get_lora_adapter_id(get_voice_config_for_version(entry, version_id), status_code=400)
             if config.get("type") == "clone" and isinstance(config.get("ref_audio"), str):
                 adapter_id = clone_ids.get(get_clone_reference_path(config["ref_audio"]))
             if adapter_id:
@@ -1039,8 +1113,8 @@ def get_state_voice_candidates():
     """Downloaded adapters plus playable saved Designer clone references."""
     from routers.voice_design import get_voice_asset_path
     from audio_validation import validate_generated_audio, GeneratedAudioError
-    candidates = _build_lora_candidates()
-    for row in _load_manifest(os.path.join(DESIGNED_VOICES_DIR, "manifest.json")):
+    candidates = _build_lora_candidates(read_only=True)
+    for row in _load_manifest(os.path.join(DESIGNED_VOICES_DIR, "manifest.json"), record_diagnostics=False):
         if not isinstance(row, dict) or not isinstance(row.get("id"), str) or not row["id"]:
             continue
         text = row.get("sample_text")
@@ -1172,53 +1246,71 @@ def require_chosen_design_line(request):
 async def get_voice_state_timeline(speaker: str):
     """The suggested voice timeline for a character whose settled gender/age
     changes (#653). Suggests only: nothing changes audio until it is applied."""
-    def build():
-        from contextlib import ExitStack
-        from take_retention import admit_take_history_edit
-        manager = _get_book_voice_manager(VOICE_CONFIG_PATH)
-        with ExitStack() as stack:
-            _enter_read_admission(stack, lambda: ensure_book_state(manager.root_dir),
-                                  lambda: admit_take_history_edit(manager.root_dir),
-                                  lambda: manager._chunks_lock, lambda: file_lock(manager.chunks_path))
-            chunks = _get_authoritative_chunks_locked(manager) or []
-            _require_script_speaker(speaker)
-            script = safe_load_json(SCRIPT_PATH, default=[])
+    def get_input_versions(manager):
+        """Fence a lock-free filesystem read against book replacement and publication."""
+        def stamp(path):
             try:
-                voice_config = manager.get_voice_config_for_update()
-            except ValueError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
-            except OSError as exc:
-                raise HTTPException(status_code=409, detail="Active voices could not be read.") from exc
-            raw_entry = voice_config.get(speaker)
-            if raw_entry is not None and not isinstance(raw_entry, dict):
-                raise HTTPException(status_code=400, detail=f"Voice entry for '{speaker}' is malformed; reload voices.")
-            entry = raw_entry or {}
-            for name, voice_entry in voice_config.items():
-                _require_versions_dict(name, voice_entry)
-            applied = (resolve_timeline_anchors({speaker: entry}, chunks).get(speaker) or {}).get(
-                "version_timeline", [])
-            old_uids = [row.get("uid") for row in chunks]
-            for row in chunks:
-                _ensure_timeline_uid(row)
-            result = build_suggestions(script, chunks, voice_config, entry, applied)
-            if old_uids != [row.get("uid") for row in chunks]:
-                try:
-                    manager._save_chunks_locked(chunks, uids_backfilled=True)
-                except (OSError, ValueError) as exc:
-                    raise HTTPException(status_code=409, detail="Active chunk identities could not be saved.") from exc
-            return result
+                info = os.lstat(path)
+            except FileNotFoundError:
+                return None
+            return (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+        try:
+            root = get_admitted_book_root(manager.root_dir)
+            if stamp(root / JOURNAL) is not None:
+                raise ValueError("Book recovery is pending")
+            return tuple(map(stamp, (root, SCRIPT_PATH, VOICE_CONFIG_PATH, manager.chunks_path,
+                get_chunk_status_journal_path(manager.chunks_path), root / "state.json")))
+        except (OSError, ValueError) as exc:
+            _refuse_unverified_timeline_chunks(exc)
 
-    def build_suggestions(script, chunks, voice_config, entry, applied):
+    def build():
+        manager = _get_book_voice_manager(VOICE_CONFIG_PATH, read_only=True)
+        with manager._chunks_lock:
+            before = get_input_versions(manager)
+            try:
+                raw_script = capture_chunk_state_file(SCRIPT_PATH, what="script")
+                script = json.loads(raw_script) if raw_script is not None else None
+                if raw_script is not None and (not isinstance(script, list)
+                        or any(not isinstance(row, dict) for row in script)):
+                    raise ValueError("Invalid active script")
+            except (OSError, ValueError, RecursionError) as exc:
+                _refuse_unverified_timeline_chunks(exc)
+            name = get_script_narrator_speaker(script=script) if speaker == "NARRATOR" else speaker
+            _require_script_speaker(name, script=script)
+            try:
+                voice_config = read_voice_config(VOICE_CONFIG_PATH)
+            except InvalidVoiceConfigError as exc:
+                _refuse_invalid_timeline_voice_document(exc)
+            except VoiceConfigReadError as exc:
+                _refuse_timeline_voice_read(exc)
+            _validate_editable_timeline_document(voice_config)
+            entry = _get_timeline_voice_entry(voice_config, name) or {}
+            _get_replayable_version_timeline(entry)
+            chunks = _get_authoritative_chunks_locked(manager) or []
+            applied = _with_display_index(entry.get("version_timeline", []), build_uid_index(chunks))
+            if before != get_input_versions(manager):
+                _refuse_unverified_timeline_chunks(None)
+        result = build_suggestions(script, chunks, voice_config, name, entry, applied)
+        result["chunks_revision"] = _get_timeline_chunks_revision(chunks)
+        result["timeline_revision"] = _get_version_timeline_revision(entry)
+        result["chunk_count"] = len(chunks)
+        _validate_timeline_voice_document(result)
+        return result
+
+    def build_suggestions(script, chunks, voice_config, name, entry, applied):
         # One pass, exact speaker identity: the same targets every state route
         # and the validator use (C14: "Lee" and "LEE" are different people).
         state_targets = get_persona_state_targets(script)
-        targets = state_targets.get(speaker.strip(), [])
+        targets = state_targets.get(name.strip(), [])
         states = [{key: target[key] for key in ("from_entry", "gender", "age_group")} for target in targets]
         if not states:
             return {"speaker": speaker, "states": [], "applied": applied}
-        strict_mapping = get_persona_state_chunk_indices(script, chunks, speaker, state_targets=state_targets)
+        strict_mapping = get_persona_state_chunk_indices(script, chunks, name, state_targets=state_targets)
         targets_by_entry = {target["from_entry"]: target for target in targets}
-        candidates = get_state_voice_candidates()
+        try:
+            candidates = get_state_voice_candidates()
+        except (OSError, ValueError) as exc:
+            _refuse_timeline_voice_read(exc)
         users = get_adapter_users(voice_config, candidates)
         # Positional mapping applies to every source, including manual/library
         # versions; repeated text cannot identify a state boundary safely.
@@ -1228,7 +1320,7 @@ async def get_voice_state_timeline(speaker: str):
             target = targets_by_entry.get(state["from_entry"])
             has_generated = target and target["version_id"] in (entry.get("versions") or {})
             chunk_index = strict_mapping.get(state["from_entry"])
-            sources = get_state_voice_sources(state, speaker, entry, candidates, users)
+            sources = get_state_voice_sources(state, name, entry, candidates, users)
             sources["versions"] = [version for version in sources["versions"]
                 if "persona_state" not in entry["versions"][version["version_id"]]
                 or (target and version["version_id"] == target["version_id"]
@@ -1249,67 +1341,153 @@ async def get_voice_state_timeline(speaker: str):
 
 class VersionTimelineRequest(BaseModel):
     book_token: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$")
-    points: List[VoiceVersionPoint] = Field(max_length=50)
+    expected_chunks_revision: Optional[str] = Field(default=None, pattern=BOOK_TOKEN_PATTERN)
+    expected_timeline_revision: Optional[str] = Field(default=None, pattern=BOOK_TOKEN_PATTERN)
+    points: Optional[List[Optional[VoiceVersionPoint]]]
+
+
+def _get_version_timeline_revision(entry):
+    return get_snapshot_digest(entry.get("version_timeline", []))
+
+
+def _require_version_timeline_capacity(points, stored, *, new=0):
+    if len(points) > max(50, len(stored or [])) or new > 50:
+        raise AppError(422, 'A voice timeline can contain up to 50 new change points.',
+                       key='error.voice.timeline_point_limit')
 
 
 @router.post("/api/voices/{speaker}/version_timeline")
 async def save_version_timeline(speaker: str, request: VersionTimelineRequest):
-    """Apply a character's voice timeline. Every version must exist."""
+    """Apply a character's voice timeline. Every version must exist.
+
+    An empty list for an unconfigured speaker is a no-op when
+    expected_timeline_revision matches the State snapshot. Without that
+    revision the request returns 422. A stale revision returns 409.
+    """
     def save(current, chunks):
-        points = {}
-        submitted = []
-        stored = current.get("version_timeline") or []
-        for point in request.points:
-            request_uid = _request_anchor_uid(point)
-            raw = {"from_index": point.from_index, "version_id": point.version_id, "from_uid": request_uid}
-            exact = _has_matching_point(stored, raw, chunks)
-            index, uid = validate_write_anchor(chunks, point.from_index, request_uid, exact=exact)
-            entry = {"from_index": index, "version_id": point.version_id}
-            if uid is None and chunks is not None and 0 <= index < len(chunks):
-                uid = _ensure_timeline_uid(chunks[index])
-            if uid:
-                entry["from_uid"] = uid
-            points[index] = entry
-            submitted.append(raw)
-        timeline = [points[i] for i in sorted(points)]
-        echo = len(stored) == len(submitted) and all(
-            _has_matching_point([existing], point, chunks) for existing, point in zip(stored, submitted))
-        get_validated_voice_changes(speaker, current, current if echo else {
-            **current, "version_timeline": timeline}, check_timeline=True, timeline_chunks=chunks or [])
-        if echo:
+        if (request.expected_chunks_revision is not None
+                and request.expected_chunks_revision != _get_timeline_chunks_revision(chunks or [])):
+            _refuse_timeline_write_conflict()
+        stored = _get_replayable_version_timeline(current)
+        if (request.expected_timeline_revision is not None
+                and request.expected_timeline_revision != _get_version_timeline_revision(current)):
+            _refuse_timeline_write_conflict()
+        if request.points is None:
+            if "version_timeline" in current and current["version_timeline"] is None:
+                raise _NoOpEcho(None)
+            _refuse_timeline_write_conflict()
+        _require_version_timeline_capacity(request.points, stored)
+        available = _SavedTimelinePoints(stored, "version_timeline")
+        submissions = [
+            (point.model_dump(exclude_unset=True), _request_anchor_uid(point),
+             not (point.model_extra.keys() - {"from_uid", *TIMELINE_VIEW_FIELDS}))
+            if point is not None else (None, None, False)
+            for point in request.points]
+        matches = available.match(submissions)
+        _require_version_timeline_capacity(request.points, stored, new=sum(
+            point is not None and match is None for point, match in zip(request.points, matches)))
+        records = []
+        for (submitted, request_uid, _), exact in zip(submissions, matches):
+            if submitted is None or exact is not None:
+                entry = exact
+            else:
+                index, uid = validate_write_anchor(chunks, get_style_timeline_index(submitted), request_uid)
+                previous = available.take_replacement(submitted, request_uid)
+                entry = {**_get_storable_timeline_fields(previous or {}),
+                         **_get_storable_timeline_fields(submitted),
+                         "version_id": submitted.get("version_id"), "from_index": index}
+                if uid is None and chunks is not None and 0 <= index < len(chunks):
+                    uid = _ensure_timeline_uid(chunks[index])
+                if uid:
+                    entry["from_uid"] = uid
+            records.append(entry)
+        if records == stored and get_snapshot_digest(records) == get_snapshot_digest(stored):
             raise _NoOpEcho(current.get("version_timeline", []))
-        current["version_timeline"] = timeline
+        if not stored:
+            uid_index = build_uid_index(chunks)
+            ordered = iter(sorted((point for point in records if point is not None),
+                                  key=lambda point: resolve_timeline_index(point, uid_index)))
+            records = [next(ordered) if point is not None else None for point in records]
+        get_validated_voice_changes(speaker, current, {**current, "version_timeline": records},
+                                    check_timeline=True, timeline_chunks=chunks or [])
+        current["version_timeline"] = records
+    replay_unconfigured = request.points == [] and request.expected_timeline_revision is not None
     try:
         entry, _revision = await asyncio.to_thread(
-            _mutate_book_voice_entry, speaker, save, request.book_token, timeline_edit=True)
+            _mutate_book_voice_entry, speaker,
+            _TimelineMutation(save, replay_unconfigured=replay_unconfigured), request.book_token)
     except _NoOpEcho as echo:
         return {"status": "saved", "speaker": speaker, "version_timeline": echo.points}
     except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        _refuse_timeline_write_conflict(exc)
     return {"status": "saved", "speaker": speaker, "version_timeline": entry.get("version_timeline", [])}
 
 @router.delete("/api/voices/{speaker}/version_timeline")
-async def clear_version_timeline(speaker: str, book_token: Optional[str] = None):
+async def clear_version_timeline(
+        speaker: str,
+        expected_timeline_revision: Annotated[str, Query(
+            pattern=BOOK_TOKEN_PATTERN, description="Current timeline_revision from the State snapshot.")],
+        book_token: Optional[str] = None):
+    """Clear a voice timeline using the required timeline revision from the State snapshot."""
     def clear(current, chunks):
+        if expected_timeline_revision != _get_version_timeline_revision(current):
+            _refuse_timeline_write_conflict()
+        if "version_timeline" not in current:
+            raise _NoOpEcho()
         current.pop("version_timeline", None)
-    await asyncio.to_thread(_mutate_book_voice_entry, speaker, clear, book_token, timeline_edit=True)
+    try:
+        await asyncio.to_thread(_mutate_book_voice_entry, speaker, _TimelineMutation(clear), book_token)
+    except _NoOpEcho:
+        pass
     return {"status": "cleared", "speaker": speaker}
 
 
 @router.delete("/api/voices/{speaker}/style_timeline/{from_index}")
-async def remove_style_point(speaker: str, from_index: int, from_uid: Optional[str] = None,
-                             book_token: Optional[str] = None):
+async def remove_style_point(speaker: str, from_index: int = Path(ge=0, le=2**53 - 1), from_uid: Optional[str] = None,
+                             book_token: Optional[str] = None, legacy_only: bool = False,
+                             delete_key: str | None = None):
+    """Remove a style change by live index or by its exact saved badge identity."""
     try:
         uid = _normalize_anchor_uid(from_uid)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _refuse_invalid_timeline_uid(exc)
     display = None
     def remove(current, chunks):
         nonlocal display
-        current["style_timeline"] = delete_style_points(
-            current.get("style_timeline") or [], from_index, uid)
-        display = _with_display_index(current["style_timeline"], build_uid_index(chunks))
-    await asyncio.to_thread(_mutate_book_voice_entry, speaker, remove, book_token, timeline_edit=True)
+        points = _get_stored_timeline(current, "style_timeline")
+        uid_index = build_uid_index(chunks)
+        current_uid = get_anchor_uid(chunks, from_index) if uid is None and not legacy_only else None
+        if current_uid not in uid_index:
+            current_uid = None
+        if delete_key is not None:
+            revision = get_snapshot_digest(points)
+            selected = next((i for i, point in enumerate(points) if isinstance(point, dict)
+                             and delete_key == f"{revision}:{i}"
+                             and point.get("from_uid") == uid
+                             and get_style_timeline_index(point) == from_index), None)
+            if selected is None:
+                _refuse_timeline_write_conflict()
+            kept = points[:selected] + points[selected + 1:]
+        else:
+            targeted = [point for point in points if isinstance(point, dict)
+                        and point.get("from_uid") == uid
+                        and get_style_timeline_index(point) == from_index]
+            if (len(targeted) > 1 and (legacy_only or uid is not None
+                    or len({json.dumps(point.get("from_index", 0)) for point in targeted}) > 1)):
+                _refuse_timeline_write_conflict()
+            kept = delete_style_points(points, from_index, uid, current_uid=current_uid)
+        display = _with_display_index(kept, uid_index)
+        if kept == points:
+            raise _NoOpEcho(display)
+        current["style_timeline"] = kept
+    try:
+        entry, _revision = await asyncio.to_thread(
+            _mutate_book_voice_entry, speaker, _TimelineMutation(remove), book_token)
+    except _NoOpEcho as echo:
+        display = echo.points
+    else:
+        if display is None:
+            display = entry.get("style_timeline", [])
     return {"status": "saved", "speaker": speaker, "style_timeline": display}
 
 
@@ -1546,19 +1724,125 @@ def _request_anchor_uid(request):
     try:
         return _normalize_anchor_uid(getattr(request, "from_uid", None))
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _refuse_invalid_timeline_uid(exc)
+
+
+def _refuse_invalid_timeline_uid(cause):
+    raise AppError(400, 'The timeline line identity is invalid. Reload Editor and select the line again.',
+                   key='error.voice.timeline_invalid_uid') from cause
+
+
+def _refuse_timeline_write_conflict(cause=None):
+    raise AppError(409, 'The change point could not be saved. Reload voices and Editor, then try again.',
+                   key='error.voice.timeline_write_conflict') from cause
+
+
+def _refuse_invalid_timeline_voice_document(cause=None):
+    raise AppError(400, 'Saved voice data is invalid. Restore the voice configuration and reload voices.',
+                   key='error.voice.timeline_invalid_voice_data') from cause
+
+
+def _refuse_timeline_voice_read(cause):
+    raise AppError(409, 'Active voices could not be read.',
+                   key='error.voice.timeline_voice_read') from cause
+
+
+def _refuse_guarded_timeline_anchor():
+    raise AppError(400, 'A change point no longer matches its line. Reload Editor and select it again.',
+                   key='error.voice.timeline_guarded_anchor')
+
+
+def _refuse_new_null_timeline_point():
+    raise AppError(400, 'New timeline points must be objects.',
+                   key='error.voice.timeline_point_object')
+
+
+def _get_stored_timeline(entry, key):
+    """Admit an editable timeline without discarding malformed legacy history."""
+    points = entry.get(key)
+    if points is None:
+        return []
+    field = "character_style" if key == "style_timeline" else "version_id"
+    try:
+        if not isinstance(points, list):
+            raise ValueError
+        for point in points:
+            if point is None:
+                continue
+            if (not isinstance(point, dict)
+                    or (point.get(field) is not None and not isinstance(point[field], str))):
+                raise ValueError
+            get_style_timeline_index(point)
+    except ValueError as exc:
+        raise AppError(409, 'The saved timeline is malformed. Restore the voice configuration before editing.',
+                       key='error.voice.timeline_malformed') from exc
+    return points
+
+
+def _validate_timeline_voice_document(data):
+    try:
+        ensure_voice_config_storable(data)
+    except ValueError as exc:
+        _refuse_invalid_timeline_voice_document(exc)
+
+
+def _validate_editable_timeline_document(data):
+    _validate_timeline_voice_document(data)
+    for name, entry in data.items():
+        versions = _require_versions_dict(name, entry)
+        if isinstance(entry, dict):
+            _get_lora_adapter_id(entry, status_code=400)
+            for version_id, version in versions.items():
+                if isinstance(version, dict):
+                    _get_lora_adapter_id(get_voice_config_for_version(entry, version_id), status_code=400)
+            for key in TIMELINE_KEYS:
+                _get_stored_timeline(entry, key)
+
+
+def _get_timeline_voice_entry(data, speaker):
+    entry = data.get(speaker)
+    if entry is not None and not isinstance(entry, dict):
+        _refuse_invalid_timeline_voice_document()
+    return entry
+
+
+def _get_replayable_version_timeline(entry):
+    stored = _get_stored_timeline(entry, "version_timeline")
+    try:
+        for point in stored:
+            if point is not None:
+                VoiceVersionPoint.model_validate(point)
+                _normalize_anchor_uid(point.get("from_uid"))
+    except (ValidationError, ValueError) as exc:
+        _refuse_invalid_timeline_voice_document(exc)
+    return stored
+
+
+def _refuse_unverified_timeline_chunks(cause):
+    raise AppError(409, 'Active chunks could not be verified. Restore the book state or reload Editor.',
+                   key='error.voice.timeline_chunks_unverified') from cause
+
+
+def _get_timeline_chunks_revision(chunks):
+    try:
+        return get_snapshot_digest(chunks)
+    except (ValueError, RecursionError) as exc:
+        _refuse_unverified_timeline_chunks(exc)
 
 
 def _get_authoritative_chunks_locked(manager):
     """Read the snapshot and any retained journal. Only an absent pair is legacy."""
     try:
-        return manager._get_saved_chunk_rows_locked()
+        rows = manager._get_saved_chunk_rows_locked()
+        for row in rows:
+            uid = row.get("uid")
+            if uid is not None and uid != "":
+                _normalize_anchor_uid(uid)
+        return rows
     except FileNotFoundError:
         return None
     except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=409, detail=(
-            "Active chunks could not be verified. Restore the book state or reload Editor."
-        )) from exc
+        _refuse_unverified_timeline_chunks(exc)
 
 
 def _ensure_timeline_uid(row):
@@ -1573,21 +1857,49 @@ class _NoOpEcho(Exception):
         self.points = points
 
 
-def _has_matching_point(points, submitted, chunks=None):
-    """Match the recorded position, anchor identity and content of one point."""
+def _get_matching_point(points, submitted, field):
+    """Match a dedicated edit while preserving extension data in the stored point."""
     uid = submitted.get("from_uid")
-    allowed = (uid, get_anchor_uid(chunks, get_style_timeline_index(submitted))) if uid is None and chunks else (uid,)
-    payload = canonical_point_payload(submitted)
-    return any(isinstance(point, dict) and point.get("from_uid") in allowed
-               and canonical_point_payload(point) == payload for point in points)
+    index = get_style_timeline_index(submitted)
+    for point in reversed(points):
+        if not isinstance(point, dict) or point.get("from_uid") != uid:
+            continue
+        try:
+            same_index = get_style_timeline_index(point) == index
+        except ValueError:
+            continue
+        value = point.get(field)
+        if field == "character_style" and isinstance(value, str):
+            value = value.strip()
+        if same_index and value == submitted[field]:
+            return point
+    return None
 
 
-def _with_display_index(points, uid_index):
-    """Derived display position; the stored from_index is left untouched."""
+def _get_storable_timeline_fields(point):
+    return {key: value for key, value in point.items() if key not in TIMELINE_VIEW_FIELDS}
+
+
+def _get_timeline_browser_value(value):
+    """Project numbers whose JSON representation is lost in the browser."""
+    if type(value) is int and abs(value) > 2**53 - 1:
+        return str(value)
+    if type(value) is float and value.is_integer():
+        return str(int(value))
+    if isinstance(value, list):
+        return [_get_timeline_browser_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _get_timeline_browser_value(item) for key, item in value.items()}
+    return value
+
+
+def _with_display_index(points, uid_index, *, style_badges=False):
+    """Expose display positions and references to records that need lossless replay."""
     if not isinstance(points, list):
         return points
     result = []
-    for point in points:
+    revision = get_snapshot_digest(points) if style_badges else None
+    for ordinal, point in enumerate(points):
         if not isinstance(point, dict):
             result.append(point)
             continue
@@ -1595,47 +1907,142 @@ def _with_display_index(points, uid_index):
             index = resolve_timeline_index(point, uid_index)
         except ValueError:
             index = point.get("from_index")
-        result.append(dict(point, display_index=index))
+        raw = _get_storable_timeline_fields(point)
+        view = _get_timeline_browser_value(raw)
+        if view != raw:
+            revision = revision or get_snapshot_digest(points)
+            view["saved_point"] = f"{revision}:{ordinal}"
+        view["display_index"] = _get_timeline_browser_value(index)
+        if style_badges:
+            view["delete_key"] = f"{revision}:{ordinal}"
+        result.append(view)
     return result
 
 
-def _normalize_submitted_timeline(points, stored, chunks, uid_index, ambiguous):
+class _SavedTimelinePoints:
+    """Match each submitted point to at most one saved record in original order."""
+
+    def __init__(self, points, kind):
+        self.points = points if isinstance(points, list) else []
+        self.available = dict(enumerate(self.points))
+        self.kind = kind
+        self.revision = None
+        self.exact = defaultdict(deque)
+        self.by_anchor = defaultdict(list)
+        for ordinal, point in self.available.items():
+            if point is None:
+                self.exact[None].append(ordinal)
+            elif isinstance(point, dict):
+                uid = point.get("from_uid")
+                if uid is None or isinstance(uid, str):
+                    self.exact[canonical_point_payload(point, kind, exact=True)].append(ordinal)
+                    self.by_anchor[(uid, get_style_timeline_index(point))].append(ordinal)
+
+    def match(self, submissions):
+        """Reserve exact records before compatibility matching or replacement."""
+        matches = []
+        for point, uid, _ in submissions:
+            if point is not None and "saved_point" in point:
+                matches.append(self.take_reference(point, uid))
+                continue
+            key = canonical_point_payload(point, self.kind, exact=True) if point is not None else None
+            ordinals = self.exact.get(key)
+            while ordinals and ordinals[0] not in self.available:
+                ordinals.popleft()
+            if point is None and not ordinals:
+                _refuse_new_null_timeline_point()
+            matches.append(self.available.pop(ordinals.popleft()) if ordinals else None)
+        return [self.take_legacy_match(point, uid, minimal) if point is not None and match is None else match
+                for (point, uid, minimal), match in zip(submissions, matches)]
+
+    def get_unmatched_at_anchor(self, point, uid):
+        return [ordinal for ordinal in self.by_anchor.get((uid, get_style_timeline_index(point)), ())
+                if ordinal in self.available]
+
+    def take_legacy_match(self, point, uid, minimal_version):
+        spelling = get_timeline_index_spelling(point)
+        payload = canonical_point_payload(point, self.kind)
+        best = None
+        for ordinal in self.get_unmatched_at_anchor(point, uid):
+            saved = self.available[ordinal]
+            exact_payload = canonical_point_payload(saved, self.kind) == payload
+            if not exact_payload and (not minimal_version or saved.get("version_id") != point.get("version_id")):
+                continue
+            priority = (get_timeline_index_spelling(saved) != spelling, not exact_payload, ordinal)
+            if best is None or priority < best:
+                best = priority
+        return self.available.pop(best[-1]) if best is not None else None
+
+    def take_replacement(self, point, uid):
+        """Retained records and other recorded indices never donate metadata."""
+        candidates = self.get_unmatched_at_anchor(point, uid)
+        spelling = get_timeline_index_spelling(point)
+        exact = [i for i in candidates if get_timeline_index_spelling(self.available[i]) == spelling]
+        candidates = exact or candidates
+        return self.available.pop(candidates[0]) if len(candidates) == 1 else None
+
+    def take_reference(self, point, uid):
+        # A browser reference may recover the exact saved JSON, but cannot
+        # authorize an edit, a different record, or a second use of a record.
+        key = point["saved_point"]
+        match = re.fullmatch(r"([0-9a-f]{64}):([0-9]{1,10})", key) if isinstance(key, str) else None
+        if match is None:
+            _refuse_timeline_write_conflict()
+        ordinal = int(match[2])
+        saved = self.available.get(ordinal)
+        self.revision = self.revision or get_snapshot_digest(self.points)
+        if self.revision != match[1] or not isinstance(saved, dict) or saved.get("from_uid") != uid:
+            _refuse_timeline_write_conflict()
+        projected = _get_timeline_browser_value(_get_storable_timeline_fields(saved))
+        if (canonical_point_payload(projected, self.kind, exact=True)
+                != canonical_point_payload(point, self.kind, exact=True)):
+            _refuse_timeline_write_conflict()
+        return self.available.pop(ordinal)
+
+
+def _normalize_submitted_timeline(points, kind, stored, chunks, uid_index, ambiguous):
     """Preserve legacy records and authorize every new anchor against saved rows."""
     if points is None:
         return None
-    saved = defaultdict(deque)
-    for old in stored if isinstance(stored, list) else ():
-        if old is None:
-            saved[None].append(None)
-        elif isinstance(old, dict) and (old.get("from_uid") is None or isinstance(old["from_uid"], str)):
-            saved[(old.get("from_uid"), canonical_point_payload(old))].append(old)
-    result = []
+    if kind == "version_timeline":
+        _require_version_timeline_capacity(points, stored)
+    saved = _SavedTimelinePoints(stored, kind)
+    submissions = []
     for item in points:
-        if item is None:
-            if not saved[None]:
-                raise ValueError("Timeline points must be objects")
-            result.append(saved[None].popleft())
+        try:
+            uid = _normalize_anchor_uid(item.get("from_uid")) if item is not None else None
+        except ValueError as exc:
+            _refuse_invalid_timeline_uid(exc)
+        submissions.append((item, uid, False))
+    matches = saved.match(submissions)
+    if kind == "version_timeline":
+        _require_version_timeline_capacity(points, stored, new=sum(
+            point is not None and match is None for point, match in zip(points, matches)))
+    result = []
+    for (item, uid, _), match in zip(submissions, matches):
+        if item is None or match is not None:
+            result.append(match)
             continue
-        point = dict(item)
-        point.pop("display_index", None)
-        point.pop("book_token", None)
-        uid = _normalize_anchor_uid(point.pop("from_uid", None))
-        row_index = get_style_timeline_index(point)
+        row_index = get_style_timeline_index(item)
         if uid in ambiguous:
-            raise ValueError("Timeline anchor is ambiguous in this book.")
-        matches = saved.get((uid, canonical_point_payload(point)))
-        if matches:
-            result.append(matches.popleft())
-            continue
+            _refuse_guarded_timeline_anchor()
         if chunks is not None and not 0 <= row_index < len(chunks):
-            raise ValueError("Timeline point names a line that is not in this book.")
+            _refuse_guarded_timeline_anchor()
         if uid is not None and uid_index.get(uid) != row_index:
-            raise ValueError("Timeline anchor no longer names its saved line.")
+            _refuse_guarded_timeline_anchor()
         if uid is None and chunks is not None:
             uid = get_anchor_uid(chunks, row_index)
             if uid in ambiguous:
-                raise ValueError("Timeline point has an ambiguous line identity.")
+                _refuse_guarded_timeline_anchor()
             uid = uid or _ensure_timeline_uid(chunks[row_index])
+        point = _get_storable_timeline_fields(item)
+        point.pop("from_uid", None)
+        if kind == "style_timeline" or "from_index" not in point:
+            point["from_index"] = row_index
+        if kind == "style_timeline":
+            point.setdefault("character_style", "")
+        else:
+            point.setdefault("version_id", None)
         if uid is not None:
             point["from_uid"] = uid
         result.append(point)
@@ -1645,7 +2052,8 @@ def _normalize_submitted_timeline(points, stored, chunks, uid_index, ambiguous):
 def _apply_voice_save(config_data, expected_revision=None, book_token=None):
     with ensure_book_state(os.path.dirname(VOICE_CONFIG_PATH)):
         if book_token is not None:
-            snapshot = get_book_snapshot(os.path.dirname(VOICE_CONFIG_PATH), allow_missing_script=True)
+            snapshot = get_book_snapshot(os.path.dirname(VOICE_CONFIG_PATH),
+                                         allow_missing_script=True, include_voices=False)
             if get_book_snapshot_token(snapshot) != book_token:
                 raise VoiceConfigConflict("Active book changed; reload voices before saving")
         def apply_updates(current_config, chunks):
@@ -1655,7 +2063,8 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
             for voice_name, config in config_data.items():
                 if config is None:
                     if voice_name not in current_config or current_config[voice_name] is not None:
-                        raise ValueError(f"Speaker '{voice_name}' must already be unconfigured to accept null.")
+                        raise AppError(400, 'Only an already unconfigured speaker can be saved as null.',
+                                       key='error.voice.timeline_null_speaker')
                     continue
                 existing = current_config.get(voice_name)
                 # A present-but-non-object saved entry is malformed data:
@@ -1674,15 +2083,16 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                 # proposals still initialize every field they set.
                 fields = config.model_dump(exclude_unset=isinstance(existing, dict)
                                            or (existing is None and voice_name in current_config))
-                # Timeline fields must serialize their full objects (not the
-                # exclude_unset slice): dump once, only when needed.
-                _timeline_dump = None
-                for key in ('style_timeline', 'version_timeline'):
+                for key in TIMELINE_KEYS:
                     if key in fields:
-                        if _timeline_dump is None:
-                            _timeline_dump = config.model_dump()
+                        points = getattr(config, key)
+                        if points is None and (key not in metadata or metadata[key] is not None):
+                            raise AppError(400, 'Use an empty list to clear a voice timeline.',
+                                           key='error.voice.timeline_null_clear')
                         fields[key] = _normalize_submitted_timeline(
-                            _timeline_dump[key], metadata.get(key), chunks, uid_index, ambiguous)
+                            [point.model_dump(exclude_unset=True) if point is not None else None
+                             for point in points] if points is not None else None,
+                            key, metadata.get(key), chunks, uid_index, ambiguous)
                 candidate = {**metadata, **fields}
                 # One canonical seam for the legacy alias key (#1724 C020):
                 # whenever alias_of is explicitly provided (set or cleared),
@@ -1692,6 +2102,10 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                 # alias_of leave a legacy alias untouched.
                 if 'alias_of' in fields:
                     candidate.pop('alias', None)
+                _validate_consumed_description(voice_name, candidate)
+                get_validated_voice_changes(voice_name, metadata, candidate,
+                                            allow_state_removal=book_token is not None,
+                                            timeline_chunks=chunks or [])
                 # Adapter generation pin seam (#1724 DS030): explicit wins.
                 # If the pin key is supplied, preserve that exact validated
                 # P/null even when it equals the old pin (value equality is
@@ -1717,12 +2131,8 @@ def _apply_voice_save(config_data, expected_revision=None, book_token=None):
                         # semantics above are unchanged).
                         if "adapter_generation_sha256" in metadata:
                             candidate["adapter_generation_sha256"] = None
-                _validate_consumed_description(voice_name, candidate)
-                get_validated_voice_changes(voice_name, metadata, candidate,
-                                            allow_state_removal=book_token is not None,
-                                            timeline_chunks=chunks or [])
                 updated[voice_name] = candidate
-            if updated == current_config:
+            if updated == current_config and get_voice_config_revision(updated) == get_voice_config_revision(current_config):
                 raise _NoOpEcho()
             return updated
 
@@ -1773,7 +2183,9 @@ def _ensure_voice_snapshot():
         # top-level map must be a clear 400, never 500. Other ValueErrors
         # downstream are programmer errors and stay visible (not caught).
         try:
-            snapshot = get_book_snapshot(os.path.dirname(VOICE_CONFIG_PATH), allow_missing_script=True)
+            snapshot = get_book_snapshot(os.path.dirname(VOICE_CONFIG_PATH),
+                                         allow_missing_script=True, include_voices=False)
+            config = read_voice_config(VOICE_CONFIG_PATH)
             script = json.loads(snapshot["script_bytes"]) if snapshot["script_bytes"] is not None else []
             if not isinstance(script, list):
                 raise ValueError("Active script must contain an entry list")
@@ -1785,12 +2197,12 @@ def _ensure_voice_snapshot():
             raise HTTPException(status_code=409, detail=(
                 "Active book could not be verified while reading voices. "
                 "Restore the book state or try again.")) from exc
-        config = snapshot["voices"]
         # Revision/token/identity/rows are also intended snapshot reads:
         # nonfinite/corrupt book data (NaN/Infinity via plain loads) makes
         # the digest helpers raise ValueError, which must be an honest
         # 400, never 500. The try is narrow to these calls only.
         try:
+            ensure_voice_config_storable(config)
             revision = get_voice_config_revision(config)
             book_token = get_book_snapshot_token(snapshot)
         except ValueError as exc:
@@ -1824,9 +2236,11 @@ def _ensure_voice_snapshot():
             row_config = row.get("config")
             if not isinstance(row_config, dict):
                 continue
+            row_config = row["config"] = dict(row_config)
             for key in TIMELINE_KEYS:
                 if key in row_config:
-                    row_config[key] = _with_display_index(row_config[key], display_uid_index)
+                    row_config[key] = _with_display_index(
+                        row_config[key], display_uid_index, style_badges=key == "style_timeline")
         display_config = copy.deepcopy(config)
         for data in display_config.values():
             if not isinstance(data, dict):
@@ -2497,10 +2911,11 @@ def _is_stronger_authoritative_confidence(current, proposed):
             and confidence_rank.get(proposed, 0) > confidence_rank.get(current, 0))
 
 
-def _build_lora_candidates():
+def _build_lora_candidates(*, read_only=False):
     """Downloaded built-in + user-trained adapters with normalized fields for matching."""
     candidates = []
-    for m in _load_builtin_lora_manifest():
+    builtins = _load_builtin_lora_manifest(refresh=False) if read_only else _load_builtin_lora_manifest()
+    for m in builtins:
         if not m.get("downloaded", False):
             continue
         candidates.append({
@@ -2511,7 +2926,9 @@ def _build_lora_candidates():
             "age_group": _infer_lora_age(m),
             "description": m.get("description") or m.get("voice_profile") or "",
         })
-    for m in get_adapter_manifest_rows(LORA_MODELS_DIR, LORA_MODELS_MANIFEST, _load_manifest):
+    def read_manifest(path):
+        return _load_manifest(path, record_diagnostics=False) if read_only else _load_manifest(path)
+    for m in get_adapter_manifest_rows(LORA_MODELS_DIR, LORA_MODELS_MANIFEST, read_manifest, read_only=read_only):
         candidates.append({
             "adapter_id": m["id"],
             "name": m.get("name") or m["id"],

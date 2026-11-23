@@ -267,7 +267,7 @@ class T8TimelineExactSpeakerTests(ScriptFixture):
         Path(voice_path).write_text("{}", encoding="utf-8")
         with patch.object(voices_module, "VOICE_CONFIG_PATH", voice_path), \
              patch.object(voices_module, "CHUNKS_PATH", os.path.join(self.tmp.name, "none.json")), \
-             patch.object(voices_module, "_build_lora_candidates", lambda: []):
+             patch.object(voices_module, "_build_lora_candidates", return_value=[]):
             for name in ("Mira", "MIRA"):
                 got = asyncio.run(voices_module.get_voice_state_timeline(name))
                 self.assertEqual([], got["states"], name)   # each has ONE settled state of its own

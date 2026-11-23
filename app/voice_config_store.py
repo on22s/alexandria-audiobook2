@@ -4,8 +4,36 @@ import json
 import os
 import shutil
 import hashlib
+from pathlib import Path
 
 from utils import atomic_json_write, file_lock
+
+
+class InvalidVoiceConfigError(ValueError):
+    """The saved voice document cannot be decoded as an object."""
+
+
+class VoiceConfigReadError(OSError):
+    """The saved voice document could not be read."""
+
+
+def read_voice_config(path):
+    """Read a bounded, regular voice file; only a missing directory entry is empty."""
+    from project_scope_files import capture_scope_file
+    path = Path(os.path.abspath(path))
+    try:
+        proof, raw = capture_scope_file(path.parent, path.name, include_bytes=True)
+    except (ValueError, OSError) as exc:
+        raise VoiceConfigReadError("Voice config could not be read") from exc
+    if not proof["exists"]:
+        return {}
+    try:
+        current = json.loads(raw.decode("utf-8"))
+    except (ValueError, RecursionError) as exc:
+        raise InvalidVoiceConfigError("Voice config could not be decoded") from exc
+    if not isinstance(current, dict):
+        raise InvalidVoiceConfigError("Voice config must be a JSON object")
+    return current
 
 
 def apply_voice_config_update(path, transform, expected=None, backup_path=None, expected_revision=None,
@@ -18,15 +46,14 @@ def apply_voice_config_update(path, transform, expected=None, backup_path=None, 
     replace the default atomic write; the caller must hold its companion lock.
     """
     with file_lock(path):
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as source:
-                current = json.load(source)
-        else:
-            current = {}
-        if not isinstance(current, dict):
-            raise ValueError("Voice config must be a JSON object")
-        if expected_revision is not None and get_voice_config_revision(current) != expected_revision:
-            raise VoiceConfigConflict("Voice configuration changed; reload it before saving")
+        current = read_voice_config(path)
+        if expected_revision is not None:
+            try:
+                current_revision = get_voice_config_revision(current)
+            except (ValueError, RecursionError) as exc:
+                raise InvalidVoiceConfigError("Voice config has an invalid revision") from exc
+            if current_revision != expected_revision:
+                raise VoiceConfigConflict("Voice configuration changed; reload it before saving")
         if expected is not None and current != expected:
             raise RuntimeError("Voice config changed since the repair report; rerun the report")
         updated = transform(current)

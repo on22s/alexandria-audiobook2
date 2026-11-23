@@ -193,7 +193,7 @@ class RouteTests(unittest.TestCase):
                         patch.object(voices_module, "VOICE_CONFIG_PATH", self.voice_path),
                         patch.object(voices_module, "CHUNKS_PATH", self.chunks_path),
                         patch.object(voices_module, "_build_lora_candidates",
-                                     lambda: VoiceSourceTests.candidates)]
+                                     return_value=VoiceSourceTests.candidates)]
         for p in self.patches:
             p.start()
 
@@ -236,7 +236,9 @@ class RouteTests(unittest.TestCase):
         res = asyncio.run(voices_module.save_version_timeline("RUDY", request))
         self.assertEqual([1, 29], [p["from_index"] for p in res["version_timeline"]])
         self.assertEqual(res["version_timeline"], self.saved()["RUDY"]["version_timeline"])
-        asyncio.run(voices_module.clear_version_timeline("RUDY"))
+        view = asyncio.run(voices_module.get_voice_state_timeline("RUDY"))
+        asyncio.run(voices_module.clear_version_timeline(
+            "RUDY", expected_timeline_revision=view["timeline_revision"]))
         self.assertNotIn("version_timeline", self.saved()["RUDY"])
         self.assertEqual("custom", self.saved()["RUDY"]["type"])
 

@@ -18,13 +18,15 @@ class VoiceTimelineBookOwnershipTests(unittest.IsolatedAsyncioTestCase):
             app = FastAPI(); app.include_router(voices.router)
             with patch.object(voices, 'SCRIPT_PATH', str(script)), patch.object(voices, 'VOICE_CONFIG_PATH', str(config)):
                 token = voices._ensure_voice_snapshot()['book_token']
+                old_state = await voices.get_voice_state_timeline('Alice')
                 script.write_text('[{"speaker":"Alice","text":"Book B"}]')
                 before = config.read_bytes()
                 async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://fixture') as client:
                     for method, path, body in [
                         ('POST', '/api/voices/Alice/versions', {'version_id': 'new', 'config': {'type': 'custom', 'voice': 'Serena'}, 'book_token': token}),
                         ('POST', '/api/voices/Alice/version_timeline', {'points': [{'from_index': 9, 'version_id': 'adult'}], 'book_token': token}),
-                        ('DELETE', '/api/voices/Alice/version_timeline?book_token=' + token, None),
+                        ('DELETE', '/api/voices/Alice/version_timeline?book_token=' + token
+                         + '&expected_timeline_revision=' + old_state['timeline_revision'], None),
                     ]:
                         with self.subTest(path=path):
                             response = await client.request(method, path, json=body)
@@ -34,6 +36,8 @@ class VoiceTimelineBookOwnershipTests(unittest.IsolatedAsyncioTestCase):
                     saved = await client.post('/api/voices/Alice/version_timeline', json={'points': [{'from_index': 9, 'version_id': 'adult'}], 'book_token': fresh})
                     self.assertEqual(saved.status_code, 200, saved.text)
                     self.assertEqual(json.loads(config.read_text())['Alice']['version_timeline'], [{'from_index': 9, 'version_id': 'adult'}])
-                    cleared = await client.delete('/api/voices/Alice/version_timeline?book_token=' + fresh)
+                    state = (await client.get('/api/voices/Alice/state_timeline')).json()
+                    cleared = await client.delete('/api/voices/Alice/version_timeline', params={
+                        'book_token': fresh, 'expected_timeline_revision': state['timeline_revision']})
                     self.assertEqual(cleared.status_code, 200, cleared.text)
                     self.assertNotIn('version_timeline', json.loads(config.read_text())['Alice'])

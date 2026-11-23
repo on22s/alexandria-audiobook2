@@ -888,20 +888,21 @@ async def apply_gap_suggestion_endpoint(index: int, request: GapSuggestionReques
 
 
 def apply_chunk_insertion(index, expected_book_token=None, expected_uid=None):
-    with reuse_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
-        check_chunk_identity(index, expected_book_token, expected_uid)
+    with reuse_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25, recover=False):
+        check_chunk_identity(index, expected_book_token)
+        if expected_uid is not None:
+            return project_manager.insert_chunk(index, expected_uid=expected_uid)
         return project_manager.insert_chunk(index)
 
 
 def apply_chunk_deletion(index, expected_book_token=None, expected_uid=None):
     root = os.path.dirname(SCRIPT_PATH)
-    with reuse_book_state(root, timeout=0.25):
-        check_chunk_identity(index, expected_book_token, expected_uid)
-        before_revision = get_snapshot_digest(project_manager.load_chunks())
-        result = project_manager.delete_chunk(index)
+    with reuse_book_state(root, timeout=0.25, recover=False):
+        check_chunk_identity(index, expected_book_token)
+        result = project_manager.delete_chunk(index, expected_uid=expected_uid, include_before_revision=True)
         if result is None:
             return None
-        deleted, chunks = result
+        deleted, chunks, before_revision = result
         now = time.monotonic()
         identity = get_editor_book_identity(root)
         revision = get_snapshot_digest(chunks)
@@ -1130,7 +1131,7 @@ async def insert_chunk(index: int,
                        expected_uid: Annotated[Optional[str], Query(max_length=128)] = None):
     """Insert an empty chunk after the given index."""
     chunks = await asyncio.to_thread(_apply_chunk_edit, apply_chunk_insertion, index,
-                                    expected_book_token, expected_uid)
+                                    expected_book_token, expected_uid, recover=False)
     if chunks is None:
         raise HTTPException(status_code=404, detail="Invalid chunk index")
     return {"status": "ok", "total": len(chunks)}
@@ -1162,7 +1163,7 @@ async def delete_chunk(index: int,
                        expected_uid: Annotated[Optional[str], Query(max_length=128)] = None):
     """Delete a chunk at the given index."""
     result = await asyncio.to_thread(_apply_chunk_edit, apply_chunk_deletion, index,
-                                    expected_book_token, expected_uid)
+                                    expected_book_token, expected_uid, recover=False)
     if result is None:
         raise HTTPException(status_code=400, detail="Cannot delete chunk (invalid index or last remaining chunk)")
     deleted, chunks, token = result
@@ -2551,44 +2552,9 @@ async def build_readaloud_epub_endpoint(background_tasks: BackgroundTasks,
 
 
 def _read_bounded_preference_bytes(path, *, file_description="Timing preference"):
-    """Read preference bytes under the bounded/no-follow contract.
-
-    Returns None for a missing file; raises ValueError for a
-    present file that is not a bounded regular file.
-    """
-    import stat as _stat
-    from audio_take_history import _version
-    try:
-        info = os.lstat(path)
-    except FileNotFoundError:
-        return None
-    if _stat.S_ISLNK(info.st_mode) or not _stat.S_ISREG(info.st_mode) \
-            or info.st_size > 16384:
-        raise ValueError("%s is not a bounded regular file." % file_description)
-    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) \
-        | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
-    descriptor = os.open(path, flags)
-    try:
-        opened = os.fstat(descriptor)
-        if not _stat.S_ISREG(opened.st_mode) or _version(opened) != _version(info):
-            raise ValueError("%s changed during read." % file_description)
-        chunks = []
-        total = 0
-        while True:
-            block = os.read(descriptor, 8192)
-            if not block:
-                break
-            total += len(block)
-            if total > 16384:
-                raise ValueError("%s exceeds its bound." % file_description)
-            chunks.append(block)
-        if (total != opened.st_size
-                or _version(os.fstat(descriptor)) != _version(opened)
-                or _version(os.lstat(path)) != _version(opened)):
-            raise ValueError("%s changed during read." % file_description)
-        return b"".join(chunks)
-    finally:
-        os.close(descriptor)
+    """Read preference bytes under the shared bounded/no-follow contract."""
+    from readalong_export import read_bounded_metadata_bytes
+    return read_bounded_metadata_bytes(path, file_description=file_description)
 
 
 def _restore_readaloud_timing_preference_bytes(path, prior_bytes):

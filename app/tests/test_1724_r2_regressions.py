@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 import routers.voices as voices
 from routers.voices import (
     _direct_source_asset, build_single_voice_proposal, get_voice_rows,
-    _apply_voice_save, _ensure_voice_snapshot,
+    _apply_voice_save,
 )
 
 CORE = Path(__file__).resolve().parent.parent / 'static/js/app-core.js'
@@ -332,23 +332,25 @@ console.log(JSON.stringify(collected));
                     engine._ensure_local_lora_generation(str(root), PIN)
 
     def test_snapshot_nan_is_400_not_500(self):
-        # CR2013: nonfinite in config makes revision digest raise ValueError.
-        bad_config = {'ALICE': {'type': 'custom', 'voice': 'Ryan', 'seed': float('nan')}}
-        fake_snapshot = {'script_bytes': json.dumps(_script('ALICE')).encode(),
-                         'voices': bad_config, 'book_id': 'b'}
-        with patch.object(voices, 'get_book_snapshot', return_value=fake_snapshot), \
-             patch.object(voices, 'ensure_book_state', lambda *a, **k: _nullctx()), \
-             patch.object(voices, 'file_lock', lambda *a, **k: _nullctx()), \
-             patch('routers.voices.get_book_operation_token', return_value='b' * 64), \
-             patch('routers.voices.get_book_snapshot_token', return_value='b' * 64):
-            with self.assertRaises(Exception) as cm:
-                _ensure_voice_snapshot()
-            self.assertEqual(400, cm.exception.status_code)
-
-
-class _nullctx:
-    def __enter__(self): return None
-    def __exit__(self, *a): return False
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / 'annotated_script.json'
+            config = root / 'voice_config.json'
+            chunks = root / 'chunks.json'
+            state = root / 'state.json'
+            script.write_text(json.dumps(_script('ALICE')), encoding='utf-8')
+            config.write_bytes(b'{"ALICE":{"type":"custom","voice":"Ryan","seed":NaN}}\n')
+            chunks.write_text(json.dumps(_script('ALICE')), encoding='utf-8')
+            state.write_text('{"active_book_id":"fixture","book_generation":"one"}', encoding='utf-8')
+            before = {path: path.read_bytes() for path in (script, config, chunks, state)}
+            app = FastAPI()
+            app.include_router(voices.router)
+            with patch.multiple(voices, SCRIPT_PATH=str(script), VOICE_CONFIG_PATH=str(config),
+                                CHUNKS_PATH=str(chunks)), TestClient(app, raise_server_exceptions=False) as client:
+                response = client.get('/api/voice_config/snapshot')
+            self.assertEqual(400, response.status_code, response.text)
+            self.assertIn('finite JSON values', response.json()['detail'])
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
 
 
 class GuideAndEscapeJsTests(unittest.TestCase):

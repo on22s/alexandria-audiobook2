@@ -348,7 +348,7 @@ def secure_filename(filename: str) -> str:
 
 # --- Atomic JSON write (write-to-temp + rename) ---
 
-def safe_load_json(path, default=None, *, content=None):
+def safe_load_json(path, default=None, *, content=None, record_diagnostics=True):
     """Load JSON from `path`, returning `default` if missing, empty, or corrupted.
 
     Optional binary `content` is an already validated snapshot, parsed without
@@ -372,15 +372,17 @@ def safe_load_json(path, default=None, *, content=None):
             data = json.loads(content.decode('utf-8'))
     except (OSError, json.JSONDecodeError, ValueError) as e:
         logger.warning('Corrupted/unreadable JSON; using default (%s)', type(e).__name__)
-        from review_startup import record_failure
-        record_failure('json_load_failed', e, task='storage', resource=path, level=logging.WARNING)
+        if record_diagnostics:
+            from review_startup import record_failure
+            record_failure('json_load_failed', e, task='storage', resource=path, level=logging.WARNING)
         return default
     if default is not None and not isinstance(data, type(default)):
         logger.warning('Unexpected JSON shape (expected %s, got %s); using default',
                        type(default).__name__, type(data).__name__)
-        from review_startup import record_failure
-        record_failure('json_shape_invalid', task='storage', resource=path, level=logging.WARNING,
-                       expected_type=type(default).__name__, actual_type=type(data).__name__)
+        if record_diagnostics:
+            from review_startup import record_failure
+            record_failure('json_shape_invalid', task='storage', resource=path, level=logging.WARNING,
+                           expected_type=type(default).__name__, actual_type=type(data).__name__)
         return default
     return data
 

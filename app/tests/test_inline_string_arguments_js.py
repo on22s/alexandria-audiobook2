@@ -21,7 +21,7 @@ class InlineStringArgumentsJsTests(unittest.TestCase):
     def run_js(self,code,payload):
         script=r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8'),payload=JSON.parse(process.argv[2]);
-const context={currentBookFilename:'fixture',_voiceCardsBookToken:null,showConfirm:async()=>true};(vm.createContext(context),context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values)),context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]])),context);
+const context={currentBookFilename:'fixture',_voiceCardsBookToken:null,showConfirm:async()=>true,URLSearchParams};(vm.createContext(context),context.t=context.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),context.formatUiSafetyText=context.formatUiSafetyText||((key,english,values=Object())=>context.t(key,english,values)),context.tSafety=context.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',context.t(key,english,values)],['secondary',null]])),context);
 const guard=source.indexOf('async function applyConfirmedVoiceRemoval(');vm.runInContext(source.slice(guard,source.indexOf('window.deleteVoiceCandidate =',guard)),context);
 vm.runInContext(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')),context);
 const a=source.indexOf('function getVoiceCandidateMarkup('),b=source.indexOf('function getLibraryVoiceReference(',a);vm.runInContext(source.slice(a,b),context);
@@ -54,7 +54,7 @@ const output=payload.map(row=>{
         for name,row in zip(names,result):
             self.assertFalse(row['compromised'],'HTML entity decoding must not enable JavaScript injection')
             self.assertEqual([],row['errors'])
-            self.assertEqual([{'type':'favorite','self':True,'args':[name,True]},{'type':'select','self':True,'args':[name]},{'type':'delete','self':True,'args':[name]},{'type':'style','args':[name,7,{'tag':'button'},None,7]}],row['calls'])
+            self.assertEqual([{'type':'favorite','self':True,'args':[name,True]},{'type':'select','self':True,'args':[name]},{'type':'delete','self':True,'args':[name]},{'type':'style','args':[name,'7',{'tag':'button'},None,'7']}],row['calls'])
 
     def test_real_style_remove_handler_uses_exact_character_name_in_api_route(self):
         name="O'Brien \" & / café"
@@ -63,7 +63,10 @@ const output=payload.map(row=>{
         output=self.run_js(r'''
 const calls=[];let refreshed=0;context.API={del:async path=>calls.push(path)};context.loadVoices=async()=>{refreshed++;};context.showToast=()=>{throw Error('unexpected failure');};
 const result=vm.runInContext('(function(){'+payload.handler+'})',context)();assert.strictEqual(result,false);await new Promise(resolve=>setImmediate(resolve));
-assert.strictEqual(calls[0],'/api/voices/'+encodeURIComponent(payload.name)+'/style_timeline/3');assert.strictEqual(refreshed,1);console.log(JSON.stringify(calls));
+const request=new URL(calls[0],'http://test');
+assert.strictEqual(request.pathname,'/api/voices/'+encodeURIComponent(payload.name)+'/style_timeline/3');
+assert.strictEqual(request.searchParams.get('legacy_only'),'true');
+assert.strictEqual(refreshed,1);console.log(JSON.stringify(calls));
 ''',{'name':name,'handler':handler})
         self.assertEqual(1,len(output))
 
@@ -80,7 +83,32 @@ const calls=[];context.API={del:async path=>calls.push(path)};context.loadVoices
 vm.runInContext('(function(){'+payload.handler+'})',context)();
 await new Promise(resolve=>setImmediate(resolve));console.log(JSON.stringify(calls));
 ''', {'handler': handlers[1]})
-        self.assertEqual(['/api/voices/A/style_timeline/10'], output)
+        self.assertEqual(['/api/voices/A/style_timeline/10?legacy_only=true'], output)
+
+    def test_unrepresentable_style_indices_have_no_delete_handler_or_request(self):
+        points = [{'from_index': value, 'character_style': f'style-{index}'}
+                  for index, value in enumerate(('9007199254740993', '١٠', '9007199254740991', 8))]
+        markup = self.run_js(
+            "console.log(JSON.stringify(context.renderStyleTimeline('A',{style_timeline:payload})));",
+            points)
+        self.assertIn('style-0', markup)
+        self.assertIn('style-1', markup)
+        self.assertNotIn('NaN', markup)
+        handlers = HandlerParser(markup).handlers
+        self.assertEqual(2, len(handlers))
+        output = self.run_js(r'''
+const calls=[];context.API={del:async path=>calls.push(path)};context.loadVoices=async()=>{};
+for (const index of ['9007199254740993','١٠',9007199254740992]) {
+ await context.removeStylePoint('A',index);
+}
+for (const handler of payload) {
+ vm.runInContext('(function(){'+handler+'})',context)();
+ await new Promise(resolve=>setImmediate(resolve));
+}
+console.log(JSON.stringify(calls));
+''', handlers)
+        self.assertEqual(['/api/voices/A/style_timeline/9007199254740991?legacy_only=true',
+                          '/api/voices/A/style_timeline/8?legacy_only=true'], output)
 
     def test_editor_style_dialog_submits_the_uid_and_scope_of_the_selected_row(self):
         result = self.run_js(r'''

@@ -6554,5 +6554,18 @@
   "core.editor.save-line-failed": "この行を保存できませんでした",
   "core.editor.save-line-recovery": "報告された問題を修正し、この行を再度編集して保存してください。拒否が続く場合は Editor を再読み込みしてください。",
   "editor.integrity.save-failed": "{count} 件の行編集が保存に失敗しました — {reason}",
-  "editor.integrity.save-failed-one": "{line} 行目の保存に失敗しました — {reason}"
+  "editor.integrity.save-failed-one": "{line} 行目の保存に失敗しました — {reason}",
+  "safety.voice.timeline_editor_book_changed": "現在の本が変更されました。保存する前にエディターを再読み込みしてください。",
+  "error.voice.timeline_voice_read": "現在の声の設定を読み込めませんでした。",
+  "error.voice.invalid_adapter_id": "LoRA アダプター ID には有効なアダプター名を指定してください。",
+  "error.voice.timeline_malformed": "保存済みの声の変更点の形式が正しくありません。編集する前に声の設定を復元してください。",
+  "error.voice.timeline_invalid_uid": "声の変更点が指す行の識別情報が無効です。エディターを再読み込みして、その行を選び直してください。",
+  "error.voice.timeline_write_conflict": "声の変更点を保存できませんでした。声の設定とエディターを再読み込みして、もう一度お試しください。",
+  "error.voice.timeline_invalid_voice_data": "保存済みの声のデータが無効です。声の設定を復元してから再読み込みしてください。",
+  "error.voice.timeline_guarded_anchor": "声の変更点と対象の行が一致しなくなりました。エディターを再読み込みして、その行を選び直してください。",
+  "error.voice.timeline_chunks_unverified": "現在の行を確認できませんでした。本の状態を復元するか、エディターを再読み込みしてください。",
+  "error.voice.timeline_point_limit": "声のタイムラインに新しい変更点を追加できるのは50件までです。",
+  "error.voice.timeline_point_object": "新しい声の変更点はオブジェクトで指定してください。",
+  "error.voice.timeline_null_speaker": "すでに声が未設定の話者に限り、未設定の値を保存できます。",
+  "error.voice.timeline_null_clear": "声の変更点を消去するには、空のリストを指定してください。"
 }

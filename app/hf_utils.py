@@ -77,6 +77,13 @@ def get_builtin_manifest_entry(adapter_id, entries):
                  if entry["id"] in (hf_name, adapter_id)), None)
 
 
+def get_local_builtin_manifest(builtin_dir, *, record_diagnostics=True):
+    """Read the locally published catalog without refreshing it."""
+    local_path = os.path.join(builtin_dir, "manifest.json")
+    return _normalize_manifest_entries(safe_load_json(
+        local_path, default=[], record_diagnostics=record_diagnostics))
+
+
 def fetch_builtin_manifest(builtin_dir, hf_repo=BUILTIN_LORA_HF_REPO):
     """Fetch manifest.json from HF repo, with local fallback and in-memory caching."""
     global _manifest_cache, _manifest_cache_key, _manifest_cache_time
@@ -102,9 +109,8 @@ def fetch_builtin_manifest(builtin_dir, hf_repo=BUILTIN_LORA_HF_REPO):
         _atomic_json_write(entries, local_path, allow_nonatomic_fallback=False)
     except (ImportError, OSError, RuntimeError, ValueError, TypeError) as e:
         logger.warning(f"Failed to fetch remote LoRA manifest, using local fallback: {e}")
-        local_path = os.path.join(builtin_dir, "manifest.json")
         try:
-            entries = _normalize_manifest_entries(safe_load_json(local_path, default=[]))
+            entries = get_local_builtin_manifest(builtin_dir)
         except ValueError as validation_error:
             logger.warning("Invalid local LoRA manifest: %s", validation_error)
             entries = []
@@ -187,12 +193,13 @@ def download_builtin_adapter(adapter_id, builtin_dir, hf_repo=BUILTIN_LORA_HF_RE
     return adapter_dir
 
 
-def is_adapter_downloaded(adapter_id, builtin_dir):
+def is_adapter_downloaded(adapter_id, builtin_dir, *, record_diagnostics=True):
     """Check if all required files exist for a built-in adapter."""
     if not _is_safe_adapter_id(adapter_id):
         return False
     adapter_dir = os.path.join(builtin_dir, adapter_id)
-    marker = safe_load_json(os.path.join(adapter_dir, _DOWNLOAD_MARKER), default={})
+    marker = safe_load_json(os.path.join(adapter_dir, _DOWNLOAD_MARKER), default={},
+                            record_diagnostics=record_diagnostics)
     return (
         os.path.isdir(adapter_dir)
         and isinstance(marker, dict)

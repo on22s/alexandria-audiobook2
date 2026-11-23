@@ -291,6 +291,12 @@ def get_version_fields(voice_data, version_id):
     return {key: value for key, value in version.items() if key not in VERSION_OVERLAY_EXCLUDED}
 
 
+def get_voice_config_for_version(voice_data, version_id):
+    """Resolve a version over its base voice, preserving explicit overrides."""
+    fields = get_version_fields(voice_data, version_id) if version_id is not None else None
+    return {**voice_data, **fields} if fields else voice_data
+
+
 def active_version_id(voice_data, chunk_index):
     """The version a `version_timeline` puts in force at a chunk, or None.
     A point is {"from_index": N, "version_id": "..."}: from chunk N on, the
@@ -336,10 +342,9 @@ def voice_config_for_chunk(voice_config, speaker, chunk_index):
         if not isinstance(data, dict):
             continue
         version_id = active_version_id(data, chunk_index) if data.get("version_timeline") else None
-        fields = get_version_fields(data, version_id) if version_id else None
-        if fields:
-            data = {**data, **fields}
-            updates[name] = data
+        versioned = get_voice_config_for_version(data, version_id or None)
+        if versioned is not data:
+            updates[name] = data = versioned
         if data.get("style_timeline"):
             data = {**data, "character_style": active_character_style(data, chunk_index)}
             updates[name] = data
