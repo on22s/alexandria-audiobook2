@@ -71,6 +71,20 @@ const incomplete={logs:['Errors: 0'],tasks:[{status:'incomplete'}]};assert.stric
 assert.strictEqual(ctx.getTaskCompletionOutcome({logs:['Errors: 0'],status:'cancelled'}),'cancelled');
 """)
 
+    def test_signal_kills_are_failed_not_cancelled(self):
+        self.run_js(r'''
+for(const line of ['Task review was killed by SIGKILL (return code -9).','Task review was killed by signal 9999 (return code -9999).']){
+ const status={logs:[line]};
+ assert.strictEqual(ctx.getTaskCompletionOutcome(status),'failed',line);
+ assert.strictEqual(ctx.isTaskFailed(status),true,line);
+ ctx._onReviewDone(status);
+ assert.strictEqual(el('review-recovery-panel').style.display,'');
+}
+const cancelled={logs:['Task review was cancelled (SIGTERM).']};
+assert.strictEqual(ctx.getTaskCompletionOutcome(cancelled),'cancelled');
+assert.strictEqual(ctx.isTaskFailed(cancelled),false);
+''')
+
     def test_batch_completion_ignores_collision_skips_and_keeps_real_failures(self):
         self.run_js(r'''
  ctx.clearScriptCancellation=()=>{};
