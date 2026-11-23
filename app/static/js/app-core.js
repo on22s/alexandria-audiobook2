@@ -2381,6 +2381,23 @@
             window.retirePlaybackSequence?.();
             window._selectedUploadIdentity = null;
             currentBookFilename = typeof filename === 'string' ? filename : '';
+            window._scriptRecoveryBookEpoch = (window._scriptRecoveryBookEpoch || 0) + 1;
+            window._scriptRecoveryGeneration = (window._scriptRecoveryGeneration || 0) + 1;
+            window._scriptRecoveryPending = false;
+            window._scriptRecoveryConfirmed = null;
+            window._scriptRetryAction = null;
+            window._scriptRecoveryDetail = null;
+            const recoveryRetryBtn = document.getElementById('btn-retry-script');
+            if (recoveryRetryBtn) { recoveryRetryBtn.style.display = 'none'; }
+            const recoveryPanel = document.getElementById('script-recovery-panel');
+            if (recoveryPanel) { recoveryPanel.style.display = 'none'; recoveryPanel.innerHTML = ''; }
+            window.refreshScriptRetryToolbar?.();
+            const acceptedEpoch = window._bookSelectionEpoch;
+            Promise.resolve().then(() => {
+                if (window._bookSelectionEpoch === acceptedEpoch && !window._scriptRecoveryRunActive) {
+                    window.refreshScriptRecovery?.();
+                }
+            });
             window.resetScriptIngestFacts?.();
             window.renderPendingCount?.(null);
             window.resetEditorReview?.();
@@ -3138,56 +3155,200 @@
         // Generate resumes saved progress for the same text and settings;
         // Start over asks for a fresh run (#597). Same handler, one flag.
         let _scriptStartOver = false;
+        let _scriptStartOverDispatch = 0;
+        let _scriptStartOverInFlight = false;
+        const SCRIPT_RESTART_OWNER_CHANGED = 'The task that was cancelled is no longer the current run.';
         // Start over while a run is active (#613): the server answers 409
         // ("Script generation is running") and the page showed nothing. Now the
         // click means "cancel this run, then start again": confirm, cancel,
         // wait for the task to report not running (bounded), then generate.
-        async function waitForScriptToStop(maxMs = 30000) {
+        function isScriptStopped(status) {
+            return status?.running === false && !status.ownership_unconfirmed;
+        }
+
+        function isExpectedScriptStop(status, claimId, startTime) {
+            if (!isScriptStopped(status)) { return false; }
+            const endedClaim = status.worker_claim_id || status.task_claim_id;
+            return endedClaim
+                ? endedClaim === claimId
+                : Number.isFinite(startTime) && status.start_time === startTime;
+        }
+
+        function reportScriptRestartFailure(error) {
+            showActionError(t('script.start.restart-failed', 'Start over could not be completed'), error,
+                t('script.start.restart-recovery', 'Check the Script task state and start again after it stops.'), 'warning');
+        }
+
+        async function waitForScriptToStop(expectedClaimId, {
+            isCurrent = () => true, maxMs = 30000, checks = Infinity, intervalMs = 500,
+            keepHistoricalStop = () => false, startTime,
+        } = {}) {
             const started = Date.now();
-            while (Date.now() - started < maxMs) {
+            for (let attempt = 0; attempt < checks && Date.now() - started < maxMs && isCurrent(); attempt++) {
                 let status;
                 try { status = await API.get('/api/status/script'); } catch (e) { return false; }
-                if (!status.running && !status.ownership_unconfirmed) { return true; }
-                await new Promise(r => setTimeout(r, 500));
+                if (status?.worker_pending) {
+                    await new Promise(r => setTimeout(r, intervalMs));
+                    continue;
+                }
+                if (isScriptStopped(status)) {
+                    if (isExpectedScriptStop(status, expectedClaimId, startTime)) {
+                        return isCurrent() || keepHistoricalStop() ? status : false;
+                    }
+                    if (isCurrent()) { throw Error('The terminal status did not identify the run that was cancelled.'); }
+                    return false;
+                }
+                if (!isCurrent() || (status?.task_claim_id && status.task_claim_id !== expectedClaimId)) { return false; }
+                await new Promise(r => setTimeout(r, intervalMs));
             }
             return false;
         }
+
+        function matchesScriptRestartOwner(claimId, originalToken) {
+            const token = window._scriptRecoveryRunToken || 0;
+            const record = window.getScriptAdmissionByToken?.(token);
+            if ((record?.restartInvalidated || record?.restartContended)
+                && record.restartClaimId === claimId) { return false; }
+            // Reattachment can assign the same server owner its first browser token.
+            if (record?.claimId) { return record.claimId === claimId; }
+            return token === originalToken;
+        }
+
+        function bindScriptRestartTarget(scope, record) {
+            if (record.restartClaimId && record.restartClaimId !== scope.claimId) {
+                delete record.restartStop;
+                delete record.restartInvalidated;
+                delete record.restartContended;
+            }
+            record.restartClaimId = scope.claimId;
+            record.restartStartTime = scope.startTime;
+            scope.record = record;
+        }
+
+        async function stopScriptForRestart(claimId, isCurrent, source, waitOptions) {
+            if (!claimId || !isCurrent()) { return false; }
+            const status = await API.get('/api/status/script').catch(() => null);
+            if (!isCurrent() || !status?.running || status.ownership_unconfirmed || status.worker_pending
+                || status.task_claim_id !== claimId) { return false; }
+            const current = window.getScriptAdmissionByToken?.(window._scriptRecoveryRunToken);
+            const pending = current?.source === 'generate' && current.state === 'provisional' ? current : null;
+            const target = pending || (current?.claimId === claimId ? current : null);
+            if (pending?.restartClaimId && pending.restartClaimId !== claimId) { return false; }
+            const scope = {claimId, startTime: status.start_time, record: null};
+            if (target) { bindScriptRestartTarget(scope, target); }
+            window._scriptRestartScope = scope;
+            try {
+                try {
+                    await API.post('/api/generate_script/cancel', {expected_claim_id: claimId});
+                } catch (e) { return false; }
+                if (!isCurrent()) { return false; }
+                _resetPauseBtn('btn-pause-script');
+                const stopped = await waitForScriptToStop(claimId, {
+                    ...waitOptions, isCurrent, keepHistoricalStop: () => !!scope.record, startTime: scope.startTime,
+                });
+                if (!stopped) { return false; }
+                const stoppedRun = scope.record;
+                if (stoppedRun) {
+                    stoppedRun.restartStop = stopped;
+                    if (!isCurrentScriptRecoveryRun(stoppedRun.token) && stoppedRun.claimId === claimId
+                        && (stoppedRun.state === 'accepted' || stoppedRun.state === 'superseded')) {
+                        completeScriptAdmission(stoppedRun, stopped, source);
+                    }
+                }
+                if (!isCurrent()) { return false; }
+                const record = window.getScriptAdmissionByToken?.(window._scriptRecoveryAcceptedRun);
+                if (record?.claimId === claimId) { window.onScriptTaskTerminal?.(stopped, record.token, source); }
+                return stopped;
+            } finally {
+                window._scriptRestartScope = null;
+            }
+        }
+
+        function queueScriptRestart(claimId) {
+            const runToken = window._scriptRecoveryRunToken;
+            window._scriptQueuedRestart = {
+                selection: makeScriptRecoveryStatus(window._scriptRecoveryGeneration || 0, true),
+                epoch: window._bookSelectionEpoch,
+                runToken,
+                claimId,
+            };
+            showToast(t('script.start.restart-queued', 'Start over is queued until the current start finishes.'), 'info');
+        }
         document.getElementById('btn-gen-script-fresh').addEventListener('click', async () => {
+            if (_scriptStartOverInFlight) { return; }
             if (document.getElementById('script-batch-mode')?.checked) {
                 showToast(t('script.start-over.single-book', 'Start over applies to a single book. Turn off Batch Mode to use it.'), 'warning');
                 return;
             }
             const book = currentBookFilename;
             const batch = !!document.getElementById('script-batch-mode')?.checked;
-            const isCurrent = () => book === currentBookFilename && batch === !!document.getElementById('script-batch-mode')?.checked;
-            let running = false;
+            const epoch = window._bookSelectionEpoch;
+            const bookEpoch = window._scriptRecoveryBookEpoch || 0;
+            const dispatch = _scriptStartOverDispatch;
+            const runToken = window._scriptRecoveryRunToken || 0;
+            const isCurrent = () => book === currentBookFilename && batch === !!document.getElementById('script-batch-mode')?.checked
+                && epoch === window._bookSelectionEpoch && bookEpoch === (window._scriptRecoveryBookEpoch || 0);
+            let state;
             try {
-                const state = await API.get('/api/status/script');
-                running = !!(state.running || state.ownership_unconfirmed);
+                state = await API.get('/api/status/script');
+                if (!state) { throw Error('Script status is unavailable'); }
             }
             catch (e) {
                 console.error('Could not check Script status before starting over:', e);
                 showToast(t('script.start-over.status-unavailable', 'Script status could not be checked. Check that Alexandria is running, then try Start over again.'), 'warning');
                 return;
             }
+            const running = !!(state.running || state.ownership_unconfirmed);
+            if (state.worker_pending) {
+                showToast(t('script.start.restart-recovery', 'Check the Script task state and start again after it stops.'), 'warning');
+                return;
+            }
+            const claimId = state.ownership_unconfirmed ? null : state.task_claim_id;
+            const ownsConsentRun = () => running
+                ? matchesScriptRestartOwner(claimId, runToken)
+                : runToken === (window._scriptRecoveryRunToken || 0);
             const question = running
                 ? 'Cancel the current run, discard its saved progress, and start again from chunk 1?'
                 : 'Discard the saved progress for this text and start again from chunk 1?';
             if (!await showConfirm(question, {title: 'Discard script progress?', actionLabel: 'Start over', danger: true})) { return; }
             if (!isCurrent()) { showToast(t('script.start-over.changed', 'The book or Batch Mode changed. Review it before starting over.'), 'warning'); return; }
-            if (running) {
-                await cancelTask('/api/generate_script/cancel', { onSuccess: () => _resetPauseBtn('btn-pause-script') });
-                if (!(await waitForScriptToStop())) {
-                    showToast(t('script.start-over.not-stopped', 'The run has not stopped yet - try Start over again in a moment.'), 'warning');
-                    return;
-                }
+            if (_scriptStartOverInFlight || dispatch !== _scriptStartOverDispatch) { return; }
+            if (running && (!claimId || !ownsConsentRun())) {
+                showToast(t('script.start.restart-recovery', 'Check the Script task state and start again after it stops.'), 'warning');
+                return;
             }
-            if (!isCurrent()) { showToast(t('script.start-over.changed', 'The book or Batch Mode changed. Review it before starting over.'), 'warning'); return; }
-            _scriptStartOver = true;
-            // the page's own poller re-enables Generate a tick after the run
-            // stops; a click on a still-disabled button is silently dropped
-            document.getElementById('btn-gen-script').disabled = false;
-            document.getElementById('btn-gen-script').click();
+            if (!ownsConsentRun()) { return; }
+            // Claim the entire handoff before checking the owner or sending Cancel.
+            _scriptStartOverInFlight = true;
+            _scriptStartOverDispatch++;
+            try {
+                if (running) {
+                    const stopped = await stopScriptForRestart(claimId,
+                        () => isCurrent() && ownsConsentRun(), 'start-over');
+                    if (!isCurrent()) { return; }
+                    if (!ownsConsentRun()) { throw Error(SCRIPT_RESTART_OWNER_CHANGED); }
+                    if (!stopped) {
+                        showToast(t('script.start-over.not-stopped', 'The run has not stopped yet - try Start over again in a moment.'), 'warning');
+                        return;
+                    }
+                    if (window._scriptGeneratePending) {
+                        queueScriptRestart(claimId);
+                        return;
+                    }
+                }
+                if (!isCurrent()) { showToast(t('script.start-over.changed', 'The book or Batch Mode changed. Review it before starting over.'), 'warning'); return; }
+                _scriptStartOver = true;
+                window._scriptStartOver = true;
+                window._scriptRestartFromClaimId = running ? claimId : null;
+                // the page's own poller re-enables Generate a tick after the run
+                // stops; a click on a still-disabled button is silently dropped
+                document.getElementById('btn-gen-script').disabled = false;
+                document.getElementById('btn-gen-script').click();
+            } catch (e) {
+                reportScriptRestartFailure(e);
+            } finally {
+                _scriptStartOverInFlight = false;
+            }
         });
         let bookPreflightJob = null;
         let bookPreflightPending = false;
@@ -3289,8 +3450,12 @@
 
         document.getElementById('btn-gen-script').addEventListener('click', async () => {
             if (document.getElementById('btn-gen-script').disabled) { return; }
-            const startOver = _scriptStartOver;
+            const startOver = window._scriptStartOver === undefined ? _scriptStartOver : window._scriptStartOver;
+            const expectedRestartClaimId = window._scriptRestartFromClaimId;
+            const restartToken = window._scriptRecoveryRunToken || 0;
             _scriptStartOver = false;
+            window._scriptStartOver = false;
+            window._scriptRestartFromClaimId = null;
             if (document.getElementById('script-batch-mode').checked) {
                 return _startBatchScript();
             }
@@ -3304,10 +3469,19 @@
                 return;
             }
 
+            const confirmedSelection = makeScriptRecoveryStatus(
+                window._scriptRecoveryGeneration || 0, true);
+            const confirmedEpoch = window._bookSelectionEpoch;
             // Single-book runs were never gated: a remote ACTIVE profile is a
             // visible choice in Setup. A remote FAILOVER target is not, so the
             // same prompt covers it here.
             if (!(await ensureScriptStartConfirmed('this script generation', true))) { return; }
+            if (!scriptRecoverySelectionMatches(confirmedSelection)
+                || confirmedEpoch !== window._bookSelectionEpoch) { return; }
+            if (expectedRestartClaimId && !matchesScriptRestartOwner(expectedRestartClaimId, restartToken)) {
+                reportScriptRestartFailure(Error(SCRIPT_RESTART_OWNER_CHANGED));
+                return;
+            }
 
             const genBtn = document.getElementById('btn-gen-script');
             const cancelBtn = document.getElementById('btn-cancel-script');
@@ -3322,29 +3496,106 @@
             pauseBtn.classList.add('btn-outline-warning');
             _resetPauseBtn('btn-pause-script');
 
+            if (window._scriptGeneratePending) {
+                if (startOver) { queueScriptRestart(expectedRestartClaimId); }
+                return;
+            }
+            window._scriptGeneratePending = true;
+            const submittedSelection = makeScriptRecoveryStatus(
+                window._scriptRecoveryGeneration || 0, true);
+            const predecessor = expectedRestartClaimId ? window._scriptRecoveryRunToken : 0;
+            const runToken = window.reserveScriptRecoveryRun('generate');
+            if (predecessor) {
+                const replacement = window.getScriptAdmissionByToken?.(runToken);
+                if (replacement) { replacement.restartPredecessor = predecessor; }
+            }
             try {
-                await API.post('/api/generate_script', {
+                const result = await API.post('/api/generate_script', {
                     strip_front_matter: _isStripFrontMatterChecked(),
                     ...(_isLiteralSourcePreservingChecked() ? {literal_source_preserving: true} : {}),
                     first_person_narrator:
                         document.getElementById('script-first-person-narrator').value.trim() || null,
                     start_over: startOver,
+                    ...(expectedRestartClaimId ? {expected_restart_claim_id: expectedRestartClaimId} : {}),
                 });
-                pollScriptLogs('script', () => {
-                    if (!scriptBatchPoller) { genBtn.disabled = false; }
+                const record = window.getScriptAdmissionByToken?.(runToken);
+                const restartClaimId = record?.restartClaimId;
+                const stop = record?.restartStop;
+                if (restartClaimId && !isCurrentScriptRecoveryRun(runToken)) {
+                    // A newer owner can finish before this acknowledgement.
+                    // Record the old admission without changing the active run.
+                    if (restartClaimId === result?.task_claim_id) {
+                        const acknowledged = acknowledgeScriptAdmission(record.id, restartClaimId);
+                        if (acknowledged && stop) { completeScriptAdmission(acknowledged, stop, 'start-over'); }
+                    }
+                } else if (window.confirmScriptRecoveryRun(runToken, 'generate',
+                    !scriptRecoverySelectionMatches(submittedSelection), result?.task_claim_id)) {
+                    if (stop && restartClaimId === result?.task_claim_id) {
+                        window.onScriptTaskTerminal?.(stop, runToken, 'start-over');
+                    } else {
+                        pollScriptLogs('script', null, runToken);
+                    }
+                }
+            } catch (e) {
+                window.cancelScriptRecoveryRun(runToken);
+                const detail = e.message || 'Unknown error';
+                if (!window._scriptRecoveryRunActive) {
+                    genBtn.disabled = false;
                     cancelBtn.style.display = 'none';
                     pauseBtn.style.display = 'none';
-                    refreshScriptRecovery();
-                });
-            } catch (e) {
-                genBtn.disabled = false;
-                cancelBtn.style.display = 'none';
-                pauseBtn.style.display = 'none';
-                const detail = e.message || 'Unknown error';
-                if (detail.includes('No input file')) {
+                }
+                if (detail.includes('No input file') && scriptRecoverySelectionMatches(submittedSelection)) {
                     statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>${escapeHtml(t('script.upload.no-file', 'No file loaded. Please select a text file first.'))}</span>`;
-                } else {
+                } else if (scriptRecoverySelectionMatches(submittedSelection)) {
                     statusEl.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${escapeHtml(getActionErrorMessage(t('script.start.unconfirmed', 'Script generation start was not confirmed'), e, t('script.start.unconfirmed-recovery', 'Check the Script task state, selected book and Test Connection in Setup before starting again.')))}</span>`;
+                }
+            } finally {
+                window._scriptGeneratePending = false;
+                const queued = window._scriptQueuedRestart;
+                window._scriptQueuedRestart = null;
+                if (queued && !_scriptStartOverInFlight && scriptRecoverySelectionMatches(queued.selection)
+                    && queued.epoch === window._bookSelectionEpoch) {
+                    _scriptStartOverInFlight = true;
+                    _scriptStartOverDispatch++;
+                    window._scriptGeneratePending = true;
+                    try {
+                        const target = window.getScriptAdmissionByToken?.(queued.runToken);
+                        const isCurrent = () => scriptRecoverySelectionMatches(queued.selection)
+                            && queued.epoch === window._bookSelectionEpoch;
+                        let stopped = false;
+                        if ((queued.claimId && queued.claimId !== target?.claimId)
+                            || (target?.restartClaimId && (target.restartInvalidated || target.claimId !== target.restartClaimId))) {
+                            throw Error(SCRIPT_RESTART_OWNER_CHANGED);
+                        }
+                        if (target?.state === 'accepted') {
+                            stopped = await stopScriptForRestart(target.claimId,
+                                () => isCurrent() && matchesScriptRestartOwner(target.claimId, target.token),
+                                'queued-restart', {checks: 8, intervalMs: 60});
+                        } else if (target?.state === 'delivered') {
+                            const status = await API.get('/api/status/script');
+                            stopped = matchesScriptRestartOwner(target.claimId, target.token)
+                                && isExpectedScriptStop(status, target.claimId, target.restartStartTime);
+                        }
+                        if (!isCurrent()) { return; }
+                        if (!stopped || !matchesScriptRestartOwner(target.claimId, target.token)) {
+                            throw Error('previous run still active');
+                        }
+                        window._scriptStartOver = true;
+                        _scriptStartOver = true;
+                        window._scriptRestartFromClaimId = target.claimId;
+                        const launch = document.getElementById('btn-gen-script');
+                        if (launch) { launch.disabled = false; launch.click(); }
+                    } catch (e) {
+                        reportScriptRestartFailure(e);
+                        if (!window._scriptRecoveryRunActive) {
+                            genBtn.disabled = false;
+                            cancelBtn.style.display = 'none';
+                            pauseBtn.style.display = 'none';
+                        }
+                    } finally {
+                        window._scriptGeneratePending = false;
+                        _scriptStartOverInFlight = false;
+                    }
                 }
             }
         });
@@ -3526,11 +3777,441 @@
             'btn-cancel-script', 'btn-pause-script', t('script.cancel.task-script', 'script generation'));
         window.pauseResumeScript      = _scriptPauseResume;
 
+        function scriptRecoveryContextMatches(context) {
+            return (window._scriptRecoveryGeneration || 0) === context.generation
+                && context.book === currentBookFilename
+                && context.bookEpoch === (window._scriptRecoveryBookEpoch || 0)
+                && context.selection === (window._selectedUploadIdentity || null);
+        }
+
+        function makeScriptRecoveryStatus(generation, recoverable) {
+            return {generation, recoverable, book: currentBookFilename,
+                bookEpoch: window._scriptRecoveryBookEpoch || 0,
+                selection: window._selectedUploadIdentity || null};
+        }
+
+        function scriptRecoverySelectionMatches(selection) {
+            return !!selection && selection.book === currentBookFilename
+                && selection.bookEpoch === (window._scriptRecoveryBookEpoch || 0)
+                && selection.selection === (window._selectedUploadIdentity || null);
+        }
+
+        function isScriptRecoveryDetailCurrent(detail, book, generation) {
+            return !!detail && window._scriptRecoveryDetail === detail
+                && book === currentBookFilename
+                && (window._scriptRecoveryGeneration || 0) === generation
+                && !window._scriptRecoveryPending
+                && !window._scriptRecoveryRunActive;
+        }
+
+        function isScriptRetryBusy() {
+            const settled = window._scriptRecoveryConfirmed;
+            const action = window._scriptRetryAction;
+            return !settled || settled.recoverable !== true
+                || !!window._scriptRecoveryPending || !!window._scriptRecoveryRunActive
+                || !scriptRecoverySelectionMatches(settled)
+                || (!!action && action.inFlight && scriptRecoverySelectionMatches(action));
+        }
+
+        function refreshScriptRetryToolbar() {
+            const disabled = isScriptRetryBusy();
+            const toolbar = document.getElementById('btn-retry-script');
+            if (toolbar) { toolbar.disabled = disabled; }
+            const inPanel = document.getElementById('script-recovery-retry');
+            if (inPanel) { inPanel.disabled = disabled; }
+        }
+        window.refreshScriptRetryToolbar = refreshScriptRetryToolbar;
+
+        window._scriptAdmissionSeq = window._scriptAdmissionSeq || 0;
+        window._scriptAdmissions = window._scriptAdmissions || {};
+        window._scriptAdmissionsByToken = window._scriptAdmissionsByToken || {};
+
+        function createScriptAdmission(source, claimId) {
+            const id = ++window._scriptAdmissionSeq;
+            // The active run can roll back to an older admission.
+            const token = id;
+            const record = {
+                id, token, source, claimId, state: 'provisional', requestSeq: 0,
+                selection: makeScriptRecoveryStatus(window._scriptRecoveryGeneration || 0, true),
+                epoch: window._bookSelectionEpoch,
+                effects: {log: false, notify: false, release: false, read: false}
+            };
+            window._scriptAdmissions[id] = record;
+            window._scriptAdmissionsByToken[token] = id;
+            const scope = window._scriptRestartScope;
+            if (scope && !scope.record && claimId === scope.claimId) { bindScriptRestartTarget(scope, record); }
+            return record;
+        }
+        function getScriptAdmissionByToken(token) {
+            const id = window._scriptAdmissionsByToken?.[token];
+            return id ? (window._scriptAdmissions[id] || null) : null;
+        }
+        function getScriptAdmission(idOrToken) {
+            if (typeof idOrToken === 'number') {
+                return window._scriptAdmissions[idOrToken]
+                    || window._scriptAdmissions[window._scriptAdmissionsByToken[idOrToken]] || null;
+            }
+            return null;
+        }
+        function acknowledgeScriptAdmission(id, claimId) {
+            const record = window._scriptAdmissions[id];
+            if (!record || !['provisional', 'accepted'].includes(record.state)) { return null; }
+            if (claimId && record.claimId && claimId !== record.claimId) { return null; }
+            if (claimId) { record.claimId = claimId; }
+            const scope = window._scriptRestartScope;
+            if (scope && !scope.record && record.claimId === scope.claimId) { bindScriptRestartTarget(scope, record); }
+            record.state = 'accepted';
+            record.acceptedSeq = ++record.requestSeq;
+            return record;
+        }
+        function acceptScriptAdmission(id, claimId) {
+            const record = acknowledgeScriptAdmission(id, claimId);
+            if (record) { window._scriptRecoveryAcceptedRun = record.token; }
+            return record;
+        }
+        function fenceScriptAdmission(record, capturedSeq) {
+            return !!record && record.state !== 'terminal'
+                && record.requestSeq === capturedSeq
+                && record.epoch === window._bookSelectionEpoch
+                && scriptRecoverySelectionMatches(record.selection);
+        }
+        window.createScriptAdmission = createScriptAdmission;
+        window.getScriptAdmission = getScriptAdmission;
+        window.getScriptAdmissionByToken = getScriptAdmissionByToken;
+        window._scriptNotifiedTokens = {};
+        window.isScriptRunDelivered = token => {
+            const record = getScriptAdmissionByToken(token || 0);
+            return !!record && record.state === 'delivered';
+        };
+        window.markScriptNotified = token => {
+            const key = token || 0;
+            if (window._scriptNotifiedTokens[key]) { return false; }
+            window._scriptNotifiedTokens[key] = true;
+            return true;
+        };
+        window.acceptScriptAdmission = acceptScriptAdmission;
+        window.fenceScriptAdmission = fenceScriptAdmission;
+
+        function activateScriptRecoveryRun(record) {
+            window._scriptRecoveryRunToken = record.token;
+            window._scriptRecoveryRunActive = true;
+            window._scriptRecoveryRunSelection = record.selection;
+            window._scriptRecoveryDetail = null;
+            window._scriptRecoveryTerminalToken = 0;
+            window._scriptRecoveryTerminalDelivered = false;
+        }
+        function beginScriptRecoveryRun(source, silent, claimId) {
+            const record = createScriptAdmission(source, claimId);
+            const token = record.token;
+            activateScriptRecoveryRun(record);
+            window._scriptRuns = window._scriptRuns || {};
+            window._scriptRuns[token] = {source, state: 'provisional', selection: record.selection};
+            window._scriptRecoveryRunSource = source;
+            if (!silent) {
+                const panel = document.getElementById('script-recovery-panel');
+                if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+                const retryBtn = document.getElementById('btn-retry-script');
+                if (retryBtn) { retryBtn.style.display = 'none'; }
+                window.refreshScriptRetryToolbar?.();
+            }
+            return token;
+        }
+        function confirmScriptRecoveryRun(token, source, silent, claimId) {
+            const record = getScriptAdmissionByToken(token);
+            const acceptedNow = window._scriptRecoveryAcceptedRun || 0;
+            if (!isCurrentScriptRecoveryRun(token)) {
+                if (acceptedNow && acceptedNow !== token
+                    && !window.isScriptRunDelivered(acceptedNow)) { return false; }
+            }
+            if (!record || !acceptScriptAdmission(record.id, claimId)) { return false; }
+            if (!isCurrentScriptRecoveryRun(token)) { activateScriptRecoveryRun(record); }
+            const cleanup = window._scriptTerminalCleanup;
+            if (cleanup && cleanup.token !== token) {
+                const observation = getScriptAdmissionByToken(cleanup.token);
+                if (observation?.state === 'provisional') { observation.state = 'superseded'; }
+                window._scriptTerminalCleanup = null;
+                cleanup.onReplace?.();
+            }
+            window._scriptRuns[token] = {source, state: 'accepted', selection: window._scriptRecoveryRunSelection};
+            window._scriptRecoveryRunSource = source;
+            if (silent) { return true; }
+            const genBtn = document.getElementById('btn-gen-script');
+            const cancelBtn = document.getElementById('btn-cancel-script');
+            const pauseBtn = document.getElementById('btn-pause-script');
+            if (genBtn) { genBtn.disabled = true; }
+            if (cancelBtn) { cancelBtn.style.display = 'inline-block'; }
+            if (pauseBtn) { pauseBtn.style.display = 'inline-block'; }
+            _resetPauseBtn('btn-pause-script');
+            window.refreshScriptRetryToolbar?.();
+            return true;
+        }
+        function cancelScriptRecoveryRun(token) {
+            if ((window._scriptRecoveryRunToken || 0) !== token) { return; }
+            const rejected = getScriptAdmissionByToken(token);
+            if (rejected?.state === 'provisional') { rejected.state = 'rejected'; }
+            const accepted = window._scriptRecoveryAcceptedRun || 0;
+            const acceptedRecord = getScriptAdmissionByToken(accepted);
+            const observed = getScriptAdmissionByToken(rejected?.observationToken);
+            const previous = acceptedRecord?.state === 'accepted' ? acceptedRecord : observed;
+            if (previous && previous.token !== token && confirmScriptRecoveryRun(previous.token, previous.source)) {
+                window._scriptRecoveryRestoring = false;
+                window.refreshScriptRetryToolbar?.();
+                return;
+            } else {
+                window._scriptRecoveryRunActive = false;
+                window._scriptRecoveryAcceptedRun = 0;
+                if (window._scriptGenerationClaim === window._scriptRecoveryRunClaim) {
+                    window._scriptGenerationClaim = Math.max(0, (window._scriptGenerationClaim || 0) - 1);
+                }
+            }
+            window.refreshScriptRetryToolbar?.();
+            window._scriptRecoveryRestoring = true;
+            window._scriptRecoveryRestorationSettled = false;
+            window._scriptRecoveryGeneration = (window._scriptRecoveryGeneration || 0) + 1;
+            window.refreshScriptRecovery?.();
+            window._scriptRecoveryRestorationGeneration = window._scriptRecoveryGeneration || 0;
+            window._scriptRecoveryRestorationSelection = window._scriptRecoveryRunSelection;
+        }
+        function isCurrentScriptRecoveryRun(token) {
+            return !!token && window._scriptRecoveryRunActive
+                && (window._scriptRecoveryRunToken || 0) === token;
+        }
+        window.isCurrentScriptRecoveryRun = isCurrentScriptRecoveryRun;
+        window.armScriptRecoveryRunForReattach = () => window._scriptRecoveryRunActive
+            ? (window._scriptRecoveryRunToken || 0) : beginScriptRecoveryRun('reattach');
+        window.reserveScriptRecoveryRun = (source, silent) => {
+            window._scriptGenerationClaim = (window._scriptGenerationClaim || 0) + 1;
+            window._scriptRecoveryRunClaim = window._scriptGenerationClaim;
+            return beginScriptRecoveryRun(source, silent);
+        };
+        window.confirmScriptRecoveryRun = confirmScriptRecoveryRun;
+        window.cancelScriptRecoveryRun = cancelScriptRecoveryRun;
+
+        function replaceObservedScriptRun(previous, claimId) {
+            if (previous.restartClaimId) { previous.restartInvalidated = true; }
+            if (window._scriptQueuedRestart?.runToken === previous.token) {
+                window._scriptQueuedRestart = null;
+            }
+            const token = beginScriptRecoveryRun('observe', false, claimId);
+            confirmScriptRecoveryRun(token, 'observe');
+            deliverSavedScriptStop(previous);
+            return token;
+        }
+        window.observeScriptRecoveryRun = (claimId, confirmedLive) => {
+            const accepted = window._scriptRecoveryAcceptedRun || 0;
+            const record = getScriptAdmissionByToken(accepted);
+            if (record?.state === 'accepted') {
+                if (!claimId || !record.claimId || record.claimId === claimId) { return record.token; }
+                // The server replaced the accepted job. Any late status or
+                // acknowledgement for the old claim now belongs to an old run.
+                record.state = scriptTerminalDeliveries[record.id] ? 'delivered' : 'superseded';
+                return replaceObservedScriptRun(record, claimId);
+            }
+            if (!window._scriptRecoveryRunActive) { return beginScriptRecoveryRun('observe', false, claimId); }
+            const pending = getScriptAdmissionByToken(window._scriptRecoveryRunToken);
+            if (pending?.state !== 'provisional') { return null; }
+            if (confirmedLive && pending.restartClaimId && claimId && pending.restartClaimId !== claimId) {
+                return replaceObservedScriptRun(pending, claimId);
+            }
+            // A status request issued before Generate acknowledges may be
+            // observing a different server task.
+            if (!pending.observationToken) { pending.observationToken = createScriptAdmission('observe', claimId).token; }
+            return pending.observationToken;
+        };
+        window.adoptScriptRecoveryRun = token => {
+            if (window._scriptRecoveryAcceptedRun !== token || window._scriptRecoveryRunActive) { return null; }
+            return beginScriptRecoveryRun('adopt');
+        };
+
+        const scriptTerminalDeliveries = {};
+        const scriptNotifiedClaims = new Set();
+        function notifyScriptCompletion(data, claimId, runToken) {
+            if (claimId && scriptNotifiedClaims.has(claimId)) { return; }
+            if (runToken && !window.markScriptNotified(runToken)) { return; }
+            if (claimId) { scriptNotifiedClaims.add(claimId); }
+            notifyJobDone('script', '', 'finished', data);
+        }
+
+        function deliverSavedScriptStop(record) {
+            if (record.state === 'superseded' && record.restartStop && record.claimId === record.restartClaimId) {
+                completeScriptAdmission(record, record.restartStop, 'start-over');
+            }
+        }
+
+        function deliverScriptTaskTerminal(data, runToken, source) {
+            if (typeof runToken !== 'number' || runToken <= 0) { return; }
+            if (data?.running || data?.ownership_unconfirmed) { return; }
+            const record = getScriptAdmissionByToken(runToken);
+            if (!record || record.state !== 'accepted') { return; }
+            if (!isCurrentScriptRecoveryRun(runToken)
+                && (window._scriptRecoveryAcceptedRun || 0) !== runToken) { return; }
+            completeScriptAdmission(record, data, source);
+        }
+        function completeScriptAdmission(record, data, source) {
+            if (scriptTerminalDeliveries[record.id]) { return; }
+            scriptTerminalDeliveries[record.id] = true;
+            record.state = 'delivered';
+            const runToken = record.token;
+            const cleanup = window._scriptTerminalCleanup;
+            try {
+                if (cleanup && cleanup.token === runToken) {
+                    window._scriptTerminalCleanup = null;
+                    try { cleanup.fn(data, runToken, source); }
+                    catch (e) { console.error('Script terminal cleanup failed', e); }
+                }
+            } finally {
+                try {
+                    if (Array.isArray(data?.logs) && data.logs.length
+                        && (source === 'start-over' || source === 'queued-restart')
+                        && window._scriptRecoveryRunToken === runToken
+                        && record.epoch === window._bookSelectionEpoch
+                        && scriptRecoverySelectionMatches(record.selection)) {
+                        const renderLogs = createTaskLogRenderer(document.getElementById('script-logs'));
+                        renderLogs(data);
+                    }
+                    finishScriptRecoveryRun(runToken);
+                    if (data) {
+                        const confirmedClaim = data.worker_claim_id === record.claimId ? record.claimId : null;
+                        notifyScriptCompletion(data, confirmedClaim, runToken);
+                    }
+                }
+                catch (e) { console.error('Script terminal recovery failed', e); }
+            }
+        }
+        function retireUnverifiedScriptStop(record) {
+            if (!isCurrentScriptRecoveryRun(record.token) || record.state !== 'accepted') { return; }
+            // A held response can still complete this admission, but cannot restore permission to restart.
+            record.restartInvalidated = true;
+            record.state = scriptTerminalDeliveries[record.id] ? 'delivered' : 'superseded';
+            const cleanup = window._scriptTerminalCleanup;
+            if (cleanup?.token === record.token) {
+                window._scriptTerminalCleanup = null;
+                cleanup.onReplace?.();
+            }
+            finishScriptRecoveryRun(record.token);
+            deliverSavedScriptStop(record);
+        }
+        window.onScriptTaskTerminal = deliverScriptTaskTerminal;
+        window.registerScriptTerminalCleanup = (token, fn, onReplace) => {
+            window._scriptTerminalCleanup = {token, fn, onReplace};
+        };
+
+        function finishScriptRecoveryRun(runToken) {
+            if (!window._scriptRecoveryRunActive) { return; }
+            if (typeof runToken === 'number'
+                && (window._scriptRecoveryRunToken || 0) !== runToken) { return; }
+            const ownsSelection = scriptRecoverySelectionMatches(window._scriptRecoveryRunSelection);
+            window._scriptRecoveryTerminalToken = runToken || (window._scriptRecoveryRunToken || 0);
+            window._scriptRecoveryTerminalDelivered = true;
+            window._scriptRecoveryRunActive = false;
+            const action = window._scriptRetryAction;
+            if (action) { action.inFlight = false; }
+            const cancelBtn = document.getElementById('btn-cancel-script');
+            const pauseBtn = document.getElementById('btn-pause-script');
+            const genBtn = document.getElementById('btn-gen-script');
+            if (cancelBtn) { cancelBtn.style.display = 'none'; }
+            if (pauseBtn) { pauseBtn.style.display = 'none'; }
+            window.syncSnapshotButton?.({ running: false });
+            if (genBtn && !scriptBatchPoller) { genBtn.disabled = false; }
+            if (ownsSelection) {
+                const panel = document.getElementById('script-recovery-panel');
+                if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+            }
+            window._scriptRecoveryDetail = null;
+            window._scriptRecoveryGeneration = (window._scriptRecoveryGeneration || 0) + 1;
+            window._scriptRecoveryPending = false;
+            window.refreshScriptRetryToolbar?.();
+            refreshScriptRecovery();
+        }
+
+        function captureScriptRecoveryOwnership() {
+            const generation = (window._scriptRecoveryGeneration || 0) + 1;
+            window._scriptRecoveryGeneration = generation;
+            window._scriptRecoveryPending = true;
+            const context = makeScriptRecoveryStatus(generation, false);
+            return {
+                generation,
+                current: () => scriptRecoveryContextMatches(context) && window._scriptRecoveryGeneration === generation,
+                settle: () => { if (window._scriptRecoveryGeneration === generation) { window._scriptRecoveryPending = false; } }
+            };
+        }
+
+        function captureScriptRetryAdmission() {
+            const context = makeScriptRecoveryStatus(window._scriptRecoveryGeneration || 0, false);
+            const retryGeneration = (window._scriptRetryGeneration || 0) + 1;
+            let action = null;
+            let statusAtClaim = null;
+            let generationAtClaim = 0;
+            let generationClaimAtClaim = 0;
+            let submissionToken = window._scriptRecoveryRunToken || 0;
+            let submitted = false;
+            const current = () => scriptRecoveryContextMatches(context) && !window._scriptRecoveryPending;
+            const confirmed = () => {
+                const settled = window._scriptRecoveryConfirmed;
+                return !!settled && settled.recoverable === true && scriptRecoverySelectionMatches(settled);
+            };
+            return {
+                current,
+                confirmed,
+                claim: () => {
+                    if (!current() || !confirmed() || window._scriptRecoveryRunActive
+                        || window._scriptRecoveryRestoring) { return false; }
+                    const restoration = window._scriptRecoveryRestorationSelection;
+                    if (restoration && !scriptRecoverySelectionMatches(restoration)) { return false; }
+                    const active = window._scriptRetryAction;
+                    if (active && active.inFlight && scriptRecoverySelectionMatches(active)) { return false; }
+                    statusAtClaim = window._scriptRecoveryConfirmed;
+                    generationAtClaim = window._scriptRecoveryGeneration || 0;
+                    generationClaimAtClaim = window._scriptGenerationClaim || 0;
+                    action = makeScriptRecoveryStatus(context.generation, true);
+                    action.inFlight = true;
+                    window._scriptRetryAction = action;
+                    window._scriptRetryGeneration = retryGeneration;
+                    window.refreshScriptRetryToolbar?.();
+                    return true;
+                },
+                isLatestRetry: () => (window._scriptRetryGeneration || 0) === retryGeneration,
+                selectionCurrent: () => !!action && scriptRecoverySelectionMatches(action),
+                statusSuperseded: () => !!statusAtClaim && window._scriptRecoveryConfirmed !== statusAtClaim,
+                readSuperseded: () => (window._scriptRecoveryGeneration || 0) !== generationAtClaim,
+                claimCurrent: () => (window._scriptGenerationClaim || 0) === generationClaimAtClaim,
+                submissionToken: () => submissionToken,
+                restored: () => !!window._scriptRecoveryRestorationSettled
+                    && (window._scriptRecoveryRestorationGeneration || 0) > generationAtClaim
+                    && (window._scriptRecoveryRestorationGeneration || 0) === (window._scriptRecoveryGeneration || 0),
+                reclaim: () => !!action && window._scriptRetryAction === action && action.inFlight
+                    && scriptRecoverySelectionMatches(action) && !window._scriptRecoveryRunActive
+                    && (window._scriptGenerationClaim || 0) === generationClaimAtClaim,
+                markSubmitted: () => { submitted = true; },
+                wasSubmitted: () => submitted,
+                release: () => {
+                    if (action) { action.inFlight = false; }
+                    window.refreshScriptRetryToolbar?.();
+                }
+            };
+        }
+
         async function refreshScriptRecovery() {
+            const owner = captureScriptRecoveryOwnership();
             const retryBtn = document.getElementById('btn-retry-script');
             const panel = document.getElementById('script-recovery-panel');
+            window._scriptRecoveryDetail = null;
+            if (retryBtn) { retryBtn.style.display = 'none'; }
+            window.refreshScriptRetryToolbar?.();
+            if (panel) {
+                panel.style.display = '';
+                panel.innerHTML = `<div class="card-body small text-muted" role="status" aria-live="polite">${escapeHtml(t('script.recovery.status-checking', 'Checking recovery status…'))}</div>`;
+            }
             try {
                 const recovery = await API.get('/api/generate_script/recovery?include_detail=true');
+                if (!owner.current()) { return; }
+                owner.settle();
+                window._scriptRecoveryRestoring = false;
+                window._scriptRecoveryRestorationSettled = true;
+                window._scriptRecoveryRestorationSelection = null;
+                if (window._scriptRecoveryRunActive) { return; }
+                window._scriptRecoveryConfirmed = makeScriptRecoveryStatus(owner.generation, recovery.recoverable === true);
+                window.refreshScriptRetryToolbar?.();
                 retryBtn.style.display = recovery.recoverable ? 'inline-block' : 'none';
                 if (recovery.start_over_required) {
                     renderCastChangedRecovery(recovery.detail);
@@ -3546,11 +4227,22 @@
                     renderScriptRecovery(null);
                 }
             } catch (e) {
-                retryBtn.style.display = 'none';
+                if (!owner.current()) { return; }
+                owner.settle();
+                window._scriptRecoveryRestorationSettled = true;
+                window._scriptRecoveryRestorationSelection = null;
+                if (window._scriptRecoveryRunActive) { return; }
+                window._scriptRecoveryConfirmed = makeScriptRecoveryStatus(owner.generation, false);
+                window.refreshScriptRetryToolbar?.();
                 if (panel) {
-                    panel.style.display = 'none';
+                    panel.style.display = '';
+                    panel.innerHTML = `<div class="card-body small text-danger" role="status" aria-live="polite">${escapeHtml(getActionErrorMessage(
+                        t('script.recovery.status-unreadable', 'Recovery status could not be read'), e,
+                        t('script.recovery.status-unreadable-detail', 'This does not mean the run is unrecoverable. Use Check recovery status to read the checkpoint state before starting generation again.')))}</div>
+                        <div class="card-body border-top"><button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshScriptRecovery()">${escapeHtml(t('script.recovery.status-unreadable-check', 'Check recovery status'))}</button></div>`;
                 }
-                console.debug('Script recovery status unavailable', e);
+                showActionError(t('script.recovery.status-unreadable', 'Recovery status could not be read'), e,
+                    t('script.recovery.status-unreadable-recovery', 'Retry stays unavailable until the status is confirmed. Use Check recovery status in the recovery panel before starting generation again.'), 'warning');
             }
         }
 
@@ -3560,6 +4252,7 @@
         function renderCastChangedRecovery(detail) {
             const panel = document.getElementById('script-recovery-panel');
             if (!panel) { return; }
+            window._scriptRecoveryDetail = null;
             const explanation = detail || t('script.recovery.cast-changed-detail', 'The approved cast changed since this run started, so it cannot resume; start a new run. The saved checkpoint was preserved.');
             showToast(explanation, 'warning', 12000);
             panel.style.display = '';
@@ -3584,6 +4277,7 @@
                 return;
             }
             if (!detail) {
+                window._scriptRecoveryDetail = null;
                 panel.style.display = 'none';
                 panel.innerHTML = '';
                 return;
@@ -3638,7 +4332,7 @@
                     </div>
                     <div id="script-recovery-findings" class="small text-danger mt-2"></div>
                     <div class="d-flex flex-wrap gap-2 mt-2">
-                        <button class="btn btn-sm btn-primary" onclick="retryScriptGeneration()"><i class="fas fa-rotate-right me-1"></i>${t('script.recovery.retry', 'Retry this chunk')}</button>
+                        <button id="script-recovery-retry" class="btn btn-sm btn-primary" onclick="retryScriptGeneration()"${isScriptRetryBusy() ? ' disabled' : ''}><i class="fas fa-rotate-right me-1"></i>${t('script.recovery.retry', 'Retry this chunk')}</button>
                         <button class="btn btn-sm btn-outline-secondary" onclick="onCopyRecoveryPrompt()"><i class="fas fa-copy me-1"></i>${t('script.recovery.copy-prompt', 'Copy prompt')}</button>
                         <button class="btn btn-sm btn-outline-success" onclick="onInjectRecoverySegmentation()"><i class="fas fa-file-import me-1"></i>${t('script.recovery.apply-segmentation', 'Validate & apply segmentation')}</button>
                         <button class="btn btn-sm btn-outline-warning" onclick="onSkipRecoveryChunk()"><i class="fas fa-forward me-1"></i>${skipLabel}</button>
@@ -3648,7 +4342,7 @@
 
         async function onCopyRecoveryPrompt() {
             const detail = window._scriptRecoveryDetail;
-            if (!detail || !detail.prompt) {
+            if (!detail || !detail.prompt || window._scriptRecoveryPending || window._scriptRecoveryRunActive) {
                 return;
             }
             const text = `SYSTEM:\n${detail.prompt.system}\n\nUSER:\n${detail.prompt.user}`;
@@ -3670,8 +4364,10 @@
 
         async function onInjectRecoverySegmentation() {
             const detail = window._scriptRecoveryDetail;
+            const book = currentBookFilename;
+            const generation = window._scriptRecoveryGeneration || 0;
             const box = document.getElementById('script-recovery-inject');
-            if (!detail || !box) {
+            if (!box || !isScriptRecoveryDetailCurrent(detail, book, generation)) {
                 return;
             }
             let entries;
@@ -3687,73 +4383,93 @@
             }
             try {
                 const result = await API.post('/api/generate_script/inject', { chunk: detail.failed_chunk, entries });
+                if (!isScriptRecoveryDetailCurrent(detail, book, generation)) { return; }
                 renderRecoveryFindings(null);
                 showToast(t('script.recovery.accepted', 'Accepted ({resolution}). Resume to continue.', {resolution: result.resolution}), 'success');
                 await refreshScriptRecovery();
             } catch (e) {
+                if (!isScriptRecoveryDetailCurrent(detail, book, generation)) { return; }
                 renderRecoveryFindings(e.detail && typeof e.detail === 'object' ? e.detail : { message: e.message });
             }
         }
 
         async function onSkipRecoveryChunk() {
             const detail = window._scriptRecoveryDetail;
-            if (!detail) {
+            const book = currentBookFilename;
+            const generation = window._scriptRecoveryGeneration || 0;
+            if (!isScriptRecoveryDetailCurrent(detail, book, generation)) {
                 return;
             }
             const question = detail.failed_pass === 'attribute'
                 ? t('script.recovery.skip-question-attribute', 'Label every spoken line in this batch UNKNOWN and continue? You can fix speakers in the Editor afterwards.')
                 : t('script.recovery.skip-question-segment', 'Put chunk {chunk} into the script split only at its quote marks (no speaker attribution beyond NARRATOR/SPOKEN)? Nothing is dropped.', {chunk: detail.failed_chunk});
-            const book = currentBookFilename;
             const chunk = detail.failed_chunk;
             const pass = detail.failed_pass;
             if (!await showConfirm(question, {title: t('script.recovery.fallback-title', 'Continue with fallback script?'), actionLabel: t('script.recovery.fallback-action', 'Use fallback'), danger: false})) { return; }
-            if (book !== currentBookFilename || window._scriptRecoveryDetail !== detail
+            if (!isScriptRecoveryDetailCurrent(detail, book, generation)
                 || detail.failed_chunk !== chunk || detail.failed_pass !== pass) {
                 showToast(t('safety.script.recovery_changed_review', 'The book or recovery section changed. Review the latest recovery details before continuing.'), 'warning'); return;
             }
             try {
                 const result = await API.post('/api/generate_script/skip', { chunk });
+                if (!isScriptRecoveryDetailCurrent(detail, book, generation)) { return; }
                 showToast(t('script.recovery.accepted', 'Accepted ({resolution}). Resume to continue.', {resolution: result.resolution}), 'success');
                 await refreshScriptRecovery();
             } catch (e) {
+                if (!isScriptRecoveryDetailCurrent(detail, book, generation)) { return; }
                 renderRecoveryFindings(e.detail && typeof e.detail === 'object' ? e.detail : { message: e.message });
             }
         }
 
         window.retryScriptGeneration = async () => {
-            const genBtn = document.getElementById('btn-gen-script');
+            const admission = captureScriptRetryAdmission();
+            if (!admission.current() || !admission.claim()) { return; }
             const retryBtn = document.getElementById('btn-retry-script');
-            const cancelBtn = document.getElementById('btn-cancel-script');
-            const pauseBtn = document.getElementById('btn-pause-script');
             retryBtn.disabled = true;
             try {
                 const recovery = await API.get('/api/generate_script/recovery');
+                if ((!admission.current() && !admission.restored()) || !admission.confirmed()
+                    || !admission.isLatestRetry() || !admission.reclaim()
+                    || !admission.claimCurrent()) { return; }
+                if (recovery.recoverable !== true) {
+                    showToast(t('script.recovery.retry-withheld', 'Recovery is no longer confirmed. Check recovery status before resuming.'), 'warning');
+                    refreshScriptRecovery();
+                    return;
+                }
                 const payload = {};
                 if (recovery.legacy_confirmation) {
                     const confirmed = await showConfirm(
                         formatUiSafetyText('safety.script.legacy_checkpoint', 'This older checkpoint does not record which book it belongs to. Resume only if you recognize it as progress for the currently selected book. The source and generation settings must still match.'),
                         {title: t('safety.script.legacy_checkpoint.title', 'Confirm older checkpoint'), actionLabel: t('script.recovery.resume-checkpoint', 'Resume this checkpoint')});
                     if (!confirmed) { return; }
+                    if ((!admission.current() && !admission.restored()) || !admission.confirmed()
+                    || !admission.isLatestRetry() || !admission.reclaim()
+                    || !admission.claimCurrent()) { return; }
                     payload.legacy_checkpoint_token = recovery.legacy_confirmation.checkpoint_token;
                     payload.legacy_book_token = recovery.legacy_confirmation.book_token;
                 }
-                await API.post('/api/generate_script/retry', payload);
-                retryBtn.style.display = 'none';
-                genBtn.disabled = true;
-                cancelBtn.style.display = 'inline-block';
-                pauseBtn.style.display = 'inline-block';
-                _resetPauseBtn('btn-pause-script');
-                pollScriptLogs('script', () => {
-                    if (!scriptBatchPoller) { genBtn.disabled = false; }
-                    cancelBtn.style.display = 'none';
-                    pauseBtn.style.display = 'none';
-                    refreshScriptRecovery();
-                });
+                if ((!admission.current() && !admission.restored()) || !admission.confirmed()
+                    || !admission.isLatestRetry() || !admission.reclaim()
+                    || !admission.claimCurrent()) { return; }
+                admission.markSubmitted();
+                const result = await API.post('/api/generate_script/retry', payload);
+                const acceptedNow = window._scriptRecoveryAcceptedRun || 0;
+                if (acceptedNow && acceptedNow !== admission.submissionToken()
+                    && !window.isScriptRunDelivered(acceptedNow)) { return; }
+                const runToken = window.reserveScriptRecoveryRun('retry', !admission.selectionCurrent());
+                const selectionCurrent = admission.selectionCurrent();
+                if (window.confirmScriptRecoveryRun(runToken, 'retry', !selectionCurrent, result?.task_claim_id)) {
+                    if (selectionCurrent) { retryBtn.style.display = 'none'; }
+                    pollScriptLogs('script', null, runToken);
+                }
             } catch (e) {
+                if (!admission.selectionCurrent() || !admission.isLatestRetry() || !admission.claimCurrent()) { return; }
+                if (!admission.wasSubmitted()
+                    && (admission.statusSuperseded() || admission.readSuperseded())) { return; }
                 showActionError(t('script.recovery.resume-failed', 'Script resume was not confirmed'), e, t('script.recovery.resume-recovery', 'Check the Script task state, recovery panel and Test Connection in Setup before resuming again.'), 'warning');
                 refreshScriptRecovery();
             } finally {
-                retryBtn.disabled = false;
+                admission.release();
             }
         };
 
@@ -10791,9 +11507,41 @@
         // Also generalizes pollLogs's stale-response generation-counter guard
         // to any poller. See FIXED.md F-053/058/072/073/079.
         const _pollGen = {};
-        function _startPolling(key, fetchFn, { intervalMs = 1000, doneCheck, onTick, onDone, immediate = true, pauseWhenHidden = false, displayLabel = null } = {}) {
+        function syncScriptReservationControls(status) {
+            const generate = document.getElementById('btn-gen-script');
+            if (generate) { generate.disabled = !!(status.running || status.ownership_unconfirmed || scriptBatchPoller); }
+            const display = status.running && !status.worker_pending ? 'inline-block' : 'none';
+            for (const id of ['btn-pause-script', 'btn-cancel-script']) {
+                const button = document.getElementById(id);
+                if (button) { button.style.display = display; }
+            }
+            syncSnapshotButton(status);
+        }
+
+        function pollConfirmedScriptSuccessor(status, previousToken) {
+            const claimId = isScriptStopped(status)
+                ? status.worker_claim_id || status.task_claim_id : status.task_claim_id;
+            const token = window.observeScriptRecoveryRun(claimId, true);
+            const successor = window.getScriptAdmissionByToken(token);
+            if (!successor || successor.token === previousToken || successor.claimId !== claimId
+                || !isCurrentScriptRecoveryRun(successor.token)) {
+                return false;
+            }
+            if (successor.state === 'provisional'
+                && !confirmScriptRecoveryRun(successor.token, successor.source, false, claimId)) {
+                return false;
+            }
+            successor.observedByPoll = true;
+            successor.observedStartTime = status.start_time;
+            pollScriptLogs('script', null, successor.token, status);
+            return true;
+        }
+
+        function _startPolling(key, fetchFn, { intervalMs = 1000, doneCheck, onTick, onDone, immediate = true, pauseWhenHidden = false, displayLabel = null, scriptRunToken = typeof window !== 'undefined' ? (window._scriptRecoveryRunToken || 0) : 0 } = {}) {
             const myGen = (_pollGen[key] = (_pollGen[key] || 0) + 1);
+            const isScriptPoll = key === 'logs:script' || key === 'reattach:script';
             let consecutiveErrors = 0;
+            let pendingScriptClaim = null;
             const MAX_SILENT_ERRORS = 3;
             let pending = false;
             const tick = async () => {
@@ -10810,12 +11558,117 @@
                     consecutiveErrors = 0;
                     let handler = 'onTick';
                     try {
+                        const record = isScriptPoll && typeof window !== 'undefined'
+                            ? window.getScriptAdmissionByToken?.(scriptRunToken) : null;
+                        const restartBound = record?.restartClaimId && record.claimId === record.restartClaimId;
+                        const liveClaim = data?.running && !data.ownership_unconfirmed && data.task_claim_id;
+                        const terminalClaim = isScriptPoll && data?.worker_claim_id && isScriptStopped(data)
+                            ? data.worker_claim_id : null;
+                        const successorClaim = liveClaim || terminalClaim;
+                        if (restartBound && record.state === 'delivered' && !isCurrentScriptRecoveryRun(scriptRunToken)) {
+                            const current = window.getScriptAdmissionByToken(window._scriptRecoveryRunToken);
+                            const replacement = current?.restartPredecessor === scriptRunToken;
+                            if (!(current === record || (replacement && ['provisional', 'rejected'].includes(current.state)))
+                                || record.epoch !== window._bookSelectionEpoch
+                                || !scriptRecoverySelectionMatches(record.selection)) { return; }
+                            // The stop arrived before this poll saw the successor. A pending
+                            // replacement may own the claim when its ACK arrives. A verified
+                            // terminal can notify now without taking over that replacement.
+                            if (replacement && current.state === 'provisional') {
+                                if (!data?.worker_pending && terminalClaim && terminalClaim !== record.claimId) {
+                                    notifyScriptCompletion(data, terminalClaim);
+                                }
+                                setTimeout(tick, intervalMs);
+                                return;
+                            }
+                            const workerClaim = terminalClaim || (data?.worker_claim_id === liveClaim && liveClaim);
+                            if (!data?.worker_pending && workerClaim && workerClaim !== record.claimId
+                                && pollConfirmedScriptSuccessor(data, scriptRunToken)) { return; }
+                            if (data?.worker_pending || data?.running || data?.ownership_unconfirmed) {
+                                if (data.worker_pending) {
+                                    pendingScriptClaim = data.task_claim_id;
+                                    syncScriptReservationControls(data);
+                                }
+                                setTimeout(tick, intervalMs);
+                            } else if (pendingScriptClaim) {
+                                syncScriptReservationControls(data);
+                            }
+                            return;
+                        }
+                        if (isScriptPoll && data?.worker_pending) {
+                            if (scriptRunToken && !isCurrentScriptRecoveryRun(scriptRunToken)) { return; }
+                            if (restartBound && data.task_claim_id !== record.claimId) {
+                                record.restartContended = true;
+                            }
+                            pendingScriptClaim = data.task_claim_id;
+                            syncScriptReservationControls(data);
+                            setTimeout(tick, intervalMs);
+                            return;
+                        }
+                        if (pendingScriptClaim) {
+                            if (scriptRunToken && !isCurrentScriptRecoveryRun(scriptRunToken)) { return; }
+                            const awaitedClaim = pendingScriptClaim;
+                            pendingScriptClaim = null;
+                            if (data?.running && !data.ownership_unconfirmed && data.task_claim_id
+                                && (!record || (record.claimId && data.task_claim_id !== record.claimId))) {
+                                if (!pollConfirmedScriptSuccessor(data, scriptRunToken)) {
+                                    pendingScriptClaim = awaitedClaim;
+                                    setTimeout(tick, intervalMs);
+                                }
+                                return;
+                            }
+                            syncScriptReservationControls(data);
+                            if (isScriptStopped(data)) {
+                                const endedClaim = data.worker_claim_id || data.task_claim_id;
+                                if (endedClaim === awaitedClaim && record?.claimId !== endedClaim
+                                    && pollConfirmedScriptSuccessor(data, scriptRunToken)) {
+                                    return;
+                                }
+                                if (!record) { return; }
+                                const startTime = restartBound ? record.restartStartTime : record.observedStartTime;
+                                if (record.claimId && !isExpectedScriptStop(data, record.claimId, startTime)) {
+                                    retireUnverifiedScriptStop(record);
+                                    return;
+                                }
+                            }
+                        }
+                        if (record?.state === 'accepted' && record.claimId && successorClaim
+                            && successorClaim !== record.claimId && isCurrentScriptRecoveryRun(record.token)) {
+                            if (pollConfirmedScriptSuccessor(data, scriptRunToken)) { return; }
+                            setTimeout(tick, intervalMs);
+                            return;
+                        }
+                        if (restartBound || record?.observedByPoll) {
+                            if (!isCurrentScriptRecoveryRun(record.token)) { return; }
+                            const startTime = restartBound ? record.restartStartTime : record.observedStartTime;
+                            const stopped = isScriptStopped(data);
+                            if (stopped && (record.restartInvalidated
+                                    || !isExpectedScriptStop(data, record.claimId, startTime))) {
+                                retireUnverifiedScriptStop(record);
+                                return;
+                            }
+                            if (data?.task_claim_id && data.task_claim_id !== record.claimId) {
+                                if (data.running && !data.ownership_unconfirmed
+                                    && pollConfirmedScriptSuccessor(data, scriptRunToken)) {
+                                    return;
+                                }
+                                setTimeout(tick, intervalMs);
+                                return;
+                            }
+                        }
+                        if (record?.claimId && data?.running && data.task_claim_id === record.claimId
+                            && !Number.isFinite(record.observedStartTime)) {
+                            record.observedStartTime = data.start_time;
+                        }
                         if (onTick) { await onTick(data); }
                         handler = 'doneCheck';
                         if (myGen !== _pollGen[key]) { return; }
                         if (!data?.ownership_unconfirmed && doneCheck(data)) {
                             completed = true;
                             handler = 'onDone';
+                            if (isScriptPoll) {
+                                if (typeof window !== 'undefined') { window.onScriptTaskTerminal?.(data, scriptRunToken); }
+                            }
                             if (onDone) { await onDone(data); }
                         }
                     } catch (e) {
@@ -10926,15 +11779,17 @@
         // the script task is running - applied on every status tick.
         function syncSnapshotButton(status) {
             const snap = document.getElementById('btn-snapshot-script');
-            if (snap) { snap.style.display = status && status.running ? 'inline-block' : 'none'; }
+            if (snap) { snap.style.display = status?.running && !status.ownership_unconfirmed && !status.worker_pending ? 'inline-block' : 'none'; }
         }
 
-        function pollScriptLogs(taskName, onDone) {
+        function pollScriptLogs(taskName, onDone, scriptRunToken, initialStatus) {
             return pollLogs(taskName, 'script-logs', status => {
-                syncSnapshotButton({ running: false });
-                if (taskName === 'script') { clearScriptCancellation('script'); }
+                if (taskName === 'script') {
+                    syncSnapshotButton({ running: false });
+                    clearScriptCancellation('script');
+                }
                 if (onDone) { onDone(status); }
-            }, 'script-activity');
+            }, 'script-activity', scriptRunToken, initialStatus);
         }
 
         // Manual transport (#593): the run is waiting for the user to answer a
@@ -11113,14 +11968,24 @@
             }
         }
 
-        async function pollLogs(taskName, elementId, onDone, activityId) {
+        async function pollLogs(taskName, elementId, onDone, activityId, scriptRunToken = taskName === 'script' ? (window._scriptRecoveryRunToken || 0) : 0, initialStatus) {
             const el = document.getElementById(elementId);
             const activityEl = activityId ? document.getElementById(activityId) : null;
+            const ownsScriptControls = () => !scriptRunToken || window._scriptRecoveryRunToken === scriptRunToken;
             const track = { count: -1, changedAt: Date.now() };
             const renderLogs = createTaskLogRenderer(el);
-            _startPolling(`logs:${taskName}`, () => API.get(`/api/status/${taskName}`), {
+            const fetchStatus = () => {
+                if (!initialStatus) { return API.get(`/api/status/${taskName}`); }
+                const status = initialStatus;
+                initialStatus = null;
+                return status;
+            };
+            _startPolling(`logs:${taskName}`, fetchStatus, {
+                scriptRunToken,
                 doneCheck: status => !status.running,
                 onTick: status => {
+                    if (!ownsScriptControls()) { return; }
+                    if (taskName === 'script' && window._scriptRecoveryTerminalDelivered) { return; }
                     renderLogs(status);
                     syncPauseButton(taskName, status);
                     if (taskName === 'script') { syncSnapshotButton(status); }
@@ -11129,10 +11994,13 @@
                     if (activityId) { renderManualRequest(status, taskName); }
                 },
                 onDone: status => {
+                    if (!ownsScriptControls()) { return; }
                     if (activityEl) { activityEl.hidden = true; }
                     if (activityId === 'script-activity') { renderScriptTabProgress({ running: false }, taskName); }
                     if (activityId) { renderManualRequest({ running: false }, taskName); }
-                    notifyJobDone(taskName, '', 'finished', status);
+                    if (!scriptRunToken) {
+                        notifyJobDone(taskName, '', 'finished', status);
+                    }
                     if (['script', 'review', 'cast_list'].includes(taskName) && currentTabName === 'script') { window.refreshScriptIngestFacts?.(); }
                     if (onDone) { onDone(status); }
                     if (taskName === 'audio' && getTaskCompletionOutcome(status) === 'finished' && status.logs.some(l => l.includes("complete"))) {

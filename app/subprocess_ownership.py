@@ -1,5 +1,6 @@
 """Shared descendant ownership and signal dispatch for supervised tasks."""
 import ctypes
+from contextlib import contextmanager
 import errno
 import functools
 import json
@@ -18,6 +19,32 @@ from types import SimpleNamespace
 
 SUBPROCESS_TERMINATE_GRACE_SECONDS = 10.0
 logger = logging.getLogger("AlexandriaUI")
+
+
+@contextmanager
+def mark_unlaunched_exec_errors():
+    """Mark executable rejections at Popen, excluding ambiguous I/O failures."""
+    try:
+        yield
+    except OSError as error:
+        if error.errno in (errno.ENOENT, errno.ENOTDIR, errno.EACCES, errno.ENOEXEC,
+                           getattr(errno, "ETXTBSY", errno.ENOEXEC)):
+            error.worker_not_launched = True
+        raise
+
+
+def get_worker_launch_error_message(error):
+    message = {'error': str(error), 'errno': getattr(error, 'errno', None)}
+    if getattr(error, 'worker_not_launched', False):
+        message['worker_not_launched'] = True
+    return message
+
+
+def get_worker_launch_error(message):
+    error = OSError(message.get('errno'), message['error'])
+    if message.get('worker_not_launched') is True:
+        error.worker_not_launched = True
+    return error
 
 
 def log_subprocess_stop_fallback(error, message):
@@ -284,7 +311,8 @@ def start_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=None,
             stop_receipt_path=stop_receipt_path, disconnect_signal=disconnect_signal,
             exit_notice_path=exit_notice_path, termination_grace=termination_grace, **kwargs)
     if sys.platform != "linux":
-        return subprocess.Popen(command, **kwargs)
+        with mark_unlaunched_exec_errors():
+            return subprocess.Popen(command, **kwargs)
     if disconnect_signal is None:
         disconnect_signal = signal.SIGKILL
     control, child_control = socket.socketpair()
@@ -307,10 +335,11 @@ def start_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=None,
             receipt_args.extend(['--stop-timeout', repr(float(grace))])
         if receipt_args:
             receipt_args.append('--')
-        process = subprocess.Popen(
-            [sys.executable, str(Path(__file__).resolve()),
-             str(child_control.fileno()), str(gpu_lease_fd) if gpu_lease_fd is not None else "-", *receipt_args, *command],
-            pass_fds=tuple(set(retained)), **kwargs)
+        with mark_unlaunched_exec_errors():
+            process = subprocess.Popen(
+                [sys.executable, str(Path(__file__).resolve()),
+                 str(child_control.fileno()), str(gpu_lease_fd) if gpu_lease_fd is not None else "-", *receipt_args, *command],
+                pass_fds=tuple(set(retained)), **kwargs)
         child_control.close()
         response = bytearray()
         while not response.endswith(b"\n"):
@@ -320,7 +349,7 @@ def start_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=None,
             response.extend(part)
         admission = json.loads(response)
         if "error" in admission:
-            raise OSError(admission.get("errno"), admission["error"])
+            raise get_worker_launch_error(admission)
         process._alexandria_control = control
         return process
     except BaseException:
@@ -507,7 +536,8 @@ def run_owned_command(control, command, *, disconnect_signal=None, stop_timeout=
     received = []
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(sig, lambda value, frame: received.append(value))
-    process = subprocess.Popen(command, start_new_session=True)
+    with mark_unlaunched_exec_errors():
+        process = subprocess.Popen(command, start_new_session=True)
     buffer = b""
     root_result = None
     stopping = None
@@ -637,6 +667,6 @@ if __name__ == "__main__":
                 # no remaining descendants, including adopted detached children.
                 save_subprocess_stop_receipt(stop_receipt_path)
         except (OSError, RuntimeError) as error:
-            control.sendall(json.dumps({"error": str(error), "errno": getattr(error, "errno", None)}).encode() + b"\n")
+            control.sendall(json.dumps(get_worker_launch_error_message(error)).encode() + b"\n")
             raise
     exit_with_owned_result(result)

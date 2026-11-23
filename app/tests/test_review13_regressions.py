@@ -53,30 +53,50 @@ with ExitStack() as stack:
     worker.main(client_factory=factory)
 """
 
-_ASSERT_PANEL = r"""
+_PANEL_HARNESS = r"""
 const assert = require('assert'), fs = require('fs'), vm = require('vm');
 const text = fs.readFileSync(process.argv[1], 'utf8');
 const recovery = JSON.parse(process.argv[2]);
 const summary = JSON.parse(process.argv[3]);
 const nodes = {};
 const calls = [];
+const polls = [];
+const claimId = 'a'.repeat(32);
 const context = {
-    window: {},
+    window: {}, currentBookFilename: 'fixture.txt',
     document: {getElementById(id) { return nodes[id] ||= {style: {}, innerHTML: 'previous'}; }},
     API: {
-        async get(path) { calls.push(path); return path.includes('?') ? recovery : summary; },
-        async post(path, payload) { calls.push([path, Object.keys(payload)]); }
+        async get(path) {
+            calls.push(path);
+            if (recovery.rejected) { throw Error('HTTP 409'); }
+            return path.includes('?') ? recovery : summary;
+        },
+        async post(path, payload) {
+            calls.push([path, Object.keys(payload)]);
+            return {task_claim_id: claimId};
+        }
     },
-    t: (_key, text) => text, showToast() {}, _resetPauseBtn() {}, pollScriptLogs() {},
+    t: (_key, text, values = {}) => text.replace(/\{(\w+)\}/g, (match, key) => values[key] ?? match),
+    showToast() {}, showActionError() {}, _resetPauseBtn() {},
+    pollScriptLogs(task, _activity, token) { polls.push([task, token]); },
     console: {debug() {}},
 };
-const refresh = text.slice(text.indexOf('async function refreshScriptRecovery()'),
-                           text.indexOf('async function onCopyRecoveryPrompt()'));
-const retry = text.slice(text.indexOf('window.retryScriptGeneration = async'),
-                         text.indexOf('// --- Script Batch Mode ---'));
+vm.createContext(context);
+function load(start, end) {
+    const a = text.indexOf(start);
+    const b = text.indexOf(end, a);
+    assert(a >= 0 && b > a, 'missing core slice ' + start);
+    vm.runInContext(text.slice(a, b), context);
+}
+load('function escapeHtml(', 'function getInlineStringArgument(');
+load('function isLocalVoiceLoadObsolete(', 'function setFieldFeedback(');
+load('function scriptRecoveryContextMatches(', 'async function onCopyRecoveryPrompt()');
+load('window.retryScriptGeneration = async', '// --- Script Batch Mode ---');
 (async () => {
-    vm.runInNewContext(refresh + retry, context);
     await context.refreshScriptRecovery();
+"""
+
+_ASSERT_PANEL = _PANEL_HARNESS + r"""
     assert.strictEqual(nodes['btn-retry-script'].style.display, 'inline-block');
     assert.strictEqual(nodes['script-recovery-panel'].style.display, 'none');
     assert.strictEqual(nodes['script-recovery-panel'].innerHTML, '');
@@ -86,6 +106,9 @@ const retry = text.slice(text.indexOf('window.retryScriptGeneration = async'),
         '/api/generate_script/recovery', ['/api/generate_script/retry', []],
     ]);
     assert.strictEqual(nodes['btn-cancel-script'].style.display, 'inline-block');
+    const token = context.window._scriptRecoveryAcceptedRun;
+    assert.strictEqual(context.window.getScriptAdmissionByToken(token).claimId, claimId);
+    assert.deepStrictEqual(polls, [['script', token]]);
 })().catch(error => { console.error(error); process.exitCode = 1; });
 """
 

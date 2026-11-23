@@ -8,6 +8,8 @@ import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
+import book_state_transaction as books
+
 from tests import test_review15_regressions as recovery_fixture
 from tests import test_review20_regressions as prior
 from utils import atomic_json_write
@@ -242,6 +244,12 @@ class Review21Regressions(unittest.TestCase):
         seed = checkpoint_path.read_bytes()
         marker = case.manifest.read_bytes()
         sealed = case.receipt.read_bytes()
+        # Install the old shards after the replacement worker has accepted the
+        # verified seed. Before handoff, admission handles the pending journal.
+        self.assertEqual(new_receipt['run_id'], replacement[replacement.index('--active-run-id') + 1])
+        self.assertTrue((case.h.root / books.DISPATCH_PROOF).is_file())
+        books.finish_book_worker_handoff(case.h.root, new_receipt['run_id'])
+        self.assertFalse((case.h.root / books.DISPATCH_PROOF).exists())
         for path, data in restored.items():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)

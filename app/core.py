@@ -751,6 +751,9 @@ def get_task_lifecycle(task_name, states=None):
     """Public execution status is terminal even while failed ownership blocks admission."""
     states = process_state if states is None else states
     state = states.get(task_name, {})
+    if task_name == 'script' and is_script_worker_pending(state):
+        return {'running': True, 'ownership_unconfirmed': False, 'status': 'starting',
+                'worker_pending': True}
     retained = bool(state.get('_windows_cleanup_failed'))
     running = is_task_running(task_name, states=states) and not retained
     return {'running': running, 'ownership_unconfirmed': retained,
@@ -775,6 +778,27 @@ _gpu_leases = {}
 _task_claims = {}
 _saved_book_publications = {}
 _request_task_claims = contextvars.ContextVar("alexandria_request_task_claims", default=None)
+_script_launch_guard = contextvars.ContextVar("alexandria_script_launch_guard", default=None)
+
+
+@contextmanager
+def guard_script_worker_launch(save_launch):
+    """Wrap only the scoped script's launch, after subprocess setup has succeeded."""
+    token = _script_launch_guard.set(save_launch)
+    try:
+        yield
+    finally:
+        _script_launch_guard.reset(token)
+
+_SCRIPT_RESERVATION_FIELDS = ('start_time', 'cancel', 'cpu_only', '_script_published_cleanup_stop',
+                              'worker_claim_id')
+
+
+def is_script_worker_pending(state):
+    owner = _task_claims.get('script')
+    return (owner is not None and not state.get('_windows_cleanup_failed')
+            and (owner.get('defer_process_state')
+                 or ('prior_script_status' in owner and state.get('start_time') is None)))
 
 
 def get_saved_book_destination_path(path):
@@ -864,6 +888,8 @@ def _publish_task_claim_state(task_name, cpu_only):
         state["cancel"] = False
     if task_name == "script":
         state.pop('_script_published_cleanup_stop', None)
+        state.pop('worker_claim_id', None)
+        state['start_time'] = None
     state.update(running=True, cpu_only=cpu_only)
 
 
@@ -970,6 +996,10 @@ def release_gpu_task_claim(task_name: str, claim_id=None, pending_only=False):
                 return False
             if state.pop('_windows_cleanup_failed', False):
                 state.update(process=None, pid=None, processes=[])
+            if task_name == 'script' and is_script_worker_pending(state):
+                for field in _SCRIPT_RESERVATION_FIELDS:
+                    state.pop(field, None)
+                state.update(owner['prior_script_status'])
             state["running"] = False
         _task_claims.pop(task_name, None)
         handle = _gpu_leases.pop(task_name, None)
@@ -1034,6 +1064,10 @@ def activate_background_task_claim(task_name, claim_id):
         if owner.get("defer_process_state"):
             if owner["phase"] == "pending" and getattr(_request_task_claims.get(), "closed", False):
                 raise HTTPException(status_code=409, detail="The initiating request is no longer active")
+            if task_name == 'script':
+                state = process_state[task_name]
+                owner['prior_script_status'] = {field: state[field] for field in _SCRIPT_RESERVATION_FIELDS
+                                                if field in state}
             _publish_task_claim_state(task_name, owner["cpu_only"])
             del owner["defer_process_state"]
 
@@ -1356,7 +1390,14 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
     if "return_code" in state: state["return_code"] = None
     if "process"     in state: state["process"]     = None
     if "pid"         in state: state["pid"]         = None
-    if "start_time"  in state: state["start_time"]  = time.time()
+    if task_name == 'script':
+        with _gpu_lock:
+            owner = _task_claims.get(task_name)
+            if owner is not None:
+                state['worker_claim_id'] = owner['id']
+            state['start_time'] = time.time()
+    elif "start_time" in state:
+        state["start_time"] = time.time()
 
     logger.info(f"Starting task {task_name}: {' '.join(command)}")
 
@@ -1734,8 +1775,7 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             cancel_directory = tempfile.TemporaryDirectory(prefix='alexandria-review-cancel-')
             subprocess_env['ALEXANDRIA_REVIEW_CANCEL_FILE'] = os.path.join(cancel_directory.name, 'cancel')
         review_startup_event('subprocess_launch')
-        process = start_owned_subprocess(
-            command,
+        options = dict(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -1754,6 +1794,15 @@ def _stream_subprocess_to_logs(command: List[str], cwd: str, state: dict, log_pr
             # Linux uses a reaper; macOS a private task job; Windows a Job Object.
             start_new_session=True,
         )
+        save_launch = _script_launch_guard.get() if task_name == 'script' else None
+        if save_launch is not None and not save_launch(may_have_launched=True):
+            return 1, []  # The exact admitted worker was already cancelled.
+        try:
+            process = start_owned_subprocess(command, **options)
+        except OSError as error:
+            if save_launch is not None and getattr(error, 'worker_not_launched', False):
+                save_launch(may_have_launched=False)
+            raise
         review_startup_event('subprocess_started', child_pid=process.pid)
         if cancel_directory is not None:
             process._alexandria_cancel_path = subprocess_env['ALEXANDRIA_REVIEW_CANCEL_FILE']

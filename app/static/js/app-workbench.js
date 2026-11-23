@@ -1720,11 +1720,30 @@
             }
         }
 
+        function getScriptRecoveryBridge() {
+            return typeof window !== 'undefined' ? window : null;
+        }
+
         function reattachTaskActivity(taskName, buttonIds = [], statusId = null, afterDone = null, initialState = null) {
+            const bridge = typeof window !== 'undefined' ? window : null;
+            const wasActive = bridge?._scriptRecoveryRunActive;
+            if (taskName === 'script' && initialState?.worker_pending) {
+                pollScriptLogs('script', null, wasActive ? bridge._scriptRecoveryRunToken : 0, initialState);
+                return;
+            }
+            const scriptRunToken = taskName === 'script'
+                ? (bridge?.observeScriptRecoveryRun?.(initialState?.task_claim_id,
+                    initialState?.running && !initialState.ownership_unconfirmed) || bridge?._scriptRecoveryRunToken || 0) : 0;
+            const observed = bridge?.getScriptAdmissionByToken?.(scriptRunToken);
+            if (observed && !wasActive) { bridge.acceptScriptAdmission(observed.id); }
             claimTaskStart(taskName);
             const buttons = buttonIds.map(id => document.getElementById(id)).filter(Boolean);
             const statusEl = statusId ? document.getElementById(statusId) : null;
             const label = taskName.replaceAll('_', ' ');
+            if (taskName === 'script') {
+                const gen = document.getElementById('btn-gen-script');
+                if (gen) { gen.disabled = true; }
+            }
             buttons.forEach(button => { button.disabled = true; });
             if (initialState?.ownership_unconfirmed) {
                 const message = getTaskOwnershipMessage(initialState);
@@ -1733,16 +1752,53 @@
             }
             else if (statusEl) { statusEl.textContent = t('core.task.restored-running', '{task} running...', {task: label}); }
             else { showToast(t('core.task.still-running', '{task} is still running.', {task: label}), 'info'); }
-            _startPolling(`reattach:${taskName}`, () => API.get(`/api/status/${encodeURIComponent(taskName)}`), {
-                doneCheck: state => !state.running && !state.ownership_unconfirmed,
+            let terminalHandled = false;
+            let stopPolling;
+            const claim = typeof taskStartClaims === 'undefined' ? null : taskStartClaims.get(taskName);
+            const releaseClaim = () => {
+                if (!claim || taskStartClaims.get(taskName) === claim) { releaseTaskStart(taskName); }
+            };
+            const ownsScriptControls = () => !scriptRunToken || bridge._scriptRecoveryRunToken === scriptRunToken;
+            if (observed && bridge?.registerScriptTerminalCleanup) {
+                const detachObserver = () => {
+                    releaseClaim();
+                    stopPolling?.();
+                };
+                bridge.registerScriptTerminalCleanup(scriptRunToken, state => {
+                    if (terminalHandled) { return; }
+                    terminalHandled = true;
+                    detachObserver();
+                    if (!ownsScriptControls()) { return; }
+                    buttons.forEach(button => { button.disabled = false; });
+                    const message = (state?.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
+                    if (statusEl) { statusEl.textContent = message; }
+                    else { showToast(message, 'info'); }
+                    if (afterDone) { afterDone(); }
+                }, detachObserver);
+            }
+            stopPolling = _startPolling(`reattach:${taskName}`, () => API.get(`/api/status/${encodeURIComponent(taskName)}`), {
+                scriptRunToken,
+                // When Generate is pending, a terminal status can belong to the
+                // observed task that caused the start to be refused.
+                doneCheck: state => observed?.state !== 'provisional' && !state.running && !state.ownership_unconfirmed,
                 onTick: state => {
+                    if (!ownsScriptControls() || (scriptRunToken && bridge._scriptRecoveryTerminalToken === scriptRunToken)) { return; }
+                    if (scriptRunToken) { bridge.syncSnapshotButton?.(state); }
                     const last = (state.logs || []).slice(-1)[0];
                     if (statusEl && state.ownership_unconfirmed) { statusEl.textContent = getTaskOwnershipMessage(state); }
                     else if (statusEl && last) { statusEl.textContent = last; }
                 },
                 onDone: async state => {
-                    releaseTaskStart(taskName);
+                    if (terminalHandled) { return; }
+                    if (observed) { return; }
+                    terminalHandled = true;
+                    releaseClaim();
+                    if (!ownsScriptControls()) { return; }
                     buttons.forEach(button => { button.disabled = false; });
+                    if (taskName === 'script') {
+                        const gen = document.getElementById('btn-gen-script');
+                        if (gen && !scriptBatchPoller) { gen.disabled = false; }
+                    }
                     const message = (state.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
                     if (statusEl) { statusEl.textContent = message; }
                     else { showToast(message, 'info'); }
@@ -1773,12 +1829,26 @@
         // with local training/Voice Lab and CPU exports.
         async function reattachRunningPollers() {
             const generation = ++_reattachGeneration;
+            const bridge = typeof window !== 'undefined' ? window : null;
+            const dispatchState = {
+                generation,
+                bookEpoch: bridge?._scriptRecoveryBookEpoch || 0,
+                selection: bridge?._selectedUploadIdentity || null,
+                acceptedToken: bridge?._scriptRecoveryAcceptedRun || 0,
+                terminalToken: bridge?._scriptRecoveryTerminalToken || 0
+            };
+            const dispatchFence = () => generation === _reattachGeneration
+                && (bridge?._scriptRecoveryBookEpoch || 0) === dispatchState.bookEpoch
+                && (bridge?._selectedUploadIdentity || null) === dispatchState.selection
+                && (bridge?._scriptRecoveryAcceptedRun || 0) === dispatchState.acceptedToken
+                && (bridge?._scriptRecoveryTerminalToken || 0) === dispatchState.terminalToken;
             let statuses;
+            let staleDispatch = false;
             try {
                 statuses = await API.get('/api/status');
-                if (generation !== _reattachGeneration) { return; }
+                staleDispatch = !dispatchFence();
             } catch (e) {
-                if (generation !== _reattachGeneration) { return; }
+                if (!dispatchFence()) { return; }
                 showActionError('Could not restore running task controls', e, 'Check the app connection and reload task status before starting new work; a task may still be running.', 'warning');
                 return;
             }
@@ -1802,11 +1872,12 @@
                     return null;
                 }
             }));
-            if (generation !== _reattachGeneration) { return; }
+            staleDispatch = staleDispatch || !dispatchFence();
             const hydrated = Object.fromEntries(fetched.filter(Boolean));
             statuses = { ...statuses, ...hydrated };
             running = Object.fromEntries(Object.entries(statuses).map(([name, state]) => [name, state.running || state.ownership_unconfirmed]));
             logGroups.forEach((group, index) => {
+                if (staleDispatch) { return; }
                 if (group.tasks.some(name => running[name]) || pollGenerations[index] !== getLogPollGeneration(group.tasks)) { return; }
                 const latest = getLatestCompletedLog(group.tasks, hydrated);
                 const el = document.getElementById(group.elementId);
@@ -1830,15 +1901,39 @@
                     show('btn-pause-batch-script'); show('btn-cancel-batch-script');
                     _pollScriptBatchLogs();
                 },
-                script: () => {
+                script: async () => {
+                    const dispatchTask = statuses.script || null;
+                    const live = await API.get('/api/status/script');
+                    if (!dispatchFence()) { return; }
+                    if (dispatchTask?.book_token && live?.book_token
+                        && dispatchTask.book_token !== live.book_token) { return; }
+                    if (!live?.running && !live?.ownership_unconfirmed) { return; }
+                    const bridge = typeof window !== 'undefined' ? window : null;
+                    if (bridge?._scriptRecoveryRunActive
+                        && (bridge._scriptRecoveryAcceptedRun || 0) !== dispatchState.acceptedToken) { return; }
+                    if (live.worker_pending) {
+                        reattachTaskActivity('script', [], 'script-logs', null, live);
+                        return;
+                    }
+                    const recoveryRunToken = bridge?.observeScriptRecoveryRun?.(live.task_claim_id,
+                        live.running && !live.ownership_unconfirmed) || null;
+                    const observed = bridge?.getScriptAdmissionByToken?.(recoveryRunToken);
+                    if (bridge?.observeScriptRecoveryRun && (!observed
+                        || (observed.state === 'provisional' && bridge._scriptRecoveryRunToken !== recoveryRunToken))) {
+                        reattachTaskActivity('script', [], 'script-logs', null, live);
+                        return;
+                    }
+                    if (observed) { bridge.acceptScriptAdmission(observed.id); }
                     disable('btn-gen-script');
                     show('btn-cancel-script'); show('btn-pause-script');
                     pollScriptLogs('script', () => {
-                        if (!scriptBatchPoller) {
-                            const b = document.getElementById('btn-gen-script'); if (b) { b.disabled = false; }
+                        if (!observed) {
+                            if (!scriptBatchPoller) {
+                                const b = document.getElementById('btn-gen-script'); if (b) { b.disabled = false; }
+                            }
+                            show('btn-cancel-script', 'none'); show('btn-pause-script', 'none');
                         }
-                        show('btn-cancel-script', 'none'); show('btn-pause-script', 'none');
-                    });
+                    }, recoveryRunToken);
                 },
                 batch_review: async () => {
                     disable('btn-review-batch-start');
@@ -1938,6 +2033,7 @@
             await Promise.allSettled([...attachments.values()].map(async names => {
                 for (const name of names) {
                     if (statuses[name]?.ownership_unconfirmed) {
+                        if (name === 'script' && staleDispatch) { continue; }
                         reattachTaskActivity(name, [], controlGroups.get(name) || null, null, statuses[name]);
                         continue;
                     }
@@ -1946,6 +2042,7 @@
                     try {
                         await attach();
                     } catch (e) {
+                        if (!dispatchFence()) { return; }
                         showActionError(`Could not restore ${name.replaceAll('_', ' ')} controls`, e, 'Check the app connection and task status before starting again; the task may still be running.', 'warning');
                     }
                 }

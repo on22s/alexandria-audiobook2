@@ -1,4 +1,5 @@
 """Import and dispatch boundaries when POSIX-only signals are unavailable."""
+import errno
 import os
 from pathlib import Path
 import subprocess
@@ -9,6 +10,17 @@ import shutil
 
 
 class SubprocessOwnerPortabilityTests(unittest.TestCase):
+    def test_exec_rejection_is_distinct_from_uncertain_io_failure(self):
+        from subprocess_ownership import mark_unlaunched_exec_errors
+
+        for code, rejected in ((getattr(errno, 'ETXTBSY', errno.ENOEXEC), True),
+                               (errno.EIO, False)):
+            with self.subTest(code=code):
+                error = OSError(code, 'Synthetic start failure')
+                with self.assertRaises(OSError), mark_unlaunched_exec_errors():
+                    raise error
+                self.assertEqual(rejected, getattr(error, 'worker_not_launched', False))
+
     def test_standalone_deployment_runs_owned_child_without_optional_identity_helper(self):
         app_dir=Path(__file__).resolve().parent.parent
         with tempfile.TemporaryDirectory() as tmp:

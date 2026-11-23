@@ -127,7 +127,7 @@ class RecoveryCastBaselineTests(unittest.TestCase):
             self._set_cast(root, hashlib.sha256(raw).hexdigest())
             self.assertIsNone(get_stale_recovery_state(str(root), hashlib.sha256(raw).hexdigest()))
             result = self._attempt_retry(root, source)
-            self.assertEqual({'status': 'resuming'}, result)
+            self.assertEqual({'status': 'resuming', 'task_claim_id': 'baseline-claim'}, result)
             self.assertEqual(1, len(scheduled))
 
     def _write_worker_first_checkpoint(self, script_path):
@@ -357,7 +357,7 @@ class RecoveryCastBaselineTests(unittest.TestCase):
             state.pop(RECOVERY_CAST_INVALIDATED, None)
             atomic_json_write(state, root / 'state.json')
             self.assertTrue(script.ensure_script_recovery_response()['recoverable'])
-            self.assertEqual({'status': 'resuming'}, self._attempt_retry(root, source))
+            self.assertEqual({'status': 'resuming', 'task_claim_id': 'baseline-claim'}, self._attempt_retry(root, source))
             self.assertEqual(1, len(scheduled))
 
     def test_loader_fence_refuses_real_cli_without_publication_or_alteration(self):

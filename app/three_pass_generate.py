@@ -4690,6 +4690,9 @@ def main(client_factory=None):
         atomic_json_write(summary, output_path + ".preflight_manifest.json", allow_nonatomic_fallback=False)
         sys.exit(0 if summary["status"] == "complete" else 1)
     active_run_id = args.active_run_id if args.active_book_token is not None else None
+    if active_run_id is not None:
+        from book_state_transaction import finish_book_worker_handoff
+        finish_book_worker_handoff(data_dir, active_run_id)
     run_id = active_run_id if active_run_id is not None else uuid.uuid4().hex
     try:
         entries = run_three_pass(client, model_name, book, params, chunk_size,

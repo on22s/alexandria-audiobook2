@@ -25,6 +25,15 @@ from export_file_io import (EXPORT_RETIREMENT_DIRECTORY, PUBLICATION_JOURNAL,
                             PUBLICATION_SET_JOURNAL)
 
 JOURNAL = '.active_book_transaction.json'
+COMMIT_INTENT = JOURNAL + '.commit-intent'
+DISPATCH_INTENT = JOURNAL + '.dispatch-intent'
+DISPATCH_PROOF = JOURNAL + '.dispatch-proof'
+_SCRIPT_STARTUP_CANCEL = '.script-startup-cancel.json'
+SCRIPT_LAST_ADMITTED_RUN_ID = 'script_generation_last_admitted_run_id'
+_BOOK_INTENTS = (COMMIT_INTENT, DISPATCH_INTENT, DISPATCH_PROOF)
+_BOOK_METADATA_NAMES = {
+    name.casefold() for name in (JOURNAL, JOURNAL + '.lock', *_BOOK_INTENTS, _SCRIPT_STARTUP_CANCEL)
+}
 MAX_BOOK_JOURNAL_BYTES = 32 * 1024**2
 MAX_LEGACY_CLEANUP_ENTRIES = 65536
 _held_books = ContextVar('held_book_state_scopes', default=())
@@ -186,7 +195,8 @@ _MIGRATION_NAME = re.compile(re.escape(MIGRATION_PREFIX) + r'([0-9a-f]{8})-[0-9a
 _STAGING_LEFTOVER_NAME = re.compile(
     r'\.book-switch-(?:[0-9a-f]{32}|[a-z0-9_]{8})' if os.name == 'nt'
     else r'\.book-switch-[0-9a-f]{32}')
-_JOURNAL_TEMPORARY_NAME = re.compile(re.escape(JOURNAL) + r'\.new-[0-9a-f]{32}')
+_JOURNAL_TEMPORARY_NAME = re.compile(
+    r'(?:' + '|'.join(map(re.escape, (JOURNAL, *_BOOK_INTENTS, _SCRIPT_STARTUP_CANCEL))) + r')\.new-[0-9a-f]{32}')
 
 
 def _capture_target_parent_identities_path(root, relative):
@@ -1300,7 +1310,7 @@ def is_book_state_admitted(data_dir):
 
 
 def _has_book_transaction(root):
-    return _has_book_entry(root, JOURNAL)
+    return any(_has_book_entry(root, name) for name in (JOURNAL, *_BOOK_INTENTS))
 
 
 def _has_book_entry(root, name):
@@ -1397,57 +1407,105 @@ def _journal_pairs(pairs):
 
 
 def _save_journal(root, data, *, expected_version=None, create=False, root_fd=None,
-                  on_publish_attempt=None):
+                  on_publish_attempt=None, protect_commit=False, dispatch_claim=None):
+    return _write_book_journal(
+        root, JOURNAL, data, expected_version=expected_version, create=create,
+        root_fd=root_fd, on_publish_attempt=on_publish_attempt, protect_commit=protect_commit,
+        dispatch_claim=dispatch_claim)
+
+
+def _write_book_journal(root, name, data, *, expected_version=None, create=False, root_fd=None,
+                        on_publish_attempt=None, protect_commit=False, intent_version=None,
+                        dispatch_claim=None, publication_directory_fd=None, on_stage=None):
     payload = bytearray()
     for part in json.JSONEncoder(allow_nan=False).iterencode(data):
         raw = part.encode('utf-8')
         if len(payload) + len(raw) > MAX_BOOK_JOURNAL_BYTES:
             raise ValueError('Active-book transaction exceeds its journal limit')
         payload.extend(raw)
-    path = root / JOURNAL
+    path = root / name
     def observed_version():
         if root_fd is None:
             return _book_target_version(path)
-        info = os.stat(JOURNAL, dir_fd=root_fd, follow_symlinks=False)
-        return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
-                info.st_ctime_ns, info.st_mode, info.st_nlink)
-    def verify_published(result):
-        if (result[2] != len(payload) or not stat.S_ISREG(result[5]) or result[6] != 1):
+        return _book_info_version(os.stat(name, dir_fd=root_fd, follow_symlinks=False))
+    def verify_contents(source, result):
+        if _book_info_version(os.fstat(source.fileno())) != result:
             raise ValueError('Book transaction journal changed during publication')
-        read_flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
-        read_fd = os.open(JOURNAL if root_fd is not None else path, read_flags, dir_fd=root_fd)
-        with os.fdopen(read_fd, 'rb') as source:
-            if _book_info_version(os.fstat(source.fileno())) != result:
-                raise ValueError('Book transaction journal changed during publication')
-            actual = source.read(len(payload) + 1)
-            if _book_info_version(os.fstat(source.fileno())) != result or actual != payload:
-                raise ValueError('Book transaction journal changed during publication')
-        if observed_version() != result:
+        source.seek(0)
+        actual = source.read(len(payload) + 1)
+        if (_book_info_version(os.fstat(source.fileno())) != result or actual != payload
+                or observed_version() != result):
             raise ValueError('Book transaction journal changed during publication')
         return result
+
+    def verify_published(result, staged_stream=None, verification_slot=None):
+        if (result[2] != len(payload) or not stat.S_ISREG(result[5]) or result[6] != 1):
+            raise ValueError('Book transaction journal changed during publication')
+        read_flags = (os.O_RDONLY | getattr(os, 'O_BINARY', 0)
+                      | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0))
+        read_name = name if root_fd is not None else path
+        try:
+            read_fd = os.open(read_name, read_flags, dir_fd=root_fd)
+        except OSError as error:
+            if error.errno not in (errno.EMFILE, errno.ENFILE):
+                raise
+            if staged_stream is not None:
+                return verify_contents(staged_stream, result)
+            if verification_slot is None:
+                raise
+            # The portable writer closes the staged file before rename. Free
+            # the spare descriptor and still verify the installed file fully.
+            verification_slot.close()
+            read_fd = os.open(read_name, read_flags)
+        verified = None
+        try:
+            with os.fdopen(read_fd, 'rb') as source:
+                read_fd = None
+                verified = verify_contents(source, result)
+        except OSError:
+            if verified is None:
+                raise
+            logger.warning('Could not close verified book journal reader', exc_info=True)
+        finally:
+            if read_fd is not None:
+                os.close(read_fd)
+        return verified
 
     def check_expected_version():
         if expected_version is not None and observed_version() != expected_version:
             raise ValueError('Book transaction journal changed; update was refused')
 
+    def get_staged_identity(output, staged_path):
+        if os.name == 'nt':
+            from windows_export_staging_directory import windows_named_file_identity
+            return windows_named_file_identity(staged_path)
+        info = os.fstat(output.fileno())
+        return info.st_dev, info.st_ino
+
     if create:
-        temporary = f'{JOURNAL}.new-{uuid.uuid4().hex}'
+        temporary = f'{name}.new-{uuid.uuid4().hex}'
         temporary_path = root / temporary
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0)
+        flags = (os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0)
+                 | getattr(os, 'O_BINARY', 0))
         descriptor = None
-        created_version = None
         publication_attempted = False
         try:
             descriptor = os.open(temporary if root_fd is not None else temporary_path, flags, 0o600,
                                  dir_fd=root_fd)
-            info = os.fstat(descriptor)
-            created_version = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
-                               info.st_ctime_ns, info.st_mode, info.st_nlink)
             with os.fdopen(descriptor, 'wb') as output:
                 descriptor = None
                 if output.write(payload) != len(payload):
                     raise OSError('Short active-book journal write')
                 output.flush(); os.fsync(output.fileno())
+                identity = get_staged_identity(output, temporary_path)
+            if on_stage is not None:
+                stage_name = temporary if root_fd is not None else temporary_path
+                staged = _book_info_version(os.stat(stage_name, dir_fd=root_fd, follow_symlinks=False))
+                if staged[:2] != identity or not stat.S_ISREG(staged[5]) or staged[6] != 1:
+                    raise ValueError('Book journal staging changed before sealing')
+                on_stage(_get_book_commit_evidence(staged, payload))
+                if _book_info_version(os.stat(stage_name, dir_fd=root_fd, follow_symlinks=False)) != staged:
+                    raise ValueError('Book journal staging changed after sealing')
             from source_upload_publication import move_source_upload_exclusively
             root_info = root.lstat()
             if root_fd is not None:
@@ -1459,16 +1517,19 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
                 if on_publish_attempt is not None:
                     on_publish_attempt()
                 move_source_upload_exclusively(
-                    temporary, JOURNAL, source_dir_fd=root_fd, destination_dir_fd=root_fd)
+                    temporary, name, source_dir_fd=root_fd, destination_dir_fd=root_fd)
                 os.fsync(root_fd)
             else:
                 publication_attempted = True
                 if on_publish_attempt is not None:
                     on_publish_attempt()
                 move_source_upload_exclusively(temporary_path, path)
-                sync_adapter_directory(str(root))
+                if publication_directory_fd is None:
+                    sync_adapter_directory(str(root))
+                else:
+                    os.fsync(publication_directory_fd)
             result = observed_version()
-            if result[:2] != created_version[:2]:
+            if result[:2] != identity:
                 raise ValueError('Book transaction journal changed during publication')
             return verify_published(result)
         except Exception as error:
@@ -1485,55 +1546,110 @@ def _save_journal(root, data, *, expected_version=None, create=False, root_fd=No
             # A failure may follow a successful rename or a foreign edit to
             # either name. Preserve both as evidence; an inode alone cannot
             # prove the file still contains the data this call wrote.
-    check_expected_version()
-    if root_fd is not None:
-        temporary = f'{JOURNAL}.new-{uuid.uuid4().hex}'
-        descriptor = None
-        try:
-            descriptor = os.open(temporary,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0),
-                0o600, dir_fd=root_fd)
-            with os.fdopen(descriptor, 'wb') as output:
-                descriptor = None
-                if output.write(payload) != len(payload):
-                    raise OSError('Short active-book journal write')
-                output.flush(); os.fsync(output.fileno())
-            if observed_version() != expected_version:
+    temporary = f'{name}.new-{uuid.uuid4().hex}'
+    staged_path = root / temporary
+
+    def staged_version():
+        info = (staged_path.lstat() if root_fd is None
+                else os.stat(temporary, dir_fd=root_fd, follow_symlinks=False))
+        return _book_info_version(info)
+
+    def publish_update(identity, directory_fd, staged_stream=None, verification_slot=None):
+        staged = staged_version()
+        if (staged[:2] != identity or not stat.S_ISREG(staged[5])
+                or staged[6] != 1 or staged[2] != len(payload)):
+            raise ValueError('Book transaction journal staging changed; update was refused')
+        prepared = None
+        if protect_commit:
+            # The queued worker can dispatch only after verified publication.
+            # Persist both possible journal identities before changing its name
+            # so ordinary recovery cannot infer admission from a phase string.
+            _, prior, raw = _read_book_journal(path, include_raw=True)
+            if prior != expected_version:
                 raise ValueError('Book transaction journal changed; update was refused')
-            if on_publish_attempt is not None:
-                on_publish_attempt()
-            try:
-                os.replace(temporary, JOURNAL, src_dir_fd=root_fd, dst_dir_fd=root_fd)
-                os.fsync(root_fd)
-                return verify_published(observed_version())
-            except Exception as error:
-                raise BookJournalPublicationUncertain(
-                    'Book transaction journal update is uncertain; evidence was preserved') from error
-        finally:
-            if descriptor is not None:
-                os.close(descriptor)
-            # The temporary name may have been edited or replaced while the
-            # update failed. An inode match is not enough to authorize deletion.
-    check_expected_version()
-    replace_started = []
-    def before_committed_replace():
-        # Portable writers stage through a text/byte temp of their own. Move the
-        # rollback-capable guard to after that durable staged write and
-        # immediately before its replace, matching the descriptor path: a source
-        # edit in the staging window is refused while the destination is intact.
-        check_expected_version()
+            receipt = {
+                'before': _get_book_commit_evidence(prior, raw),
+                'after': _get_book_commit_evidence(staged, payload),
+            }
+            prepared = _write_book_journal(
+                root, COMMIT_INTENT, receipt, expected_version=intent_version,
+                create=intent_version is None, root_fd=root_fd,
+                publication_directory_fd=directory_fd)
+        # Run the last rollback-capable guards after flushing the staged file.
         if on_publish_attempt is not None:
             on_publish_attempt()
-        replace_started.append(True)
-    try:
-        save_adapter_publication_bytes(str(path), bytes(payload),
-                                       before_replace=before_committed_replace)
-        return verify_published(_book_target_version(path))
-    except Exception as error:
-        if replace_started:
+        check_expected_version()
+        if staged_version() != staged:
+            raise ValueError('Book transaction journal staging changed; update was refused')
+        try:
+            if root_fd is None:
+                os.replace(staged_path, path)
+            else:
+                os.replace(temporary, name, src_dir_fd=root_fd, dst_dir_fd=root_fd)
+            if directory_fd is not None:
+                os.fsync(directory_fd)
+            version = observed_version()
+            if version[:2] != identity:
+                raise ValueError('Book transaction journal changed during publication')
+            verified = verify_published(version, staged_stream, verification_slot)
+            if prepared is not None:
+                if observed_version() != verified:
+                    raise ValueError('Book transaction journal changed during publication')
+                if dispatch_claim is not None:
+                    dispatch = {**receipt, 'claim': dispatch_claim}
+
+                    def seal_dispatch(evidence):
+                        # Persist independent receipt and journal identities
+                        # before making the dispatch receipt visible.
+                        _write_book_journal(
+                            root, DISPATCH_PROOF, {**dispatch, 'receipt': evidence,
+                                                   'workspace': data['workspace'], 'phase': 'pending'},
+                            create=True, root_fd=root_fd, publication_directory_fd=directory_fd)
+
+                    _write_book_journal(root, DISPATCH_INTENT, dispatch,
+                                        create=True, root_fd=root_fd,
+                                        publication_directory_fd=directory_fd, on_stage=seal_dispatch)
+                _clear_book_commit_intent(root, prepared, root_fd)
+            return verified
+        except Exception as error:
             raise BookJournalPublicationUncertain(
                 'Book transaction journal update is uncertain; evidence was preserved') from error
-        raise
+
+    check_expected_version()
+    flags = (os.O_RDWR | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0)
+             | getattr(os, 'O_BINARY', 0))
+    descriptor = os.open(temporary if root_fd is not None else staged_path, flags, 0o600,
+                         dir_fd=root_fd)
+    verified = None
+    try:
+        with os.fdopen(descriptor, 'w+b') as output:
+            descriptor = None
+            if output.write(payload) != len(payload):
+                raise OSError('Short active-book journal write')
+            output.flush(); os.fsync(output.fileno())
+            identity = get_staged_identity(output, staged_path)
+            if root_fd is not None:
+                verified = publish_update(identity, root_fd, staged_stream=output)
+        if root_fd is None:
+            # A spare descriptor keeps exhaustion from stranding a durable
+            # commit. It neither names nor pins the staged file across rename.
+            with contextlib.ExitStack() as resources:
+                verification_slot = resources.enter_context(open(os.devnull, 'rb'))
+                directory_fd = None
+                if os.name != 'nt':
+                    directory_fd = os.open(root, os.O_RDONLY)
+                    resources.callback(os.close, directory_fd)
+                verified = publish_update(identity, directory_fd, verification_slot=verification_slot)
+    except OSError:
+        if verified is None:
+            raise
+        logger.warning('Could not close a descriptor after book journal publication', exc_info=True)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        # A temp name may now hold someone else's file. Leave it for the
+        # transaction leftover inspector instead of unlinking it here.
+    return verified
 
 
 @_refuse_book_io('Active-book journal could not be read')
@@ -1562,6 +1678,331 @@ def _read_book_journal(path, *, include_raw=False):
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as error:
         raise ValueError('Invalid active-book transaction') from error
     return (data, before, raw) if include_raw else (data, before)
+
+
+def _get_book_commit_evidence(version, raw):
+    if not version[1]:
+        raise ValueError('Book journal file identity is unavailable')
+    # The ctime can change on rename. Keep the identity and metadata the
+    # rename preserves, together with the exact bytes.
+    return [*(version[index] for index in (0, 1, 2, 3, 5, 6)), hashlib.sha256(raw).hexdigest()]
+
+
+def _clear_book_commit_intent(root, expected, root_fd=None, *, marker=COMMIT_INTENT):
+    name = marker if root_fd is not None else root / marker
+    observed = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
+    if _book_info_version(observed) != expected:
+        raise BookJournalPublicationUncertain('Book journal commit intent changed')
+    try:
+        os.unlink(name, dir_fd=root_fd)
+    except OSError as error:
+        # A late error cannot undo an observed removal. The callers still
+        # sync the name change before any disposal of workspace backups.
+        try:
+            os.stat(name, dir_fd=root_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            logger.warning('Book commit intent was removed despite an unlink error: %s', error)
+        else:
+            raise
+
+
+def _read_optional_book_marker(root, name, *, include_raw=False):
+    path = root / name
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return None
+    return _read_book_journal(path, include_raw=include_raw)
+
+
+def _read_dispatch_proof(root):
+    proof = _read_optional_book_marker(root, DISPATCH_PROOF)
+    if proof is None:
+        return None
+    record, version = proof
+    if (not isinstance(record, dict)
+            or set(record) - {'restart_predecessor'} != {'before', 'after', 'claim', 'receipt', 'workspace', 'phase'}
+            or not isinstance(record['claim'], str) or re.fullmatch(r'[0-9a-f]{32}', record['claim']) is None
+            or not isinstance(record['workspace'], str) or not _STAGING_LEFTOVER_NAME.fullmatch(record['workspace'])
+            or ('restart_predecessor' in record and (not isinstance(record['restart_predecessor'], str)
+                or re.fullmatch(r'[0-9a-f]{32}', record['restart_predecessor']) is None
+                or record['restart_predecessor'] == record['claim']))
+            or record['phase'] not in ('pending', 'cancelled', 'cancelled-for-restart', 'confirmed')):
+        raise BookJournalPublicationUncertain('Book worker proof is invalid')
+    return record, version
+
+
+def _require_dispatched_book_state(root, data, claim):
+    """Tie the worker claim to the exact state artifact the journal published."""
+    row = next((entry for entry in data['entries'] if entry['path'] == 'state.json'), None)
+    state_path = root / 'state.json'
+    if row is None:
+        raise BookJournalPublicationUncertain('Book worker has no published state')
+    state, version, raw = _read_book_journal(state_path, include_raw=True)
+    if (not isinstance(state, dict) or state.get('script_generation_run_id') != claim
+            or row.get('new_file_identity') != list(version[:2])
+            or row.get('new_sha256') != hashlib.sha256(raw).hexdigest()
+            or not _is_book_file_generation_current(row, 'new_file_generation', state_path)
+            or _book_target_version(state_path) != version):
+        raise BookJournalPublicationUncertain('Book state does not belong to the dispatched worker')
+    return state
+
+
+def _validate_script_startup_cancel(record):
+    selection = record.get('selection') if isinstance(record, dict) else None
+    if (not isinstance(record, dict)
+            or set(record) != {'claim_id', 'selection', 'allows_restart', 'prior_run'}
+            or not isinstance(record['claim_id'], str) or re.fullmatch(r'[0-9a-f]{32}', record['claim_id']) is None
+            or (record['prior_run'] is not None and (not isinstance(record['prior_run'], str)
+                or re.fullmatch(r'[0-9a-f]{32}', record['prior_run']) is None))
+            or type(record['allows_restart']) is not bool
+            or not isinstance(selection, dict)
+            or set(selection) != {'book_token', 'source_sha256', 'source_path'}
+            or not _valid_book_digest(selection['book_token']) or not _valid_book_digest(selection['source_sha256'])
+            or not isinstance(selection['source_path'], str) or not selection['source_path']):
+        raise BookJournalPublicationUncertain('Script startup cancellation record is invalid')
+
+
+def _read_script_startup_cancel(root):
+    try:
+        saved = _read_optional_book_marker(root, _SCRIPT_STARTUP_CANCEL)
+    except (OSError, ValueError) as error:
+        raise BookJournalPublicationUncertain('Script startup cancellation record could not be read') from error
+    if saved is not None:
+        _validate_script_startup_cancel(saved[0])
+    return saved
+
+
+def _save_script_startup_rollback(root, data, owner):
+    # The rollback restores the earlier state verbatim. Keep a fresh consent
+    # from this worker's Cancel, or remember that its predecessor's was spent.
+    cancelled = owner['phase'] in ('cancelled', 'cancelled-for-restart')
+    if not cancelled and 'restart_predecessor' not in owner:
+        return
+    admitted_state = _require_dispatched_book_state(root, data, owner['claim'])
+    index, row = next((index, row) for index, row in enumerate(data['entries']) if row['path'] == 'state.json')
+    backup = root / data['workspace'] / _get_book_backup_slot(row, index, data['version'] == _EXCHANGE_JOURNAL_VERSION)
+    _validate_byte_original(row, backup)
+    prior_state, _, raw = _read_book_journal(backup, include_raw=True)
+    if not isinstance(prior_state, dict) or hashlib.sha256(raw).hexdigest() != row['old_sha256']:
+        raise BookJournalPublicationUncertain('Script startup has no verified prior state')
+    record = {
+        'claim_id': owner['claim'] if cancelled else owner['restart_predecessor'],
+        'selection': admitted_state.get('script_generation_selection'),
+        'allows_restart': owner['phase'] == 'cancelled-for-restart',
+        'prior_run': prior_state.get(SCRIPT_LAST_ADMITTED_RUN_ID),
+    }
+    _validate_script_startup_cancel(record)
+    saved = _read_script_startup_cancel(root)
+    if saved is None or saved[0] != record:
+        _write_book_journal(root, _SCRIPT_STARTUP_CANCEL, record, create=saved is None,
+                            expected_version=saved[1] if saved is not None else None)
+
+
+def get_script_startup_cancel_locked(data_dir, state, selection):
+    """Return the stopped startup for the restored generation and selected book."""
+    saved = _read_script_startup_cancel(Path(data_dir))
+    if saved is not None:
+        record, _ = saved
+        if (record['prior_run'] == state.get(SCRIPT_LAST_ADMITTED_RUN_ID)
+                and record['selection']['book_token'] == selection['book_token']):
+            return record
+    return None
+
+
+def _read_book_commit_intents(root, data, journal_version, raw):
+    intent = _read_optional_book_marker(root, COMMIT_INTENT)
+    dispatch = _read_optional_book_marker(root, DISPATCH_INTENT, include_raw=True)
+    sealed = _read_dispatch_proof(root)
+    if intent is None and dispatch is None and sealed is None:
+        return None, None, None
+    proof = _get_book_commit_evidence(journal_version, raw)
+    if intent is not None:
+        receipt, _ = intent
+        if (not isinstance(receipt, dict) or set(receipt) != {'before', 'after'}
+                or proof not in (receipt['before'], receipt['after'])
+                or data['phase'] not in ('publishing', 'committed')):
+            raise ValueError('Book journal does not match the prepared publication')
+    if sealed is not None:
+        owner, _ = sealed
+        if (proof != owner['after'] or data['phase'] != 'committed'
+                or data['workspace'] != owner['workspace']
+                or (intent is not None and intent[0] != {key: owner[key] for key in ('before', 'after')})
+                or (owner['phase'] == 'confirmed' and (intent is not None or dispatch is not None))):
+            raise BookJournalPublicationUncertain('Book journal does not match the worker proof')
+        _require_dispatched_book_state(root, data, owner['claim'])
+        if dispatch is not None:
+            handoff, version, raw_receipt = dispatch
+            if (handoff != {key: owner[key] for key in ('before', 'after', 'claim')}
+                    or _get_book_commit_evidence(version, raw_receipt) != owner['receipt']):
+                raise BookJournalPublicationUncertain('Book worker handoff changed')
+    elif dispatch is not None:
+        raise BookJournalPublicationUncertain('Book worker handoff has no ownership proof')
+    return intent, dispatch, sealed
+
+
+def _get_completed_dispatch_proof(root):
+    sealed = _read_dispatch_proof(root)
+    if (sealed is None or sealed[0]['phase'] != 'confirmed'
+            or _is_book_workspace_present(root / sealed[0]['workspace'])
+            or any(_is_book_workspace_present(root / name) for name in (COMMIT_INTENT, DISPATCH_INTENT))):
+        raise BookJournalPublicationUncertain('Book worker proof remains without a journal')
+    return sealed
+
+
+def _finish_confirmed_dispatch(root, root_identity, journal, journal_version, proof_version,
+                               cancel_check=None):
+    try:
+        _recover_book_journal(root, root_identity, journal, cancel_check, expected_version=journal_version)
+    except OSError as error:
+        # A verified commitment can retry its own cleanup.
+        _recover_book_journal(root, root_identity, journal, cancel_check, expected_version=journal_version)
+        logger.warning('Book worker handoff committed and recovered after cleanup error (errno %s).',
+                       error.errno)
+    _clear_book_commit_intent(root, proof_version, marker=DISPATCH_PROOF)
+    sync_adapter_directory(str(root))
+
+
+def _resolve_book_commit_intent(root, root_identity, cancel_check):
+    """Settle verified work, or roll back an undelivered job after its slot is idle."""
+    if not any(_is_book_workspace_present(root / name) for name in _BOOK_INTENTS):
+        return False
+    try:
+        journal = root / JOURNAL
+        if not _is_book_workspace_present(journal):
+            _, version = _get_completed_dispatch_proof(root)
+            _clear_book_commit_intent(root, version, marker=DISPATCH_PROOF)
+            sync_adapter_directory(str(root))
+            return True
+        data, journal_version, raw = _read_book_journal(journal, include_raw=True)
+        _validate_recovery_journal_shape(root, journal, data)
+        intent, dispatch, sealed = _read_book_commit_intents(root, data, journal_version, raw)
+        if sealed is not None:
+            owner, proof_version = sealed
+            if owner['phase'] == 'confirmed':
+                _finish_confirmed_dispatch(root, root_identity, journal, journal_version,
+                                           proof_version, cancel_check)
+                return True
+            from task_ownership import TaskOwnershipBusy, acquire_task_slot, ensure_task_ownership_directory
+            try:
+                slot = acquire_task_slot(ensure_task_ownership_directory(root), 'script')
+            except TaskOwnershipBusy as error:
+                raise TimeoutError('Waiting for the admitted script worker') from error
+            with slot:
+                _save_script_startup_rollback(root, data, owner)
+                # Keep the prepared proof live throughout receipt removal.
+                if intent is None:
+                    receipt = {key: owner[key] for key in ('before', 'after')}
+                    intent_version = _write_book_journal(root, COMMIT_INTENT, receipt, create=True)
+                    intent = (receipt, intent_version)
+                if dispatch is not None:
+                    _clear_book_commit_intent(root, dispatch[1], marker=DISPATCH_INTENT)
+                _clear_book_commit_intent(root, proof_version, marker=DISPATCH_PROOF)
+                sync_adapter_directory(str(root))
+        if intent is None:
+            raise ValueError('Book publication intent disappeared during recovery')
+        _, intent_version = intent
+        if data['phase'] == 'committed':
+            # Roll back through the existing publishing protocol. Protect
+            # this rewrite too, so a second interruption can prove either
+            # inode and enter the same rollback again.
+            journal_version = _write_book_journal(
+                root, JOURNAL, {**data, 'phase': 'publishing'}, expected_version=journal_version,
+                protect_commit=True, intent_version=intent_version)
+        else:
+            _require_book_journal_version(root, journal_version)
+            _clear_book_commit_intent(root, intent_version)
+        sync_adapter_directory(str(root))
+        _recover_book_journal(root, root_identity, journal, cancel_check,
+                              expected_version=journal_version)
+        return True
+    except (BookJournalPublicationUncertain, TimeoutError):
+        raise
+    except (OSError, ValueError) as error:
+        raise BookJournalPublicationUncertain(
+            'Book journal publication intent could not be resolved; evidence was preserved') from error
+
+
+def _read_current_book_handoff(root):
+    journal = root / JOURNAL
+    data, version, raw = _read_book_journal(journal, include_raw=True)
+    _validate_recovery_journal_shape(root, journal, data)
+    intent, dispatch, sealed = _read_book_commit_intents(root, data, version, raw)
+    if intent is not None or sealed is None:
+        raise BookJournalPublicationUncertain('Book publication was not handed to a worker')
+    return version, dispatch, sealed
+
+
+def save_script_restart_launch(data_dir, claim_id, predecessor, *, may_have_launched):
+    """Record a scoped launch before the owner can start it, or clear a proven rejection."""
+    with book_operator_locked(data_dir) as (root, _):
+        version, dispatch, (owner, proof_version) = _read_current_book_handoff(root)
+        if owner['claim'] != claim_id or dispatch is None:
+            raise BookJournalPublicationUncertain('Script launch does not belong to the admitted worker')
+        if may_have_launched:
+            if owner['phase'] in ('cancelled', 'cancelled-for-restart'):
+                return False
+            if owner['phase'] != 'pending' or 'restart_predecessor' in owner:
+                raise BookJournalPublicationUncertain('Script restart can no longer be launched')
+            owner = {**owner, 'restart_predecessor': predecessor}
+        else:
+            if owner.get('restart_predecessor') != predecessor:
+                raise BookJournalPublicationUncertain('Script launch rejection does not match its predecessor')
+            owner = {key: value for key, value in owner.items() if key != 'restart_predecessor'}
+        _require_book_journal_version(root, version)
+        _write_book_journal(root, DISPATCH_PROOF, owner, expected_version=proof_version,
+                            on_publish_attempt=lambda: _require_book_journal_version(root, version))
+        return True
+
+
+def cancel_book_worker_handoff_locked(root, claim_id, *, for_restart=False):
+    """Fence the active startup without restoring or editing its book state."""
+    if not any(_is_book_workspace_present(root / name) for name in (DISPATCH_INTENT, DISPATCH_PROOF)):
+        return False
+    version, dispatch, (owner, proof_version) = _read_current_book_handoff(root)
+    if owner['claim'] != claim_id:
+        raise BookJournalPublicationUncertain('Book cancellation does not belong to the admitted worker')
+    if owner['phase'] == 'confirmed':
+        return False
+    if dispatch is None:
+        raise BookJournalPublicationUncertain('Book startup cancellation could not verify its receipt')
+    if owner['phase'] == 'pending' or (owner['phase'] == 'cancelled' and for_restart):
+        _require_book_journal_version(root, version)
+        phase = 'cancelled-for-restart' if for_restart else 'cancelled'
+        _write_book_journal(root, DISPATCH_PROOF, {**owner, 'phase': phase},
+                            expected_version=proof_version)
+    return True
+
+
+def finish_book_worker_handoff(data_dir, claim_id):
+    """A dispatched worker claims its exact publication before writing progress."""
+    with book_operator_locked(data_dir) as (root, identity):
+        if not any(_is_book_workspace_present(root / name) for name in (DISPATCH_INTENT, DISPATCH_PROOF)):
+            if _is_book_workspace_present(root / COMMIT_INTENT):
+                raise BookJournalPublicationUncertain('Book publication was not handed to a worker')
+            return
+        if not _is_book_workspace_present(root / JOURNAL):
+            owner, proof_version = _get_completed_dispatch_proof(root)
+            if owner['claim'] != claim_id:
+                raise BookJournalPublicationUncertain('Book publication belongs to another worker')
+            _clear_book_commit_intent(root, proof_version, marker=DISPATCH_PROOF)
+            sync_adapter_directory(str(root))
+            return
+        version, dispatch, (owner, proof_version) = _read_current_book_handoff(root)
+        if owner['claim'] != claim_id:
+            raise BookJournalPublicationUncertain('Book publication does not belong to the dispatched worker')
+        if owner['phase'] != 'confirmed':
+            if owner['phase'] != 'pending' or dispatch is None:
+                raise BookJournalPublicationUncertain('Book startup was cancelled or could not be confirmed')
+            _require_book_journal_version(root, version)
+            _clear_book_commit_intent(root, dispatch[1], marker=DISPATCH_INTENT)
+            # Receipt removal is not settlement. A disputed journal must
+            # still fail closed on the next admission after a worker refusal.
+            _require_book_journal_version(root, version)
+            proof_version = _write_book_journal(
+                root, DISPATCH_PROOF, {**owner, 'phase': 'confirmed'}, expected_version=proof_version,
+                on_publish_attempt=lambda: _require_book_journal_version(root, version))
+        _finish_confirmed_dispatch(root, identity, root / JOURNAL, version, proof_version)
 
 
 @dataclass(frozen=True)
@@ -3380,6 +3821,10 @@ def _finish_transaction(root, workspace, *, journal_version, stream_data=None,
             _sync_recovered_export_ledger(root, rollback)
             _unlink_owned_book_journal(root, journal_version)
             return
+    if (byte_data or stream_data or {}).get('phase') == 'committed':
+        # A verified admission clears its intent before dispatch. Make the
+        # name change durable (also on resumed cleanup) before losing backups.
+        sync_adapter_directory(str(root))
     if byte_data is not None and targets is not None:
         _validate_byte_cleanup_targets(
             byte_data['entries'], targets, byte_data['phase'], cancel_check=cancel_check)
@@ -3558,7 +4003,7 @@ def _validate_recovery_journal_shape(root, journal, data):
     names = [_relative_name(row.get('path')) for row in rows]
     _validate_names(names)
     if any(name.split('/')[0].casefold().startswith('.book-switch-') or
-           name.split('/')[0].casefold() in (JOURNAL.casefold(), (JOURNAL + '.lock').casefold())
+           name.split('/')[0].casefold() in _BOOK_METADATA_NAMES
            for name in names):
         raise ValueError('Invalid active-book transaction targets')
     parent_identities = data.get('target_parent_identities')
@@ -3753,6 +4198,8 @@ def recover_book_state_locked(data_dir, *, cancel_check=None,
     if not _has_book_transaction(root):
         _complete_interrupted_quarantines(root, root_identity)
         return False
+    if _resolve_book_commit_intent(root, root_identity, cancel_check):
+        return True
     if _quarantine_book_transaction(root, root_identity, cancel_check=cancel_check):
         return True
     try:
@@ -4145,9 +4592,12 @@ def _recover_book_exchange_journal(root, root_identity, journal, data, journal_v
     return True
 
 
-def _recover_book_journal(root, root_identity, journal, cancel_check):
+def _recover_book_journal(root, root_identity, journal, cancel_check, *, expected_version=None):
     """recover_book_state_locked's restore or finish of an admitted journal."""
     data, journal_version = _read_book_journal(journal)
+    if expected_version is not None and journal_version != expected_version:
+        raise BookJournalPublicationUncertain(
+            'Book journal changed before rollback; recovery evidence was preserved')
     (workspace, persisted_workspace_identity, rows, names, limits,
      parent_identities) = _validate_recovery_journal_shape(root, journal, data)
     if parent_identities is not None:
@@ -4760,6 +5210,9 @@ def quarantine_book_state_locked(root, root_identity):
     root = Path(root)
     if not _has_book_transaction(root):
         return False
+    if any(_is_book_workspace_present(root / name) for name in _BOOK_INTENTS):
+        raise BookJournalPublicationUncertain(
+            'The unverified book publication and its backups need manual resolution; run inspect')
     if not _quarantine_book_transaction(
             root, root_identity, refusal='Operator quarantine accepted the current book files',
             force=True):
@@ -4848,6 +5301,9 @@ def get_book_journal_status(root):
     try:
         if not _has_book_transaction(root):
             return 'absent'
+        if not _is_book_workspace_present(journal):
+            _get_completed_dispatch_proof(root)
+            return 'valid'
         data, _version = _read_book_journal(journal)
         _validate_recovery_journal_shape(Path(root), journal, data)
     except BookJournalMigrationRequired:
@@ -5078,6 +5534,8 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES,
     report['journal_temporaries'] = journal_temporaries
     journal = root / JOURNAL
     try:
+        commit_intent = next((name for name in _BOOK_INTENTS
+                              if _is_book_workspace_present(root / name)), None)
         journal_present = _is_book_workspace_present(journal)
     except (ValueError, OSError) as error:
         # An unreadable marker is not absence: a workspace beside it may be
@@ -5085,6 +5543,13 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES,
         report['journal'] = {'present': True, 'error': f'{type(error).__name__}: {error}'}
         return report
     if not journal_present:
+        if commit_intent is not None:
+            report['journal'] = {'present': True, 'commit_intent': commit_intent}
+            try:
+                _get_completed_dispatch_proof(root)
+            except (OSError, ValueError):
+                report['journal'].update(commit_disputed=True, error='Prepared publication has no journal')
+            return report
         report['orphaned_staging'] = _get_leftover_staging_entries(
             root, staging_names, entry_limit)
         return report
@@ -5094,8 +5559,17 @@ def inspect_book_recovery_state(root, *, entry_limit=MAX_LEGACY_CLEANUP_ENTRIES,
         # A name beside an unreadable journal could belong to it; a false
         # "orphan" invites deleting a live switch's staging.
         report['journal'] = {'present': True, 'error': f'{type(error).__name__}: {error}'}
+        if commit_intent is not None:
+            report['journal'].update(commit_intent=commit_intent, commit_disputed=True)
         return report
     summary = {'present': True, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
+    if commit_intent is not None:
+        summary['commit_intent'] = commit_intent
+        try:
+            _validate_recovery_journal_shape(root, journal, data)
+            _read_book_commit_intents(root, data, _version, raw)
+        except (OSError, ValueError):
+            summary['commit_disputed'] = True
     if not isinstance(data, dict):
         summary['error'] = 'Journal is not an object'
         report['journal'] = summary
@@ -5172,8 +5646,9 @@ def ensure_saved_book_state(data_dir, scripts_dir, timeout=10, *, recover=True):
 
 
 def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_limit=None,
-                            cancel_check=None, before_replace=None,
-                            on_recovered_commit_error=None, restore_export_receipts=False):
+                            cancel_check=None, before_replace=None, before_commit=None, on_commit=None,
+                            dispatch_claim=None, on_recovered_commit_error=None,
+                            restore_export_receipts=False):
     """Stage and publish a switch; streams require an admitted, bounded caller.
 
     Stream objects must already be pinned by the caller. Their extent and hash
@@ -5186,7 +5661,12 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
     on_recovered_commit_error can verify and report a committed outcome after
     recovery finishes cleaning up a transient storage error.
     Saved-book loads opt into journaled renewal for receipts on removed exports.
+    before_commit runs only before the durable journal replace, while rollback
+    is still possible. on_commit records durable publication before cleanup.
+    A dispatch_claim leaves that cleanup to the worker holding the claim.
     """
+    if dispatch_claim is not None and on_commit is None:
+        raise ValueError('A worker handoff requires a publication callback')
     root, root_identity = _book_operation_root(data_dir)
     if _has_book_transaction(root):
         raise ValueError('Recover the pending book transaction first')
@@ -5200,7 +5680,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
     names = [_relative_name(name) for name, _ in operations]
     _validate_names(names)
     if any(name.split('/')[0].casefold().startswith('.book-switch-') or
-           name.split('/')[0].casefold() in (JOURNAL.casefold(), (JOURNAL + '.lock').casefold())
+           name.split('/')[0].casefold() in _BOOK_METADATA_NAMES
            for name in names):
         raise ValueError('Book transaction metadata is not a replacement target')
     targets = [_get_path(root, name) for name, _value in operations]
@@ -5738,9 +6218,21 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
         data['phase'] = 'committed'
         if root_guard is not None:
             root_guard.check()
+        def validate_commit():
+            if before_replace is not None:
+                before_replace()
+            if before_commit is not None:
+                before_commit()
         journal_version = _save_journal(root, data, expected_version=journal_version,
-                                        root_fd=root_fd, on_publish_attempt=before_replace)
+                                        root_fd=root_fd,
+                                        protect_commit=on_commit is not None,
+                                        dispatch_claim=dispatch_claim,
+                                        on_publish_attempt=validate_commit if before_commit is not None else before_replace)
         committed = True
+        if on_commit is not None:
+            on_commit()
+        if dispatch_claim is not None:
+            return
         # Publication is durable at this point.  Finish validation and cleanup
         # without surfacing a late cancellation for data that was committed.
         if streams:

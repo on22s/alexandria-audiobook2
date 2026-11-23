@@ -45,7 +45,8 @@ class ScriptRecoveryResponseTests(unittest.TestCase):
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const src=fs.readFileSync(process.argv[1],'utf8');let posts=[],confirm=false;
 const buttons={};for(const id of ['btn-gen-script','btn-retry-script','btn-cancel-script','btn-pause-script']) buttons[id]={disabled:false,style:{}};
-const ctx={window:{},document:{getElementById:id=>buttons[id]},API:{get:async()=>({legacy_confirmation:{checkpoint_token:'a'.repeat(64),book_token:'b'.repeat(64)}}),post:async(path,data)=>posts.push({path,data})},showConfirm:async()=>confirm,_resetPauseBtn:()=>{},pollScriptLogs:()=>{},refreshScriptRecovery:()=>{},showActionError:()=>{},scriptBatchPoller:null};vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));
+const ctx={window:{_scriptRecoveryGeneration:0,_scriptRecoveryPending:false,_scriptRecoveryConfirmed:{generation:0,recoverable:true,book:'book-A',bookEpoch:0,selection:null},_scriptRecoveryBookEpoch:0,_selectedUploadIdentity:null},currentBookFilename:'book-A',document:{getElementById:id=>buttons[id]},API:{get:async()=>({recoverable:true,legacy_confirmation:{checkpoint_token:'a'.repeat(64),book_token:'b'.repeat(64)}}),post:async(path,data)=>posts.push({path,data})},showConfirm:async()=>confirm,_resetPauseBtn:()=>{},pollScriptLogs:()=>{},refreshScriptRecovery:()=>{},showActionError:()=>{},scriptBatchPoller:null};vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));
+vm.runInContext(src.slice(src.indexOf('function scriptRecoveryContextMatches('),src.indexOf('async function refreshScriptRecovery()')),ctx);
 vm.runInContext(src.slice(src.indexOf('window.retryScriptGeneration ='),src.indexOf('// --- Script Batch Mode ---')),ctx);
 (async()=>{await ctx.window.retryScriptGeneration();assert.equal(posts.length,0);confirm=true;await ctx.window.retryScriptGeneration();assert.equal(posts.length,1);assert.equal(posts[0].data.legacy_checkpoint_token,'a'.repeat(64));assert.equal(posts[0].data.legacy_book_token,'b'.repeat(64));})().catch(e=>{console.error(e);process.exit(1)});
 """
@@ -57,7 +58,7 @@ vm.runInContext(src.slice(src.indexOf('window.retryScriptGeneration ='),src.inde
         code = r"""
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const core=fs.readFileSync(process.argv[1],'utf8'),panel={style:{},innerHTML:''};
-const ctx={window:{},document:{getElementById:()=>panel}};vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));
+const ctx={window:{},document:{getElementById:()=>panel},isScriptRetryBusy:()=>false};vm.createContext(ctx),ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.formatUiSafetyText=ctx.formatUiSafetyText||((key,english,values=Object())=>ctx.t(key,english,values)),ctx.tSafety=ctx.tSafety||((key,english,values=Object())=>Object.fromEntries([['primary',ctx.t(key,english,values)],['secondary',null]]));
 vm.runInContext(core.slice(core.indexOf('function escapeHtml('),core.indexOf('// Parse a numeric input')),ctx);
 vm.runInContext(core.slice(core.indexOf('function renderScriptRecovery('),core.indexOf('async function onCopyRecoveryPrompt(')),ctx);
 for(const pass of ['segment','attribute','instruct']){
@@ -218,20 +219,33 @@ ctx.renderScriptRecovery(null);assert.strictEqual(panel.innerHTML,'');assert.str
         js = r'''
 const assert=require('assert'),fs=require('fs'),vm=require('vm');
 const source=fs.readFileSync(process.argv[1],'utf8');
-const handler=source.slice(source.indexOf('async function refreshScriptRecovery()'),source.indexOf('// Failed-request recovery panel'));
+const handler=source.slice(source.indexOf('function scriptRecoveryContextMatches('),source.indexOf('// Failed-request recovery panel'));
 (async()=>{
  for(const mode of ['detail','no-detail','none','error']) {
-  const calls=[],renders=[],toasts=[];const retry={style:{}},panel={style:{display:'block'}};
+  const calls=[],renders=[],toasts=[],errors=[];const retry={style:{}},panel={style:{display:'block'}};
   const detail={recoverable:true,source:'frozen',prompt:{system:'system',user:'user'}};
-  const context={document:{getElementById:id=>id==='btn-retry-script'?retry:panel},console:{debug(){}},
+  const context={window:{_scriptRecoveryDetail:detail,_scriptRecoveryGeneration:0,_scriptRecoveryPending:false,_scriptRecoveryConfirmed:null,_scriptRecoveryBookEpoch:0,_selectedUploadIdentity:null},currentBookFilename:'book-A',document:{getElementById:id=>id==='btn-retry-script'?retry:panel},
    API:{get:async path=>{calls.push(path);if(mode==='error'){throw new Error('unavailable');}
     return {recoverable:mode!=='none',failed_pass:'segment',detail:mode==='detail'?detail:null};}},
    showToast:(...args)=>toasts.push(args),renderScriptRecovery:value=>renders.push(value),
+   showActionError:(...args)=>errors.push(args),
+   getActionErrorMessage:(label,error,detail)=>[label,error.message,detail].join(' '),
+   escapeHtml:text=>text,
    t:(key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))};
   vm.runInNewContext(handler,context);await context.refreshScriptRecovery();
   assert.deepStrictEqual(calls,['/api/generate_script/recovery?include_detail=true']);
   assert.strictEqual(retry.style.display,(mode==='detail'||mode==='no-detail')?'inline-block':'none');
-  if(mode==='error'){assert.strictEqual(panel.style.display,'none');}
+  if(mode==='error'){
+   assert.strictEqual(panel.style.display,'');
+   assert.match(panel.innerHTML,/role="status"/);
+   assert.match(panel.innerHTML,/Check recovery status/);
+   assert.match(panel.innerHTML,/onclick="refreshScriptRecovery\(\)"/);
+   assert.match(errors[0][2],/Check recovery status/);
+   assert.strictEqual(context.window._scriptRecoveryDetail,null);
+   assert.strictEqual(renders.length,0);
+   assert.strictEqual(errors.length,1);
+   assert.strictEqual(errors[0][3],'warning');
+  }
   else{assert.strictEqual(renders[0],mode==='detail'?detail:null);}
   assert.strictEqual(toasts.length,(mode==='detail'||mode==='no-detail')?1:0);
  }
@@ -245,12 +259,12 @@ const handler=source.slice(source.indexOf('async function refreshScriptRecovery(
         js = r'''
 const assert=require('assert'),fs=require('fs'),vm=require('vm');
 const source=fs.readFileSync(process.argv[1],'utf8');
-const handler=source.slice(source.indexOf('async function refreshScriptRecovery()'),source.indexOf('// Failed-request recovery panel'));
+const handler=source.slice(source.indexOf('function scriptRecoveryContextMatches('),source.indexOf('// Failed-request recovery panel'));
 (async()=>{
  for(const withDetail of [true,false]) {
   const calls=[],toasts=[],renders=[];const retry={style:{}},panel={style:{display:'none'},innerHTML:''};
   const serverDetail='The approved cast changed since this run started, so it cannot resume.';
-  const context={document:{getElementById:id=>id==='btn-retry-script'?retry:panel},console:{debug(){}},
+  const context={window:{_scriptRecoveryGeneration:0,_scriptRecoveryPending:false,_scriptRecoveryConfirmed:null,_scriptRecoveryBookEpoch:0,_selectedUploadIdentity:null},currentBookFilename:'book-A',document:{getElementById:id=>id==='btn-retry-script'?retry:panel},console:{debug(){}},
    API:{get:async path=>{calls.push(path);return {recoverable:false,fenced:true,start_over_required:true,detail:withDetail?serverDetail:null};}},
    showToast:(...args)=>toasts.push(args),renderScriptRecovery:value=>renders.push(value),
    escapeHtml:value=>String(value).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])),

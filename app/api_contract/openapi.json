@@ -1188,6 +1188,24 @@
         "title": "CalibreTokenRequest",
         "type": "object"
       },
+      "CancelScriptRequest": {
+        "properties": {
+          "expected_claim_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Claim Id"
+          }
+        },
+        "title": "CancelScriptRequest",
+        "type": "object"
+      },
       "CastCreateRequest": {
         "properties": {
           "name": {
@@ -2649,6 +2667,18 @@
       },
       "GenerateScriptRequest": {
         "properties": {
+          "expected_restart_claim_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Restart Claim Id"
+          },
           "first_person_narrator": {
             "anyOf": [
               {
@@ -5226,6 +5256,29 @@
           "start_entry"
         ],
         "title": "ScopeSelection",
+        "type": "object"
+      },
+      "ScriptGenerationAdmission": {
+        "properties": {
+          "status": {
+            "enum": [
+              "started",
+              "resuming"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "task_claim_id": {
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Task Claim Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "task_claim_id"
+        ],
+        "title": "ScriptGenerationAdmission",
         "type": "object"
       },
       "ScriptLoadRequest": {
@@ -11525,7 +11578,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptGenerationAdmission"
+                }
               }
             },
             "description": "Successful Response"
@@ -11668,6 +11723,23 @@
     "/api/generate_script/cancel": {
       "post": {
         "operationId": "generate_script_cancel_api_generate_script_cancel_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CancelScriptRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -11676,6 +11748,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Generate Script Cancel"
@@ -11948,7 +12030,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptGenerationAdmission"
+                }
               }
             },
             "description": "Successful Response"

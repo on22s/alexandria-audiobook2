@@ -50,21 +50,39 @@ with patch.object(core, 'acquire_gpu_lock', return_value=None), \\
 
 _WORKER_CHILD = """
 from contextlib import ExitStack
+import errno
 import os
 from unittest.mock import patch
+import book_state_transaction as books
 import three_pass_generate as worker
 from tests.test_recovery_validation_matrix import _factory, _payloads
 
 save = worker._save_three_pass_checkpoint
+finish = books._finish_transaction
+cleanup_faulted = False
 
 def save_then_exit(*args, **kwargs):
     save(*args, **kwargs)
     os._exit(87)
 
+def fail_fsync(_fd):
+    raise OSError(errno.EIO, 'synthetic committed cleanup error')
+
+def finish_once(*args, **kwargs):
+    global cleanup_faulted
+    journal = kwargs.get('byte_data') or {}
+    if journal.get('phase') == 'committed' and not cleanup_faulted:
+        cleanup_faulted = True
+        with patch.object(os, 'fsync', side_effect=fail_fsync):
+            return finish(*args, **kwargs)
+    return finish(*args, **kwargs)
+
 with ExitStack() as stack:
     stack.enter_context(patch.object(worker, 'ensure_ideal_settings', return_value=(None, {}, 'offline')))
     if os.environ['AA2_TEST_EXIT_AFTER_CHECKPOINT'] == '1':
         stack.enter_context(patch.object(worker, '_save_three_pass_checkpoint', side_effect=save_then_exit))
+    if os.environ['AA2_TEST_FAIL_HANDOFF_CLEANUP'] == '1':
+        stack.enter_context(patch.object(books, '_finish_transaction', side_effect=finish_once))
     worker.main(client_factory=_factory(_payloads()))
 """
 
@@ -75,11 +93,12 @@ class Review12Regressions(unittest.TestCase):
         self.addCleanup(test.doCleanups)
         return test, test._sharded_fixture()
 
-    def _child(self, h, source, args=(), *, exit_after_checkpoint=False):
+    def _child(self, h, source, args=(), *, exit_after_checkpoint=False, fail_handoff_cleanup=False):
         return subprocess.run(
             [sys.executable, '-c', source, *args], cwd=APP_DIR, text=True,
             env=dict(os.environ, PYTHONPATH=str(APP_DIR), ALEXANDRIA_DATA_DIR=str(h.root),
-                     AA2_TEST_EXIT_AFTER_CHECKPOINT=str(int(exit_after_checkpoint))),
+                     AA2_TEST_EXIT_AFTER_CHECKPOINT=str(int(exit_after_checkpoint)),
+                     AA2_TEST_FAIL_HANDOFF_CLEANUP=str(int(fail_handoff_cleanup))),
             capture_output=True, timeout=25)
 
     def _assert_seed(self, h):
@@ -95,37 +114,21 @@ class Review12Regressions(unittest.TestCase):
 
     def test_committed_cleanup_eio_launches_worker_from_durable_seed(self):
         test, (h, _, shards, _, _) = self._sharded_fixture()
-        finish = books._finish_transaction
-        errors = []
         outcomes = []
-
-        def fail_fsync(_fd):
-            errors.append(errno.EIO)
-            raise OSError(errno.EIO, 'synthetic committed cleanup error')
-
-        def finish_once(*args, **kwargs):
-            journal = kwargs.get('byte_data') or {}
-            if journal.get('phase') == 'committed' and not errors:
-                with patch.object(os, 'fsync', side_effect=fail_fsync):
-                    return finish(*args, **kwargs)
-            return finish(*args, **kwargs)
 
         def run(command, name):
             outcomes.append((core._task_claims[name]['phase'], self._assert_seed(h)['run_id']))
-            outcomes.append(self._child(h, _WORKER_CHILD, command[3:]))
+            outcomes.append(self._child(h, _WORKER_CHILD, command[3:], fail_handoff_cleanup=True))
 
-        with patch.object(books, '_finish_transaction', side_effect=finish_once), \
-                capture_script_worker_starts(run) as dispatch, \
-                patch.object(script.logger, 'warning', wraps=script.logger.warning) as warn:
+        with capture_script_worker_starts(run) as dispatch:
             response = test._start_over(h)
-        self.assertEqual([errno.EIO], errors)
         self.assertEqual(200, response.status_code, response.text)
         dispatch.assert_called_once()
-        self.assertTrue(any('committed and recovered after cleanup error' in call.args[0]
-                            for call in warn.call_args_list))
         receipt = script.run_spec_receipt.load_receipt(h.root)
         self.assertEqual(('started', receipt['run_id']), outcomes[0])
         self.assertEqual(0, outcomes[1].returncode, outcomes[1].stderr + outcomes[1].stdout)
+        self.assertIn(f'committed and recovered after cleanup error (errno {errno.EIO})',
+                      outcomes[1].stderr + outcomes[1].stdout)
         self.assertFalse((h.root / books.JOURNAL).exists())
         self.assertFalse(shards.exists())
         self.assertEqual(4, len(h.rows()))

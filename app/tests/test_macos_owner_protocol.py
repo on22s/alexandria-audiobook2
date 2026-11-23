@@ -222,7 +222,7 @@ class FakeLaunchdScope:
     blocked receiving a configuration) unless the job was removed first. The
     actor itself is a real thread speaking the real socket protocol.
     `actor_mode` 'finish' completes the root and waits for `finish`; 'drop'
-    closes the socket before any root exit, as a killed actor would.
+    closes the socket before any root exit; 'reject' reports a launch rejection.
     """
     BROKER = {'pid': 100, 'pidversion': 1, 'coalition': 1}
     ACTOR = {'pid': 200, 'pidversion': 1, 'coalition': 7}
@@ -298,6 +298,12 @@ class FakeLaunchdScope:
                 json.loads(owner.receive_macos_owner_bytes(channel, size))
                 for _ in range(3):
                     os.close(owner.receive_macos_owner_descriptor(channel))
+                if self.actor_mode == 'reject':
+                    owner.send_macos_owner_event(channel, {
+                        'error': 'Missing fixture executable', 'errno': errno.ENOENT,
+                        'worker_not_launched': True,
+                    })
+                    return
                 owner.send_macos_owner_event(channel, {'started': 300})
                 if self.actor_mode == 'drop':
                     return
@@ -324,7 +330,7 @@ class FakeLaunchdScope:
 class MacOwnerFinishTests(unittest.TestCase):
     """The broker's finish and stop paths against a KeepAlive launchd job (#1646)."""
 
-    def run_broker(self, scope, *, deadline=10):
+    def run_broker(self, scope, *, deadline=10, exec_rejected=False):
         handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
         timed_out = threading.Event()
 
@@ -347,8 +353,17 @@ class MacOwnerFinishTests(unittest.TestCase):
                         patch.object(owner, 'subprocess', fake_subprocess), \
                         patch.object(owner, '_macos_job_is_absent', return_value=False), patch('sys.stderr'):
                     watchdog.start()
-                    result = owner.run_macos_owner_broker(control, spec)
-                    self.assertEqual({'started': 300}, owner.receive_macos_owner_line(peer))
+                    if exec_rejected:
+                        with self.assertRaises(OSError) as caught:
+                            owner.run_macos_owner_broker(control, spec)
+                        self.assertEqual(errno.ENOENT, caught.exception.errno)
+                        message = owner.receive_macos_owner_line(peer)
+                        self.assertEqual(errno.ENOENT, message['errno'])
+                        self.assertIs(True, message['worker_not_launched'])
+                        result = None
+                    else:
+                        result = owner.run_macos_owner_broker(control, spec)
+                        self.assertEqual({'started': 300}, owner.receive_macos_owner_line(peer))
             finally:
                 watchdog.cancel()
                 for sig, handler in handlers.items():
@@ -390,6 +405,25 @@ class MacOwnerFinishTests(unittest.TestCase):
         result, timed_out, receipt = self.run_broker(scope)
         self.assertFalse(timed_out)
         self.assertEqual((0, True, 2), (result, receipt, scope.remove_calls))
+        self.assertTrue(scope.removed)
+
+    def test_reaped_actor_still_forwards_queued_exec_rejection(self):
+        scope = FakeLaunchdScope(keep_alive=False, actor_mode='reject', reap_before_removal=True)
+        count = scope.get_active_count
+        calls = 0
+
+        def wait_for_exit_after_admission(coalition):
+            nonlocal calls
+            if calls:
+                self.assertTrue(scope.actor_exited.wait(5))
+            calls += 1
+            return count(coalition)
+
+        with patch.object(scope, 'get_active_count', side_effect=wait_for_exit_after_admission):
+            result, timed_out, receipt = self.run_broker(scope, exec_rejected=True)
+        self.assertIsNone(result)
+        self.assertFalse(timed_out)
+        self.assertTrue(receipt)
         self.assertTrue(scope.removed)
 
     def test_persistent_remove_failures_are_rate_limited_and_keep_ownership(self):

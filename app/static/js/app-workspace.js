@@ -390,7 +390,7 @@ async function refreshBookWorkspace() {
 }
 
 function getBookRecoveryText(summary) {
-    if (!summary || typeof summary !== 'object' || !['pending', 'migration_required', 'unreadable'].includes(summary.status)) { return null; }
+    if (!summary || typeof summary !== 'object' || !['pending', 'migration_required', 'manual_resolution', 'unreadable'].includes(summary.status)) { return null; }
     const commands = Array.isArray(summary.commands) ? summary.commands.filter(item => item
         && typeof item.purpose === 'string' && typeof item.command === 'string') : [];
     const steps = commands.map(item => `${item.purpose}: ${item.command}`).join(' — ');
@@ -408,7 +408,11 @@ async function showBookRecoveryHint(request) {
     const recovery = getBookRecoveryText(summary);
     if (!recovery) { return; }
     const target = document.getElementById('workspace-feedback');
-    if (recovery.status === 'pending' && recovery.steps) {
+    if (recovery.status === 'manual_resolution' && recovery.steps) {
+        renderUiSafety(target, 'safety.home.recovery.manual.steps', 'The Start Over journal could not be verified. Keep the journal and backups for manual recovery. In a terminal in the Alexandria folder — {steps}', {steps: recovery.steps});
+    } else if (recovery.status === 'manual_resolution') {
+        renderUiSafety(target, 'safety.home.recovery.manual', 'The Start Over journal could not be verified. Keep the journal and backups for manual recovery.');
+    } else if (recovery.status === 'pending' && recovery.steps) {
         renderUiSafety(target, 'safety.home.recovery.pending.steps', 'An interrupted book save has not been finished, so the book cannot open yet. Nothing was deleted. In a terminal in the Alexandria folder — {steps}', {steps: recovery.steps});
     } else if (recovery.status === 'pending') {
         renderUiSafety(target, 'safety.home.recovery.pending', 'An interrupted book save has not been finished, so the book cannot open yet. Nothing was deleted.');

@@ -77,7 +77,9 @@ COMMAND = 'python app/book_state_recovery.py'
 
 def get_recovery_status(report, journal_status):
     """The one decision the command and the app share (Rule 15):
-    'clean' | 'pending' | 'migration_required' | 'unreadable'."""
+    'clean' | 'pending' | 'migration_required' | 'manual_resolution' | 'unreadable'."""
+    if report['journal'].get('commit_disputed'):
+        return 'manual_resolution'
     if ('retained_error' in report or report['journal'].get('error')
             or journal_status == 'invalid'):
         return 'unreadable'
@@ -87,7 +89,7 @@ def get_recovery_status(report, journal_status):
 def get_book_recovery_summary(data_dir, *, wait=0.25):
     """-> what the app shows about a book's recovery state (#1660).
 
-    {'status': 'clean' | 'pending' | 'migration_required' | 'unreadable',
+    {'status': 'clean' | 'pending' | 'migration_required' | 'manual_resolution' | 'unreadable',
      'phase', 'locked', 'retained': [{'name', 'kind', 'state', 'forced'}],
      'leftovers': {'orphaned_staging', 'journal_temporaries', 'bytes'} | None,
      'commands': [{'purpose', 'command'}]}, the commands in the order to try
@@ -120,6 +122,9 @@ def get_book_recovery_summary(data_dir, *, wait=0.25):
     inspect = {'purpose': 'See what is pending and why', 'command': f'{COMMAND} inspect --hash'}
     commands = {
         'clean': [],
+        'manual_resolution': [{
+            'purpose': 'Inspect the protected journal and backups for manual recovery',
+            'command': inspect['command']}],
         'unreadable': [inspect],
         'migration_required': [inspect, {
             'purpose': 'Set aside a save from an older version once its files are checked',
@@ -130,6 +135,8 @@ def get_book_recovery_summary(data_dir, *, wait=0.25):
             'purpose': "Only if finish refuses and the current files are the ones you want, keep them",
             'command': f'{COMMAND} quarantine --accept-current-files'}],
     }[status]
+    if status == 'pending' and journal.get('commit_intent'):
+        commands.pop()  # Protected publication cannot use accept-current-files.
     retained = [{key: entry.get(key) for key in ('name', 'kind', 'state', 'forced')}
                 for entry in report.get('quarantines', [])]
     leftovers = None
@@ -155,6 +162,7 @@ def _run_inspect(books, data_dir, wait, no_lock, hashes):
     return {
         'unreadable': (EXIT_REFUSED, 'The book state could not be read, or its journal is not '
                                      'valid; see the report.'),
+        'manual_resolution': (EXIT_REFUSED, 'The Start Over journal and its backups need manual recovery.'),
         'clean': (EXIT_OK, 'No book switch is pending.'),
         'migration_required': (EXIT_MIGRATION, MIGRATION_MESSAGE),
         'pending': (EXIT_OK, 'A book switch is pending; see the report.'),

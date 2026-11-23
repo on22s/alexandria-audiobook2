@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from tests.test_recovery_validation_matrix import core
 from tests.test_review7_regressions import MULTI_SOURCE
-from tests.test_review13_regressions import _ASSERT_PANEL, fixtures, prior, script
+from tests.test_review13_regressions import _ASSERT_PANEL, _PANEL_HARNESS, fixtures, prior, script
 from utils import atomic_json_write
 
 
@@ -47,11 +47,11 @@ with ExitStack() as stack:
     worker.main(client_factory=fixtures._factory(fixtures._payloads(), fail=failed_passes))
 """
 
-_READ_PANEL = _ASSERT_PANEL.split("    assert.strictEqual(nodes['btn-retry-script']")[0].replace(
-    "window: {},", "window: {}, escapeHtml: String,").replace(
-    "async get(path) { calls.push(path); return path.includes('?') ? recovery : summary; }",
-    "async get(path) { if (recovery.rejected) { throw Error('HTTP 409'); } return recovery; }") + """
+_READ_PANEL = _PANEL_HARNESS + """
     const panel = nodes['script-recovery-panel'];
+    if (recovery.rejected) {
+        assert(panel.innerHTML.includes('Check recovery status'));
+    }
     console.log(JSON.stringify([
         nodes['btn-retry-script'].style.display === 'inline-block',
         panel.style.display !== 'none' && panel.innerHTML.includes('onSkipRecoveryChunk()'),
