@@ -1410,9 +1410,12 @@ def run_process(command: List[str], task_name: str, cwd: str = None):
         else:
             # Check if process was killed by a signal (negative return code on Unix)
             if return_code < 0:
-                sig_name = signal.Signals(-return_code).name if hasattr(signal, 'Signals') else f"signal {-return_code}"
-                state["logs"].append(f"Task {task_name} was cancelled ({sig_name}).")
-                if "status" in state: state["status"] = "cancelled"
+                try:
+                    sig_name = signal.Signals(-return_code).name
+                except ValueError:
+                    sig_name = f"signal {-return_code}"
+                state["logs"].append(f"Task {task_name} was killed by {sig_name} (return code {return_code}).")
+                if "status" in state: state["status"] = "failed"
             else:
                 state["logs"].append(f"Task {task_name} failed with return code {return_code}.")
                 if "status" in state: state["status"] = "failed"

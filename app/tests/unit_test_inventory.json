@@ -16018,6 +16018,12 @@
     , "tests.test_task_claim_ownership.TaskClaimOwnershipTests.test_stale_claim_cannot_release_new_owner_or_run_queued_callback"
     , "tests.test_task_claim_ownership.TaskClaimOwnershipTests.test_thread_start_observation_failure_keeps_already_alive_worker_admitted"
   ]
+  , "test_task_exit_classification_2189": [
+    "tests.test_task_exit_classification_2189.SignalExitClassificationTests.test_app_requested_cancel_is_still_cancelled"
+    , "tests.test_task_exit_classification_2189.SignalExitClassificationTests.test_known_signal_without_app_cancel_is_failed_not_cancelled"
+    , "tests.test_task_exit_classification_2189.SignalExitClassificationTests.test_positive_failure_still_reports_return_code"
+    , "tests.test_task_exit_classification_2189.SignalExitClassificationTests.test_unmapped_signal_keeps_its_number_and_fails"
+  ]
   , "test_task_guides": [
     "tests.test_task_guides.TaskGuideTests.test_every_guide_target_and_illustration_is_bundled"
     , "tests.test_task_guides.TaskGuideTests.test_first_book_hidden_settings_section_is_revealed_by_guide"
@@ -16034,6 +16040,7 @@
     , "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_batch_completion_ignores_collision_skips_and_keeps_real_failures"
     , "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_persona_completion_notifies_even_when_refresh_fails"
     , "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_real_failures_incomplete_batches_and_errors_after_success_remain_visible"
+    , "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_signal_kills_are_failed_not_cancelled"
     , "tests.test_task_outcomes_js.TaskOutcomeJsTests.test_zero_error_summary_counts_are_neutral_without_masking_real_failures"
   ]
   , "test_task_ownership_leases": [

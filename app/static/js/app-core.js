@@ -702,7 +702,7 @@
                 const line = String(logs[i]).trim();
                 if (/^Task \S+ completed successfully\.$/i.test(line)) { return false; }
                 if (/^Task \S+ (?:cancelled\.|was cancelled\s*\()/i.test(line)) { return false; }
-                if (/^Task \S+ (?:failed with return code|completed, but [1-9]\d* section\(s\))/i.test(line)) { return true; }
+                if (/^Task \S+ (?:was killed by |failed with return code|completed, but [1-9]\d* section\(s\))/i.test(line)) { return true; }
                 if (/^(?:\[ERROR\]|Error:)/i.test(line)) { return true; }
             }
             return logs.some(log => {
@@ -809,6 +809,7 @@
             if (status.status === 'cancelled' || (status.tasks || []).some(task => task.status === 'cancelled')) { return 'cancelled'; }
             for (const line of (status.logs || []).slice().reverse()) {
                 if (/^Task \S+ completed successfully\.$/i.test(String(line).trim())) { return 'finished'; }
+                if (/^Task \S+ was killed by /i.test(String(line).trim())) { return 'failed'; }
                 if (/^Task \S+ (?:cancelled\.|was cancelled\s*\()/i.test(String(line).trim())) { return 'cancelled'; }
             }
             return 'finished';
