@@ -5630,6 +5630,9 @@
     , "tests.test_epub_captured_bytes.EpubCapturedBytesTests.test_bytes_parser_preserves_path_output_without_reopening_source"
     , "tests.test_epub_captured_bytes.EpubCapturedBytesTests.test_corpus_reads_epub_source_once_and_creates_no_scratch_snapshot"
   ]
+  , "test_epub_experiment_uploads": [
+    "tests.test_epub_experiment_uploads.EpubExperimentUploadsTests.test_discovery_and_explicit_inputs_under_either_upload_layout"
+  ]
   , "test_epub_extraction_report": [
     "tests.test_epub_extraction_report.EpubExtractionReportTests.test_changed_text_and_archive_cannot_reuse_snapshot_identity"
     , "tests.test_epub_extraction_report.EpubExtractionReportTests.test_epub2_and_epub3_reports_preserve_exact_extraction_and_spine_order"
