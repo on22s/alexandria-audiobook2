@@ -1,4 +1,4 @@
-from book_state_transaction import ensure_saved_book_state
+from book_state_transaction import ensure_saved_book_state, reuse_book_state
 from script_recovery_guard import (RECOVERY_CAST_INVALIDATED,
                                    get_fenced_recovery_status, is_script_recovery_cast_invalidated)
 from script_recovery_facts import get_saved_script_recovery_manifest
@@ -16,6 +16,7 @@ import hashlib
 import json
 import io
 import logging
+import math
 import os
 import posixpath
 import re
@@ -28,7 +29,7 @@ import unicodedata
 import zipfile
 import uuid
 from collections import OrderedDict
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
@@ -54,32 +55,53 @@ from generation_checkpoint_shards import (get_generation_checkpoint_artifacts,
 from config_settings import load_app_config
 from generate_script import fix_mojibake
 from lmstudio_settings import (ensure_ideal_settings, get_active_llm_config,
-                               get_planned_request_context)
+                                get_failover_llm_config, get_planned_request_context)
+from llm_provider import get_run_fingerprint_identity
 from narrator_prompt import get_valid_narrator_name, is_narrator_attested
 from script_preflight import audit_unicode_text
 from source_normalization import normalize_known_source_corruptions
-from three_pass_generate import (build_attribute_request,
-                                 build_instruct_request,
+from three_pass_generate import (_load_three_pass_checkpoint,
+                                  build_attribute_request,
+                                  build_instruct_request,
                                  build_three_pass_request_preflight,
                                   get_three_pass_preflight_capacity,
                                   get_three_pass_unchecked_count,
+                                  get_context_rescue_settings,
                                   get_context_rescue_windows,
-                                 is_three_pass_context_required,
-                                 LARGE_CONTEXT_CHARS,
-                                 validate_instruct_context_chars,
-                                 apply_segment_gate_controls,
-                                 default_instruct,
-                                 get_directed_entry,
-                                 read_source_text,
-                                 resolve_three_pass_generation_settings,
-                                 three_pass_checkpoint_path,
-                                 three_pass_manifest_path)
-from merge_integrity import get_source_integrity
+                                  get_deterministic_named_entry,
+                                  get_initial_three_pass_artifacts,
+                                  get_three_pass_manifest_snapshot,
+                                  get_attribution_prompt_params,
+                                  get_native_three_pass_fingerprint,
+                                  is_speaker_traits_prompt,
+                                  get_receipt_checkpoint_fingerprint,
+                                  get_named_from_answer,
+                                  get_segment_chunk_records,
+                                  get_prepared_source,
+                                  is_checkpoint_bound_to_spec,
+                                  is_three_pass_context_required,
+                                  is_valid_three_pass_segment_cursor,
+                                  LARGE_CONTEXT_CHARS,
+                                  validate_instruct_context_chars,
+                                  apply_segment_gate_controls,
+                                  default_instruct,
+                                  get_directed_entry,
+                                  read_source_text,
+                                  get_three_pass_run_params,
+                                  resolve_three_pass_generation_settings,
+                                  three_pass_checkpoint_path,
+                                  three_pass_fingerprint,
+                                  three_pass_manifest_path,
+                                  validate_three_pass_checkpoint)
+from merge_integrity import get_source_integrity, get_source_preparation
+from script_selection_binding import _read_selection_state, capture_generation_selection
+import run_spec_receipt
+import three_pass_run_spec
 from cast_list import get_cast_list_path, save_cast_list
 from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
-from pass_quality import (split_outer_quote_regions, validate_attribution,
-                          validate_instruct, validate_segment_quality)
+from pass_quality import (index_head_check, split_outer_quote_regions, validate_attribution,
+                           validate_instruct, validate_segment_quality)
 from speaker_identity import stabilize_speaker_identities
 from generate_script import LLMGenParams
 from utils import file_lock, is_path_inside
@@ -2754,28 +2776,6 @@ def get_script_recovery_manifest() -> Optional[dict]:
     return get_saved_script_recovery_manifest(DATA_DIR, three_pass_manifest_path(SCRIPT_PATH))
 
 
-def ensure_script_recovery_manifest():
-    """Recover interrupted book publication before reading recovery metadata."""
-    with ensure_book_state(DATA_DIR):
-        return get_script_recovery_manifest()
-
-
-def _read_recovery_admission(include_failed=True):
-    """Caller holds the book/checkpoint guard: decide fence before failed work.
-
-    A worker checkpoint precedes its manifest, so an eligible manifest must not
-    short-circuit the cast-change decision. Returning the fence first keeps
-    summary, detail, Retry, Skip and Inject on the same Start Over action.
-    Metadata-only readers skip the failed-unit load so a corrupt checkpoint
-    cannot turn a summary into a refusal. Reading never repairs, resumes or
-    deletes checkpoint, manifest or cast.
-    """
-    fenced = get_fenced_recovery_status(DATA_DIR)
-    if fenced is not None:
-        return fenced, None
-    return None, (_load_failed_checkpoint(locked=True) if include_failed else None)
-
-
 def get_recovery_admission():
     """The one book+checkpoint-locked admission decision for recovery readers.
 
@@ -2783,7 +2783,8 @@ def get_recovery_admission():
     same snapshot, whether or not a manifest exists.
     """
     with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
-        return _read_recovery_admission()
+        fenced = get_fenced_recovery_status(DATA_DIR)
+        return fenced, None if fenced is not None else _load_failed_checkpoint(locked=True)
 
 
 def _refuse_cast_invalidated_recovery():
@@ -2946,12 +2947,6 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                             require_recovery: bool = False):
     """Queue the one production generation command, optionally from a checkpoint."""
     require_whole_source_generation(safe_load_json(os.path.join(DATA_DIR, 'state.json'), {}))
-    # A fenced worker checkpoint has no manifest yet. Let it reach the locked
-    # cast-change decision below so Retry surfaces Start Over instead of a
-    # misleading "no recovery available" refusal.
-    if (require_recovery and ensure_script_recovery_manifest() is None
-            and not is_script_recovery_cast_invalidated(DATA_DIR)):
-        raise AppError(409, 'No failed or incomplete three-pass generation is available to resume.', key='error.generation.no_recovery')
     check_global_gpu_lock("script")
     try:
         options = {
@@ -2980,10 +2975,13 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
         if refusal:
             raise HTTPException(status_code=400, detail=refusal)
     claim_id = None
+    start_over_admission = None
+    start_over_worker = None
     try:
         with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
             starts_over = request is not None and request.start_over
-            resumes_checkpoint = os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH)) and not starts_over
+            explicit_discard = starts_over and not require_recovery
+            resumes_checkpoint = os.path.lexists(three_pass_checkpoint_path(SCRIPT_PATH)) and not explicit_discard
             # A fenced checkpoint must never be replayed by any launcher path
             # that can reuse it, not just explicit Retry. Ordinary Generate
             # with Start Over off resumes the same checkpoint the worker loads
@@ -2993,12 +2991,27 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
             # checkpoint, so neither is blocked and both still clear the marker.
             if (require_recovery or resumes_checkpoint) and get_fenced_recovery_status(DATA_DIR) is not None:
                 _refuse_cast_invalidated_recovery()
+            current_state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+            has_active_recovery = (
+                not explicit_discard
+                and current_state.get("script_generation_input_file") == input_file
+                and (_get_recovery_attempt_id(current_state) or _has_saved_receipt_identity(current_state))
+                and (run_spec_receipt.STATE_DIGEST in current_state
+                     or os.path.lexists(run_spec_receipt.receipt_path(DATA_DIR))
+                     or os.path.lexists(three_pass_manifest_path(SCRIPT_PATH))))
+            reads_recovery = resumes_checkpoint or require_recovery or has_active_recovery
+            saved_receipt = _load_recovery_receipt(get_recovery_state()) if reads_recovery else None
             if require_recovery:
                 stored = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
                 stored = (stored.get("script_generation_options") or {}) if isinstance(stored, dict) else {}
                 if stored.get("literal_source_preserving") is True:
                     options["literal_source_preserving"] = True
                 options["cast_sha256"] = stored.get("cast_sha256")
+                if "cast_sha256" not in stored and saved_receipt is not None:
+                    admitted_options = saved_receipt.get("options")
+                    if not isinstance(admitted_options, dict):
+                        _refuse_recovery_identity()
+                    options["cast_sha256"] = admitted_options.get("cast_sha256")
                 if options["cast_sha256"] and get_file_sha256(get_run_cast_path()) != options["cast_sha256"]:
                     raise HTTPException(status_code=409, detail=(
                         "The cast list this run started with is missing or changed, so it cannot "
@@ -3018,12 +3031,24 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                 )
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
-            current_state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+            current_state = (get_recovery_state() if reads_recovery
+                             else safe_load_json(os.path.join(DATA_DIR, "state.json"), {}))
             require_whole_source_generation(current_state)
             if current_state.get("input_file_path") != input_file:
                 raise AppError(409, 'Selected source changed before generation started.', key='safety.generation.source_changed_before_start')
-            if require_recovery and get_script_recovery_manifest() is None:
-                raise AppError(409, 'Recovery checkpoint changed before start.', key='safety.generation.recovery_changed')
+            saved_manifest = get_script_recovery_manifest() if reads_recovery else None
+            if saved_receipt is not None and not resumes_checkpoint:
+                _get_recovery_provenance(None, saved_manifest, current_state, saved_receipt)
+                if require_recovery:
+                    _refuse_recovery_identity()
+                saved_receipt = None
+            if require_recovery and saved_manifest is None and saved_receipt is None:
+                raise AppError(409, 'No failed or incomplete three-pass generation is available to resume.',
+                               key='error.generation.no_recovery')
+            saved_checkpoint = (get_current_generation_checkpoint(locked=True)
+                                if resumes_checkpoint and saved_receipt is None else None)
+            if saved_receipt is None and reads_recovery:
+                _get_recovery_provenance(saved_checkpoint, saved_manifest, current_state, saved_receipt)
             from script_selection_binding import capture_generation_selection
             try:
                 captured = capture_generation_selection(DATA_DIR, input_file)
@@ -3073,26 +3098,54 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                         _refuse_checkpoint_replay_over_edited_publication(SCRIPT_PATH)
                     except RuntimeError as error:
                         raise HTTPException(status_code=409, detail=str(error)) from error
-            claim_id = reserve_background_task("script")
+            claim_id = reserve_background_task("script", defer_process_state=True)
+            import core
+
+            def require_admission_claim():
+                if (core._task_claims.get('script') or {}).get('id') != claim_id:
+                    raise AppError(409, 'Task reservation is no longer active; no worker was started.',
+                                   key='safety.generation.reservation_expired')
+
+            require_admission_claim()
             if original is not None:
                 command.extend(['--active-book-token', original['book_token'],
                                 '--active-source-sha256', original['source_sha256'],
                                 '--active-run-id', claim_id])
-                if require_recovery:
+                if require_recovery or resumes_checkpoint:
                     command.append('--require-matching-checkpoint')
-            if request is not None and request.start_over and not require_recovery:
-                discard_script_progress(locked=True)
+            cast_publication = None
             if not require_recovery:
                 if cast_source:
                     cast_bytes = Path(cast_source).read_bytes()
-                    temporary = get_run_cast_path() + ".tmp"
-                    Path(temporary).write_bytes(cast_bytes)
-                    os.replace(temporary, get_run_cast_path())
+                    cast_publication = (get_run_cast_path(), cast_bytes)
                     options["cast_sha256"] = hashlib.sha256(cast_bytes).hexdigest()
                 else:
-                    Path(get_run_cast_path()).unlink(missing_ok=True)
+                    cast_publication = (get_run_cast_path(), None)
                     options["cast_sha256"] = None
             state_path = os.path.join(DATA_DIR, "state.json")
+            prior_state = Path(state_path).read_bytes() if Path(state_path).exists() else None
+            prior_receipt_path = Path(run_spec_receipt.receipt_path(DATA_DIR))
+            prior_receipt = prior_receipt_path.read_bytes() if prior_receipt_path.exists() else None
+            prior_cast_path = Path(get_run_cast_path())
+            prior_cast = prior_cast_path.read_bytes() if prior_cast_path.is_file() else None
+            manifest_path = three_pass_manifest_path(SCRIPT_PATH)
+            prior_admission_manifest = None
+
+            def rollback_admission():
+                restore = {}
+                drop = []
+                for name, value in (
+                        (os.path.relpath(state_path, DATA_DIR), prior_state),
+                        (run_spec_receipt.RECEIPT_NAME, prior_receipt),
+                        (os.path.relpath(get_run_cast_path(), DATA_DIR), prior_cast)):
+                    if value is None:
+                        drop.append(name)
+                    else:
+                        restore[name] = value
+                if prior_admission_manifest is not None:
+                    restore[os.path.relpath(manifest_path, DATA_DIR)] = prior_admission_manifest
+                apply_book_state_locked(DATA_DIR, restore, drop)
+
             state = safe_load_json(state_path, {})
             if isinstance(state, dict):
                 # Retry reads these instead of the current form. Otherwise a
@@ -3110,9 +3163,216 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                     state.pop('script_generation_cancel_requested_run_id', None)
                     state['script_generation_run_id'] = claim_id
                     state['script_generation_base_sha256'] = base['sha256']
-                atomic_json_write(state, state_path, allow_nonatomic_fallback=False)
-            register_claimed_background_task(background_tasks, "script", claim_id, run_process, command, "script")
+                try:
+                    prepared_text, _ = get_prepared_source(
+                        input_file, options['strip_front_matter'], owning_root=DATA_DIR)
+                except (OSError, ValueError, UnicodeError):
+                    raise AppError(409, 'The source could not be prepared for this run; saved progress was preserved.',
+                                   key='safety.generation.recovery_source_preparation_failed')
+                prior_manifest_sha256 = None
+                legacy_checkpoint_sha256 = None
+                pending_manifest_recovery = False
+                absent_manifest = False
+                if (saved_receipt is not None
+                        and isinstance(state.get('script_generation_selection'), dict)):
+                    saved_checkpoint = get_current_generation_checkpoint(locked=True)
+                    if saved_checkpoint is None:
+                        raise AppError(409, 'Recovery checkpoint changed before start.',
+                                       key='safety.generation.recovery_changed')
+                    provenance = _get_recovery_provenance(
+                        saved_checkpoint, saved_manifest, current_state, saved_receipt)
+                    absent_manifest = provenance == 'pending' and saved_manifest is None
+                    if saved_manifest is not None and provenance == 'pending':
+                        prior_admission_manifest = Path(manifest_path).read_bytes()
+                    if isinstance(saved_checkpoint.get('failed'), dict):
+                        ensure_recovery_identity_pair(
+                            saved_checkpoint, saved_manifest, current_state, allow_retry_only=True)
+                        pending_manifest_recovery = absent_manifest
+                    elif absent_manifest and _can_retry_pending_checkpoint(
+                            saved_checkpoint, current_state, saved_receipt):
+                        pending_manifest_recovery = True
+                    elif require_recovery and saved_manifest is None:
+                        raise AppError(409, 'No failed or incomplete three-pass generation is available to resume.',
+                                       key='error.generation.no_recovery')
+                    if saved_manifest is not None and provenance in ('current', 'predecessor'):
+                        prior_manifest_sha256 = three_pass_run_spec.spec_digest(saved_manifest)
+                        if run_spec_receipt.CHECKPOINT_DIGEST not in saved_checkpoint:
+                            legacy_checkpoint_sha256 = saved_receipt.get('legacy_checkpoint_sha256')
+                    saved_segments = saved_checkpoint.get('segmented')
+                    if (saved_checkpoint.get('failed') is None
+                            and isinstance(saved_checkpoint.get('fingerprint'), dict)):
+                        try:
+                            _ensure_committed_segmentation(
+                                saved_checkpoint, _admitted_chunk_texts(
+                                    prepared_text, saved_receipt['spec']))
+                        except HTTPException:
+                            raise
+                        except (OSError, ValueError, TypeError, KeyError):
+                            raise AppError(409, 'Saved progress could not be verified against the source.',
+                                           key='safety.generation.recovery_source_mismatch')
+                    progress = (saved_manifest or {}).get('progress')
+                    if (provenance != 'predecessor' and isinstance(progress, dict)
+                            and isinstance(saved_segments, list)):
+                        if progress.get('segmented_entries') != len(saved_segments):
+                            raise AppError(409, 'Saved progress and its manifest disagree; the checkpoint was preserved.',
+                                           key='safety.generation.recovery_manifest_mismatch')
+                upgrade_legacy = saved_receipt is None and _can_upgrade_failed_legacy(
+                    saved_checkpoint, saved_manifest, current_state)
+                if upgrade_legacy:
+                    ensure_recovery_identity_pair(saved_checkpoint, saved_manifest, current_state)
+                    legacy_checkpoint_sha256 = three_pass_run_spec.spec_digest(saved_checkpoint)
+                    prior_manifest_sha256 = three_pass_run_spec.spec_digest(saved_manifest)
+                legacy_resume = ((require_recovery or resumes_checkpoint) and saved_receipt is None
+                                 and not upgrade_legacy)
+                config_sha256 = (_get_regular_file_sha256(CONFIG_PATH)
+                                 if saved_receipt is not None or upgrade_legacy else None)
+                legacy_runtime = (upgrade_legacy or (
+                    saved_receipt is not None and saved_receipt['spec'].get('legacy_runtime')))
+                try:
+                    receipt = None if legacy_resume else resolve_authoritative_run_spec(
+                        prepared_text, input_file, options, captured,
+                        saved_receipt.get('run_id') if saved_receipt is not None else claim_id,
+                        legacy_runtime=legacy_runtime, saved_receipt=saved_receipt, verify_runtime=True)
+                except (OSError, ValueError) as error:
+                    if saved_receipt is not None or upgrade_legacy:
+                        _refuse_recovery_identity(error)
+                    raise
+                if saved_receipt is not None:
+                    if (not run_spec_receipt.has_same_attempt_inputs(saved_receipt, receipt)
+                            or saved_receipt.get('run_id') != _get_recovery_attempt_id(current_state, saved_receipt)):
+                        _refuse_recovery_identity()
+                    receipt = saved_receipt
+                if upgrade_legacy:
+                    if get_run_fingerprint_identity(saved_checkpoint['fingerprint']) != (
+                            get_run_fingerprint_identity(get_receipt_checkpoint_fingerprint(receipt))):
+                        _refuse_recovery_identity()
+                    if '--require-matching-checkpoint' not in command:
+                        command.append('--require-matching-checkpoint')
+                startup_manifest_digest = None
+                if receipt is not None:
+                    if not explicit_discard:
+                        try:
+                            startup_manifest_digest, _ = get_three_pass_manifest_snapshot(SCRIPT_PATH)
+                        except (OSError, ValueError) as error:
+                            _refuse_recovery_identity(error)
+                    receipt = run_spec_receipt.rebind_attempt(
+                        receipt, claim_id, prior_manifest_sha256=prior_manifest_sha256,
+                        legacy_checkpoint_sha256=legacy_checkpoint_sha256,
+                        pending_manifest_recovery=pending_manifest_recovery,
+                        start_over=explicit_discard,
+                        manifest_at_start=('marker' if explicit_discard or prior_admission_manifest is not None
+                                           else startup_manifest_digest))
+                    state[run_spec_receipt.STATE_DIGEST] = receipt['sha256']
+
+                def guard_admission_source():
+                    require_admission_claim()
+                    if _get_regular_file_sha256(input_file) != captured['source_sha256']:
+                        raise AppError(409, 'The selected source changed during admission; no worker was started.',
+                                       key='safety.generation.admission_source_changed')
+                    if ((saved_receipt is not None or upgrade_legacy)
+                            and _get_regular_file_sha256(CONFIG_PATH) != config_sha256):
+                        _refuse_recovery_identity()
+                    if (prior_manifest_sha256 is not None
+                            and _strict_artifact(manifest_path) != saved_manifest):
+                        _refuse_recovery_identity()
+                    if receipt is not None and not explicit_discard:
+                        try:
+                            live_manifest_digest, _ = get_three_pass_manifest_snapshot(SCRIPT_PATH)
+                        except (OSError, ValueError) as error:
+                            _refuse_recovery_identity(error)
+                        if live_manifest_digest != startup_manifest_digest:
+                            published_marker = (prior_admission_manifest is not None
+                                                and live_manifest_digest == replacement_marker_digest
+                                                and _get_regular_file_sha256(prior_receipt_path)
+                                                == replacement_receipt_digest)
+                            if not published_marker:
+                                _refuse_recovery_identity()
+                        if absent_manifest and live_manifest_digest is not None:
+                            _refuse_recovery_identity()
+                    if legacy_checkpoint_sha256 is not None:
+                        current = get_current_generation_checkpoint(locked=True)
+                        if three_pass_run_spec.spec_digest(current) != legacy_checkpoint_sha256:
+                            _refuse_recovery_identity()
+                replacements = {
+                    os.path.relpath(state_path, DATA_DIR): json.dumps(
+                        state, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8'),
+                }
+                if receipt is not None:
+                    replacements[run_spec_receipt.RECEIPT_NAME] = run_spec_receipt.receipt_bytes(receipt)
+                removals = []
+                if prior_admission_manifest is not None:
+                    _, manifest = get_initial_three_pass_artifacts(receipt)
+                    marker_bytes = json.dumps(
+                        manifest, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
+                    replacement_marker_digest = hashlib.sha256(marker_bytes).hexdigest()
+                    replacement_receipt_digest = hashlib.sha256(
+                        replacements[run_spec_receipt.RECEIPT_NAME]).hexdigest()
+                    replacements[os.path.relpath(manifest_path, DATA_DIR)] = marker_bytes
+                if explicit_discard:
+                    checkpoint_path = three_pass_checkpoint_path(SCRIPT_PATH)
+                    checkpoint, manifest = get_initial_three_pass_artifacts(receipt)
+                    for path, document in ((checkpoint_path, checkpoint), (manifest_path, manifest)):
+                        replacements[os.path.relpath(path, DATA_DIR)] = json.dumps(
+                            document, ensure_ascii=False, indent=2, allow_nan=False).encode('utf-8')
+                    removals.extend(os.path.relpath(path, DATA_DIR) for path in
+                                    get_generation_checkpoint_artifacts(checkpoint_path)[1:])
+                if cast_publication is not None:
+                    cast_path, cast_value = cast_publication
+                    if cast_value is None:
+                        removals.append(os.path.relpath(cast_path, DATA_DIR))
+                    else:
+                        replacements[os.path.relpath(cast_path, DATA_DIR)] = cast_value
+                if receipt is not None:
+                    command.extend(['--run-spec-receipt',
+                                    run_spec_receipt.receipt_path(DATA_DIR),
+                                    '--run-spec-digest', receipt['sha256']])
+                if explicit_discard:
+                    # Pending request cleanup can revoke an ASGI callback.
+                    # Adopt the owner in a live thread before retiring any
+                    # recovery, and gate its subprocess on the book commit.
+                    start_over_admission = Future()
+
+                    def run_after_admission():
+                        if start_over_admission.result():
+                            run_process(command, 'script')
+
+                    start_over_worker = core.start_claimed_task_thread(
+                        'script', claim_id, run_after_admission)
+
+                    def report_recovered_commit(error):
+                        guard_admission_source()
+                        with reuse_book_state(DATA_DIR, recover=False) as root:
+                            for name, value in replacements.items():
+                                path = root / name
+                                if path.is_symlink() or path.read_bytes() != value:
+                                    raise error
+                            if any(os.path.lexists(root / name) for name in removals):
+                                raise error
+                        logger.warning('Start Over committed and recovered after cleanup error (errno %s).',
+                                       error.errno)
+
+                    apply_book_state_locked(
+                        DATA_DIR, replacements, removals, before_replace=guard_admission_source,
+                        on_recovered_commit_error=report_recovered_commit)
+                    core.activate_background_task_claim('script', claim_id)
+                    start_over_admission.set_result(True)
+                    return {'status': 'started'}
+                apply_book_state_locked(DATA_DIR, replacements, removals,
+                                        before_replace=guard_admission_source)
+            try:
+                require_admission_claim()
+                register_claimed_background_task(
+                    background_tasks, "script", claim_id, run_process, command, "script")
+                core.activate_background_task_claim('script', claim_id)
+            except BaseException:
+                if isinstance(state, dict):
+                    rollback_admission()
+                raise
     except BaseException:
+        if start_over_admission is not None and not start_over_admission.done():
+            start_over_admission.set_result(False)
+            if start_over_worker is not None:
+                start_over_worker.join()
         if claim_id is not None:
             release_gpu_task_claim("script", claim_id, pending_only=True)
         raise
@@ -3157,10 +3417,25 @@ def ensure_script_recovery_response(include_detail=False):
     with ensure_book_state(DATA_DIR), file_lock(three_pass_checkpoint_path(SCRIPT_PATH)):
         # The shared decision fences first, even when a manifest holds failed
         # work, so summary and detail never disagree on the Start Over action.
-        fenced, failed = _read_recovery_admission(include_failed=include_detail)
+        fenced = get_fenced_recovery_status(DATA_DIR)
         if fenced is not None:
             return fenced
         manifest = get_script_recovery_manifest()
+        state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), {})
+        has_receipt_binding = (run_spec_receipt.STATE_DIGEST in state
+                               or os.path.lexists(run_spec_receipt.receipt_path(DATA_DIR))
+                               or 'run_spec_sha256' in (manifest or {}))
+        failed = None
+        if include_detail or manifest is None or has_receipt_binding:
+            evidence = _read_failure_admission(manifest, locked=True, allow_retry_only=True)
+            if evidence is not None:
+                checkpoint, retry_only = evidence
+                # A missing manifest is a read-only Retry candidate. The
+                # worker still owns publication of the real failure evidence.
+                if manifest is None:
+                    manifest = {'status': 'incomplete'}
+                if not retry_only:
+                    failed = checkpoint
         if manifest is None:
             return {"recoverable": False}
         failures = manifest.get("diagnostic_failures") or []
@@ -3179,7 +3454,6 @@ def ensure_script_recovery_response(include_detail=False):
             "unchecked_count": unchecked_count,
             "unchecked_count_valid": unchecked_count_valid,
         }
-        state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), {})
         if isinstance(state, dict) and state.get('script_generation_selection') is None:
             try:
                 checkpoint = get_current_generation_checkpoint(locked=True)
@@ -3205,19 +3479,87 @@ async def generate_script_recovery(include_detail: bool = False):
     return await asyncio.to_thread(ensure_script_recovery_response, include_detail)
 
 
-def _load_failed_checkpoint(*, locked=False):
-    """The checkpoint of a pass-1 fail-fast, or None. The `failed` block is
-    written only on that path (three_pass_generate._save_three_pass_checkpoint)."""
-    if get_script_recovery_manifest() is None:
-        return None
+def _ensure_failed_unit_shape(checkpoint):
+    """All recovery surfaces share one bounded saved-evidence contract."""
+    failed = checkpoint["failed"]
+    if "chunk" in failed and (type(failed["chunk"]) is not int or failed["chunk"] < 1):
+        _refuse_recovery_evidence()
+    if failed.get("pass") not in ("segment", "attribute", "instruct"):
+        _refuse_recovery_evidence()
+    if failed["pass"] != "segment" and "chunk" in failed:
+        _refuse_recovery_evidence()
+    if failed["pass"] == "segment":
+        chunks_done = checkpoint.get('chunks_done')
+        if (not isinstance(failed.get("source"), str) or not failed["source"]
+                or type(failed.get("chunk")) is not int or failed["chunk"] < 1
+                or (type(chunks_done) is int
+                    and failed["chunk"] > chunks_done + 1)):
+            _refuse_recovery_evidence()
+        return
+    entries = failed.get("entries")
+    if (not isinstance(entries, list) or not entries
+            or any(not isinstance(row, dict) or not isinstance(row.get("text"), str)
+                   or not row["text"] for row in entries)):
+        _refuse_recovery_evidence()
+    for row in entries:
+        if failed["pass"] == "attribute" and row.get("type") not in ("SPOKEN", "NARRATOR"):
+            _refuse_recovery_evidence()
+        if failed["pass"] == "instruct" and not isinstance(row.get("speaker"), str):
+            _refuse_recovery_evidence()
+    if "roster" in failed:
+        roster = failed["roster"]
+        if not isinstance(roster, list) or any(
+                not isinstance(name, str) or not name.strip() for name in roster):
+            _refuse_recovery_evidence()
+    if "indices" in failed:
+        indices = failed["indices"]
+        if (not isinstance(indices, list) or len(indices) != len(entries)
+                or any(type(index) is not int or index < 0 for index in indices)
+                or len(set(indices)) != len(indices)):
+            _refuse_recovery_evidence()
+
+
+def _read_failure_admission(manifest, *, locked=False, allow_retry_only=False):
+    """Return a validated failed checkpoint and whether only Retry is safe."""
+    if manifest is None:
+        state = safe_load_json(os.path.join(DATA_DIR, 'state.json'), {})
+        if (not isinstance(state, dict)
+                or not (_get_recovery_attempt_id(state) or _has_saved_receipt_identity(state))
+                or state.get('script_generation_input_file') != state.get('input_file_path')
+                or '_source_scope' in state):
+            return None
+        if (run_spec_receipt.STATE_DIGEST not in state
+                and (os.path.lexists(three_pass_manifest_path(SCRIPT_PATH))
+                     or not os.path.lexists(run_spec_receipt.receipt_path(DATA_DIR)))):
+            return None
     checkpoint = get_current_generation_checkpoint(locked=locked)
-    if not isinstance(checkpoint, dict) or checkpoint.get("stage") not in (
-            "segment_failed", "attribute_failed", "instruct_failed"):
+    state = get_recovery_state()
+    receipt = _load_recovery_receipt(state)
+    if not isinstance(checkpoint, dict):
+        _get_recovery_provenance(checkpoint, manifest, state, receipt)
+        return None
+    stage = checkpoint.get('stage')
+    if not isinstance(stage, str) and stage is not None:
+        _refuse_recovery_identity()
+    if stage not in _FAILED_STAGE_PASSES:
+        provenance = _get_recovery_provenance(checkpoint, manifest, state, receipt)
+        if (allow_retry_only and provenance == 'pending' and manifest is None
+                and _can_retry_pending_checkpoint(checkpoint, state, receipt)):
+            return checkpoint, True
         return None
     failed = checkpoint.get("failed")
     if not isinstance(failed, dict) or not (failed.get("source") or failed.get("entries")):
+        _get_recovery_provenance(checkpoint, manifest, state, receipt)
         return None
-    return checkpoint
+    _ensure_failed_unit_shape(checkpoint)
+    _, _, retry_only = ensure_recovery_identity_pair(
+        checkpoint, manifest, state, allow_retry_only=allow_retry_only)
+    return checkpoint, retry_only
+
+
+def _load_failed_checkpoint(*, locked=False):
+    evidence = _read_failure_admission(get_script_recovery_manifest(), locked=locked)
+    return evidence[0] if evidence is not None else None
 
 
 def ensure_failed_checkpoint():
@@ -3299,8 +3641,890 @@ def build_recovery_detail(checkpoint):
     }
 
 
+def _refuse_recovery_proof(cause=None):
+    raise AppError(409,
+                   'The failed batch source could not be verified; the checkpoint was preserved. '
+                   'Start a new run.',
+                   key='safety.generation.recovery_proof_refusal') from cause
+
+
+def _refuse_recovery_destination(cause=None):
+    raise AppError(409,
+                   'The failed batch does not map to unique saved rows; the checkpoint was preserved. '
+                   'Start a new run.',
+                   key='safety.generation.recovery_destination_refusal') from cause
+
+
+def _refuse_recovery_shape(cause=None):
+    raise AppError(409,
+                   'The recovered checkpoint does not match the saved run shape; '
+                   'the checkpoint was preserved. Start a new run.',
+                   key='safety.generation.recovery_shape_refusal') from cause
+
+
+def _refuse_recovery_identity(cause=None):
+    raise AppError(409,
+                   'The recovery artifacts do not belong to the same saved run; '
+                   'the checkpoint was preserved. Start a new run.',
+                   key='safety.generation.recovery_identity_refusal') from cause
+
+
+def _refuse_recovery_evidence(cause=None):
+    raise AppError(409,
+                   'The failed batch evidence is malformed; the checkpoint was preserved. '
+                   'Start a new run.',
+                   key='safety.generation.recovery_evidence_refusal') from cause
+
+
+def _strict_json(raw):
+    """Reject duplicate keys and non-finite constants in persisted artifacts."""
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('duplicate JSON key in generation artifact')
+            result[key] = value
+        return result
+    return json.loads(raw.decode('utf-8'), object_pairs_hook=unique,
+                      parse_constant=lambda _: (_ for _ in ()).throw(
+                          ValueError('invalid numeric constant')))
+
+
+def _strict_artifact(path):
+    try:
+        return _strict_json(Path(path).read_bytes())
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError):
+        _refuse_recovery_identity()
+
+
+def _admitted_chunk_texts(prepared_text, spec=None):
+    """The worker's chunk texts under either the receipt spec or live settings."""
+    if spec is not None:
+        params = LLMGenParams(**spec['params'])
+        chunk_size = spec['chunk_size']
+    else:
+        config = load_app_config(CONFIG_PATH)
+        settings = resolve_three_pass_generation_settings(config)
+        llm = get_active_llm_config(config)
+        chunk_size = settings['chunk_size']
+        params = get_three_pass_run_params(
+            config, {'context_length': llm.get('context_length')},
+            get_active_reasoning_effort(), settings)
+    return [record['text'] for record in get_segment_chunk_records(
+        prepared_text, chunk_size, params)]
+
+
+def _source_words(text):
+    return re.sub(r'["\u201c\u201d]', '', text).split()
+
+
+def _completed_prefix_matches(segmented, admitted_chunks, chunks_done):
+    """A valid saved prefix covers exactly the committed chunks, no more."""
+    if not isinstance(segmented, list) or type(chunks_done) is not int:
+        return False
+    saved = _source_words(' '.join(row.get('text', '') for row in segmented
+                                   if isinstance(row, dict)))
+    committed = _source_words(' '.join(admitted_chunks[:chunks_done]))
+    return saved == committed
+
+
+def _ensure_committed_segmentation(checkpoint, admitted_chunks):
+    chunks_done = checkpoint.get('chunks_done')
+    if (not is_valid_three_pass_segment_cursor(
+            checkpoint.get('stage'), chunks_done, len(admitted_chunks))
+            or not _completed_prefix_matches(
+                checkpoint.get('segmented'), admitted_chunks, chunks_done)):
+        _refuse_recovery_evidence()
+
+
+def _ensure_checkpoint_admission_shape(checkpoint):
+    if not isinstance(checkpoint, dict):
+        _refuse_recovery_identity()
+    stage = checkpoint.get('stage')
+    if not isinstance(stage, str) and stage is not None:
+        _refuse_recovery_identity()
+    failed = checkpoint.get('failed')
+    if failed is not None or stage in _FAILED_STAGE_PASSES:
+        expected_pass = _FAILED_STAGE_PASSES.get(stage)
+        if expected_pass is None or not isinstance(failed, dict) or failed.get('pass') != expected_pass:
+            _refuse_recovery_identity()
+        _ensure_failed_unit_shape(checkpoint)
+
+
+def _recovery_fingerprint_identity(fingerprint):
+    """Runtime model binding is execution history, not saved-run identity."""
+    value = get_run_fingerprint_identity(fingerprint)
+    if isinstance(value, dict):
+        value.pop('model_binding', None)
+    return value
+
+
+def _digest_is_sha256(value):
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def _get_regular_file_sha256(path):
+    try:
+        if not stat.S_ISREG(os.stat(path).st_mode):
+            return None
+        return get_file_sha256(path)
+    except OSError:
+        return None
+
+
+def get_recovery_state():
+    """Read current book state with the selection reader's strict JSON policy."""
+    try:
+        return _read_selection_state(DATA_DIR, required=True)
+    except (OSError, ValueError, RecursionError, UnicodeError):
+        _refuse_recovery_proof()
+
+
+def _worker_reopens(checkpoint, fingerprint, chunk_count):
+    """Reopen a staged candidate with the worker's own loader and identity."""
+    with tempfile.TemporaryDirectory() as tmp:
+        output = os.path.join(tmp, os.path.basename(SCRIPT_PATH))
+        candidate = dict(checkpoint)
+        candidate_fp = candidate.get('fingerprint')
+        if isinstance(candidate_fp, dict):
+            candidate_fp = dict(candidate_fp)
+            candidate_fp.pop('model_binding', None)
+            candidate['fingerprint'] = candidate_fp
+        identity = fingerprint
+        if isinstance(identity, dict):
+            identity = dict(identity)
+            identity.pop('model_binding', None)
+        atomic_json_write(candidate, three_pass_checkpoint_path(output),
+                          allow_nonatomic_fallback=False)
+        try:
+            return _load_three_pass_checkpoint(output, identity, chunk_count) is not None
+        except (RuntimeError, OSError, ValueError, TypeError):
+            return False
+
+
+def ensure_recovered_checkpoint_shape(checkpoint, fingerprint, chunk_count):
+    """A 200 is possible only when the worker reopens the exact candidate."""
+    if not _worker_reopens(checkpoint, fingerprint, chunk_count):
+        _refuse_recovery_shape()
+
+
+def get_authoritative_chunk_total(prepared_text):
+    """Worker chunking of the prepared book under the saved profile context."""
+    config = load_app_config(CONFIG_PATH)
+    settings = resolve_three_pass_generation_settings(config)
+    llm = get_active_llm_config(config)
+    params = LLMGenParams(context_length=llm.get('context_length')
+                          or settings.get('profile_context_length'))
+    return len(get_segment_chunk_records(prepared_text, settings['chunk_size'], params))
+
+
+def resolve_authoritative_run_spec(prepared_text, input_file, options, captured, run_id, *,
+                                   legacy_runtime=False, saved_receipt=None, verify_runtime=False):
+    """Rebuild the run identity from source + saved settings, not artifacts."""
+    config = load_app_config(CONFIG_PATH)
+    settings = resolve_three_pass_generation_settings(config)
+    llm = get_active_llm_config(config)
+    reasoning_effort = get_active_reasoning_effort()
+    effective_context = llm.get('context_length')
+    if legacy_runtime or saved_receipt is None or verify_runtime:
+        observed = get_planned_request_context(config)
+        if observed['known']:
+            effective_context = observed['context']
+    if saved_receipt is not None and not legacy_runtime:
+        # A larger loaded context still serves the admitted chunks. Never
+        # shrink their plan in place, or switch to newly discovered limits.
+        admitted_context = saved_receipt['spec']['params'].get('context_length')
+        if verify_runtime and effective_context is not None and (
+                admitted_context is None or effective_context < admitted_context):
+            raise ValueError('The loaded context cannot serve the admitted chunk plan.')
+        effective_context = admitted_context
+    params = get_three_pass_run_params(
+        config, {'context_length': effective_context}, reasoning_effort, settings)
+    context_windows, rescue_retries = get_context_rescue_settings(config.get('generation') or {})
+    from three_pass_generate import load_cast, resolve_attribute_prompt
+    attribute_variant, attribute_texts = resolve_attribute_prompt(config)
+    keep_scope = settings.get('keep_scope') or 'line'
+    cast_sha256 = options.get('cast_sha256')
+    fingerprint_controls = {
+        'on_exhaustion': 'keep', 'context_windows': context_windows,
+        'context_rescue_retries': rescue_retries, 'endpoint': llm.get('base_url', 'http://localhost:1234/v1'),
+        'attribute_prompt_variant': attribute_variant, 'attribute_prompt_texts': attribute_texts,
+        'cast_sha256': cast_sha256, 'keep_scope': keep_scope,
+    }
+    if legacy_runtime:
+        from dataclasses import replace
+        narrator = options.get('first_person_narrator')
+        cast = load_cast(get_run_cast_path()) if params.cast_aliases and cast_sha256 else {}
+        identity_params = replace(
+            params, literal_source_preserving=options.get('literal_source_preserving', False),
+            cast_alias_groups=cast.get('alias_groups'))
+        identity_params, identity_texts = get_attribution_prompt_params(
+            identity_params, attribute_variant, attribute_texts, narrator)
+        native_fingerprint = get_native_three_pass_fingerprint(
+            prepared_text, llm.get('model_name'), settings['chunk_size'], identity_params, settings,
+            **dict(fingerprint_controls, attribute_prompt_texts=identity_texts,
+                   first_person_narrator=narrator, speaker_traits=is_speaker_traits_prompt(attribute_texts)))
+    else:
+        native_fingerprint = three_pass_fingerprint(
+            prepared_text, llm.get('model_name'), settings['chunk_size'], params,
+            attribute_batch_size=settings['attribute_batch_size'],
+            attribute_context_chars=settings['attribute_context_chars'],
+            instruct_context_chars=settings['instruct_context_chars'],
+            **fingerprint_controls)
+    secondary = get_failover_llm_config(config) or {}
+    resolved = three_pass_run_spec.canonical_spec(
+        prepared_text=prepared_text, model_name=llm.get('model_name'),
+        chunk_size=settings['chunk_size'], params=params, options=options,
+        settings=settings, llm_profile=llm,
+        fingerprint=native_fingerprint,
+        prompts={'segment_system': getattr(params, 'segment_system_prompt', None),
+                 'segment_user': getattr(params, 'segment_user_prompt_template', None),
+                 'instruct_system': getattr(params, 'instruct_system_prompt', None),
+                 'instruct_user': getattr(params, 'instruct_user_prompt_template', None)},
+        binding=getattr(params, 'model_binding', None),
+        cast_sha256=options.get('cast_sha256'),
+        keep_scope=settings.get('keep_scope') or 'line',
+        overrides={'reasoning_effort': reasoning_effort,
+                   'strip_front_matter': options.get('strip_front_matter'),
+                   'literal_source_preserving': options.get('literal_source_preserving')},
+        source_path=input_file, source_sha256=captured['source_sha256'],
+        book_token=captured['book_token'], run_id=run_id,
+        secondary_model=secondary.get('model_name'),
+        secondary_endpoint=secondary.get('base_url'),
+        provider_request_sha256=three_pass_run_spec.get_provider_request_digest(llm, secondary),
+        legacy_runtime=legacy_runtime,
+        context_rescue={key: value for key, value in (
+            ('context_rescue_windows', context_windows),
+            ('context_rescue_retries', rescue_retries),
+        ) if value is not None},
+        attribution={
+            'attribute_batch_size': settings['attribute_batch_size'],
+            'attribute_context_chars': settings['attribute_context_chars'],
+            'attribute_target_chars': settings['attribute_target_chars'],
+            'instruct_target_chars': settings['instruct_target_chars'],
+            'instruct_context_chars': settings['instruct_context_chars'],
+            'attribute_prompt_variant': attribute_variant,
+            'attribute_prompt_texts': attribute_texts,
+            'delivery_direction': settings['delivery_direction']})
+    spec = resolved['spec']
+    return run_spec_receipt.build_receipt(
+        book_token=captured['book_token'], source_path=input_file,
+        source_sha256=captured['source_sha256'],
+        prepared_sha256=hashlib.sha256(prepared_text.encode('utf-8')).hexdigest(),
+        options=options, settings={'digest': three_pass_run_spec.spec_digest(spec),
+                                   'chunk_size': settings['chunk_size'],
+                                   'context_length': llm.get('context_length')},
+        fingerprint=resolved['fingerprint'],
+        chunk_count=resolved['chunk_count'], run_id=run_id, spec=spec)
+
+
+def _is_legacy_recovery_shape(checkpoint, manifest, state):
+    """Positive historical shape only; modern leftovers never downgrade."""
+    fingerprint = checkpoint.get("fingerprint")
+    manifest_fingerprint = manifest.get("fingerprint")
+    if isinstance(fingerprint, bool) or isinstance(manifest_fingerprint, bool):
+        return False
+    if fingerprint is not None and not (isinstance(fingerprint, str) and fingerprint):
+        return False
+    if manifest_fingerprint != fingerprint:
+        return False
+    if (checkpoint.get("failed") or {}).get("cast_sha256") is not None:
+        return False
+    if (manifest.get("progress") is not None or manifest.get("telemetry") is not None
+            or manifest.get("model_binding") is not None
+            or checkpoint.get("model_binding") is not None):
+        return False
+    return (isinstance(fingerprint, str) and bool(fingerprint)
+            or (fingerprint is None and "script_generation_selection" not in state))
+
+
+def _has_nonfinite(value):
+    if isinstance(value, float) and not math.isfinite(value):
+        return True
+    if isinstance(value, dict):
+        return any(_has_nonfinite(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_has_nonfinite(item) for item in value)
+    return False
+
+
+def _is_admission_manifest(manifest, receipt):
+    """Only the exact, current attempt's admission marker permits a manifest gap."""
+    if receipt is None:
+        return False
+    try:
+        return manifest == get_initial_three_pass_artifacts(receipt)[1]
+    except (KeyError, TypeError, AttributeError):
+        return False
+
+
+def _load_recovery_receipt(state):
+    """A receipt committed in book state remains required if its file is lost."""
+    try:
+        receipt = run_spec_receipt.load_receipt(DATA_DIR)
+    except (OSError, ValueError) as error:
+        _refuse_recovery_identity(error)
+    if run_spec_receipt.STATE_DIGEST in state and (
+            receipt is None or state[run_spec_receipt.STATE_DIGEST] != receipt['sha256']):
+        _refuse_recovery_identity()
+    return receipt
+
+
+def _has_saved_receipt_identity(state):
+    return (run_spec_receipt.STATE_DIGEST in state
+            and 'script_generation_base_sha256' in state)
+
+
+def _get_recovery_attempt_id(state, receipt=None):
+    """A cancelled attempt loses worker ownership and retains recovery identity."""
+    if 'script_generation_run_id' in state:
+        return state['script_generation_run_id']
+    revoked_run_id = state.get('script_generation_cancel_requested_run_id')
+    if revoked_run_id is not None:
+        return revoked_run_id
+    # Older cancellations removed both IDs. Book state still binds the
+    # receipt, and the starting script identity is removed on publication.
+    if (receipt is not None and _has_saved_receipt_identity(state)
+            and state[run_spec_receipt.STATE_DIGEST] == receipt['sha256']
+            and state.get('script_generation_published_run_id') != receipt.get('run_id')):
+        return receipt.get('run_id')
+    return None
+
+
+def _can_retry_pending_checkpoint(checkpoint, state, receipt):
+    """Keep a proven saved prefix resumable across cancellation and re-admission."""
+    return (receipt is not None and checkpoint['chunks_done'] > 0
+            and ('script_generation_run_id' not in state
+                 or receipt.get('pending_manifest_recovery') is True))
+
+
+def _can_upgrade_failed_legacy(checkpoint, manifest, state):
+    """Only a native legacy failure with its original worker manifest can migrate."""
+    run_id = _get_recovery_attempt_id(state)
+    return (isinstance(checkpoint, dict) and isinstance(checkpoint.get('fingerprint'), dict)
+            and isinstance(checkpoint.get('failed'), dict) and isinstance(manifest, dict)
+            and isinstance(manifest.get('progress'), dict)
+            and isinstance(run_id, str) and re.fullmatch(r'[0-9a-f]{32}', run_id) is not None
+            and manifest.get('run_id') == run_id)
+
+
+def _get_recovery_provenance(checkpoint, manifest, state, receipt):
+    """Verify the checkpoint and identify its manifest under the admitted attempt."""
+    run_id = _get_recovery_attempt_id(state, receipt)
+    manifest_id = manifest.get('run_id') if manifest is not None else None
+    if receipt is None:
+        if (manifest is not None and 'run_spec_sha256' in manifest
+                or checkpoint is not None and not is_checkpoint_bound_to_spec(checkpoint, None)
+                or isinstance(run_id, str) and isinstance(manifest_id, str) and run_id != manifest_id):
+            _refuse_recovery_identity()
+        return 'legacy'
+    if (run_spec_receipt.STATE_DIGEST in state
+            and state[run_spec_receipt.STATE_DIGEST] != receipt['sha256']):
+        _refuse_recovery_identity()
+
+    path = three_pass_manifest_path(SCRIPT_PATH)
+    if manifest is None and os.path.lexists(path):
+        _refuse_recovery_identity()
+    if manifest is not None and (_strict_artifact(path) != manifest or _has_nonfinite(manifest)):
+        _refuse_recovery_identity()
+    if (not isinstance(run_id, str) or not re.fullmatch(r'[0-9a-f]{32}', run_id)
+            or run_id != receipt.get('run_id')):
+        _refuse_recovery_identity()
+
+    pin = receipt.get('prior_manifest_sha256')
+    if pin is not None and not _digest_is_sha256(pin):
+        _refuse_recovery_identity()
+    checkpoint_path = three_pass_checkpoint_path(SCRIPT_PATH)
+    if checkpoint is None:
+        if (manifest is not None or pin is not None or receipt.get('manifest_at_start') is not None
+                or os.path.lexists(checkpoint_path)
+                or get_generation_checkpoint_artifacts(checkpoint_path)[1:]):
+            _refuse_recovery_identity()
+        return 'pending'
+    _strict_artifact(checkpoint_path)
+    _ensure_checkpoint_admission_shape(checkpoint)
+    try:
+        expected_fingerprint = get_receipt_checkpoint_fingerprint(receipt)
+        bound = is_checkpoint_bound_to_spec(checkpoint, receipt, manifest)
+    except (KeyError, TypeError, AttributeError, ValueError) as error:
+        _refuse_recovery_identity(error)
+    if not bound or get_run_fingerprint_identity(
+            checkpoint.get('fingerprint')) != get_run_fingerprint_identity(expected_fingerprint):
+        _refuse_recovery_identity()
+    if checkpoint.get('stage') not in _FAILED_STAGE_PASSES:
+        try:
+            validate_three_pass_checkpoint(checkpoint, receipt['chunk_count'])
+        except (ValueError, TypeError) as error:
+            _refuse_recovery_identity(error)
+    if manifest is None or (manifest.get('status') == 'incomplete' and 'progress' not in manifest):
+        expected_start = 'marker' if manifest is not None else None
+        if (pin is not None
+                or ('manifest_at_start' in receipt and receipt['manifest_at_start'] != expected_start)
+                or (manifest is not None and not _is_admission_manifest(manifest, receipt))):
+            _refuse_recovery_identity()
+        return 'pending'
+    if manifest_id == run_id and manifest.get('run_spec_sha256') == receipt['sha256']:
+        return 'current'
+    if (pin is not None and isinstance(manifest_id, str) and re.fullmatch(r'[0-9a-f]{32}', manifest_id)
+            and pin == three_pass_run_spec.spec_digest(manifest)):
+        return 'predecessor'
+    _refuse_recovery_identity()
+
+
+_FAILED_STAGE_PASSES = {
+    "segment_failed": "segment",
+    "attribute_failed": "attribute",
+    "instruct_failed": "instruct",
+}
+
+
+def ensure_recovery_identity_pair(checkpoint, manifest, state, *, allow_retry_only=False):
+    """Validate failure evidence and distinguish a pending manifest from manual recovery."""
+    if _has_nonfinite(checkpoint) or _has_nonfinite(manifest) or _has_nonfinite(state):
+        _refuse_recovery_identity()
+    _strict_artifact(three_pass_checkpoint_path(SCRIPT_PATH))
+    receipt = _load_recovery_receipt(state)
+    provenance = _get_recovery_provenance(checkpoint, manifest, state, receipt)
+    if receipt is None and (manifest is None
+                            or _strict_artifact(three_pass_manifest_path(SCRIPT_PATH)) != manifest):
+        _refuse_recovery_identity()
+    manifest = manifest or {}
+    failed = checkpoint.get("failed")
+    if not isinstance(failed, dict):
+        _refuse_recovery_identity()
+    expected_pass = _FAILED_STAGE_PASSES.get(checkpoint.get("stage"))
+    if expected_pass is None or failed.get("pass") != expected_pass:
+        _refuse_recovery_identity()
+    if manifest.get("failed_pass") not in (None, expected_pass):
+        _refuse_recovery_identity()
+    if manifest.get("failed_chunk") not in (None, failed.get("chunk")):
+        _refuse_recovery_identity()
+    legacy = receipt is None
+    if legacy and not (_is_legacy_recovery_shape(checkpoint, manifest, state)
+                       or isinstance(checkpoint.get('fingerprint'), dict)):
+        _refuse_recovery_identity()
+    source_path = state.get('input_file_path')
+    selection = state.get('script_generation_selection')
+    source_sha256 = selection.get('source_sha256') if isinstance(selection, dict) else None
+    book_token = selection.get('book_token') if isinstance(selection, dict) else None
+    if (not isinstance(source_path, str) or not _digest_is_sha256(source_sha256)
+            or not isinstance(book_token, str) or not book_token):
+        _refuse_recovery_identity()
+    options = state.get('script_generation_options')
+    if not isinstance(options, dict):
+        _refuse_recovery_identity()
+    try:
+        prepared_text, _ = get_prepared_source(
+            source_path, options.get('strip_front_matter'), owning_root=DATA_DIR)
+        recomputed = resolve_authoritative_run_spec(
+            prepared_text, source_path, options, captured={
+                'book_token': book_token, 'source_sha256': source_sha256},
+            run_id=_get_recovery_attempt_id(state, receipt), saved_receipt=receipt,
+            legacy_runtime=(isinstance(checkpoint.get('fingerprint'), dict) if legacy
+                            else receipt['spec'].get('legacy_runtime', False)))
+    except (OSError, ValueError, TypeError):
+        _refuse_recovery_identity()
+    if not legacy and not run_spec_receipt.verify_receipt(
+            receipt, book_token=book_token, source_path=source_path,
+            source_sha256=source_sha256,
+            prepared_sha256=hashlib.sha256(prepared_text.encode('utf-8')).hexdigest(),
+            options=options, fingerprint=recomputed['fingerprint'],
+            chunk_count=recomputed['chunk_count'], spec=recomputed['spec']):
+        _refuse_recovery_identity()
+    fingerprint = recomputed['fingerprint'] if legacy else receipt['fingerprint']
+    chunk_count = recomputed['chunk_count'] if legacy else receipt['chunk_count']
+    checkpoint_fingerprint = checkpoint.get("fingerprint")
+    pending_manifest = provenance == 'pending'
+    retry_only = provenance in ('pending', 'predecessor')
+    if retry_only:
+        if not allow_retry_only or legacy or not isinstance(checkpoint_fingerprint, dict):
+            _refuse_recovery_identity()
+        try:
+            validate_three_pass_checkpoint(checkpoint, chunk_count)
+            live_selection = capture_generation_selection(DATA_DIR, source_path)
+        except (OSError, ValueError) as error:
+            _refuse_recovery_identity(error)
+        if live_selection != selection:
+            _refuse_recovery_identity()
+    spec = recomputed['spec']
+    if isinstance(checkpoint_fingerprint, str) and checkpoint_fingerprint:
+        fingerprint = checkpoint_fingerprint
+    if isinstance(checkpoint_fingerprint, dict):
+        if _recovery_fingerprint_identity(checkpoint_fingerprint) != _recovery_fingerprint_identity(
+                fingerprint):
+            _refuse_recovery_identity()
+    elif checkpoint_fingerprint is not None and not (
+            isinstance(checkpoint_fingerprint, str) and checkpoint_fingerprint):
+        _refuse_recovery_identity()
+    if isinstance(fingerprint, dict):
+        if (not _digest_is_sha256(fingerprint.get("source_sha256"))
+                or not _digest_is_sha256(fingerprint.get("settings_sha256"))
+                or not isinstance(fingerprint.get("model_name"), str)
+                or not fingerprint["model_name"]):
+            _refuse_recovery_identity()
+        model = fingerprint["model_name"]
+        nested_binding = fingerprint.get("model_binding")
+        if isinstance(nested_binding, dict) and nested_binding.get("primary_model") != model:
+            _refuse_recovery_identity()
+        if isinstance(checkpoint_fingerprint, dict):
+            saved_binding = checkpoint_fingerprint.get("model_binding")
+            if (saved_binding is not None
+                    and (not isinstance(saved_binding, dict)
+                         or saved_binding.get("primary_model") != model)):
+                _refuse_recovery_identity()
+        binding = checkpoint.get("model_binding")
+        if binding is not None and (
+                not isinstance(binding, dict) or binding.get("primary_model") != model
+                or binding.get("failover_model") != spec.get('secondary_model')):
+            _refuse_recovery_identity()
+        telemetry = manifest.get("telemetry")
+        if isinstance(telemetry, dict) and telemetry.get("model_name") not in (None, model):
+            _refuse_recovery_identity()
+        if manifest.get("primary_model") not in (None, model):
+            _refuse_recovery_identity()
+        failed_cast = failed.get("cast_sha256")
+        if failed_cast is not None and not _digest_is_sha256(failed_cast):
+            _refuse_recovery_identity()
+        cast = telemetry.get("cast") if isinstance(telemetry, dict) else None
+        if cast is not None and not isinstance(cast, dict):
+            _refuse_recovery_identity()
+        manifest_cast = cast.get("sha256") if isinstance(cast, dict) else None
+        if manifest_cast is not None and not _digest_is_sha256(manifest_cast):
+            _refuse_recovery_identity()
+        if expected_pass == "attribute" and not pending_manifest:
+            if (failed_cast is None) != (manifest_cast is None) or (
+                    failed_cast is not None and failed_cast != manifest_cast):
+                _refuse_recovery_identity()
+            if failed_cast is None and get_file_sha256(get_run_cast_path()) is not None:
+                _refuse_recovery_identity()
+    progress = manifest.get("progress")
+    if not pending_manifest and (isinstance(checkpoint_fingerprint, dict) or progress is not None):
+        if (not isinstance(progress, dict) or progress.get("chunks_total") != chunk_count
+                or progress.get("chunks_attempted") != checkpoint.get("chunks_done")):
+            _refuse_recovery_identity()
+
+    manifest_fingerprint = manifest.get("fingerprint")
+    if isinstance(manifest_fingerprint, dict) and _recovery_fingerprint_identity(
+            manifest_fingerprint) != _recovery_fingerprint_identity(fingerprint):
+        _refuse_recovery_identity()
+    recovered = manifest.get("recovered_units")
+    if recovered is not None and (not isinstance(recovered, list)
+                                  or any(not isinstance(row, dict) or not row
+                                         for row in recovered)):
+        _refuse_recovery_identity()
+    if "attempts" in failed and (not isinstance(failed["attempts"], list)
+                                 or any(not isinstance(row, dict) for row in failed["attempts"])):
+        _refuse_recovery_evidence()
+
+    if isinstance(checkpoint.get("fingerprint"), dict):
+        # The failed unit must be derived from the admitted source and cursor, not
+        # from editable text in the checkpoint. The worker's own chunker is the
+        # authority for both the cursor and the exact pass-1 chunk text.
+        spec = recomputed['spec']
+        segmented = checkpoint.get('segmented')
+        named = checkpoint.get('named') or []
+        annotated = checkpoint.get('annotated') or []
+        admitted_chunks = _admitted_chunk_texts(prepared_text, spec)
+        _ensure_committed_segmentation(checkpoint, admitted_chunks)
+        if expected_pass == 'segment':
+            chunk = failed.get('chunk')
+            if type(chunk) is not int or not 1 <= chunk <= chunk_count:
+                _refuse_recovery_evidence()
+            if (chunk != checkpoint.get('chunks_done', 0) + 1
+                    or failed.get('source') != admitted_chunks[chunk - 1]):
+                _refuse_recovery_evidence()
+        else:
+            entries = failed.get('entries')
+            indices = failed.get('indices')
+            if (not isinstance(segmented, list) or not isinstance(entries, list)
+                    or not isinstance(indices, list) or len(indices) != len(entries)):
+                _refuse_recovery_evidence()
+            for index, entry in zip(indices, entries):
+                if (type(index) is not int or not 0 <= index < len(segmented)
+                        or not isinstance(entry, dict)):
+                    _refuse_recovery_evidence()
+                retained = segmented[index]
+                if (not isinstance(retained, dict) or retained.get('text') != entry.get('text')
+                        or (expected_pass == 'attribute'
+                            and retained.get('type') != entry.get('type'))):
+                    _refuse_recovery_evidence()
+            if not isinstance(named, list) or len(named) != len(segmented):
+                _refuse_recovery_evidence()
+            if expected_pass == 'instruct':
+                if not isinstance(annotated, list) or len(annotated) > len(named):
+                    _refuse_recovery_evidence()
+                if any(type(index) is not int or not 0 <= index < len(named) for index in indices):
+                    _refuse_recovery_evidence()
+                for position, index in enumerate(indices):
+                    retained = named[index]
+                    frozen_entry = entries[position]
+                    if retained is not None and (
+                            not isinstance(retained, dict)
+                            or retained.get('speaker') != frozen_entry.get('speaker')
+                            or retained.get('text') != frozen_entry.get('text')):
+                        _refuse_recovery_evidence()
+
+
+        # The admitted cast is part of run identity. A replaced cast file cannot
+        # silently change the roster a recovered batch is validated against.
+        admitted_cast = spec.get('cast_sha256')
+        if (failed.get('cast_sha256') is not None
+                and failed.get('cast_sha256') != admitted_cast):
+            _refuse_recovery_identity()
+        cast_path = get_run_cast_path()
+        live_cast = _get_regular_file_sha256(cast_path)
+        if live_cast != admitted_cast:
+            _refuse_recovery_identity()
+
+        # Manifest settlement: every representation of committed progress must
+        # agree with the checkpoint that is about to be advanced.
+        if isinstance(progress, dict):
+            expected_counts = {
+                'segmented_entries': len(segmented or []),
+                'attributed_entries': sum(isinstance(row, dict) for row in named),
+                'instructed_entries': sum(isinstance(row, dict) for row in annotated),
+            }
+            for key, actual in expected_counts.items():
+                if key in progress and progress[key] != actual:
+                    _refuse_recovery_identity()
+            if ('chunks_completed' in progress
+                    and (type(progress['chunks_completed']) is not int
+                         or progress['chunks_completed'] != checkpoint.get('chunks_done'))):
+                _refuse_recovery_identity()
+            chunks = manifest.get('chunks')
+            resolutions = checkpoint.get('resolutions') or []
+            if isinstance(chunks, list):
+                if len(chunks) != len(resolutions) or any(
+                        not isinstance(row, dict) or (
+                            row.get('resolution') != value
+                            and row.get('resolution') != 'pending')
+                        for row, value in zip(chunks, resolutions)):
+                    _refuse_recovery_identity()
+    return fingerprint, chunk_count, retry_only
+
+
+def ensure_pass2_evidence_shape(frozen, entries):
+    """No malformed saved row may reach the attribution gate as an AttributeError."""
+    if (not isinstance(frozen, list) or not frozen
+            or any(not isinstance(row, dict) or row.get("type") not in ("SPOKEN", "NARRATOR")
+                   or not isinstance(row.get("text"), str) or not row["text"] for row in frozen)
+            or not isinstance(entries, list) or len(entries) != len(frozen)
+            or any(not isinstance(row, dict) or type(row.get("n")) is not int
+                   or not isinstance(row.get("speaker"), str) for row in entries)):
+        _refuse_recovery_evidence()
+
+
+def ensure_recovery_selection_unchanged(admission_selection=None):
+    """Compare the saved selection with the one captured at initial admission.
+
+    Re-capturing at the write boundary would let an out-of-band generation
+    change replace both the book generation and the saved selection together.
+    A genuine legacy run has no selection at either point.
+    """
+    state = get_recovery_state()
+    saved = state.get("script_generation_selection")
+    if admission_selection is None:
+        if saved is None:
+            return
+        try:
+            admission_selection = capture_generation_selection(
+                DATA_DIR, state.get("input_file_path"))
+        except (OSError, ValueError):
+            _refuse_recovery_identity()
+    if saved != admission_selection:
+        raise AppError(409, 'The source or book selection changed since this recovery started; the checkpoint was preserved.',
+                       key='safety.generation.recovery_selection_changed')
+
+
+def get_pass2_recovery_source(checkpoint):
+    """Recover the full prepared source the live pass-2 gate read.
+
+    A fingerprinted checkpoint proves its source by the prepared-text digest in
+    its fingerprint. Rebuild that text through the run's own admitted source and
+    saved preparation options; the digest passed to get_prepared_source is the
+    RAW upload hash from the run's selection, not the prepared hash, so the
+    prepared digest is compared separately. Any mismatch, malformed evidence or
+    unsafe source is a stable 409 - never a silent downgrade. Only a checkpoint
+    with no fingerprint source digest uses the older segmented-slice evidence.
+    """
+    fingerprint = checkpoint.get("fingerprint")
+    if isinstance(fingerprint, dict) and "source_sha256" in fingerprint:
+        expected = fingerprint["source_sha256"]
+        if not _digest_is_sha256(expected):
+            _refuse_recovery_proof()
+        try:
+            state = get_recovery_state()
+            path, strip_front_matter = get_source_preparation(state)
+            raw = None
+            if "script_generation_selection" in state:
+                selection = state["script_generation_selection"]
+                raw = selection.get("source_sha256") if isinstance(selection, dict) else None
+                if (not _digest_is_sha256(raw)
+                        or selection.get("source_path") != path
+                        or not isinstance(selection.get("book_token"), str)
+                        or not selection["book_token"]):
+                    raise ValueError('incomplete run selection')
+            prepared, _report = get_prepared_source(
+                path, strip_front_matter, report=lambda message: None,
+                owning_root=DATA_DIR,
+                **({'expected_source_sha256': raw} if raw is not None else {}))
+            actual = hashlib.sha256(prepared.encode('utf-8')).hexdigest()
+        except (ValueError, OSError, UnicodeError, RecursionError, TypeError):
+            _refuse_recovery_proof()
+        if actual != expected:
+            _refuse_recovery_proof()
+        return prepared
+    failed = checkpoint["failed"]
+    segmented = checkpoint.get("segmented")
+    indices = failed.get("indices")
+    texts = None
+    if (isinstance(indices, list) and indices and isinstance(segmented, list)
+            and all(type(i) is int and 0 <= i < len(segmented)
+                    and isinstance(segmented[i], dict)
+                    and isinstance(segmented[i].get("text"), str)
+                    and segmented[i]["text"] for i in indices)):
+        texts = [segmented[i]["text"] for i in indices]
+    else:
+        entries = failed.get("entries")
+        if (isinstance(entries, list) and entries
+                and all(isinstance(entry, dict)
+                        and isinstance(entry.get("text"), str)
+                        and entry["text"] for entry in entries)):
+            texts = [entry["text"] for entry in entries]
+    if not texts:
+        _refuse_recovery_proof()
+    return "\n".join(texts)
+
+
+def get_pass2_recovery_destination(checkpoint, frozen, cast=None):
+    """The unique, in-range saved rows this batch may replace, checked before
+    any failed evidence is retired. A missing `indices` key is the one explicit
+    legacy shape: an all-empty named prefix maps consecutively from zero. A
+    present but partial, duplicated, boolean or out-of-range index is refused.
+    Where segmentation is present every destination must be covered by it and
+    retain the frozen text/type; a truncated or altered segmentation cannot make
+    those checks fall away. An occupied row is refused unless it is exactly the
+    writer's deterministic prefill for that entry.
+    """
+    failed = checkpoint["failed"]
+    named = checkpoint.get("named")
+    has_segmented = "segmented" in checkpoint
+    segmented = checkpoint.get("segmented")
+    if not isinstance(named, list) or (has_segmented and not isinstance(segmented, list)):
+        _refuse_recovery_destination()
+    if "indices" in failed:
+        indices = failed["indices"]
+        if (not isinstance(indices, list) or len(indices) != len(frozen)
+                or any(type(i) is not int or not 0 <= i < len(named) for i in indices)
+                or len(set(indices)) != len(indices)):
+            _refuse_recovery_destination()
+        destinations = list(indices)
+    else:
+        # The only shape supported without saved indices is a genuinely old
+        # run: no prepared-source proof, no segmentation to prove rows against,
+        # and an all-empty destination prefix. A fingerprinted or damaged
+        # checkpoint cannot fall into it by simply losing its indices.
+        fingerprint = checkpoint.get("fingerprint")
+        if ((isinstance(fingerprint, dict) and "source_sha256" in fingerprint)
+                or named and (len(named) != len(frozen)
+                              or any(row is not None for row in named))):
+            _refuse_recovery_destination()
+        destinations = list(range(len(frozen)))
+    for index, entry in zip(destinations, frozen):
+        retained = None
+        if has_segmented:
+            if not 0 <= index < len(segmented):
+                _refuse_recovery_destination()
+            retained = segmented[index]
+            if (not isinstance(retained, dict)
+                    or retained.get("text") != entry.get("text")
+                    or retained.get("type") != entry.get("type")):
+                _refuse_recovery_destination()
+        occupied = named[index] if index < len(named) else None
+        if occupied is not None:
+            allowed = (get_deterministic_named_entry(retained, cast)
+                       if has_segmented else None)
+            if occupied != allowed:
+                _refuse_recovery_destination()
+    return destinations
+
+
+def get_pass2_recovery_evidence(checkpoint):
+    """The live gate's source and cast inputs, recovered from the failed run.
+
+    The roster is established identity evidence, but only the cast the writer
+    bound to this failed batch supplies names/aliases that bypass the source
+    check. Current state alone is not run evidence: a missing, stale or replaced
+    cast never confers an exemption, and an unproven legacy cast cannot either.
+    """
+    failed = checkpoint["failed"]
+    raw_roster = failed.get("roster") or []
+    if not isinstance(raw_roster, list) or any(not isinstance(name, str) for name in raw_roster):
+        _refuse_recovery_evidence()
+    roster = [name for name in raw_roster if name]
+    cast = None
+    expected = failed.get("cast_sha256")
+    cast_path = get_run_cast_path()
+    if _digest_is_sha256(expected) and expected == _get_regular_file_sha256(cast_path):
+        try:
+            from three_pass_generate import load_cast
+            parsed = load_cast(cast_path)
+        except (OSError, ValueError, UnicodeError):
+            parsed = None
+        # Bind the parsed aliases to the bytes actually read; a replacement
+        # between the hash and the reread cannot confer an exemption.
+        if parsed is not None and parsed.get("sha256") == expected:
+            cast = parsed
+    return {"source_text": get_pass2_recovery_source(checkpoint),
+            "known_names": set((cast or {}).get("known_names") or ()),
+            "established_names": roster,
+            "speaker_aliases": dict((cast or {}).get("alias_to_name") or {}),
+            "cast": cast}
+
+
+def _recovery_boundary_guard(snapshot):
+    """Read-only, idempotent publication guard over the admission snapshot."""
+    def guard():
+        if not isinstance(snapshot, dict):
+            return
+        state = get_recovery_state()
+        receipt = _load_recovery_receipt(state)
+        if snapshot.get('receipt_sha256') is None:
+            if receipt is not None:
+                _refuse_recovery_identity()
+        elif receipt is None or receipt.get('sha256') != snapshot['receipt_sha256']:
+            _refuse_recovery_identity()
+        if state.get('book_generation') != snapshot.get('book_generation'):
+            _refuse_recovery_identity()
+        if state.get('script_generation_selection') != snapshot.get('selection'):
+            _refuse_recovery_identity()
+        source_path = state.get('input_file_path')
+        if source_path != snapshot.get('source_path'):
+            _refuse_recovery_identity()
+        if ('options' in snapshot
+                and state.get('script_generation_options') != snapshot['options']):
+            _refuse_recovery_identity()
+        if 'config_sha256' in snapshot:
+            try:
+                config_digest = hashlib.sha256(
+                    Path(CONFIG_PATH).read_bytes()).hexdigest()
+            except OSError:
+                config_digest = None
+            if config_digest != snapshot['config_sha256']:
+                _refuse_recovery_identity()
+        if 'source_sha256' in snapshot and _get_regular_file_sha256(source_path) != snapshot['source_sha256']:
+            _refuse_recovery_identity()
+        if 'cast_sha256' in snapshot and _get_regular_file_sha256(
+                get_run_cast_path()) != snapshot['cast_sha256']:
+            _refuse_recovery_identity()
+        if 'task_running' in snapshot and is_task_running('script', process_state) != snapshot['task_running']:
+            _refuse_recovery_identity()
+    return guard
+
+
 def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
-                          *, pass_fallback=False):
+                          *, pass_fallback=False, admission_selection=None,
+                          admission_snapshot=None):
     """Accept hand-supplied output for the failed unit through the SAME gate
     the pass uses - pass 1: a [{type, text}] segmentation of the chunk;
     pass 2: [{n, speaker}] for the batch - and advance the checkpoint past it
@@ -3321,24 +4545,48 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
                 and get_script_recovery_token(checkpoint) != expected_checkpoint_token):
             raise HTTPException(status_code=409,
                                 detail="The failed generation unit changed; reload recovery before applying a decision.")
+        manifest = get_script_recovery_manifest()
+        if manifest is None:
+            raise AppError(409, 'Recovery manifest changed; reload recovery.',
+                           key='safety.generation.recovery_manifest_changed')
+        fingerprint, chunk_count, _ = ensure_recovery_identity_pair(
+            checkpoint, manifest, get_recovery_state())
+        ensure_recovery_selection_unchanged(admission_selection)
         failed = checkpoint["failed"]
         if failed.get("pass") == "attribute":
             frozen = failed.get("entries") or []
-            report = validate_attribution(frozen, entries, None)
+            ensure_pass2_evidence_shape(frozen, entries)
+            evidence = get_pass2_recovery_evidence(checkpoint)
+            report = validate_attribution(
+                frozen, entries, evidence["source_text"],
+                known_names=evidence["known_names"],
+                established_names=evidence["established_names"],
+                speaker_aliases=evidence["speaker_aliases"])
             if not report.get("passed"):
                 return {"accepted": False, "report": report}
-            by_n = {int(e["n"]): e for e in entries}
-            bound = [{k: v for k, v in f.items() if k != "type"} | {"speaker": by_n[i]["speaker"]}
-                     for i, f in enumerate(frozen)]
-            bound = stabilize_speaker_identities(bound, established_speakers=failed.get("roster") or [])["entries"]
+            destinations = get_pass2_recovery_destination(checkpoint, frozen, cast=evidence["cast"])
+            ordered = index_head_check(frozen, entries)[2]
+            bound = get_named_from_answer(frozen, ordered, cast=evidence["cast"],
+                                          speaker_traits=False)
+            bound = stabilize_speaker_identities(
+                bound, established_speakers=evidence["established_names"])["entries"]
+            segmented = checkpoint.get("segmented")
+            if isinstance(segmented, list):
+                for position, index in enumerate(destinations):
+                    if 0 <= index < len(segmented) and isinstance(segmented[index], dict):
+                        deterministic = get_deterministic_named_entry(
+                            segmented[index], evidence["cast"])
+                        if deterministic is not None:
+                            bound[position] = deterministic
             named = list(checkpoint.get("named") or [])
-            for index, entry in zip(failed.get("indices") or [], bound):
+            for index, entry in zip(destinations, bound):
                 while len(named) <= index:
                     named.append(None)
                 named[index] = entry
             checkpoint["named"] = named
             checkpoint["stage"] = "attribute"
-            unit = {"batch_indices": failed.get("indices") or []}
+            ensure_recovered_checkpoint_shape(checkpoint, fingerprint, chunk_count)
+            unit = {"batch_indices": destinations}
         elif failed.get("pass") == "instruct":
             frozen = failed.get("entries") or []
             direction = "off" if pass_fallback else failed.get("delivery_direction", "off")
@@ -3379,11 +4627,36 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
             unit = {"chunk": failed["chunk"]}
         checkpoint["failed"] = None
         manifest_path = three_pass_manifest_path(SCRIPT_PATH)
-        manifest = get_script_recovery_manifest()
-        if manifest is None:
-            raise HTTPException(status_code=409, detail="Recovery manifest changed; reload recovery.")
         manifest["status"] = "incomplete"
         manifest.pop("failed_chunk", None)
+        manifest.pop("failed_pass", None)
+        progress = manifest.get("progress")
+        if isinstance(progress, dict):
+            progress["segmented_entries"] = len(checkpoint.get("segmented") or [])
+            progress["attributed_entries"] = sum(
+                isinstance(row, dict) for row in checkpoint.get("named") or [])
+            progress["instructed_entries"] = sum(
+                isinstance(row, dict) for row in checkpoint.get("annotated") or [])
+            progress["chunks_attempted"] = checkpoint["chunks_done"]
+            progress["chunks_completed"] = checkpoint["chunks_done"]
+            resolutions_now = checkpoint.get("resolutions") or []
+            chunks_now = manifest.get("chunks")
+            if isinstance(chunks_now, list):
+                for position, resolution_value in enumerate(resolutions_now, start=1):
+                    if position <= len(chunks_now) and isinstance(chunks_now[position - 1], dict):
+                        chunks_now[position - 1]["resolution"] = resolution_value
+            try:
+                live_state = get_recovery_state()
+                source_path_now, strip_now = get_source_preparation(live_state)
+                prepared_now, _ = get_prepared_source(
+                    source_path_now, strip_now, owning_root=DATA_DIR)
+                admitted_chunks = _admitted_chunk_texts(prepared_now)
+                progress['source_words_completed'] = sum(
+                    len(_source_words(admitted_chunks[index]))
+                    for index, resolution_value in enumerate(resolutions_now)
+                    if resolution_value != 'fail' and index < len(admitted_chunks))
+            except (OSError, ValueError, TypeError, RecursionError):
+                pass
         manifest["recovered_units"] = (manifest.get("recovered_units") or []) + [
             {**unit, "pass": failed.get("pass"), "resolution": resolution}]
         replacements = {
@@ -3393,7 +4666,18 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
                                 (manifest_path, manifest))}
         removals = [os.path.relpath(path, DATA_DIR) for path in
                     get_generation_checkpoint_artifacts(three_pass_checkpoint_path(SCRIPT_PATH))[1:]]
-        apply_book_state_locked(DATA_DIR, replacements, removals)
+        ensure_recovery_selection_unchanged(admission_selection)
+        if admission_selection is not None:
+            live_state = get_recovery_state()
+            try:
+                live_selection = capture_generation_selection(
+                    DATA_DIR, live_state.get("input_file_path"))
+            except (OSError, ValueError):
+                _refuse_recovery_identity()
+            if live_selection != admission_selection:
+                _refuse_recovery_identity()
+        apply_book_state_locked(DATA_DIR, replacements, removals,
+                                before_replace=_recovery_boundary_guard(admission_snapshot))
     return {"accepted": True, **unit, "chunks_done": checkpoint["chunks_done"],
             "resolution": resolution}
 
@@ -3401,7 +4685,7 @@ def apply_manual_recovery(entries, resolution, expected_checkpoint_token=None,
 class InjectSegmentationRequest(BaseModel):
     # pass 1: `chunk` + entries [{type, text}]; pass 2: entries [{n, speaker}]
     chunk: Optional[int] = None
-    entries: List[Dict]
+    entries: List[Any]
 
 
 class SkipChunkRequest(BaseModel):
@@ -3409,6 +4693,7 @@ class SkipChunkRequest(BaseModel):
 
 
 def _require_failed_unit(chunk):
+    """Capture checkpoint, manifest and live selection in one book-locked cut."""
     fenced, checkpoint = get_recovery_admission()
     if fenced is not None:
         _refuse_cast_invalidated_recovery()
@@ -3419,7 +4704,29 @@ def _require_failed_unit(chunk):
     if failed.get("pass") == "segment" and int(failed["chunk"]) != int(chunk or -1):
         raise HTTPException(status_code=409,
                             detail=f"The failed chunk is {failed['chunk']}, not {chunk}.")
-    return checkpoint
+    state = get_recovery_state()
+    admission_selection = None
+    if "script_generation_selection" in state:
+        try:
+            admission_selection = capture_generation_selection(
+                DATA_DIR, state.get("input_file_path"))
+        except (OSError, ValueError):
+            _refuse_recovery_identity()
+    receipt = _load_recovery_receipt(state)
+    try:
+        config_digest = hashlib.sha256(Path(CONFIG_PATH).read_bytes()).hexdigest()
+    except OSError:
+        config_digest = None
+    snapshot = {'receipt_sha256': receipt['sha256'] if receipt else None,
+                'book_generation': state.get('book_generation'),
+                'source_path': state.get('input_file_path'),
+                'selection': admission_selection,
+                'options': state.get('script_generation_options'),
+                'config_sha256': config_digest,
+                'source_sha256': _get_regular_file_sha256(state.get('input_file_path')),
+                'cast_sha256': _get_regular_file_sha256(get_run_cast_path()),
+                'task_running': is_task_running('script', process_state)}
+    return checkpoint, admission_selection, snapshot
 
 
 @router.get("/api/generate_script/recovery/detail")
@@ -3438,7 +4745,7 @@ async def generate_script_inject(request: InjectSegmentationRequest):
     """Manual output injection (#522 s4.4): a pasted [{type, text}]
     segmentation for a failed pass-1 chunk, or [{n, speaker}] for a failed
     pass-2 batch, validated by the pass's own gate."""
-    checkpoint = await asyncio.to_thread(_require_failed_unit, request.chunk)
+    checkpoint, admission_selection, admission_snapshot = await asyncio.to_thread(_require_failed_unit, request.chunk)
     entries = []
     failed_pass = checkpoint["failed"].get("pass")
     if failed_pass in ("attribute", "instruct"):
@@ -3447,8 +4754,11 @@ async def generate_script_inject(request: InjectSegmentationRequest):
                      if failed_pass == "instruct" else "off")
         needs_field = direction not in ("directed", "action_only")
         for i, e in enumerate(request.entries):
-            value = (str(e.get(field) or "")).strip()
-            if not isinstance(e.get("n"), int) or (needs_field and not value):
+            if (not isinstance(e, dict) or type(e.get("n")) is not int
+                    or e.get(field) is not None and not isinstance(e.get(field), str)):
+                _refuse_recovery_evidence()
+            value = (e.get(field) or "").strip()
+            if needs_field and not value:
                 raise HTTPException(status_code=422,
                                     detail=f"Entry {i + 1}: needs an integer n and a non-empty {field}.")
             entry = {"n": e["n"]}
@@ -3460,8 +4770,11 @@ async def generate_script_inject(request: InjectSegmentationRequest):
             entries.append(entry)
     else:
         for i, e in enumerate(request.entries):
-            kind = (str(e.get("type") or "")).strip().upper()
-            text = (str(e.get("text") or "")).strip()
+            if (not isinstance(e, dict) or not isinstance(e.get("type"), str)
+                    or not isinstance(e.get("text"), str)):
+                _refuse_recovery_evidence()
+            kind = e["type"].strip().upper()
+            text = e["text"].strip()
             if kind not in ("NARRATOR", "SPOKEN") or not text:
                 raise HTTPException(status_code=422,
                                     detail=f"Entry {i + 1}: type must be NARRATOR or SPOKEN and text non-empty.")
@@ -3469,7 +4782,8 @@ async def generate_script_inject(request: InjectSegmentationRequest):
     if not entries:
         raise HTTPException(status_code=422, detail="No entries supplied.")
     result = await asyncio.to_thread(apply_manual_recovery, entries, "manual",
-                                     get_script_recovery_token(checkpoint))
+                                     get_script_recovery_token(checkpoint), admission_selection=admission_selection,
+                                     admission_snapshot=admission_snapshot)
     if not result["accepted"]:
         raise HTTPException(status_code=422, detail={
             "message": "The segmentation does not pass the fidelity gate.",
@@ -3485,7 +4799,7 @@ async def generate_script_skip(request: SkipChunkRequest):
     so every word stays and quoted lines are still SPOKEN. Pass 2: the batch's
     spoken lines are labelled UNKNOWN - the fallback the run refused to apply
     on its own because the LLM was unavailable, now applied by the user."""
-    checkpoint = await asyncio.to_thread(_require_failed_unit, request.chunk)
+    checkpoint, admission_selection, admission_snapshot = await asyncio.to_thread(_require_failed_unit, request.chunk)
     failed = checkpoint["failed"]
     if failed.get("pass") == "attribute":
         entries = [{"n": i, "speaker": "NARRATOR" if e.get("type") == "NARRATOR" else "UNKNOWN"}
@@ -3499,7 +4813,9 @@ async def generate_script_skip(request: SkipChunkRequest):
                    for r in split_outer_quote_regions(failed["source"])
                    if r.get("text", "").strip()]
     result = await asyncio.to_thread(apply_manual_recovery, entries, "narrated_as_is",
-                                     get_script_recovery_token(checkpoint), pass_fallback=True)
+                                     get_script_recovery_token(checkpoint), pass_fallback=True,
+                                      admission_selection=admission_selection,
+                                      admission_snapshot=admission_snapshot)
     if not result["accepted"]:
         raise HTTPException(status_code=422, detail={
             "message": "Even the deterministic split does not pass the fidelity gate; "
@@ -3592,7 +4908,6 @@ def _cancel_script_generation_sync():
             stopped = _cancel_task('script', 'No script generation is currently running.',
                                    'Script generation process already exited.')
             state.pop('script_generation_run_id', None)
-            state.pop('script_generation_cancel_requested_run_id', None)
             atomic_json_write(state, state_path, allow_nonatomic_fallback=False)
             return stopped
     except (OSError, ValueError, TimeoutError) as error:

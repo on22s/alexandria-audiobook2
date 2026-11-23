@@ -1155,6 +1155,19 @@ def retry_line(attempt, max_retries):
     return f"Retrying... (attempt {attempt + 2} of {max_retries + 1})"
 
 
+def get_failover_request_policy(config):
+    """Resolve the request policy used when the secondary provider takes over."""
+    defaults = LLMGenParams()
+    policy = {name: config.get(name, getattr(defaults, name)) for name in (
+        "structured_output", "api_retry_limit", "on_api_exhaustion")}
+    # The config loader can return a float for an explicitly saved integer
+    # default. Keep equivalent values (including signed zero) identical on disk.
+    for name in ("retry_initial_delay_seconds", "retry_multiplier",
+                 "retry_max_delay_seconds", "retry_jitter"):
+        policy[name] = float(config.get(name, getattr(defaults, name))) or 0.0
+    return policy
+
+
 def ensure_run_request_params(client, params):
     """Return parameters bound to the serving profile without changing the input."""
     # Only our explicit wrapper owns runtime-profile switching; ordinary SDK
@@ -1167,11 +1180,8 @@ def ensure_run_request_params(client, params):
     if profile is None:
         return resolver(params) if resolver else params
     config = profile["config"]
-    defaults = LLMGenParams()
-    changes = {name: config.get(name, getattr(defaults, name)) for name in (
-        "provider_extra_body", "structured_output", "api_retry_limit",
-        "retry_initial_delay_seconds", "retry_multiplier", "retry_max_delay_seconds",
-        "retry_jitter", "on_api_exhaustion")}
+    changes = get_failover_request_policy(config)
+    changes["provider_extra_body"] = config.get("provider_extra_body")
     from llm_request_budget import get_request_limits
     limits = get_request_limits(config, profile["context_length"])
     changes["context_length"] = limits["context_length"]

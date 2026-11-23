@@ -857,7 +857,18 @@ def _reap_gpu_leases():
                 return
         time.sleep(0.1)
 
-def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False, resources=None):
+def _publish_task_claim_state(task_name, cpu_only):
+    """Initialize the live task entry while holding the admission mutex."""
+    state = process_state[task_name]
+    if "cancel" in state:
+        state["cancel"] = False
+    if task_name == "script":
+        state.pop('_script_published_cleanup_stop', None)
+    state.update(running=True, cpu_only=cpu_only)
+
+
+def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False, resources=None,
+                   defer_process_state=False):
     """Atomically re-check and reserve the GPU lock for task_name.
 
     check_global_gpu_lock() alone has a TOCTOU race: two requests for
@@ -913,18 +924,19 @@ def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False, resources
                 _gpu_leases[task_name] = handle
                 if len(_gpu_leases) == 1:
                     threading.Thread(target=_reap_gpu_leases, daemon=True).start()
-            if "cancel" in process_state[task_name]:
-                process_state[task_name]["cancel"] = False
-            if task_name == 'script':
-                process_state[task_name].pop('_script_published_cleanup_stop', None)
-            process_state[task_name]["running"] = True
             claim_id = uuid.uuid4().hex
-            _task_claims[task_name] = {"id": claim_id, "phase": "claimed", "lease": task_lease,
-                                      "cpu_only": cpu_only}
-            process_state[task_name]["cpu_only"] = cpu_only
+            owner = {"id": claim_id, "phase": "claimed", "lease": task_lease,
+                     "cpu_only": cpu_only}
+            if defer_process_state:
+                # Ownership must block other tasks even before the request
+                # publishes its book transaction and live task state.
+                owner.update(phase="pending", defer_process_state=True)
+            else:
+                _publish_task_claim_state(task_name, cpu_only)
+            _task_claims[task_name] = owner
             return claim_id
         except BaseException as error:
-            if task_name in process_state:
+            if not defer_process_state and task_name in process_state:
                 process_state[task_name]["running"] = False
             _task_claims.pop(task_name, None)
             _gpu_leases.pop(task_name, None)
@@ -946,18 +958,19 @@ def release_gpu_task_claim(task_name: str, claim_id=None, pending_only=False):
             return False
         if pending_only and (owner is None or owner["phase"] != "pending"):
             return False
-        state = process_state[task_name]
-        if _get_retained_windows_controls(state):
-            if owner is not None:
-                start_reaper = owner['phase'] != 'cleanup_failed' and task_name not in _gpu_leases
-                owner['phase'] = 'cleanup_failed'
-                if start_reaper:
-                    threading.Thread(target=_reap_gpu_leases, daemon=True).start()
-            state.update(running=False, status='failed')
-            return False
-        if state.pop('_windows_cleanup_failed', False):
-            state.update(process=None, pid=None, processes=[])
-        process_state[task_name]["running"] = False
+        if not (owner and owner.get('defer_process_state')):
+            state = process_state[task_name]
+            if _get_retained_windows_controls(state):
+                if owner is not None:
+                    start_reaper = owner['phase'] != 'cleanup_failed' and task_name not in _gpu_leases
+                    owner['phase'] = 'cleanup_failed'
+                    if start_reaper:
+                        threading.Thread(target=_reap_gpu_leases, daemon=True).start()
+                state.update(running=False, status='failed')
+                return False
+            if state.pop('_windows_cleanup_failed', False):
+                state.update(process=None, pid=None, processes=[])
+            state["running"] = False
         _task_claims.pop(task_name, None)
         handle = _gpu_leases.pop(task_name, None)
         try:
@@ -975,17 +988,22 @@ class _RequestTaskClaims(list):
 
 
 def reserve_background_task(task_name, *, cpu_only=False, saved_destinations=None,
-                            resources=None, verify=None):
+                            resources=None, verify=None, defer_process_state=False):
     """Reserve unstarted work and bind its token to the current request."""
     destinations = (tuple(get_saved_book_destination_path(path) for path in saved_destinations)
                     if saved_destinations is not None else None)
     if destinations is not None:
         resources = tuple(resources or ()) + destinations
     resource_options = {} if resources is None else {"resources": resources}
+    if defer_process_state:
+        resource_options["defer_process_state"] = True
     claim_id = (claim_gpu_task(task_name, cpu_only=True, **resource_options) if cpu_only
                 else claim_gpu_task(task_name, **resource_options))
     try:
         with _gpu_lock:
+            owner = _task_claims.get(task_name)
+            if owner is None or owner["id"] != claim_id:
+                raise HTTPException(status_code=409, detail="Task reservation is no longer active")
             claims = _request_task_claims.get()
             if claims is not None and getattr(claims, "closed", False):
                 raise HTTPException(status_code=409, detail="The initiating request is no longer active")
@@ -996,15 +1014,28 @@ def reserve_background_task(task_name, *, cpu_only=False, saved_destinations=Non
                 # Last check before the claim is committed: callers hold book
                 # admission across reservation (book lock before GPU lock).
                 verify()
-            _task_claims[task_name]["phase"] = "pending"
+            owner["phase"] = "pending"
             if destinations is not None:
-                _task_claims[task_name]["saved_destinations"] = destinations
+                owner["saved_destinations"] = destinations
             if claims is not None:
                 claims.append((task_name, claim_id))
     except BaseException:
         release_gpu_task_claim(task_name, claim_id)
         raise
     return claim_id
+
+
+def activate_background_task_claim(task_name, claim_id):
+    """Publish live state after the request commits and registers its worker."""
+    with _gpu_lock:
+        owner = _task_claims.get(task_name)
+        if owner is None or owner["id"] != claim_id:
+            raise HTTPException(status_code=409, detail="Task reservation is no longer active")
+        if owner.get("defer_process_state"):
+            if owner["phase"] == "pending" and getattr(_request_task_claims.get(), "closed", False):
+                raise HTTPException(status_code=409, detail="The initiating request is no longer active")
+            _publish_task_claim_state(task_name, owner["cpu_only"])
+            del owner["defer_process_state"]
 
 
 def register_claimed_background_task(background_tasks, task_name, claim_id, callback, *args, **kwargs):

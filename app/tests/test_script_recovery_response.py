@@ -38,6 +38,7 @@ class ScriptRecoveryResponseTests(unittest.TestCase):
                 self.assertEqual(200, client.post('/api/generate_script/retry', json=payload).status_code)
                 self.assertFalse(build.call_args.kwargs['strip_front_matter'])
                 self.assertIn('--require-matching-checkpoint', calls[0][0])
+                self.assertNotIn('--run-spec-receipt', calls[0][0])
 
     def test_legacy_retry_confirmation_ui_requires_explicit_choice(self):
         code = r"""

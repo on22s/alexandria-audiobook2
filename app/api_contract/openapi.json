@@ -3032,10 +3032,7 @@
             "title": "Chunk"
           },
           "entries": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
+            "items": {},
             "title": "Entries",
             "type": "array"
           }

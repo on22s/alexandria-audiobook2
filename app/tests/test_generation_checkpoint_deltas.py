@@ -10,10 +10,24 @@ from unittest.mock import patch
 
 from generation_checkpoint_deltas import (
     GenerationCheckpointDeltas, load_generation_delta_checkpoint, _get_digest)
+from run_spec_receipt import CHECKPOINT_DIGEST
 from utils import atomic_json_write
 
 
 class CheckpointDeltaTests(unittest.TestCase):
+    def test_delta_cannot_relabel_the_spec_bound_by_its_base(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / 'checkpoint.json'
+            writer = GenerationCheckpointDeltas(path)
+            writer.save_checkpoint({CHECKPOINT_DIGEST: 'a' * 64, 'named': []})
+            header = json.loads(path.read_bytes())
+            changes = {'fields': {CHECKPOINT_DIGEST: {'value': 'b' * 64}}, 'removed': []}
+            delta = {'changes': changes, 'previous': header['sha256']}
+            atomic_json_write(dict(delta, sha256=_get_digest(delta)),
+                              Path(root) / header['directory'] / '00000000.json')
+            with self.assertRaisesRegex(ValueError, 'changes the admitted run spec'):
+                load_generation_delta_checkpoint(path)
+
     def test_indexed_edits_rewind_and_detached_inputs(self):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / 'checkpoint.json'

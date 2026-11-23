@@ -33,6 +33,31 @@ from unittest.mock import patch
 logger = logging.getLogger(__name__)
 
 
+@contextmanager
+def capture_script_worker_starts(callback=None):
+    """Run real owner adoption and join each thread before fixture teardown."""
+    import core
+    from routers import script
+
+    start = core.start_claimed_task_thread
+    workers = []
+
+    def capture(*args, **kwargs):
+        thread = start(*args, **kwargs)
+        workers.append(thread)
+        return thread
+
+    with patch.object(core, 'start_claimed_task_thread', side_effect=capture), \
+            patch.object(script, 'run_process', side_effect=callback) as run:
+        try:
+            yield run
+        finally:
+            for thread in workers:
+                thread.join(timeout=15)
+                if thread.is_alive():
+                    raise AssertionError('Script worker did not exit before fixture teardown')
+
+
 def build_three_pass_completion_manifest(entries, *, status='publishing',
                                           run_id=None, **extra):
     """Build a genuine attempt- and staged-script-bound completion manifest."""

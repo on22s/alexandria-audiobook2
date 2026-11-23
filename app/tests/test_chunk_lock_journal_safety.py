@@ -457,8 +457,6 @@ class RecoveryClassRouteTests(unittest.TestCase):
             stack.enter_context(patch.object(script, 'three_pass_refusal', return_value=None))
             stack.enter_context(patch.object(script, 'get_existing_cast_list', return_value=None))
             stack.enter_context(patch.object(script, 'build_generate_script_command', return_value=[]))
-            stack.enter_context(patch.object(script, 'ensure_script_recovery_manifest',
-                                             return_value={'status': 'failed'}))
             yield root, source, state
 
     def _route_refusals(self, root, source):

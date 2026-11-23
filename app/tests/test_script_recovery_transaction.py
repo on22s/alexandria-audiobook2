@@ -18,8 +18,8 @@ import core
 from generation_checkpoint_deltas import GenerationCheckpointDeltas
 from generation_checkpoint_shards import get_generation_checkpoint_artifacts
 from routers import script
-from tests.test_script_recovery import _write_failed_run, SOURCE
-from tests.test_support import intercept_book_publications
+from tests.test_script_recovery import _write_failed_run, _write_run_receipt, SOURCE
+from tests.test_support import capture_script_worker_starts, intercept_book_publications
 from pass_quality import split_outer_quote_regions
 
 
@@ -230,7 +230,7 @@ import asyncio,os,sys
 import book_state_transaction as books
 from routers import script
 from tests.test_support import intercept_book_publications
-script.DATA_DIR=sys.argv[1];script.SCRIPT_PATH=sys.argv[2];script.process_state['script']['running']=False
+script.DATA_DIR=sys.argv[1];script.SCRIPT_PATH=sys.argv[2];script.CONFIG_PATH=os.path.join(sys.argv[1],'config.json');script.process_state['script']['running']=False
 boundary=sys.argv[3];point=int(sys.argv[4]);count=0
 def stop(*args,**kwargs):
  global count
@@ -249,9 +249,9 @@ else:
  with intercept_book_publications(books,after=published):run()
 '''
         recovery='''
-import asyncio,json,sys
+import asyncio,json,os,sys
 from routers import script
-script.DATA_DIR=sys.argv[1];script.SCRIPT_PATH=sys.argv[2]
+script.DATA_DIR=sys.argv[1];script.SCRIPT_PATH=sys.argv[2];script.CONFIG_PATH=os.path.join(sys.argv[1],'config.json')
 print(json.dumps(asyncio.run(script.generate_script_recovery())))
 '''
         # Each row is one publication on both protocols: a v4 exchange is
@@ -261,6 +261,7 @@ print(json.dumps(asyncio.run(script.generate_script_recovery())))
             with self.subTest(boundary=boundary,point=point),self.fixture() as (root,path):
                 before=self.pair(path)
                 result=subprocess.run([sys.executable,'-c',worker,str(root),path,boundary,str(point)],capture_output=True,text=True,timeout=15)
+
                 self.assertEqual(77,result.returncode,result.stderr)
                 for repeat in range(2):
                     result=subprocess.run([sys.executable,'-c',recovery,str(root),path],capture_output=True,text=True,timeout=15)
@@ -275,7 +276,8 @@ print(json.dumps(asyncio.run(script.generate_script_recovery())))
 
     def test_retry_recovers_interrupted_pair_before_dispatching_owned_worker(self):
         with self.fixture() as (root,path):
-            source=root/'book.txt';source.write_text('A short source story.')
+            source = root / 'book.txt'
+            source.write_text(SOURCE, encoding='utf-8')
             script.atomic_json_write({'input_file_path':str(source),
                                       'script_generation_input_file':str(source)},root/'state.json')
             from script_selection_binding import capture_generation_selection
@@ -283,7 +285,10 @@ print(json.dumps(asyncio.run(script.generate_script_recovery())))
                 captured = capture_generation_selection(str(root), str(source))
             book_state = json.loads((root/'state.json').read_text())
             book_state['script_generation_selection'] = captured
+            book_state.setdefault('script_generation_options', {
+                'strip_front_matter': False, 'first_person_narrator': None, 'cast_sha256': None})
             script.atomic_json_write(book_state, root/'state.json')
+            _write_run_receipt(str(root), SOURCE, with_receipt=False)
             before=self.pair(path)
             def leave_pending(target):
                 if str(target)==script.three_pass_checkpoint_path(path):
@@ -359,20 +364,28 @@ class StartOverAdmissionTests(unittest.TestCase):
             self.assertEqual([], tasks.tasks)
             self.assertNotIn('script', core._task_claims)
 
-    def test_admitted_start_over_registers_same_claim_and_removes_owned_progress(self):
+    def test_admitted_start_over_starts_same_claim_and_removes_owned_progress(self):
         from fastapi import BackgroundTasks
         with self.fixture() as (root, source, checkpoint, manifest, state):
             tasks = BackgroundTasks()
-            self.assertEqual({'status': 'started'}, script.start_script_generation(tasks, str(source), script.GenerateScriptRequest(start_over=True)))
-            self.assertFalse(checkpoint.exists()); self.assertFalse(manifest.exists())
-            self.assertEqual(1, len(tasks.tasks))
-            claim = core._task_claims['script']
-            self.assertEqual('pending', claim['phase'])
-            self.assertEqual(claim['id'], tasks.tasks[0].args[1])
+            observed = []
+
+            def run(command, name):
+                observed.append((command, core._task_claims[name].copy()))
+
+            with capture_script_worker_starts(run):
+                self.assertEqual({'status': 'started'}, script.start_script_generation(
+                    tasks, str(source), script.GenerateScriptRequest(start_over=True)))
+            self.assertEqual(0, json.loads(checkpoint.read_bytes())['chunks_done'])
+            self.assertEqual('incomplete', json.loads(manifest.read_bytes())['status'])
+            self.assertEqual([], tasks.tasks)
+            self.assertEqual(1, len(observed))
+            command, claim = observed[0]
+            self.assertEqual('started', claim['phase'])
+            self.assertEqual(claim['id'], command[command.index('--active-run-id') + 1])
             self.assertEqual(str(source), json.loads(state.read_text())['script_generation_input_file'])
             captured = json.loads(state.read_text())['script_generation_selection']
             self.assertEqual(str(source), captured['source_path'])
-            command = tasks.tasks[0].args[2].args[0]
             self.assertIn('--active-book-token', command)
             self.assertIn('--active-source-sha256', command)
 
@@ -387,8 +400,7 @@ class StartOverAdmissionTests(unittest.TestCase):
             source.write_text('Changed source after checkpoint.')
             before = {path: path.read_bytes() for path in (checkpoint, manifest, state)}
             tasks = BackgroundTasks()
-            with patch.object(script, 'ensure_script_recovery_manifest', return_value={'status':'failed'}), \
-                 patch.object(script, 'get_script_recovery_manifest', return_value={'status':'failed'}):
+            with patch.object(script, 'get_script_recovery_manifest', return_value={'status':'failed'}):
                 with self.assertRaises(HTTPException) as refused:
                     script.start_script_generation(tasks, str(source), None, require_recovery=True)
             self.assertEqual(409, refused.exception.status_code)
@@ -421,8 +433,7 @@ class StartOverAdmissionTests(unittest.TestCase):
             state.write_text(json.dumps(data))
             before = checkpoint.read_bytes()
             tasks = BackgroundTasks()
-            with patch.object(script, 'ensure_script_recovery_manifest', return_value={'status':'failed'}), \
-                 patch.object(script, 'get_script_recovery_manifest', return_value={'status':'failed'}):
+            with patch.object(script, 'get_script_recovery_manifest', return_value={'status':'failed'}):
                 with self.assertRaises(HTTPException) as missing:
                     script.start_script_generation(tasks, str(source), None, require_recovery=True)
                 self.assertEqual(409, missing.exception.status_code)
@@ -448,7 +459,7 @@ class StartOverAdmissionTests(unittest.TestCase):
         from fastapi import BackgroundTasks
         with self.fixture() as (root, source, checkpoint, manifest, state):
             tasks = BackgroundTasks()
-            with patch.object(script, 'atomic_json_write', side_effect=OSError('synthetic state publication failure')):
+            with patch.object(script, 'apply_book_state_locked', side_effect=OSError('synthetic state publication failure')):
                 with self.assertRaisesRegex(OSError, 'state publication'):
                     script.start_script_generation(tasks, str(source), script.GenerateScriptRequest(start_over=True))
             self.assertNotIn('script', core._task_claims)

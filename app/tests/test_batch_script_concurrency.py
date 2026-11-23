@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from routers import script
+from tests.test_support import capture_script_worker_starts
 import three_pass_generate as tp
 
 
@@ -60,12 +61,12 @@ class BatchScriptConcurrencyTests(OwnedScriptTestCase):
                      patch.object(script, "discard_script_progress") as discard, \
                      patch.object(core, "claim_gpu_task", wraps=core.claim_gpu_task) as claim:
                     if valid:
-                        response = script.start_script_generation(background, str(source), request)
+                        with capture_script_worker_starts() as run:
+                            response = script.start_script_generation(background, str(source), request)
                         self.assertEqual("started", response["status"])
-                        claim.assert_called_once_with("script")
-                        self.assertEqual(1, len(background.tasks))
-                        self.assertTrue(core.is_task_running("script"))
-                        core.release_pending_task_claims()
+                        claim.assert_called_once_with("script", defer_process_state=True)
+                        self.assertEqual([], background.tasks)
+                        run.assert_called_once()
                         self.assertFalse(core.is_task_running("script"))
                     else:
                         with self.assertRaises(HTTPException) as raised:
@@ -455,7 +456,6 @@ class OutputCeilingRefusalTests(OwnedScriptTestCase):
                      'prompts': {}}), \
                  patch.object(script, 'check_global_gpu_lock'), \
                  patch.object(script, 'build_generate_script_command', return_value=['x']), \
-                 patch.object(script, 'ensure_script_recovery_manifest', return_value={'status': 'failed'}), \
                  patch.object(script, 'get_script_recovery_manifest', return_value={'status': 'failed'}):
                 for require_recovery in (False, True):
                     with self.subTest(require_recovery=require_recovery):
@@ -481,7 +481,7 @@ class OutputCeilingRefusalTests(OwnedScriptTestCase):
             selection = capture_generation_selection(tmp, str(path))
             Path(tmp, 'state.json').write_text(json.dumps({'input_file_path': str(path),
                 'script_generation_selection': selection}))
-            for start_over, kept in ((False, True), (True, False)):
+            for start_over in (False, True):
                 ckpt.write_text("{}", encoding="utf-8")
                 manifest.write_text("{}", encoding="utf-8")
                 with patch.object(script, "SCRIPT_PATH", script_path), \
@@ -492,14 +492,19 @@ class OutputCeilingRefusalTests(OwnedScriptTestCase):
                          "prompts": {}}), \
                      patch.object(script, "check_global_gpu_lock"), \
                      patch.object(core, "claim_gpu_task", wraps=core.claim_gpu_task), \
-                     patch.object(script, "build_generate_script_command", return_value=["x"]):
+                     patch.object(script, "build_generate_script_command", return_value=["x"]), \
+                     capture_script_worker_starts():
                     tasks = script.BackgroundTasks()
                     script.start_script_generation(
                         tasks, str(path), script.GenerateScriptRequest(start_over=start_over))
                     core.release_pending_task_claims()
                 with self.subTest(start_over=start_over):
-                    self.assertEqual(kept, ckpt.exists())
-                    self.assertEqual(kept, manifest.exists())
+                    if start_over:
+                        self.assertEqual(0, json.loads(ckpt.read_bytes())['chunks_done'])
+                        self.assertEqual('incomplete', json.loads(manifest.read_bytes())['status'])
+                    else:
+                        self.assertEqual('{}', ckpt.read_text())
+                        self.assertEqual('{}', manifest.read_text())
 
     def test_invalid_start_over_keeps_recovery_files(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -5022,7 +5022,8 @@ def ensure_saved_book_state(data_dir, scripts_dir, timeout=10, *, recover=True):
 
 
 def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_limit=None,
-                            cancel_check=None, before_replace=None):
+                            cancel_check=None, before_replace=None,
+                            on_recovered_commit_error=None):
     """Stage and publish a switch; streams require an admitted, bounded caller.
 
     Stream objects must already be pinned by the caller. Their extent and hash
@@ -5032,6 +5033,8 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
     row replacement, immediately before the committed journal is staged and
     again immediately before its replace (while rollback is still possible), so
     evidence that changed during staging or final validation cannot be published.
+    on_recovered_commit_error can verify and report a committed outcome after
+    recovery finishes cleaning up a transient storage error.
     """
     root, root_identity = _book_operation_root(data_dir)
     if _has_book_transaction(root):
@@ -5076,6 +5079,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
         _check_stream_cancellation(cancel_check)
         initial_budget = _BookScanBudget(stream_byte_limit, MAX_FILES, cancel_check)
     workspace_fd = root_fd = None
+    committed = False
     root_guard = None
     def release_root_guard():
         nonlocal root_guard
@@ -5577,6 +5581,7 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
             root_guard.check()
         journal_version = _save_journal(root, data, expected_version=journal_version,
                                         root_fd=root_fd, on_publish_attempt=before_replace)
+        committed = True
         # Publication is durable at this point.  Finish validation and cleanup
         # without surfacing a late cancellation for data that was committed.
         if streams:
@@ -5649,6 +5654,10 @@ def apply_book_state_locked(data_dir, replacements, removals, *, stream_byte_lim
                     # explicitly chained, consistent with cleanup_error
                     # handling below. Successful rollback is unchanged.
                     raise recovery_error from original_error
+                if (committed and isinstance(original_error, OSError)
+                        and on_recovered_commit_error is not None):
+                    on_recovered_commit_error(original_error)
+                    return
         elif not journal_publication_attempted and (root_fd is not None or os.path.lexists(workspace)):
             try:
                 _delete_unpublished_book_placeholders(
