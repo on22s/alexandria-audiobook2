@@ -78,16 +78,21 @@ def measure(path):
 
 
 def main():
+    from utils import atomic_json_write, get_app_storage_path, get_runtime_data_dir
+
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--books", nargs="*", default=None,
-                    help="EPUB paths (default: everything in app/uploads)")
+                    help="EPUB paths (default: all EPUBs in the runtime uploads directory)")
     ap.add_argument("--out", default=os.path.join(
         REPO, "ab_test_runtime", "experiments", "epub_extraction_fidelity.json"))
     args = ap.parse_args()
 
-    books = args.books or sorted(glob.glob(os.path.join(APP, "uploads", "*.epub")))
+    books = args.books
     if not books:
-        sys.exit("no EPUBs given and none in app/uploads")
+        uploads = get_app_storage_path(get_runtime_data_dir(REPO), REPO, APP, "uploads")
+        books = sorted(glob.glob(os.path.join(uploads, "*.epub")))
+    if not books:
+        sys.exit("no EPUBs given and none in the runtime uploads directory")
 
     rows, totals = [], {"resolved": 0, "unresolved": 0,
                         "inserted": 0, "duplicated": 0}
@@ -110,7 +115,6 @@ def main():
     except Exception as exc:                                    # noqa: BLE001
         document["provenance"] = {"error": str(exc)[:120]}
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    from utils import atomic_json_write
     atomic_json_write(document, args.out)
     print(f"\nwrote {args.out}")
     # The goal's target is 0 duplicated and 0 dropped. Say so in the exit code

@@ -29,7 +29,7 @@ misattributions; that link was measured separately and only on English. And a
 structural reader helps only when the input is an EPUB - it does nothing for a
 .txt someone else already flattened, which is what the corpus currently is.
 """
-import argparse, collections, os, re, sys
+import argparse, collections, glob, os, re, sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -121,18 +121,24 @@ NAV_HINT = re.compile(r"table of contents|^\s*contents\s*$|copyright|all rights 
 
 
 def main():
+    from utils import get_app_storage_path, get_runtime_data_dir
+
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--epubs", nargs="+", default=sorted(
-        __import__("glob").glob(REPO + "/app/uploads/*.epub"))[:3])
+    ap.add_argument("--epubs", nargs="+",
+                    help="EPUB paths (default: first three sorted EPUBs in the runtime uploads directory)")
     ap.add_argument("--max_size", type=int, default=3000)
     args = ap.parse_args()
 
-    if not args.epubs:
+    books = args.epubs
+    if books is None:
+        uploads = get_app_storage_path(get_runtime_data_dir(REPO), REPO, os.path.join(REPO, "app"), "uploads")
+        books = sorted(glob.glob(os.path.join(uploads, "*.epub")))[:3]
+    if not books:
         print("no epubs found")
         return
     print(f"  {'book':30}{'path':>12}{'chunks':>8}{'repairs':>9}"
           f"{'chars':>10}{'nav hits':>10}")
-    for path in args.epubs:
+    for path in books:
         name = os.path.basename(path)[:28]
         try:
             flat = flat_text(path)
