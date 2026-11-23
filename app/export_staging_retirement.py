@@ -675,9 +675,9 @@ class PosixRetirement:
                 raise original_error from cleanup_error
             raise
 
-    def validate_initialized_creation(self, authority, stream):
+    def validate_initialized_creation(self, authority, stream, *, settled=False):
         """Read the bound creation authority without mutating or taking ownership."""
-        from export_staging import decode_staging_marker
+        from export_staging import read_registered_stage_marker
         self.check_slot_members(creation=True)
         _, created = self.read_creation_records()
         owned = self.read_creation_owner(created)
@@ -688,28 +688,26 @@ class PosixRetirement:
         if (list(identity(owner_info)) != owned['owner_identity']
                 or owner_info.st_uid != os.geteuid() or owner_info.st_mode & 0o077):
             raise StageDirectoryChanged('Initialized owner identity mismatch')
-        raw = authority.read_marker_bytes(4096)
-        marker = decode_staging_marker(raw)
         receipt = self.creation_cleanup_receipt(owned)
-        expected_marker = json.loads(receipt['marker'])
-        if marker is None or any(marker.get(key) != value for key, value in expected_marker.items()):
-            raise StageDirectoryChanged('Initialized marker authority mismatch')
+        raw, guard = read_registered_stage_marker(authority, json.loads(receipt['marker']),
+                                                  settled=settled)
         if self.has_retained_owner():
             raise StageDirectoryChanged('Ambiguous initialized owner locations')
-        return raw, receipt
+        return raw, receipt, guard
 
     def cleanup_initialized_creation(self, authority, stream, *, recovery=False,
-                                     nested_owner_stream=None):
+                                     nested_owner_stream=None, settled=False):
         """Retire a valid created stage using its existing owner admission."""
-        from export_staging import MARKER, OWNER_LOCK, _remove_contents
-        raw, receipt = self.validate_initialized_creation(authority, stream)
-        if authority.has_recovery_guard() or (recovery and authority.has_rollback_backup()):
+        from export_staging import (OWNER_LOCK, _remove_contents, retire_interrupted_recovery_guard,
+                                    retire_registered_stage_marker)
+        raw, receipt, guard = self.validate_initialized_creation(authority, stream, settled=settled)
+        if (guard is None and authority.has_recovery_guard()
+                or recovery and authority.has_rollback_backup()):
             raise StageDirectoryChanged('Initialized recovery payload preserved')
+        guard = retire_interrupted_recovery_guard(authority, raw, guard)
         _remove_contents(authority.path, authority=authority, retirement=self,
-                         nested_owner_stream=nested_owner_stream)
-        if authority.read_marker_bytes(4096) != raw:
-            raise StageDirectoryChanged('Initialized marker changed')
-        authority.unlink(MARKER)
+                         nested_owner_stream=nested_owner_stream, recovery_guard=guard)
+        retire_registered_stage_marker(authority, raw, guard)
         authority.check_owner_stream(stream)
         os.rename(OWNER_LOCK + '.lock', RETAINED_OWNER,
                   src_dir_fd=authority.fd, dst_dir_fd=self.slot_fd)
@@ -823,7 +821,7 @@ class PosixRetirement:
             os.fsync(authority.fd)
             self.finish_retained_stage(self.creation_cleanup_receipt(owned), stream, creation=True)
 
-    def recover_creation_slot(self, name):
+    def recover_creation_slot(self, name, *, settled_stage=None):
         """Recover only empty pre-owner initialization; populated states preserve."""
         if self.slot is None:
             self.open_slot(name)
@@ -831,6 +829,10 @@ class PosixRetirement:
             raise StageDirectoryChanged('Different creation slot already admitted')
         allocated, created = self.read_creation_records()
         owned = self.read_creation_owner(created)
+        if settled_stage is not None:
+            if created is not None and tuple(created['stage_identity']) != settled_stage:
+                raise StageDirectoryChanged('Settled stage receipt changed')
+            self.check_slot_members(creation=True)
         if allocated is None:
             self.discard_empty_slot(name)
             return 'metadata_removed'
@@ -872,14 +874,21 @@ class PosixRetirement:
             raise StageDirectoryChanged('Initialization stage identity mismatch')
         path = self.parent / DIRECTORY / name / 'stage'
         with stage_directory(path, identity(info)) as authority:
+            if settled_stage is not None and (
+                    identity(info) != settled_stage or owned is None
+                    or identity(os.fstat(authority.parent_fd)) != identity(os.fstat(self.slot_fd))):
+                raise StageDirectoryChanged('Settled stage authority changed')
             from export_staging import decode_staging_marker
             try:
                 raw = authority.read_marker_bytes(4096)
             except FileNotFoundError:
                 raw = None
-            if raw is not None and decode_staging_marker(raw) is not None:
+            guarded = settled_stage is not None and authority.has_recovery_guard()
+            if guarded or (raw is not None and (
+                    settled_stage is not None or decode_staging_marker(raw) is not None)):
                 with stage_owner_lock(authority) as stream:
-                    self.cleanup_initialized_creation(authority, stream, recovery=True)
+                    self.cleanup_initialized_creation(
+                        authority, stream, recovery=True, settled=guarded)
             else:
                 self.cleanup_partial_creation(authority, created, owned)
         self.discard_empty_slot(name)

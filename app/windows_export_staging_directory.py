@@ -9,7 +9,7 @@ import os
 import stat
 from pathlib import Path
 
-from export_staging_directory import StageDirectoryChanged, OWNER_FILE
+from export_staging_directory import StageDirectoryChanged, OWNER_FILE, RECOVERY_FILE
 from audio_take_history import _version
 
 
@@ -359,7 +359,7 @@ class WindowsStageDirectory:
                 or _identity(info) != self.expected):
             raise StageDirectoryChanged('Admitted staging directory was replaced')
 
-    def remove_contents(self, retained_names, *, admitted_children=None):
+    def remove_contents(self, retained_names, *, admitted_children=None, recovery_guard=None):
         """When supplied, restrict deletion to creation-time child identity receipts."""
         if (type(retained_names) is not frozenset
                 or any(not _member(name) for name in retained_names)):
@@ -375,7 +375,8 @@ class WindowsStageDirectory:
                         or any(type(value) is not int or value < 0 for value in identity)):
                     raise ValueError('Invalid admitted staging child identity')
         self.check()
-        if self.has_recovery_guard():
+        if self.has_recovery_guard() and (
+                recovery_guard is None or self.read_recovery_guard() != recovery_guard):
             raise StageDirectoryChanged('Staging recovery guard requires explicit recovery')
         self._remove_children(self.path, retained_names, 0, admitted_children)
 
@@ -406,10 +407,13 @@ class WindowsStageDirectory:
                 raise
 
     def read_marker_bytes(self, limit):
+        return self._read_metadata('.export-staging.json', limit)[0]
+
+    def _read_metadata(self, name, limit):
         if type(limit) is not int or not 0 < limit <= 4096:
             raise ValueError('Invalid staging marker read limit')
         self.check()
-        path = self.path / '.export-staging.json'
+        path = self.path / name
         guard = _Handle(self.api, path)
         try:
             info = guard.information()
@@ -425,7 +429,27 @@ class WindowsStageDirectory:
                         or _version(path.lstat()) != _version(before)):
                     raise StageDirectoryChanged('Staging marker changed while reading')
             self.check()
-            return raw
+            return raw, _version(before)
+        finally:
+            guard.close()
+
+    def read_recovery_guard(self, *, allow_empty=False):
+        raw, version = self._read_metadata(RECOVERY_FILE, 1)
+        if raw != b'1' and (not allow_empty or raw != b''):
+            raise StageDirectoryChanged('Unknown staging recovery guard')
+        return version
+
+    def unlink_recovery_guard(self, expected):
+        self.check()
+        path = self.path / RECOVERY_FILE
+        guard = _Handle(self.api, path, delete=True)
+        try:
+            info = guard.information()
+            if (info.attributes & (0x10 | 0x400) or info.links != 1
+                    or _version(path.lstat()) != expected
+                    or _identity(info) != expected[:2]):
+                raise StageDirectoryChanged('Staging recovery guard changed')
+            guard.delete()
         finally:
             guard.close()
 

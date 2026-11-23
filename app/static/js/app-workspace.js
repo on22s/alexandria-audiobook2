@@ -88,8 +88,9 @@ function renderBookWorkspace(data) {
     const outputs = data.outputs.map(row => `${row.format}: ${row.status === 'not_found'
         ? t('home.workspace.output.missing', 'no file found') : row.status === 'present_unverified'
             ? t('home.workspace.output.present-unverified', 'file present; book match unverified') : row.status === 'historical_source_scope'
-                ? t('home.workspace.output.older-scope', 'older scope; rebuild before download') : row.status === 'unavailable'
-                    ? t('home.workspace.output.unavailable', 'could not inspect') : t('home.workspace.output.unrecognized', 'status not recognized')}`).join(' · ');
+                ? t('home.workspace.output.older-scope', 'older scope; rebuild before download') : row.status === 'historical_previous_book'
+                    ? t('home.workspace.output.previous-book', 'previous book; rebuild before download') : row.status === 'unavailable'
+                        ? t('home.workspace.output.unavailable', 'could not inspect') : t('home.workspace.output.unrecognized', 'status not recognized')}`).join(' · ');
     document.getElementById('workspace-stages').replaceChildren(
         renderWorkspaceStage(t('home.workspace.stage.script', 'Script'), data.script.entries ? t('home.workspace.script.entries', 'Entries saved: {count}', {count: data.script.entries}) : t('home.workspace.not-started', 'Not started'), data.script.recovery?.status === 'candidate'
             ? t('safety.home.script.recovery', 'Interrupted script run has saved recovery evidence. Inspect it in Script; source and settings eligibility must be rechecked before resuming.')
@@ -299,7 +300,7 @@ function getWorkspaceEnums(data) {
         exportStatus: ['unavailable', 'observed'],
         exportInputs: ['not_rechecked'],
         audioStatus: ['not_started', 'files_present', 'needs_attention', 'unavailable'],
-        outputStatus: ['present_unverified', 'historical_source_scope', 'not_found', 'unavailable'],
+        outputStatus: ['present_unverified', 'historical_source_scope', 'historical_previous_book', 'not_found', 'unavailable'],
         nextTab: ['script', 'voices', 'editor', 'audio']
     };
     const declared = data?.enums;
@@ -347,8 +348,7 @@ function isWorkspaceSnapshotValid(data) {
         && data.audio.present <= data.audio.total
         && Array.isArray(data.outputs) && data.outputs.every(row => row && typeof row.format === 'string'
             && allows('outputStatus', row.status))
-        && allows('nextTab', data.next?.tab)
-        && typeof data.next.label === 'string' && typeof data.next.reason === 'string';
+        && allows('nextTab', data.next?.tab)        && typeof data.next.label === 'string' && typeof data.next.reason === 'string';
 }
 
 async function refreshBookWorkspace() {

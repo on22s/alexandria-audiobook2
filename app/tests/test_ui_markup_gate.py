@@ -33,7 +33,7 @@ KEEP_ENGLISH = frozenset({
     'data-advanced-intro', 'alex-advanced-intro-collapsed-', 'advanced-intro-heading',
     'advanced-intro-toggle', 'advanced-intro-', 'aria-controls', 'fw-bold mb-1',
     'advanced-intro', 'aria-labelledby', 'DOMContentLoaded',
-    '(active script)', 'review-batch-mode',
+    '(active script)', 'review-batch-mode', 'historical_previous_book',
     'btn-review-fresh', 'btn-review-contextual-fresh', 'btn-review-batch-fresh',
     'btn-review-script', 'btn-review-script-contextual', 'btn-review-batch-start',
     'data-i18n-values', 'data-i18n-source', 'aria-label',

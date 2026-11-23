@@ -2291,6 +2291,7 @@
   "home.workspace.output.missing": "ファイルが見つかりません",
   "home.workspace.output.older-scope": "古いソース範囲です。ダウンロードの前に再ビルドしてください",
   "home.workspace.output.present-unverified": "ファイルは存在しますが、本との一致は未検証です",
+  "home.workspace.output.previous-book": "前の本の出力です。ダウンロードの前に再ビルドしてください",
   "home.workspace.output.unavailable": "確認できませんでした",
   "home.workspace.output.unrecognized": "状態を認識できませんでした",
   "home.workspace.refresh": "ワークスペースを更新",

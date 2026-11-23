@@ -2708,6 +2708,7 @@
   "home.workspace.output.missing": "no file found",
   "home.workspace.output.older-scope": "older scope; rebuild before download",
   "home.workspace.output.present-unverified": "file present; book match unverified",
+  "home.workspace.output.previous-book": "previous book; rebuild before download",
   "home.workspace.output.unavailable": "could not inspect",
   "home.workspace.output.unrecognized": "status not recognized",
   "home.workspace.refresh": "Refresh workspace",

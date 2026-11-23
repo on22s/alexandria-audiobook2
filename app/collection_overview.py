@@ -633,7 +633,7 @@ def _active_render_stage(workspace):
                 continue
             label = _FULL_LABELS.get(task)
             output_status = output_labels.get(label) if output_labels else None
-            if output_status in ('historical_source_scope', 'unavailable', 'not_found', 'missing'):
+            if output_status in ('historical_source_scope', 'historical_previous_book', 'unavailable', 'not_found', 'missing'):
                 continue
             return {'status': 'complete',
                     'evidence': (get_workspace_message('workspace.evidence.current-bound-export', file=expected_file))}
@@ -657,7 +657,7 @@ def _active_render_stage(workspace):
         return {'status': 'recorded',
                 'evidence': (get_workspace_message('workspace.guidance.a-session-export-receipt-verified-this-output-at-export'))}
     if audio.get('status') == 'files_present':
-        if 'historical_source_scope' in output_statuses:
+        if 'historical_source_scope' in output_statuses or 'historical_previous_book' in output_statuses:
             return {'status': 'export_needed',
                     'evidence': (get_workspace_message('workspace.guidance.all-chunk-audio-files-are-present-and-an-output'))}
         if 'unavailable' in output_statuses:

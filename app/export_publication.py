@@ -13,7 +13,7 @@ from chapter_timing_cache import read_source_identity
 from editor_poll_snapshot import get_snapshot_digest
 from export_quality import get_export_file_version
 from tts import ExportCancelled, ensure_audio_export_active
-from utils import file_lock, safe_load_json
+from utils import file_lock
 
 
 @contextmanager
@@ -101,7 +101,8 @@ class ExportSourceSnapshot:
             metadata_versions = {path: _get_source_version(path)
                 for path in (state_path, manager.script_path, manager.config_path)}
             self.book = _get_book_identity(self.root)
-            state = safe_load_json(state_path, {})
+            from project_scope_exports import read_book_state_bounded
+            state = read_book_state_bounded(self.root)
             if expected_editor_revision is not None:
                 with manager._chunks_lock, file_lock(manager.chunks_path):
                     current = _get_saved_rows(manager)

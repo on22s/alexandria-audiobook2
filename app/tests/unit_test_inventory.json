@@ -3020,6 +3020,7 @@
     , "tests.test_chapter_output_integrity.RetainedChapterIntegrityTests.test_malformed_prior_manifest_refuses_partial_export_and_full_export_repairs_it"
     , "tests.test_chapter_output_integrity.RetainedChapterIntegrityTests.test_mastered_legacy_hash_migrates_with_one_scan_per_retained_file"
     , "tests.test_chapter_output_integrity.RetainedChapterIntegrityTests.test_only_selected_legacy_row_rebuilds_while_verified_other_row_is_retained"
+    , "tests.test_chapter_output_integrity.RetainedChapterIntegrityTests.test_receipt_backed_preview_selects_the_same_damaged_chapter_as_export"
     , "tests.test_chapter_output_integrity.RetainedChapterIntegrityTests.test_unselected_missing_or_damaged_delivery_refuses_after_staging_without_publication"
     , "tests.test_chapter_output_integrity.RetainedChapterIntegrityTests.test_unselected_same_size_mastered_damage_is_refused"
     , "tests.test_chapter_output_integrity.RetainedChapterIntegrityTests.test_unselected_unsafe_prior_filename_is_never_hashed_or_published"
@@ -6113,6 +6114,39 @@
     , "tests.test_export_benchmark.ExportBenchmarkSourceHashTests.test_changed_or_unverified_selected_audio_refuses_before_export"
     , "tests.test_export_benchmark.ExportBenchmarkSourceHashTests.test_verified_copy_remains_valid_when_original_changes_after_copy"
   ]
+  , "test_export_book_transition_readers": [
+    "tests.test_export_book_transition_readers.ReceiptAuthorityTests.test_changed_only_chapter_reuse_requires_current_eligibility"
+    , "tests.test_export_book_transition_readers.ReceiptAuthorityTests.test_identity_proof_rejects_byte_identical_replacement_inode"
+    , "tests.test_export_book_transition_readers.ReceiptAuthorityTests.test_oversized_state_is_refused_by_publication_identity_reader"
+    , "tests.test_export_book_transition_readers.ReceiptAuthorityTests.test_receipt_record_refuses_mismatched_digest"
+    , "tests.test_export_book_transition_readers.ReceiptAuthorityTests.test_same_source_reselect_never_rebinds_foreign_receipt"
+    , "tests.test_export_book_transition_readers.SavedBookLoadReaderTests.test_failed_load_after_all_formats_current_keeps_every_eligibility"
+    , "tests.test_export_book_transition_readers.SavedBookLoadReaderTests.test_failed_load_does_not_renew_a_ctime_stale_receipt"
+    , "tests.test_export_book_transition_readers.SavedBookLoadReaderTests.test_failed_load_keeps_every_export_historical_and_real_publication_admits_identical_bytes"
+    , "tests.test_export_book_transition_readers.SavedBookLoadReaderTests.test_load_preserves_mixed_deliveries_as_historical_and_removes_standard_exports"
+    , "tests.test_export_book_transition_readers.SavedBookLoadReaderTests.test_malformed_active_json_rolls_back_exactly_and_allows_a_saved_book_load"
+    , "tests.test_export_book_transition_readers.SavedBookLoadReaderTests.test_reader_during_load_is_refused_and_open_stream_keeps_pinned_bytes"
+    , "tests.test_export_book_transition_readers.SavedBookLoadReaderTests.test_repeated_load_and_restored_standard_bytes_stay_historical"
+    , "tests.test_export_book_transition_readers.SavedBookLoadReaderTests.test_repeated_loads_preserve_mixes_and_then_export_frees_only_that_format"
+    , "tests.test_export_book_transition_readers.SavedBookLoadReaderTests.test_saved_book_rollback_keeps_receipt_evidence_on_workspace_io_error"
+    , "tests.test_export_book_transition_readers.SavedBookLoadReaderTests.test_saved_book_rollback_retries_ledger_write_and_post_install_sync"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_legacy_base_key_inventory_fences_mixed_delivery"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_legacy_four_key_inventory_fences_mixed_delivery"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_legacy_four_key_record_admits_published_mix"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_legacy_seven_key_record_admits_published_mix"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_many_chapter_receipts_do_not_block_a_current_mp3"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_new_publications_after_scope_apply_are_admitted"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_nine_raw_retirements_all_remain_historical"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_oversized_sparse_export_does_not_block_book_selection"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_real_readalong_pair_publication_is_current_after_legacy_fence"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_scope_apply_fences_standard_and_all_mixed_deliveries"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_scope_undo_still_restores_exact_pre_scope_state"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_unsupported_inventory_shape_refuses_without_touching_bytes"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_upload_selection_after_scope_keeps_fence_and_exact_undo_refused"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_upload_selection_fences_old_exports_without_prior_scope"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_verified_same_source_reselection_keeps_eligible_and_historical_outputs"
+    , "tests.test_export_book_transition_readers.ScopeAndSelectionReaderTests.test_workspace_reason_distinguishes_previous_book_from_previous_scope"
+  ]
   , "test_export_download_sharing": [
     "tests.test_export_download_sharing.ExportDownloadSharingTests.test_cancelled_open_closes_the_late_native_result"
     , "tests.test_export_download_sharing.ExportDownloadSharingTests.test_disconnect_and_cancellation_close_the_native_descriptor"
@@ -6147,9 +6181,15 @@
     , "tests.test_export_publication.ExportPublicationTests.test_exact_project_root_and_private_regular_file_are_required"
     , "tests.test_export_publication.ExportPublicationTests.test_final_admission_does_not_read_script_payload_or_retry_body_timeout"
     , "tests.test_export_publication.ExportPublicationTests.test_hashing_is_outside_existing_chunk_lock_and_metadata_admission_does_not_rehash"
+    , "tests.test_export_publication.ExportPublicationTests.test_historical_rebuild_refuses_a_concurrent_target_replacement"
+    , "tests.test_export_publication.ExportPublicationTests.test_nested_export_uses_canonical_prior_receipt_key"
     , "tests.test_export_publication.ExportPublicationTests.test_owner_aware_cancel_callback_does_not_reenter_the_owner_mutex"
     , "tests.test_export_publication.ExportPublicationTests.test_pause_settings_change_between_tuple_and_identity_capture_refuses_export"
+    , "tests.test_export_publication.ExportPublicationTests.test_real_mp3_publication_records_current_receipt_and_identical_restore_is_historical"
+    , "tests.test_export_publication.ExportPublicationTests.test_real_mp3_rebuild_keeps_artifact_reads_outside_the_editor_lock"
+    , "tests.test_export_publication.ExportPublicationTests.test_receipt_write_failure_before_replacement_keeps_previous_export"
     , "tests.test_export_publication.ExportPublicationTests.test_supplied_stale_uid_and_changed_rows_during_capture_are_refused"
+    , "tests.test_export_publication.ExportReceiptSettlementTests.test_settlement_write_failure_restores_bytes_receipt_and_backup"
   ]
   , "test_export_publication_transaction": [
     "tests.test_export_publication_transaction.PublicationTransactionTests.test_actual_editor_takes_book_before_gpu_during_owner_aware_transaction"
@@ -6215,6 +6255,9 @@
     , "tests.test_export_quality_js.ExportQualityJsTests.test_reports_are_safe_text_with_separate_failure_and_explicit_scope"
     , "tests.test_export_quality_js.ExportQualityJsTests.test_stale_async_book_settings_and_terminal_reconnect_cannot_restore_old_cards"
     , "tests.test_export_quality_js.ExportQualityJsTests.test_validation_time_is_shown_for_completed_and_rejected_checks_without_coercion"
+  ]
+  , "test_export_reader_switch_pin": [
+    "tests.test_export_reader_switch_pin.StandardReaderSwitchTests.test_read_paused_before_open_refuses_after_book_switch"
   ]
   , "test_export_readiness_shapes": [
     "tests.test_export_readiness_shapes.ExportReadinessShapeTests.test_both_routes_refuse_unusable_json_before_any_task"
@@ -7806,6 +7849,10 @@
     , "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_secondary_cleanup_exception_warns_and_preserves_original"
     , "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_stale_insert_edit_during_failing_batch_preserves_live_rows"
     , "tests.test_legacy_batch_cleanup.LegacyBatchCleanupTests.test_unprintable_secondary_repr_preserves_original_engine_error"
+  ]
+  , "test_legacy_mix_publication_receipt": [
+    "tests.test_legacy_mix_publication_receipt.LegacyMixedPublicationTests.test_real_publication_under_legacy_four_key_record"
+    , "tests.test_legacy_mix_publication_receipt.LegacyMixedPublicationTests.test_real_publication_under_legacy_seven_key_record"
   ]
   , "test_legacy_voice_save_identity": [
     "tests.test_legacy_voice_save_identity.LegacyVoiceSaveIdentityTests.test_rejected_saves_preserve_config_and_audio"
@@ -11056,6 +11103,21 @@
     , "tests.test_prune_chain.PruneChainTests.test_selected_checkout_manifest_and_whisper_paths_are_used"
   ]
   , "test_prune_prosodic_clips": []
+  , "test_publication_crash_recovery": [
+    "tests.test_publication_crash_recovery.PublicationCrashTests.test_chapter_commit_marker_remains_fenced_until_its_root_sync_succeeds"
+    , "tests.test_publication_crash_recovery.PublicationCrashTests.test_chapter_recovery_retries_nested_directory_sync_before_retiring_intent"
+    , "tests.test_publication_crash_recovery.PublicationCrashTests.test_chapter_zip_during_manifest_backup_uses_only_proven_unaffected_members"
+    , "tests.test_publication_crash_recovery.PublicationCrashTests.test_kill_after_target_install_recovers_prior_eligible_output"
+    , "tests.test_publication_crash_recovery.PublicationCrashTests.test_kill_before_audacity_intent_reclaims_only_owned_stage_on_admission"
+    , "tests.test_publication_crash_recovery.PublicationCrashTests.test_late_chapter_writer_cannot_be_overwritten_during_exclusive_install"
+    , "tests.test_publication_crash_recovery.PublicationCrashTests.test_ledger_install_crash_preserves_raw_state_and_refuses_foreign_inode"
+    , "tests.test_publication_crash_recovery.PublicationCrashTests.test_ordinary_admission_preserves_unregistered_publication_scratch_names"
+    , "tests.test_publication_crash_recovery.PublicationCrashTests.test_other_publication_recovery_preserves_a_live_validated_audacity_stage"
+    , "tests.test_publication_crash_recovery.PublicationCrashTests.test_readalong_set_preserves_independent_second_target_and_rolls_back_audio"
+    , "tests.test_publication_crash_recovery.PublicationCrashTests.test_set_cleanup_recovers_empty_guard_with_original_marker"
+    , "tests.test_publication_crash_recovery.PublicationCrashTests.test_set_commit_cleanup_survives_kill_after_retiring_registered_slot"
+    , "tests.test_publication_crash_recovery.PublicationCrashTests.test_set_rollback_cleanup_retries_without_touching_live_or_replaced_slot"
+  ]
   , "test_publication_js": [
     "tests.test_publication_js.PublicationJSTests.test_actual_export_handler_sends_absent_empty_and_source_choices_with_book_fencing"
     , "tests.test_publication_js.PublicationJSTests.test_explicit_safe_preview_apply_cover_clear_and_typed_export_payload"
@@ -18909,6 +18971,7 @@
   ]
   , "test_windows_export_staging_retirement": [
     "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_admitted_stage_constructor_uses_export_parent"
+    , "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_empty_guard_requires_settled_slot_and_bound_marker"
     , "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_empty_slot_validates_every_receipt_before_removing_any"
     , "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_encoder_refuses_populated_rollback_backup"
     , "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_foreign_and_unowned_slots_are_preserved"
@@ -18916,6 +18979,7 @@
     , "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_linked_receipt_cannot_authorize_recovery"
     , "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_live_owner_is_preserved_then_finished"
     , "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_malformed_creation_receipt_preserves_the_slot"
+    , "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_only_settled_slot_can_retire_guarded_payload"
     , "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_owner_only_stage_after_interrupted_cleanup_is_recovered"
     , "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_partial_creation_and_owner_only_stage_are_recovered"
     , "tests.test_windows_export_staging_retirement.WindowsRetirementTests.test_replaced_empty_stage_is_preserved"

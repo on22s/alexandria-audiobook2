@@ -93,9 +93,10 @@ class ExportStagingTests(unittest.TestCase):
                         barrier.wait(timeout=10)
                     return result
 
-            def publish(source, destination):
-                publications.append(Path(source).read_bytes())
-                original_replace(source, destination)
+            def publish(source, destination, **kwargs):
+                if Path(destination) == Path(root, 'audacity_export.zip'):
+                    publications.append(Path(source).read_bytes())
+                original_replace(source, destination, **kwargs)
 
             with patch('project.zipfile.ZipFile', OverlappingZip), \
                  patch('project.os.replace', publish), \
@@ -105,13 +106,15 @@ class ExportStagingTests(unittest.TestCase):
             self.assertEqual(2, len(set(staging)))
             found = {}
             for payload in publications:
+                if not payload.startswith(b'PK\x03\x04'):
+                    continue
                 with original_zip(io.BytesIO(payload)) as archive:
                     name = archive.read('project.lof').decode().split('"')[1]
                     segment = AudioSegment.from_file(io.BytesIO(archive.read(name)), format='wav')
                     found[name] = len(segment)
             self.assertEqual({'alice.wav': 40, 'bob.wav': 100}, found)
-            self.assertEqual(['.active_book_transaction.json.lock', 'audacity_export.zip',
-                              'chunks.json.lock', 'state.json.lock'],
+            self.assertEqual(['.active_book_transaction.json.lock', '.export_publications.json',
+                              'audacity_export.zip', 'chunks.json.lock', 'state.json.lock'],
                              sorted(p.name for p in Path(root).iterdir()
                                                            if p.is_file()))
 
@@ -154,8 +157,8 @@ class ExportStagingTests(unittest.TestCase):
                                 for duration, meta, _, _ in inputs))
             self.assertTrue(any(duration == 100 and 'title=Bob' in meta
                                 for duration, meta, _, _ in inputs))
-            self.assertEqual(['.active_book_transaction.json.lock', 'audiobook.m4b',
-                              'chunks.json.lock', 'state.json.lock'],
+            self.assertEqual(['.active_book_transaction.json.lock', '.export_publications.json',
+                               'audiobook.m4b', 'chunks.json.lock', 'state.json.lock'],
                              sorted(p.name for p in Path(root).iterdir()
                                                      if p.is_file()))
 

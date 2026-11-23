@@ -44,15 +44,20 @@ def open_sound_delivery(root, format_name, sha256):
     _require_digest(sha256,'Expected sound delivery')
     root = Path(root).absolute()
     filename = 'mixed_audiobook.'+format_name
-    facts, _ = capture_scope_file(root,filename,limit=MAX_PCM_BYTES)
-    if not facts['exists'] or facts['sha256'] != sha256:
-        raise ValueError('Sound delivery is missing or changed; export again')
-    stream, before = _open_regular(root/filename,root,MAX_PCM_BYTES,
-                                 opener=open_export_reader if os.name == 'nt' else None)
-    try:
-        if list(_version(before)) != facts['file_version']:
-            raise ValueError('Sound delivery changed before opening')
-        return SoundDeliveryStream(stream,facts['file_version']),facts['file_version'][2],'.'+format_name
-    except BaseException:
-        stream.close()
-        raise
+    from project_scope_exports import export_reader_admission, get_historical_export_reason
+    with export_reader_admission(root):
+        facts, _ = capture_scope_file(root,filename,limit=MAX_PCM_BYTES)
+        if not facts['exists'] or facts['sha256'] != sha256:
+            raise ValueError('Sound delivery is missing or changed; export again')
+        if get_historical_export_reason(root, root/filename, expected_sha256=sha256,
+                expected_version=facts['file_version']) is not None:
+            raise ValueError('Sound delivery belongs to a previous book or source scope; export it again')
+        stream, before = _open_regular(root/filename,root,MAX_PCM_BYTES,
+                                       opener=open_export_reader if os.name == 'nt' else None)
+        try:
+            if list(_version(before)) != facts['file_version']:
+                raise ValueError('Sound delivery changed before opening')
+        except BaseException:
+            stream.close()
+            raise
+    return SoundDeliveryStream(stream,facts['file_version']),facts['file_version'][2],'.'+format_name

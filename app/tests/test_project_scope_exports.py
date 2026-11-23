@@ -10,7 +10,7 @@ from fastapi import HTTPException
 import project_scope_exports
 from project_scope_exports import (get_scope_export_inventory, is_scope_export_historical,
                                    is_scope_export_inventory_compatible,
-                                   require_scope_export_current)
+                                   record_export_publication, require_scope_export_current)
 from routers import editor
 
 
@@ -29,6 +29,8 @@ class ScopeExportTests(unittest.TestCase):
                 self.assertEqual(409,blocked.exception.status_code)
                 self.assertEqual(b'old output',mp3.read_bytes());self.assertEqual(b'old chapter',chapter.read_bytes())
                 mp3.write_bytes(b'new unverified output')
+                self.assertTrue(is_scope_export_historical(root,mp3))
+                record_export_publication(root, mp3)
                 self.assertFalse(is_scope_export_historical(root,mp3))
                 self.assertEqual(str(mp3),asyncio.run(editor.get_audiobook()).path)
                 # Replacing one delivery must not release an unchanged chapter.

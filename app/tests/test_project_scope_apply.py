@@ -172,8 +172,9 @@ class ScopeApplyTests(unittest.TestCase):
         chapter_bytes = (self.root/'chapter_exports'/'chapter-01.txt').read_bytes()
         with self.admission():
             self._apply_legacy_exports(version=version)
-            # EXPORTS is restored to the current seven-key inventory here.
-            self.assertEqual(7, len(project_scope_exports.EXPORTS))
+            # EXPORTS is restored to the current inventory here.
+            self.assertEqual(len(project_scope_exports.BASE_EXPORTS) + len(project_scope_exports.MIXED_DELIVERIES),
+                             len(project_scope_exports.EXPORTS))
             applied = self.files(); undo_bytes = (self.root/UNDO).read_bytes()
             status = get_source_scope_undo_status(self.root)
             self.assertTrue(status['available'], status)
@@ -312,13 +313,15 @@ class ScopeApplyTests(unittest.TestCase):
         self._check_version_type_refuses(0.0, legacy=False)
 
     def test_export_inventory_compatibility_finite_domain(self):
-        legacy = set(project_scope_exports.LEGACY_EXPORTS); current_keys = list(project_scope_exports.EXPORTS)
+        legacy = set(project_scope_exports.LEGACY_EXPORTS)
+        base = set(project_scope_exports.BASE_EXPORTS)
+        current_keys = list(project_scope_exports.EXPORTS)
         for size in range(len(current_keys) + 1):
             for subset in itertools.combinations(current_keys, size):
                 recorded = {name: {} for name in subset}
                 current = {name: {} for name in project_scope_exports.EXPORTS}
                 recorded_before = copy.deepcopy(recorded); current_before = copy.deepcopy(current)
-                expected = set(subset) in (legacy, set(current_keys))
+                expected = set(subset) in (legacy, base, set(current_keys))
                 self.assertEqual(expected, project_scope_exports.is_scope_export_inventory_compatible(recorded, current), subset)
                 self.assertEqual(recorded_before, recorded); self.assertEqual(current_before, current)
         for recorded in ({**{name: {} for name in legacy}, 'unknown_export': {}}, {**{name: {} for name in current_keys}, 'unknown_export': {}}, {'unknown_export': {}}):

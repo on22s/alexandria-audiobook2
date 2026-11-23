@@ -11,6 +11,7 @@ from utils import file_lock
 from audio_take_history import _version
 
 OWNER_FILE = '.export-staging.owner.lock'
+RECOVERY_FILE = '.export-staging-recovery'
 
 
 @contextmanager
@@ -106,22 +107,38 @@ class PosixStageDirectory:
             raise
 
     def read_marker_bytes(self, limit):
+        return self._read_metadata('.export-staging.json', limit)[0]
+
+    def _read_metadata(self, name, limit):
         if type(limit) is not int or not 0 < limit <= 4096:
             raise ValueError('Invalid staging marker read limit')
         self.check()
-        name = '.export-staging.json'
         descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=self.fd)
         with os.fdopen(descriptor, 'rb') as stream:
             before = os.fstat(stream.fileno())
             if (not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
                     or before.st_size > limit):
                 raise StageDirectoryChanged('Unsafe staging marker')
+            if (name == RECOVERY_FILE and before.st_size == 0
+                    and (before.st_uid != os.geteuid() or stat.S_IMODE(before.st_mode) & ~0o600)):
+                raise StageDirectoryChanged('Unsafe interrupted staging recovery guard')
             raw = stream.read(limit + 1)
             if (len(raw) > limit or _version(os.fstat(stream.fileno())) != _version(before)
                     or _version(os.stat(name, dir_fd=self.fd, follow_symlinks=False)) != _version(before)):
                 raise StageDirectoryChanged('Staging marker changed while reading')
         self.check()
-        return raw
+        return raw, _version(before)
+
+    def read_recovery_guard(self, *, allow_empty=False):
+        raw, version = self._read_metadata(RECOVERY_FILE, 1)
+        if raw != b'1' and (not allow_empty or raw != b''):
+            raise StageDirectoryChanged('Unknown staging recovery guard')
+        return version
+
+    def unlink_recovery_guard(self, expected):
+        if self.read_recovery_guard(allow_empty=expected[2] == 0) != expected:
+            raise StageDirectoryChanged('Staging recovery guard changed')
+        self.unlink(RECOVERY_FILE)
 
     def write_marker_bytes(self, raw):
         if type(raw) is not bytes or not 0 < len(raw) <= 4096:
@@ -162,7 +179,7 @@ class PosixStageDirectory:
     def has_recovery_guard(self):
         self.check()
         try:
-            os.stat('.export-staging-recovery', dir_fd=self.fd, follow_symlinks=False)
+            os.stat(RECOVERY_FILE, dir_fd=self.fd, follow_symlinks=False)
         except FileNotFoundError:
             return False
         return True
@@ -200,7 +217,7 @@ class PosixStageDirectory:
         os.rmdir(self.path.name, dir_fd=self.parent_fd)
 
     def create_recovery_guard(self, name):
-        if name != '.export-staging-recovery':
+        if name != RECOVERY_FILE:
             raise ValueError('Invalid staging recovery guard')
         self.check()
         descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,

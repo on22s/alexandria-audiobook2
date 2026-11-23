@@ -170,9 +170,14 @@ class RetainedChapterIntegrityTests(unittest.TestCase):
             self.assertEqual(before, self.snapshot(out))
 
     def test_changed_only_preview_is_metadata_only_and_export_still_verifies_bytes(self):
+        from project_scope_exports import PUBLICATIONS_FILE
+
         for mastering in (None, {}):
             with self.subTest(mastering=mastering), tempfile.TemporaryDirectory() as tmp:
-                manager, out, manifest = self.manager(Path(tmp), mastering=mastering)
+                root = Path(tmp)
+                manager, out, manifest = self.manager(root, mastering=mastering)
+                # Legacy books can have manifest digests without publication receipts.
+                (root / PUBLICATIONS_FILE).unlink(missing_ok=True)
                 chapter = out / manifest['chapters'][0]['file']
                 data = bytearray(chapter.read_bytes())
                 data[-20] ^= 1
@@ -184,6 +189,28 @@ class RetainedChapterIntegrityTests(unittest.TestCase):
                 result = manager.export_chapters(fmt='wav', changed_only=True, mastering=mastering)
                 self.assertTrue(result[0], result)
                 self.assertIn('1 chapter file(s) written', result[1])
+                self.assert_hashes(out)
+
+    def test_receipt_backed_preview_selects_the_same_damaged_chapter_as_export(self):
+        for mastering in (None, {}):
+            with self.subTest(mastering=mastering), tempfile.TemporaryDirectory() as tmp:
+                manager, out, manifest = self.manager(Path(tmp), mastering=mastering)
+                first, second = manifest['chapters']
+                chapter = out / first['file']
+                original, retained = chapter.read_bytes(), (out / second['file']).read_bytes()
+                data = bytearray(original)
+                data[-20] ^= 1
+                chapter.write_bytes(data)
+                expected = [{key: first[key] for key in ('number', 'title', 'file')}]
+                with patch('audio_mastering.get_audio_sha256', side_effect=AssertionError('preview hashed delivery')), \
+                     patch.object(manager, 'get_chunk_audio_segment', side_effect=AssertionError('preview decoded PCM')):
+                    self.assertEqual(expected, manager.preview_chapter_filenames(
+                        fmt='wav', changed_only=True, mastering=mastering))
+                result = manager.export_chapters(fmt='wav', changed_only=True, mastering=mastering)
+                self.assertTrue(result[0], result)
+                self.assertIn('1 chapter file(s) written, 1 unchanged and kept', result[1])
+                self.assertEqual(original, chapter.read_bytes())
+                self.assertEqual(retained, (out / second['file']).read_bytes())
                 self.assert_hashes(out)
 
     def test_first_partial_export_can_add_other_chapters_without_inventing_prior_rows(self):

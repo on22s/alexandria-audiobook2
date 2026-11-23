@@ -136,6 +136,7 @@ class WindowsRetirement:
         self.stack = ExitStack()
         self.registry = self.parent / DIRECTORY
         self.slot = None
+        self.expected_slot_identity = None
         self.entered = False
 
     def __enter__(self):
@@ -201,7 +202,11 @@ class WindowsRetirement:
 
     def _check_slot(self):
         if self.slot is not None:
-            self._slot_path()
+            slot = self._slot_path()
+            if (self.expected_slot_identity is not None
+                    and identity(_check_directory(slot, label='retirement slot'))
+                    != self.expected_slot_identity):
+                raise StageDirectoryChanged('Settled retirement slot changed')
         if identity(_check_directory(self.registry, label='retirement registry')) != identity(self.registry_info):
             raise StageDirectoryChanged('Retirement registry was replaced')
 
@@ -332,9 +337,9 @@ class WindowsRetirement:
                 raise original from cleanup_error
             raise
 
-    def _validate_creation(self, authority, stream):
-        from export_staging import PREFIXES, decode_staging_marker
-        allocated, created = self._read_creation()
+    def _validate_creation(self, authority, stream, *, settled=False):
+        from export_staging import PREFIXES, read_registered_stage_marker
+        _, created = self._read_creation()
         owned = self._read_owner(created)
         if owned is None or authority.expected != tuple(owned['stage_identity']):
             raise StageDirectoryChanged('Initialized stage identity mismatch')
@@ -342,30 +347,28 @@ class WindowsRetirement:
         owner_info = os.fstat(stream.fileno())
         if list(identity(owner_info)) != owned['owner_identity']:
             raise StageDirectoryChanged('Initialized owner identity mismatch')
-        raw = authority.read_marker_bytes(4096)
-        marker = decode_staging_marker(raw)
         expected = {'schema': 1, 'kind': created['kind'],
                     'prefix': PREFIXES[created['kind']], 'parent': str(Path(self.parent).resolve()),
                     'token': created['token'], 'owner_identity': owned['owner_identity']}
-        if marker is None or any(marker.get(key) != value for key, value in expected.items()):
-            raise StageDirectoryChanged('Initialized marker authority mismatch')
-        return raw, created, owned
+        raw, guard = read_registered_stage_marker(authority, expected, settled=settled)
+        return raw, guard, created, owned
 
     def validate_initialized_creation(self, authority, stream):
-        return self._validate_creation(authority, stream)[1:]
+        return self._validate_creation(authority, stream)[2:]
 
     def cleanup_initialized_creation(self, authority, stream, *, release_owner=lambda: None,
-                                     recovery=False):
-        from export_staging import MARKER, _remove_contents
+                                     recovery=False, settled=False):
+        from export_staging import (_remove_contents, retire_interrupted_recovery_guard,
+                                    retire_registered_stage_marker)
         from export_staging_directory import OWNER_FILE
-        raw, created, owned = self._validate_creation(authority, stream)
-        if authority.has_recovery_guard() or (recovery and authority.has_rollback_backup()):
+        raw, guard, _, _ = self._validate_creation(authority, stream, settled=settled)
+        if (guard is None and authority.has_recovery_guard()
+                or recovery and authority.has_rollback_backup()):
             raise StageDirectoryChanged('Initialized recovery payload preserved')
-        _remove_contents(authority.path, authority=authority, retirement=self)
-        if authority.read_marker_bytes(4096) != raw:
-            raise StageDirectoryChanged('Initialized marker changed')
+        guard = retire_interrupted_recovery_guard(authority, raw, guard)
+        _remove_contents(authority.path, authority=authority, retirement=self, recovery_guard=guard)
         authority.check_owner_stream(stream)
-        authority.unlink(MARKER)
+        retire_registered_stage_marker(authority, raw, guard)
         release_owner()
         authority.unlink(OWNER_FILE)
         authority.remove_empty_directory()
@@ -407,21 +410,33 @@ class WindowsRetirement:
         slot_path.rmdir()
         self.slot = None
 
-    def recover_slot(self, name):
-        from export_staging import MARKER, PREFIXES, decode_staging_marker, _matches_parent
+    def recover_slot(self, name, *, settled_stage=None, expected_slot=None):
+        from export_staging import MARKER
         from export_staging_directory import OWNER_FILE
-        self.open_slot(name)
+        if self.slot is None:
+            self.open_slot(name)
+        elif self.slot != name:
+            raise StageDirectoryChanged('Different retirement slot already admitted')
         try:
+            self.expected_slot_identity = expected_slot
+            self._check_slot()
+            allocated, created = self._read_creation()
+            owned = self._read_owner(created)
+            if (settled_stage is not None and created is not None
+                    and tuple(created['stage_identity']) != settled_stage):
+                raise StageDirectoryChanged('Settled stage receipt changed')
             stage_path = self._slot_path() / 'stage'
             try:
                 stage_info = _check_directory(stage_path, label='retirement stage')
             except FileNotFoundError:
                 self.discard_empty_slot()
                 return 'metadata_removed'
-            allocated, created = self._read_creation()
-            owned = self._read_owner(created)
+            if settled_stage is not None and (identity(stage_info) != settled_stage or owned is None):
+                raise StageDirectoryChanged('Settled stage authority changed')
             with stage_directory(stage_path, identity(stage_info)) as authority:
-                if authority.has_recovery_guard() or authority.has_rollback_backup():
+                self._check_slot()
+                guarded = authority.has_recovery_guard()
+                if (guarded and settled_stage is None) or authority.has_rollback_backup():
                     raise StageDirectoryChanged('Recovery payload preserved')
                 names = set()
                 with os.scandir(stage_path) as entries:
@@ -481,15 +496,9 @@ class WindowsRetirement:
                                 authority.remove_empty_directory()
                                 outcome = 'stage_removed'
                             else:
-                                raw = authority.read_marker_bytes(4096)
-                                marker = decode_staging_marker(raw)
-                                if (marker is None or not _matches_parent(marker, self.parent)
-                                        or not marker.get('prefix') == PREFIXES.get(marker.get('kind'))
-                                        or marker.get('owner_identity') != owned['owner_identity']):
-                                    raise StageDirectoryChanged('Retirement marker authority changed')
                                 self.cleanup_initialized_creation(
                                     authority, stream, release_owner=release_owner,
-                                    recovery=True)
+                                    recovery=True, settled=guarded)
                                 outcome = 'stage_removed'
                         finally:
                             release_owner()
