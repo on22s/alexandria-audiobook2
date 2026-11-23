@@ -361,7 +361,9 @@ def _apply_book_voice_update(transform, expected_revision=None, config_path=None
             return apply_voice_config_update(config_path, update, expected_revision=expected_revision,
                                              publish=publish)
         except VoiceAliasResolutionError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            reason = str(exc)
+            raise AppError(400, f"Could not resolve the voice alias. {reason}",
+                           key="error.voice.alias_resolution", values={"reason": reason}) from exc
         except InvalidVoiceConfigError as exc:
             if not timeline_edit:
                 raise

@@ -88,7 +88,7 @@ class ProjectReproducibleTakeTests(unittest.TestCase):
         manager.engine = None
         manager.voice_config_path = os.path.join(self.tempdir.name, "voices.json")
         with open(manager.voice_config_path, "w", encoding="utf-8") as handle:
-            json.dump({}, handle)
+            json.dump({"Alice": {"type": "custom", "voice": "Ryan", "seed": -1}}, handle)
         manager._resolve_alias = lambda speaker, voice_config: speaker
         manager._load_tts_config = lambda: {"reproducible_takes": reproducible}
         manager.get_engine = lambda: engine
@@ -118,15 +118,7 @@ class ProjectReproducibleTakeTests(unittest.TestCase):
             "audio_path": None,
         }
 
-        def resolve_narrator(speaker, voice_config, chunk):
-            return voice_config
-
-        def voice_config(voice_config, speaker, index):
-            return {"alice": {"seed": -1}}
-
-        with mock.patch.object(project, "resolve_narrator_voice_config", resolve_narrator):
-            with mock.patch.object(project, "voice_config_for_chunk", voice_config):
-                success, _ = manager._generate_captured_chunk_audio(0, chunk)
+        success, _ = manager._generate_captured_chunk_audio(0, chunk)
         return engine, success
 
     def test_reproducible_takes_passes_derived_seed_to_engine(self):
@@ -134,14 +126,14 @@ class ProjectReproducibleTakeTests(unittest.TestCase):
         self.assertFalse(success)
         self.assertIsNotNone(engine.args)
         self.assertEqual(
-            engine.args[3]["alice"]["seed"],
+            engine.args[3]["Alice"]["seed"],
             tts.get_chunk_seed(" Hello   world ", 3))
 
     def test_reproducible_takes_off_keeps_voice_seed(self):
         engine, success = self.render_chunk(reproducible=False, take=3)
         self.assertFalse(success)
         self.assertIsNotNone(engine.args)
-        self.assertEqual(engine.args[3]["alice"]["seed"], -1)
+        self.assertEqual(engine.args[3]["Alice"]["seed"], -1)
 
     def test_editor_numbered_take_offsets_a_positive_character_seed_and_repeats_stably(self):
         from pathlib import Path

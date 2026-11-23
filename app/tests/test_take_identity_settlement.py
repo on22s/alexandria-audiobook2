@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from audio_take_history import AudioTakeHistory
 from book_state_transaction import get_book_operation_token
+from core import AppError, handle_app_error
 from synthesis_recovery_identity import get_recovery_digest
 from synthesis_recovery_serving import NativeRecoveryServingIdentity
 from take_publication import KEY
@@ -87,6 +88,7 @@ class SettledIdentityTests(unittest.TestCase):
             routes = route_contracts.voices
             app = FastAPI()
             app.include_router(routes.router)
+            app.add_exception_handler(AppError, handle_app_error)
             with patch.multiple(routes, SCRIPT_PATH=str(script), VOICE_CONFIG_PATH=str(voice_path),
                                 CHUNKS_PATH=manager.chunks_path, project_manager=manager), \
                     TestClient(app, raise_server_exceptions=False) as client:
@@ -100,8 +102,12 @@ class SettledIdentityTests(unittest.TestCase):
                 self.assertEqual('global', json.loads(saved)['NARRATOR']['narrator_strategy'])
                 refused = client.post('/api/narrator/strategy', json={'strategy': 'focus'})
                 self.assertEqual(400, refused.status_code, refused.text)
-                self.assertEqual({"detail": "Alias cycle detected for speaker 'READER'"},
-                                 refused.json())
+                reason = "Alias cycle detected for speaker 'READER'"
+                self.assertEqual({
+                    'detail': f'Could not resolve the voice alias. {reason}',
+                    'message_key': 'error.voice.alias_resolution',
+                    'message_values': {'reason': reason},
+                }, refused.json())
                 self.assertEqual(saved, voice_path.read_bytes())
                 self.assertEqual(rows, manager.load_chunks())
 
