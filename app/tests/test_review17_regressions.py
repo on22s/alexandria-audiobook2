@@ -137,18 +137,37 @@ class Review17Regressions(unittest.TestCase):
         self.assertEqual(files, case.native._snapshot())
         self.assertEqual(count, case.dispatched.call_count)
         self.assertNotIn('script', gap.core._task_claims)
+
+        started = []
+
+        def observe_adoption(_command, task):
+            self.assertEqual('script', task)
+            self.assertEqual('started', gap.core._task_claims[task]['phase'])
+            started.append(copy.deepcopy(process))
+
+        case.dispatched.side_effect = observe_adoption
         command = case._start('retry')
-        self.assertFalse(process['cancel'])
-        self.assertNotIn('_script_published_cleanup_stop', process)
+        [active] = started
+        self.assertTrue(active['running'])
+        self.assertFalse(active['cancel'])
+        self.assertNotIn('_script_published_cleanup_stop', active)
+        # The dispatch stub never initializes a subprocess, so release restores
+        # the prior terminal status after observing the admitted worker state.
+        self.assertEqual(before, process)
         case._worker(command)
         self.assertEqual(4, len(case.h.rows()))
 
     def test_old_empty_seed_upgrades_under_its_original_receipt(self):
         case = self._case(gap.MULTI_SOURCE)
-        case._start_over()
+        command = case._start_over()
         header = Path(case.h.artifact_paths()['checkpoint'])
         initial = json.loads(header.read_bytes())
         self.assertEqual(('segment', 0), (initial['stage'], initial['chunks_done']))
+        receipt = gap.script.run_spec_receipt.load_receipt(case.h.root)
+        self.assertEqual(receipt['run_id'], command[command.index('--active-run-id') + 1])
+        self.assertTrue((case.h.root / books.DISPATCH_PROOF).is_file())
+        books.finish_book_worker_handoff(case.h.root, receipt['run_id'])
+        self.assertFalse((case.h.root / books.DISPATCH_PROOF).exists())
         digest = initial.pop(CHECKPOINT_BINDING)
         atomic_json_write(initial, header)
         command = case._start('retry')

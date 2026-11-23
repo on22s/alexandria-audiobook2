@@ -9,8 +9,7 @@ them to zero and deletes this file.
 What "keyed" means here, and nothing more:
   * markup: inside an element carrying data-i18n, or an attribute named by that
     element's data-i18n-attr, or inside data-i18n-skip;
-  * JS: the English argument of t('key', 'English') or the third argument of
-    createUiMessageNode('tag', 'key', 'English').
+  * JS: a literal key and its English argument at a catalog-backed call site.
 
 The counter is a heuristic (design section 9.1): it includes prompt fragments and
 error strings that are never painted. It is a ratchet, not a translation backlog.
@@ -50,6 +49,7 @@ KEEP_ENGLISH = frozenset({
     'data-i18n-count', '?expected_book_token=', 'Obsolete ingest snapshot',
     'button, summary, a, audio, [role="slider"]',
     'script.ingest.unknown', 'not_built',  # DOM key and backend state vocabulary.
+    'manual_resolution',  # Book recovery API status.
     # Shared prompt editor DOM ids and config/default-response key fragments (#1937).
     # Visible labels, validation messages and help remain keyed; numeric limits unchanged.
     '${pass}-system-prompt', '${pass}-user-prompt', '${pass}_preset',
@@ -207,25 +207,27 @@ MARKUP_BASELINE = {
 # #2018 lowered app-voicelab.js 128 -> 115: the Voice Lab failure paths now
 # pass keyed text to showActionError/getActionErrorMessage/copyToClipboard
 # instead of bare English action and recovery strings.
+# Recognizing renderUiSafety removes already keyed text from five counts.
+# Lower their limits by the same amount to preserve each file's ratchet.
 JS_BASELINE = {
     'app-advanced-intros.js': 0, 'app-casting-labels.js': 0,
     'app-phone-layout.js': 0,
     'app-ui-followups.js': 0,
-    'app-audio-channels.js': 14, 'app-audiobookshelf.js': 65, 'app-calibre.js': 86,
+    'app-audio-channels.js': 14, 'app-audiobookshelf.js': 40, 'app-calibre.js': 86,
     'app-casting-research.js': 217, 'app-casting.js': 142, 'app-character-roster.js': 30,
     'app-core.js': 1793, 'app-editor-repair.js': 16, 'app-editor-review.js': 98,
     'app-export-quality.js': 12, 'app-guides.js': 48, 'app-help.js': 75,
     'app-i18n.js': 25, 'app-mastering.js': 11, 'app-narration-markup.js': 14,
     'app-project-scope.js': 7, 'app-pronunciation.js': 74,
-    'app-publication-validation.js': 2, 'app-publication.js': 17, 'app-readalong.js': 29,
-    'app-reports.js': 55, 'app-scripts.js': 215, 'app-settings.js': 53,
+    'app-publication-validation.js': 2, 'app-publication.js': 17, 'app-readalong.js': 25,
+    'app-reports.js': 55, 'app-scripts.js': 215, 'app-settings.js': 51,
     'app-single-voice.js': 18, 'app-sound-assets.js': 18, 'app-sound-cues.js': 23,
     'app-sound-mix-cover.js': 4, 'app-sound-mixes.js': 34, 'app-sound-renditions.js': 50,
-    'app-speaker-review.js': 37, 'app-speech-verification.js': 14,
+    'app-speaker-review.js': 37, 'app-speech-verification.js': 12,
     'app-synthesis-windows.js': 28, 'app-take-history.js': 28, 'app-training.js': 217,
     'app-translated-edition.js': 9, 'app-tts-capabilities.js': 28,
     'app-tts-diagnostics.js': 11, 'app-voicelab.js': 115, 'app-word-timing.js': 23,
-    'app-workbench.js': 282, 'app-workspace.js': 86,
+    'app-workbench.js': 282, 'app-workspace.js': 74,
 }
 
 
@@ -366,7 +368,7 @@ def help_map_spans(path):
 
 def keyed_spans(text):
     spans = set()
-    for match in re.finditer(r"\bsetUiMessage\s*\([^,\n]+,", text):
+    for match in re.finditer(r"\b(?:setUiMessage|renderUiSafety)\s*\([^,\n]+,", text):
         arguments = _arguments(text, match.end())
         if len(arguments) >= 2:
             spans.add(arguments[0])
@@ -416,7 +418,8 @@ class CounterFixtureTests(unittest.TestCase):
     """Rule 21: the counter must see one unkeyed literal and no keyed ones."""
 
     def test_runtime_message_bindings_only_exempt_literal_key_and_english(self):
-        text = "setUiMessage(node,'fixture.runtime','Bound sentence',{value:'Unkeyed value'}); 'Unkeyed later';"
+        text = ("setUiMessage(node,'fixture.runtime','Bound sentence',{value:'Unkeyed value'});"
+                "renderUiSafety(node,'fixture.safety','Safety sentence'); 'Unkeyed later';")
         spans = keyed_spans(text)
         remaining = [match.group(0) for match in STRING.finditer(text)
                      if (match.start(), match.end()) not in spans]

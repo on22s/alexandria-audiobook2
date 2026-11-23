@@ -118,10 +118,10 @@ class Review11Regressions(unittest.TestCase):
                 capture_script_worker_starts(run) as start:
             response = self._start_over(h)
         self.assertEqual(200, response.status_code, response.text)
-        self.assertEqual({'status': 'started'}, response.json())
         start.assert_called_once()
         self.assertEqual([400], competing)
         owner = script.run_spec_receipt.load_receipt(h.root)['run_id']
+        self.assertEqual({'status': 'started', 'task_claim_id': owner}, response.json())
         self.assertEqual([('started', owner, 0, 'incomplete', True), 0], worker_results)
         self.assertEqual(4, len(h.rows()))
 

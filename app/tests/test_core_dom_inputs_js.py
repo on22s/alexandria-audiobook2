@@ -89,7 +89,7 @@ for(const tabName of ['editor','voices','setup']){
         names = ['normal.epub', '<img src=x onerror="boom()">.epub', '</span><script>boom()</script>', "日本語 & 'quotes' \"test\""]
         output = self.run_js('const names=' + json.dumps(names) + r''';
 const fields={},errors=[],rendered=[];let filename;
-const element=id=>fields[id]||(fields[id]={value:'preset text',innerHTML:'',checked:false});
+const element=id=>fields[id]||(fields[id]={value:'preset text',innerHTML:'',checked:false,style:{}});
 const ctx={window:{},console:{error:(...args)=>errors.push(args),warn:(...args)=>errors.push(args)},document:{getElementById:element},llmProfiles:{},passPromptDefaults:{cast:{whole_book_prompt:'cast whole',incremental_prompt:'cast incremental'},pass1:{system_prompt:'preset',user_prompt:'preset'},pass3:{system_prompt:'preset',user_prompt:'preset'}},API:{get:async path=>{assert.strictEqual(path,'/api/config');return {tts:{},current_file:filename};}}};
 for(const name of ['renderConfigWarnings','applyPauseSupport','renderActiveLlmModeBadge','populateLlmInputs','onLlmModeChange','toggleSubBatchFields','toggleTTSMode','renderPromptPresets','renderPassPromptPresets']){ctx[name]=()=>{};}
 vm.createContext(ctx);ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english)));vm.runInContext(source.slice(source.indexOf('function escapeHtml('),source.indexOf('// Parse a numeric input')),ctx);
