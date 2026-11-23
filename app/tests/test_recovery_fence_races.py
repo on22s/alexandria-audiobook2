@@ -11,6 +11,7 @@ from cast_list import get_cast_list_path
 from character_roster_apply import (ensure_character_roster_admission, apply_character_roster,
     apply_character_roster_undo, get_character_roster_undo_status)
 from character_roster_snapshot import get_character_roster_preview
+from script_recovery_guard import is_script_recovery_cast_invalidated
 import three_pass_generate as three_pass
 from tests import test_script_cast_routes as generation
 from tests.test_character_roster import SOURCE1, A, entry, decision, proposal
@@ -173,8 +174,7 @@ class RecoveryFenceRaceTests(generation.CastRoutesTest):
         # fence, establishing a fresh baseline.
         self._start_over()
         self.assertEqual(cast_hash, self.stored_options()['cast_sha256'])
-        self.assertFalse(generation.script_module.is_script_recovery_cast_invalidated(
-            str(root)))
+        self.assertFalse(is_script_recovery_cast_invalidated(str(root)))
         self.start(recovery=True)
 
     def _drop_legacy_cast_digest(self, root):
@@ -192,8 +192,7 @@ class RecoveryFenceRaceTests(generation.CastRoutesTest):
         self.start(recovery=True)
         self._undo(root)
         self.start(recovery=True)
-        self.assertFalse(generation.script_module.is_script_recovery_cast_invalidated(
-            str(root)))
+        self.assertFalse(is_script_recovery_cast_invalidated(str(root)))
 
     def test_changed_cast_newer_failed_run_undo_still_refuses_retry(self):
         root = self._prepare()

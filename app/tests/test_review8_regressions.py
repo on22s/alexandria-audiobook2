@@ -13,7 +13,7 @@ import three_pass_generate as worker
 from llm_provider import FailoverClient, make_run_client
 from utils import atomic_json_write
 
-from tests.test_review7_regressions import MULTI_SOURCE, Review7Regressions
+from tests.test_review7_regressions import MULTI_SOURCE
 from tests.test_recovery_validation_matrix import (
     _Harness, _config, _digest, _factory, _payloads, core, script)
 

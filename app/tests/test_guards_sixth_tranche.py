@@ -132,16 +132,29 @@ class ReviewAndDiskGuards(unittest.TestCase):
 class RouteGuards(unittest.TestCase):
     def test_recovery_without_a_failed_unit_is_a_409_and_the_wrong_chunk_too(self):
         from routers import script
-        with mock.patch.object(script, "_load_failed_checkpoint", return_value=None):
-            with self.assertRaises(HTTPException) as ctx:
-                script._require_failed_unit(3)
-            self.assertEqual(409, ctx.exception.status_code)
-        ckpt = {"failed": {"pass": "segment", "chunk": 7}}
-        with mock.patch.object(script, "_load_failed_checkpoint", return_value=ckpt):
-            with self.assertRaises(HTTPException) as ctx:
-                script._require_failed_unit(3)
-            self.assertIn("7, not 3", ctx.exception.detail)
-            self.assertIs(ckpt, script._require_failed_unit(7))
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.multiple(
+                script, DATA_DIR=tmp, SCRIPT_PATH=os.path.join(tmp, "annotated_script.json"),
+                CONFIG_PATH=os.path.join(tmp, "config.json")):
+            source = os.path.join(tmp, "source.txt")
+            with open(source, "w", encoding="utf-8") as stream:
+                stream.write("Synthetic source.")
+            with open(os.path.join(tmp, "state.json"), "w", encoding="utf-8") as stream:
+                json.dump({"input_file_path": source, "book_generation": "fixture-generation"}, stream)
+            with mock.patch.object(script, "_load_failed_checkpoint", return_value=None):
+                with self.assertRaises(HTTPException) as ctx:
+                    script._require_failed_unit(3)
+                self.assertEqual(409, ctx.exception.status_code)
+            ckpt = {"failed": {"pass": "segment", "chunk": 7}}
+            with mock.patch.object(script, "_load_failed_checkpoint", return_value=ckpt):
+                with self.assertRaises(HTTPException) as ctx:
+                    script._require_failed_unit(3)
+                self.assertEqual(409, ctx.exception.status_code)
+                self.assertIn("7, not 3", ctx.exception.detail)
+                checkpoint, selection, snapshot = script._require_failed_unit(7)
+                self.assertIs(ckpt, checkpoint)
+                self.assertIsNone(selection)
+                self.assertEqual(source, snapshot["source_path"])
+                self.assertEqual("fixture-generation", snapshot["book_generation"])
 
     def test_a_speaker_absent_from_the_active_script_is_a_404_and_no_script_a_422(self):
         from routers import voices

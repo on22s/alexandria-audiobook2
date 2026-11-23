@@ -1,6 +1,5 @@
 from book_state_transaction import ensure_saved_book_state, reuse_book_state
-from script_recovery_guard import (RECOVERY_CAST_INVALIDATED,
-                                   get_fenced_recovery_status, is_script_recovery_cast_invalidated)
+from script_recovery_guard import RECOVERY_CAST_INVALIDATED, get_fenced_recovery_status
 from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,

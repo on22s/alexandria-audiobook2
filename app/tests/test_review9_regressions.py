@@ -11,7 +11,7 @@ import three_pass_generate as worker
 from generation_checkpoint_deltas import GenerationCheckpointDeltas, load_generation_delta_checkpoint
 from utils import atomic_json_write
 
-from tests.test_review7_regressions import MULTI_SOURCE, Review7Regressions
+from tests.test_review7_regressions import MULTI_SOURCE
 from tests.test_recovery_validation_matrix import (
     SOURCE, _Harness, _config, _digest, _factory, _payloads, core, script)
 from tests.test_support import capture_script_worker_starts
