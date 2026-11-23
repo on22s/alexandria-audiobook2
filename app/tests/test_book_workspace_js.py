@@ -160,6 +160,12 @@ finished=true;
  }
  responses['/api/book/recovery']={status:'migration_required',commands:[]};await context.refreshBookWorkspace();
  assert(elements('workspace-feedback').textContent.includes('older version'));
+ responses['/api/book/recovery']={status:'manual_resolution',commands:[
+  {purpose:'Inspect the protected journal and backups for manual recovery',command:'python app/book_state_recovery.py inspect --hash'}]};
+ await context.refreshBookWorkspace();
+ const disputed=elements('workspace-feedback').textContent;
+ assert(disputed.includes('Keep the journal and backups for manual recovery'),disputed);
+ assert(disputed.includes('inspect --hash')&&!disputed.includes('quarantine')&&!disputed.includes('finish'),disputed);
  responses['/api/workspace']=snapshot();const before=requests.length;await context.refreshBookWorkspace();
  assert(!requests.slice(before).includes('/api/book/recovery'));
 })().catch(e=>{console.error(e);process.exitCode=1;});

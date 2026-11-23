@@ -14,7 +14,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 import book_state_transaction as books
 import core
 from routers import script
@@ -55,6 +56,163 @@ class PublicationCancellationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'no longer current'):
                 publish()
             self.assertEqual(old, (root / 'annotated_script.json').read_bytes())
+
+    def test_start_over_sends_one_cancel_scoped_to_the_observed_server_owner(self):
+        from tests.test_rescore9_replays import (
+            OVERLAPPING_DIRECT_RESTARTS, QUEUED_START_OVER, RESTART_SEES_NEW_OWNER,
+            STOP_BEFORE_GENERATE_ACK, ScriptRunOwnershipTests,
+        )
+
+        direct = 'const SECOND_AFTER_REPLACEMENT = false;\n' + OVERLAPPING_DIRECT_RESTARTS
+        queued = ('const STOP_CONFIRMED = true, INITIAL_STATUS = live, '
+                  'ADMITTED_CLAIM = live.task_claim_id;\n' + QUEUED_START_OVER)
+        schedules = [
+            ('direct', direct, True),
+            ('queued', queued, True),
+            ('pending acknowledgement', STOP_BEFORE_GENERATE_ACK, True),
+            ('direct sees another owner', "const RESTART = 'direct';\n" + RESTART_SEES_NEW_OWNER, False),
+            ('queued sees another owner', "const RESTART = 'queued';\n" + RESTART_SEES_NEW_OWNER, False),
+        ]
+        for name, schedule, restarted in schedules:
+            with self.subTest(path=name):
+                output = ScriptRunOwnershipTests().run_schedule(schedule + '\nlog(effects.posts);')
+                self.assert_scoped_start_over_wire(output, restarted)
+
+    def capture_script_restart_snapshots(self):
+        app = FastAPI()
+        app.include_router(script.router)
+        with self.fixture() as (root, states, _, _), TestClient(app) as client:
+            state = states['script']
+
+            def read_status():
+                response = client.get('/api/status/script')
+                response.raise_for_status()
+                return response.json()
+
+            state.update(start_time=101, logs=['A LIVE'])
+            original_live = read_status()
+            original_claim = original_live['task_claim_id']
+            response = client.post('/api/generate_script/cancel', json={'expected_claim_id': original_claim})
+            self.assertEqual(200, response.status_code, response.text)
+            original_stopping = read_status()
+            self.assertTrue(original_stopping['running'] and original_stopping['cancel'])
+
+            state.update(logs=['A STOP'])
+            self.assertTrue(core.release_gpu_task_claim('script', original_claim))
+            original_ended = read_status()
+            with patch.object(core, 'DATA_DIR', str(root)):
+                foreign_claim = core.claim_gpu_task('script', cpu_only=True)
+            try:
+                pending_start = read_status()['start_time']
+                state.update(start_time=202, logs=['B LIVE'])
+                foreign_live = read_status()
+                state.update(logs=['B TERMINAL'])
+            finally:
+                self.assertTrue(core.release_gpu_task_claim('script', foreign_claim))
+            foreign_ended = read_status()
+            self.assertEqual([101, 101, 101, 202, 202], [
+                snapshot['start_time'] for snapshot in
+                (original_live, original_stopping, original_ended, foreign_live, foreign_ended)
+            ])
+            self.assertEqual([True, False, True, False], [
+                snapshot['running'] for snapshot in (original_live, original_ended, foreign_live, foreign_ended)
+            ])
+            self.assertEqual([original_claim, None, foreign_claim, None], [
+                snapshot['task_claim_id'] for snapshot in (original_live, original_ended, foreign_live, foreign_ended)
+            ])
+        self.assertIsNone(pending_start, 'A start time must never identify the pending B claim')
+        return original_live, original_stopping, original_ended, foreign_live, foreign_ended
+
+    def test_start_over_requires_matching_terminal_status_between_stop_polls(self):
+        from tests.test_rescore9_replays import BETWEEN_STOP_POLLS, ScriptRunOwnershipTests
+
+        original_live, original_stopping, original_ended, foreign_live, foreign_ended = (
+            self.capture_script_restart_snapshots()
+        )
+        cases = (
+            ('newer timestamp', foreign_ended, False),
+            ('no identity', dict(foreign_ended, start_time=None), False),
+            ('foreign claim overrides timestamp', dict(foreign_ended, start_time=101,
+                                                       task_claim_id=foreign_live['task_claim_id']), False),
+            ('original timestamp', original_ended, True),
+            ('original claim', dict(original_ended, start_time=None, task_claim_id=original_live['task_claim_id']), True),
+        )
+        for ack_first in (True, False):
+            for variant, terminal, should_restart in cases:
+                with self.subTest(ack_first=ack_first, terminal=variant):
+                    fixture = json.dumps([original_live, original_stopping, terminal, ack_first, should_restart])
+                    ScriptRunOwnershipTests().run_schedule(
+                        'const [originalLive, originalStopping, terminal, ackFirst, shouldRestart] = '
+                        + fixture + ';\n' + BETWEEN_STOP_POLLS
+                    )
+
+    def test_start_over_keeps_held_stop_and_acknowledged_run_ownership_separate(self):
+        from tests.test_rescore9_replays import HELD_SCRIPT_STOP, ScriptRunOwnershipTests
+
+        original_live, _, original_ended, foreign_live, foreign_ended = self.capture_script_restart_snapshots()
+        schedules = []
+        for ack_before_terminal in (True, False):
+            for ack_original in (True, False):
+                schedules.append((ack_original, ack_before_terminal, False))
+        schedules.append((False, True, True))
+        for ack_original, ack_before_terminal, stop_before_ack in schedules:
+            with self.subTest(ack_original=ack_original, ack_before_terminal=ack_before_terminal,
+                              stop_before_ack=stop_before_ack):
+                fixture = json.dumps([original_live, original_ended, foreign_live, foreign_ended,
+                                      ack_original, ack_before_terminal, stop_before_ack])
+                ScriptRunOwnershipTests().run_schedule(
+                    'const [a, aEnd, b, bEnd, ackOriginal, ackBeforeTerminal, stopBeforeAck] = '
+                    + fixture + ';\n' + HELD_SCRIPT_STOP
+                )
+
+    def test_live_successor_revokes_restart_before_held_stop_is_delivered(self):
+        from tests.test_rescore9_replays import LIVE_SUCCESSOR_DURING_HELD_STOP, ScriptRunOwnershipTests
+
+        original_live, _, original_ended, foreign_live, foreign_ended = self.capture_script_restart_snapshots()
+        schedules = [(phase, terminal, False) for phase in ('acknowledged', 'pending', 'reload')
+                     for terminal in (False, True)]
+        schedules.append(('acknowledged', False, True))
+        for phase, poll_terminal, fresh_restart in schedules:
+            with self.subTest(phase=phase, poll_terminal=poll_terminal, fresh_restart=fresh_restart):
+                fixture = json.dumps([original_live, original_ended, foreign_live, foreign_ended,
+                                      phase == 'acknowledged', phase == 'reload', poll_terminal, fresh_restart])
+                ScriptRunOwnershipTests().run_schedule(
+                    'const [a, aEnd, b, bEnd, accepted, reload, pollTerminal, freshRestart] = '
+                    + fixture + ';\n' + LIVE_SUCCESSOR_DURING_HELD_STOP
+                )
+
+    def assert_scoped_start_over_wire(self, output, restarted):
+        wire = json.loads(next(line.removeprefix('RESULT ') for line in output.splitlines()
+                               if line.startswith('RESULT ')))
+        app = FastAPI()
+        app.include_router(script.router)
+        with self.fixture() as (root, states, _, _), TestClient(app) as client:
+            expected_urls = ['/api/generate_script', '/api/generate_script/cancel']
+            if restarted:
+                expected_urls.append('/api/generate_script')
+                self.assertTrue(wire[2][1]['start_over'])
+                self.assertEqual(wire[1][1]['expected_claim_id'], wire[2][1]['expected_restart_claim_id'])
+            self.assertEqual(expected_urls, [url for url, _ in wire])
+            self.assertEqual('a' * 32, client.get('/api/status/script').json()['task_claim_id'])
+            cancel_route, cancel_body = wire[1]
+            self.assertEqual('cancel queued', client.post(cancel_route, json=cancel_body).json()['status'])
+            self.assertTrue(states['script']['cancel'])
+            path = root / 'state.json'
+            state = json.loads(path.read_text())
+            self.assertNotIn('script_generation_run_id', state)
+
+            # Admit a disposable replacement in the same production task slot,
+            # then replay the original browser request after the ownership change.
+            replacement = 'b' * 32
+            state['script_generation_run_id'] = replacement
+            path.write_text(json.dumps(state))
+            core._task_claims['script']['id'] = replacement
+            states['script'].update(running=True, cancel=False)
+            response = client.post(cancel_route, json=cancel_body)
+            self.assertEqual(409, response.status_code, response.text)
+            self.assertEqual(replacement, client.get('/api/status/script').json()['task_claim_id'])
+            self.assertEqual(replacement, json.loads(path.read_text())['script_generation_run_id'])
+            self.assertFalse(states['script']['cancel'])
 
     def test_already_published_cannot_be_reported_as_cancelled(self):
         with self.fixture() as (root, states, old, publish):

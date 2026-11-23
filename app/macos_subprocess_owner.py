@@ -92,7 +92,8 @@ def start_macos_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=No
         disconnect_signal = signal.SIGKILL
     if disconnect_signal not in (signal.SIGTERM, signal.SIGKILL):
         raise ValueError('Unsupported subprocess disconnect signal')
-    from subprocess_ownership import SUBPROCESS_TERMINATE_GRACE_SECONDS
+    from subprocess_ownership import (SUBPROCESS_TERMINATE_GRACE_SECONDS, get_worker_launch_error,
+                                      mark_unlaunched_exec_errors)
     worker = {key: kwargs.pop(key) for key in ('shell', 'executable', 'restore_signals',
               'umask', 'user', 'group', 'extra_groups', 'start_new_session') if key in kwargs}
     extra = tuple(kwargs.pop('pass_fds', ()))
@@ -110,14 +111,15 @@ def start_macos_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=No
     try:
         retained = {child_control.fileno(), *extra}
         retained.update(fd for fd in (gpu_lease_fd, task_lease_fd) if fd is not None)
-        process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), '--broker',
-                                    str(child_control.fileno()), json.dumps(spec)],
-                                   pass_fds=tuple(retained), start_new_session=True, **kwargs)
+        with mark_unlaunched_exec_errors():
+            process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), '--broker',
+                                        str(child_control.fileno()), json.dumps(spec)],
+                                       pass_fds=tuple(retained), start_new_session=True, **kwargs)
         child_control.close()
         control.settimeout(30)
         admission = receive_macos_owner_line(control)
         if 'error' in admission:
-            raise OSError(admission.get('errno'), admission['error'])
+            raise get_worker_launch_error(admission)
         if type(admission.get('started')) is not int:
             raise ValueError('Malformed macOS worker admission')
         control.settimeout(None)
@@ -136,6 +138,8 @@ def start_macos_owned_subprocess(command, *, gpu_lease_fd=None, task_lease_fd=No
 
 
 def run_macos_task_job(address):
+    from subprocess_ownership import get_worker_launch_error_message, mark_unlaunched_exec_errors
+
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as channel:
         channel.connect(address)
         api = MacApi()
@@ -164,14 +168,15 @@ def run_macos_task_job(address):
                 for target, descriptor in zip(targets, received[3:]):
                     os.dup2(descriptor, target)
                 options = {**options, 'pass_fds': tuple(targets)}
-                process = subprocess.Popen(configuration['command'], cwd=configuration['cwd'],
-                                           env=configuration['env'], stdin=received[0],
-                                           stdout=received[1], stderr=received[2], **options)
+                with mark_unlaunched_exec_errors():
+                    process = subprocess.Popen(configuration['command'], cwd=configuration['cwd'],
+                                               env=configuration['env'], stdin=received[0],
+                                               stdout=received[1], stderr=received[2], **options)
                 for target in targets:
                     os.close(target)
                 send_macos_owner_event(stable, {'started': process.pid})
             except BaseException as error:
-                send_macos_owner_event(stable, {'error': str(error), 'errno': getattr(error, 'errno', None)})
+                send_macos_owner_event(stable, get_worker_launch_error_message(error))
                 raise
             finally:
                 for descriptor in received:
@@ -333,6 +338,8 @@ def ensure_macos_scope_reaped(api, coalition, label, *, removal_confirmed=False)
 
 
 def run_macos_owner_broker(control, specification):
+    from subprocess_ownership import get_worker_launch_error, get_worker_launch_error_message
+
     api = MacApi()
     broker = api.get_info(os.getpid())
     received = []
@@ -405,18 +412,22 @@ def run_macos_owner_broker(control, specification):
                                   file=sys.stderr, flush=True)
                             reported = True
                     if reaped:
-                        request_job_removal()
-                        if removing:
-                            if root_result is not None:
-                                return root_result
-                            # Stopping the scope also ends the job that would have
-                            # reported the root's exit; the owner's own signal is
-                            # then the root's death, reported as Linux reports it.
-                            return -stopping if stopping is not None else 1
-                        time.sleep(.05)
-                        continue
-                    channels = ([control] if connected else []) + ([actor] if actor is not None else [])
-                    ready, _, _ = select.select(channels, [], [], .05)
+                        # The actor can exit with its admission or result still
+                        # queued on the socket. Drain it before releasing ownership.
+                        ready, _, _ = select.select([actor] if actor is not None else [], [], [], 0)
+                        if not ready:
+                            request_job_removal()
+                            if removing:
+                                if root_result is not None:
+                                    return root_result
+                                # Stopping the scope can end its actor before the root exit
+                                # arrives. Report the stop signal as Linux does.
+                                return -stopping if stopping is not None else 1
+                            time.sleep(.05)
+                            continue
+                    else:
+                        channels = ([control] if connected else []) + ([actor] if actor is not None else [])
+                        ready, _, _ = select.select(channels, [], [], .05)
                     if control in ready:
                         data = control.recv(4096)
                         if not data:
@@ -431,7 +442,7 @@ def run_macos_owner_broker(control, specification):
                         if not data:
                             actor.close()
                             actor = None
-                            if root_result is None and stopping is None:
+                            if not reaped and root_result is None and stopping is None:
                                 stopping = signal.SIGKILL
                         actor_buffer += data
                         while b'\n' in actor_buffer:
@@ -446,7 +457,9 @@ def run_macos_owner_broker(control, specification):
                                     from subprocess_ownership import save_owned_exit_notice
                                     save_owned_exit_notice(specification['exit_notice'], root_result)
                             elif 'error' in message:
-                                raise OSError(message.get('errno'), message['error'])
+                                raise get_worker_launch_error(message)
+                    if reaped:
+                        continue
                     for sig in received:
                         if sig == signal.SIGSTOP:
                             paused = True
@@ -505,7 +518,7 @@ def run_macos_owner_broker(control, specification):
                     reaped = True
                 if not admitted:
                     try:
-                        send_macos_owner_event(control, {'error': str(error), 'errno': getattr(error, 'errno', None)})
+                        send_macos_owner_event(control, get_worker_launch_error_message(error))
                     except OSError:
                         pass
                 raise

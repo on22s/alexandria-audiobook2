@@ -175,7 +175,7 @@ await freshClick();assert.strictEqual(generated,1);assert.strictEqual(confirmati
     def test_async_script_confirmations_refuse_changed_targets(self):
         self.run_scenario(r'''
 let freshClick,generated=0,cancelled=0;elements['btn-gen-script-fresh']={addEventListener:(_event,fn)=>freshClick=fn};elements['btn-gen-script']={disabled:true,click:()=>generated++};context.currentBookFilename='A';context.API.get=async()=>({running:false});context.cancelTask=async()=>cancelled++;load('let _scriptStartOver =',"document.getElementById('btn-gen-script').addEventListener");let confirmations=0;context.API.get=async()=>{throw Error('offline');};context.showConfirm=async()=>{confirmations++;return true;};await freshClick();assert.strictEqual(confirmations,0);assert.strictEqual(generated,0);assert.strictEqual(cancelled,0);assert.strictEqual(await run('_scriptStartOver'),false);assert.match(toasts.at(-1)[0],/status could not be checked/);context.API.get=async()=>({running:false});context.showConfirm=async()=>false;await freshClick();assert.strictEqual(generated,0);context.showConfirm=async()=>{context.currentBookFilename='B';return true;};await freshClick();assert.strictEqual(generated,0);assert.strictEqual(cancelled,0);assert.strictEqual(await run('_scriptStartOver'),false);
-load('async function onSkipRecoveryChunk()', 'window.retryScriptGeneration =');context.refreshScriptRecovery=async()=>{};context.renderRecoveryFindings=()=>{};context.window._scriptRecoveryDetail={failed_chunk:1,failed_pass:'attribute'};context.showConfirm=async()=>false;await context.onSkipRecoveryChunk();assert.strictEqual(posts.length,0);context.showConfirm=async()=>{context.window._scriptRecoveryDetail.failed_chunk=2;return true;};await context.onSkipRecoveryChunk();assert.strictEqual(posts.length,0);context.showConfirm=async()=>true;await context.onSkipRecoveryChunk();assert.strictEqual(posts.length,1);assert.strictEqual(posts[0].data.chunk,2);
+load('function isScriptRecoveryDetailCurrent(', 'function captureScriptRecoveryOwnership()');load('async function onSkipRecoveryChunk()', 'window.retryScriptGeneration =');context.refreshScriptRecovery=async()=>{};context.renderRecoveryFindings=()=>{};context.window._scriptRecoveryDetail={failed_chunk:1,failed_pass:'attribute'};context.showConfirm=async()=>false;await context.onSkipRecoveryChunk();assert.strictEqual(posts.length,0);context.showConfirm=async()=>{context.window._scriptRecoveryDetail.failed_chunk=2;return true;};await context.onSkipRecoveryChunk();assert.strictEqual(posts.length,0);context.showConfirm=async()=>true;await context.onSkipRecoveryChunk();assert.strictEqual(posts.length,1);assert.strictEqual(posts[0].data.chunk,2);
 ''')
 
     def test_cancelled_age_prompt_creates_no_version(self):
@@ -264,9 +264,15 @@ context.setTimeout = (callback, delay) => { now += delay; callback(); };
 context.showConfirm = async () => true;
 context.currentBookFilename = 'book.txt';
 context._resetPauseBtn = () => {};
-context.cancelTask = async (url, options) => { cancelCalls++; options.onSuccess(); };
+const live = {running:true, start_time:100, task_claim_id:'a'.repeat(32)};
+context.API.post = async (url, body) => {
+    assert.strictEqual(url, '/api/generate_script/cancel');
+    assert.strictEqual(body.expected_claim_id, live.task_claim_id);
+    cancelCalls++;
+    return {};
+};
 load('let _scriptStartOver =', "document.getElementById('btn-gen-script').addEventListener");
-const responses = [{running:true}, new Error('status unavailable')];
+const responses = [live, live, new Error('status unavailable')];
 context.API.get = async () => {
     const response = responses.shift();
     if (response instanceof Error) { throw response; }
@@ -279,14 +285,14 @@ assert.strictEqual(elements['btn-gen-script'].disabled, true);
 assert.strictEqual(toasts.at(-1)[1], 'warning');
 assert.strictEqual(await run('_scriptStartOver'), false);
 // A later attempt succeeds only with a confirmed terminal status.
-responses.push({running:true}, {running:true}, {running:false});
+responses.push(live, live, live, {running:false, start_time:100});
 await freshClick();
 assert.strictEqual(generated, 1);
 assert.strictEqual(await run('_scriptStartOver'), true);
 // Consistently running responses reach the existing bounded timeout.
 context.API.get = async () => ({running:true});
 now = 0;
-assert.strictEqual(await context.waitForScriptToStop(1000), false);
+assert.strictEqual(await context.waitForScriptToStop(live.task_claim_id, {maxMs: 1000}), false);
 assert.strictEqual(now, 1000);
 """)
 

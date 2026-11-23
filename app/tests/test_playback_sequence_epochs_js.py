@@ -14,9 +14,10 @@ const audios=rows.map((row,id)=>({src:'fixture.wav',currentTime:7,onended:null,o
  getAttribute(name){assert.strictEqual(name,'src');return this.src;},closest(){return row;},pause(){pauses.push(id);},
  play(){plays.push(id);let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});attempts.push({id,resolve,reject});return promise;}}));
 const button={innerHTML:'Play Sequence',onclick:null,classList:classes()};button.classList.add('btn-primary');
+const recoveryRetry={style:{},disabled:false},recoveryPanel={style:{},innerHTML:''};
 const ctx={console:{error(){}},showToast:(text,tone)=>toasts.push({text,tone}),
  showActionError:(text,error,recovery,tone)=>toasts.push({text,reason:error&&error.message,tone}),API:{get:async()=>({pauses:[]})},setTimeout,clearTimeout,document:{
- getElementById(id){assert.strictEqual(id,'btn-play-seq');return button;},
+ getElementById(id){if(id==='btn-retry-script'){return recoveryRetry;}if(id==='script-recovery-panel'){return recoveryPanel;}assert.strictEqual(id,'btn-play-seq');return button;},
  querySelectorAll(selector){if(selector==='audio'||selector==='.chunk-audio'){return audios;}assert.strictEqual(selector,'tr');return rows;}}};ctx.window=ctx;
 vm.createContext(ctx);ctx.t=ctx.t||((key,english,values=Object())=>Object.keys(values).reduce((text,name)=>text.split(String.fromCharCode(123)+name+String.fromCharCode(125)).join(String(values[name])),String(english))),ctx.escapeHtml=ctx.escapeHtml||(s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'));
 vm.runInContext(source.slice(source.indexOf('let isPlayingSequence ='),source.indexOf('let isRenderingAll =')),ctx);

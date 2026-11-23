@@ -4,13 +4,17 @@ from script_recovery_facts import get_saved_script_recovery_manifest
 from review_report import save_review_report
 from book_state_transaction import (ensure_book_state, apply_book_input_selection,
                                      apply_book_state_locked, get_book_operation_token,
-                                     get_book_fault_response)
+                                     book_operator_locked, cancel_book_worker_handoff_locked,
+                                     finish_book_worker_handoff, get_book_fault_response,
+                                     get_script_startup_cancel_locked, recover_book_state_locked,
+                                     save_script_restart_launch, SCRIPT_LAST_ADMITTED_RUN_ID)
 
 import asyncio
 import contextlib
 import errno
 import copy
 import difflib
+from functools import partial
 import hashlib
 import json
 import io
@@ -173,6 +177,7 @@ from core import (
     claim_gpu_task, schedule_claimed_background_task, ensure_book_switch_allowed,
     ensure_saved_book_destination_available, get_saved_book_destination_path,
     reserve_background_task, register_claimed_background_task, release_gpu_task_claim,
+    guard_script_worker_launch,
     process_state,
     run_process,
 )
@@ -2513,10 +2518,18 @@ class GenerateScriptRequest(BaseModel):
     # stopped - by design (a crash or Cancel loses nothing), but there was no
     # way to ask for a fresh run short of changing a setting (#597).
     start_over: bool = False
+    # Automatic replacement after a scoped Cancel. An explicit idle Start
+    # Over keeps the existing request shape.
+    expected_restart_claim_id: Optional[str] = Field(default=None, pattern=r'^[0-9a-f]{32}$')
     # Explicit acknowledgment for a checkpoint predating selection identity.
     # Both tokens must still match the checkpoint and selected book at retry.
     legacy_checkpoint_token: Optional[str] = Field(default=None, pattern=r'^[0-9a-f]{64}$')
     legacy_book_token: Optional[str] = Field(default=None, pattern=r'^[0-9a-f]{64}$')
+
+
+class ScriptGenerationAdmission(BaseModel):
+    status: Literal["started", "resuming"]
+    task_claim_id: str = Field(pattern=r'^[0-9a-f]{32}$')
 
 
 def get_book_preflight_result(job_id):
@@ -2941,9 +2954,16 @@ def require_whole_source_generation(state):
             'A shortened source scope is active. Undo it or select the full source again before whole-book generation or recovery.'))
 
 
+_SCRIPT_RESTART_GRANT = 'script_generation_restart_after_cancel'
+def _refuse_script_restart(error=None):
+    raise AppError(409, 'The cancelled script run or its selected source changed before automatic restart. '
+                   'Saved progress was preserved. Review the Script task and selected source before starting over.',
+                   key='safety.generation.restart_selection_changed') from error
+
+
 def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                             request: Optional[GenerateScriptRequest],
-                            require_recovery: bool = False):
+                            require_recovery: bool = False, *, defer_start_over_cleanup=False):
     """Queue the one production generation command, optionally from a checkpoint."""
     require_whole_source_generation(safe_load_json(os.path.join(DATA_DIR, 'state.json'), {}))
     check_global_gpu_lock("script")
@@ -3048,13 +3068,24 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                                 if resumes_checkpoint and saved_receipt is None else None)
             if saved_receipt is None and reads_recovery:
                 _get_recovery_provenance(saved_checkpoint, saved_manifest, current_state, saved_receipt)
-            from script_selection_binding import capture_generation_selection
+            from script_selection_binding import capture_generation_selection, require_unchanged_source
             try:
                 captured = capture_generation_selection(DATA_DIR, input_file)
             except (OSError, ValueError) as error:
                 raise HTTPException(status_code=409, detail=(
                     'The selected source or book could not be verified. '
                     'Check the selection and try again; saved progress was preserved.')) from error
+            expected_restart = request.expected_restart_claim_id if request is not None else None
+            if expected_restart is not None:
+                if not starts_over or require_recovery:
+                    _refuse_script_restart()
+                startup_cancel = get_script_startup_cancel_locked(DATA_DIR, current_state, captured)
+                grant = current_state.get(_SCRIPT_RESTART_GRANT)
+                if startup_cancel is not None:
+                    grant = ({'claim_id': startup_cancel['claim_id'], 'selection': startup_cancel['selection']}
+                             if startup_cancel['allows_restart'] else None)
+                if grant != {'claim_id': expected_restart, 'selection': captured}:
+                    _refuse_script_restart()
             if (not require_recovery and not (request is not None and request.start_over)
                     and os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH))
                     and current_state.get('script_generation_selection') != captured):
@@ -3097,6 +3128,11 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                         _refuse_checkpoint_replay_over_edited_publication(SCRIPT_PATH)
                     except RuntimeError as error:
                         raise HTTPException(status_code=409, detail=str(error)) from error
+            def verify_restart_source():
+                try:
+                    require_unchanged_source(input_file, captured['source_sha256'], owning_root=DATA_DIR)
+                except (OSError, ValueError) as error:
+                    _refuse_script_restart(error)
             claim_id = reserve_background_task("script", defer_process_state=True)
             import core
 
@@ -3106,6 +3142,8 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                                    key='safety.generation.reservation_expired')
 
             require_admission_claim()
+            if expected_restart is not None:
+                verify_restart_source()
             if original is not None:
                 command.extend(['--active-book-token', original['book_token'],
                                 '--active-source-sha256', original['source_sha256'],
@@ -3152,9 +3190,11 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                 # A fresh run establishes a new cast baseline, clearing any
                 # stale-recovery flag left by a roster approval.
                 if not require_recovery and (
-                        (request is not None and request.start_over)
+                        starts_over
                         or not os.path.isfile(three_pass_checkpoint_path(SCRIPT_PATH))):
                     state.pop(RECOVERY_CAST_INVALIDATED, None)
+                state.pop(_SCRIPT_RESTART_GRANT, None)
+                state[SCRIPT_LAST_ADMITTED_RUN_ID] = claim_id
                 state["script_generation_options"] = options
                 state["script_generation_input_file"] = input_file
                 if original is not None:
@@ -3330,10 +3370,20 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                     # Adopt the owner in a live thread before retiring any
                     # recovery, and gate its subprocess on the book commit.
                     start_over_admission = Future()
+                    dispatch_claim = claim_id if defer_start_over_cleanup else None
 
                     def run_after_admission():
-                        if start_over_admission.result():
-                            run_process(command, 'script')
+                        if not start_over_admission.result():
+                            return
+                        if expected_restart is None or dispatch_claim is None:
+                            result = run_process(command, 'script')
+                        else:
+                            save_launch = partial(save_script_restart_launch, DATA_DIR,
+                                                  dispatch_claim, expected_restart)
+                            with guard_script_worker_launch(save_launch):
+                                result = run_process(command, 'script')
+                        if dispatch_claim is not None and result == 0 and not process_state['script'].get('cancel'):
+                            finish_book_worker_handoff(DATA_DIR, dispatch_claim)
 
                     start_over_worker = core.start_claimed_task_thread(
                         'script', claim_id, run_after_admission)
@@ -3350,12 +3400,26 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
                         logger.warning('Start Over committed and recovered after cleanup error (errno %s).',
                                        error.errno)
 
-                    apply_book_state_locked(
-                        DATA_DIR, replacements, removals, before_replace=guard_admission_source,
-                        on_recovered_commit_error=report_recovered_commit)
+                    committed = False
+
+                    def mark_committed():
+                        nonlocal committed
+                        committed = True
+
+                    try:
+                        apply_book_state_locked(
+                            DATA_DIR, replacements, removals, before_replace=guard_admission_source,
+                            before_commit=verify_restart_source if expected_restart is not None else None,
+                            on_commit=mark_committed if dispatch_claim is not None else None,
+                            dispatch_claim=dispatch_claim,
+                            on_recovered_commit_error=report_recovered_commit)
+                    except (OSError, ValueError):
+                        if not committed:
+                            raise
+                        logger.exception('Script admission committed; book transaction cleanup failed')
                     core.activate_background_task_claim('script', claim_id)
                     start_over_admission.set_result(True)
-                    return {'status': 'started'}
+                    return {'status': 'started', 'task_claim_id': claim_id}
                 apply_book_state_locked(DATA_DIR, replacements, removals,
                                         before_replace=guard_admission_source)
             try:
@@ -3375,7 +3439,14 @@ def start_script_generation(background_tasks: BackgroundTasks, input_file: str,
         if claim_id is not None:
             release_gpu_task_claim("script", claim_id, pending_only=True)
         raise
-    return {"status": "resuming" if require_recovery else "started"}
+    return {"status": "resuming" if require_recovery else "started", "task_claim_id": claim_id}
+
+
+def _raise_script_book_fault(error):
+    fault = get_book_fault_response(error)
+    if fault is not None:
+        raise AppError(fault.status_code, f'{fault.detail}', key='safety.generation.book_recovery_detail',
+                       values={'detail': fault.detail}) from error
 
 
 async def _start_script_generation_for_route(background_tasks, input_file, request,
@@ -3386,15 +3457,15 @@ async def _start_script_generation_for_route(background_tasks, input_file, reque
             return await asyncio.to_thread(
                 start_script_generation, background_tasks, input_file, request,
                 require_recovery=True)
-        return await asyncio.to_thread(start_script_generation, background_tasks, input_file, request)
+        return await asyncio.to_thread(
+            start_script_generation, background_tasks, input_file, request,
+            defer_start_over_cleanup=True)
     except (TimeoutError, OSError, ValueError) as error:
-        fault = get_book_fault_response(error)
-        if fault is not None:
-            raise HTTPException(status_code=fault.status_code, detail=fault.detail) from error
+        _raise_script_book_fault(error)
         raise
 
 
-@router.post("/api/generate_script")
+@router.post("/api/generate_script", response_model=ScriptGenerationAdmission)
 async def generate_script(background_tasks: BackgroundTasks,
                            request: Optional[GenerateScriptRequest] = None):
     # Get input file from state.json
@@ -3475,7 +3546,11 @@ def ensure_script_recovery_response(include_detail=False):
 @router.get("/api/generate_script/recovery")
 async def generate_script_recovery(include_detail: bool = False):
     """Return metadata by default; opt in to the validated failed-unit detail."""
-    return await asyncio.to_thread(ensure_script_recovery_response, include_detail)
+    try:
+        return await asyncio.to_thread(ensure_script_recovery_response, include_detail)
+    except (TimeoutError, OSError, ValueError) as error:
+        _raise_script_book_fault(error)
+        raise
 
 
 def _ensure_failed_unit_shape(checkpoint):
@@ -4823,11 +4898,20 @@ async def generate_script_skip(request: SkipChunkRequest):
     return result
 
 
-@router.post("/api/generate_script/retry")
+def _read_script_retry_state():
+    with ensure_book_state(DATA_DIR):
+        return safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+
+
+@router.post("/api/generate_script/retry", response_model=ScriptGenerationAdmission)
 async def retry_generate_script(background_tasks: BackgroundTasks,
                                 request: Optional[GenerateScriptRequest] = None):
     """Resume the current failed three-pass run from its durable checkpoint."""
-    state = safe_load_json(os.path.join(DATA_DIR, "state.json"), {})
+    try:
+        state = await asyncio.to_thread(_read_script_retry_state)
+    except (TimeoutError, OSError, ValueError) as error:
+        _raise_script_book_fault(error)
+        raise
     input_file = state.get("input_file_path") if isinstance(state, dict) else None
     if not input_file:
         raise HTTPException(status_code=400, detail="No input file found for recovery")
@@ -4845,73 +4929,113 @@ async def retry_generate_script(background_tasks: BackgroundTasks,
     return await _start_script_generation_for_route(background_tasks, input_file, request,
                                                     require_recovery=True)
 
+class CancelScriptRequest(BaseModel):
+    expected_claim_id: Optional[str] = Field(default=None, pattern=r'^[0-9a-f]{32}$')
+
+
 @router.post("/api/generate_script/cancel")
-async def generate_script_cancel():
-    return await asyncio.to_thread(_cancel_script_generation_sync)
+async def generate_script_cancel(request: Optional[CancelScriptRequest] = None):
+    return await asyncio.to_thread(_cancel_script_generation_sync,
+                                   request.expected_claim_id if request else None)
 
 
-def _cancel_script_generation_sync():
+def _refuse_script_cancel_owner_changed():
+    raise AppError(409, 'This task is not the current script generation; check its activity before cancelling.',
+                   key='safety.generation.cancel_owner_changed')
+
+
+def _cancel_script_generation_sync(expected_claim_id=None):
     """Revoke this generation before signalling its worker, or report commit."""
     import core
     state_path = os.path.join(DATA_DIR, 'state.json')
     try:
-        with ensure_book_state(DATA_DIR), file_lock(state_path), core._gpu_lock:
-            task = process_state['script']
-            if not task.get('running'):
-                raise HTTPException(status_code=400, detail='No script generation is currently running.')
-            owner = core._task_claims.get('script')
-            state = safe_load_json(state_path, default={})
-            if not isinstance(state, dict):
-                raise ValueError('Book state is invalid')
-            if owner is None and not state.get('script_generation_run_id'):
-                # Compatibility for a legacy in-memory task without a claim.
-                return _cancel_task('script', 'No script generation is currently running.',
-                                    'Script generation process already exited.')
-            owner_id = owner.get('id') if owner else None
-            if owner_id and state.get('script_generation_published_run_id') == owner_id:
-                # Publication won, but the child or its descendants may still
-                # be running. Stop their cleanup without calling the committed
-                # script cancelled in the task's final status.
-                task['_script_published_cleanup_stop'] = True
-                try:
-                    stopped = _cancel_task('script', 'No script generation is currently running.',
-                                           'Script generation process already exited.')
-                except HTTPException as error:
-                    process = task.get('process')
-                    if (error.status_code != 400 or error.detail != 'Script generation process already exited.'
-                            or sys.platform != 'win32' or process is None
-                            or getattr(process, '_alexandria_windows_owner', None) is None):
-                        raise HTTPException(status_code=409, detail=(
-                            'The script was already published, but stopping its worker was not confirmed. '
-                            'Check task activity.')) from error
-                    from windows_subprocess_job import WindowsJobClosedError
-                    try:
-                        core.terminate_windows_process_tree(process, force=True)
-                    except WindowsJobClosedError:
-                        # A published owner is exposed only after admission;
-                        # its normal close waits for zero job membership.
-                        return {'status': 'published_cleanup_stop', 'worker': 'already stopped'}
-                    except OSError as force_error:
-                        raise HTTPException(status_code=409, detail=(
-                            'The script was already published, but stopping its worker was not confirmed. '
-                            'Check task activity.')) from force_error
-                    # The owner retains the job until the kernel confirms exit.
-                    return {'status': 'published_cleanup_stop_requested',
-                            'worker': 'force stop requested'}
-                return {'status':'published_cleanup_stop', 'worker':stopped['status']}
-            if not owner_id or state.get('script_generation_run_id') != owner_id:
-                raise HTTPException(status_code=409, detail=(
-                    'This task is not the current script generation; check its activity before cancelling.'))
-            state['script_generation_cancel_requested_run_id'] = owner_id
-            atomic_json_write(state, state_path, allow_nonatomic_fallback=False)
-            stopped = _cancel_task('script', 'No script generation is currently running.',
-                                   'Script generation process already exited.')
-            state.pop('script_generation_run_id', None)
-            atomic_json_write(state, state_path, allow_nonatomic_fallback=False)
-            return stopped
+        with book_operator_locked(DATA_DIR) as (root, identity):
+            with core._gpu_lock:
+                owner = core._task_claims.get('script')
+                owner_id = owner['id'] if owner else None
+                if expected_claim_id is not None and expected_claim_id != owner_id:
+                    _refuse_script_cancel_owner_changed()
+                if owner_id and process_state['script'].get('running') and cancel_book_worker_handoff_locked(
+                        root, owner_id, for_restart=expected_claim_id is not None):
+                    return _cancel_task('script', 'No script generation is currently running.',
+                                        'Script generation process already exited.')
+            recover_book_state_locked(root, expected_root=root, expected_root_identity=identity)
+            with file_lock(state_path), core._gpu_lock:
+                return _cancel_admitted_script(expected_claim_id, state_path)
     except (OSError, ValueError, TimeoutError) as error:
         raise HTTPException(status_code=409, detail=(
             'Cancellation could not be safely recorded; check the task state before trying again.')) from error
+
+
+def _cancel_admitted_script(expected_claim_id, state_path):
+    import core
+    task = process_state['script']
+    owner = core._task_claims.get('script')
+    owner_id = owner.get('id') if owner else None
+    if expected_claim_id is not None and expected_claim_id != owner_id:
+        _refuse_script_cancel_owner_changed()
+    if not task.get('running'):
+        raise HTTPException(status_code=400, detail='No script generation is currently running.')
+    state = safe_load_json(state_path, default={})
+    if not isinstance(state, dict):
+        raise ValueError('Book state is invalid')
+    # Bind consent to the admitted source, before or after publication.
+    # Legacy tasks without selection proof can still be cancelled.
+    selection = state.get('script_generation_selection')
+    restart_grant = {'claim_id': owner_id, 'selection': selection} if (
+        expected_claim_id is not None and isinstance(selection, dict)) else None
+    if owner is None and not state.get('script_generation_run_id'):
+        # Compatibility for a legacy in-memory task without a claim.
+        return _cancel_task('script', 'No script generation is currently running.',
+                            'Script generation process already exited.')
+    if owner_id and state.get('script_generation_published_run_id') == owner_id:
+        # Publication won, but the child or its descendants may still
+        # be running. Stop their cleanup without calling the committed
+        # script cancelled in the task's final status.
+        task['_script_published_cleanup_stop'] = True
+        try:
+            stopped = _cancel_task('script', 'No script generation is currently running.',
+                                   'Script generation process already exited.')
+        except HTTPException as error:
+            process = task.get('process')
+            if (error.status_code != 400 or error.detail != 'Script generation process already exited.'
+                    or sys.platform != 'win32' or process is None
+                    or getattr(process, '_alexandria_windows_owner', None) is None):
+                raise HTTPException(status_code=409, detail=(
+                    'The script was already published, but stopping its worker was not confirmed. '
+                    'Check task activity.')) from error
+            from windows_subprocess_job import WindowsJobClosedError
+            try:
+                core.terminate_windows_process_tree(process, force=True)
+            except WindowsJobClosedError:
+                # A published owner is exposed only after admission;
+                # its normal close waits for zero job membership.
+                stopped = {'status': 'published_cleanup_stop', 'worker': 'already stopped'}
+            except OSError as force_error:
+                raise HTTPException(status_code=409, detail=(
+                    'The script was already published, but stopping its worker was not confirmed. '
+                    'Check task activity.')) from force_error
+            else:
+                # The owner retains the job until the kernel confirms exit.
+                stopped = {'status': 'published_cleanup_stop_requested',
+                           'worker': 'force stop requested'}
+        else:
+            stopped = {'status': 'published_cleanup_stop', 'worker': stopped['status']}
+        if restart_grant is not None:
+            state[_SCRIPT_RESTART_GRANT] = restart_grant
+            atomic_json_write(state, state_path, allow_nonatomic_fallback=False)
+        return stopped
+    if not owner_id or state.get('script_generation_run_id') != owner_id:
+        _refuse_script_cancel_owner_changed()
+    state['script_generation_cancel_requested_run_id'] = owner_id
+    atomic_json_write(state, state_path, allow_nonatomic_fallback=False)
+    stopped = _cancel_task('script', 'No script generation is currently running.',
+                           'Script generation process already exited.')
+    state.pop('script_generation_run_id', None)
+    if restart_grant is not None:
+        state[_SCRIPT_RESTART_GRANT] = restart_grant
+    atomic_json_write(state, state_path, allow_nonatomic_fallback=False)
+    return stopped
 
 
 
@@ -6349,11 +6473,27 @@ async def get_task_statuses():
 async def get_status(task_name: str, include_health: bool = False):
     if task_name not in process_state:
         raise HTTPException(status_code=404, detail="Task not found")
-    state = dict(process_state[task_name])
+    def get_snapshot():
+        import core
+        with (core._gpu_lock if task_name == 'script' else contextlib.nullcontext()):
+            status = dict(process_state[task_name])
+            lifecycle = get_task_lifecycle(task_name, states={task_name: status})
+            if task_name == 'script':
+                owner = core._task_claims.get(task_name, {})
+                if lifecycle.get('worker_pending'):
+                    # A reservation is busy, but has no worker activity yet.
+                    cancelled = not owner.get('defer_process_state') and status.get('cancel', False)
+                    status = {'logs': [], 'start_time': None, 'cancel': cancelled,
+                              'paused': False, 'cpu_only': owner.get('cpu_only', False),
+                              'accepts_manual_requests': False}
+                status['task_claim_id'] = owner.get('id')
+            status.update(lifecycle)
+            return status
+
+    state = await asyncio.to_thread(get_snapshot) if task_name == 'script' else get_snapshot()
     # Export evidence has its own book-token gate and bounded explicit view.
     for key in ('export_quality_reports', 'export_quality_rejections', 'export_quality_attempt'):
         state.pop(key, None)
-    state.update(get_task_lifecycle(task_name, states={task_name: state}))
     state.pop('_windows_cleanup_failed', None)
     state.pop("process", None)
     state.pop("processes", None)

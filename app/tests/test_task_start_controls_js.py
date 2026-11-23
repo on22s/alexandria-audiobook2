@@ -59,11 +59,11 @@ run('let _scriptStartOver=false;let scriptBatchPoller=null;');
 load('function getLoadedScriptSourceFilename()', 'window.startBookPreflight =');
 load("document.getElementById('btn-gen-script').addEventListener('click', async () => {", '// Pause is SIGSTOP');
 el('file-upload').files=[];el('upload-status').innerHTML='<span class="text-success">Loaded</span>';
-el('btn-pause-script').classList={remove(){},add(){}};ctx._resetPauseBtn=()=>{};ctx._isStripFrontMatterChecked=()=>false;ctx.refreshScriptRecovery=()=>{};
+el('btn-pause-script').classList={remove(){},add(){}};ctx._resetPauseBtn=()=>{};ctx._isStripFrontMatterChecked=()=>false;ctx.refreshScriptRecovery=()=>{};ctx.onScriptTaskTerminal=()=>{el('btn-gen-script').disabled=false;};ctx.beginScriptRecoveryRun=()=>1;ctx.reserveScriptRecoveryRun=()=>1;ctx.makeScriptRecoveryStatus=()=>({generation:0,book:'book-A',bookEpoch:0,selection:null});ctx.scriptRecoverySelectionMatches=()=>true;ctx.confirmScriptRecoveryRun=()=>true;ctx.cancelScriptRecoveryRun=()=>{};
 let completed=false;process.on('beforeExit',()=>assert(completed,'script assertions must finish'));
 for(const outcome of ['decline','error','approve']){
  const gate=deferred();let admissions=0,posted=0,poll;
- ctx.confirmIfRemote=()=>{admissions++;return gate.promise;};ctx.API.post=async()=>{posted++;};ctx.pollScriptLogs=(_task,done)=>poll=done;
+ ctx.confirmIfRemote=()=>{admissions++;return gate.promise;};ctx.API.post=async()=>{posted++;};ctx.pollScriptLogs=(_task,_done,token)=>poll=()=>ctx.onScriptTaskTerminal(null,token);
  const first=handlers['btn-gen-script']();assert.strictEqual(el('btn-gen-script').disabled,true);
  await handlers['btn-gen-script']();assert.strictEqual(admissions,1);assert.strictEqual(posted,0);
  if(outcome==='error'){gate.reject(Error('offline'));}else{gate.resolve(outcome==='approve');}

@@ -370,7 +370,7 @@ class FrontendTests(unittest.TestCase):
         self.assertEqual({"script", "review", "nicknames", "cast_list"},
                          set(re.findall(r"pollScriptLogs\('(\w+)'", js)))
         self.assertIn("'script-logs', status => {", js)
-        self.assertIn("}, 'script-activity');", js)
+        self.assertIn("}, 'script-activity', scriptRunToken, initialStatus);", js)
         self.assertEqual({1: "split", 2: "speakers", 3: "delivery"}, tp.STEP_NAMES)
         # {piece} is " (part k)" for later pieces of a split window (#1925).
         self.assertIn('print(f"Step {step} ({STEP_NAMES[step]}): {unit} {number} of {total}{piece} - asking the model"', pipeline)
@@ -427,10 +427,12 @@ class FrontendTests(unittest.TestCase):
         block = js[start:js.index("btn-gen-script').addEventListener", start)]
         self.assertIn("await API.get('/api/status/script')", block)
         self.assertIn("Cancel the current run, discard its saved progress", block)
-        cancel = block.index("cancelTask('/api/generate_script/cancel'")
-        wait = block.index("await waitForScriptToStop()")
+        stop = block.index("await stopScriptForRestart(claimId,")
         go = block.index("btn-gen-script').click()")
-        self.assertTrue(cancel < wait < go, (cancel, wait, go))
+        self.assertLess(stop, go)
+        helper = js[js.index("async function stopScriptForRestart("):start]
+        self.assertLess(helper.index("API.post('/api/generate_script/cancel'"),
+                        helper.index("await waitForScriptToStop(claimId,"))
         self.assertIn("The run has not stopped yet", block)
     def test_manual_transport_is_selectable_and_the_panel_is_wired(self):
         html = (_STATIC_DIR / "index.html").read_text(encoding="utf-8")

@@ -1558,7 +1558,8 @@ class GenerateScriptStateTests(unittest.TestCase):
         api.include_router(script_module.router)
         with tempfile.TemporaryDirectory() as tmp, \
              patch.object(script_module, 'DATA_DIR', tmp), \
-             patch.object(script_module, 'start_script_generation', return_value={'status': 'started'}) as dispatch, \
+             patch.object(script_module, 'start_script_generation',
+                          return_value={'status': 'started', 'task_claim_id': 'a' * 32}) as dispatch, \
              TestClient(api) as client:
             state = Path(tmp)/'state.json'
             missing = client.post('/api/generate_script')

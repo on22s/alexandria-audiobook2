@@ -67,7 +67,9 @@ def read_windows_owner_message(path):
         valid = isinstance(message,dict) and (
             (set(message) == {'started'} and type(message['started']) is int
              and 0 < message['started'] <= 0xffffffff)
-            or (set(message) == {'error','errno'} and isinstance(message['error'],str)
+            or (set(message) - {'worker_not_launched'} == {'error','errno'}
+                and ('worker_not_launched' not in message or message['worker_not_launched'] is True)
+                and isinstance(message['error'],str)
                 and 0 < len(message['error']) <= 2048
                 and (message['errno'] is None or type(message['errno']) is int
                      and -(2**31) <= message['errno'] < 2**31)))
@@ -248,6 +250,8 @@ def _trusted_supervisor_executable(executable):
 
 
 def start_windows_owned_subprocess(command, *, exit_notice_path=None, termination_grace=None, inherited_handles=(), **kwargs):
+    from subprocess_ownership import get_worker_launch_error, mark_unlaunched_exec_errors
+
     # Popen options configure the trusted supervisor. The worker interpreter
     # is selected by command[0], including an explicitly requested base Python.
     try:
@@ -279,9 +283,10 @@ def start_windows_owned_subprocess(command, *, exit_notice_path=None, terminatio
             startup.lpAttributeList = {'handle_list': list(inherited_handles)}
             kwargs = dict(kwargs, startupinfo=startup, close_fds=True)
             handle_args = ['--inherit-handles', json.dumps(list(inherited_handles)), '--']
-        process = _popen_owned_python(
-            [sys.executable, str(Path(__file__).resolve()), str(gate), str(admission), *notice_args, *handle_args, *command],
-            **kwargs)
+        with mark_unlaunched_exec_errors():
+            process = _popen_owned_python(
+                [sys.executable, str(Path(__file__).resolve()), str(gate), str(admission), *notice_args, *handle_args, *command],
+                **kwargs)
         control = WindowsOwnerControl(job, process, directory, termination_grace)
         job.apply_process_membership(int(process._handle))
         assigned = True
@@ -309,7 +314,7 @@ def start_windows_owned_subprocess(command, *, exit_notice_path=None, terminatio
                 raise OSError('Windows subprocess owner did not acknowledge worker admission')
             time.sleep(.01)
         if 'error' in message:
-            raise OSError(message.get('errno'), message['error'])
+            raise get_worker_launch_error(message)
         process._alexandria_control = control
         process._alexandria_windows_owner = control
         return process
@@ -332,6 +337,8 @@ def start_windows_owned_subprocess(command, *, exit_notice_path=None, terminatio
 
 
 def run_windows_owned_command(gate, admission, command, exit_notice_path=None, inherited_handles=()):
+    from subprocess_ownership import mark_unlaunched_exec_errors
+
     deadline = time.monotonic() + 30
     while not gate.exists():
         if time.monotonic() >= deadline:
@@ -342,12 +349,13 @@ def run_windows_owned_command(gate, admission, command, exit_notice_path=None, i
     # survives here to defeat parent's KILL_ON_JOB_CLOSE protection.
     if get_windows_job_active_process_count(api) != 1:
         raise OSError('Windows supervisor has no exclusive initial job membership')
+    options = {}
     if inherited_handles:
         startup = subprocess.STARTUPINFO()
         startup.lpAttributeList = {'handle_list': list(inherited_handles)}
-        process = _popen_owned_python(command, startupinfo=startup, close_fds=True)
-    else:
-        process = _popen_owned_python(command)
+        options = {'startupinfo': startup, 'close_fds': True}
+    with mark_unlaunched_exec_errors():
+        process = _popen_owned_python(command, **options)
     save_windows_owner_message(admission, {'started': process.pid})
     notified = False
     query_reported = False
@@ -390,7 +398,8 @@ if __name__ == '__main__':
         result = run_windows_owned_command(gate, admission, command, exit_notice_path, inherited_handles)
     except (OSError, RuntimeError) as error:
         if not admission.exists():
-            save_windows_owner_message(admission, {'error': str(error), 'errno': getattr(error, 'errno', None)})
+            from subprocess_ownership import get_worker_launch_error_message
+            save_windows_owner_message(admission, get_worker_launch_error_message(error))
         raise
     # Windows child exit codes are DWORDs; sys.exit()'s signed C-long conversion
     # can lose high-bit native failure statuses on Windows.

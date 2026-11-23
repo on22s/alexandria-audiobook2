@@ -58,13 +58,14 @@ class BatchScriptConcurrencyTests(OwnedScriptTestCase):
                      patch.object(script, "check_global_gpu_lock"), \
                      patch.object(script, "load_app_config", return_value={}), \
                      patch.object(script, "build_generate_script_command", return_value=["fake command"]), \
-                     patch.object(script, "discard_script_progress") as discard, \
+                     patch.object(script, "apply_book_state_locked", wraps=script.apply_book_state_locked) as publish, \
                      patch.object(core, "claim_gpu_task", wraps=core.claim_gpu_task) as claim:
                     if valid:
                         with capture_script_worker_starts() as run:
                             response = script.start_script_generation(background, str(source), request)
                         self.assertEqual("started", response["status"])
                         claim.assert_called_once_with("script", defer_process_state=True)
+                        publish.assert_called_once()
                         self.assertEqual([], background.tasks)
                         run.assert_called_once()
                         self.assertFalse(core.is_task_running("script"))
@@ -73,7 +74,7 @@ class BatchScriptConcurrencyTests(OwnedScriptTestCase):
                             script.start_script_generation(background, str(source), request)
                         self.assertEqual(400, raised.exception.status_code)
                         self.assertIn("at least three times", raised.exception.detail)
-                        discard.assert_not_called()
+                        publish.assert_not_called()
                         claim.assert_not_called()
                         self.assertEqual([], background.tasks)
                         self.assertEqual("{}", state.read_text())
