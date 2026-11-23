@@ -111,6 +111,31 @@ class IdentityCaptureTests(unittest.TestCase):
         two = qr.get_qwen_runtime_identity(THIS_PY)
         self.assertEqual(one["runtime_digest"], two["runtime_digest"])
 
+    def test_runtime_directory_replacement_during_final_hash_is_refused(self):
+        import subprocess as _subprocess
+        runtime = Path(self.tmp) / "runtime"
+        (runtime / "bin").mkdir(parents=True)
+        fake = runtime / "bin" / "python"
+        original = b"PY" * 512
+        fake.write_bytes(original)
+        payload = json.dumps({"python_version": "3.10.0", "packages": {},
+                              "prefix": str(Path(self.tmp))}).encode()
+        completed = _subprocess.CompletedProcess(["fake"], 0, payload, b"")
+        real_open = qr._open_regular_file
+
+        def swap_after_open(path, **kwargs):
+            stream, size = real_open(path, **kwargs)
+            os.rename(runtime, Path(self.tmp) / "runtime-old")
+            (runtime / "bin").mkdir(parents=True)
+            fake.write_bytes(b"XZ" * (size // 2))
+            return stream, size
+
+        with patch.object(qr, "run_owned_capture", return_value=completed), \
+             patch.object(qr, "_open_regular_file", side_effect=swap_after_open):
+            with self.assertRaisesRegex(ValueError, "changed during identity capture"):
+                qr.get_qwen_runtime_identity(str(fake))
+        self.assertEqual(b"XZ" * 512, fake.read_bytes())
+
     def test_unknown_interpreter_fails(self):
         with self.assertRaises(ValueError):
             qr.get_qwen_runtime_identity(str(Path(self.tmp) / "missing-python.exe"))

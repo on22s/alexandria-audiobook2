@@ -934,7 +934,7 @@ def _read_archive_member_bounded(archive, name, max_bytes, *, member_index=None)
     if info is None:
         raise ValueError("EPUB archive member is ambiguous: %s" % name)
     path = PurePosixPath(name)
-    if ("\\" in name or "\0" in name or path.is_absolute()
+    if (not path.parts or "\\" in name or "\0" in name or path.is_absolute()
             or PureWindowsPath(name).drive or ".." in path.parts
             or name != path.as_posix()):
         raise ValueError("Unsafe EPUB archive member: %s" % name)

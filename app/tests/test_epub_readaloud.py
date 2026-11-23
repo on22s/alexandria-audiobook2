@@ -70,6 +70,16 @@ def _script_entries():
 
 
 class EpubReadaloudTests(unittest.TestCase):
+    def test_bound_member_reader_refuses_root_alias(self):
+        import epub_readaloud as er
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, 'w') as archive:
+            archive.writestr('.', b'payload')
+        with zipfile.ZipFile(io.BytesIO(raw.getvalue())) as archive:
+            self.assertIn('.', archive.namelist())
+            with self.assertRaisesRegex(ValueError, 'Unsafe'):
+                er._read_archive_member_bounded(archive, '.', 1024)
+
     def test_mapping_retains_original_segment_indexes_after_wordless_segments(self):
         segments = [{"fragment": None, "text": text}
                     for text in ("—", "Same words", "***", "Same words", "…")]
