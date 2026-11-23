@@ -48,8 +48,8 @@ class RecoveryCastBaselineTests(unittest.TestCase):
                 patch.object(script, 'reserve_background_task', return_value='baseline-claim'),
                 patch.object(script, 'register_claimed_background_task',
                     side_effect=lambda _t, _n, _c, _r, command, *_: scheduled.append(command)),
-                patch.object(core, 'process_state', {}),
-                patch.object(core, '_task_claims', {}),
+                patch.object(core, 'process_state', {'script': {'running': False}}),
+                patch.object(core, '_task_claims', {'script': {'id': 'baseline-claim', 'phase': 'pending'}}),
                 patch.object(core, '_gpu_leases', {}),
             ]
             for item in patches:

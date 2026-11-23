@@ -11,6 +11,7 @@ from cast_list import get_cast_list_path
 from character_roster_apply import (ensure_character_roster_admission, apply_character_roster,
     apply_character_roster_undo, get_character_roster_undo_status)
 from character_roster_snapshot import get_character_roster_preview
+from script_recovery_guard import is_script_recovery_cast_invalidated
 import three_pass_generate as three_pass
 from tests import test_script_cast_routes as generation
 from tests.test_character_roster import SOURCE1, A, entry, decision, proposal
@@ -26,11 +27,10 @@ class RecoveryFenceRaceTests(generation.CastRoutesTest):
         self.write_list([{'name': 'ALICE', 'aliases': []}])
         self.start()
         module = generation.script_module
-        atomic_json_write({'status': 'failed', 'fingerprint': 'fp'},
-                          module.three_pass_manifest_path(module.SCRIPT_PATH))
-        atomic_json_write({'stage': 'instruct', 'chunks_done': 1, 'segmented': [],
-                           'named': [], 'annotated': [], 'resolutions': ['clean']},
-                          module.three_pass_checkpoint_path(module.SCRIPT_PATH))
+        receipt = module.run_spec_receipt.load_receipt(root)
+        checkpoint, _ = three_pass.get_initial_three_pass_artifacts(receipt)
+        atomic_json_write(checkpoint, module.three_pass_checkpoint_path(module.SCRIPT_PATH))
+        self._prepare_manifest_only()
         return root
 
     def _changed_proposal(self):
@@ -61,11 +61,6 @@ class RecoveryFenceRaceTests(generation.CastRoutesTest):
             with ensure_character_roster_admission(root):
                 revision = get_character_roster_undo_status(root)['revision']
                 apply_character_roster_undo(root, revision)
-
-    def _start_over(self):
-        return generation.script_module.start_script_generation(
-            generation.script_module.BackgroundTasks(), self.source,
-            generation.script_module.GenerateScriptRequest(start_over=True))
 
     def test_approval_before_admission_blocks_retry_and_keeps_evidence(self):
         root = self._prepare()
@@ -126,8 +121,11 @@ class RecoveryFenceRaceTests(generation.CastRoutesTest):
 
     def _prepare_manifest_only(self):
         module = generation.script_module
-        atomic_json_write({'status': 'failed', 'fingerprint': 'fp'},
-                          module.three_pass_manifest_path(module.SCRIPT_PATH))
+        receipt = module.run_spec_receipt.load_receipt(self.dir)
+        three_pass._write_manifest(
+            module.SCRIPT_PATH, receipt['fingerprint'], [], {}, 'incomplete',
+            progress={'segmented_entries': 0},
+            run_id=receipt['run_id'], run_spec_sha256=receipt['sha256'])
 
     def _install_loader_valid_checkpoint(self, source):
         """Write a checkpoint the real three-pass loader accepts and replays."""
@@ -176,8 +174,7 @@ class RecoveryFenceRaceTests(generation.CastRoutesTest):
         # fence, establishing a fresh baseline.
         self._start_over()
         self.assertEqual(cast_hash, self.stored_options()['cast_sha256'])
-        self.assertFalse(generation.script_module.is_script_recovery_cast_invalidated(
-            str(root)))
+        self.assertFalse(is_script_recovery_cast_invalidated(str(root)))
         self.start(recovery=True)
 
     def _drop_legacy_cast_digest(self, root):
@@ -195,8 +192,7 @@ class RecoveryFenceRaceTests(generation.CastRoutesTest):
         self.start(recovery=True)
         self._undo(root)
         self.start(recovery=True)
-        self.assertFalse(generation.script_module.is_script_recovery_cast_invalidated(
-            str(root)))
+        self.assertFalse(is_script_recovery_cast_invalidated(str(root)))
 
     def test_changed_cast_newer_failed_run_undo_still_refuses_retry(self):
         root = self._prepare()

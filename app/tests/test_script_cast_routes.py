@@ -14,12 +14,14 @@ import os
 import tempfile
 import unittest
 from unittest.mock import patch
+from uuid import uuid4
 
 from fastapi import HTTPException
 
 import core
 from cast_list import get_cast_list_path
 from routers import script as script_module
+from tests.test_support import capture_script_worker_starts
 from utils import atomic_json_write
 
 CAST = [{"name": "THE DETECTIVE", "aliases": []},
@@ -40,15 +42,21 @@ class CastRoutesTest(unittest.TestCase):
         atomic_json_write({"input_file_path": self.source}, os.path.join(self.dir, "state.json"))
         self.list_path = get_cast_list_path(self.source, self.dir)
         self.scheduled = []
+
+        def reserve(_task, **_kwargs):
+            claim_id = uuid4().hex
+            core._task_claims['script'] = {'id': claim_id, 'phase': 'pending'}
+            return claim_id
+
         self.patches = [
             patch.object(script_module, "DATA_DIR", self.dir),
             patch.object(script_module, "SCRIPT_PATH", os.path.join(self.dir, "annotated_script.json")),
             patch.object(script_module, "check_global_gpu_lock"),
             patch.object(script_module, "three_pass_refusal", return_value=None),
             patch.object(script_module, "get_active_reasoning_effort", return_value=None),
-            patch.object(script_module, "ensure_script_recovery_manifest", return_value={}),
-            patch.object(script_module, "get_script_recovery_manifest", return_value={}),
-            patch.object(script_module, "reserve_background_task", return_value="cast-fixture-claim"),
+            patch.object(core, "_task_claims", {}),
+            patch.dict(core.process_state, {"script": {"running": False, "logs": []}}),
+            patch.object(script_module, "reserve_background_task", side_effect=reserve),
             patch.object(script_module, "register_claimed_background_task",
                          side_effect=lambda _tasks, name, _claim, _run, command, *_: self.scheduled.append(command)),
         ]
@@ -68,6 +76,12 @@ class CastRoutesTest(unittest.TestCase):
         script_module.start_script_generation(
             script_module.BackgroundTasks(), self.source, None, require_recovery=recovery)
         return self.scheduled[-1]
+
+    def _start_over(self):
+        with capture_script_worker_starts():
+            return script_module.start_script_generation(
+                script_module.BackgroundTasks(), self.source,
+                script_module.GenerateScriptRequest(start_over=True))
 
     def stored_options(self):
         with open(os.path.join(self.dir, "state.json"), encoding="utf-8") as handle:
@@ -94,7 +108,7 @@ class CastRoutesTest(unittest.TestCase):
 
     def test_retry_keeps_the_list_the_run_started_with(self):
         self.write_list()
-        self.start()
+        self._start_over()
         with open(script_module.get_run_cast_path(), "rb") as handle:
             started_with = handle.read()
         self.write_list(CAST + [{"name": "THE CLERK", "aliases": []}])     # edited after a failure
@@ -105,7 +119,7 @@ class CastRoutesTest(unittest.TestCase):
 
     def test_retry_refuses_when_the_frozen_list_changed(self):
         self.write_list()
-        self.start()
+        self._start_over()
         atomic_json_write({"cast": [{"name": "SOMEONE ELSE", "aliases": []}]},
                           script_module.get_run_cast_path())
         with self.assertRaises(HTTPException) as caught:

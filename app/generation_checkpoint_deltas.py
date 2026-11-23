@@ -7,6 +7,7 @@ import uuid
 
 from generation_checkpoint_shards import (
     get_generation_shard_directory, _get_shard_versions)
+from run_spec_receipt import CHECKPOINT_DIGEST
 from utils import atomic_json_write, file_lock
 
 STORAGE = "indexed-checkpoint-deltas-v1"
@@ -100,6 +101,8 @@ def _load_checkpoint(path):
         # escapes until the verified final result. Retain the default detached
         # copy for other callers, but do not clone unchanged state per record.
         current = _apply_changes(current, record["changes"], copy_previous=False)
+        if current.get(CHECKPOINT_DIGEST) != base.get(CHECKPOINT_DIGEST):
+            raise ValueError("Checkpoint delta changes the admitted run spec")
         digest = record["sha256"]
     if versions != _get_shard_versions(directory):
         raise ValueError("Checkpoint deltas changed while reading")
@@ -152,6 +155,10 @@ class GenerationCheckpointDeltas:
                     self.current, self.directory, self.versions, self.digest = None, None, None, None
                 else:
                     self.current, self.directory, self.versions, self.digest = _load_checkpoint(self.path)
+            if self.directory is not None and self.current.get(CHECKPOINT_DIGEST) != data.get(CHECKPOINT_DIGEST):
+                # Never write a new binding into the delta chain of an older
+                # or upgraded seed. The new base must authenticate every delta.
+                self.directory, self.versions, self.digest = None, None, None
             try:
                 if compact:
                     atomic_json_write(data, str(self.path), allow_nonatomic_fallback=False)

@@ -61,6 +61,19 @@ class _DeterministicErrorOpenAI(_SDKOpenAI):
             return False
         return super()._should_retry(response)
 
+    def _prepare_url(self, url):
+        base = self.base_url
+        base_path, separator, base_query = base.raw_path.partition(b"?")
+        if separator:
+            target = httpx2.URL(url)
+            if target.is_relative_url:
+                # SDK raw_path includes the query. Insert the operation into
+                # the path before retaining the gateway's exact parameters.
+                path, _, query = target.raw_path.lstrip(b"/").partition(b"?")
+                queries = b"&".join(filter(None, (base_query, query)))
+                return base.copy_with(raw_path=base_path + path + b"?" + queries)
+        return super()._prepare_url(url)
+
 
 # One client constructor for the whole app, so the retry policy above cannot be
 # bypassed by a caller reaching for the bare SDK class. Tests patch this name.
