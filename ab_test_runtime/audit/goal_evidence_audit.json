@@ -1050,22 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-23T10:53:52",
+  "written": "2026-11-23T11:11:35",
   "host": "mitch-linux",
   "git": {
-   "commit": "4cc49727d38c7e7b09b0003a4384ad727be92a23",
+   "commit": "188fb96033f1a1ce63170191b2ac52a6338ecee0",
    "branch": "t3/fix-2184-launcher-reset",
    "dirty": true,
-   "source_state": "dirty:8a21703e8129",
+   "source_state": "dirty:2f013e2e29d2",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "A  app/reset_artifact_roots.py",
-    "M  app/tests/test_launcher_lifecycle.py",
-    "M  app/tests/test_launcher_reset_recovery.py",
-    "A  app/tests/test_reset_book_artifacts.py",
-    "M  app/tests/unit_test_inventory.json",
-    "M  launcher_lifecycle.js",
-    "M  reset.js"
+    "M  app/tests/test_launcher_supervisor.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",
