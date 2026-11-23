@@ -6,6 +6,7 @@ import io
 from itertools import product
 import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -48,6 +49,442 @@ def create_book(directory, *, saved=False, raw=RAW, source=None):
 
 
 class ReviewSourceSpanTests(unittest.TestCase):
+    def test_heading_split_passes_when_real_repair_differs_outside_saved_span(self):
+        heading, narration = 'Chapter 1: The Gate', 'Dawn broke.'
+        covered = f'{heading}\n\n{narration}'
+        # A damaged character in an uncovered tail makes the real preprocessing
+        # produce two prepared variants (one still damaged, one repaired) that
+        # both verify at the saved span. Capture must still succeed so the
+        # production split can bind exact coordinates.
+        raw = covered + '\nUnreviewed appendix with a bad \ufffd character.'
+        source = [row(covered, speaker='NARRATOR', source_span=[0, len(covered)])]
+        reply = [row(heading, speaker='NARRATOR'), row(narration, speaker='NARRATOR')]
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=source)
+            verified = review.get_review_source_text(directory, str(script), script.read_bytes(), entries)
+            self.assertIsNotNone(verified)
+            bound, report = review.get_review_source_binding(entries, reply, source_text=verified)
+            self.assertTrue(report['passed'], report)
+            self.assert_mapped(bound, verified)
+            self.assertEqual([[0, len(heading)], [len(heading) + 2, len(covered)]],
+                             [entry['source_span'] for entry in bound])
+            # Altered, reordered and omitted text stay refused even when capture works.
+            for invalid in (reply[::-1], [reply[0], row('Dusk fell.')], [reply[0]]):
+                self.assertFalse(review.get_review_source_binding(
+                    entries, invalid, source_text=verified)[1]['passed'])
+
+    def test_capture_keeps_ambiguity_when_covered_bytes_differ(self):
+        covered = 'He said "go" now. Please open the gate.'
+        raw = covered + '\nUnreviewed appendix.'
+        source = [row(covered, speaker='NARRATOR', source_span=[0, len(covered)])]
+        # Same-length quote swap normalizes identically and keeps coordinates,
+        # but the raw bytes differ at the covered interval; the fix must not
+        # collapse that ambiguity into a plausible-looking match.
+        covered_variant = covered.replace('"', '“')
+        variant = covered_variant + '\nRepaired appendix.'
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, entries = create_book(directory, raw=raw, source=source)
+            with patch('generate_script.get_preprocessed_source', return_value=(raw, {})), \
+                    patch('three_pass_generate.prepare_source_text', return_value=(variant, {})):
+                self.assertIsNone(review.get_review_source_text(
+                    directory, str(script), script.read_bytes(), entries))
+
+    def test_reports_all_independent_split_errors_in_one_attempt(self):
+        reply = [row(text) for text in ('Rain fell.', 'Please open the gate.',
+                                       'Take the', 'blue cup.')]
+        original = copy.deepcopy(SOURCE)
+        client, calls = client_for([(reply, 'stop')])
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            output = review.review_batch(client, 'fixture', SOURCE, 1, 1,
+                                         LLMGenParams(), max_retries=0, source_text=None)
+        self.assertIsNone(output)
+        self.assertEqual(original, SOURCE)
+        message = stdout.getvalue()
+        self.assertEqual(1, message.count('entry=1; fragment=1; reason=source_unavailable'))
+        self.assertEqual(1, message.count('entry=2; fragment=1; reason=source_unavailable'))
+        self.assertLess(message.index('entry=1;'), message.index('entry=2;'))
+
+    def test_saved_parent_cannot_launder_an_unproven_child_interval(self):
+        raw = ('Manifesto.\nStone bell  rang.\n'
+               'Original Web Novel Chapter - Complete.\n'
+               'Original Translation by Tester.\n'
+               'Manifesto.\nStone  bell rang.\n')
+        parent = [row('Manifesto.', speaker='NARRATOR', source_span=[0, 10]),
+                  row('Stone bell rang.', speaker='NARRATOR')]
+        child = copy.deepcopy(parent)
+        child[1]['source_span'] = [11, 28]
+        with tempfile.TemporaryDirectory() as directory:
+            saved, _, _ = create_book(directory, saved=True, raw=raw, source=parent)
+            state_path = Path(directory, 'state.json')
+            state = json.loads(state_path.read_text(encoding='utf-8'))
+            state['input_file_path'] = str(saved)
+            state_path.write_text(json.dumps(state))
+            script = Path(directory, 'annotated_script.json')
+            script.write_text(json.dumps(child))
+            binding = make_script_selection_binding(get_book_operation_token(directory),
+                hashlib.sha256(saved.read_bytes()).hexdigest(), script.read_bytes(),
+                source_path=str(saved))
+            script.with_suffix('.selection_binding.json').write_text(json.dumps(binding))
+            # The parent proved only [0,10]; the two prepared candidates disagree
+            # at [11,28], so the child's new interval must not be inherited.
+            self.assertIsNone(review.get_review_source_text(
+                directory, str(script), script.read_bytes(), child))
+            original = script.read_bytes()
+            reply = [row(text, speaker='NARRATOR') for text in
+                     ('Manifesto.', 'Stone', 'bell rang.')]
+            client, calls = client_for([(reply, 'stop')] * 3)
+            with self.cli(directory, client):
+                review.main()
+            self.assertEqual(original, script.read_bytes())
+            self.assertFalse(Path(str(script) + '.review_completed.json').exists())
+            self.assertTrue(Path(str(script) + '.review_checkpoint.json').exists())
+
+    def test_saved_parent_child_offsets_cannot_select_their_own_witness(self):
+        raw = ('Manifesto.\nStone bell  rang.\n'
+               'Original Web Novel Chapter - Complete.\n'
+               'Original Translation by Tester.\n'
+               'Manifesto.\nStone bell rang.\n')
+        parent = [row('Manifesto.', speaker='NARRATOR', source_span=[0, 10]),
+                  row('Stone bell rang.', speaker='NARRATOR')]
+        child = copy.deepcopy(parent)
+        child[1]['source_span'] = [11, 27]
+        with tempfile.TemporaryDirectory() as directory:
+            saved, _, _ = create_book(directory, saved=True, raw=raw, source=parent)
+            state_path = Path(directory, 'state.json')
+            state = json.loads(state_path.read_text(encoding='utf-8'))
+            state['input_file_path'] = str(saved)
+            state_path.write_text(json.dumps(state))
+            script = Path(directory, 'annotated_script.json')
+            script.write_text(json.dumps(child))
+            binding = make_script_selection_binding(get_book_operation_token(directory),
+                hashlib.sha256(saved.read_bytes()).hexdigest(), script.read_bytes(),
+                source_path=str(saved))
+            script.with_suffix('.selection_binding.json').write_text(json.dumps(binding))
+            # One parent-verified variant disagrees at [11,27]. The child must
+            # not drop it and publish offsets from the surviving witness alone;
+            # the contradiction is a distinct signal, not ordinary "no source".
+            with self.assertRaises(review.ReviewSourceContradiction):
+                review.get_review_source_snapshot(
+                    directory, str(script), script.read_bytes(), child)
+            original = script.read_bytes()
+            reply = [row(text, speaker='NARRATOR') for text in
+                     ('Manifesto.', 'Stone', 'bell rang.')]
+            client, calls = client_for([(reply, 'stop')] * 3)
+            with self.assertRaisesRegex(ValueError, 'contradicts'):
+                with self.cli(directory, client):
+                    review.main()
+            self.assertEqual(original, script.read_bytes())
+            self.assertEqual(0, len(calls))
+            self.assertFalse(Path(str(script) + '.review_completed.json').exists())
+            self.assertFalse(Path(str(script) + '.review_checkpoint.json').exists())
+
+    def test_historical_receipt_from_unproven_witness_is_not_reused(self):
+        raw = ('Manifesto.\nStone bell  rang.\n'
+               'Original Web Novel Chapter - Complete.\n'
+               'Original Translation by Tester.\n'
+               'Manifesto.\nStone  bell rang.\n')
+        parent = [row('Manifesto.', speaker='NARRATOR', source_span=[0, 10]),
+                  row('Stone bell rang.', speaker='NARRATOR')]
+        child = [row('Manifesto.', speaker='NARRATOR', source_span=[0, 10]),
+                 row('bell rang.', speaker='NARRATOR', source_span=[18, 28])]
+        with tempfile.TemporaryDirectory() as directory:
+            saved, _, _ = create_book(directory, saved=True, raw=raw, source=parent)
+            state_path = Path(directory, 'state.json')
+            state = json.loads(state_path.read_text(encoding='utf-8'))
+            state['input_file_path'] = str(saved)
+            state_path.write_text(json.dumps(state))
+            script = Path(directory, 'annotated_script.json')
+            script.write_text(json.dumps(child))
+            binding = make_script_selection_binding(get_book_operation_token(directory),
+                hashlib.sha256(saved.read_bytes()).hexdigest(), script.read_bytes(),
+                source_path=str(saved))
+            script.with_suffix('.selection_binding.json').write_text(json.dumps(binding))
+            parent_snapshot = review.get_review_source_snapshot(
+                directory, str(saved), saved.read_bytes(), parent)
+            self.assertIsNotNone(parent_snapshot)
+            laundered = next(text for text in parent_snapshot['candidates']
+                             if _normalize(text[18:28]) == 'bell rang.')
+            reply = [row(text, speaker='NARRATOR', instruct='Softly.')
+                     for text in ('Manifesto.', 'bell rang.')]
+            client, calls = client_for([(reply, 'stop')] * 4)
+            # Recreate the historical receipt that a child-selected witness
+            # would have published, then check the corrected code refuses it
+            # even when the reply only edits annotations.
+            with patch.object(review, 'get_review_source_snapshot',
+                              return_value={**parent_snapshot, 'text': laundered}):
+                with self.cli(directory, client):
+                    review.main()
+            receipt = Path(str(script) + '.review_completed.json')
+            self.assertTrue(receipt.exists())
+            self.assertEqual(1, len(calls))
+            original = script.read_bytes()
+            receipt_bytes = receipt.read_bytes()
+            for _ in range(2):
+                with self.assertRaisesRegex(ValueError, 'contradicts'):
+                    with self.cli(directory, client) as log:
+                        review.main()
+                self.assertNotIn('No changes since the completed review', log.getvalue())
+                self.assertEqual(original, script.read_bytes())
+                self.assertEqual(receipt_bytes, receipt.read_bytes())
+                self.assertEqual(1, len(calls))
+
+    def test_conflicting_child_refuses_annotation_edits_over_repeated_runs(self):
+        raw = ('Manifesto.\nStone bell  rang.\n'
+               'Original Web Novel Chapter - Complete.\n'
+               'Original Translation by Tester.\n'
+               'Manifesto.\nStone bell rang.\n')
+        parent = [row('Manifesto.', speaker='NARRATOR', source_span=[0, 10]),
+                  row('Stone bell rang.', speaker='NARRATOR')]
+        child = copy.deepcopy(parent)
+        child[1]['source_span'] = [11, 27]
+        with tempfile.TemporaryDirectory() as directory:
+            saved, _, _ = create_book(directory, saved=True, raw=raw, source=parent)
+            state_path = Path(directory, 'state.json')
+            state = json.loads(state_path.read_text(encoding='utf-8'))
+            state['input_file_path'] = str(saved)
+            state_path.write_text(json.dumps(state))
+            script = Path(directory, 'annotated_script.json')
+            script.write_text(json.dumps(child))
+            binding = make_script_selection_binding(get_book_operation_token(directory),
+                hashlib.sha256(saved.read_bytes()).hexdigest(), script.read_bytes(),
+                source_path=str(saved))
+            script.with_suffix('.selection_binding.json').write_text(json.dumps(binding))
+            reply = [row(text, speaker='NARRATOR', instruct='Softly.')
+                     for text in ('Manifesto.', 'Stone bell rang.')]
+            client, calls = client_for([(reply, 'stop')] * 4)
+            original = script.read_bytes()
+            for _ in range(3):
+                with self.assertRaisesRegex(ValueError, 'contradicts'):
+                    with self.cli(directory, client):
+                        review.main()
+                self.assertEqual(original, script.read_bytes())
+            self.assertEqual(0, len(calls))
+            self.assertFalse(Path(str(script) + '.review_completed.json').exists())
+            self.assertFalse(Path(str(script) + '.review_checkpoint.json').exists())
+
+    def test_literal_and_scoped_contradictions_refuse_in_both_cli_modes(self):
+        from literal_policy import SCRIPT_POLICY_KEY, bind_literal_policy, get_literal_policy
+        from dialogue_spans import mark_entries
+        from script_selection_binding import (get_scope_cut_from_binding, parse_script_binding,
+                                              publish_saved_script_edit)
+        from tests.test_review_scoped_source_span import (
+            add_scope_evidence, align_cut, build_scoped_rows, make_saved_hop,
+            FinalAstraFindingsTests, RAW as scoped_raw, RAW_ROWS as scoped_rows,
+            get_preprocessed_source)
+
+        def literal_book(directory):
+            raw = 'Dawn broke. Night came.'
+            parent = bind_literal_policy(raw, [
+                row('Dawn broke.', speaker='NARRATOR', source_span=[0, 11]),
+                row('Night came.', speaker='NARRATOR', source_span=[12, 23])])
+            child = copy.deepcopy(parent)
+            child[1]['source_span'] = [11, 21]
+            saved, _, _ = create_book(directory, saved=True, raw=raw, source=parent)
+            state_path = Path(directory, 'state.json')
+            state = json.loads(state_path.read_text(encoding='utf-8'))
+            state['input_file_path'] = str(saved)
+            state_path.write_text(json.dumps(state))
+            script = Path(directory, 'annotated_script.json')
+            script.write_text(json.dumps(child))
+            binding = make_script_selection_binding(get_book_operation_token(directory),
+                hashlib.sha256(saved.read_bytes()).hexdigest(), script.read_bytes(),
+                source_path=str(saved))
+            script.with_suffix('.selection_binding.json').write_text(json.dumps(binding))
+            return script, child
+
+        def scoped_book(directory):
+            raw, rows = FinalAstraFindingsTests().punctuation_book('Exclude me!', '!')
+            parent, _ = build_scoped_rows(raw, rows, 1)
+            child, _ = build_scoped_rows(raw, rows, 1, ancestor=get_literal_policy(parent))
+            align_cut(child, parent)
+            bad = copy.deepcopy(child)
+            bad[0]['source_span'] = [10, 11]
+            script, saved, _ = make_saved_hop(directory, raw=raw, original_rows=parent,
+                                              active_rows=bad, evidence_rows=child)
+            add_scope_evidence(saved, raw, mark_entries(rows, raw), parent)
+            return script, bad
+
+        def stripped_scoped_book(directory):
+            raw, rows = FinalAstraFindingsTests().punctuation_book('Exclude me!', '!')
+            parent, _ = build_scoped_rows(raw, rows, 1)
+            child = copy.deepcopy(parent)
+            child[0].pop(SCRIPT_POLICY_KEY)
+            self.assertEqual([13, 14], child[0]['source_span'])
+            child[0]['source_span'] = [10, 11]
+            script, saved, _ = make_saved_hop(
+                directory, raw=raw, original_rows=parent, active_rows=child)
+            add_scope_evidence(saved, raw, mark_entries(rows, raw), parent)
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(saved), saved.read_bytes(), parent))
+            return script, child
+
+        def stripped_scoped_book_with_frozen_cut(directory):
+            raw, rows = FinalAstraFindingsTests().punctuation_book('Exclude me!', '!')
+            parent, _ = build_scoped_rows(raw, rows, 1)
+            child, _ = build_scoped_rows(raw, rows, 1, ancestor=get_literal_policy(parent))
+            align_cut(child, parent)
+            script, saved, _ = make_saved_hop(directory, raw=raw, original_rows=parent,
+                                              active_rows=child)
+            add_scope_evidence(saved, raw, mark_entries(rows, raw), parent)
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(saved), saved.read_bytes(), parent))
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(script), script.read_bytes(), child))
+            binding = script.with_suffix('.selection_binding.json')
+            scope_cut = get_scope_cut_from_binding(parse_script_binding(binding.read_bytes()))
+            self.assertIsNotNone(scope_cut)
+
+            edited = copy.deepcopy(child)
+            edited[0].pop(SCRIPT_POLICY_KEY)
+            self.assertEqual([13, 14], edited[0]['source_span'])
+            self.assertEqual(raw[13:14], raw[10:11])
+            edited[0]['source_span'] = [10, 11]
+            publish_saved_script_edit(directory, str(script.parent), str(script),
+                                      script.read_bytes(), json.dumps(edited).encode('utf-8'))
+            self.assertEqual(scope_cut, get_scope_cut_from_binding(
+                parse_script_binding(binding.read_bytes())))
+            return script, edited
+
+        def legacy_scoped_book(directory, field):
+            header = ('Manifesto.\nTranslator note.\nOriginal Web Novel Chapter ― Complete.\n'
+                      'Original Translation by Tester.\n\n')
+            source = header + scoped_raw
+            raw, _ = get_preprocessed_source(source, strip_front_matter=True)
+            digest = hashlib.sha256(source.encode('utf-8')).hexdigest()
+            parent, _ = build_scoped_rows(raw, scoped_rows, 1, strip=True, input_sha256=digest)
+            child, _ = build_scoped_rows(raw, scoped_rows, 2, ancestor=get_literal_policy(parent),
+                                        strip=True, input_sha256=digest)
+            align_cut(child, parent)
+            script, saved, _ = make_saved_hop(directory, raw=source, original_rows=parent,
+                                              active_rows=child, evidence_rows=[])
+            self.assertIsNotNone(add_scope_evidence(saved, raw, mark_entries(scoped_rows, raw), parent))
+            self.assertEqual(raw, review.get_review_source_text(
+                directory, str(script), script.read_bytes(), child))
+            binding = script.with_suffix('.selection_binding.json')
+            self.assertIsNone(get_scope_cut_from_binding(parse_script_binding(binding.read_bytes())))
+
+            edited = copy.deepcopy(child)
+            edited[0][SCRIPT_POLICY_KEY][field] = '5' * 64 if field == 'input_sha256' else False
+            publish_saved_script_edit(directory, str(script.parent), str(script),
+                                      script.read_bytes(), json.dumps(edited).encode('utf-8'))
+            self.assertIsNone(get_scope_cut_from_binding(parse_script_binding(binding.read_bytes())))
+            return script, edited
+
+        fixtures = ((literal_book, {}), (scoped_book, {}), (stripped_scoped_book, {}),
+                    (stripped_scoped_book_with_frozen_cut, {}),
+                    (legacy_scoped_book, {'field': 'input_sha256'}),
+                    (legacy_scoped_book, {'field': 'strip_front_matter'}))
+        for build, options in fixtures:
+            for labels in (False, True):
+                with self.subTest(fixture=build.__name__, labels=labels, **options), \
+                        tempfile.TemporaryDirectory() as directory:
+                    script, entries = build(directory, **options)
+                    original = script.read_bytes()
+                    binding = script.with_suffix('.selection_binding.json')
+                    original_binding = binding.read_bytes()
+                    if labels:
+                        replies = [[dict(n=index, speaker=entry['speaker'], instruct='Softly.')
+                                    for index, entry in enumerate(entries[start:start + 2])]
+                                   for start in range(0, len(entries), 2)]
+                    else:
+                        replies = [[row(entry['text'], speaker=entry['speaker'], instruct='Softly.')
+                                    for entry in entries[start:start + 2]]
+                                   for start in range(0, len(entries), 2)]
+                    client, calls = client_for([(reply, 'stop') for reply in replies] * 4)
+                    arg = None if script.name == 'annotated_script.json' else script
+                    for _ in range(2):
+                        with self.assertRaisesRegex(ValueError, 'contradicts'):
+                            with self.cli(directory, client, script=arg, labels_only=labels):
+                                review.main()
+                        self.assertEqual(original, script.read_bytes())
+                        self.assertEqual(original_binding, binding.read_bytes())
+                        self.assertFalse(Path(str(script) + '.review_completed.json').exists())
+                        self.assertFalse(Path(str(script) + '.review_checkpoint.json').exists())
+                    self.assertEqual(0, len(calls))
+
+    def test_saved_parent_unambiguous_child_split_publishes_and_reuses_receipt(self):
+        heading, narration = 'Chapter 7', 'Snow covered the steps.'
+        raw = ('Intro.\n' + heading + '\n\n' + narration +
+               '\nLong appendix with a damaged \ufffd glyph outside the script.')
+        start = raw.index(heading)
+        end = raw.index(narration) + len(narration)
+        parent = [row(heading + ' ' + narration, speaker='NARRATOR', source_span=[start, end])]
+        child = copy.deepcopy(parent)
+        reply = [row(heading, speaker='NARRATOR'), row(narration, speaker='NARRATOR')]
+        with tempfile.TemporaryDirectory() as directory:
+            saved, _, _ = create_book(directory, saved=True, raw=raw, source=parent)
+            state_path = Path(directory, 'state.json')
+            state = json.loads(state_path.read_text(encoding='utf-8'))
+            state['input_file_path'] = str(saved)
+            state_path.write_text(json.dumps(state))
+            script = Path(directory, 'annotated_script.json')
+            script.write_text(json.dumps(child))
+            binding = make_script_selection_binding(get_book_operation_token(directory),
+                hashlib.sha256(saved.read_bytes()).hexdigest(), script.read_bytes(),
+                source_path=str(saved))
+            script.with_suffix('.selection_binding.json').write_text(json.dumps(binding))
+            verified = review.get_review_source_text(directory, str(script), script.read_bytes(), child)
+            self.assertIsNotNone(verified)
+            client, calls = client_for([(reply, 'stop')])
+            with self.cli(directory, client) as log:
+                review.main()
+                published = script.read_bytes()
+                review.main()
+            self.assertEqual(published, script.read_bytes())
+            self.assertIn('No changes since the completed review', log.getvalue())
+            output = json.loads(published)
+            self.assertEqual([heading, narration], [entry['text'] for entry in output])
+            self.assertEqual([[start, start + len(heading)], [start + len(heading) + 2, end]],
+                             [entry['source_span'] for entry in output])
+            self.assert_mapped(output, raw)
+            self.assertTrue(Path(str(script) + '.review_completed.json').exists())
+
+    def test_mixed_findings_report_in_source_entry_order(self):
+        source = [row('A blue bird.', source_span=[0, 12]),
+                  row('A green bird.', source_span=[13, 26]),
+                  row('A quiet pond.', source_span=[27, 51]),
+                  row('Two frogs.', source_span=[27, 51])]
+        reply = [row(text) for text in ('A blue', 'bird.', 'A green', 'bird.',
+                                       'A quiet', 'pond. Two frogs.')]
+        client, calls = client_for([(reply, 'stop')])
+        log = io.StringIO()
+        with redirect_stdout(log):
+            output = review.review_batch(client, 'fixture', source, 1, 1,
+                                         LLMGenParams(), max_retries=0)
+        self.assertIsNone(output)
+        warning = next(line for line in log.getvalue().splitlines()
+                       if 'failed quality validation' in line)
+        self.assertEqual(['1', '2', '3', '4'], re.findall(r'entry=(\d+);', warning))
+        self.assertEqual(4, warning.count('Review fragments require verified'))
+        clean = [row('A blue bird.', source_span=[0, 12]),
+                 row('A green bird.', source_span=[13, 26])]
+        clean_reply = [row(text) for text in ('A blue', 'bird.', 'A green bird.')]
+        client, calls = client_for([(clean_reply, 'stop')])
+        with redirect_stdout(io.StringIO()):
+            bound = review.review_batch(client, 'fixture', clean, 1, 1, LLMGenParams(),
+                                        max_retries=0, source_text='A blue bird. A green bird.')
+        self.assertIsNotNone(bound)
+        self.assertEqual([[0, 6], [7, 12], [13, 26]], [entry['source_span'] for entry in bound])
+
+    def test_cli_publishes_verified_heading_split(self):
+        heading, narration = 'Chapter 1: The Gate', 'Dawn broke.'
+        covered = f'{heading}\n\n{narration}'
+        raw = covered + '\nUnreviewed appendix with a bad \ufffd character.'
+        source = [row(covered, speaker='NARRATOR', source_span=[0, len(covered)])]
+        reply = [row(heading, speaker='NARRATOR'), row(narration, speaker='NARRATOR')]
+        with tempfile.TemporaryDirectory() as directory:
+            script, _, _ = create_book(directory, raw=raw, source=source)
+            client, calls = client_for([(reply, 'stop')])
+            with self.cli(directory, client):
+                review.main()
+            output = json.loads(script.read_bytes())
+            self.assertEqual(2, len(output))
+            self.assert_mapped(output, raw)
+            self.assertEqual([[0, len(heading)], [len(heading) + 2, len(covered)]],
+                             [entry['source_span'] for entry in output])
+            self.assertTrue(Path(str(script) + '.review_completed.json').exists())
+
     def inherited_partition(self):
         prefix = 'Clouds gathered.\nChapter 7\nThe lantern glowed.'
         raw = prefix + '\n\n' + RAW

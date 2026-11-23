@@ -354,7 +354,13 @@ def run_cli_at(directory, script, replies, *, raw=RAW, config=None):
         stack.enter_context(patch.object(review, 'wait_for_vram_headroom',
                                          side_effect=AssertionError('No GPU calls')))
         stack.enter_context(patch('generate_script.time.sleep'))
-        review.main()
+        try:
+            review.main()
+        except ValueError as error:
+            # A proven saved-parent contradiction is refused before publication.
+            # Any other ValueError is a real failure and must still surface.
+            if 'contradicts' not in str(error):
+                raise
     return json.loads(script.read_bytes()), stdout.getvalue(), calls, script.read_bytes() != before
 
 

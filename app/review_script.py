@@ -2535,8 +2535,18 @@ def is_review_inherited_literal_policy(active, original):
 
 
 def get_review_source_text(data_dir, script_path, script_bytes, entries, *, _source_depth=0):
-    snapshot = get_review_source_snapshot(data_dir, script_path, script_bytes, entries,
-                                         _source_depth=_source_depth)
+    """Legacy text-only view of capture.
+
+    A proven contradiction is reported distinctly by ``get_review_source_snapshot``
+    and refused by the CLI. This read-only helper keeps its historical "no usable
+    text" answer so callers that only need coordinates cannot mistake it for a
+    usable source.
+    """
+    try:
+        snapshot = get_review_source_snapshot(data_dir, script_path, script_bytes, entries,
+                                             _source_depth=_source_depth)
+    except ReviewSourceContradiction:
+        return None
     return snapshot['text'] if snapshot is not None else None
 
 
@@ -2544,6 +2554,35 @@ def is_review_source_span_script(entries):
     """True when any entry carries a source_span. The one test for both the
     receipt contract and source capture, so the two cannot disagree."""
     return any('source_span' in entry for entry in entries)
+
+
+class ReviewSourceContradiction(ValueError):
+    """A verified saved parent cannot prove the child's claimed intervals.
+
+    Distinct from a missing, changed or unbound source: the evidence exists and
+    disagrees, so an annotation-only or boundary-preserving reply must not be
+    allowed to publish, mint a receipt, or reuse an older one.
+    """
+
+
+def _resolve_source_ambiguity(candidates, entries, policy):
+    """Choose the one candidate whose covered coordinates are provable.
+
+    Repair/cleanup can differ outside the ranges a script actually covers, so
+    several prepared variants can verify at the same saved coordinates. Collapse
+    that ambiguity only when every saved interval is byte-identical at those
+    coordinates in every candidate. A child that adds coverage over a saved
+    parent must pass this test against the parent's *full* candidate set, or it
+    inherits coordinates the parent never proved (Rule 21).
+    """
+    if len(candidates) == 1:
+        return next(iter(candidates))
+    if policy is None:
+        intervals = {tuple(row['source_span']) for row in entries if 'source_span' in row}
+        if intervals and all(len({text[start:end] for text in candidates}) == 1
+                             for start, end in intervals):
+            return min(candidates)
+    raise ValueError('Prepared review source coordinates are unavailable or ambiguous')
 
 
 def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, _source_depth=0):
@@ -2603,10 +2642,9 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
         decoded, _encoding = get_decoded_source_text(raw)
         decoded = get_normalized_source_newlines(decoded)
         policy = get_literal_policy(entries)
-        if scope_cut is not None and (policy is None
-                or policy['boundary'] != 'selected_source_words_v1'
-                or get_scope_identity(policy) != scope_cut['scope_policy_sha256']):
-            raise ValueError('Scope evidence requires its established scoped child policy')
+        scope_policy_mismatch = scope_cut is not None and (policy is None
+            or policy['boundary'] != 'selected_source_words_v1'
+            or get_scope_identity(policy) != scope_cut['scope_policy_sha256'])
         if Path(source_path).suffix.lower() == '.json':
             if _source_depth:
                 raise ValueError('Review source binding chain is not an original book source')
@@ -2614,21 +2652,50 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
             if not isinstance(source_entries, list) or any(not isinstance(row, dict) for row in source_entries):
                 raise ValueError('Selected saved source is not a script')
             original = get_review_source_snapshot(data_dir, source_path, raw, source_entries, _source_depth=1)
-            text = original['text'] if original is not None else None
-            if text is None or not is_review_literal_source(text, policy):
+            if original is None:
                 raise ValueError('Selected saved source has no verified original coordinates')
+            if scope_policy_mismatch:
+                raise ReviewSourceContradiction(
+                    'Scope evidence requires its established scoped child policy')
+            # The parent may be provable only at its own intervals. Keep every
+            # candidate it admitted: a child adding coverage has to verify at
+            # all of them, or it borrows authority the parent never established.
+            parent_candidates = original.get('candidates') or {original['text']}
+            child_candidates = set()
+            for candidate in parent_candidates:
+                if not is_review_literal_source(candidate, policy):
+                    continue
+                try:
+                    resolved = get_review_source_entries(entries, candidate)
+                    if policy and policy['boundary'] == 'selected_source_words_v1':
+                        verify_review_scoped_source_rows(
+                            candidate, resolved, policy, parent_entries=source_entries,
+                            scope_cut=scope_cut)
+                except ValueError as error:
+                    # A child must be proved at every alternative the parent
+                    # verified, in every authority mode. Dropping a disagreeing
+                    # one lets the child's own claimed offsets pick the witness,
+                    # publishing spans into the wrong variant and laundering old
+                    # receipts. This strengthens, never replaces, the literal
+                    # digest and independent scope-cut checks above.
+                    raise ReviewSourceContradiction(
+                        'Child source intervals are not proved by every parent candidate'
+                    ) from error
+                child_candidates.add(candidate)
+            if not child_candidates:
+                raise ReviewSourceContradiction(
+                    'No parent-verified source proves the child literal or scoped policy')
+            text = _resolve_source_ambiguity(child_candidates, entries, policy)
             source_policy = get_literal_policy(source_entries)
             if not is_review_inherited_literal_policy(policy, source_policy):
-                raise ValueError('Review inherited literal policy differs from the saved source policy')
+                raise ReviewSourceContradiction(
+                    'Review inherited literal policy differs from the saved source policy')
             terminal = original['identity']['sources'][-1]['source_sha256']
             for inherited in (policy, source_policy):
                 if (inherited is not None and 'input_sha256' in inherited
                         and inherited['input_sha256'] != terminal):
-                    raise ValueError('Inherited literal source identity differs from the original source')
-            resolved = get_review_source_entries(entries, text)
-            if policy and policy['boundary'] == 'selected_source_words_v1':
-                verify_review_scoped_source_rows(
-                    text, resolved, policy, parent_entries=source_entries, scope_cut=scope_cut)
+                    raise ReviewSourceContradiction(
+                        'Inherited literal source identity differs from the original source')
             choices = set(original.get('strip_choices', (False, True)))
             if source_policy is not None and 'strip_front_matter' in source_policy:
                 parent_choice = source_policy['strip_front_matter']
@@ -2638,10 +2705,13 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
             child_choice = policy.get('strip_front_matter') if policy else None
             if child_choice is not None:
                 if child_choice not in choices:
-                    raise ValueError('Child literal preprocessing choice differs from the captured source')
+                    raise ReviewSourceContradiction(
+                        'Child literal preprocessing choice differs from the captured source')
                 choices = {child_choice}
             identity['sources'].extend(original['identity']['sources'])
             return {'text': text, 'identity': identity, 'strip_choices': choices}
+        if scope_policy_mismatch:
+            raise ValueError('Scope evidence requires its established scoped child policy')
         if policy and policy.get('input_sha256', digest) != digest:
             raise ValueError('Literal source identity differs from the captured source')
         strip_choices = ((policy['strip_front_matter'],) if policy
@@ -2664,9 +2734,15 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
                     continue
                 sources.add(text)
                 valid_choices.add(strip_front_matter)
-        if len(sources) != 1:
-            raise ValueError('Prepared review source coordinates are unavailable or ambiguous')
-        return {'text': sources.pop(), 'identity': identity, 'strip_choices': valid_choices}
+        text = _resolve_source_ambiguity(sources, entries, policy)
+        return {'text': text, 'identity': identity, 'strip_choices': valid_choices,
+                'candidates': frozenset(sources)}
+    except ReviewSourceContradiction as error:
+        # Never collapse a proven contradiction into the legacy "no source"
+        # path: that path deliberately tolerates annotation-only reviews, which
+        # would otherwise publish over coordinates the parent disproved.
+        record_failure('review_source_contradiction', error, task='review')
+        raise
     except (OSError, ValueError, TypeError, UnicodeError) as error:
         record_failure('review_source_unavailable', error, task='review')
         return None
@@ -2793,20 +2869,33 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                     warnings.append({**warning, 'entry_number': number})
         position = end + 1
     if any(fragment['changed'] for fragment in span_fragments.values()):
-        entry_number = None
-        try:
-            for fragment in span_fragments.values():
-                if not fragment['changed']:
-                    continue
-                original, rows = fragment['original'], fragment['rows']
-                entry_number = fragment['entry_number']
+        fragment_errors = []
+        for fragment in span_fragments.values():
+            if not fragment['changed']:
+                continue
+            original, rows = fragment['original'], fragment['rows']
+            try:
                 spans = get_source_span_fragments(source_text, original['text'], original['source_span'],
                                                   [row['text'] for row in rows])
-                for row, span in zip(rows, spans):
-                    row['source_span'] = span
-            verify_review_source_spans(bound, source_text)
-        except SourceSpanError as error:
-            findings.append(get_review_source_span_finding(error, entry_number=entry_number))
+            except SourceSpanError as error:
+                fragment_errors.append(get_review_source_span_finding(
+                    error, entry_number=fragment['entry_number']))
+                continue
+            for row, span in zip(rows, spans):
+                row['source_span'] = span
+        findings.extend(fragment_errors)
+        if not fragment_errors:
+            try:
+                verify_review_source_spans(bound, source_text)
+            except SourceSpanError as error:
+                findings.append(get_review_source_span_finding(error))
+    # Inline findings (conflicting intervals, no source) and deferred fragment
+    # errors are produced in different passes. Sort by source entry, stably, so
+    # the one-attempt warning is in entry order with no failure moved, lost or
+    # duplicated; entries without a number sort last rather than first.
+    findings.sort(key=lambda finding: (
+        finding['entry_number'] if isinstance(finding.get('entry_number'), int) else 1 << 30,
+        finding.get('fragment_number') if isinstance(finding.get('fragment_number'), int) else 0))
     return (None if findings else bound), {"passed": not findings, "findings": findings,
                                          'warnings': warnings}
 
@@ -3481,8 +3570,16 @@ def main():
 
     input_entries = entries
     source_sha256 = _entries_fingerprint(entries)
-    review_source_snapshot = (None if gen_params.review_labels_only else
-        get_review_source_snapshot(data_dir, script_path, original_script_bytes, entries))
+    try:
+        # Check even for labels-only: a proven contradiction must also block the
+        # annotation-only path from minting a reusable completion receipt.
+        verified_snapshot = get_review_source_snapshot(
+            data_dir, script_path, original_script_bytes, entries)
+    except ReviewSourceContradiction as error:
+        raise ValueError(
+            'The review source contradicts its verified saved parent; review refused'
+        ) from error
+    review_source_snapshot = None if gen_params.review_labels_only else verified_snapshot
     review_source_text = review_source_snapshot['text'] if review_source_snapshot is not None else None
     review_source_identity = review_source_snapshot['identity'] if review_source_snapshot is not None else None
     companions = get_review_companion_identity(args)
