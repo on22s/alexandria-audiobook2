@@ -1050,19 +1050,22 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-23T09:24:35",
+  "written": "2026-11-23T10:53:52",
   "host": "mitch-linux",
   "git": {
-   "commit": "af522a5f2e3d7f194d167a79c93f863829c5444e",
-   "branch": "t3/fix-epub-experiment-upload-discovery",
+   "commit": "4cc49727d38c7e7b09b0003a4384ad727be92a23",
+   "branch": "t3/fix-2184-launcher-reset",
    "dirty": true,
-   "source_state": "dirty:2ac6e6f64243",
+   "source_state": "dirty:8a21703e8129",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/experiments/epub_extraction_fidelity.py",
-    "M  app/experiments/epub_structural.py",
-    "A  app/tests/test_epub_experiment_uploads.py",
-    "M  app/tests/unit_test_inventory.json"
+    "A  app/reset_artifact_roots.py",
+    "M  app/tests/test_launcher_lifecycle.py",
+    "M  app/tests/test_launcher_reset_recovery.py",
+    "A  app/tests/test_reset_book_artifacts.py",
+    "M  app/tests/unit_test_inventory.json",
+    "M  launcher_lifecycle.js",
+    "M  reset.js"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",

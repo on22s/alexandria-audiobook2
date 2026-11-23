@@ -12,6 +12,7 @@ import book_state_transaction as books
 
 
 ROOT = Path(__file__).resolve().parents[2]
+PYTHON = os.environ.get('AA2_TEST_PYTHON', sys.executable)
 ACTIVE = ('annotated_script.json', 'voice_config.json', 'state.json', 'chunks.json')
 INTERRUPT = '''import os,sys
 from pathlib import Path
@@ -46,13 +47,11 @@ const events=[],kernel={which:()=>python,api:{stop:async r=>{events.push('stop:'
 (async()=>{
  let removed=0;
  for(const step of steps){
-  if(step.uri==='launcher_lifecycle.js'){await helper[step.method](req,()=>{},kernel);events.push(step.method)}
-  else{
-   if(step.method!=='fs.rm'){throw new Error('unexpected Reset mutation')}
-   fs.rmSync(path.join(root,step.params.path),{recursive:true,force:true});removed++;
-   if(process.argv[4]==='interrupt'){process.exit(77)}
-  }
+  if(step.uri!=='launcher_lifecycle.js'){throw new Error('unexpected Reset mutation')}
+  const outcome=await helper[step.method](req,()=>{},kernel);events.push(step.method);
+  if(step.method==='clear_active_book'){removed=outcome.removed.length}
  }
+ if(process.argv[4]==='interrupt'){process.exit(77)}
  console.log(JSON.stringify({removed,events}));
 })().catch(error=>{console.error(error);process.exitCode=1});
 '''
@@ -61,11 +60,8 @@ const events=[],kernel={which:()=>python,api:{stop:async r=>{events.push('stop:'
 class LauncherResetRecoveryTests(unittest.TestCase):
     def prepare(self, root):
         (root / 'app').mkdir()
-        for name in ('book_state_transaction.py', 'direct_path_admission.py', 'book_recovery_archive.py', 'project_scope_admission.py', 'source_upload_publication.py', 'source_upload_stage.py', 'windows_export_staging_directory.py', 'export_staging_directory.py', 'utils.py', 'loaded_module_code.py', 'adapter_publication.py',
-                     'editor_poll_snapshot.py', 'chunk_status_journal.py', 'take_retention.py','take_publication.py',
-                     'audio_take_history.py', 'take_metadata_pool.py', 'audio_generation_owner.py', 'audio_validation.py', 'export_file_io.py',
-                     'book_placeholder.py'):
-            shutil.copyfile(ROOT / 'app' / name, root / 'app' / name)
+        for source in (ROOT / 'app').glob('*.py'):
+            shutil.copyfile(source, root / 'app' / source.name)
         shutil.copyfile(ROOT / 'gpu_stats.py', root / 'gpu_stats.py')
         shutil.copyfile(ROOT / 'launcher_lifecycle.js', root / 'launcher_lifecycle.js')
         for name in ACTIVE:
@@ -105,13 +101,13 @@ class LauncherResetRecoveryTests(unittest.TestCase):
             # The fully published, not yet committed row boundary, whichever
             # primitive publishes it.
             boundary, point = self.boundaries(root)[-2]
-        result = subprocess.run([sys.executable, '-c', INTERRUPT, str(root), boundary, str(point)],
+        result = subprocess.run([PYTHON, '-c', INTERRUPT, str(root), boundary, str(point)],
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(77, result.returncode, result.stdout + result.stderr)
         self.assertTrue((root / books.JOURNAL).is_file())
 
     def reset(self, root, interrupt=False):
-        return subprocess.run(['node', '-e', RESET, str(root), str(ROOT), sys.executable,
+        return subprocess.run(['node', '-e', RESET, str(root), str(ROOT), PYTHON,
                                'interrupt' if interrupt else 'complete'], capture_output=True,
                               text=True, timeout=20,
                               env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'})
@@ -127,7 +123,7 @@ class LauncherResetRecoveryTests(unittest.TestCase):
                 self.interrupt(root, boundary, point)
                 result = self.reset(root)
                 self.assertEqual(0, result.returncode, result.stderr)
-                self.assertEqual(9, json.loads(result.stdout)['removed'])
+                self.assertEqual(len(ACTIVE), json.loads(result.stdout)['removed'])
                 with books.ensure_book_state(root):
                     pass
                 self.assertTrue(all(not (root / name).exists() for name in ACTIVE))

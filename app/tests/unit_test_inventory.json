@@ -7777,11 +7777,12 @@
   ]
   , "test_launcher_lifecycle": [
     "tests.test_launcher_lifecycle.LauncherLifecycleTests.test_all_root_writer_scripts_are_registered_and_callers_are_excluded"
+    , "tests.test_launcher_lifecycle.LauncherLifecycleTests.test_cleanup_has_no_fixed_launcher_timeout"
     , "tests.test_launcher_lifecycle.LauncherLifecycleTests.test_foreign_missing_or_unmanaged_caller_cannot_stop_any_checkout_jobs"
     , "tests.test_launcher_lifecycle.LauncherLifecycleTests.test_held_shutdown_is_awaited_and_each_success_log_follows_completion"
     , "tests.test_launcher_lifecycle.LauncherLifecycleTests.test_real_writer_children_exit_before_reset_and_saved_libraries_remain_exact"
     , "tests.test_launcher_lifecycle.LauncherLifecycleTests.test_reset_and_update_use_the_same_awaited_step_before_any_mutation"
-    , "tests.test_launcher_lifecycle.LauncherLifecycleTests.test_reset_has_one_data_driven_boundary_and_preserves_its_exact_existing_scope"
+    , "tests.test_launcher_lifecycle.LauncherLifecycleTests.test_reset_delegates_the_canonical_book_cleanup_to_the_backend"
     , "tests.test_launcher_lifecycle.LauncherLifecycleTests.test_shutdown_failure_prevents_reset_deletions_and_update_pull_or_install"
   ]
   , "test_launcher_llama_assets": [
@@ -12577,6 +12578,19 @@
     , "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_spelling_variant_dedupe_writes_no_protected_terminal_alias"
     , "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_spelling_variants_cannot_launder_a_reserved_edge"
     , "tests.test_reserved_edge_dedupe.ReservedEdgeDedupeTests.test_valid_unprotected_chain_is_still_accepted"
+  ]
+  , "test_reset_book_artifacts": [
+    "tests.test_reset_book_artifacts.ResetBookArtifactTests.test_canonical_set_covers_companions_and_all_exports_without_shared_data"
+    , "tests.test_reset_book_artifacts.ResetBookArtifactTests.test_configured_root_real_reset_clears_book_and_its_own_config"
+    , "tests.test_reset_book_artifacts.ResetBookArtifactTests.test_default_root_real_reset_clears_book_and_keeps_shared_files"
+    , "tests.test_reset_book_artifacts.ResetBookArtifactTests.test_fence_authority_survives_partial_cleanup_and_retry"
+    , "tests.test_reset_book_artifacts.ResetBookArtifactTests.test_held_book_lock_refuses_before_any_removal"
+    , "tests.test_reset_book_artifacts.ResetBookArtifactTests.test_invalid_recovery_evidence_refuses_before_any_removal"
+    , "tests.test_reset_book_artifacts.ResetBookArtifactTests.test_io_failure_receipt_retains_fence_and_retry_finishes"
+    , "tests.test_reset_book_artifacts.ResetBookArtifactTests.test_malformed_checkpoint_shard_refuses_before_any_removal"
+    , "tests.test_reset_book_artifacts.ResetBookArtifactTests.test_protected_aliases_are_skipped_without_touching_their_targets"
+    , "tests.test_reset_book_artifacts.ResetBookArtifactTests.test_reset_serializes_checkpoint_removal_with_a_standalone_writer"
+    , "tests.test_reset_book_artifacts.ResetBookArtifactTests.test_shard_failure_keeps_header_and_retry_cannot_false_complete"
   ]
   , "test_residency_diagnostics": [
     "tests.test_residency_diagnostics.ResidencyDiagnosticsTests.test_actual_http_report_keeps_uninitialized_engine_unloaded"

@@ -1,13 +1,18 @@
 """Reset and update admit mutation only after their shared awaited shutdown."""
 import json
 import os
-import re
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]
-RESET_PATHS=['annotated_script.json','voices.json','voice_config.json','character_aliases.json','state.json','app/config.json','chunks.json','cloned_audiobook.mp3','voicelines']
+PYTHON=os.environ.get('AA2_TEST_PYTHON',sys.executable)
+WRITER_ARTIFACTS=['annotated_script.json','voice_config.json','state.json','chunks.json',
+                  'cloned_audiobook.mp3','audiobook.m4b','chapter_exports','voicelines']
+PRESERVED={'scripts/saved.json':'exact saved book',
+           'voice_library.json':'exact reusable cast',
+           'pronunciation.json':'shared lexicon'}
 
 
 def descriptor(name):
@@ -26,12 +31,14 @@ class LauncherLifecycleTests(unittest.TestCase):
                     self.assertEqual('git pull',run[1]['params']['message'])
                     self.assertEqual('install.js',run[2]['params']['uri'])
 
-    def test_reset_has_one_data_driven_boundary_and_preserves_its_exact_existing_scope(self):
+    def test_reset_delegates_the_canonical_book_cleanup_to_the_backend(self):
         source=(ROOT/'reset.js').read_text()
-        self.assertEqual(1,len(re.findall(r'method:\s*"fs.rm"',source)))
+        self.assertNotIn('fs.rm',source)
+        self.assertNotIn('resetPaths',source)
         run=descriptor('reset.js')['run']
-        self.assertEqual(RESET_PATHS,[step['params']['path'] for step in run if step['method']=='fs.rm'])
-        self.assertNotIn('scripts',RESET_PATHS);self.assertNotIn('voice_library.json',RESET_PATHS)
+        self.assertEqual(['stop_writers','recover_active_book','clear_active_book'],
+                         [step['method'] for step in run])
+        self.assertTrue(all(step['uri']=='launcher_lifecycle.js' for step in run))
 
     def test_all_root_writer_scripts_are_registered_and_callers_are_excluded(self):
         self.assertTrue((ROOT/'launcher_lifecycle.js').is_file())
@@ -42,7 +49,7 @@ class LauncherLifecycleTests(unittest.TestCase):
         self.assertIn('run_stage4_checkpoint.js',result['reset']);self.assertIn('start_llm.js',result['reset']);self.assertIn('install.js',result['reset'])
 
     def run_native_case(self,case):
-        result=subprocess.run(['node','-e',NATIVE_LIFECYCLE,str(ROOT),case,__import__('sys').executable],capture_output=True,text=True,timeout=20)
+        result=subprocess.run(['node','-e',NATIVE_LIFECYCLE,str(ROOT),case,PYTHON],capture_output=True,text=True,timeout=20)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         return json.loads(result.stdout)
 
@@ -57,8 +64,13 @@ class LauncherLifecycleTests(unittest.TestCase):
 
     def test_real_writer_children_exit_before_reset_and_saved_libraries_remain_exact(self):
         result=self.run_native_case('writers')
-        self.assertEqual(3,result['nativeChildrenStopped']);self.assertEqual(9,result['pathsRemoved'])
+        self.assertEqual(3,result['nativeChildrenStopped'])
+        self.assertEqual(len(WRITER_ARTIFACTS),result['pathsRemoved'])
         self.assertTrue(result['savedLibraryPreserved']);self.assertFalse(result['recreatedChunks'])
+
+    def test_cleanup_has_no_fixed_launcher_timeout(self):
+        result=self.run_native_case('timeout')
+        self.assertTrue(result['noFixedTimeout'])
 
     def test_foreign_missing_or_unmanaged_caller_cannot_stop_any_checkout_jobs(self):
         result=self.run_native_case('caller')
@@ -101,20 +113,24 @@ const turn=()=>new Promise(resolve=>setImmediate(resolve));
     }
     assert.deepEqual(stops,[]);console.log(JSON.stringify({rejected,stops}));
   }else if(which==='writers'){
+    const artifacts=['annotated_script.json','voice_config.json','state.json','chunks.json','cloned_audiobook.mp3','audiobook.m4b','chapter_exports','voicelines'];
+    const preserved={'scripts/saved.json':'exact saved book','voice_library.json':'exact reusable cast','pronunciation.json':'shared lexicon'};
     const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'alexandria-lifecycle-')),children=new Map();
     try{
       const steps=require(path.join(root,'reset.js')).run;
       fs.mkdirSync(path.join(tmp,'app'));
-      for(const name of ['book_state_transaction.py','book_placeholder.py','direct_path_admission.py','utils.py','loaded_module_code.py','adapter_publication.py','editor_poll_snapshot.py','chunk_status_journal.py','take_retention.py','take_publication.py','audio_take_history.py','take_metadata_pool.py','audio_generation_owner.py','audio_validation.py','export_file_io.py']){fs.copyFileSync(path.join(root,'app',name),path.join(tmp,'app',name))}
+      for(const name of fs.readdirSync(path.join(root,'app')).filter(n=>n.endsWith('.py'))){fs.copyFileSync(path.join(root,'app',name),path.join(tmp,'app',name))}
       fs.copyFileSync(path.join(root,'gpu_stats.py'),path.join(tmp,'gpu_stats.py'));
       fs.copyFileSync(path.join(root,'launcher_lifecycle.js'),path.join(tmp,'launcher_lifecycle.js'));
       const scratchHelper=new(require(path.join(tmp,'launcher_lifecycle.js')))();
-      for(const step of steps.filter(s=>s.method==='fs.rm')){
-        const target=path.join(tmp,step.params.path);fs.mkdirSync(path.dirname(target),{recursive:true});
-        if(step.params.path==='voicelines'){fs.mkdirSync(target);fs.writeFileSync(path.join(target,'fixture.wav'),'fixture')}
+      for(const name of artifacts){
+        const target=path.join(tmp,name);fs.mkdirSync(path.dirname(target),{recursive:true});
+        if(['chapter_exports','voicelines'].includes(name)){fs.mkdirSync(target);fs.writeFileSync(path.join(target,'fixture.bin'),'fixture')}
         else{fs.writeFileSync(target,'active project fixture')}
       }
-      fs.mkdirSync(path.join(tmp,'scripts'));fs.writeFileSync(path.join(tmp,'scripts/saved.json'),'exact saved book');fs.writeFileSync(path.join(tmp,'voice_library.json'),'exact reusable cast');
+      for(const [name,payload] of Object.entries(preserved)){
+        const target=path.join(tmp,name);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,payload)
+      }
       const code=`const fs=require('fs');const file=process.env.FIXTURE_CHUNKS;let timer=setInterval(()=>fs.writeFileSync(file,'running fixture writer'),5);process.on('SIGTERM',()=>{clearInterval(timer);setTimeout(()=>{fs.writeFileSync(file,'last write during shutdown');process.exit(0)},30)});process.send('ready');`;
       await Promise.all(['start.js','start_llm.js','run_stage4_checkpoint.js'].map(name=>new Promise((resolve,reject)=>{
         const child=spawn(process.execPath,['-e',code],{env:{...process.env,FIXTURE_CHUNKS:path.join(tmp,'chunks.json')},stdio:['ignore','ignore','pipe','ipc']});children.set(name,child);child.once('error',reject);child.once('message',()=>resolve());
@@ -123,20 +139,33 @@ const turn=()=>new Promise(resolve=>setImmediate(resolve));
         const child=children.get(path.basename(r.params.uri));
         if(child&&child.exitCode===null&&child.signalCode===null){await new Promise((resolve,reject)=>{child.once('close',resolve);child.once('error',reject);child.kill('SIGTERM')})}
       }}};
-      let removed=0;
+      let removed=0,cleared=false;
       for(const step of steps){
-        if(step.uri==='launcher_lifecycle.js'){await scratchHelper[step.method]({parent:{path:path.join(tmp,'reset.js')}},()=>{},kernel)}
-        else{
-          assert.equal(step.method,'fs.rm');assert.ok([...children.values()].every(p=>p.exitCode!==null||p.signalCode!==null),'mutation started with a live writer');
-          fs.rmSync(path.join(tmp,step.params.path),{recursive:true,force:true});removed++;
+        assert.equal(step.uri,'launcher_lifecycle.js');
+        if(step.method==='clear_active_book'){
+          assert.ok([...children.values()].every(p=>p.exitCode!==null||p.signalCode!==null),'mutation started with a live writer');
         }
+        const outcome=await scratchHelper[step.method]({parent:{path:path.join(tmp,'reset.js')}},()=>{},kernel);
+        if(step.method==='clear_active_book'){removed=outcome.removed.length;cleared=true}
       }
-      assert.equal(fs.existsSync(path.join(tmp,'chunks.json')),false);assert.equal(fs.readFileSync(path.join(tmp,'scripts/saved.json'),'utf8'),'exact saved book');assert.equal(fs.readFileSync(path.join(tmp,'voice_library.json'),'utf8'),'exact reusable cast');
+      assert.equal(cleared,true);
+      for(const name of artifacts){assert.equal(fs.existsSync(path.join(tmp,name)),false,name)}
+      for(const [name,payload] of Object.entries(preserved)){assert.equal(fs.readFileSync(path.join(tmp,name),'utf8'),payload,name)}
       console.log(JSON.stringify({nativeChildrenStopped:children.size,pathsRemoved:removed,savedLibraryPreserved:true,recreatedChunks:false}));
     }finally{
       for(const child of children.values()){if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await new Promise(resolve=>child.once('close',resolve))}}
       fs.rmSync(tmp,{recursive:true,force:true});
     }
+  }else if(which==='timeout'){
+    const cp=require('node:child_process'),original=cp.execFile;let options=null;
+    cp.execFile=(file,args,opts,cb)=>{options=opts;cb(null,{stdout:'{"root":"/x","removed":[],"skipped":[],"failed":[]}',stderr:''})};
+    const modulePath=path.join(root,'launcher_lifecycle.js');
+    delete require.cache[require.resolve(modulePath)];
+    const scratch=new(require(modulePath))();
+    await scratch.clear_active_book(req('reset.js'),()=>{},{which:()=>process.argv[3]});
+    cp.execFile=original;
+    assert.equal(options.timeout,undefined);
+    console.log(JSON.stringify({noFixedTimeout:true}));
   }else{throw new Error('unknown fixture')}
 })().catch(error=>{console.error(error);process.exitCode=1});
 """

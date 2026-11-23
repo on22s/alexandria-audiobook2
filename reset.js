@@ -1,10 +1,6 @@
-// Existing active-project reset boundary; reusable libraries are retained.
-const resetPaths = [
-  "annotated_script.json", "voices.json", "voice_config.json",
-  "character_aliases.json", "state.json", "app/config.json", "chunks.json",
-  "cloned_audiobook.mp3", "voicelines"
-]
-
+// Existing active-project reset boundary; the canonical book artifact set and
+// its guarded removal live in app/reset_artifact_roots.py. Shared libraries,
+// uploads, adapters and take history are deliberately outside that set.
 module.exports = {
   run: [{
     uri: "launcher_lifecycle.js",
@@ -12,8 +8,8 @@ module.exports = {
   }, {
     uri: "launcher_lifecycle.js",
     method: "recover_active_book"
-  }, ...resetPaths.map(path => ({
-    method: "fs.rm",
-    params: { path }
-  }))]
+  }, {
+    uri: "launcher_lifecycle.js",
+    method: "clear_active_book"
+  }]
 }
