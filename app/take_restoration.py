@@ -19,7 +19,8 @@ from audio_generation_owner import (ensure_audio_generation_active,
     reuse_audio_generation_book)
 from audio_take_history import AudioTakeHistory, _version
 from book_state_transaction import ensure_book_state, get_book_operation_token
-from take_publication import NATIVE_TAKE_KINDS, KEY, _is_current_engine, _read_audio, validate_take_publication
+from take_publication import (NATIVE_TAKE_KINDS, KEY, _is_current_engine, _read_audio,
+    get_receipt_voice_digest, validate_take_publication)
 from timeline_anchors import resolve_timeline_anchors
 from utils import file_lock
 
@@ -111,20 +112,25 @@ def _get_matching_request(manager, engine, index, candidate, proof):
         raise ValueError('Current model settings differ from this saved performance.')
     voices = resolve_timeline_anchors(
         manager.get_voice_config_for_update(), manager.get_saved_chunks())
-    speaker = manager._resolve_alias(candidate['speaker'], voices)
     seed = proof.get('seed')
+    legacy = proof['version'] < 3
+    speaker = candidate['speaker']
+    if legacy:
+        speaker = manager._resolve_alias(speaker, voices)
     if seed is not None:
         # The publication recorded the exact seed; never re-derive it from
         # mutable batch settings. The voice digest below still binds it.
         choices = [manager.get_chunk_render_voice_config(voices, speaker, candidate, index,
-                                                        batch_seed=seed)]
+                                                         batch_seed=seed, finalize=not legacy)]
     else:
-        # Legacy receipts carry no seed: keep their original candidate set.
-        choices = [manager.get_chunk_render_voice_config(voices, speaker, candidate, index)]
+        # Legacy receipts carry no seed: keep their original candidate set and
+        # their original full-config materialization.
+        choices = [manager.get_chunk_render_voice_config(
+            voices, speaker, candidate, index, finalize=not legacy)]
         batch_seed = manager._load_tts_config().get('batch_seed', -1)
         if type(batch_seed) is int:
             choices.append(manager.get_chunk_render_voice_config(
-                voices, speaker, candidate, index, batch_seed=batch_seed))
+                voices, speaker, candidate, index, batch_seed=batch_seed, finalize=not legacy))
     category = NATIVE_TAKE_KINDS[proof['kind']]
     projection = get_occurrence_speech_projection(candidate, index, voices, settings)
     preparation = {key:value for key,value in projection.items() if key != 'context'}
@@ -137,8 +143,11 @@ def _get_matching_request(manager, engine, index, candidate, proof):
     request = None
     for choice in choices:
         selected = choice.get(get_resolved_speaker(speaker, choice))
+        if not isinstance(selected, dict):
+            continue
+        digest = get_receipt_voice_digest(proof['version'], selected, proof.get('seed'))
         if (voice_category(selected) == category
-                and get_recovery_digest(selected) == proof['dependencies']['voice_sha256']):
+                and digest == proof['dependencies']['voice_sha256']):
             try:
                 if category == 'custom':
                     request = get_custom_voice_request(choice, get_resolved_speaker(speaker, choice),

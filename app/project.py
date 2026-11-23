@@ -76,10 +76,11 @@ from tts import (
     get_pause_duration_ms,
     sanitize_filename,
     voice_category,
+    VoiceAliasResolutionError,
     DEFAULT_PAUSE_MS,
     SAME_SPEAKER_PAUSE_MS,
                  voice_config_for_chunk, resolve_narrator_voice_config, get_resolved_speaker,
-                 get_chunk_voice_inputs)
+                 get_chunk_render_voice_selection, get_seeded_batch_voice_config, get_chunk_voice_inputs)
 from pydub import AudioSegment
 from timeline_anchors import ambiguous_uids, build_uid_index, full_uid_index_context, resolve_timeline_anchors
 from voice_config_store import read_voice_config
@@ -1527,9 +1528,16 @@ class ProjectManager:
         uid_index = build_uid_index(chunks)
         before_resolved = resolve_timeline_anchors(before, uid_index=uid_index)
         after_resolved = resolve_timeline_anchors(after, uid_index=uid_index)
-        changed = [index for index, chunk in enumerate(chunks)
-                   if self.get_chunk_voice_inputs(before_resolved, chunk, index) !=
-                      self.get_chunk_voice_inputs(after_resolved, chunk, index)]
+        changed = []
+        for index, chunk in enumerate(chunks):
+            proposed = self.get_chunk_voice_inputs(after_resolved, chunk, index)
+            try:
+                previous = self.get_chunk_voice_inputs(before_resolved, chunk, index)
+            except VoiceAliasResolutionError:
+                changed.append(index)
+                continue
+            if previous != proposed:
+                changed.append(index)
         updated = copy.deepcopy(chunks)
         for index in changed:
             updated[index].update(status="pending", audio_path=None, error=None, drift=None, outlier=None,
@@ -2133,13 +2141,20 @@ class ProjectManager:
             return capture_take_publication_admission(engine, parent, token, chunk['uid'], index,
                 get_chunk_generation_inputs(chunk), voice_config, speaker)
 
-    def get_chunk_render_voice_config(self, voices, speaker, chunk, index, *, batch_seed=None):
-        """Materialize the same voice selection for rendering and take comparison."""
-        resolved = resolve_narrator_voice_config(speaker, voices, chunk)
+    def get_chunk_render_voice_config(self, voices, speaker, chunk, index, *, batch_seed=None,
+                                      finalize=True):
+        """Materialize the same voice selection for rendering and take comparison.
+
+        ``finalize=False`` reproduces the historical v1/v2 materialization for
+        legacy receipt comparison only; production dispatch is always final.
+        """
+        if finalize:
+            _, resolved, _ = get_chunk_render_voice_selection(voices, speaker, chunk, index)
+        else:
+            resolved = resolve_narrator_voice_config(speaker, voices, chunk)
+            resolved = voice_config_for_chunk(resolved, speaker, index)
         if batch_seed is not None:
-            from tts import get_batch_voice_config
-            return get_batch_voice_config(resolved, speaker, index, batch_seed)
-        resolved = voice_config_for_chunk(resolved, speaker, index)
+            return get_seeded_batch_voice_config(resolved, batch_seed)
         if self._load_tts_config().get('reproducible_takes') is True:
             resolved = get_reproducible_voice_config(resolved,
                 get_chunk_seed(chunk['text'], chunk.get('take', 0)), take=chunk.get('take', 0))
@@ -2485,11 +2500,6 @@ class ProjectManager:
                     voice_config, chunk, index, settings)}
 
             speaker = chunk["speaker"]
-            # Resolve aliases to canonical speaker used for TTS
-            canonical_speaker = self._resolve_alias(speaker, voice_config)
-            if canonical_speaker != speaker:
-                print(f"Resolving alias: '{speaker}' -> '{canonical_speaker}'")
-            speaker_to_use = canonical_speaker
             text = chunk["text"]
             instruct = chunk.get("instruct", "")
 
@@ -2502,7 +2512,10 @@ class ProjectManager:
             render_batch_seed = (batch_seed_value
                                  if type(batch_seed_value) is int and batch_seed_value >= 0 else None)
             chunk_voice_config = self.get_chunk_render_voice_config(
-                voice_config, speaker_to_use, chunk, index, batch_seed=render_batch_seed)
+                voice_config, speaker, chunk, index, batch_seed=render_batch_seed)
+            speaker_to_use = self._resolve_alias(speaker, chunk_voice_config)
+            if speaker_to_use != speaker:
+                print(f"Resolving alias: '{speaker}' -> '{speaker_to_use}'")
             if retry_budget is not None and retry_budget.requested_seed is None:
                 retry_budget.requested_seed = self._speech_retry_requested_seed(
                     chunk, chunk_voice_config, speaker_to_use, text)
@@ -4127,9 +4140,13 @@ class ProjectManager:
                 groups.setdefault("custom", []).append(idx)
                 continue
             speaker = chunks[idx].get("speaker", "")
-            # Resolve alias before grouping so alias groups collate with their canonical speaker
-            canonical = self._resolve_alias(speaker, voice_config)
-            voice_data = voice_config.get(canonical, {})
+            try:
+                canonical, resolved, _ = get_chunk_render_voice_selection(voice_config, speaker, chunks[idx], idx)
+            except VoiceAliasResolutionError:
+                # Leave refusal and reservation settlement to per-row dispatch.
+                groups.setdefault("invalid", []).append(idx)
+                continue
+            voice_data = resolved.get(canonical, {})
             category = voice_category(voice_data)
 
             if category == "clone":
@@ -4446,6 +4463,7 @@ class ProjectManager:
                 batch_stack.enter_context(ensure_synthesis_batch_outputs(self.root_dir, {}))
                 # Build batch request data
                 batch_chunks = []
+                batch_selections = {}
                 cleanup_failures = []
                 for idx in batch_indices:
                     chunk = captured.get(idx)
@@ -4469,24 +4487,28 @@ class ProjectManager:
                             message = f"Could not remove stale temp audio: {exc}"
                             cleanup_failures.append((idx, message))
                             continue
-                        # Resolve aliases so batch uses canonical speaker config
                         speaker = chunk.get("speaker", "")
-                        canonical = self._resolve_alias(speaker, voice_config)
-                        if chunk.get("pronunciation_rules"):
-                            settings = engine.get_model_settings() if callable(getattr(engine, "get_model_settings", None)) else {}
-                            chunk = {**chunk, "_pronunciation_context": get_pronunciation_render_context(
-                                voice_config, chunk, idx, settings)}
-                            captured[idx] = chunk
+                        try:
+                            selected, materialized, _ = get_chunk_render_voice_selection(
+                                voice_config, speaker, chunk, idx)
+                            if chunk.get("pronunciation_rules"):
+                                settings = engine.get_model_settings() if callable(getattr(engine, "get_model_settings", None)) else {}
+                                chunk = {**chunk, "_pronunciation_context": get_pronunciation_render_context(
+                                    voice_config, chunk, idx, settings)}
+                                captured[idx] = chunk
+                        except VoiceAliasResolutionError as error:
+                            cleanup_failures.append((idx, str(error)))
+                            continue
+                        batch_selections[idx] = (selected, materialized)
                         batch_chunk = {
                             "index": idx,
                             "uid": chunk.get("uid"),
                             "text": chunk.get("text", ""),
                             "instruct": chunk.get("instruct", ""),
-                            "speaker": canonical
+                            "speaker": speaker
                         }
                         if chunk.get("pronunciation_rules"):
-                            batch_chunk.update(pronunciation_rules=copy.deepcopy(chunk["pronunciation_rules"]),
-                                               _source_speaker=speaker)
+                            batch_chunk.update(pronunciation_rules=copy.deepcopy(chunk["pronunciation_rules"]))
                         # Preserve narrator-selection metadata through the
                         # project boundary; the TTS engine uses these fields to
                         # resolve focus/chapter/gender strategies per chunk.
@@ -4508,14 +4530,14 @@ class ProjectManager:
                         parent = self._capture_synthesis_recovery_parent(engine, row["index"], captured[row["index"]])
                         if parent is not None:
                             recovery_parents[row["uid"]] = parent
-                            materialized = self.get_chunk_render_voice_config(
-                                voice_config, row['speaker'], row, row['index'], batch_seed=batch_seed)
+                            selected_speaker, materialized = batch_selections[row['index']]
+                            materialized = get_seeded_batch_voice_config(materialized, batch_seed)
                             admission = self._capture_take_publication_admission(engine, parent, row['index'],
-                                captured[row['index']], materialized, row['speaker'])
+                                captured[row['index']], materialized, selected_speaker)
                             if admission is not None:
                                 publication_admissions[row['index']] = admission
                             from synthesis_workspace import get_synthesis_workspace_parent, ensure_synthesis_parent_output
-                            category = voice_category(materialized.get(row['speaker'], {}))
+                            category = voice_category(materialized.get(selected_speaker, {}))
                             registered = get_synthesis_workspace_parent(engine, category, parent, batch=True)
                             if registered is not None:
                                 batch_outputs[row['index']] = os.path.abspath(batch_stack.enter_context(

@@ -723,6 +723,7 @@
     "f'Could not complete or confirm {operation}; check the current state before retrying.'",
     "f'Could not preserve damaged config before saving: {exc}'",
     "f'Could not render this prompt: {exc}'",
+    "f'Could not resolve the voice alias. {reason}'",
     "f'EPUB read-aloud is invalid: {error}'",
     "f'EPUB read-aloud is invalid: {error}'",
     "f'EPUB read-aloud is invalid: {error}'",

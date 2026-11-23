@@ -409,7 +409,7 @@ class TakePublicationTests(unittest.TestCase):
                 revision='e'*32;synthesis={**synthesis,'audio_revision':revision,'scope':'pre-encoding PCM'}
                 receipt,_=get_take_publication_receipt(admitted,get_chunk_generation_inputs(chunk),
                     preparation,observed,synthesis,pcm,pcm,revision)
-                self.assertEqual(receipt['version'],2)
+                self.assertEqual(receipt['version'],3)
                 self.assertEqual(receipt['seed'],seed)
                 self.assertEqual(validate_take_publication({'uid':admitted.uid,
                     'audio_revision':revision,KEY:receipt}),receipt)
@@ -433,7 +433,7 @@ class TakePublicationTests(unittest.TestCase):
                 with self.subTest(bad=bad),self.assertRaisesRegex(ValueError,'needs inspection'):
                     validate_take_publication({**row,KEY:bad})
             with self.assertRaisesRegex(ValueError,'unsupported receipt version'):
-                validate_take_publication({**row,KEY:{**receipt,'version':3}})
+                validate_take_publication({**row,KEY:{**receipt,'version':4}})
             self.assertEqual(row[KEY],receipt)
 
 

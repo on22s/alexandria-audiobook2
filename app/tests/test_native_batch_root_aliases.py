@@ -12,10 +12,49 @@ import numpy as np
 import soundfile as sf
 import pronunciation
 import tts
+from speech_verification_receipt import get_validated_speech_input
 from tests.test_batch_style_timeline import get_engine, get_torch
+from tests.test_occurrence_pronunciation_generation import rule
 
 
 class NativeBatchRootAliasTests(unittest.TestCase):
+    def test_pronunciation_source_never_overrides_native_voice_seed_or_receipt(self):
+        reference = None
+        for source, configured in ((None, True), ('Original', True), ('Original', False)):
+            with self.subTest(source=source, configured=configured), tempfile.TemporaryDirectory() as tmp:
+                engine = get_engine()
+                torch = get_torch()
+                voices = {'Canonical': {'type': 'custom', 'voice': 'Aiden', 'seed': 7}}
+                if configured:
+                    voices['Original'] = {'type': 'custom', 'voice': 'Ryan', 'seed': 42}
+                row = {'speaker': 'Canonical', 'index': 0, 'uid': 'line', 'text': 'Ann Ann'}
+                if source:
+                    row['_source_speaker'] = source
+                context = tts.get_pronunciation_render_context(
+                    voices, row, 0, {'mode': 'local', 'language': 'English'}, source_speaker=source)
+                row['pronunciation_rules'] = [rule(uid=row['uid'], restrictions={
+                    key: context[key] for key in ('speaker', 'voice_sha256')})]
+                calls = []
+
+                def synth(**kwargs):
+                    seed = torch.manual_seed.call_args.args[0]
+                    calls.append((kwargs['text'], kwargs['speaker'], seed))
+                    amplitude = {'Aiden': .13, 'Ryan': .41}[kwargs['speaker'][0]]
+                    return [np.full(2400, amplitude + seed / 1000)], 24000
+
+                with pronunciation.ensure_literal_pronunciation_audition(), \
+                        patch.dict('sys.modules', {'torch': torch}), \
+                        patch.object(engine, '_init_local_custom',
+                                     return_value=SimpleNamespace(generate_custom_voice=synth)):
+                    result = engine.generate_batch([row], voices, tmp, capture_input=True)
+                self.assertEqual(([0], []), (result['completed'], result['failed']))
+                self.assertEqual([(['Ah-n Ann.'], ['Aiden'], 7)], calls)
+                path = Path(tmp) / 'temp_batch_0.wav'
+                self.assertIsNotNone(get_validated_speech_input(result['speech_inputs'][0], path))
+                if reference is None:
+                    reference = path.read_bytes()
+                self.assertTrue(path.read_bytes() == reference, 'Pronunciation source changed the WAV')
+
     def test_actual_native_provider_receives_canonical_custom_clone_design_and_ensemble(self):
         for kind in ('custom', 'clone', 'design', 'ensemble'):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:

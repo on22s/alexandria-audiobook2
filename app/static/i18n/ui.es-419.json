@@ -1325,6 +1325,7 @@
   "error.upload.storage_limit": "Se alcanzó el límite de almacenamiento para subir textos fuente.",
   "error.upload.unsupported_format": "Los formatos de texto fuente admitidos son TXT, Markdown, EPUB y DOCX confirmados de un solo libro.",
   "error.voice.busy": "El libro o las voces están ocupados; inténtalo de nuevo.",
+  "error.voice.alias_resolution": "No se pudo resolver el alias de voz. {reason}",
   "error.voice.config_busy": "La configuración de voces está ocupada (bloqueada por otra operación); inténtalo de nuevo.",
   "error.voice.design.inputs_changed": "La descripción o el texto de muestra cambió desde la vista previa. Genera una vista previa que coincida.",
   "error.voice.design.invalid_preview_file": "Archivo de vista previa no válido",
