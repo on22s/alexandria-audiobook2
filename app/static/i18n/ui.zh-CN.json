@@ -1325,6 +1325,7 @@
   "error.upload.storage_limit": "已达到源文件上传存储上限。",
   "error.upload.unsupported_format": "支持的源格式为 TXT、Markdown、EPUB 和已确认的单书 DOCX。",
   "error.voice.busy": "书或声音正忙；请重试。",
+  "error.voice.alias_resolution": "无法解析声音别名。{reason}",
   "error.voice.config_busy": "声音配置正忙（被另一个操作锁定）；请重试。",
   "error.voice.design.inputs_changed": "生成预览后，描述或示例文本已更改。请使用当前内容重新生成预览。",
   "error.voice.design.invalid_preview_file": "预览文件无效",

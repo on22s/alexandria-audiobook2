@@ -30,8 +30,28 @@ _INVALID_EVIDENCE = 'Selected take publication evidence needs inspection; existi
 _UNSUPPORTED_VERSION = 'This saved take uses an unsupported receipt version; it remains available for audition.'
 _V1_KEYS = frozenset(('version', 'kind', 'book_token', 'uid', 'audio_revision', 'index',
     'dependencies', 'speech_sha256', 'pcm', 'audio', 'synthesis_sha256'))
-_RECEIPT_SCHEMAS = {1: _V1_KEYS, 2: _V1_KEYS | frozenset(('seed',))}
+_RECEIPT_SCHEMAS = {1: _V1_KEYS, 2: _V1_KEYS | frozenset(('seed',)),
+                    3: _V1_KEYS | frozenset(('seed',))}
 _MAX_RECEIPT_VERSION = max(_RECEIPT_SCHEMAS)
+
+
+def get_take_voice_identity(selected, seed=None):
+    """Render-affecting voice fields bound by a version-3 take receipt."""
+    from tts import VOICE_RENDER_IDENTITY_FIELDS
+    identity = {field: selected.get(field) for field in VOICE_RENDER_IDENTITY_FIELDS}
+    if seed is not None:
+        identity['seed'] = seed
+    return identity
+
+
+def get_receipt_voice_digest(version, selected, seed=None):
+    """Version 1/2 keep the full-config digest; version 3 uses the projection."""
+    from synthesis_recovery_identity import get_recovery_digest
+    if version >= 3:
+        return get_recovery_digest(get_take_voice_identity(selected, seed))
+    if seed is None:
+        return get_recovery_digest(selected)
+    return get_recovery_digest({**selected, 'seed': seed})
 
 
 def _is_digest(value):
@@ -93,7 +113,7 @@ class TakePublicationAdmission:
     uid: str
     index: int
     inputs_sha256: str
-    voice_sha256: str
+    voice_identity_sha256: str
     model_sha256: str
     seed: int
     category: str = 'custom'
@@ -171,12 +191,13 @@ def capture_take_publication_admission(engine, parent, book_token, uid, index, i
         if (parent.uid_sha256 != get_recovery_digest(uid)
                 or parent.inputs_sha256 != get_recovery_digest(dict(index=index, inputs=inputs))):
             return None
-        # v2 binds the admitted integer seed. Editor saves it as a string at the
-        # generation boundary, so canonicalize only that field; every other
-        # voice field still participates and legacy v1 digests are untouched.
-        voice_sha256 = get_recovery_digest({**selected, 'seed': seed})
+        # v3 binds only render-affecting voice fields plus the admitted integer
+        # seed; Editor may save the seed as a string at the generation boundary.
+        # Legacy v1/v2 readers reconstruct their full-config digest separately.
+        identity_sha256 = get_recovery_digest(get_take_voice_identity(selected, seed))
         return TakePublicationAdmission(engine, parent, book_token, uid, index,
-            get_recovery_digest(inputs), voice_sha256, get_recovery_digest(model), seed, category)
+            get_recovery_digest(inputs), identity_sha256,
+            get_recovery_digest(model), seed, category)
 
 
 def _read_audio(root, path, cancel_check, *, decode=True):
@@ -270,9 +291,10 @@ def get_take_publication_receipt(admission, inputs, preparation, speech_input, s
     except TakeAudioOutsideSnapshotBounds:
         return None, None
     with admission.parent.admit():
-        receipt = dict(version=2, seed=admission.seed, kind=next(kind for kind, category in NATIVE_TAKE_KINDS.items() if category == admission.category), book_token=admission.book_token,
+        receipt = dict(version=3, seed=admission.seed, kind=next(kind for kind, category in NATIVE_TAKE_KINDS.items() if category == admission.category), book_token=admission.book_token,
             uid=admission.uid, audio_revision=revision, index=admission.index,
-            dependencies=dict(inputs_sha256=admission.inputs_sha256, voice_sha256=admission.voice_sha256,
+            dependencies=dict(inputs_sha256=admission.inputs_sha256,
+                              voice_sha256=admission.voice_identity_sha256,
                 model_sha256=admission.model_sha256, pronunciation_sha256=get_recovery_digest(preparation),
                 recipe_sha256=get_recovery_digest(dict(plan=asdict(plan),policy=policy)),
                 serving_sha256=recovery['serving_sha256']),

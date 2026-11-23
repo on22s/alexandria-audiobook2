@@ -1720,6 +1720,7 @@
   "error.upload.storage_busy": "Upload storage is busy; retry shortly.",
   "error.upload.storage_limit": "Source upload storage limit reached.",
   "error.upload.unsupported_format": "Supported source formats are TXT, Markdown, EPUB and confirmed single-book DOCX.",
+  "error.voice.alias_resolution": "Could not resolve the voice alias. {reason}",
   "error.voice.busy": "Book or voices are busy; please try again.",
   "error.voice.config_busy": "Voice config is busy (locked by another operation); please try again.",
   "error.voice.design.inputs_changed": "The description or sample text changed since the preview. Generate a matching preview.",

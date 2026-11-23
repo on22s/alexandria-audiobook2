@@ -23,6 +23,7 @@ from voice_config_store import (apply_voice_config_update, get_voice_config_revi
                                 ensure_voice_config_storable, InvalidVoiceConfigError,
                                 read_voice_config, VoiceConfigConflict, VoiceConfigReadError)
 from project import ProjectManager, _new_chunk_uid
+from tts import VoiceAliasResolutionError
 
 from core import (
     AppError,
@@ -359,6 +360,10 @@ def _apply_book_voice_update(transform, expected_revision=None, config_path=None
         try:
             return apply_voice_config_update(config_path, update, expected_revision=expected_revision,
                                              publish=publish)
+        except VoiceAliasResolutionError as exc:
+            reason = str(exc)
+            raise AppError(400, f"Could not resolve the voice alias. {reason}",
+                           key="error.voice.alias_resolution", values={"reason": reason}) from exc
         except InvalidVoiceConfigError as exc:
             if not timeline_edit:
                 raise

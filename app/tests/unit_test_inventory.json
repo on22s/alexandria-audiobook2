@@ -9319,6 +9319,15 @@
     , "tests.test_narrator_and_unknown.UnknownSpeakerPromptTest.test_it_forbids_using_narrator_for_that_case"
     , "tests.test_narrator_and_unknown.UnknownSpeakerPromptTest.test_the_prompt_offers_unknown_for_unidentifiable_speech"
   ]
+  , "test_narrator_dispatch_identity": [
+    "tests.test_narrator_dispatch_identity.NarratorDispatchIdentityTests.test_batch_effective_voice_change_is_refused_with_changed_windows"
+    , "tests.test_narrator_dispatch_identity.NarratorDispatchIdentityTests.test_batch_narrator_alias_restores_and_fresh_batch_keeps_every_window"
+    , "tests.test_narrator_dispatch_identity.NarratorDispatchIdentityTests.test_batch_no_match_restores_and_fresh_batch_keeps_every_window"
+    , "tests.test_narrator_dispatch_identity.NarratorDispatchIdentityTests.test_effective_voice_change_is_refused_with_changed_provider_and_bytes"
+    , "tests.test_narrator_dispatch_identity.NarratorDispatchIdentityTests.test_inoperative_narrator_version_change_is_not_an_effective_change"
+    , "tests.test_narrator_dispatch_identity.NarratorDispatchIdentityTests.test_metadata_only_control_restores_and_keeps_provider_and_bytes"
+    , "tests.test_narrator_dispatch_identity.NarratorDispatchIdentityTests.test_removed_speaker_reports_normal_mismatch_and_preserves_audio"
+  ]
   , "test_narrator_prior_wiring": [
     "tests.test_narrator_prior_wiring.PromptTest.test_a_narrator_of_NARRATOR_is_rejected"
     , "tests.test_narrator_prior_wiring.PromptTest.test_it_uses_the_shared_helper_not_a_second_wording"
@@ -9347,6 +9356,7 @@
     , "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_bad_alias_roots_fail_before_native_provider_or_output"
     , "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_copied_requests_keep_authored_speaker_uid_index_and_existing_source_identity"
     , "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_external_alias_dispatch_keeps_once_prepared_custom_and_clone_requests"
+    , "tests.test_native_batch_root_aliases.NativeBatchRootAliasTests.test_pronunciation_source_never_overrides_native_voice_seed_or_receipt"
   ]
   , "test_native_batch_saved_seeds": [
     "tests.test_native_batch_saved_seeds.NativeBatchSavedSeedTests.test_disabled_ratio_splitting_still_honors_manual_item_cap"
@@ -12228,6 +12238,13 @@
     , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_remote_mode_reports_remote"
     , "tests.test_remote_warning_active_profile.RemoteWarningConfigTests.test_the_resolver_sees_the_real_config_and_redaction_still_applies"
     , "tests.test_remote_warning_active_profile.SupportSummaryTests.test_the_voicelab_summary_classifies_the_active_profile"
+  ]
+  , "test_render_identity_registry": [
+    "tests.test_render_identity_registry.TakeReceiptProjectionTests.test_centralized_fields_preserve_exact_identity_digests"
+    , "tests.test_render_identity_registry.TakeReceiptProjectionTests.test_emitted_digest_comes_from_actual_admission"
+    , "tests.test_render_identity_registry.TakeReceiptProjectionTests.test_legacy_receipts_keep_full_config_digest_and_stay_strict"
+    , "tests.test_render_identity_registry.TakeReceiptProjectionTests.test_new_receipt_restores_metadata_only_edit_but_refuses_effective_change"
+    , "tests.test_render_identity_registry.TakeReceiptProjectionTests.test_unknown_and_tampered_receipts_stay_unproven"
   ]
   , "test_repair_candidate_reference_text": [
     "tests.test_repair_candidate_reference_text.RepairCandidateReferenceTextTests.test_returns_copy_with_matching_text"
@@ -16190,6 +16207,20 @@
     , "tests.test_take_history_policy.TakeHistoryPolicyTests.test_deleted_chunk_undo_protects_archive_until_restore_or_expiration"
     , "tests.test_take_history_policy.TakeHistoryPolicyTests.test_public_editor_view_redacts_private_receipt_without_mutating_saved_rows"
     , "tests.test_take_history_policy.TakeHistoryPolicyTests.test_real_routes_default_enable_strict_boolean_and_stale_revision"
+  ]
+  , "test_take_identity_settlement": [
+    "tests.test_take_identity_settlement.SettledIdentityTests.test_bad_row_settles_without_aborting_grouped_or_recovery_batch"
+    , "tests.test_take_identity_settlement.SettledIdentityTests.test_numbered_take_batch_keeps_bound_seed"
+    , "tests.test_take_identity_settlement.SettledIdentityTests.test_numbered_take_single_keeps_bound_seed"
+    , "tests.test_take_identity_settlement.SettledIdentityTests.test_route_active_version_change_is_refused"
+    , "tests.test_take_identity_settlement.SettledIdentityTests.test_route_timeline_alias_batch_ignores_inactive_version"
+    , "tests.test_take_identity_settlement.SettledIdentityTests.test_route_timeline_batch_ignores_inactive_version_and_keeps_bytes"
+    , "tests.test_take_identity_settlement.SettledIdentityTests.test_route_timeline_single_keeps_explicit_selection"
+    , "tests.test_take_identity_settlement.SettledIdentityTests.test_strategy_repair_invalidates_only_bad_old_row_and_refuses_reintroducing_cycle"
+    , "tests.test_take_identity_settlement.SettledIdentityTests.test_unsplit_fallback_rows_keep_native_batches_and_matching_voice_stays_distinct"
+    , "tests.test_take_identity_settlement.SettledIdentityTests.test_unsplit_route_ensemble_ignores_inactive_version_for_direct_and_alias_rows"
+    , "tests.test_take_identity_settlement.SettledIdentityTests.test_unsplit_timeline_aliases_match_their_canonical_provider_and_wav"
+    , "tests.test_take_identity_settlement.SettledIdentityTests.test_windowed_timeline_alias_admits_the_target_and_refuses_changed_target"
   ]
   , "test_take_metadata_pool": [
     "tests.test_take_metadata_pool.TakeMetadataPoolTests.test_actual_child_exit_before_and_after_conversion_replace_retries_in_both_directions"

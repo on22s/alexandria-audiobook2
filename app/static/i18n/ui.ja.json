@@ -1325,6 +1325,7 @@
   "error.upload.storage_limit": "ソースのアップロード保存容量上限に達しました。",
   "error.upload.unsupported_format": "対応するソース形式は TXT、Markdown、EPUB、および確認済みの単一書籍 DOCX です。",
   "error.voice.busy": "本または声が使用中です。もう一度お試しください。",
+  "error.voice.alias_resolution": "声の別名を解決できませんでした。 {reason}",
   "error.voice.config_busy": "声の設定が使用中です（別の操作がロックしています）。もう一度お試しください。",
   "error.voice.design.inputs_changed": "プレビューの作成後に説明またはサンプルテキストが変更されました。現在の内容でプレビューを作成してください。",
   "error.voice.design.invalid_preview_file": "プレビューファイルが無効です",
