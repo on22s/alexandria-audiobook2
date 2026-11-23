@@ -129,13 +129,25 @@ def get_resolved_adapter_manifest_rows_locked(models_dir, manifest):
     return rows
 
 
-def get_adapter_manifest_rows(models_dir, manifest_path, loader):
-    from adapter_naming_transaction import lock_adapter_naming
-    with lock_adapter_naming(models_dir, manifest_path):
+def get_adapter_manifest_rows(models_dir, manifest_path, loader, *, read_only=False):
+    def read():
         pending = get_adapter_identity_read_recovery_command(models_dir)
         if pending:
             raise ValueError(f'adapter publication recovery is required: run {pending}')
         return get_resolved_adapter_manifest_rows_locked(models_dir, loader(manifest_path))
+    if read_only:
+        # The publisher marks its transaction before changing either identity file.
+        from chunk_status_journal import get_chunk_state_file_version
+        identity_paths = (manifest_path, os.path.join(models_dir, ADAPTER_ID_ALIASES_FILE))
+        before = [get_chunk_state_file_version(path) for path in identity_paths]
+        rows = read()
+        if (get_adapter_identity_read_recovery_command(models_dir)
+                or before != [get_chunk_state_file_version(path) for path in identity_paths]):
+            raise ValueError('Adapter catalog changed while reading')
+        return rows
+    from adapter_naming_transaction import lock_adapter_naming
+    with lock_adapter_naming(models_dir, manifest_path):
+        return read()
 
 
 def get_resolved_adapter_id_mapping(models_dir, adapter_ids):

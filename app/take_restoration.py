@@ -20,6 +20,7 @@ from audio_generation_owner import (ensure_audio_generation_active,
 from audio_take_history import AudioTakeHistory, _version
 from book_state_transaction import ensure_book_state, get_book_operation_token
 from take_publication import NATIVE_TAKE_KINDS, KEY, _is_current_engine, _read_audio, validate_take_publication
+from timeline_anchors import resolve_timeline_anchors
 from utils import file_lock
 
 
@@ -108,7 +109,8 @@ def _get_matching_request(manager, engine, index, candidate, proof):
     if (settings != get_tts_model_settings(manager._read_config())
             or get_recovery_digest(settings) != proof['dependencies']['model_sha256']):
         raise ValueError('Current model settings differ from this saved performance.')
-    voices = manager.get_voice_config_for_update()
+    voices = resolve_timeline_anchors(
+        manager.get_voice_config_for_update(), manager.get_saved_chunks())
     speaker = manager._resolve_alias(candidate['speaker'], voices)
     seed = proof.get('seed')
     if seed is not None:

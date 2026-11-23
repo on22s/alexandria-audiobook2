@@ -162,6 +162,33 @@ class OccurrencePanelTests(unittest.TestCase):
         self.assertEqual('configured', response.json()['context_source'])
         self.assertEqual(before, self.artifacts())
 
+    def test_preview_and_save_use_the_moved_voice_anchor_and_refuse_unreadable_rows(self):
+        voice_path = Path(self.pm.voice_config_path)
+        voice_path.write_text(json.dumps({"A": {"type": "custom", "voice": "Ryan",
+            "versions": {"new": {"type": "custom", "voice": "Serena"}},
+            "version_timeline": [{"from_index": 1, "from_uid": "b", "version_id": "new"}]}}))
+        self.request.update(index=1, expected_uid="b")
+        voice_digest = self.snapshot()["context"]["voice_sha256"]
+        self.pm.delete_chunk(0)
+        self.request["index"] = 0
+        self.assertEqual(voice_digest, self.snapshot()["context"]["voice_sha256"])
+        rule, revision = self.candidate()
+        rule["restrictions"] = {"voice_sha256": voice_digest}
+        before = self.artifacts()
+        with patch.object(self.pm, "_get_saved_chunks_locked", side_effect=OSError("snapshot unreadable")):
+            self.assertEqual(409, self.post("/preview", revision=revision, rules=[rule]).status_code)
+            self.assertEqual(409, self.save([rule], revision=revision).status_code)
+        self.assertEqual(before, self.artifacts())
+        preview = self.post("/preview", revision=revision, rules=[rule])
+        self.assertEqual(200, preview.status_code, preview.text)
+        self.assertTrue(preview.json()["audio_will_be_detached"])
+        result = self.save([rule], revision=revision)
+        self.assertEqual(200, result.status_code, result.text)
+        self.assertTrue(result.json()["audio_detached"])
+        row = self.pm.get_saved_chunks()[0]
+        self.assertEqual(("b", "pending", None), (row["uid"], row["status"], row["audio_path"]))
+        self.assertEqual(before["voicelines/prior-b.wav"], (self.root / "voicelines/prior-b.wav").read_bytes())
+
     def test_inspector_reports_current_transformations_without_rewriting_saved_take(self):
         self.lexicon.write_text(json.dumps({'names': {'Ann': 'Shared', 'Shared': 'Wrong second pass'}}))
         before = self.artifacts()

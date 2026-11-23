@@ -68,7 +68,7 @@ class DesignedStateVoiceTests(unittest.TestCase):
             root,manager,client,path,_,_=helper.fixture(temp,stack)
             directory,_=self.catalog(root)
             stack.enter_context(patch.object(voices,'DESIGNED_VOICES_DIR',str(directory)))
-            stack.enter_context(patch.object(voices,'_build_lora_candidates',side_effect=lambda: []))
+            stack.enter_context(patch.object(voices,'_build_lora_candidates',return_value=[]))
             candidates=voices.get_state_voice_candidates()
             for gender in ('male','female'):
                 candidate=next(c for c in candidates if c['adapter_id']=='designed:'+gender+'_young_child')
@@ -88,7 +88,7 @@ class DesignedStateVoiceTests(unittest.TestCase):
                 root,manager,client,path,_,_=fixtures.VoiceTimelineAudioTests().fixture(temp,stack)
                 directory,_=self.catalog(root)
                 stack.enter_context(patch.object(voices,'DESIGNED_VOICES_DIR',str(directory)))
-                stack.enter_context(patch.object(voices,'_build_lora_candidates',side_effect=lambda: []))
+                stack.enter_context(patch.object(voices,'_build_lora_candidates',return_value=[]))
                 script=[{'speaker':'A','text':f'Line {i}','speaker_gender':'male','speaker_age_group':age}
                     for i,age in enumerate(['toddler']*12+['adult']*12+['infant']*12)]
                 (root/'annotated_script.json').write_text(json.dumps(script))
@@ -125,7 +125,7 @@ await context.applyVoiceStates({closest:()=>card});console.log(JSON.stringify(ca
             root=Path(temp);directory,_=self.catalog(root)
             adult={'adapter_id':'adult_unknown','type':'lora','name':'Adult','gender':'unknown','age_group':'adult','description':''}
             state={'gender':'male','age_group':'adult'}
-            with patch.object(voices,'DESIGNED_VOICES_DIR',str(directory)),patch.object(voices,'_build_lora_candidates',side_effect=lambda: [dict(adult)]):
+            with patch.object(voices,'DESIGNED_VOICES_DIR',str(directory)),patch.object(voices,'_build_lora_candidates',side_effect=lambda **kwargs: [dict(adult)]):
                 candidates=voices.get_state_voice_candidates()
                 sources=voices.get_state_voice_sources(state,'A',{},candidates,{})
                 self.assertEqual(['adult_unknown'],[c['adapter_id'] for c in sources['library_unused']])

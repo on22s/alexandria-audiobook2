@@ -41,7 +41,7 @@ from utils import (atomic_json_write, get_app_config_path, get_app_storage_path,
                    secure_filename)
 from lmstudio_settings import (get_active_llm_config, get_current_status, get_effective_max_tokens,
                                is_local_llm_endpoint)
-from hf_utils import fetch_builtin_manifest, is_adapter_downloaded
+from hf_utils import fetch_builtin_manifest, get_local_builtin_manifest, is_adapter_downloaded
 from run_history import finish_run, prune_runs, record_artifact, start_run
 from experiments.gpu_guard import acquire_gpu_lock, release_gpu_lock
 from task_ownership import (acquire_task_lease, ensure_startup_recovery, get_task_resource_path,
@@ -94,7 +94,7 @@ def _warn_corrupted_json(kind: str, path: str, action: str, e: Exception) -> Non
     logger.warning(f"Corrupted {kind} at {path}, {action}: {e}")
 
 
-def _load_manifest(path, *, for_update=False):
+def _load_manifest(path, *, for_update=False, record_diagnostics=True):
     """Allow read-only fallback, but never replace an unreadable roster."""
     if for_update:
         try:
@@ -105,21 +105,22 @@ def _load_manifest(path, *, for_update=False):
         if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
             raise ValueError(f"Cannot update malformed voice manifest: {path}")
     else:
-        entries = safe_load_json(path, default=[])
+        entries = safe_load_json(path, default=[], record_diagnostics=record_diagnostics)
     valid = [entry for entry in entries if isinstance(entry, dict)]
     if len(valid) != len(entries):
         logger.warning("Ignoring malformed entries in manifest %s", path)
     return valid
 
 
-def _load_builtin_lora_manifest():
+def _load_builtin_lora_manifest(*, refresh=True):
     """Load built-in LoRA manifest from HF (with local fallback). Returns ALL entries with download status."""
-    entries = fetch_builtin_manifest(BUILTIN_LORA_DIR)
+    entries = (fetch_builtin_manifest(BUILTIN_LORA_DIR) if refresh else
+               get_local_builtin_manifest(BUILTIN_LORA_DIR, record_diagnostics=False))
     result = []
     for entry in entries:
         entry = dict(entry)  # avoid mutating cached list
         local_id = entry["id"] if entry["id"].startswith("builtin_") else f"builtin_{entry['id']}"
-        downloaded = is_adapter_downloaded(local_id, BUILTIN_LORA_DIR)
+        downloaded = is_adapter_downloaded(local_id, BUILTIN_LORA_DIR, record_diagnostics=refresh)
         entry["id"] = local_id
         entry["builtin"] = True
         entry["downloaded"] = downloaded

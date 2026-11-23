@@ -161,6 +161,8 @@ Candidate creation/selection/favorite and approval/audit endpoints accept option
 
 State-card form edits use the existing revision-guarded `/api/voice_config/save`, retaining the parent entry and its sibling versions. `/api/voices/{speaker}/version_timeline` remains an explicit application step; generated state versions must match their current script and an exact chunk boundary. Stale, missing, ambiguous or merged boundaries return a conflict rather than guessing a location.
 
+An empty point list for an explicitly unconfigured speaker succeeds without saving when `expected_timeline_revision` matches the revision from `GET /api/voices/{speaker}/state_timeline`. Omitting the revision returns 422. A stale revision returns 409.
+
 Both full-config save endpoints also reject invalid generated-state timeline boundaries and removal of an applied version. Ordinary edits that retain an existing stale timeline remain supported. Generic version saves must retain current generated provenance when overwriting a state ID; saving a new manual copy of the base does not copy generated-state provenance.
 
 

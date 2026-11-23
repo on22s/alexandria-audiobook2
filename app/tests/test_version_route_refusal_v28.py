@@ -106,8 +106,10 @@ class VersionRouteRefusalTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:
             client, script, config, state = self._client(Path(tmp), stack)
             config.write_text(json.dumps({'Hero': None}))
+            chunks = script.with_name('chunks.json')
+            chunks.write_bytes(script.read_bytes())
             guards = self._snapshot_guards(client)
-            before = {p: p.read_bytes() for p in (script, config, state)}
+            before = {p: p.read_bytes() for p in (script, config, chunks, state)}
             calls = [
                 ('approval', lambda: client.post('/api/voices/Hero/approval', json={
                     'persona_status': 'approved', 'book_token': guards['book_token']})),
@@ -122,8 +124,23 @@ class VersionRouteRefusalTests(unittest.TestCase):
                     response = call()
                     self.assertEqual(422, response.status_code, response.text)
                     self.assertIn('no voice configured', response.json()['detail'])
-                    self.assertEqual(before, {p: p.read_bytes() for p in (script, config, state)},
+                    self.assertEqual(before, {p: p.read_bytes() for p in before},
                                      f'{label} refusal must not write/fabricate')
+            view = client.get('/api/voices/Hero/state_timeline')
+            self.assertEqual(200, view.status_code, view.text)
+            timeline = view.json()
+            self.assertEqual([], timeline['applied'])
+            replay = {'points': timeline['applied'], 'book_token': guards['book_token'],
+                      'expected_timeline_revision': timeline['timeline_revision']}
+            for body, status in ((replay, 200),
+                                 ({**replay, 'expected_timeline_revision': '0' * 64}, 409),
+                                 ({**replay, 'points': [{'from_index': 0, 'version_id': None}]}, 422)):
+                with self.subTest(replay=body, status=status):
+                    response = client.post('/api/voices/Hero/version_timeline', json=body)
+                    self.assertEqual(status, response.status_code, response.text)
+                    if status == 200:
+                        self.assertEqual([], response.json()['version_timeline'])
+                    self.assertEqual(before, {p: p.read_bytes() for p in before})
 
     def test_absent_entry_approval_and_explicit_save_preserved(self):
         with tempfile.TemporaryDirectory() as tmp, ExitStack() as stack:

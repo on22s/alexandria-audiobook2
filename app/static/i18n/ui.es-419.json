@@ -6554,5 +6554,18 @@
   "core.editor.save-line-failed": "No se pudo guardar esta línea",
   "core.editor.save-line-recovery": "Corrige el problema indicado y vuelve a editar y guardar la línea. Si sigue siendo rechazada, recarga Editor.",
   "editor.integrity.save-failed": "{count} ediciones de líneas no se pudieron guardar — {reason}",
-  "editor.integrity.save-failed-one": "La línea {line} no se pudo guardar — {reason}"
+  "editor.integrity.save-failed-one": "La línea {line} no se pudo guardar — {reason}",
+  "safety.voice.timeline_editor_book_changed": "El libro activo cambió; recarga el Editor antes de guardar.",
+  "error.voice.timeline_voice_read": "No se pudieron leer las voces activas.",
+  "error.voice.invalid_adapter_id": "El ID del adaptador LoRA debe ser un nombre de adaptador válido.",
+  "error.voice.timeline_malformed": "Los cambios de voz guardados tienen un formato incorrecto. Restaura la configuración de voces antes de editarlos.",
+  "error.voice.timeline_invalid_uid": "La identidad de la línea del cambio de voz no es válida. Recarga el Editor y vuelve a seleccionar la línea.",
+  "error.voice.timeline_write_conflict": "No se pudo guardar el cambio de voz. Recarga las voces y el Editor y vuelve a intentarlo.",
+  "error.voice.timeline_invalid_voice_data": "Los datos de voz guardados no son válidos. Restaura la configuración de voces y recarga las voces.",
+  "error.voice.timeline_guarded_anchor": "Un cambio de voz ya no coincide con su línea. Recarga el Editor y vuelve a seleccionarla.",
+  "error.voice.timeline_chunks_unverified": "No se pudieron verificar las líneas activas. Restaura el estado del libro o recarga el Editor.",
+  "error.voice.timeline_point_limit": "La línea de tiempo de voz puede contener hasta 50 puntos de cambio nuevos.",
+  "error.voice.timeline_point_object": "Los puntos de cambio nuevos deben ser objetos.",
+  "error.voice.timeline_null_speaker": "Solo se puede guardar como nulo un personaje que ya esté sin configurar.",
+  "error.voice.timeline_null_clear": "Usa una lista vacía para borrar los cambios de voz."
 }

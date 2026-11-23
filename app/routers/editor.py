@@ -79,6 +79,7 @@ from runtime_estimate import get_book_runtime_estimate
 from routers.voices import get_script_speaker
 from tts import (voice_config_for_chunk, resolve_narrator_voice_config, voice_category,
                  ExportCancelled, ensure_audio_export_active, get_pause_duration_ms)
+from timeline_anchors import resolve_timeline_anchors
 import voice_drift
 
 
@@ -887,20 +888,21 @@ async def apply_gap_suggestion_endpoint(index: int, request: GapSuggestionReques
 
 
 def apply_chunk_insertion(index, expected_book_token=None, expected_uid=None):
-    with reuse_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
-        check_chunk_identity(index, expected_book_token, expected_uid)
+    with reuse_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25, recover=False):
+        check_chunk_identity(index, expected_book_token)
+        if expected_uid is not None:
+            return project_manager.insert_chunk(index, expected_uid=expected_uid)
         return project_manager.insert_chunk(index)
 
 
 def apply_chunk_deletion(index, expected_book_token=None, expected_uid=None):
     root = os.path.dirname(SCRIPT_PATH)
-    with reuse_book_state(root, timeout=0.25):
-        check_chunk_identity(index, expected_book_token, expected_uid)
-        before_revision = get_snapshot_digest(project_manager.load_chunks())
-        result = project_manager.delete_chunk(index)
+    with reuse_book_state(root, timeout=0.25, recover=False):
+        check_chunk_identity(index, expected_book_token)
+        result = project_manager.delete_chunk(index, expected_uid=expected_uid, include_before_revision=True)
         if result is None:
             return None
-        deleted, chunks = result
+        deleted, chunks, before_revision = result
         now = time.monotonic()
         identity = get_editor_book_identity(root)
         revision = get_snapshot_digest(chunks)
@@ -1129,7 +1131,7 @@ async def insert_chunk(index: int,
                        expected_uid: Annotated[Optional[str], Query(max_length=128)] = None):
     """Insert an empty chunk after the given index."""
     chunks = await asyncio.to_thread(_apply_chunk_edit, apply_chunk_insertion, index,
-                                    expected_book_token, expected_uid)
+                                    expected_book_token, expected_uid, recover=False)
     if chunks is None:
         raise HTTPException(status_code=404, detail="Invalid chunk index")
     return {"status": "ok", "total": len(chunks)}
@@ -1161,7 +1163,7 @@ async def delete_chunk(index: int,
                        expected_uid: Annotated[Optional[str], Query(max_length=128)] = None):
     """Delete a chunk at the given index."""
     result = await asyncio.to_thread(_apply_chunk_edit, apply_chunk_deletion, index,
-                                    expected_book_token, expected_uid)
+                                    expected_book_token, expected_uid, recover=False)
     if result is None:
         raise HTTPException(status_code=400, detail="Cannot delete chunk (invalid index or last remaining chunk)")
     deleted, chunks, token = result
@@ -1711,6 +1713,7 @@ def get_unready_export_speakers(admitted_rows):
         chunks = script
     if not isinstance(chunks, list) or any(not isinstance(chunk, dict) for chunk in chunks):
         raise HTTPException(status_code=503, detail="Export readiness unavailable: rebuild the active chunks")
+    voices = resolve_timeline_anchors(voices, chunks)
     missing = set()
     try:
         for index, chunk in enumerate(chunks):

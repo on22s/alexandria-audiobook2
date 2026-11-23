@@ -1378,12 +1378,12 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 | `POST` | `/api/voices/{speaker}/candidates/{candidate_id}/favorite` | favorite voice candidate |
 | `POST` | `/api/narrator/strategy` | save narrator strategy |
 | `POST` | `/api/narrator/preview` | preview narrator |
-| `POST` | `/api/voices/{speaker}/style_timeline` | From this line on, the character sounds like `character_style` (an |
+| `POST` | `/api/voices/{speaker}/style_timeline` | Set the character's style from the chosen line onward, or clear it with an empty style. |
 | `GET` | `/api/voices/{speaker}/design_lines` | The speaker's or state's lines for the card design picker, in-range first (#1232). |
 | `GET` | `/api/voices/{speaker}/state_timeline` | The suggested voice timeline for a character whose settled gender/age |
-| `POST` | `/api/voices/{speaker}/version_timeline` | Apply a character's voice timeline. Every version must exist, or |
-| `DELETE` | `/api/voices/{speaker}/version_timeline` | clear version timeline |
-| `DELETE` | `/api/voices/{speaker}/style_timeline/{from_index}` | remove style point |
+| `POST` | `/api/voices/{speaker}/version_timeline` | Apply a character's voice timeline. Every version must exist. |
+| `DELETE` | `/api/voices/{speaker}/version_timeline` | Clear a voice timeline using the required timeline revision from the State snapshot. |
+| `DELETE` | `/api/voices/{speaker}/style_timeline/{from_index}` | Remove a style change by live index or by its exact saved badge identity. |
 | `POST` | `/api/voices/{speaker}/approval` | Set persona and voice approval independently for a character. |
 | `POST` | `/api/voices/{speaker}/persona-voice-audit` | Allow a user to correct the provenance note for an assignment. |
 | `POST` | `/api/generate_personas` | Generate LLM-derived voice persona descriptions and VoiceDesign previews. |
