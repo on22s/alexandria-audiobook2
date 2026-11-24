@@ -712,6 +712,7 @@
   "home.workspace.task.retained": "失败的任务仍持有进程。请阅读下方的恢复说明；有冲突的新任务仍被阻止。",
   "core.task.fallback-label": "任务",
   "core.task.finished-result-unavailable": "{task} 已结束；重新加载后无法获取原始请求结果。",
+  "core.task.logs-restore-failed": "无法加载较早的日志历史。请检查连接，然后重新加载。",
   "core.task.logs-restored": "已恢复 {task} 的日志",
   "core.task.paused-self": "{task}自行暂停：重试已耗尽。请修复提供商，然后按恢复。",
   "core.task.restored-running": "{task} 正在运行……",

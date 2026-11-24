@@ -6488,6 +6488,8 @@ async def get_status(task_name: str, include_health: bool = False):
                               'accepts_manual_requests': False}
                 status['task_claim_id'] = owner.get('id')
             status.update(lifecycle)
+            if lifecycle.get('worker_pending'):
+                status['start_time'] = None
             return status
 
     state = await asyncio.to_thread(get_snapshot) if task_name == 'script' else get_snapshot()

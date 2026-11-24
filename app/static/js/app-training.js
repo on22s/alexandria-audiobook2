@@ -175,7 +175,7 @@
             const epochDisplay = document.getElementById('lora-epoch-display');
             const lossDisplay = document.getElementById('lora-loss-display');
 
-            const renderLogs = createTaskLogRenderer(logsEl);
+            const renderLogs = createTaskLogRenderer(logsEl, 'lora_training');
             let currentEpoch = 0;
             let maxEpochs = totalEpochs;
             epochDisplay.innerText = '';

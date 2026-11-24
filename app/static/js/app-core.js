@@ -1418,7 +1418,7 @@
             };
         }
 
-        function createTaskLogRenderer(element) {
+        function createTaskLogRenderer(element, taskName = null) {
             let previousLogs = null;
             let previousRunId = null;
             return status => {
@@ -1437,6 +1437,9 @@
                 }
                 previousLogs = update.logs;
                 previousRunId = update.runId;
+                // The renderer takes pane authority explicitly; the whole-pane
+                // read is gone and the writer identity is the task it renders.
+                window._notePaneRendererWrite?.(element, taskName, Number.isFinite(status.start_time) ? status.start_time : null);
                 element.scrollTop = followTail ? element.scrollHeight : scrollPosition;
                 return update;
             };
@@ -2645,6 +2648,7 @@
                 if (!isCurrent()) { return; }
 
                 applyCurrentBookFilename(config.current_file);
+                window._initialConfigApplied = true;
                 // Show previously loaded file
                 if (config.current_file) {
                     document.getElementById('upload-status').innerHTML =
@@ -4066,7 +4070,7 @@
                         && window._scriptRecoveryRunToken === runToken
                         && record.epoch === window._bookSelectionEpoch
                         && scriptRecoverySelectionMatches(record.selection)) {
-                        const renderLogs = createTaskLogRenderer(document.getElementById('script-logs'));
+                        const renderLogs = createTaskLogRenderer(document.getElementById('script-logs'), 'script');
                         renderLogs(data);
                     }
                     finishScriptRecoveryRun(runToken);
@@ -4616,9 +4620,10 @@
             statusMsg.innerHTML = `<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>${t('script.batch.uploading', 'Uploading files…')}</span>`;
             statusMsg.style.display = '';
 
-            const logEl = document.getElementById('script-logs');
-            logEl.innerHTML = '';
-
+            // Preparation must not clear the shared Script log: a Review (or a
+            // prior Script result) owns it until an accepted batch's first
+            // renderer replaces it atomically (S1). The renderer's reset path
+            // is the only admitted clear.
             try {
                 // Upload files in parallel; map preserves queue order for `tasks`.
                 const tasks = await Promise.all(queue.map(async (item, index) => {
@@ -4723,7 +4728,7 @@
 
         function _pollScriptBatchLogs() {
             const logEl = document.getElementById('script-logs');
-            const renderLogs = createTaskLogRenderer(logEl);
+            const renderLogs = createTaskLogRenderer(logEl, 'batch_script');
             // scriptBatchPoller is read elsewhere (pollLogs('script', ...)'s
             // onDone callbacks) to decide whether the single-script Generate
             // button should re-enable - it's a plain "is batch_script
@@ -4731,7 +4736,7 @@
             // loop is owned by _startPolling.
             scriptBatchPoller = true;
 
-            _startPolling('batch_script', () => API.get('/api/status/batch_script'), {
+            return _startPolling('batch_script', () => API.get('/api/status/batch_script'), {
                 doneCheck: state => !state.running,
                 onTick: state => {
                     renderLogs(state);
@@ -5631,8 +5636,8 @@
 
         function pollReviewBatch() {
             const logEl = document.getElementById('script-logs');
-            const renderLogs = createTaskLogRenderer(logEl);
-            _startPolling('batch_review', () => API.get('/api/status/batch_review'), {
+            const renderLogs = createTaskLogRenderer(logEl, 'batch_review');
+            return _startPolling('batch_review', () => API.get('/api/status/batch_review'), {
                 doneCheck: state => !state.running,
                 onTick: state => {
                     renderLogs(state);
@@ -5941,10 +5946,10 @@
         async function pollPersonaStatus() {
             claimTaskStart('persona');
             const logEl = document.getElementById('voices-logs');
-            const renderLogs = createTaskLogRenderer(logEl);
+            const renderLogs = createTaskLogRenderer(logEl, 'persona');
             const statusSpan = document.getElementById('persona-status');
             const cancelButton = document.getElementById('btn-cancel-personas');
-            _startPolling('persona', () => API.get('/api/status/persona'), {
+            return _startPolling('persona', () => API.get('/api/status/persona'), {
                 intervalMs: 1500,
                 doneCheck: status => !status.running,
                 onTick: status => {
@@ -11695,8 +11700,9 @@
             // Callers that need to stop a poll before its own doneCheck fires
             // (e.g. a user-initiated cancel) can call the returned function -
             // it just bumps the generation counter, which the next tick (in
-            // flight or scheduled) will see and exit on.
-            return () => { _pollGen[key] = (_pollGen[key] || 0) + 1; };
+            // flight or scheduled) will see and exit on. It refuses to stop a
+            // successor that already took over the same key.
+            return () => { if (_pollGen[key] === myGen) { _pollGen[key] = (_pollGen[key] || 0) + 1; } };
         }
 
         // A run can pause ITSELF (retries exhausted with "pause and wait for me"
@@ -11973,14 +11979,14 @@
             const activityEl = activityId ? document.getElementById(activityId) : null;
             const ownsScriptControls = () => !scriptRunToken || window._scriptRecoveryRunToken === scriptRunToken;
             const track = { count: -1, changedAt: Date.now() };
-            const renderLogs = createTaskLogRenderer(el);
+            const renderLogs = createTaskLogRenderer(el, taskName);
             const fetchStatus = () => {
                 if (!initialStatus) { return API.get(`/api/status/${taskName}`); }
                 const status = initialStatus;
                 initialStatus = null;
                 return status;
             };
-            _startPolling(`logs:${taskName}`, fetchStatus, {
+            return _startPolling(`logs:${taskName}`, fetchStatus, {
                 scriptRunToken,
                 doneCheck: status => !status.running,
                 onTick: status => {

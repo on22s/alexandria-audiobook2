@@ -712,6 +712,7 @@
   "home.workspace.task.retained": "失敗したタスクがまだプロセスを保持しています。下の復旧手順を確認してください。競合する新しい作業の開始は引き続きブロックされます。",
   "core.task.fallback-label": "タスク",
   "core.task.finished-result-unavailable": "{task} が終了しました。再読み込み後は元のリクエスト結果を取得できません。",
+  "core.task.logs-restore-failed": "以前のログ履歴を読み込めませんでした。接続を確認してから再読み込みしてください。",
   "core.task.logs-restored": "{task} のログを復元しました",
   "core.task.paused-self": "{task}が自動的に一時停止しました。再試行の上限に達しました。プロバイダーを修正してから再開を押してください。",
   "core.task.restored-running": "{task} 実行中…",

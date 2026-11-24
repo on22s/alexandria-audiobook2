@@ -10,6 +10,42 @@ from routers import script
 import core
 
 
+class TaskLifecycleMetadataTests(unittest.TestCase):
+    def test_persona_metadata_is_truthful_before_during_and_after_the_worker_path(self):
+        import sys
+        state = core.process_state['persona']
+        try:
+            self.assertIsNone(state['start_time'])
+            self.assertEqual('idle', state['status'])
+            self.assertFalse(core.get_task_lifecycle('persona')['has_history'])
+            with patch.object(core, '_init_task_log', return_value=None), \
+                 patch.object(core, '_stream_subprocess_to_logs', return_value=(0, None)):
+                core.run_process([sys.executable, '-c', 'pass'], 'persona')
+            self.assertIsInstance(state['start_time'], float)
+            self.assertEqual('done', state['status'])
+            lifecycle = core.get_task_lifecycle('persona')
+            self.assertTrue(lifecycle['has_history'])
+            self.assertEqual(state['start_time'], lifecycle['start_time'])
+        finally:
+            state.update(running=False, logs=[], cancel=False, process=None,
+                         start_time=None, status='idle')
+
+    def test_pending_script_detail_keeps_null_start_time_after_a_previous_run(self):
+        app = FastAPI(); app.include_router(script.router)
+        states = {'script': {'running': True, 'logs': [], 'start_time': 999,
+                             'status': 'running', 'cancel': False}}
+        claims = {'script': {'id': 'claim-1', 'defer_process_state': True}}
+        with patch.object(script, 'process_state', states), \
+             patch.object(core, 'process_state', states), \
+             patch.object(core, '_task_claims', claims), TestClient(app) as client:
+            detail = client.get('/api/status/script').json()
+            self.assertIs(detail.get('worker_pending'), True)
+            self.assertIsNone(detail['start_time'])
+            registry = client.get('/api/status').json()
+            self.assertEqual(999, registry['script']['start_time'])
+            self.assertTrue(registry['script']['has_history'])
+
+
 class TaskDiscoveryTests(unittest.TestCase):
     def test_remote_persona_and_local_voicelab_are_permitted_by_native_admission(self):
         states = {name: {'running': name == 'persona'} for name in core.process_state}
@@ -22,7 +58,7 @@ class TaskDiscoveryTests(unittest.TestCase):
             core.check_global_gpu_lock('persona')
 
     def test_native_http_includes_dynamic_tasks_without_handles_or_logs(self):
-        states={'review':{'running':True,'logs':['private log'],'process':object()},
+        states={'review':{'running':True,'logs':['private log'],'process':object(),'start_time':1420},
                 'future_task':{'running':True,'processes':[object()]},'idle':{'running':False},
                 'failed_owner':{'running':False,'status':'failed','_windows_cleanup_failed':True,
                                 'logs':['private failure'],'process':object()}}
@@ -31,10 +67,14 @@ class TaskDiscoveryTests(unittest.TestCase):
         with patch.object(script,'process_state',states),TestClient(app) as client:
             res=client.get('/api/status')
             self.assertEqual(200,res.status_code,res.text)
-            self.assertEqual({'review':{'running':True,'ownership_unconfirmed':False,'status':'running'},
-                              'future_task':{'running':True,'ownership_unconfirmed':False,'status':'running'},
-                              'idle':{'running':False,'ownership_unconfirmed':False,'status':'idle'},
-                              'failed_owner':{'running':False,'ownership_unconfirmed':True,'status':'failed'}},res.json())
+            self.assertEqual({'review':{'running':True,'ownership_unconfirmed':False,'status':'running',
+                                        'start_time':1420,'has_history':True},
+                              'future_task':{'running':True,'ownership_unconfirmed':False,'status':'running',
+                                             'start_time':None,'has_history':True},
+                              'idle':{'running':False,'ownership_unconfirmed':False,'status':'idle',
+                                      'start_time':None,'has_history':False},
+                              'failed_owner':{'running':False,'ownership_unconfirmed':True,'status':'failed',
+                                              'start_time':None,'has_history':True}},res.json())
             self.assertEqual(before,states)
             self.assertEqual(404,client.get('/api/status/missing').status_code)
 
@@ -47,9 +87,16 @@ const helperStart=source.indexOf('        function reattachTaskActivity(');
 const dispatcherStart=source.indexOf('        async function reattachRunningPollers()');
 const code=source.slice(helperStart>=0?helperStart:dispatcherStart,source.indexOf('        // Init',dispatcherStart));
 const elements={},calls=[],warnings=[],requests=[];
-function el(id){return elements[id]||(elements[id]={disabled:false,style:{display:'none'},innerText:''});}
+function el(id){return elements[id]||(elements[id]={disabled:false,style:{display:'none'},
+ _text:'',_title:'',_scrollTop:0,scrollHeight:0,clientHeight:0,
+ get innerText(){return this._text;},set innerText(v){this._text=String(v);},
+ get textContent(){return this._text;},set textContent(v){this._text=String(v);},
+ get title(){return this._title;},set title(v){this._title=String(v);},
+ get scrollTop(){return this._scrollTop;},set scrollTop(v){this._scrollTop=v;},
+ appendChild(node){this._text+=String(node.textContent);}
+});}
 let statuses={};
-const ctx={document:{getElementById:el},console,showToast:(message,type)=>warnings.push([message,type]),
+const ctx={document:{getElementById:el,createTextNode:node=>({textContent:String(node)})},console,showToast:(message,type)=>warnings.push([message,type]),
  API:{get:async path=>{requests.push(path);return path==='/api/status'?statuses:{logs:['last log'],running:false,...(statuses[path.split('/').at(-1)]||{})};}},
  _pollScriptBatchLogs:()=>calls.push('batch_script'),scriptBatchPoller:null,
  pollScriptLogs:(task,done)=>calls.push(task),loadReviewBatchScripts:async()=>{},pollReviewBatch:()=>calls.push('batch_review'),
@@ -62,7 +109,10 @@ const ctx={document:{getElementById:el},console,showToast:(message,type)=>warnin
   t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),
   escapeHtml:value=>String(value),
   _startPolling:(key,fetch,options)=>{ctx.poll={key,fetch,options};calls.push(key);}};
-vm.createContext(ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function getTaskOwnershipMessage('),coreSource.indexOf('function renderActivity(')),ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function showActionError('),coreSource.indexOf('function showConfirm(')),ctx);const claimStart=coreSource.indexOf('const taskStartButtons =');vm.runInContext(coreSource.slice(claimStart,coreSource.indexOf('// --- API Helpers ---',claimStart)),ctx);vm.runInContext(code,ctx);
+// A browser-like global must exist BEFORE the modules evaluate: the renderer
+// hook and every ownership bridge are installed at definition time (S2/A7/A11).
+ctx.window=ctx;
+vm.createContext(ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function getTaskOwnershipMessage('),coreSource.indexOf('function renderActivity(')),ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function showActionError('),coreSource.indexOf('function showConfirm(')),ctx);const claimStart=coreSource.indexOf('const taskStartButtons =');vm.runInContext(coreSource.slice(claimStart,coreSource.indexOf('// --- API Helpers ---',claimStart)),ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function getTaskLogUpdate('),coreSource.indexOf('// --- Setup Tab ---')),ctx);vm.runInContext(code,ctx);
 (async()=>{
 """
 

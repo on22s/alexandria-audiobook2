@@ -412,7 +412,7 @@
             const logEl = document.getElementById('voicelab-logs');
             const progEl = document.getElementById('vl-stage-progress');
             const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
-            const renderLogs = createTaskLogRenderer(logEl);
+            const renderLogs = createTaskLogRenderer(logEl, 'voicelab');
             _startPolling('voicelab', () => API.get('/api/status/voicelab?include_health=true'), {
                 doneCheck: s => !s.running,
                 onTick: s => {

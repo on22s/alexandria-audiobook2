@@ -70,6 +70,19 @@ KEEP_ENGLISH = frozenset({
     'safety.book.switch_unconfirmed',
     # Element-id prefix (app-editor-repair.js generate-by-chapter panel), an identifier.
     'editor-chapter-',
+    # #2191 pane-authority lifecycle in app-workbench.js: the retained/retire
+    # control element ids, internal task/status keys and a console.debug label.
+    # None of these are painted copy; the visible task messages go through t().
+    'btn-gen-script', 'btn-cancel-script', 'btn-pause-script',
+    'btn-pause-batch-script', 'btn-cancel-batch-script',
+    'btn-pause-batch-review', 'btn-cancel-batch-review',
+    'btn-find-nicknames', 'btn-pause-nick', 'btn-cancel-nick',
+    'btn-build-cast-list', 'btn-cancel-cast-list',
+    'btn-lora-train', 'btn-lora-cancel', 'btn-suggest-voices',
+    'btn-gen-personas', 'editor-word-timing', 'editor-line-speech-recheck',
+    'editor-word-cancel', 'lmstudio-optimize-toggle',
+    'dataset_builder', 'outlier_check', 'start_time',
+    'log restore registry recheck failed',
     # CSS selector naming the controls that own their keys (app-editor-review.js
     # shortcut guard), an identifier rather than display copy.
     'button, summary, a, audio',

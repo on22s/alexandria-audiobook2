@@ -1301,7 +1301,7 @@
         function dsbStartPolling(name, admitted = true) {
             if (dsbPolling) { dsbPolling(); }
             const logsEl = document.getElementById('dsb-logs');
-            const renderLogs = createTaskLogRenderer(logsEl);
+            const renderLogs = createTaskLogRenderer(logsEl, 'dataset_builder');
             dsbPolling = _startPolling(`dataset_builder:${name}`, () => datasetFetchStatus(name), {
                 intervalMs: 2000,
                 doneCheck: result => !!result && !result.running && !result.ownership_unconfirmed,
@@ -1724,12 +1724,14 @@
             return typeof window !== 'undefined' ? window : null;
         }
 
-        function reattachTaskActivity(taskName, buttonIds = [], statusId = null, afterDone = null, initialState = null) {
+        function reattachTaskActivity(taskName, buttonIds = [], statusId = null, afterDone = null, initialState = null, options = {}) {
             const bridge = typeof window !== 'undefined' ? window : null;
+            const generation = options.generation === undefined ? null : options.generation;
+            const paneFence = typeof options.paneFence === 'function' ? options.paneFence : () => true;
             const wasActive = bridge?._scriptRecoveryRunActive;
             if (taskName === 'script' && initialState?.worker_pending) {
-                pollScriptLogs('script', null, wasActive ? bridge._scriptRecoveryRunToken : 0, initialState);
-                return;
+                const stop = pollScriptLogs('script', null, wasActive ? bridge._scriptRecoveryRunToken : 0, initialState);
+                return { id: getRunIdentity(taskName, initialState), kind: 'pending', generation, stop: () => { if (typeof stop === 'function') { stop(); } } };
             }
             const scriptRunToken = taskName === 'script'
                 ? (bridge?.observeScriptRecoveryRun?.(initialState?.task_claim_id,
@@ -1747,13 +1749,14 @@
             buttons.forEach(button => { button.disabled = true; });
             if (initialState?.ownership_unconfirmed) {
                 const message = getTaskOwnershipMessage(initialState);
-                if (statusEl) { statusEl.textContent = message; }
+                if (statusEl) { writeOwnershipWarning(statusEl, taskName, message); }
                 else { showToast(message, 'warning'); }
             }
-            else if (statusEl) { statusEl.textContent = t('core.task.restored-running', '{task} running...', {task: label}); }
+            else if (statusEl) { writePaneText(statusEl, taskName, 'live', t('core.task.restored-running', '{task} running...', {task: label})); }
             else { showToast(t('core.task.still-running', '{task} is still running.', {task: label}), 'info'); }
             let terminalHandled = false;
             let stopPolling;
+            let record;
             const claim = typeof taskStartClaims === 'undefined' ? null : taskStartClaims.get(taskName);
             const releaseClaim = () => {
                 if (!claim || taskStartClaims.get(taskName) === claim) { releaseTaskStart(taskName); }
@@ -1770,9 +1773,13 @@
                     detachObserver();
                     if (!ownsScriptControls()) { return; }
                     buttons.forEach(button => { button.disabled = false; });
-                    const message = (state?.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
-                    if (statusEl) { statusEl.textContent = message; }
-                    else { showToast(message, 'info'); }
+                    if (!statusEl) {
+                        const message = (state?.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
+                        showToast(message, 'info');
+                    } else if (paneFence()) {
+                        const message = (state?.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
+                        writePaneText(statusEl, taskName, state?.ownership_unconfirmed ? 'retained' : 'live', message, {runStart: state?.start_time});
+                    }
                     if (afterDone) { afterDone(); }
                 }, detachObserver);
             }
@@ -1782,16 +1789,24 @@
                 // observed task that caused the start to be refused.
                 doneCheck: state => observed?.state !== 'provisional' && !state.running && !state.ownership_unconfirmed,
                 onTick: state => {
+                    if (typeof record !== 'undefined' && record) {
+                        record.detail = state;
+                        if (state && !state.running && !state.ownership_unconfirmed) { record.retired = true; }
+                    }
                     if (!ownsScriptControls() || (scriptRunToken && bridge._scriptRecoveryTerminalToken === scriptRunToken)) { return; }
+                    if (!paneFence()) { return; }
                     if (scriptRunToken) { bridge.syncSnapshotButton?.(state); }
                     const last = (state.logs || []).slice(-1)[0];
-                    if (statusEl && state.ownership_unconfirmed) { statusEl.textContent = getTaskOwnershipMessage(state); }
-                    else if (statusEl && last) { statusEl.textContent = last; }
+                    if (statusEl && state.ownership_unconfirmed) { writeOwnershipWarning(statusEl, taskName, getTaskOwnershipMessage(state)); }
+                    else if (statusEl && last) {
+                        if (writePaneText(statusEl, taskName, 'live', last, {runStart: state.start_time})) { statusEl.innerText = last; }
+                    }
                 },
                 onDone: async state => {
                     if (terminalHandled) { return; }
                     if (observed) { return; }
                     terminalHandled = true;
+                    if (record) { record.retired = true; }
                     releaseClaim();
                     if (!ownsScriptControls()) { return; }
                     buttons.forEach(button => { button.disabled = false; });
@@ -1799,16 +1814,175 @@
                         const gen = document.getElementById('btn-gen-script');
                         if (gen && !scriptBatchPoller) { gen.disabled = false; }
                     }
-                    const message = (state.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
-                    if (statusEl) { statusEl.textContent = message; }
-                    else { showToast(message, 'info'); }
+                    if (!statusEl) {
+                        const message = (state.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
+                        showToast(message, 'info');
+                    } else if (paneFence()) {
+                        const message = (state.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
+                        if (writePaneText(statusEl, taskName, 'live', message, {runStart: state.start_time})) { statusEl.innerText = message; }
+                    }
                     notifyJobDone(taskName, '', 'finished', state);
                     if (afterDone) { await afterDone(); }
                 },
             });
+            record = {
+                id: getRunIdentity(taskName, initialState),
+                kind: initialState?.ownership_unconfirmed ? 'retained' : (initialState?.worker_pending ? 'pending' : 'live'),
+                generation,
+                stop: () => stopPolling?.(),
+                release: releaseClaim,
+                retire: state => {
+                    if (terminalHandled) { return; }
+                    terminalHandled = true;
+                    if (state?.ownership_unconfirmed) { buttons.forEach(button => { button.disabled = false; }); }
+                    if (statusEl) {
+                        const auth = getPaneAuthority(statusEl);
+                        if (auth.writer === taskName) { writeOwnershipWarning(statusEl, taskName, ''); }
+                    }
+                },
+            };
+            return record;
+        }
+
+        // One pane-authority protocol for every shared log pane. A writer owns a
+        // pane only at the rank it was admitted at; continuations revalidate the
+        // exact node and the exact write version before mutating anything.
+        const PANE_RANK = { default: 0, diagnostic: 1, retained: 2, live: 3 };
+        const _paneAuthority = new WeakMap();
+        const _warningPaneText = new WeakMap();
+        const _restoredPaneTitle = new WeakMap();
+        const _knownHistoryText = new WeakMap();
+        function getPaneAuthority(el) {
+            if (!el) { return null; }
+            let auth = _paneAuthority.get(el);
+            if (!auth) {
+                auth = { writer: null, rank: PANE_RANK.default, epoch: 0, runStart: null };
+                _paneAuthority.set(el, auth);
+            }
+            return auth;
+        }
+        function paneVersion(el) {
+            const auth = getPaneAuthority(el);
+            return auth ? auth.epoch : 0;
+        }
+        function releasePaneAuthority(el, writer, expectedEpoch) {
+            if (!el) { return false; }
+            const auth = getPaneAuthority(el);
+            if (writer !== undefined && writer !== null && auth.writer !== writer) { return false; }
+            if (expectedEpoch !== undefined && auth.epoch !== expectedEpoch) { return false; }
+            _warningPaneText.delete(el);
+            auth.writer = null;
+            auth.rank = PANE_RANK.default;
+            auth.runStart = null;
+            auth.epoch++;
+            return true;
+        }
+        function clearRestoredPaneTitle(el) {
+            if (!el) { return; }
+            const owned = _restoredPaneTitle.get(el);
+            if (owned === undefined) { return; }
+            if (el.title === owned) { el.title = ''; }
+            _restoredPaneTitle.delete(el);
+        }
+        function setRestoredPaneTitle(el, title) {
+            el.title = title;
+            _restoredPaneTitle.set(el, title);
+        }
+        function writeOwnershipWarning(el, writer, message) {
+            if (!el) { return false; }
+            const auth = getPaneAuthority(el);
+            const prior = _warningPaneText.get(el);
+            if (!message) {
+                if (auth.writer !== writer) { return false; }
+                const blank = !el.textContent || el.textContent === prior;
+                releasePaneAuthority(el, writer);
+                if (blank) { el.textContent = ''; }
+                return true;
+            }
+            // A newer live writer from another task owns the pane: never clobber it.
+            if (auth.rank >= PANE_RANK.live && auth.writer && auth.writer !== writer) { return false; }
+            // Only replace our own warning, known restored history, or an empty
+            // pane. Foreign/unowned text and newer live text are preserved.
+            const current = el.textContent;
+            const knownHistory = (auth.writer === 'history')
+                || (current !== '' && current === _knownHistoryText.get(el));
+            if (current && current !== prior && !knownHistory) { return false; }
+            el.textContent = message;
+            _warningPaneText.set(el, message);
+            auth.writer = writer; auth.rank = PANE_RANK.retained; auth.runStart = null; auth.epoch++;
+            clearRestoredPaneTitle(el);
+            _knownHistoryText.delete(el);
+            return true;
+        }
+        function writePaneText(el, writer, rank, message, options = {}) {
+            if (!el) { return false; }
+            const auth = getPaneAuthority(el);
+            const level = PANE_RANK[rank] || 0;
+            if (level < auth.rank) { return false; }
+            if (level === auth.rank && auth.writer && auth.writer !== writer) { return false; }
+            el.textContent = message;
+            auth.writer = writer; auth.rank = level; auth.epoch++;
+            if (Object.prototype.hasOwnProperty.call(options, 'runStart')) { auth.runStart = options.runStart; }
+            if (level >= PANE_RANK.retained) {
+                clearRestoredPaneTitle(el);
+                _knownHistoryText.delete(el);
+            }
+            return true;
+        }
+        function notePaneRendererWrite(element, writer, runStart) {
+            if (!element) { return; }
+            const auth = getPaneAuthority(element);
+            auth.writer = writer || 'renderer';
+            auth.rank = PANE_RANK.live;
+            auth.epoch++;
+            auth.runStart = Number.isFinite(runStart) ? runStart : null;
+            clearRestoredPaneTitle(element);
+            _knownHistoryText.delete(element);
+        }
+        // One per-task identity for opening, detail and final registry entries.
+        // Claim IDs win when present; claimless summaries compare finite start
+        // times so two genuinely different successors are not merged (A2).
+        function getRunIdentity(name, state) {
+            if (!state) { return null; }
+            const claim = state.task_claim_id || state.worker_claim_id || null;
+            const kind = state.ownership_unconfirmed ? 'retained' : (state.worker_pending ? 'pending' : (state.running ? 'live' : 'idle'));
+            const start = claim ? null : (Number.isFinite(state.start_time) ? state.start_time : null);
+            return JSON.stringify([name, claim, kind, start]);
+        }
+        const _taskOwners = new Map();
+        // Installed observer handles survive dispatches so a proven owner change
+        // (retained -> live) stops the exact old poller, even across keys (A9).
+        const _taskPollers = new Map();
+        function registerTaskPoller(name, stop, identity, generation) {
+            if (typeof stop !== 'function') { return; }
+            const previous = _taskPollers.get(name);
+            if (previous && previous.stop !== stop) { try { previous.stop(); } catch (e) { /* already stopped */ } }
+            _taskPollers.set(name, { stop, identity, generation: generation || 0 });
+        }
+        function stopTaskPoller(name, record) {
+            const entry = _taskPollers.get(name);
+            if (!entry) { return; }
+            // The newest dispatch owns the handle; an older pass must not stop it.
+            if (record && entry.generation > (record.generation || 0)) { return; }
+            try { entry.stop(); } catch (e) { /* already stopped */ }
+            if (_taskPollers.get(name) === entry) { _taskPollers.delete(name); }
+        }
+        if (typeof window !== 'undefined') {
+            window._notePaneRendererWrite = notePaneRendererWrite;
+        }
+        function retireTaskOwnership(owners, name, terminalState) {
+            const record = owners.get(name);
+            if (!record) { return; }
+            owners.delete(name);
+            record.retired = true;
+            if (typeof record.retire === 'function') { record.retire(terminalState); }
+            stopTaskPoller(name, record);
+            if (typeof record.stop === 'function') { record.stop(); }
+            if (typeof record.release === 'function') { record.release(); }
         }
 
         let _reattachGeneration = 0;
+        const _logRestoreDiagnostics = new Map();
         function getLogPollGeneration(taskNames) {
             const polls = typeof _pollGen === 'undefined' ? {} : _pollGen;
             return JSON.stringify(taskNames.map(name => [polls[name] || 0, polls[`logs:${name}`] || 0]));
@@ -1825,11 +1999,42 @@
             return latest;
         }
 
+        function getLogRestoreIdentity(owner) {
+            if (!owner) { return null; }
+            const start = Object.prototype.hasOwnProperty.call(owner, 'start_time') ? owner.start_time : null;
+            return JSON.stringify([!!owner.running, !!owner.ownership_unconfirmed,
+                owner.status || '', start, owner.has_history === undefined ? null : owner.has_history]);
+        }
+
+        function getUnresolvedLogFailure(taskNames, failed, registry, latest, previous) {
+            const newest = latest && Number.isFinite(latest.start) ? latest.start : -Infinity;
+            for (const name of taskNames) {
+                if (!failed.has(name)) { continue; }
+                const owner = Object.prototype.hasOwnProperty.call(registry, name) ? registry[name] : null;
+                if (!owner || !Object.prototype.hasOwnProperty.call(owner, 'start_time')) { return true; }
+                if (previous) {
+                    const prior = Object.prototype.hasOwnProperty.call(previous, name) ? previous[name] : null;
+                    if (!prior || prior.status !== owner.status || prior.start_time !== owner.start_time
+                        || prior.has_history !== owner.has_history) { return true; }
+                }
+                const start = owner.start_time;
+                if (start === null) {
+                    if (owner.has_history === false && owner.status === 'idle'
+                        && !owner.running && !owner.ownership_unconfirmed) { continue; }
+                    return true;
+                }
+                if (!Number.isFinite(start)) { return true; }
+                if (start >= newest) { return true; }
+            }
+            return false;
+        }
+
         // Restore each running task independently: remote LLM work can coexist
         // with local training/Voice Lab and CPU exports.
         async function reattachRunningPollers() {
             const generation = ++_reattachGeneration;
             const bridge = typeof window !== 'undefined' ? window : null;
+            const selectionEpoch = bridge?._bookSelectionEpoch || 0;
             const dispatchState = {
                 generation,
                 bookEpoch: bridge?._scriptRecoveryBookEpoch || 0,
@@ -1837,22 +2042,55 @@
                 acceptedToken: bridge?._scriptRecoveryAcceptedRun || 0,
                 terminalToken: bridge?._scriptRecoveryTerminalToken || 0
             };
-            const dispatchFence = () => generation === _reattachGeneration
+            const contextFence = () => generation === _reattachGeneration
                 && (bridge?._scriptRecoveryBookEpoch || 0) === dispatchState.bookEpoch
-                && (bridge?._selectedUploadIdentity || null) === dispatchState.selection
-                && (bridge?._scriptRecoveryAcceptedRun || 0) === dispatchState.acceptedToken
+                && (bridge?._selectedUploadIdentity || null) === dispatchState.selection;
+            const tokenFence = () => (bridge?._scriptRecoveryAcceptedRun || 0) === dispatchState.acceptedToken
                 && (bridge?._scriptRecoveryTerminalToken || 0) === dispatchState.terminalToken;
+            const dispatchFence = () => contextFence() && tokenFence();
+            // The initial config installs the saved book after a reload. That is
+            // not a user selection, so re-baseline once and let the fresh history
+            // pass belong to the settled book. A genuine selection bumps
+            // _bookSelectionEpoch and keeps the stale fence.
+            const rebalanceInitialConfig = () => {
+                if (generation !== _reattachGeneration) { return false; }
+                if ((bridge?._bookSelectionEpoch || 0) !== selectionEpoch) { return false; }
+                if ((bridge?._scriptRecoveryBookEpoch || 0) === dispatchState.bookEpoch) { return false; }
+                dispatchState.bookEpoch = bridge._scriptRecoveryBookEpoch || 0;
+                return true;
+            };
+            // A confirmed Script admission owns the shared pane. A numeric token
+            // advance alone is provisional/refused bookkeeping and must not hide a
+            // legitimate same-run detail from the old owner (A3).
+            const scriptPaneOwned = () => {
+                if (!bridge) { return false; }
+                const accepted = bridge._scriptRecoveryAcceptedRun || 0;
+                const record = accepted ? bridge.getScriptAdmissionByToken?.(accepted) : null;
+                if (record && record.state === 'accepted') { return true; }
+                const runToken = bridge._scriptRecoveryRunToken || 0;
+                const active = runToken && bridge._scriptRecoveryRunActive
+                    ? bridge.getScriptAdmissionByToken?.(runToken) : null;
+                return !!active && active.state === 'accepted';
+            };
+            const sameRunIdentity = (opening, live) => {
+                if (!opening || !live) { return false; }
+                const before = opening.task_claim_id || opening.worker_claim_id || null;
+                const now = live.task_claim_id || live.worker_claim_id || null;
+                if (before || now) { return !!before && before === now; }
+                return Number.isFinite(opening.start_time) && Number.isFinite(live.start_time)
+                    && opening.start_time === live.start_time;
+            };
+            const taskOwners = new Map();
             let statuses;
+            let running = {};
             let staleDispatch = false;
-            try {
-                statuses = await API.get('/api/status');
-                staleDispatch = !dispatchFence();
-            } catch (e) {
-                if (!dispatchFence()) { return; }
-                showActionError('Could not restore running task controls', e, 'Check the app connection and reload task status before starting new work; a task may still be running.', 'warning');
-                return;
+            // Only a config that was still loading when this pass finished needs
+            // the one fresh post-config pass; an already-settled config must not
+            // trigger a duplicate dispatch.
+            let configSettled = false;
+            if (bridge?._initialConfigReady && typeof bridge._initialConfigReady.then === 'function') {
+                bridge._initialConfigReady.then(() => { configSettled = true; }).catch(() => {});
             }
-            let running = Object.fromEntries(Object.entries(statuses).map(([name, state]) => [name, state.running || state.ownership_unconfirmed]));
 
             const logGroups = [
                 { elementId: 'script-logs', tasks: ['script', 'batch_script', 'review', 'batch_review', 'nicknames', 'cast_list'] },
@@ -1860,33 +2098,20 @@
                 { elementId: 'audio-logs', tasks: ['audio'] },
                 { elementId: 'voicelab-logs', tasks: ['voicelab'] },
             ];
-            const pollGenerations = logGroups.map(group => getLogPollGeneration(group.tasks));
-            const hydrateNames = new Set([...logGroups.flatMap(group => group.tasks),
-                ...Object.keys(statuses).filter(name => statuses[name]?.ownership_unconfirmed)]);
-            const fetched = await Promise.all([...hydrateNames].map(async taskName => {
-                if (statuses[taskName]?.running && !statuses[taskName]?.ownership_unconfirmed) { return null; }
-                try {
-                    return [taskName, await API.get(`/api/status/${taskName}`)];
-                } catch (e) {
-                    console.debug(`${taskName} log hydration failed`, e);
-                    return null;
-                }
-            }));
-            staleDispatch = staleDispatch || !dispatchFence();
-            const hydrated = Object.fromEntries(fetched.filter(Boolean));
-            statuses = { ...statuses, ...hydrated };
-            running = Object.fromEntries(Object.entries(statuses).map(([name, state]) => [name, state.running || state.ownership_unconfirmed]));
-            logGroups.forEach((group, index) => {
-                if (staleDispatch) { return; }
-                if (group.tasks.some(name => running[name]) || pollGenerations[index] !== getLogPollGeneration(group.tasks)) { return; }
-                const latest = getLatestCompletedLog(group.tasks, hydrated);
-                const el = document.getElementById(group.elementId);
-                if (el && latest) {
-                    el.innerText = latest.logs.join('\n');
-                    el.title = t('core.task.logs-restored', 'Restored {task} logs', {task: latest.name.replaceAll('_', ' ')});
-                    el.scrollTop = el.scrollHeight;
-                }
+            // Snapshot the pane node, its text, title and writer version before
+            // the first await: a live writer can paint during the opening status
+            // request and an older registry must not revoke it (A5).
+            const paneStates = logGroups.map(group => {
+                const pane = document.getElementById(group.elementId);
+                return { el: pane, version: paneVersion(pane),
+                    text: pane ? pane.innerText : undefined, title: pane ? pane.title : undefined };
             });
+            const paneNodes = new Map(logGroups.map((group, index) => [group.elementId, paneStates[index].el]));
+            const sharedPaneTasks = new Set(logGroups[0].tasks);
+            const pollGenerations = logGroups.map(group => getLogPollGeneration(group.tasks));
+            // A task's own observer only needs the book/selection/generation fence;
+            // pane authority still rejects a foreign live writer.
+            const paneWriteFence = () => contextFence();
 
             const show = (id, disp = 'inline-block') => {
                 const el = document.getElementById(id); if (el) { el.style.display = disp; }
@@ -1899,7 +2124,7 @@
                 batch_script: () => {
                     disable('btn-gen-script');
                     show('btn-pause-batch-script'); show('btn-cancel-batch-script');
-                    _pollScriptBatchLogs();
+                    return _pollScriptBatchLogs();
                 },
                 script: async () => {
                     const dispatchTask = statuses.script || null;
@@ -1912,21 +2137,19 @@
                     if (bridge?._scriptRecoveryRunActive
                         && (bridge._scriptRecoveryAcceptedRun || 0) !== dispatchState.acceptedToken) { return; }
                     if (live.worker_pending) {
-                        reattachTaskActivity('script', [], 'script-logs', null, live);
-                        return;
+                        return reattachTaskActivity('script', [], 'script-logs', null, live, { generation });
                     }
                     const recoveryRunToken = bridge?.observeScriptRecoveryRun?.(live.task_claim_id,
                         live.running && !live.ownership_unconfirmed) || null;
                     const observed = bridge?.getScriptAdmissionByToken?.(recoveryRunToken);
                     if (bridge?.observeScriptRecoveryRun && (!observed
                         || (observed.state === 'provisional' && bridge._scriptRecoveryRunToken !== recoveryRunToken))) {
-                        reattachTaskActivity('script', [], 'script-logs', null, live);
-                        return;
+                        return reattachTaskActivity('script', [], 'script-logs', null, live, { generation });
                     }
                     if (observed) { bridge.acceptScriptAdmission(observed.id); }
                     disable('btn-gen-script');
                     show('btn-cancel-script'); show('btn-pause-script');
-                    pollScriptLogs('script', () => {
+                    return pollScriptLogs('script', () => {
                         if (!observed) {
                             if (!scriptBatchPoller) {
                                 const b = document.getElementById('btn-gen-script'); if (b) { b.disabled = false; }
@@ -1939,17 +2162,17 @@
                     disable('btn-review-batch-start');
                     show('btn-pause-batch-review'); show('btn-cancel-batch-review');
                     await loadReviewBatchScripts();
-                    pollReviewBatch();
+                    return pollReviewBatch();
                 },
                 review: () => {
                     _disableReviewButtons(true);
                     _showReviewControls(true);
-                    pollScriptLogs('review', _onReviewDone);
+                    return pollScriptLogs('review', _onReviewDone);
                 },
                 nicknames: () => {
                     disable('btn-find-nicknames');
                     show('btn-pause-nick'); show('btn-cancel-nick');
-                    pollScriptLogs('nicknames', async () => {
+                    return pollScriptLogs('nicknames', async () => {
                         const btn = document.getElementById('btn-find-nicknames');
                         if (btn) { btn.disabled = false; }
                         show('btn-pause-nick', 'none'); show('btn-cancel-nick', 'none');
@@ -1959,32 +2182,30 @@
                 cast_list: () => {
                     disable('btn-build-cast-list');
                     show('btn-cancel-cast-list');
-                    pollScriptLogs('cast_list', async () => {
+                    return pollScriptLogs('cast_list', async () => {
                         const btn = document.getElementById('btn-build-cast-list');
                         if (btn) { btn.disabled = false; }
                         show('btn-cancel-cast-list', 'none');
                         await loadCastList(true);
                     });
                 },
-                persona: () => {
-                    pollPersonaStatus();
-                },
+                persona: () => pollPersonaStatus(),
                 voicelab: () => {
                     _vlSetRunning(true);
                     refreshVoicelabHealth();
-                    pollVoicelab();
+                    return pollVoicelab();
                 },
                 lora_training: () => {
                     disable('btn-lora-train');
                     show('btn-lora-cancel');
                     show('lora-progress-section', 'block');
-                    pollLoraTraining();
+                    return pollLoraTraining();
                 },
-                preparer: () => { _pollPreparerLogs('preparer'); },
-                batch_preparer: () => { _pollPreparerLogs('batch_preparer'); },
+                preparer: () => { return _pollPreparerLogs('preparer'); },
+                batch_preparer: () => { return _pollPreparerLogs('batch_preparer'); },
                 audio: () => {
                     show('btn-cancel-merge');
-                    pollLogs('audio', 'audio-logs', () => {
+                    return pollLogs('audio', 'audio-logs', () => {
                         show('btn-cancel-merge', 'none');
                         window.resetExportQualityView?.();
                     });
@@ -1999,58 +2220,348 @@
                     if (!state.dataset_name) { throw new Error('Active Dataset Builder project is unavailable'); }
                     await dsbLoadProjects(state.dataset_name);
                 },
-                voices: () => { reattachTaskActivity('voices', ['btn-suggest-voices'], 'suggest-status', loadVoices); },
-                llm_test: () => { reattachTaskActivity('llm_test', ['llm-test-btn'], 'llm-test-result'); },
-                lmstudio_optimize: () => { reattachTaskActivity('lmstudio_optimize', ['lmstudio-optimize-toggle'], 'lmstudio-status-badge', refreshLmStudioStatus); },
-                voice_design: () => { reattachTaskActivity('voice_design', ['btn-design-preview'], 'design-status', loadDesignedVoices); },
-                lora_test: () => { reattachTaskActivity('lora_test', [], 'lora-test-status'); },
+                voices: () => reattachTaskActivity('voices', ['btn-suggest-voices'], 'suggest-status', loadVoices, null, { generation }),
+                llm_test: () => reattachTaskActivity('llm_test', ['llm-test-btn'], 'llm-test-result', null, null, { generation }),
+                lmstudio_optimize: () => reattachTaskActivity('lmstudio_optimize', ['lmstudio-optimize-toggle'], 'lmstudio-status-badge', refreshLmStudioStatus, null, { generation }),
+                voice_design: () => reattachTaskActivity('voice_design', ['btn-design-preview'], 'design-status', loadDesignedVoices, null, { generation }),
+                lora_test: () => reattachTaskActivity('lora_test', [], 'lora-test-status', null, null, { generation }),
                 word_timing: () => {
                     if (typeof applyWordTimingTaskActivity === 'function') { applyWordTimingTaskActivity(true); }
-                    reattachTaskActivity('word_timing', ['editor-word-timing'], 'editor-word-status', () => {
+                    return reattachTaskActivity('word_timing', ['editor-word-timing'], 'editor-word-status', () => {
                         if (typeof applyWordTimingTaskActivity === 'function') { applyWordTimingTaskActivity(false); }
-                    });
+                    }, null, { generation });
                 },
                 speech_verification: () => {
                     if (typeof applySpeechVerificationTaskActivity === 'function') { applySpeechVerificationTaskActivity(true); }
-                    reattachTaskActivity('speech_verification', ['editor-line-speech-recheck'], 'editor-line-speech-status', () => {
+                    return reattachTaskActivity('speech_verification', ['editor-line-speech-recheck'], 'editor-line-speech-status', () => {
                         if (typeof applySpeechVerificationTaskActivity === 'function') { applySpeechVerificationTaskActivity(false); }
-                    });
+                    }, null, { generation });
                 },
-                drift_check: () => { reattachTaskActivity('drift_check', [], null, () => loadChunks(false)); },
+                drift_check: () => reattachTaskActivity('drift_check', [], null, () => loadChunks(false), null, { generation }),
                 outlier_check: async () => { attachEditorOutlierCheck(await API.get('/api/status/outlier_check')); },
             };
+
             const controlGroups = new Map(logGroups.flatMap(group =>
                 group.tasks.map(name => [name, group.elementId])));
             controlGroups.set('preparer', 'preparer-controls');
             controlGroups.set('batch_preparer', 'preparer-controls');
-            const attachments = new Map();
-            for (const [name, isRunning] of Object.entries(running)) {
-                if (!isRunning) { continue; }
-                const group = controlGroups.get(name) || name;
-                if (!attachments.has(group)) { attachments.set(group, []); }
-                attachments.get(group).push(name);
-            }
-            await Promise.allSettled([...attachments.values()].map(async names => {
-                for (const name of names) {
-                    if (statuses[name]?.ownership_unconfirmed) {
-                        if (name === 'script' && staleDispatch) { continue; }
-                        reattachTaskActivity(name, [], controlGroups.get(name) || null, null, statuses[name]);
-                        continue;
+            const RETIRE_BUTTONS = {
+                script: ['btn-gen-script'], batch_script: ['btn-gen-script'],
+                review: [], batch_review: ['btn-review-batch-start'],
+                nicknames: ['btn-find-nicknames'], cast_list: ['btn-build-cast-list'],
+                persona: ['btn-gen-personas'], lora_training: ['btn-lora-train'],
+                word_timing: ['editor-word-timing'], speech_verification: ['editor-line-speech-recheck'],
+                lmstudio_optimize: ['lmstudio-optimize-toggle'], voices: ['btn-suggest-voices'],
+            };
+            const RETIRE_CANCEL = {
+                script: ['btn-cancel-script', 'btn-pause-script'],
+                batch_script: ['btn-pause-batch-script', 'btn-cancel-batch-script'],
+                batch_review: ['btn-pause-batch-review', 'btn-cancel-batch-review'],
+                nicknames: ['btn-pause-nick', 'btn-cancel-nick'], cast_list: ['btn-cancel-cast-list'],
+                lora_training: ['btn-lora-cancel'], word_timing: ['editor-word-cancel'],
+            };
+
+            const makeTaskRecord = (name, state, kind, id, stop, release) => ({
+                id,
+                kind,
+                generation,
+                stop: typeof stop === 'function' ? stop : () => {},
+                release: typeof release === 'function' ? release : () => {},
+                retire: finalState => {
+                    if (finalState?.ownership_unconfirmed) {
+                        for (const buttonId of RETIRE_BUTTONS[name] || []) {
+                            const b = document.getElementById(buttonId); if (b) { b.disabled = false; }
+                        }
+                        for (const buttonId of RETIRE_CANCEL[name] || []) {
+                            const b = document.getElementById(buttonId); if (b) { b.style.display = 'none'; }
+                        }
                     }
-                    const attach = Object.prototype.hasOwnProperty.call(reattachers, name)
-                        ? reattachers[name] : () => reattachTaskActivity(name);
-                    try {
-                        await attach();
-                    } catch (e) {
-                        if (!dispatchFence()) { return; }
-                        showActionError(`Could not restore ${name.replaceAll('_', ' ')} controls`, e, 'Check the app connection and task status before starting again; the task may still be running.', 'warning');
+                    const paneId = controlGroups.get(name);
+                    const pane = paneId ? document.getElementById(paneId) : null;
+                    if (pane) {
+                        const auth = getPaneAuthority(pane);
+                        if (auth.writer === name) { writeOwnershipWarning(pane, name, ''); }
+                    }
+                },
+            });
+
+            const attachRunningControls = async (source, options = {}) => {
+                const runningNow = Object.fromEntries(Object.entries(source).map(([name, state]) =>
+                    [name, !!(state.running || state.ownership_unconfirmed)]));
+                const attachments = new Map();
+                const slow = new Set(['dataset_builder', 'outlier_check']);
+                for (const [name, isRunning] of Object.entries(runningNow)) {
+                    if (!isRunning) { continue; }
+                    if (options.onlySlow && !slow.has(name)) { continue; }
+                    if (options.skipSlow && slow.has(name)) { continue; }
+                    const id = getRunIdentity(name, source[name]);
+                    const kind = source[name]?.ownership_unconfirmed ? 'retained' : (source[name]?.worker_pending ? 'pending' : 'live');
+                    const existing = taskOwners.get(name);
+                    // A retired record is never adopted again: its worker ended,
+                    // so the same registry entry is a fresh successor to observe.
+                    if (existing && existing.id === id && existing.kind === kind && !existing.retired) { continue; }
+                    // A newer dispatch owns this task; an older pass must not revoke it.
+                    if (existing && existing.generation > generation) { continue; }
+                    if (existing) { retireTaskOwnership(taskOwners, name, source[name]); }
+                    const group = controlGroups.get(name) || name;
+                    if (!attachments.has(group)) { attachments.set(group, []); }
+                    attachments.get(group).push(name);
+                }
+                await Promise.allSettled([...attachments.values()].map(async names => {
+                    for (const name of names) {
+                        if (!options.ignoreFence && !dispatchFence()) { return; }
+                        if (taskOwners.get(name)?.generation > generation) { continue; }
+                        const state = source[name];
+                        const kind = state?.ownership_unconfirmed ? 'retained' : (state?.worker_pending ? 'pending' : 'live');
+                        const id = getRunIdentity(name, state);
+                        const installed = _taskPollers.get(name);
+                        if (installed && installed.identity !== id) { stopTaskPoller(name); }
+                        if (state?.ownership_unconfirmed) {
+                            const record = reattachTaskActivity(name, [], controlGroups.get(name) || null, null, state,
+                                { generation, paneFence: sharedPaneTasks.has(name) && name !== 'script' ? paneWriteFence : undefined });
+                            if (record && typeof record === 'object') {
+                                if (!record.id) { record.id = id; record.kind = kind; }
+                                if (record.generation === null || record.generation === undefined) { record.generation = generation; }
+                                taskOwners.set(name, record);
+                                registerTaskPoller(name, record.stop, id, generation);
+                            }
+                            continue;
+                        }
+                        const attach = Object.prototype.hasOwnProperty.call(reattachers, name)
+                            ? reattachers[name] : () => reattachTaskActivity(name, [], controlGroups.get(name) || null, null, state,
+                                { generation, paneFence: sharedPaneTasks.has(name) && name !== 'script' ? paneWriteFence : undefined });
+                        try {
+                            const result = await attach();
+                            if (!options.ignoreFence && !dispatchFence()) { return; }
+                            if (result && typeof result === 'object') {
+                                if (!result.id) { result.id = id; result.kind = kind; }
+                                if (result.generation === null || result.generation === undefined) { result.generation = generation; }
+                                taskOwners.set(name, result);
+                                registerTaskPoller(name, result.stop, id, generation);
+                            } else {
+                                const record = makeTaskRecord(name, state, kind, id,
+                                    typeof result === 'function' ? result : null, null);
+                                taskOwners.set(name, record);
+                                registerTaskPoller(name, record.stop, id, generation);
+                            }
+                        } catch (e) {
+                            if (!dispatchFence()) { return; }
+                            showActionError(`Could not restore ${name.replaceAll('_', ' ')} controls`, e, 'Check the app connection and task status before starting again; the task may still be running.', 'warning');
+                        }
+                    }
+                }));
+            };
+
+            const releaseObsoleteControls = final => {
+                if (!dispatchFence()) { return; }
+                for (const name of [...taskOwners.keys()]) {
+                    const record = taskOwners.get(name);
+                    // Never let an older pass retire a record a newer pass installed.
+                    if (record && record.generation > generation) { continue; }
+                    const state = final[name];
+                    if (!state || !(state.running || state.ownership_unconfirmed)) {
+                        retireTaskOwnership(taskOwners, name, state);
                     }
                 }
-            }));
+            };
+
+            try {
+                statuses = await API.get('/api/status');
+            } catch (e) {
+                if (generation === _reattachGeneration && dispatchFence()) {
+                    showActionError('Could not restore running task controls', e, 'Check the app connection and reload task status before starting new work; a task may still be running.', 'warning');
+                }
+                return;
+            }
+            if (generation !== _reattachGeneration) { return; }
+            if (!dispatchFence()) { rebalanceInitialConfig(); }
+            staleDispatch = !dispatchFence();
+            const registry = statuses;
+            await attachRunningControls(registry, { ignoreFence: staleDispatch });
+
+            const hydrateNames = new Set([...logGroups.flatMap(group => group.tasks),
+                ...Object.keys(statuses).filter(name => statuses[name]?.ownership_unconfirmed)]);
+            const failedHydration = new Set();
+            const fetched = [];
+            const hydration = [...hydrateNames].map(async taskName => {
+                if (statuses[taskName]?.running && !statuses[taskName]?.ownership_unconfirmed) { return null; }
+                const held = taskOwners.get(taskName);
+                if (statuses[taskName]?.ownership_unconfirmed && held) {
+                    const paneId = controlGroups.get(taskName);
+                    const paneNode = paneId ? paneNodes.get(paneId) : null;
+                    // Detached continuation: restore must not block on a held
+                    // detail read, but every paint is fenced to the exact node,
+                    // owner, run identity and accepted generation (A3, A4).
+                    API.get(`/api/status/${taskName}`).then(state => {
+                        held.detail = state;
+                        if (generation !== _reattachGeneration) { return; }
+                        // A confirmed Script successor owns the shared pane. It only
+                        // suppresses this continuation when it is a DIFFERENT task or
+                        // run; the accepted Script observer's own hydration still paints.
+                        if (scriptPaneOwned()
+                            && !(taskName === 'script' && sameRunIdentity(statuses[taskName], state))) { return; }
+                        if (!contextFence() && !sameRunIdentity(statuses[taskName], state)) { return; }
+                        if (taskOwners.get(taskName) !== held || held.retired) { return; }
+                        if (paneId && state && state.running && !state.ownership_unconfirmed && Array.isArray(state.logs) && state.logs.length) {
+                            const pane = document.getElementById(paneId);
+                            if (!pane || pane !== paneNode) { return; }
+                            const last = state.logs.slice(-1)[0];
+                            if (writePaneText(pane, taskName, 'live', last, {runStart: state.start_time})) { pane.innerText = last; }
+                            if (taskName === 'script') { window.syncSnapshotButton?.(state); }
+                        }
+                    }).catch(() => {});
+                    return [taskName, held.detail || { ...statuses[taskName], logs: [] }];
+                }
+                try {
+                    return [taskName, await API.get(`/api/status/${taskName}`)];
+                } catch (e) {
+                    console.debug(`${taskName} log hydration failed`, e);
+                    failedHydration.add(taskName);
+                    return null;
+                }
+            });
+            fetched.push(...await Promise.all(hydration));
+            staleDispatch = staleDispatch || !dispatchFence();
+            const hydrated = Object.fromEntries(fetched.filter(Boolean));
+            let recheckRegistry = registry;
+            let recheckFailed = false;
+            try {
+                recheckRegistry = await API.get('/api/status');
+            } catch (e) {
+                console.debug('log restore registry recheck failed', e);
+                recheckFailed = true;
+            }
+            if (generation !== _reattachGeneration) { return; }
+            if (!dispatchFence()) { rebalanceInitialConfig(); }
+            staleDispatch = staleDispatch || !dispatchFence();
+
+            const finalStatuses = { ...statuses, ...hydrated };
+            for (const [name, state] of Object.entries(recheckRegistry)) {
+                finalStatuses[name] = { ...(finalStatuses[name] || {}), ...state };
+            }
+            running = Object.fromEntries(Object.entries(finalStatuses).map(([name, state]) =>
+                [name, !!(state.running || state.ownership_unconfirmed)]));
+            releaseObsoleteControls(recheckFailed ? finalStatuses : recheckRegistry);
+
+            const controlStatuses = { ...(recheckFailed ? statuses : recheckRegistry) };
+            for (const [name, state] of Object.entries(hydrated)) {
+                if (!(state.running || state.ownership_unconfirmed)) { continue; }
+                const fresh = controlStatuses[name];
+                if (recheckFailed || !fresh
+                    || ((!fresh.status || fresh.status === 'idle') && !fresh.running && !fresh.ownership_unconfirmed)) {
+                    controlStatuses[name] = { ...(fresh || {}), ...state };
+                }
+            }
+            await attachRunningControls(controlStatuses, { skipSlow: true });
+            staleDispatch = staleDispatch || !dispatchFence();
+            statuses = finalStatuses;
+
+            const paneWrites = [];
+            logGroups.forEach((group, index) => {
+                if (staleDispatch || !dispatchFence()) { return; }
+                if (pollGenerations[index] !== getLogPollGeneration(group.tasks)) { return; }
+                const identityChanged = group.tasks.some(name => !recheckFailed
+                    && getLogRestoreIdentity(recheckRegistry[name]) !== getLogRestoreIdentity(registry[name]));
+                // Liveness comes from the settled registry, never from a stale
+                // retained hydration fallback that a later recheck already retired.
+                const groupLive = group.tasks.some(name => running[name] || hydrated[name]?.running);
+                // A live owner renders itself; never paint history/diagnostic
+                // over an attached successor in the same pane.
+                if (groupLive) { return; }
+                const pane = paneStates[index];
+                const el = document.getElementById(group.elementId);
+                if (!el || el !== pane.el || el.innerText !== pane.text || el.title !== pane.title) { return; }
+                const auth = getPaneAuthority(el);
+                const latest = getLatestCompletedLog(group.tasks, hydrated);
+                // A proven live renderer that already shows the newest available
+                // run is newer than this history pass; a failed older sibling
+                // read must not erase it (A7).
+                if (auth.rank >= PANE_RANK.live && auth.writer
+                    && Number.isFinite(auth.runStart)
+                    && (!latest || auth.runStart >= latest.start)) { return; }
+                const untouched = auth.epoch === pane.version;
+                const ownedHistory = auth.writer === 'history';
+                const unowned = auth.rank === PANE_RANK.default;
+                if (!untouched && !ownedHistory && !unowned) { return; }
+                const restore = () => {
+                    releasePaneAuthority(el);
+                    return getPaneAuthority(el).epoch;
+                };
+                const stillOwned = _logRestoreDiagnostics.get(group.elementId);
+                if (recheckFailed || identityChanged
+                    || getUnresolvedLogFailure(group.tasks, failedHydration, recheckRegistry, latest, null)) {
+                    restore();
+                    const diagnostic = t('core.task.logs-restore-failed', 'Earlier log history could not be loaded. Check the connection, then reload.');
+                    if (writePaneText(el, 'history', 'diagnostic', diagnostic)) {
+                        el.innerText = diagnostic;
+                        el.title = '';
+                        _logRestoreDiagnostics.set(group.elementId, { el, text: diagnostic });
+                        paneWrites.push({ index, el, version: getPaneAuthority(el).epoch,
+                            text: pane.text, title: pane.title, written: el.innerText });
+                    }
+                    return;
+                }
+                if (latest) {
+                    const restoredText = latest.logs.join('\n');
+                    restore();
+                    if (writePaneText(el, 'history', 'diagnostic', restoredText)) {
+                        el.innerText = restoredText;
+                        setRestoredPaneTitle(el, t('core.task.logs-restored', 'Restored {task} logs', {task: latest.name.replaceAll('_', ' ')}));
+                        el.scrollTop = el.scrollHeight;
+                        _knownHistoryText.set(el, restoredText);
+                        _logRestoreDiagnostics.delete(group.elementId);
+                        paneWrites.push({ index, el, version: getPaneAuthority(el).epoch,
+                            text: pane.text, title: pane.title, written: el.innerText });
+                    }
+                } else if (stillOwned) {
+                    restore();
+                    if (writePaneText(el, 'history', 'diagnostic', '')) {
+                        el.innerText = '';
+                        el.title = '';
+                        _logRestoreDiagnostics.delete(group.elementId);
+                        paneWrites.push({ index, el, version: getPaneAuthority(el).epoch,
+                            text: pane.text, title: pane.title, written: el.innerText });
+                    }
+                }
+            });
+
+            if (!staleDispatch && dispatchFence()) {
+                await attachRunningControls(controlStatuses, { onlySlow: true });
+            }
+            // Roll back a provisional history write only when this exact version
+            // still owns this exact node; an identical successor write or a
+            // replaced node is left alone (A8, DOM replacement).
+            for (const write of paneWrites) {
+                const attached = document.getElementById(logGroups[write.index].elementId);
+                if (dispatchFence() && attached === write.el) { continue; }
+                const auth = getPaneAuthority(write.el);
+                if (auth.epoch !== write.version || auth.writer !== 'history') { continue; }
+                if (write.el.innerText !== write.written) { continue; }
+                write.el.innerText = write.text;
+                write.el.title = write.title;
+                if (write.text && write.title) { _knownHistoryText.set(write.el, write.text); }
+                else { _knownHistoryText.delete(write.el); }
+                auth.epoch++;
+            }
+            // A config-late reload still needs one fresh reconciliation on the
+            // settled book; the persistent owner registry prevents duplicate
+            // pollers and the newest generation supersedes this one.
+            if (generation === _reattachGeneration && !bridge?._initialConfigApplied
+                && !configSettled
+                && bridge?._initialConfigReady && typeof bridge._initialConfigReady.then === 'function') {
+                bridge._initialConfigReady.then(() => {
+                    if (generation === _reattachGeneration) { reattachRunningPollers(); }
+                }).catch(() => {});
+            }
         }
 
         // Init
-        window._voiceRosterStartupPending = loadConfig().then(() => loadVoices()).catch(e => {
+        // One shared promise for "the initial configuration pass settled".
+        // A restore that finishes before it gets exactly one fresh history pass
+        // on the installed book (A1); config-first restores re-baseline instead.
+        const initialConfig = loadConfig();
+        window._initialConfigReady = initialConfig.catch(() => {});
+        window._voiceRosterStartupPending = initialConfig.then(() => loadVoices()).catch(e => {
             showActionError('Could not load voices', e, 'Retry loading Voices after configuration finishes loading.');
         }).finally(() => { window._voiceRosterStartupPending = null; });
         loadCastList(false);
@@ -2262,7 +2773,7 @@
         function _pollPreparerLogs(taskName) {
             _applyPreparerControls(taskName);
             const logEl = document.getElementById('preparer-logs');
-            const renderLogs = createTaskLogRenderer(logEl);
+            const renderLogs = createTaskLogRenderer(logEl, taskName);
 
             _startPolling(taskName, () => API.get(`/api/status/${taskName}`), {
                 doneCheck: state => !state.running,

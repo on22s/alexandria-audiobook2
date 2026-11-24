@@ -1031,6 +1031,7 @@
   "core.task-status.stopped": "stopped",
   "core.task.fallback-label": "Task",
   "core.task.finished-result-unavailable": "{task} finished; the original request result is unavailable after reload.",
+  "core.task.logs-restore-failed": "Earlier log history could not be loaded. Check the connection, then reload.",
   "core.task.logs-restored": "Restored {task} logs",
   "core.task.ownership-recovery": "End the owned processes in Task Manager or restart the app. Locks release automatically after shutdown is confirmed.",
   "core.task.ownership-retained": "Failed — still holding processes. {detail}",

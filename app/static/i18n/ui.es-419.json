@@ -712,6 +712,7 @@
   "home.workspace.task.retained": "Las tareas fallidas aún mantienen procesos. Lee las instrucciones de recuperación de abajo; el inicio de tareas en conflicto sigue bloqueado.",
   "core.task.fallback-label": "Tarea",
   "core.task.finished-result-unavailable": "{task} terminó; el resultado original de la solicitud ya no está disponible tras recargar.",
+  "core.task.logs-restore-failed": "No se pudo cargar el historial de registros anterior. Revisa la conexión y vuelve a cargar.",
   "core.task.logs-restored": "Registros de {task} restaurados",
   "core.task.paused-self": "{task} se pausó sola: se agotaron los reintentos. Corrige el proveedor y pulsa Reanudar.",
   "core.task.restored-running": "{task} en ejecución…",

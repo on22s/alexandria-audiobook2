@@ -618,7 +618,8 @@ process_state = {
     "speech_verification": {"running": False, "logs": [], "cancel": False},
     "script": {"running": False, "logs": [], "cancel": False, "pid": None, "process": None, "paused": False, "start_time": None},
     "voices": {"running": False, "logs": []},
-    "persona": {"running": False, "logs": [], "cancel": False, "process": None},
+    "persona": {"running": False, "logs": [], "cancel": False, "process": None,
+                "start_time": None, "status": "idle"},
     "audio": {"running": False, "logs": [], "cancel": False, "start_time": None},
     "audacity_export": {"running": False, "logs": []},
     "m4b_export": {"running": False, "logs": []},
@@ -748,16 +749,24 @@ def is_task_cpu_only(task_name):
 
 
 def get_task_lifecycle(task_name, states=None):
-    """Public execution status is terminal even while failed ownership blocks admission."""
+    """Public execution status is terminal even while failed ownership blocks admission.
+
+    ``start_time`` and ``has_history`` are additive summary fields; the latter is
+    true for any state that has run, even one from before ``start_time`` existed.
+    """
     states = process_state if states is None else states
     state = states.get(task_name, {})
+    has_history = bool(state.get('running') or state.get('start_time') is not None
+                       or state.get('logs') or state.get('status') not in (None, 'idle'))
     if task_name == 'script' and is_script_worker_pending(state):
         return {'running': True, 'ownership_unconfirmed': False, 'status': 'starting',
-                'worker_pending': True}
+                'worker_pending': True, 'start_time': state.get('start_time'),
+                'has_history': has_history}
     retained = bool(state.get('_windows_cleanup_failed'))
     running = is_task_running(task_name, states=states) and not retained
     return {'running': running, 'ownership_unconfirmed': retained,
-            'status': 'failed' if retained else state.get('status') or ('running' if running else 'idle')}
+            'status': 'failed' if retained else state.get('status') or ('running' if running else 'idle'),
+            'start_time': state.get('start_time'), 'has_history': has_history}
 
 
 def check_global_gpu_lock(new_task_name: str, *, cpu_only=False, llm_on_gpu=None):
