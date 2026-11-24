@@ -945,6 +945,7 @@
     "str(exc)",
     "str(exc)",
     "str(exc)",
+    "str(exc)",
     "{'code': 'voice_overrides', 'overrides': blocked, 'message': f'An alias, voice timeline or narrator strategy keeps another voice in effect for {names}. Confirm to clear it so the suggested voice is used.'}",
     "{'message': 'Even the deterministic split does not pass the fidelity gate; paste a segmentation by hand.', 'findings': result['report'].get('findings', [])}",
     "{'message': 'Mark every speaker ready before exporting.', 'speakers': missing}",

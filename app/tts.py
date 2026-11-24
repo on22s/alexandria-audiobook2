@@ -548,7 +548,7 @@ def get_row_narrator_selection(voice_config, chunk, chunk_index):
     return (target, selected, materialized) if isinstance(selected, dict) else None
 
 
-def resolve_row_narrators(voices, effective, speaker, chunk, chunk_index):
+def resolve_row_narrators(voices, effective, speaker, chunk, chunk_index, root_speaker=None):
     """Settle every narrator dispatch can reach with this row's context.
 
     Deterministic: reachable names come from ordered casts, and one
@@ -558,6 +558,7 @@ def resolve_row_narrators(voices, effective, speaker, chunk, chunk_index):
     (#2170 R3/R5); an unreached configured spelling's malformed alias is only
     an unavailable fallback (#2170 R2), while a reached one still raises.
     """
+    root_speaker = speaker if root_speaker is None else root_speaker
     reachable = iter_dispatch_voice_names(effective, speaker, chunk_index)
     reached, member = [], {}
     for name, is_member in reachable:
@@ -574,8 +575,13 @@ def resolve_row_narrators(voices, effective, speaker, chunk, chunk_index):
     if spelling is not None:
         try:
             selected = get_row_narrator_selection(voices, chunk, chunk_index)
-        except VoiceAliasResolutionError:
+        except VoiceAliasResolutionError as error:
             if spelling in reached:
+                if "cycle" in str(error).lower():
+                    # Attribute the reached cycle to the row's own speaker, as
+                    # the root alias walk and the engine do (#2170 R3).
+                    raise VoiceAliasResolutionError(
+                        f"Alias cycle detected for speaker '{root_speaker}'") from error
                 raise
             # The configured spelling is not rendered by this row; its broken
             # alias cannot affect a sibling spelling's own resolution.
@@ -638,7 +644,8 @@ def get_chunk_render_voice_selection(voices, speaker, chunk, index):
         saved_alias = get_voice_alias(voices.get(name) or {})
         selected = voices if saved_alias else resolve_narrator_voice_config(name, voices, chunk)
         effective = voice_config_for_chunk(selected, name, index)
-        effective, reached = resolve_row_narrators(voices, effective, name, chunk, index)
+        effective, reached = resolve_row_narrators(
+            voices, effective, name, chunk, index, root_speaker=speaker)
         narrator_names.update(reached)
         alias = get_voice_alias(effective.get(name) or {})
         native_batch = native_batch and selected is voices and alias == saved_alias
