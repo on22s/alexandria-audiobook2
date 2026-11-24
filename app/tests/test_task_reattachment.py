@@ -47,9 +47,18 @@ const helperStart=source.indexOf('        function reattachTaskActivity(');
 const dispatcherStart=source.indexOf('        async function reattachRunningPollers()');
 const code=source.slice(helperStart>=0?helperStart:dispatcherStart,source.indexOf('        // Init',dispatcherStart));
 const elements={},calls=[],warnings=[],requests=[];
-function el(id){return elements[id]||(elements[id]={disabled:false,style:{display:'none'},innerText:''});}
+function el(id){return elements[id]||(elements[id]={disabled:false,style:{display:'none'},title:'',_text:'',children:[],attributes:{},
+ get innerText(){return this.children.length?this.children.map(child=>child.textContent).join(''):this._text;},
+ set innerText(value){this.children=[];this._text=String(value);},
+ get textContent(){return this.innerText;},
+ set textContent(value){this.innerText=value;},
+ appendChild(child){this.children.push(child);return child;},
+ replaceChildren(...nodes){this.children=nodes;this._text='';},
+ setAttribute(name,value){this.attributes[name]=value;},
+ getAttribute(name){return Object.hasOwn(this.attributes,name)?this.attributes[name]:null;},
+ removeAttribute(name){delete this.attributes[name];}});}
 let statuses={};
-const ctx={document:{getElementById:el},console,showToast:(message,type)=>warnings.push([message,type]),
+const ctx={document:{getElementById:el,createTextNode:text=>({textContent:String(text)})},console,showToast:(message,type)=>warnings.push([message,type]),
  API:{get:async path=>{requests.push(path);return path==='/api/status'?statuses:{logs:['last log'],running:false,...(statuses[path.split('/').at(-1)]||{})};}},
  _pollScriptBatchLogs:()=>calls.push('batch_script'),scriptBatchPoller:null,
  pollScriptLogs:(task,done)=>calls.push(task),loadReviewBatchScripts:async()=>{},pollReviewBatch:()=>calls.push('batch_review'),
@@ -60,6 +69,7 @@ const ctx={document:{getElementById:el},console,showToast:(message,type)=>warnin
  pollExport:task=>calls.push(task),dsbLoadProjects:async name=>calls.push('dataset_builder:'+name),loadVoices:async()=>{},loadDesignedVoices:async()=>{},refreshLmStudioStatus:async()=>{},loadChunks:async()=>{},notifyJobDone:()=>{},
   attachEditorOutlierCheck:()=>calls.push('outlier_check'),
   t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),
+  createUiMessageNode:(tag,key,english)=>({tag,key,english,textContent:ctx.t(key,english)}),
   escapeHtml:value=>String(value),
   _startPolling:(key,fetch,options)=>{ctx.poll={key,fetch,options};calls.push(key);}};
 vm.createContext(ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function getTaskOwnershipMessage('),coreSource.indexOf('function renderActivity(')),ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function showActionError('),coreSource.indexOf('function showConfirm(')),ctx);const claimStart=coreSource.indexOf('const taskStartButtons =');vm.runInContext(coreSource.slice(claimStart,coreSource.indexOf('// --- API Helpers ---',claimStart)),ctx);vm.runInContext(code,ctx);

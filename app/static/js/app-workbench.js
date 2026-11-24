@@ -1809,6 +1809,7 @@
         }
 
         let _reattachGeneration = 0;
+        const _historyPaneText = new WeakMap();
         function getLogPollGeneration(taskNames) {
             const polls = typeof _pollGen === 'undefined' ? {} : _pollGen;
             return JSON.stringify(taskNames.map(name => [polls[name] || 0, polls[`logs:${name}`] || 0]));
@@ -1823,6 +1824,21 @@
                 if (!latest || start > latest.start) { latest = { name, start, logs: status.logs }; }
             }
             return latest;
+        }
+
+        // A failed hydration must never be papered over with an older run's
+        // log. The failed task's own start time decides whether it outranks the
+        // newest readable log; when the snapshot cannot say, report honestly
+        // rather than guess (the failure may be the newer run).
+        function getCompletedLogView(taskNames, hydrated, snapshot, failed) {
+            const latest = getLatestCompletedLog(taskNames, hydrated);
+            const failures = taskNames.filter(name => failed.has(name));
+            if (!failures.length) { return { latest }; }
+            const failedIsNewer = failures.some(name => {
+                const start = snapshot?.[name]?.start_time;
+                return !Number.isFinite(start) || !latest || start > latest.start;
+            });
+            return { latest, diagnostic: failedIsNewer };
         }
 
         // Restore each running task independently: remote LLM work can coexist
@@ -1852,6 +1868,7 @@
                 showActionError('Could not restore running task controls', e, 'Check the app connection and reload task status before starting new work; a task may still be running.', 'warning');
                 return;
             }
+            const snapshot = statuses;
             let running = Object.fromEntries(Object.entries(statuses).map(([name, state]) => [name, state.running || state.ownership_unconfirmed]));
 
             const logGroups = [
@@ -1863,12 +1880,14 @@
             const pollGenerations = logGroups.map(group => getLogPollGeneration(group.tasks));
             const hydrateNames = new Set([...logGroups.flatMap(group => group.tasks),
                 ...Object.keys(statuses).filter(name => statuses[name]?.ownership_unconfirmed)]);
+            const failed = new Set();
             const fetched = await Promise.all([...hydrateNames].map(async taskName => {
                 if (statuses[taskName]?.running && !statuses[taskName]?.ownership_unconfirmed) { return null; }
                 try {
                     return [taskName, await API.get(`/api/status/${taskName}`)];
                 } catch (e) {
                     console.debug(`${taskName} log hydration failed`, e);
+                    failed.add(taskName);
                     return null;
                 }
             }));
@@ -1879,12 +1898,25 @@
             logGroups.forEach((group, index) => {
                 if (staleDispatch) { return; }
                 if (group.tasks.some(name => running[name]) || pollGenerations[index] !== getLogPollGeneration(group.tasks)) { return; }
-                const latest = getLatestCompletedLog(group.tasks, hydrated);
+                const view = getCompletedLogView(group.tasks, hydrated, snapshot, failed);
                 const el = document.getElementById(group.elementId);
-                if (el && latest) {
-                    el.innerText = latest.logs.join('\n');
-                    el.title = t('core.task.logs-restored', 'Restored {task} logs', {task: latest.name.replaceAll('_', ' ')});
+                if (!el) { return; }
+                const previousHistory = _historyPaneText.get(el);
+                if (view.diagnostic && (view.latest || !el.innerText || el.innerText === previousHistory)) {
+                    el.replaceChildren(createUiMessageNode('span', 'core.task.logs-history-failed', 'Earlier log history could not be loaded. Check the connection, then reload.'));
+                    el.title = '';
                     el.scrollTop = el.scrollHeight;
+                    _historyPaneText.set(el, el.innerText);
+                    return;
+                }
+                if (view.latest) {
+                    el.innerText = view.latest.logs.join('\n');
+                    el.title = t('core.task.logs-restored', 'Restored {task} logs', {task: view.latest.name.replaceAll('_', ' ')});
+                    el.scrollTop = el.scrollHeight;
+                    _historyPaneText.set(el, el.innerText);
+                } else if (previousHistory !== undefined && el.innerText === previousHistory) {
+                    el.replaceChildren();
+                    _historyPaneText.delete(el);
                 }
             });
 
