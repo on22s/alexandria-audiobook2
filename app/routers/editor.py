@@ -79,7 +79,7 @@ from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      get_playback_trim_plan, get_speaker)
 from runtime_estimate import get_book_runtime_estimate
 from routers.voices import get_script_speaker
-from tts import (voice_config_for_chunk, resolve_narrator_voice_config, voice_category,
+from tts import (voice_category, get_chunk_render_voice_selection, get_ensemble_member_names,
                  ExportCancelled, ensure_audio_export_active, get_pause_duration_ms)
 from timeline_anchors import resolve_timeline_anchors
 import voice_drift
@@ -1770,14 +1770,13 @@ def get_unready_export_speakers(admitted_rows):
             speaker = get_script_speaker(chunk)
             if not speaker:
                 continue
-            canonical = project_manager._resolve_alias(speaker, voices)
-            effective = voice_config_for_chunk(
-                resolve_narrator_voice_config(canonical, voices, chunk), canonical, index)
+            canonical, effective, _ = get_chunk_render_voice_selection(
+                voices, speaker, chunk, index)
             config = effective.get(canonical) or {}
             if not config.get("ready"):
                 missing.add(speaker)
             if voice_category(config) == "ensemble":
-                for member in config.get("members") or []:
+                for member in get_ensemble_member_names(config):
                     if not (effective.get(member) or {}).get("ready"):
                         missing.add(speaker)
     except (TypeError, ValueError, AttributeError) as exc:
