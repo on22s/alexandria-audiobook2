@@ -4307,6 +4307,10 @@
     , "tests.test_dataset_builder_benchmark_lifetime.BuilderBenchmarkLifetimeTests.test_real_completed_worker_does_not_need_done_log_and_reports_one_batch_throughput"
     , "tests.test_dataset_builder_benchmark_lifetime.BuilderBenchmarkLifetimeTests.test_timeout_keeps_globals_and_temp_project_until_worker_has_stopped"
   ]
+  , "test_dataset_builder_cancel_claim": [
+    "tests.test_dataset_builder_cancel_claim.DatasetBuilderCancelClaimTests.test_cancel_right_after_start_stops_the_batch"
+    , "tests.test_dataset_builder_cancel_claim.DatasetBuilderCancelClaimTests.test_stale_cancel_does_not_stop_a_new_batch"
+  ]
   , "test_dataset_builder_foreign_ownership": [
     "tests.test_dataset_builder_foreign_ownership.DatasetBuilderForeignOwnershipTests.test_mutations_refuse_foreign_generation_and_preserve_project_bytes"
     , "tests.test_dataset_builder_foreign_ownership.DatasetBuilderForeignOwnershipTests.test_unrelated_project_metadata_stays_editable_during_foreign_generation"
