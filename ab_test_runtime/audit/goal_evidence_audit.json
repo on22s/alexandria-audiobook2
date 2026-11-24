@@ -1050,16 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T10:33:26",
+  "written": "2026-11-24T11:02:20",
   "host": "mitch-linux",
   "git": {
-   "commit": "6a5a7635cf4d8e34663f462eb38c3e33dc6a62b3",
+   "commit": "f899a8ae2be2064e22d4e7abe0f6907dafefaa66",
    "branch": "HEAD",
    "dirty": true,
-   "source_state": "dirty:f9a33dfde9d6",
+   "source_state": "dirty:f051702c0aec",
    "source_state_detail": null,
    "modified_tracked_files": [
-    " M app/tests/windows_only_skip_baseline.txt"
+    " M app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",
