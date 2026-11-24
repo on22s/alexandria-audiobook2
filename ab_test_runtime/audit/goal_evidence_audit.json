@@ -1050,19 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-23T21:27:15",
+  "written": "2026-11-23T22:41:27",
   "host": "mitch-linux",
   "git": {
-   "commit": "de24b9c806bf40d95999f8b2b889f6f1d09e9435",
-   "branch": "t3/repair-issue-2191-review-findings",
+   "commit": "5ffdbc58b87b7535cecfd3c2c5f3bc98de85ba2f",
+   "branch": "t3/fix-2191-pane-authority-r10",
    "dirty": true,
-   "source_state": "dirty:d3b1c6ab5986",
+   "source_state": "dirty:303b46f767ed",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/tests/test_core_log_render_js.py",
-    "M  app/tests/test_training_log_render_js.py",
-    "M  app/tests/test_voicelab_log_render_js.py",
-    "M  app/tests/test_workbench_status_js.py"
+    "M  app/static/js/app-core.js",
+    "M  app/static/js/app-workbench.js",
+    "M  app/tests/test_completed_log_hydration_js.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",

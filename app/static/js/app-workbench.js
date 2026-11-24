@@ -1728,6 +1728,7 @@
             const bridge = typeof window !== 'undefined' ? window : null;
             const generation = options.generation === undefined ? null : options.generation;
             const paneFence = typeof options.paneFence === 'function' ? options.paneFence : () => true;
+            const handle = {};
             const wasActive = bridge?._scriptRecoveryRunActive;
             let record;
             const ownsInstalled = () => {
@@ -1737,7 +1738,10 @@
             if (taskName === 'script' && initialState?.worker_pending) {
                 const stop = pollScriptLogs('script', null, wasActive ? bridge._scriptRecoveryRunToken : 0, initialState);
                 return {
-                    id: getRunIdentity(taskName, initialState), kind: 'pending', generation, started: true,
+                    id: getRunIdentity(taskName, initialState), token: getRunToken(taskName, initialState),
+                    pollVersion: bridge?._taskPollerVersion?.(taskName) || 0,
+                    startTime: Number.isFinite(initialState?.start_time) ? initialState.start_time : null,
+                    kind: 'pending', generation, handle, started: true,
                     stop: () => { if (typeof stop === 'function') { stop(); } },
                     release: null, retire: null,
                 };
@@ -1758,10 +1762,11 @@
             buttons.forEach(button => { button.disabled = true; });
             if (initialState?.ownership_unconfirmed) {
                 const message = getTaskOwnershipMessage(initialState);
-                if (statusEl) { writeOwnershipWarning(statusEl, taskName, message, { runStart: initialState.start_time }); }
+                applyRetainedControls(taskName, initialState);
+                if (statusEl) { writeOwnershipWarning(statusEl, taskName, message, { runStart: initialState.start_time, handle }); }
                 else { showToast(message, 'warning'); }
             }
-            else if (statusEl) { writePaneText(statusEl, taskName, 'live', t('core.task.restored-running', '{task} running...', {task: label}), { runStart: initialState?.start_time, complete: false }); }
+            else if (statusEl) { writePaneText(statusEl, taskName, 'live', t('core.task.restored-running', '{task} running...', {task: label}), { runStart: initialState?.start_time, complete: false, handle }); }
             else { showToast(t('core.task.still-running', '{task} is still running.', {task: label}), 'info'); }
             let terminalHandled = false;
             let stopPolling;
@@ -1780,11 +1785,11 @@
                 const logs = Array.isArray(state?.logs) ? state.logs : [];
                 if (logs.length) {
                     const text = logs.slice(-1)[0];
-                    if (writePaneText(statusEl, taskName, state?.ownership_unconfirmed ? 'retained' : 'live', text, { runStart: state?.start_time, complete: false })) {
+                    if (writePaneText(statusEl, taskName, state?.ownership_unconfirmed ? 'retained' : 'live', text, { runStart: state?.start_time, complete: false, handle })) {
                         statusEl.innerText = text;
                     }
                 } else {
-                    writePaneText(statusEl, taskName, 'live', t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label}), { runStart: state?.start_time, complete: true });
+                    writePaneText(statusEl, taskName, 'live', t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label}), { runStart: state?.start_time, complete: true, handle });
                 }
             };
             if (observed && bridge?.registerScriptTerminalCleanup) {
@@ -1807,7 +1812,15 @@
                 scriptRunToken,
                 // When Generate is pending, a terminal status can belong to the
                 // observed task that caused the start to be refused.
-                doneCheck: state => observed?.state !== 'provisional' && !state.running && !state.ownership_unconfirmed,
+                doneCheck: state => {
+                    if (observed?.state === 'provisional' || state.running || state.ownership_unconfirmed) { return false; }
+                    // An OLDER terminal status (a stale stop) must not complete
+                    // or release this observer (N01/rescore-9). A newer/equal
+                    // terminal may supersede it and retire its claim (F09).
+                    if (record && Number.isFinite(record.startTime) && Number.isFinite(state.start_time)
+                        && state.start_time < record.startTime) { return false; }
+                    return true;
+                },
                 onTick: state => {
                     if (record) {
                         record.detail = state;
@@ -1818,13 +1831,14 @@
                     if (scriptRunToken) { bridge.syncSnapshotButton?.(state); }
                     const logs = Array.isArray(state.logs) ? state.logs : [];
                     if (statusEl && state.ownership_unconfirmed) {
-                        writeOwnershipWarning(statusEl, taskName, getTaskOwnershipMessage(state), { runStart: state.start_time });
+                        applyRetainedControls(taskName, state);
+                        writeOwnershipWarning(statusEl, taskName, getTaskOwnershipMessage(state), { runStart: state.start_time, handle });
                     } else if (statusEl && logs.length) {
                         // A partial render is allowed, but its authority records
                         // complete=false so a later history pass can replace it
                         // with the full same-run snapshot (F03).
                         const text = logs.slice(-1)[0];
-                        if (writePaneText(statusEl, taskName, 'live', text, { runStart: state.start_time, complete: false })) { statusEl.innerText = text; }
+                        if (writePaneText(statusEl, taskName, 'live', text, { runStart: state.start_time, complete: false, handle })) { statusEl.innerText = text; }
                     }
                 },
                 onDone: async state => {
@@ -1851,9 +1865,13 @@
             });
             record = {
                 id: getRunIdentity(taskName, initialState),
+                token: getRunToken(taskName, initialState),
+                pollVersion: bridge?._taskPollerVersion?.(taskName) || 0,
+                startTime: Number.isFinite(initialState?.start_time) ? initialState.start_time : null,
                 kind: initialState?.ownership_unconfirmed ? 'retained' : (initialState?.worker_pending ? 'pending' : 'live'),
                 generation,
                 paneId: options.paneId || statusId || null,
+                handle,
                 buttons,
                 started: true,
                 stop: () => stopPolling?.(),
@@ -1878,7 +1896,7 @@
             if (!el) { return null; }
             let auth = _paneAuthority.get(el);
             if (!auth) {
-                auth = { writer: null, rank: PANE_RANK.default, epoch: 0, runStart: null, complete: false };
+                auth = { writer: null, rank: PANE_RANK.default, epoch: 0, runStart: null, complete: false, handle: null };
                 _paneAuthority.set(el, auth);
             }
             return auth;
@@ -1897,6 +1915,7 @@
             auth.rank = PANE_RANK.default;
             auth.runStart = null;
             auth.complete = false;
+            auth.handle = null;
             auth.epoch++;
             return true;
         }
@@ -1940,6 +1959,7 @@
             const auth = getPaneAuthority(el);
             const prior = _warningPaneText.get(el);
             const runStart = Number.isFinite(options.runStart) ? options.runStart : null;
+            const handle = options.handle || null;
             if (!message) {
                 if (auth.writer !== writer) { return false; }
                 const blank = !el.textContent || el.textContent === prior;
@@ -1953,7 +1973,7 @@
             // newer retained warning supersedes it, but not its own run or a
             // genuinely newer one (F11).
             const olderSameTaskRender = auth.rank >= PANE_RANK.live && auth.writer === writer
-                && Number.isFinite(auth.runStart) && Number.isFinite(runStart) && runStart > auth.runStart;
+                && Number.isFinite(auth.runStart) && Number.isFinite(runStart) && runStart >= auth.runStart;
             if (auth.rank >= PANE_RANK.live && auth.writer === writer && !olderSameTaskRender) { return false; }
             const current = el.textContent;
             const knownHistory = (auth.writer === 'history')
@@ -1961,7 +1981,7 @@
             if (current && current !== prior && !knownHistory && !olderSameTaskRender) { return false; }
             el.textContent = message;
             _warningPaneText.set(el, message);
-            auth.writer = writer; auth.rank = PANE_RANK.retained; auth.runStart = runStart; auth.complete = true; auth.epoch++;
+            auth.writer = writer; auth.rank = PANE_RANK.retained; auth.runStart = runStart; auth.complete = true; auth.handle = handle; auth.epoch++;
             clearRestoredPaneTitle(el);
             _knownHistoryText.delete(el);
             return true;
@@ -1973,24 +1993,33 @@
             const runStart = Object.prototype.hasOwnProperty.call(options, 'runStart') && Number.isFinite(options.runStart)
                 ? options.runStart : null;
             const complete = options.complete !== false;
+            const handle = options.handle || null;
             if (level < auth.rank) { return false; }
             if (level === auth.rank && auth.writer && auth.writer !== writer) { return false; }
-            if (level === auth.rank && auth.writer === writer
-                && Number.isFinite(auth.runStart) && Number.isFinite(runStart)
-                && runStart < auth.runStart) { return false; }
+            if (level === auth.rank && auth.writer === writer) {
+                // An identified writer (finite run) is not replaced by a response
+                // that carries no run identity unless it comes from the same
+                // installed observer handle (N02).
+                if (Number.isFinite(auth.runStart) && !Number.isFinite(runStart)
+                    && auth.handle && handle && handle !== auth.handle) { return false; }
+                if (Number.isFinite(auth.runStart) && !Number.isFinite(runStart) && auth.handle && !handle) { return false; }
+                if (Number.isFinite(auth.runStart) && Number.isFinite(runStart)
+                    && runStart < auth.runStart) { return false; }
+            }
             // A complete same-run snapshot may replace a partial last-line
             // render written by the retained observer (F03).
             el.textContent = message;
             auth.writer = writer; auth.rank = level; auth.epoch++;
             if (runStart !== null) { auth.runStart = runStart; }
             auth.complete = complete;
+            auth.handle = handle;
             if (level >= PANE_RANK.retained) {
                 clearRestoredPaneTitle(el);
                 _knownHistoryText.delete(el);
             }
             return true;
         }
-        function notePaneRendererWrite(element, writer, runStart, complete = true) {
+        function notePaneRendererWrite(element, writer, runStart, complete = true, handle = null) {
             if (!element) { return; }
             const auth = getPaneAuthority(element);
             auth.writer = writer || 'renderer';
@@ -1998,14 +2027,22 @@
             auth.epoch++;
             auth.runStart = Number.isFinite(runStart) ? runStart : null;
             auth.complete = complete !== false;
+            auth.handle = handle || null;
             clearRestoredPaneTitle(element);
             _knownHistoryText.delete(element);
         }
-        function rendererMayWrite(element, taskName, runStart) {
+        function rendererMayWrite(element, taskName, runStart, handle) {
             if (!element || !taskName) { return true; }
             const auth = getPaneAuthority(element);
-            if (auth.rank < PANE_RANK.live || !auth.writer || auth.writer === taskName) { return true; }
-            if (!Number.isFinite(auth.runStart) || !Number.isFinite(runStart)) { return true; }
+            if (auth.rank < PANE_RANK.live || !auth.writer || auth.writer === taskName) {
+                if (auth.writer === taskName && Number.isFinite(auth.runStart) && !Number.isFinite(runStart)
+                    && auth.handle && handle && handle !== auth.handle) { return false; }
+                return true;
+            }
+            if (!Number.isFinite(auth.runStart)) { return true; }
+            // A different task with no run identity never replaces an identified
+            // live writer (N02).
+            if (!Number.isFinite(runStart)) { return false; }
             return runStart >= auth.runStart;
         }
         // One per-task identity for opening, detail and final registry entries.
@@ -2015,6 +2052,12 @@
             const kind = state.ownership_unconfirmed ? 'retained' : (state.worker_pending ? 'pending' : (state.running ? 'live' : 'idle'));
             const start = claim ? null : (Number.isFinite(state.start_time) ? state.start_time : null);
             return JSON.stringify([name, claim, kind, start]);
+        }
+        function getRunToken(name, state) {
+            if (!state) { return null; }
+            const claim = state.task_claim_id || state.worker_claim_id || null;
+            const start = Number.isFinite(state.start_time) ? state.start_time : null;
+            return JSON.stringify([name, claim, start]);
         }
         function sameRunIdentity(opening, live) {
             if (!opening || !live) { return false; }
@@ -2050,6 +2093,17 @@
             persona: ['btn-cancel-personas'], voicelab: ['btn-vl-cancel', 'btn-vl-pause'],
             lora_training: ['btn-lora-cancel'], word_timing: ['editor-word-cancel'],
         };
+        function applyRetainedControls(name, state) {
+            // A live-to-retained takeover must settle this task's dedicated
+            // controls/label, not only the shared pane text (N08).
+            if (name === 'persona') {
+                for (const id of RETIRE_CANCEL.persona) {
+                    const button = document.getElementById(id); if (button) { button.style.display = 'none'; }
+                }
+                const status = document.getElementById('persona-status');
+                if (status) { status.innerText = getTaskOwnershipMessage(state); }
+            }
+        }
         function runTerminalControls(name) {
             const buttons = Object.prototype.hasOwnProperty.call(RETIRE_BUTTONS, name) ? RETIRE_BUTTONS[name] : [];
             const cancels = Object.prototype.hasOwnProperty.call(RETIRE_CANCEL, name) ? RETIRE_CANCEL[name] : [];
@@ -2398,7 +2452,9 @@
             };
 
             const makeTaskRecord = (name, state, kind, id, stop, release) => ({
-                id, kind, generation, paneId: controlGroups.get(name) || null, started: true,
+                id, token: getRunToken(name, state), pollVersion: bridge?._taskPollerVersion?.(name) || 0,
+                startTime: Number.isFinite(state?.start_time) ? state.start_time : null,
+                kind, generation, paneId: controlGroups.get(name) || null, started: true,
                 stop: typeof stop === 'function' ? stop : () => {},
                 release: typeof release === 'function' ? release : () => {},
                 retire: () => {},
@@ -2484,6 +2540,14 @@
                     if (record && record.generation > generation) { continue; }
                     const state = final[name];
                     if (state && (state.running || state.ownership_unconfirmed)) { continue; }
+                    // A stale registry for an older run never releases a newer
+                    // successor's controls or claim (N01). The exact installed
+                    // handle is compared too: a button start that replaced the
+                    // observer is a newer owner.
+                    if (record && Number.isFinite(record.startTime) && Number.isFinite(state?.start_time)
+                        && state.start_time !== record.startTime) { continue; }
+                    if (record && record.pollVersion !== undefined
+                        && (bridge?._taskPollerVersion?.(name) || 0) !== record.pollVersion) { continue; }
                     if (record && record.generation === generation) {
                         // Let this dispatch's own in-flight adapter consume one
                         // verified terminal detail and paint it; only its controls
@@ -2515,6 +2579,10 @@
                 if ((bridge?._scriptRecoveryAcceptedRun || 0) !== acceptedBeforeOpening) { dispatchState.acceptedToken = bridge._scriptRecoveryAcceptedRun || 0; }
                 if ((bridge?._scriptRecoveryTerminalToken || 0) !== terminalBeforeOpening) { dispatchState.terminalToken = bridge._scriptRecoveryTerminalToken || 0; }
             }
+            // Poll installations owned by this dispatch are absorbed here; a
+            // competing button start later in this pass changes the version and
+            // fences the shared pane (N06/N07).
+            const groupPollVersions = logGroups.map(group => group.tasks.map(name => bridge?._taskPollerVersion?.(name) || 0));
 
             const hydrateNames = new Set([...logGroups.flatMap(group => group.tasks),
                 ...Object.keys(statuses).filter(name => statuses[name]?.ownership_unconfirmed)]);
@@ -2540,8 +2608,13 @@
                         if (paneId && state && state.running && !state.ownership_unconfirmed && Array.isArray(state.logs) && state.logs.length) {
                             const pane = document.getElementById(paneId);
                             if (!pane || pane !== paneNode) { return; }
+                            const auth = getPaneAuthority(pane);
+                            // A newer live renderer for the same task owns the pane;
+                            // an older detached snapshot must not truncate it (N03).
+                            if (auth.rank >= PANE_RANK.live && auth.writer === taskName
+                                && auth.handle && held.handle && auth.handle !== held.handle) { return; }
                             const text = state.logs.join('\n');
-                            if (writePaneText(pane, taskName, 'live', text, { runStart: state.start_time, complete: true })) { pane.innerText = text; }
+                            if (writePaneText(pane, taskName, 'live', text, { runStart: state.start_time, complete: true, handle: held.handle })) { pane.innerText = text; }
                             if (taskName === 'script' && !selectionChanged()) { window.syncSnapshotButton?.(state); }
                         }
                     }).catch(() => {});
@@ -2596,7 +2669,11 @@
 
             const paneWrites = [];
             logGroups.forEach((group, index) => {
-                if (!contextFence() || !tokenFence()) { return; }
+                const tokenScoped = group.elementId === 'script-logs';
+                if (!contextFence() || (tokenScoped && !tokenFence())) { return; }
+                const pollChanged = group.tasks.some((name, i) =>
+                    (bridge?._taskPollerVersion?.(name) || 0) !== groupPollVersions[index][i]);
+                if (pollChanged) { return; }
                 const identityChanged = group.tasks.some(name => !recheckFailed
                     && getLogRestoreIdentity(recheckRegistry[name]) !== getLogRestoreIdentity(registry[name]));
                 const groupLive = group.tasks.some(name => running[name] || hydrated[name]?.running);
@@ -2607,10 +2684,20 @@
                 const auth = getPaneAuthority(el);
                 const latest = getLatestCompletedLog(group.tasks, hydrated);
                 const newestKnown = getNewestKnownStart(group.tasks, recheckFailed ? finalStatuses : recheckRegistry);
+                // A readable failed/conflicting detail for the same timestamp
+                // invalidates a cached successful render (N04).
+                const newestFailed = group.tasks.some(name => failedHydration.has(name)
+                    && recheckRegistry[name]?.status === 'failed'
+                    && Number.isFinite(recheckRegistry[name]?.start_time)
+                    && recheckRegistry[name].start_time >= (Number.isFinite(auth.runStart) ? auth.runStart : -Infinity));
+                const conflictLatest = latest && Number.isFinite(auth.runStart)
+                    && latest.start >= auth.runStart
+                    && recheckRegistry[latest.name]?.status === 'failed'
+                    && latest.logs.join('\n') !== el.innerText;
                 // A proven live renderer that is complete and already shows the
-                // newest known run survives; an older or partial render does not
-                // (F03/A7).
-                if (auth.rank >= PANE_RANK.live && auth.writer && auth.complete !== false
+                // newest known run survives; an older or partial/conflicting
+                // render does not (F03/A7/N04).
+                if (!newestFailed && !conflictLatest && auth.rank >= PANE_RANK.live && auth.writer && auth.complete !== false
                     && Number.isFinite(auth.runStart) && auth.runStart >= newestKnown) { return; }
                 const untouched = auth.epoch === pane.version;
                 const ownedHistory = auth.writer === 'history';
@@ -2621,18 +2708,28 @@
                     return getPaneAuthority(el).epoch;
                 };
                 const stillOwned = _logRestoreDiagnostics.get(group.elementId);
-                if (recheckFailed || identityChanged
+                // A recheck identity change is a diagnostic unless the SAME run
+                // has a readable completed detail (N04). A different task's or an
+                // older same-task success is not current evidence.
+                const changedTaskReadable = group.tasks.some(name => !recheckFailed
+                    && getLogRestoreIdentity(recheckRegistry[name]) !== getLogRestoreIdentity(registry[name])
+                    && hydrated[name] && !failedHydration.has(name)
+                    && sameRunIdentity(recheckRegistry[name], hydrated[name])
+                    && Array.isArray(hydrated[name].logs) && hydrated[name].logs.length);
+                if (recheckFailed || (identityChanged && !changedTaskReadable)
                     || getUnresolvedLogFailure(group.tasks, failedHydration, recheckRegistry, latest, null)) {
                     restore();
                     const diagnostic = t('core.task.logs-restore-failed', 'Earlier log history could not be loaded. Check the connection, then reload.');
                     if (writePaneText(el, 'history', 'diagnostic', diagnostic, { complete: true })) {
                         el.innerText = diagnostic;
                         el.title = '';
+                        clearRestoredPaneTitle(el);
+                        _knownHistoryText.delete(el);
                         _logRestoreDiagnostics.set(group.elementId, { el, text: diagnostic });
                         paneWrites.push({ index, el, version: getPaneAuthority(el).epoch,
                             text: pane.text, title: pane.title, written: el.innerText,
                             writer: pane.writer, rank: pane.rank, runStart: pane.runStart, complete: pane.complete,
-                            restoredTitle: pane.restoredTitle, knownHistory: pane.knownHistory, warning: pane.warning });
+                            restoredTitle: pane.restoredTitle, knownHistory: pane.knownHistory, warning: pane.warning, tokenScoped });
                     }
                     return;
                 }
@@ -2648,7 +2745,7 @@
                         paneWrites.push({ index, el, version: getPaneAuthority(el).epoch,
                             text: pane.text, title: pane.title, written: el.innerText,
                             writer: pane.writer, rank: pane.rank, runStart: pane.runStart, complete: pane.complete,
-                            restoredTitle: pane.restoredTitle, knownHistory: pane.knownHistory, warning: pane.warning });
+                            restoredTitle: pane.restoredTitle, knownHistory: pane.knownHistory, warning: pane.warning, tokenScoped });
                     }
                 } else if (stillOwned && stillOwned.el === el && stillOwned.text === el.textContent) {
                     restore();
@@ -2659,7 +2756,7 @@
                         paneWrites.push({ index, el, version: getPaneAuthority(el).epoch,
                             text: pane.text, title: pane.title, written: el.innerText,
                             writer: pane.writer, rank: pane.rank, runStart: pane.runStart, complete: pane.complete,
-                            restoredTitle: pane.restoredTitle, knownHistory: pane.knownHistory, warning: pane.warning });
+                            restoredTitle: pane.restoredTitle, knownHistory: pane.knownHistory, warning: pane.warning, tokenScoped });
                     }
                 }
             });
@@ -2667,12 +2764,15 @@
             if (contextFence()) {
                 await attachRunningControls(controlStatuses, { onlySlow: true });
             }
+            // The saved config can install during the final slow attachment; that
+            // is not a selection and must not roll the restored panes back (N05).
+            if (!contextFence()) { rebalanceInitialConfig(); }
             // Roll back a provisional write only when this exact version still
             // owns this exact node, and restore the ownership metadata together
             // with the visible text/title (F13, P01).
             for (const write of paneWrites) {
                 const attached = document.getElementById(logGroups[write.index].elementId);
-                if (contextFence() && tokenFence() && attached === write.el) { continue; }
+                if (contextFence() && (!write.tokenScoped || tokenFence()) && attached === write.el) { continue; }
                 const auth = getPaneAuthority(write.el);
                 if (auth.epoch !== write.version || auth.writer !== 'history') { continue; }
                 if (write.el.innerText !== write.written) { continue; }

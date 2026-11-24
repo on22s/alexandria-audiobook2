@@ -399,7 +399,7 @@ for(const token of ['book','selection','terminal']){
  el('script-logs').innerText='';el('script-logs').title='';
  const work=ctx.reattachRunningPollers();for(let i=0;i<200&&!detailRequested;i++){await Promise.resolve();}
  assert(detailRequested,'final-only detail was never awaited');
- if(token==='book'){ctx._scriptRecoveryBookEpoch=7;}
+ if(token==='book'){ctx._bookSelectionEpoch=7;ctx._scriptRecoveryBookEpoch=7;}
  else if(token==='selection'){ctx._selectedUploadIdentity={filename:'B'};}
  else {ctx._scriptRecoveryTerminalToken=9;}
  resolveDetail();await work;
@@ -1259,3 +1259,162 @@ assert.strictEqual(el('script-logs').title,'');
         i18n = (fixture.Path(__file__).resolve().parent.parent / 'static/js/app-i18n.js').read_text()
         self.assertIn('window._relocalizeLogPaneChrome?.();', i18n)
         self.assertIn('window._relocalizeLogPaneChrome = relocalizeLogPaneChrome;', workbench)
+
+    # ── Astra final N01–N09 discriminators ────────────────────────
+    def test_pane_identity_rejects_unidentified_and_older_writes(self):
+        self.run_js(r"""
+const pane=el('script-logs');const a={},b={};
+assert(ctx.writePaneText(pane,'script','live','one',{runStart:100,handle:a}));
+assert(!ctx.writePaneText(pane,'script','live','two',{runStart:null,handle:b}),'unidentified different handle overwrote');
+assert(!ctx.writePaneText(pane,'script','live','old',{runStart:50,handle:a}),'older run overwrote');
+assert(ctx.writePaneText(pane,'script','live','same',{runStart:null,handle:a}),'same handle could not settle');
+assert.strictEqual(pane.innerText,'same');
+""")
+
+    def test_renderer_repaints_when_another_writer_replaced_its_prefix(self):
+        self.run_js(r"""
+const pane=el('script-logs');
+const render=ctx.createTaskLogRenderer(pane,'review');
+render({running:true,start_time:200,logs:['B line 1']});
+render({running:true,start_time:200,logs:['B line 1','B line 2']});
+assert.strictEqual(pane.innerText,'B line 1\nB line 2');
+pane.innerText='B line 1';
+render({running:true,start_time:200,logs:['B line 1','B line 2']});
+assert.strictEqual(pane.innerText,'B line 1\nB line 2','unchanged tick did not repaint the full prefix');
+render({running:true,start_time:200,logs:['B line 1','B line 2','B line 3']});
+assert.strictEqual(pane.innerText,'B line 1\nB line 2\nB line 3');
+""")
+
+    def test_same_timestamp_failed_detail_supersedes_an_older_success(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const done={...idle,status:'done',start_time:100,has_history:true};
+const failed={...done,status:'failed'};
+for(const unavailable of [false,true]){
+ ctx.createTaskLogRenderer(el('script-logs'),'review')({running:false,status:'done',start_time:100,logs:['Old success']});
+ let registries=0;
+ ctx.API.get=path=>{
+  if(path==='/api/status'){registries++;return Promise.resolve({review:registries===1?done:failed});}
+  if(path.endsWith('/review')){if(unavailable)throw Error('newest unavailable');return Promise.resolve({...failed,logs:['Failure detail']});}
+  return Promise.resolve({running:false,logs:[],start_time:null});
+ };
+ await ctx.reattachRunningPollers();
+ if(unavailable){assert(el('script-logs').innerText.includes('could not be loaded'));}
+ else {assert.strictEqual(el('script-logs').innerText,'Failure detail');}
+}
+""")
+
+    def test_config_install_during_final_slow_attachment_keeps_restored_panes(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const done=n=>({...idle,status:'done',start_time:n,has_history:true});
+const completed={script:done(100),persona:done(200),audio:done(300),voicelab:done(400)};
+let releaseDataset,entered=false,registries=0;
+const gate=new Promise(r=>releaseDataset=r);
+ctx.API.get=path=>{
+ if(path==='/api/status'){registries++;return Promise.resolve({...completed,...(registries===2?{dataset_builder:{...idle,running:true,status:'running',start_time:500,has_history:true}}:{})});}
+ if(path.endsWith('/dataset_builder')){entered=true;return gate.then(()=>({running:false}));}
+ const name=path.split('/').at(-1);
+ if(name==='script')return Promise.reject(Error('script down'));
+ if(completed[name])return Promise.resolve({...completed[name],logs:[name+' history']});
+ return Promise.resolve({running:false,logs:[],start_time:null});
+};
+const work=ctx.reattachRunningPollers();
+for(let i=0;i<200&&!entered;i++){await Promise.resolve();}
+assert(entered,'final dataset attachment not reached');
+ctx._scriptRecoveryBookEpoch=1;
+releaseDataset();await work;
+assert(el('script-logs').innerText.includes('could not be loaded'));
+assert.strictEqual(el('voices-logs').innerText,'persona history');
+assert.strictEqual(el('audio-logs').innerText,'audio history');
+assert.strictEqual(el('voicelab-logs').innerText,'voicelab history');
+""")
+
+    def test_script_start_during_hydration_does_not_suppress_unrelated_histories(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const done=n=>({...idle,status:'done',start_time:n,has_history:true});
+const active={...idle,running:true,status:'running',start_time:100,has_history:true};
+let releasePersona,pending=false;
+const gate=new Promise(r=>releasePersona=r);
+ctx.window=ctx;ctx._scriptRecoveryBookEpoch=0;ctx._selectedUploadIdentity=null;ctx._scriptRecoveryAcceptedRun=0;
+ctx.API.get=path=>{
+ if(path==='/api/status')return Promise.resolve({script:active,persona:done(200),audio:done(300),voicelab:done(400)});
+ if(path.endsWith('/persona')){pending=true;return gate.then(()=>({...done(200),logs:['persona durable history']}));}
+ if(path.endsWith('/script'))return Promise.resolve({...active,task_claim_id:'b'.repeat(32)});
+ const name=path.split('/').at(-1);
+ if(name==='audio')return Promise.resolve({...done(300),logs:['audio durable history']});
+ if(name==='voicelab')return Promise.resolve({...done(400),logs:['voicelab durable history']});
+ return Promise.resolve({running:false,logs:[],start_time:null});
+};
+const work=ctx.reattachRunningPollers();
+for(let i=0;i<200&&!pending;i++){await Promise.resolve();}
+ctx._scriptRecoveryAcceptedRun=1;
+releasePersona();await work;
+assert.strictEqual(el('voices-logs').innerText,'persona durable history');
+assert.strictEqual(el('audio-logs').innerText,'audio durable history');
+assert.strictEqual(el('voicelab-logs').innerText,'voicelab durable history');
+""")
+
+    def test_competing_poll_installation_fences_only_the_shared_pane(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const done=n=>({...idle,status:'done',start_time:n,has_history:true});
+const versions={review:0};
+ctx._taskPollerVersion=name=>versions[name]||0;
+let releaseFinal,registries=0;
+const gate=new Promise(r=>releaseFinal=r);
+ctx.API.get=path=>{
+ if(path==='/api/status'){registries++;if(registries===2)return gate.then(()=>({review:done(100),persona:done(80)}));return Promise.resolve({review:done(100),persona:done(80)});}
+ if(path.endsWith('/review'))return Promise.resolve({...done(100),logs:['Earlier completed Review']});
+ if(path.endsWith('/persona'))return Promise.resolve({...done(80),logs:['Independent Persona history']});
+ return Promise.resolve({running:false,logs:[],start_time:null});
+};
+const work=ctx.reattachRunningPollers();
+for(let i=0;i<80;i++){await Promise.resolve();}
+versions.review=1; // a competing Review button start installed a new poll
+releaseFinal();await work;
+assert.strictEqual(el('script-logs').innerText,'','old history painted over a confirmed Review admission');
+assert.strictEqual(el('voices-logs').innerText,'Independent Persona history');
+""")
+
+    def test_live_to_retained_persona_settles_status_and_cancel(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const held={...idle,status:'failed',start_time:151,ownership_unconfirmed:true,has_history:true};
+ctx.createTaskLogRenderer(el('voices-logs'),'persona')({running:true,status:'running',start_time:151,logs:['Generating Persona']});
+ctx.window=ctx;
+ctx.reattachTaskActivity('persona',['btn-gen-personas'],'voices-logs',null,held);
+assert(el('voices-logs').innerText.includes('still holding'));
+assert.strictEqual(el('btn-cancel-personas').style.display,'none');
+assert(el('btn-gen-personas').disabled);
+assert(el('persona-status').innerText.includes('still holding'));
+""")
+
+    def test_history_diagnostic_drops_the_restored_tooltip_marker(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const done=n=>({...idle,status:'done',start_time:n,has_history:true});
+let stage=1;
+ctx.API.get=path=>{
+ if(path==='/api/status')return Promise.resolve(stage===1?{review:done(100)}:{review:done(100),script:done(900)});
+ if(path.endsWith('/script')){if(stage===1)return Promise.resolve({...done(50),logs:['Older script']});throw Error('Current history unavailable');}
+ if(path.endsWith('/review'))return Promise.resolve({...done(100),logs:['Previously completed Review']});
+ return Promise.resolve({running:false,logs:[],start_time:null});
+};
+await ctx.reattachRunningPollers();
+assert.strictEqual(el('script-logs').title,'Restored review logs');
+stage=2;await ctx.reattachRunningPollers();
+assert(el('script-logs').innerText.includes('could not be loaded'));
+assert.strictEqual(el('script-logs').title,'');
+ctx._relocalizeLogPaneChrome();
+assert.strictEqual(el('script-logs').title,'','locale relocalization revived the old success tooltip');
+""")
+
+    def test_task_sweep_is_bound_to_the_installed_handle_token_and_version(self):
+        workbench = (fixture.Path(__file__).resolve().parent.parent / 'static/js/app-workbench.js').read_text()
+        self.assertIn('record.pollVersion !== undefined', workbench)
+        self.assertIn('bridge?._taskPollerVersion?.(name)', workbench)
+        self.assertIn('state.start_time !== record.startTime', workbench)
+        self.assertIn('const groupPollVersions = logGroups.map', workbench)
+        self.assertIn("group.elementId === 'script-logs'", workbench)

@@ -1422,17 +1422,27 @@
             let previousLogs = null;
             let previousRunId = null;
             let lastNode = null;
+            // One stable handle per renderer instance: a different writer
+            // (detached read, reattached observer, other task) is never mistaken
+            // for this incremental writer.
+            const handle = {};
             return status => {
                 if (!element) { return; }
                 const update = getTaskLogUpdate(previousLogs, previousRunId,
                     status.logs || [], status.run_id || status.start_time || null);
-                if (!update.changed) { return update; }
                 const runStart = Number.isFinite(status.start_time) ? status.start_time : null;
-                // Never mutate the DOM for an older writer while a newer foreign
-                // live writer owns the pane. Cache nothing so the next admitted
-                // write repaints the complete snapshot (F04).
+                // Another writer may have replaced the pane without changing the
+                // log array (e.g. a stale detached write, or an unchanged tick).
+                // Repaint the complete snapshot instead of appending to a stale
+                // prefix (N03).
+                const detachedNow = lastNode && lastNode.parentNode !== element;
+                if (!update.changed && !detachedNow) { return update; }
+                // Never mutate the DOM for an older or unidentified writer while a
+                // newer foreign/identified live writer owns the pane. Cache
+                // nothing so the next admitted write repaints the snapshot (F04,
+                // N02).
                 if (taskName && typeof window !== 'undefined' && window._rendererMayWrite
-                    && !window._rendererMayWrite(element, taskName, runStart)) {
+                    && !window._rendererMayWrite(element, taskName, runStart, handle)) {
                     previousLogs = null; lastNode = null;
                     return { ...update, changed: false };
                 }
@@ -1440,11 +1450,7 @@
                     || element.scrollHeight - element.clientHeight - element.scrollTop <= 24;
                 const scrollPosition = element.scrollTop;
                 element.style.whiteSpace = 'pre-wrap';
-                // If another writer replaced or cleared the pane, the incremental
-                // prefix is gone; repaint the complete snapshot instead of
-                // appending a suffix onto foreign text (F04).
-                const detached = !update.reset && lastNode && lastNode.parentNode !== element;
-                if (update.reset || detached) {
+                if (update.reset || detachedNow) {
                     element.innerText = update.logs.join('\n');
                     lastNode = null;
                 } else {
@@ -1455,8 +1461,8 @@
                 previousLogs = update.logs;
                 previousRunId = update.runId;
                 // The renderer takes pane authority explicitly with the task it
-                // renders, its run start, and a complete snapshot marker.
-                window._notePaneRendererWrite?.(element, taskName, runStart, true);
+                // renders, its run start, a complete snapshot marker and its handle.
+                window._notePaneRendererWrite?.(element, taskName, runStart, true, handle);
                 element.scrollTop = followTail ? element.scrollHeight : scrollPosition;
                 return update;
             };
@@ -11726,6 +11732,7 @@
             // successor that already took over the same key.
             const stop = () => { if (_pollGen[key] === myGen) { _pollGen[key] = (_pollGen[key] || 0) + 1; } };
             if (taskName) {
+                _taskPollVersions.set(taskName, (_taskPollVersions.get(taskName) || 0) + 1);
                 const previous = _taskPollHandles.get(taskName);
                 _taskPollHandles.delete(taskName);
                 if (previous && previous.key !== key) { try { previous.stop(); } catch (e) { /* already stopped */ } }
@@ -11734,6 +11741,8 @@
             return stop;
         }
         const _taskPollHandles = new Map();
+        const _taskPollVersions = new Map();
+        if (typeof window !== 'undefined') { window._taskPollerVersion = taskName => _taskPollVersions.get(taskName) || 0; }
         function stopInstalledTaskPoller(taskName) {
             const entry = _taskPollHandles.get(taskName);
             if (!entry) { return; }
