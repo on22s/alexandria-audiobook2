@@ -1,26 +1,35 @@
 # Alexandria Audiobook2 — Codebase Knowledge
 
-**Repository:** `alexandria-audiobook2`  
-**Analyzed revision:** `c91bee0f` (`Repair incomplete Whisper builds on fresh installations (#1648)`)  
-**Analysis date:** 2026-11-20  
-**Method:** direct repository exploration, source reading, config/model inspection, and cross-checking against the committed docs. No live GPU, TTS, LLM, or full-corpus run was performed for this document; claims that depend on those are marked as documented/measured elsewhere in the repo.
+**Analysis target:** `a978efa252e042a16a28e9cabea1a85afc06b9a9` (`origin/main`, 2026-11-24, merge of PR #2263).
 
-This document is a self-contained brain dump for a new developer or another LLM. It answers three questions:
+**How this document was produced.** Read-only analysis of that tree: every `app/*.py`
+module's docstring and public definitions, every FastAPI route, every frontend
+module, the config models and the on-disk constants were extracted mechanically
+(AST for Python, decorator parse for routes, regex for the JS modules), then the
+cross-cutting behaviour (transactions, admission, identity, export) was read in
+the source. Counts in this document are measured, not estimated; the Appendix A
+block records the exact numbers and the command shapes that produced them. Where a
+statement is an inference rather than a measurement it is phrased as one.
 
-1. What does the application do, and why does each feature exist?
-2. How do the pieces work and interact technically?
-3. What must be understood before changing code safely?
+**This file replaces the 2026-11-20 analysis** (`INDEX_VERSION: 2026-11-20-c91bee0f`),
+which described the tree at `c91bee0f0` and was 406 modules and roughly four weeks
+of merged work out of date. The old numbers (`app/` 304 files, 17 routers,
+1,339 test modules) are superseded by the Appendix A values.
 
 ---
 
 ## 0. How to read this document
 
-- **New to the project:** read §1, §2.3, and §3.1–§3.7 in order.
-- **About to change code:** read §4 first. It documents the invariants that fail silently when ignored.
-- **Looking for a file or API:** jump to §5.
-- **Reviewing architecture:** §2 and the diagrams in `codebase-analysis-docs/assets/`.
+- **New to the project:** §1, §2.3, then §3.1–§3.7 in order.
+- **About to change code:** §4 first. It lists the invariants that fail silently.
+- **Looking for a file or route:** §5, then Appendix B/C.
+- **Reviewing architecture:** §2. Diagrams live in `codebase-analysis-docs/assets/`
+  (`architecture.mmd`, `book-flow.mmd`, `data-model.mmd`, `task-admission.mmd`).
 
-All repository paths in this document are relative to the repository root unless stated otherwise.
+Repository paths are relative to the repository root unless stated otherwise.
+`app/` is the application; launcher scripts (`install.js`, `start.js`, `reset.js`,
+`update.js`, `pinokio.js`, `launcher_lifecycle.js`) sit at the root and are a
+separate concern (see §2.8).
 
 ---
 
@@ -28,87 +37,83 @@ All repository paths in this document are relative to the repository root unless
 
 ### 1.1 What the application is
 
-Alexandria Audiobook2 (AA2) is a local-first, single-page web application that turns a book into a multi-voice audiobook.
+Alexandria Audiobook2 (AA2) is a local-first, single-user web application that turns
+a book into a multi-voice audiobook.
 
-Input:
-
-- `.txt`, `.md`, or `.epub`.
+Input: `.txt`, `.md`, `.epub`, `.docx` — uploaded, reused from the uploads
+directory, or pulled from an optional Calibre OPDS catalog (§3.13).
 
 Processing:
 
 1. A language model annotates the book in three passes:
-   - **Pass 1 — segment:** decide which text is narration and which is spoken dialogue.
-   - **Pass 2 — attribute:** assign every spoken line to a speaker from a cast list, using surrounding evidence.
-   - **Pass 3 — instruct:** write a delivery direction for every line.
-2. The user reviews the script, resolves aliases, and assigns a voice to every character.
-3. A text-to-speech engine (Qwen3-TTS locally, or an external Gradio TTS server) renders each chunk.
-4. The user listens, edits, regenerates individual chunks, optionally checks voice drift and speech content.
-5. The app assembles the chunks into MP3, chaptered M4B, per-chapter files, or an Audacity project.
+   **segment** (narration vs speech), **attribute** (speaker per line), **instruct**
+   (delivery direction per line).
+2. The user reviews the script, resolves aliases, and casts a voice per character.
+3. A TTS engine renders each chunk — local Qwen3-TTS, an Apple MLX backend, or a
+   pool of external Gradio TTS servers.
+4. The user listens, edits lines, regenerates individual chunks, and can run
+   optional checks (voice drift, chunk outliers, ASR word timing, speech
+   verification).
+5. The app assembles the chunks into MP3, chaptered M4B, per-chapter files, an
+   Audacity project, or an EPUB 3 read-aloud package, with optional sound design
+   and mastering, then optionally delivers the result to an Audiobookshelf server.
 
-The app also contains a voice-production toolchain ("Voice Lab") that turns existing audiobooks into aligned training data, trains LoRA voice adapters, evaluates them, and promotes them with an audit trail.
+A second toolchain, **Voice Lab**, turns existing audiobooks into aligned training
+data, trains LoRA voice adapters, evaluates them blind, and promotes them with an
+audit trail.
 
 ### 1.2 Business purpose and target users
 
-The product's purpose is **high-quality, repeatable audiobook production on hardware the user owns**, with every important quality claim measured rather than asserted.
+The purpose is **high-quality, repeatable audiobook production on hardware the user
+owns**, where every quality claim is measured rather than asserted. The codebase is
+unusually explicit about what it does *not* prove: a word-timing match is not a
+pronunciation verdict, an outlier score is not a quality qualification, a casting
+tag is not an identity, a delivery receipt is not an approval.
 
 Primary users:
 
-- Self-hosters running the app through Pinokio on a workstation with a GPU.
-- Researchers who need reproducible prompt/model comparisons and a labelled evaluation corpus.
-- Users producing series fiction, where cast reuse and voice continuity matter.
-- Users who want to clone or train a specific narrator voice from an existing audiobook.
-
-The fork explicitly differs from upstream Alexandria by adding:
-
-- Three-pass script generation with checkpointing and recovery.
-- Measured attribution prompt variants and attribution LoRA adapters.
-- First-class reasoning-model support, LLM profiles, failover, and manual transport.
-- A voice library/cast system, identity anchors, style timelines, voice drift checks.
-- Voice Lab: preparer, deduplication, batch LoRA training, profiling, naming.
-- Export quality gates, publication receipts, and measurable mastering.
-- A large measurement corpus (`GOALS.md`, `RECIPES.md`, `RESULTS_INDEX.md`, `ab_test_runtime/experiments/`).
-
-It is **not** a multi-tenant SaaS. It has no database, no job-queue service, and no built-in authentication unless the operator opts in. State is files in one mutable data directory, protected by kernel file locks and transaction journals.
+- A single author/producer converting their own library on one machine (the shipped
+  assumption: one active book, one GPU, one user).
+- Someone building a voice catalogue: designed voices, cloned references, LoRA
+  adapters, and a casting library that spans books.
+- An experimenter measuring attribution/segmentation quality across models and
+  prompt variants (`app/experiments/`, `benchmark_*`).
 
 ### 1.3 Feature map
 
-| Feature | User outcome | Main code |
+| Area | Where | Summary |
 |---|---|---|
-| Setup / LLM profiles | Connect local or hosted OpenAI-compatible LLM; control reasoning, retries, failover | `app/config_settings.py`, `app/llm_provider.py`, `app/lmstudio_settings.py`, `app/routers/system.py` |
-| Source ingestion | Upload/reuse TXT/MD/EPUB; normalize text; choose first-person narrator; preflight a sample | `app/routers/script.py`, `app/source_encoding.py`, `app/source_normalization.py`, `app/epub_package.py` |
-| Three-pass generation | Produce the annotated script with resumable checkpoints | `app/three_pass_generate.py`, `app/generate_script.py`, `app/attribution_prompt_variants.py`, `app/pass_quality.py` |
-| Script review | Fix attribution/text/delivery errors; optional labels-only mode; alias discovery | `app/review_script.py`, `app/review_prompts.py`, `app/find_nicknames.py` |
-| Character identity | Approved roster of names/aliases with source-quote evidence and undo | `app/character_roster*.py`, `app/routers/character_roster.py` |
-| Speaker-label review | Bounded, snapshotted second-opinion review of speaker labels | `app/speaker_review.py`, `app/routers/speaker_review.py` |
-| Cast and voices | Assign CustomVoice/Clone/Voice Design/LoRA; personas; style timelines; voice library | `app/routers/voices.py`, `app/routers/voice_library.py`, `app/generate_personas.py`, `app/voice_reference*.py` |
-| Editor / synthesis | Render chunks, edit, regenerate, check drift, restore takes, verify speech | `app/routers/editor.py`, `app/project.py`, `app/tts.py`, `app/synthesis_*.py`, `app/take_*.py`, `app/speech_verification*.py` |
-| Export | MP3, M4B, chapter files, Audacity package, mastering, quality receipts | `app/project.py`, `app/export_*.py`, `app/m4b_*.py`, `app/audio_mastering*.py`, `app/routers/editor.py` |
-| Sound design | Immutable sound cues, imported assets, renditions, mix candidates, delivery review | `app/sound_design_*.py`, `app/routers/sound_design.py` |
-| Preparer | Audiobook → aligned (audio, text) training data | `alexandria_preparer_rocm_compatible.py`, `app/routers/preparer.py`, `alexandria_alignment.py` |
-| Dataset / Training | Build synthetic training data; train and evaluate LoRA adapters | `app/routers/dataset_builder.py`, `app/train_lora.py`, `app/routers/lora.py`, `promote_adapters.py` |
-| Voice Lab | Whole-library pipeline: ASR → dedup → train → profile → name | `app/routers/voicelab.py`, `tools/voice_lab/`, `app/voice_*.py` |
-| Reports / benchmarks | Run history, review checkpoints, benchmark manifests | `app/run_history.py`, `app/routers/benchmark.py`, `app/benchmark_*.py` |
-| Home workspace | Read-only readiness view and "continue where I left off" navigation | `app/routers/scripts_library.py`, `app/static/js/app-workspace.js`, `docs/workspace-readiness.md` |
+| Setup & LLM provider | `routers/system.py`, `lmstudio_settings.py`, `llm_provider.py` | Local LM Studio, remote LM Studio over SSH/forwarded URL, hosted OpenAI-compatible APIs, manual transport; failover and concurrency benchmarking |
+| Source ingestion | `routers/script.py`, `source_*.py`, `docx_*.py`, `epub_*.py`, `calibre_*.py` | Upload, selection binding, EPUB/DOCX extraction, Calibre OPDS import, source repair |
+| Script generation | `generate_script.py`, `three_pass_generate.py`, `pass_quality.py`, `compact_pass1.py` | Single-pass and three-pass annotation, chunk quality gates, checkpoint shards, retries |
+| Review & speakers | `review_script.py`, `routers/speaker_review.py`, `speaker_identity.py`, `character_roster*.py` | Second LLM pass, alias registry, character roster review, printed-label attribution |
+| Casts & voices | `routers/voices.py`, `routers/voice_library.py`, `routers/voice_design.py`, `routers/casting.py` | Personas, designed/cloned/LoRA voices, casts, casting library across books |
+| Editor & synthesis | `routers/editor.py`, `project.py`, `tts.py`, `synthesis_*.py`, `take_*.py` | Per-line render, takes, restore, undo, word timing, speech verification, narration markup |
+| Export & publication | `routers/editor.py` export routes, `export_*.py`, `audio_*.py`, `m4b_*.py`, `readalong_*.py`, `epub_readaloud.py` | MP3/M4B/chapters/Audacity/read-along/EPUB, mastering, quality receipts, delivery |
+| Sound design | `sound_design_*.py`, `routers/sound_design.py` | Cues, asset library, mixed candidates, score lineage, approval and delivery |
+| Voice Lab | `routers/voicelab.py`, `routers/preparer.py`, `routers/dataset_builder.py`, `routers/lora.py`, `tools/voice_lab/` | Audiobook → dataset → LoRA → profile → named voice |
+| Project scope | `project_scope_*.py`, `routers/project_scope.py` | Reversible removal of a suffix of the book, with exact undo |
+| Workspace & reports | `routers/scripts_library.py`, `collection_overview.py`, `book_workspace.py`, `run_history.py` | Saved-book library, per-book stage status, run history, diagnostics |
+| Benchmarks | `benchmark_*.py`, `routers/benchmark.py` | Local-vs-Thunder stage benchmarks with environment fingerprints |
 
 ### 1.4 Technology stack
 
-| Layer | Technology |
-|---|---|
-| Backend | Python 3.10, FastAPI, Starlette, Uvicorn, Pydantic v2 |
-| LLM protocol | OpenAI-compatible HTTP (`openai` client), llama.cpp/LM Studio/Ollama/DeepSeek/OpenAI/OpenRouter/Thunder-compute endpoints |
-| TTS | Qwen3-TTS via local PyTorch, or external Gradio clients; LoRA/PEFT adapters |
-| Audio DSP | pydub, soundfile, librosa, numpy, ffmpeg, parselmouth, speechbrain/ECAPA, pyannote (optional) |
-| Frontend | Vanilla JavaScript, Bootstrap 5, no build step, DOM-driven polling |
-| Persistence | JSON files, JSONL, WAV/MP3/M4B assets, filesystem locks, transaction journals |
-| Packaging | Pinokio launcher (`install.js`, `torch.js`, `start.js`) plus Docker and Colab |
-| Testing | `unittest`, browser-DOM fixture tests, live isolated API suite, release verifier, GitHub Actions shards |
-
-Notable dependency constraints:
-
-- `app/requirements.txt` deliberately does **not** pin `torch`; `torch.js` installs the platform-correct build first.
-- `llama-cpp-python` is deliberately absent from `requirements.txt`; the PyPI wheel is CPU-only and would overwrite the HIP build used by Voice Lab.
-- `app/app.py` does not import `torch`; GPU code is imported lazily so startup and CI remain CPU-installable.
-- The frontend has no bundler. `app/static/index.html` loads a fixed ordered list of `app/static/js/app-*.js` files at global scope, and initialization happens at the end of `app/static/js/app-workbench.js`.
+- **Backend:** Python 3.10 (`app/env`), FastAPI + Starlette + Uvicorn, Pydantic v2
+  models as the config shape boundary, `pydub`/`soundfile`/`numpy` for audio,
+  `ffmpeg` for encoding, `rapidfuzz`/`difflib` for text comparison.
+- **TTS:** Qwen3-TTS (CustomVoice / clone / LoRA), Apple MLX backend, external
+  Gradio servers, optional `whisper.cpp` (CPU) for ASR, Qwen3-ForcedAligner for
+  read-along alignment.
+- **Frontend:** two static pages (`app/static/index.html`, plus
+  `app/static/readalong-player.html` for the standalone read-along player) and
+  **45** vanilla-JS modules under `app/static/js/` (no bundler, no framework),
+  Bootstrap 5 and Font Awesome from `app/static/vendor`.
+- **Storage:** JSON files and audio on disk. No database. Every multi-file
+  publication goes through a journal (`book_state_transaction.py`, 6,700 lines) or
+  a staging/retirement transaction.
+- **Concurrency:** threads and subprocesses inside one server process, coordinated
+  by `process_state`, a GPU mutex, cross-process task leases, per-book file locks,
+  cancel events, and book-state transactions.
 
 ---
 
@@ -116,980 +121,806 @@ Notable dependency constraints:
 
 ### 2.1 Runtime topology
 
-```mermaid
-flowchart LR
-    Browser["Vanilla JS SPA\napp/static/index.html"] -->|HTTP JSON| API["FastAPI app\napp/app.py"]
-    API --> MW["Task claim + origin/auth\nmiddleware"]
-    MW --> Routers["17 feature routers\napp/routers/*.py"]
-    Routers --> Core["core.py\nprocess_state, GPU lock, task claims"]
-    Routers --> Pipeline["three_pass_generate.py\ngenerate/review/personas"]
-    Routers --> Project["project.py\nchunks, synthesis, merge/export"]
-    Project --> TTS["tts.py\nQwen3-TTS local or Gradio"]
-    Pipeline --> LLM["OpenAI-compatible LLM\nlocal / LM Studio / hosted"]
-    Project --> FFmpeg["ffmpeg\nPCM, MP3, M4B, mastering"]
-    Core --> Data[("Data directory\nJSON, WAV, journals, locks")]
-    Project --> Data
-    Pipeline --> Data
-    TTS --> Data
+```
+browser (SPA, 45 JS modules)
+   │  fetch /api/*
+   ▼
+Uvicorn + FastAPI  (app/app.py, 381 lines)
+   │  19 routers (351 routes)  ──────────────►  request validation (Pydantic)
+   │
+   ├─ asyncio.to_thread(...)  ── long routes never block the event loop
+   │        │
+   │        ▼
+   │   background task (process_state entry)
+   │        ├─ LLM calls            (llm_provider → LM Studio / hosted API / manual)
+   │        ├─ TTS inference        (tts.py → torch on the local GPU)
+   │        ├─ ffmpeg / workers     (subprocess_ownership, Windows job / macOS task)
+   │        └─ ASR / aligner        (whisper.cpp, Qwen3-ForcedAligner — separate envs)
+   │
+   └─ filesystem: DATA_DIR (JSON + audio), SCRIPTS_DIR (saved books),
+      reports/, logs/api/, run_history/, take_history/, voicelines/ ...
 ```
 
-*Editable source: [`assets/architecture.mmd`](assets/architecture.mmd).*
+`app/app.py` is deliberately thin: it owns the lifespan (startup recovery, orphan
+sweeps), the security-headers middleware, the request-origin gate (cross-site and
+DNS-rebinding refusal, GHSA-vp9p-437w-q5x9), a connection-reset filter for the
+noisy "client went away" case, and the 19 `include_router` calls. **All routes live
+in `app/routers/`**; new endpoints belong there, not in `app.py`.
 
-The app is a modular monolith:
-
-- One FastAPI process owns the API and static frontend.
-- Long work runs in **background threads** and **owned subprocesses**, tracked in a process-local `process_state` registry.
-- Cross-process safety is enforced by **kernel file locks** in the data directory, not by a database.
-- The browser is a single-page app that polls task status endpoints; there is no WebSocket protocol.
-
-Important entry points:
-
-- `app/app.py:83` creates the FastAPI app and mounts static/data directories.
-- `app/app.py:55` defines the lifespan startup/shutdown recovery sequence.
-- `app/app.py:161-225` includes 17 feature routers.
-- `app/app.py:228` runs Uvicorn on `ALEXANDRIA_HOST` / `ALEXANDRIA_PORT` (default `127.0.0.1:4200`).
+Two router modules carry a prefix (`/api/character_roster`, `/api/speaker_review`);
+the other 17 declare full paths.
 
 ### 2.2 Request and task lifecycle
 
-```mermaid
-flowchart TD
-    Req["State-changing HTTP request"] --> Claim["claim_gpu_task\ncheck conflicts + set running"]
-    Claim --> Lease["Kernel task lease\n.task_ownership/task-*.lock"]
-    Claim --> Res{"Same saved book\nor resource?"}
-    Res -->|yes| Resource["Resource lease\nhash(path)"]
-    Res -->|no| GPU{"Local GPU work?"}
-    Resource --> GPU
-    GPU -->|yes| Flock["GPU flock\nshared with gpu_job.sh"]
-    GPU -->|no| Book
-    Flock --> Book["ensure_book_state\n.active_book_transaction.json"]
-    Book --> Worker["Owned worker/thread\n_run_owned_background_task"]
-    Worker --> Publish["Staged publication\natomic replace + fsync"]
-    Publish --> Release["Release claim, lease, GPU"]
-    Worker -->|cancel| Cancel["Cooperative cancel\nAudioGenerationOwner"]
-    Cancel --> Release
-    Release --> History["run_history + logs"]
-```
+1. The browser calls a route. Every mutating route validates its inputs (Pydantic
+   model or explicit checks) before touching state.
+2. A route that can take more than a moment hands the work to a thread
+   (`await asyncio.to_thread(...)`) or starts a registered background task.
+3. Background tasks register in `process_state` (`core.py:616`) with
+   `running`/`logs`/`cancel`/`paused`, and claim admission through
+   `reserve_background_task`/`claim_gpu_task` — never by setting `running`
+   themselves.
+4. Long loops check the cancel event at boundaries, write progress into
+   `process_state`, and persist durable progress (checkpoints, journals, receipts)
+   so a crash or restart can resume or refuse cleanly.
+5. Publication of results is transactional: stage → validate → `os.replace` →
+   fsync → recover on startup. Multi-file publication uses the book journal.
+6. The UI polls status routes (`/api/status`, `/api/status/{task_name}`,
+   `/api/chunks/status`, `/api/status/eta`) rather than waiting on the request.
 
-*Editable source: [`assets/task-admission.mmd`](assets/task-admission.mmd).*
+Admission is two-layered and the layers answer different questions:
 
-A typical state-changing request:
-
-1. **Middleware**
-   - `TaskClaimMiddleware` (`app/core.py:980`) gives each HTTP request a context-local claim list.
-   - Optional Basic Auth (`app/app.py:111-128`) is enabled only when `ALEXANDRIA_AUTH_PASSWORD` is set.
-   - `_request_origin_gate` (`app/app.py:141-150`) refuses cross-site mutations and DNS-rebinding hosts.
-   - CORS is added last so preflights are answered and refusals are labelled.
-2. **Route validation**
-   - Pydantic models validate bodies and path parameters.
-   - Book/source/identity tokens are checked.
-   - Resource paths are resolved and checked for containment.
-3. **Admission**
-   - `claim_gpu_task` (`app/core.py:754`) atomically:
-     - checks conflicting tasks,
-     - acquires a kernel task lease in `.task_ownership/`,
-     - acquires the GPU flock when local GPU work is needed,
-     - sets `process_state[task]["running"]`.
-   - `reserve_background_task` (`app/core.py:853`) reserves a *pending* claim; `register_claimed_background_task` binds it to the request. If the request dies before registration, the pending claim is released.
-4. **Execution**
-   - `_run_owned_background_task` (`app/core.py:940`) marks the claim started, wraps audio/export work in an `AudioGenerationOwner`, runs the callback, and releases the claim in `finally`.
-5. **Publication**
-   - Outputs are written to staging and atomically moved into place.
-   - Quality/identity checks run before the move.
-   - Run history and receipts are updated.
-
-The `process_state` registry (`app/core.py:555-586`) is the in-process source of truth for UI status. It is **not** shared across processes. Cross-process truth is the lock files plus on-disk journals.
+- **In-process:** `process_state` + `_gpu_lock` (`check_global_gpu_lock`,
+  `core.py:763`) — "may this task start *here* right now".
+- **Cross-process:** task leases in `.task_ownership/` (`task_ownership.py`) —
+  "is another server/CLI already doing this". `process_state` is not cross-process
+  truth.
 
 ### 2.3 Book-to-audiobook data flow
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant API as FastAPI
-    participant LLM as LLM endpoint
-    participant P as Pipeline
-    participant T as TTS
-    participant X as Export
-    participant D as Data dir
-    U->>API: upload TXT/MD/EPUB
-    API->>D: hash, quota, publish upload
-    API->>P: three-pass generation
-    P->>LLM: pass 1 segment windows
-    P->>D: checkpoint accepted chunks
-    P->>LLM: pass 2 attribute windows
-    P->>D: checkpoint named entries
-    P->>LLM: pass 3 instruct windows
-    P->>D: checkpoint annotated script
-    U->>API: review / aliases / roster
-    API->>D: publish script + companions
-    U->>API: assign voices
-    API->>D: voice_config.json
-    U->>API: render chunks
-    API->>T: synthesize chunk text + voice recipe
-    T->>D: publish voiceline + take + receipt
-    U->>API: merge/export
-    API->>X: timeline, PCM, encode, validate
-    X->>D: atomic MP3/M4B/chapters
-    U->>API: download
+```
+source file ──► uploads/ (owned stage, digest-bound)
+   │
+   ▼  selection binding (script_selection_binding.py)
+annotated_script.json  ◄── generation checkpoints / review receipt
+   │  (entries: speaker, text, instruct, spoken, source_span, …)
+   ▼
+voice_config.json  (per-character voice, style timeline, seeds)
+   │
+   ▼  project.py: chunk grouping, per-chunk generation inputs
+chunks.json + chunks.json.status.jsonl  (per-UID row: text, speaker, take,
+   │                                     audio_path, audio_revision, receipts)
+   ▼  tts.py / synthesis_*.py  (one owned render per chunk)
+voicelines/*.wav|mp3  (selected take; every superseded take optionally in
+   │                   take_history/ as an immutable snapshot)
+   ▼  project.py + export_*.py  (plan → PCM assembly → encoder → quality receipt)
+exports: audiobook.mp3, audiobook.m4b, chapter_exports/, Audacity ZIP,
+         read-along sidecar JSON, EPUB read-aloud package, sound-design mixes
 ```
 
-*Editable source: [`assets/book-flow.mmd`](assets/book-flow.mmd).*
+Two invariants shape the whole flow:
 
-1. **Upload / select**
-   - `POST /api/upload` streams to a temporary path, enforces a 512 MiB per-file bound and an 8 GiB upload-store bound, hashes the file, reuses an identical upload, and publishes the active-book switch through `book_state_transaction`.
-   - EPUB text is extracted with TOC titles inserted when available.
-2. **Preflight**
-   - The source is decoded, normalized, scanned for unsafe Unicode/replacement characters, and sampled through the LLM pipeline.
-   - The result is evidence about *this sample*, not a guarantee for the whole book.
-3. **Three-pass generation**
-   - `three_pass_generate.run_three_pass` produces `[{speaker, text, instruct}]`.
-   - A durable checkpoint (`annotated_script.json.threepass_checkpoint.json`) records the fingerprint, completed chunks/windows, and accepted entries.
-   - The final script is published atomically; a run whose LLM disappears refuses to publish fallback output.
-4. **Review and identity**
-   - Review may rewrite text/attribution/instructions (full-text mode) or only labels (labels-only mode).
-   - Aliases and the approved character roster change future generation input, not already accepted lines unless the user explicitly applies a repair.
-5. **Casting**
-   - `voice_config.json` maps each speaker to a voice recipe.
-   - Voice library casts can be saved/applied across books.
-6. **Chunking**
-   - `ProjectManager` converts the script into render chunks (`chunks.json`), assigning each a stable `uid`.
-   - A chunk is the unit of synthesis, editing, drift checking, and take history.
-7. **Synthesis**
-   - `TTSEngine` renders a chunk to a temporary WAV, validates it, and publishes it under `voicelines/<uid>.<ext>`.
-   - Speech verification (optional ASR) can compare returned audio to the intended text.
-8. **Assembly/export**
-   - Export computes a timeline with pauses/trims, spools PCM, encodes, validates the output plan, and atomically publishes the file.
-9. **Delivery**
-   - MP3, M4B, chapter files, Audacity zip, and sound-design mixes are exposed through download routes with identity checks.
+- **The chunk row is the selection.** `audio_path` alone says which file is the
+  current take; history, retention receipts and restore metadata never select
+  audio by themselves.
+- **Generation inputs decide staleness.** `get_chunk_generation_inputs`
+  (`project.py:229`) hashes the fields whose change makes a captured render
+  obsolete — text, speaker, instruct, take, narrator/style timeline fields,
+  voice revision, pronunciation rules. UI-only fields do not invalidate audio.
 
 ### 2.4 Data and identity model
 
-There is **no database**. The data directory is the database.
+The application has no database and no foreign keys. Identity is carried by
+fingerprints, and almost every hard bug in this codebase's history is a fingerprint
+that was too loose.
 
-Default data root: the repository root, unless `ALEXANDRIA_DATA_DIR` is set (`app/utils.py:41-44`). Config placement follows a legacy rule: `app/config.json` when the data root is the repo root, otherwise `<data_dir>/config.json` (`app/utils.py:47-51`).
-
-```mermaid
-erDiagram
-    STATE ||--|| ACTIVE_BOOK : selects
-    ACTIVE_BOOK ||--|| SCRIPT : has
-    ACTIVE_BOOK ||--|| VOICE_CONFIG : has
-    ACTIVE_BOOK ||--|| CHUNKS : has
-    SCRIPT ||--o{ CHUNK : "grouped into"
-    VOICE_CONFIG ||--o{ VOICE_RECIPE : "per speaker"
-    CHUNK ||--o{ TAKE : "retains"
-    CHUNK ||--o{ RECEIPT : "verified by"
-    BOOK ||--o{ SAVED_BOOK : "snapshots"
-    SAVED_BOOK ||--|| SCRIPT : includes
-    SAVED_BOOK ||--|| VOICE_CONFIG : includes
-    VOICE_LIBRARY ||--o{ CAST : contains
-    CAST ||--o{ CAST_MEMBER : contains
-    CAST_MEMBER ||--|| VOICE_RECIPE : references
-    ADAPTER ||--o{ VOICE_RECIPE : "can serve"
-    RUN ||--o{ ARTIFACT : records
-    EXPORT ||--o{ QUALITY_REPORT : produces
-```
-
-*Editable source: [`assets/data-model.mmd`](assets/data-model.mmd).*
-
-Core persistent objects:
-
-| Object | Path | Notes |
+| Identity | Owner | Binds |
 |---|---|---|
-| App config | `app/config.json` or `<data>/config.json` | Machine-local, gitignored; may contain API keys; GET redacts secrets |
-| Active script | `annotated_script.json` | JSON array of `{speaker,text,instruct}` plus optional metadata |
-| Active voices | `voice_config.json` | Per-speaker voice recipe/versions/timeline |
-| Chunks | `chunks.json` | Render state; `uid` is stable across insert/delete |
-| Chunk audio | `voicelines/` | Referenced by chunk `audio_path` |
-| Character aliases | `character_aliases.json` | Alias → canonical mapping |
-| Voice library | `voice_library.json` | Shared/cast voice pools, favorites, assignments |
-| Saved books | `scripts/<name>.json` and companions | Script, voice config, aliases, sound design sidecars |
-| Uploads | `uploads/` | Reusable source files, quota-accounted |
-| Reports | `reports/` | Markdown review reports |
-| Logs | `logs/api/` | Per-task latest logs |
-| Run history | `run_history/` | One JSON record per run with artifact hashes |
-| Task locks | `.task_ownership/` | Kernel leases, resource locks, admission barrier |
-| Book transaction | `.active_book_transaction.json` + `.book-switch-*` | Crash-recoverable active-book publication |
-| Export staging | `export_staging/` and per-format staging | Temporary outputs, reclaimed on startup/export |
-| Voice assets | `lora_models/`, `builtin_lora/`, `designed_voices/`, `clone_voices/` | Adapters and references |
-| Evaluation evidence | `ab_test_runtime/experiments/`, `docs/results/` | Measurement artifacts, not runtime state |
+| `uid` (chunk) | `project.py` | One chunk row for the life of the book; audio filenames use it, `id` (list position) does not |
+| Book token | `book_token.py`, `book_state_transaction.py` | Source/script/voice/companion bytes at the moment an operation was admitted |
+| Script receipt | `script_receipt.py` | Script bytes + the cast/roster they were reviewed against |
+| Generation checkpoint | `generation_checkpoint*.py` | Prompt variant, model, cast hash, context settings, pass settings |
+| Voice revision | `voice_config` / voice library | The exact voice definition used for a render |
+| Cast hash | `voice_config` | The roster the script was attributed against |
+| Audio receipt | `audio_receipts.py` | The bytes of one rendered file plus the inputs that produced it |
+| Take snapshot | `take_history.py` | An immutable copy of a superseded take, addressed by version |
+| Export quality receipt | `export_quality_receipt.py` | One exported artefact's measured properties and the inputs it was built from |
+| Delivery receipt | `audiobookshelf_delivery.py` | One upload to a specific Audiobookshelf item, with remote identifiers |
+| Journal record | `book_state_transaction.py` | One multi-file publication: old/new hashes, staged paths, completion |
 
-Identity rules that recur throughout the code:
+The rule that follows: **a receipt certifies the bytes it names, not the current
+file at that path.** Replacing a file silently orphans its receipts, and the UI is
+expected to say so rather than to imply the receipt still applies.
 
-- **Book identity:** a stable `active_book_id` in `state.json`, derived from the selected upload/saved book; book tokens/digests bind operations to a specific source, script, voice config, and companion bytes.
-- **Chunk identity:** `chunk["uid"]` is assigned once and never renumbered. `chunk["id"]` is positional and *does* change on insert/delete; never use it as a stable filename or evidence key.
-- **Generation-input identity:** a subset of chunk fields (`CHUNK_GENERATION_FIELDS` in `app/project.py`) plus pronunciation rules. Changing any of them makes previous audio stale.
-- **Asset identity:** SHA-256 of bytes, plus filesystem version fields (`st_dev`, `st_ino`, `st_size`, `st_mtime_ns`, `st_ctime_ns`) where TOCTOU matters.
-- **Fingerprints:** checkpoint identities include source, model, params, prompt variant, cast hash, and pipeline settings. A changed input must not silently resume an old checkpoint.
+### 2.5 Concurrency, admission and recovery
 
-### 2.5 Concurrency, admission, and recovery
-
-This is the most important architectural subsystem to understand before changing code.
-
-#### Layers
-
-1. **Request claim** — binds a pending task reservation to the HTTP request (`TaskClaimMiddleware`). Prevents a client disconnect from leaking a reservation.
-2. **Task lease** — `.task_ownership/task-<name>.lock`, an exclusive kernel lock. A conflicting task name cannot start in *any* process. `acquire_task_lease` also probes conflict slots and resource slots under an `admission` lock (`app/task_ownership.py:138-166`).
-3. **Resource leases** — per-path hash locks, used when two operations must not mutate the same saved book or artifact.
-4. **GPU flock** — the shared lock used by both the app and `gpu_job.sh`/experiments. `app/experiments/gpu_guard.py` deliberately refuses to run beside a queue job unless the caller inherited the lease or sets `ALEXANDRIA_ALLOW_CONTENTION=1`.
-5. **Book transaction** — `.active_book_transaction.json` serializes whole-book switches and provides crash recovery.
-6. **Per-file locks** — `utils.file_lock`, with timeout and stale handling, for JSON read-modify-write operations.
-
-#### Conflict policy
-
-`app/core.py:588-600`:
-
-- `NON_GPU_TASKS = {"audacity_export", "m4b_export", "drift_check", "chapter_export"}`.
-- `GPU_TASKS` is every registered task except those.
-- `LLM_TASKS` are tasks whose accelerator use is only the LLM endpoint.
-
-When the active LLM profile is **not** on this machine's GPU (`llm_is_on_this_gpu()` returns false), LLM-only tasks contend with each other but may run alongside TTS/audio work. When it is local, or when the config cannot be read, the full GPU lock applies. This is a deliberate safety default.
-
-#### Startup recovery
-
-`app/app.py:55-80`:
-
-1. `ensure_startup_recovery(DATA_DIR)` scans every task lock and yields only when none is held. If another worker owns work, startup preserves state rather than "fixing" it.
-2. With no live owner:
-   - `ensure_book_state` recovers an interrupted active-book transaction.
-   - Abandoned synthesis workspaces are cleaned.
-   - Export staging is reclaimed.
-   - `generating` chunks are reset to `pending`.
-   - Unfinished run-history records are marked interrupted.
-   - Abandoned evaluation-review sessions are pruned.
-
-This is why a stale `.lock` file is not automatically deleted: the lock's *held* state, not its existence, is the authority.
-
-#### Cancellation
-
-Cancellation is cooperative:
-
-- UI routes set `process_state[task]["cancel"] = True`.
-- Workers check cancellation at safe boundaries.
-- `AudioGenerationOwner` prevents a cancelled/foreign audio task from publishing after cancellation.
-- Subprocesses are owned and terminated as process trees (`app/subprocess_ownership.py`, `app/windows_subprocess_owner.py`, `app/macos_subprocess_owner.py`).
+- `process_state` (`core.py:616`) is a per-process dict of task name → state
+  (`running`, `logs`, `cancel`, `paused`, timestamps). It is a UI/telemetry
+  surface and a same-process guard, nothing more.
+- `NON_GPU_TASKS` (`core.py:660`) and `GPU_TASKS` (`core.py:662`) decide which
+  tasks own the GPU mutex. `LLM_TASKS` (`core.py:667`) names tasks that talk to a
+  language model; `gpu_lock_conflicts` (`core.py:700`) computes what blocks what,
+  with one deliberate relaxation: a **remote** LLM profile does not hold the GPU.
+- `check_global_gpu_lock` (`core.py:763`) is the read-only check.
+  `claim_gpu_task` / `reserve_background_task` are the atomic claim paths. Calling
+  the check and then setting `running` yourself is a TOCTOU race (§4.1).
+- Cross-process truth is the lease files in `.task_ownership/`
+  (`task_ownership.py`): pid, host, task, book, heartbeat. `ensure_startup_recovery`
+  only cleans when no foreign lease is held.
+- Cancellation is cooperative. Workers poll a cancel event at boundaries; an
+  in-flight model or ffmpeg call finishes first. A route that reports "cancelled"
+  before the worker observes it is lying.
+- Recovery surfaces exist per subsystem rather than one global resume:
+  generation (`/api/generate_script/recovery[/detail]`), synthesis
+  (`synthesis_windows`, `synthesis_recovery`), export staging
+  (`export_staging.py`, `export_staging_retirement.py`), take retention
+  (`take_retention*.py`), and the book journal (`recover_book_state_transactions`).
 
 ### 2.6 Security and trust boundaries
 
-The app is designed to bind to loopback and be used by one operator.
+AA2 is a **single-user local application**. It has no accounts, roles or per-user
+permissions. The only access control is **optional HTTP Basic auth**, enabled by
+setting `ALEXANDRIA_AUTH_PASSWORD` (with `ALEXANDRIA_AUTH_USERNAME`), which keeps
+the default Pinokio/localhost flow unchanged. Everything else is enforced at the
+request and filesystem edges:
 
-Controls present in the code:
-
-- **Bind address:** default `127.0.0.1` (`app/app.py:230`).
-- **Optional Basic Auth:** only registered when `ALEXANDRIA_AUTH_PASSWORD` is set; every non-OPTIONS request is checked. CORS preflights are allowed through so they can be answered.
-- **Origin/Host gate:** cross-site state-changing requests are refused (`403`), and unknown DNS names are refused (`400`) to stop DNS rebinding. Loopback/private-network clients, `localhost`, `*.localhost`, and clients with no `Origin`/`Referer` are allowed. Override with `ALEXANDRIA_ALLOWED_ORIGINS` / `ALEXANDRIA_ALLOWED_HOSTS`.
-- **CORS:** default origins are localhost; configurable via `CORS_ORIGINS`.
-- **Path containment:** `is_path_inside` + realpath checks in uploads, saved books, exports, adapters, and staging.
-- **Upload limits:** 512 MiB per script upload, 8 GiB total upload storage, bounded EPUB/text decoding, bounded archive member handling.
-- **Secret handling:** API keys may be `env:NAME` references. `GET /api/config` redacts keys. Config save restores redacted placeholders instead of overwriting real secrets. Logs/headers are redacted in several modules.
-- **LLM endpoint locality:** `_validate_local_llm_base_url` permits loopback/private endpoints, plus an explicit allowlist of hosted providers (DeepSeek, OpenAI, OpenRouter) and `*.thundercompute.net`; arbitrary public endpoints are refused.
-- **Process ownership:** subprocesses are started with leases and can be stopped as trees; Windows uses job objects, macOS uses a native owner protocol.
-- **No telemetry:** no analytics/billing API integration. Remote LLM cost is warned about, not computed.
-
-Residual risks an operator must understand:
-
-- Default auth is **off**. Exposing the app beyond localhost without `ALEXANDRIA_AUTH_PASSWORD` is unsafe.
-- Hosted LLM configuration sends book text to that provider. The app warns before remote batch runs, but does not enforce a data-egress policy beyond endpoint validation.
-- The app's own local files are not encrypted.
+- **Origin gate.** `app/request_origin.py` (wired in `app/app.py`) refuses
+  state-changing requests whose `Origin`/`Referer` is not the served origin, and
+  refuses DNS-rebinding `Host` values, closing GHSA-vp9p-437w-q5x9. `CORS_ORIGINS`,
+  `ALEXANDRIA_ALLOWED_ORIGINS` and `ALEXANDRIA_ALLOWED_HOSTS` extend the allowlists
+  for LAN or reverse-proxy use. New mutating routes inherit this; do not add a
+  route that bypasses it.
+- **Security headers.** CSP, `X-Content-Type-Options`, `Referrer-Policy`,
+  frame-ancestors, and a permissions policy are set in middleware.
+- **Path containment.** `is_path_inside` / realpath checks plus explicit symlink
+  refusal (`core.py`, `project.py`, `audio_paths.py`). User-supplied names are
+  sanitised before they become filenames (`safe_filename`, voice/character name
+  rules).
+- **Subprocess ownership.** `subprocess_ownership.py` gives every child process a
+  Windows job object / macOS process group / Linux process group so a crash or
+  cancel does not leave ffmpeg or a worker running.
+- **No secrets in the browser.** The LLM API key lives in `config.json` on disk;
+  the UI receives a redacted view. Remote-provider calls are made server-side.
+- **The manual transport is a human channel.** It waits for a human to paste model
+  output; it has no timeout and no integrity guarantee beyond shape validation.
 
 ### 2.7 Logging and observability
 
-- **Task logs:** `process_state[task]["logs"]` is the live tail; `logs/api/<task>-latest.log` is the on-disk log. `GET /api/status/<task>` returns the live status; `GET /api/logs/<task>` serves the full log.
-- **LLM request logs:** `logs/review_responses.log` (rotated) records requests/responses, finish reasons, token counts, and elapsed time. Request metadata is also written separately.
-- **ETA:** `_compute_eta` (`app/core.py:1043`) prefers the pipeline's own `ETA: ... [eta_seconds=... fraction=...]` line, then falls back to the last `N/M` marker. Batch tasks fold per-item progress into the overall fraction.
-- **Run history:** `app/run_history.py` stores one record per run with `status`, timestamps, error, and artifacts. Artifacts record SHA-256, size, declared sources, and config bytes. Hashes describe bytes at recording time; they are not a permanent authenticity proof.
-- **Reports:** review/batch runs write Markdown reports under `reports/`; the UI can request an LLM-generated plain-language summary, with guards against unsupported completeness/quality claims.
-- **Version:** `GET /api/status/version` reports the commit the running process is actually executing. The UI warns when the served build differs.
-- **Benchmarks:** manifests and artifacts under `ab_test_runtime/experiments/`, indexed by `RESULTS_INDEX.md`.
+Four separate surfaces, each with a different job:
+
+1. **Task telemetry** — `process_state[name]["logs"]`, a bounded ring buffer
+   rendered in the Activity panel. Ephemeral by design.
+2. **API request log** — `logs/api/*.jsonl` via `api_logging.py`: method, path,
+   status, duration, and a request id. Used by diagnostics, not by features.
+3. **Run history** — `run_history/` via `run_history.py`: durable records of
+   generation/synthesis/export runs with their settings and outcomes.
+4. **Receipts and reports** — `reports/`, `evaluation_reviews/`, export quality
+   receipts, delivery receipts, casting and sound-design lineage. These are the
+   artefacts the product's quality claims rest on; they are never "just logs".
+
+Diagnostics endpoints under `/api/status/*` (system, GPU, disk, environment
+fingerprint, process inventory) are the supported way to explain a stuck run.
 
 ### 2.8 Packaging and runtime
 
-Pinokio launcher:
-
-- `install.js` creates `app/env`, runs `torch.js` for the platform-correct PyTorch, installs Python requirements, builds `llama-cpp-python` and `whisper.cpp` for the detected GPU, and provisions the AI bundle.
-- `start.js`:
-  - allocates a port via `{{port}}`,
-  - stores it in `local.port`,
-  - runs `python app.py` under `app/env` with `ALEXANDRIA_PORT`,
-  - captures the URL from Uvicorn's successful bind message,
-  - breaks visibly on import/bind/startup errors.
-- `torch.js` is the only place that installs torch; `app/requirements.txt` must not pin it.
-- `Dockerfile`/`docker-compose.yml` exist for NVIDIA; compose publishes on `127.0.0.1`.
-- `alexandria_colab.ipynb` provides a free-T4/ngrok path.
-
-The app can run without Pinokio in any Python environment that satisfies `app/requirements.txt` and has the right torch build, but the launcher is the supported installation path.
+- Launchers at the root: `install.js`, `start.js`, `update.js`, `reset.js`,
+  `pinokio.js`, `launcher_lifecycle.js`. They create `app/env`, install
+  requirements, pick a port, and start Uvicorn. `install.js` is the only supported
+  bootstrap.
+- `app/env` is a project-local virtualenv (Python 3.10). The system interpreter is
+  not expected to have the dependencies; running application code from outside
+  `app/env` will fail on imports.
+- Extra interpreters: the MLX backend and the aligner may use separate envs
+  (`mlx_python`, aligner python), so "the app's Python" is not always the Python
+  doing the work.
+- The GPU is shared with `app/experiments/gpu_job.sh`, a queue that holds the same
+  flock. Hand-run GPU work must go through `app/experiments/gpu_guard.py` or it
+  will collide with the queue (§4.1).
 
 ---
 
-## 3. Feature-by-feature analysis
-
-### 3.1 Setup, configuration, and LLM provider layer
-
-**Purpose:** let the user connect an OpenAI-compatible LLM and control cost, latency, determinism, and failure behavior without editing files.
-
-**Configuration model** (`app/config_settings.py`):
-
-- `AppConfig` contains:
-  - `llm` (mirror of the active profile for legacy consumers),
-  - `llm_mode` (`local`/`remote`),
-  - `llm_local`, `llm_remote` (full `LLMConfig` each),
-  - `llm_remote_ssh`,
-  - `llm_failover`,
-  - `tts`,
-  - `prompts`,
-  - `prompt_presets`,
-  - `generation`.
-- `LLMConfig` includes base URL, API key, model name, context/input/output limits, custom headers/body, `on_this_gpu`, transport (`http`/`manual`), reasoning effort, timeouts, retry policy, API-exhaustion policy (`fail`/`pause`), structured output, and backoff/jitter.
-- `TTSConfig` includes mode, URL/pool, device, language, workers, seed, reproducible takes, synthesis windows, synthesis recovery, speech verification, codec compile, max tokens, sub-batching, pause defaults, and voice-design text bounds.
-- `GenerationConfig` includes chunk size, sampling params, context rescue, per-pass temperatures, pass-2/3 context/character budgets, prompt variant, segmentation mode, pass-1 format, delivery direction, group/speaker-traits flags, and per-model profiles.
-- `PromptConfig` / `PromptPreset` store user-editable attribution/review/pass-1/pass-3 prompts.
-
-**Key invariant:** `config["llm"]` is a **mirror**, not the source of truth. `get_active_llm_config` (`app/lmstudio_settings.py:188`) reads `llm_<llm_mode>` first and falls back to `llm` only for old configs. Writing to `config["llm"]` without updating the selected profile causes the app to dial a stale endpoint. This is documented in the function itself after a real incident.
-
-**Provider layer** (`app/llm_provider.py`):
-
-- `ConfiguredOpenAI` wraps the OpenAI client with custom headers/body, timeouts, and request pacing.
-- `make_llm_client` builds a profile client.
-- `make_run_client` wraps the primary in a `FailoverClient` when `llm_failover` is on and the other profile is fully configured.
-- `FailoverClient` is **sticky**: after a rate limit/5xx/timeout it switches to the secondary for the rest of the run, logs the switch, substitutes the secondary model name, and reads the secondary runtime's context/parallel limits before serving.
-- `ManualClient` implements "the user is the model": each request is written to `manual_llm/pending.json`; a matching `response.json` is polled; retries and validation are unchanged. It deliberately has no timeout.
-- `classify_llm_error`, `get_retry_delay`, and the request-budget modules decide retries and token sizing.
-
-**LM Studio/llama.cpp integration** (`app/lmstudio_settings.py`):
-
-- Detects local/remote LM Studio, model/context/parallel status, GPU name/backend, and the `lms` CLI.
-- Can pin "ideal" VRAM-safe settings (`parallel: 1` locally) and restore them.
-- `get_llama_cpp_status` probes llama.cpp's `/props`/`/v1/models`; `llama_server_process.py` manages a local llama-server lifecycle.
-- Remote status is cached with epochs/aliases and parsed from the last non-empty line of SSH output (the remote banner is noisy by design).
-
-**Routes:** the `routers/system.py` router covers config preview/save, model listing, LLM test, LM Studio status/optimize, system stats, ETA, run history, prompts, version, and config recovery.
-
-**Edge cases:**
-
-- A profile with a remote endpoint but missing limits inherits global limits; do not write inherited values back as overrides.
-- On any failure to read the config, `llm_is_on_this_gpu()` returns `True` (conservative full GPU lock).
-- `on_api_exhaustion="pause"` freezes the run for operator intervention instead of failing the chunk.
-- Structured output is `auto` by default; a server that rejects the schema causes a one-time fallback for the run.
-- Failover is off by default because the secondary may be a billed endpoint.
-
-### 3.2 Source ingestion and book identity
-
-**Purpose:** accept a book safely, normalize it, let the user preflight it, and make "which book is active" explicit and crash-safe.
-
-**Upload path** (`app/routers/script.py`):
-
-- `POST /api/upload` validates extension, streams with a limit, hashes, reuses exact duplicates, and publishes the upload under `uploads/`.
-- EPUB extraction (`extract_epub_text`) reads EPUB3/EPUB2 TOCs and XHTML, inserts TOC titles where appropriate, and normalizes extracted text.
-- Selecting an existing upload (`POST /api/uploads/select`) or a saved book goes through `apply_book_input_selection` / `ensure_book_state`.
-
-**Book transaction** (`app/book_state_transaction.py`):
-
-- All active-book artifacts (script, voice config, chunks, aliases, sound-design companions) are staged in a `.book-switch-*` workspace.
-- A journal records each path, whether it existed, and old/new SHA-256.
-- Publication uses `os.replace` + directory fsync; recovery validates every original and replacement before restoring anything.
-- Destructive recovery refuses if a target changed after the journal was written.
-- The transaction is held under `.active_book_transaction.json` file lock.
-
-**Switch admission** (`app/core.py:718-740`):
-
-- Book switches refuse while any task is running or another process owns a task.
-- Startup recovery must have no live owner.
-- The lock is held through publication; some long scans can release the local mutex while the kernel admission barrier still excludes tasks.
-
-**Preflight:**
-
-- `start_book_preflight` runs a bounded sample through the pipeline (not just "does the LLM answer") and returns a job-scoped report.
-- It distinguishes "the sample worked" from "the whole book will work"; the UI says so.
-- It checks source Unicode/replacement issues, source identity, and request sizing.
-
-**Edge cases:**
-
-- Uploading a file does not by itself guarantee it is safe to publish; the source normalization and encoding gates run first.
-- EPUBs with malformed archives/paths are rejected rather than followed.
-- `uploads/` quota is global; duplicate uploads reuse the existing file.
-- `state.json` stores the active book id, but the canonical identity can also be derived from the selected input path.
-
-### 3.3 Three-pass script generation
-
-This is the core IP of the fork and the most complex pipeline.
-
-**Purpose:** convert raw prose into a speakable script with correct speaker attribution and per-line delivery, in a way that is resumable, auditable, and resistant to model failure.
-
-**Orchestrator:** `app/three_pass_generate.py` (`run_three_pass`, line 2617).
-
-#### Planning and preflight
-
-- `resolve_three_pass_generation_settings` (`:141`) merges:
-  - shipped per-model profiles (`three_pass_model_profiles.json`),
-  - user `config.json` overrides,
-  - CLI overrides.
-- It resolves chunk size, token limits, segmentation mode, pass-1 format, attribution variant, batch sizes, context budgets, and delivery direction.
-- `is_three_pass_context_required` (`:202`) decides whether a known context length is mandatory for large targets.
-- `get_three_pass_planned_calls` / `build_three_pass_request_preflight` estimate calls and context fit before a run.
-- `get_three_pass_preflight_capacity` compares planned calls to the endpoint's parallel capacity.
-
-#### Pass 1 — segment
-
-- Source is split into chunk records (`get_segment_chunk_records`, `:1890`) with safe cut points.
-- Quote analysis (`analyze_outer_quote_regions`) tracks quote depth across chunks.
-- `quote_regions_decision` chooses per chunk:
-  - `auto`: quote marks where unambiguous, model otherwise,
-  - `quotes`: quote marks only,
-  - `lexical`: quote-aware lexical analysis,
-  - `llm`: model only.
-- Chunks that need the model go through `segment_chunk_adaptively` (`:1734`):
-  - validates output against the source,
-  - splits failed chunks and retries (`split_failed_chunk`),
-  - can rescue with surrounding source context (`rescue_chunk_with_context`),
-  - supports compact pass-1 labels with fallback.
-- Every accepted chunk is checkpointed. The resolution (`quote`, `model`, `compact`, `fail`, etc.) is recorded for telemetry.
-- A chunk that exhausts retries either:
-  - fails the run (`on_exhaustion="fail"`), or
-  - is kept as an explicitly flagged/diagnostic result in `collect_all_failures` mode.
-
-#### Pass 2 — attribute
-
-- Entries are grouped into windows (`iter_unique_entry_batches`), default 25 entries.
-- The roster is built from accepted entries and cast (`build_roster`), with alias groups.
-- `attribute_batch` (`:940`) / voted variants:
-  - builds the prompt through `attribution_prompt_variants`,
-  - validates that every expected index appears exactly once,
-  - validates names against the roster/source evidence,
-  - detects attribution shifts and source-tag confusion,
-  - supports `keep_scope="line"` (per-line fallback) or `"batch"` (keep a whole accepted batch),
-  - supports `attribution_votes > 1` with a vote temperature,
-  - supports speaker traits (gender/age) as an optional extra output.
-- Request sizing:
-  - `build_window_surround` shows a configurable amount of surrounding text (default 2,000 chars; the `michel2_full` shape),
-  - `wrap_window_surround` and `get_missing_attribute_contexts` handle neighbors,
-  - `does_request_fit_context` rejects or subdivides requests that exceed the model context.
-- On exhaustion:
-  - a multi-entry window is split in half and retried,
-  - a single entry is either failed or recorded as a diagnostic failure,
-  - if every attempt was an API error, the run refuses fallback output.
-- Narration entries are filled deterministically as `NARRATOR`; the model is never allowed to overwrite a known narration speaker.
-- Accepted entries are checkpointed after each window.
-
-**Prompt variants** (`app/attribution_prompt_variants.py`):
-
-- Variants change only the user-facing question, not the output contract.
-- `michel2_full` is the default (whole window plus surrounding evidence).
-- `michel2_spoken` asks only about spoken indexes and fills narration deterministically; measured on one base model, not yet default.
-- `continuity` maintains a rolling story summary.
-- `judge` requests a reason per line for audit.
-- Variants are coupled to measurement: a score belongs to its variant, and an attribution adapter should be served with the prompt it was trained on.
-
-#### Pass 3 — instruct
-
-- Entries are batched by count/target characters.
-- Non-verbal entries get a deterministic default instruction.
-- `instruct_batch` (`:1141`) validates that every entry receives a string instruction.
-- `build_instruct_surround` supplies optional context.
-- Delivery direction (`off`/`gaps`/`directed`/`action_only`) can add reply-aware notes; it requires the default pass-3 prompt.
-- A failed window is subdivided; single-entry failure is retried or recorded.
-- Accepted instructions are checkpointed.
-
-#### Checkpointing and publication
-
-- `three_pass_fingerprint` (`:2403`) binds the source, model, chunk size, params, prompt variant/texts, cast hash, votes, narrator, traits, and target contexts.
-- `_load_three_pass_checkpoint` refuses a fingerprint mismatch.
-- Checkpoints include per-chunk resolutions, accepted entries, elapsed time, diagnostic failures, and model binding.
-- `GenerationCheckpointDeltas` writes incremental deltas so a crash does not corrupt the whole checkpoint.
-- `get_generation_checkpoint_path` / `emit_manifest` also produce a quality manifest and a recovery manifest.
-- On final publication, `publish_completed_generation` validates output path and source identity.
-- If the LLM becomes unavailable for a pass, the run raises instead of publishing partially attributed output.
-
-**Output format:**
-
-```json
-[
-  {"speaker": "NARRATOR", "text": "The rain had not stopped for three days.", "instruct": "Low, steady, unhurried."},
-  {"speaker": "MARA", "text": "We should turn back.", "instruct": "Tense, quiet, near a whisper."}
-]
-```
-
-- `speaker` is `NARRATOR`, a canonical character name, or `UNKNOWN`.
-- `text` is exactly what is spoken; quote marks are removed and attribution tags are narration.
-- `instruct` is the delivery direction.
-
-**Edge cases that matter:**
-
-- A source edit invalidates checkpoint identity; the UI must offer "start over" or a matching resume, never silently reuse.
-- `UNKNOWN` is a legitimate model output and is resolved later via review/aliases, not treated as a crash.
-- A model can return valid JSON with wrong text; the source/coverage gates reject it.
-- Reasoning tokens count against the budget even when the provider does not report them; the pipeline estimates from the trace.
-- At temperature 0, re-sending an identical rejected prompt is pointless; the retry policy tracks attempted prompts.
-- Long books are intentionally processed in windows; memory is bounded by chunk/window, not book size.
-
-### 3.4 Review, aliases, character roster, and speaker-label review
-
-**Purpose:** improve attribution and text quality without destroying accepted work, and make identity decisions explicit.
-
-#### Review script (`app/review_script.py`)
-
-- Full-text mode asks the model to fix:
-  - attribution tags wrongly kept in dialogue,
-  - narration wrongly assigned to a character,
-  - over-split narrator lines,
-  - delivery instructions.
-- `review_batch` validates:
-  - source binding,
-  - text-loss ratio,
-  - index/label shape,
-  - speaker legality,
-  - partial-label retention.
-- Contextual review shows ±N neighboring entries.
-- Batch review can process many saved books, optionally discover nicknames first and run forward/backward passes.
-- Review checkpoints store the source hash, batch progress, and accounting so a resumed run cannot double-count edits.
-
-**Labels-only mode** (`docs/features/labels-only-review.md`):
-
-- The model returns only `{n, speaker, instruct}`.
-- Code binds labels onto deep copies of the original entries, preserving exact text and boundaries.
-- This avoids losing speaker fixes when the model changes punctuation.
-- It cannot split/merge entries; full-text review remains available for structural changes.
-- It has its own prompt and receipt marker, so a full-text completion cannot satisfy a labels-only run.
-
-#### Aliases and nicknames
-
-- `find_nicknames.py` scans the working script and proposes alias groups.
-- `character_aliases.json` maps alias → canonical.
-- `speaker_identity.py` normalizes/validates identities, prevents illegal merges, and stabilizes names.
-- The shared registry can affect other books; applying an alias is an explicit, audited action.
-
-#### Character roster (`character_roster*.py`, `routers/character_roster.py`)
-
-- A snapshot-bound review of names, aliases, and source-quote evidence.
-- Supports add, rename, merge, split, retire, import/export.
-- Every quote is anchored to a source revision; coordinates are Unicode code points in prepared text (not bytes or UTF-16).
-- Approval writes stable character IDs and projects names/aliases into the cast for *future* generation.
-- It does not rewrite accepted lines or invalidate audio; explicit speaker repair is a separate action.
-- One exact undo record is persisted. Undo refuses if the book/source/cast/roster or protected assets changed.
-- Admission uses the book transaction and task ownership; a changed input refuses publication.
-
-#### Speaker-label review (`speaker_review.py`, `routers/speaker_review.py`)
-
-- Compares current/checkpoint labels against a saved reference for the same text.
-- Previews evidence without model calls.
-- Explicitly starts a bounded review (max pairs, max attempts) with no hidden retries.
-- Results are provisional; an alias can be applied only when both judgments explicitly agree and the backend accepts the pair.
-- Applies one alias to the shared registry; it does not rewrite the script or regenerate audio.
-- Snapshot changes make old evidence stale and stop further requests.
-
-**Feature interactions:**
-
-- Review changes the script → chunk generation inputs change → old audio is stale.
-- Alias/roster changes affect future generation and speaker repair, not already accepted lines.
-- Roster approval can invalidate an in-flight generation checkpoint because the cast hash changes.
-- Speaker-label review never auto-applies.
-
-### 3.5 Casts, voices, personas, and voice assets
-
-**Purpose:** assign a distinct, stable voice to every character, reuse casts across books, and keep voice identity from drifting.
-
-**Voice config shape** (`voice_config.json`):
-
-```json
-{
-  "NARRATOR": {
-    "voice": "Ryan",
-    "seed": -1,
-    "character_style": "Warm, measured narrator.",
-    "description": "...",
-    "ref_audio": "clone_voices/...",
-    "ref_text": "...",
-    "adapter_id": "...",
-    "adapter_path": "lora_models/...",
-    "versions": {"...": {}},
-    "active_version": "...",
-    "style_timeline": [{"from_index": 120, "character_style": "Older."}]
-  }
-}
-```
-
-**Voice types** (`app/tts.py`):
-
-- **CustomVoice:** preset speaker + `instruct`; `anchored_instruct` puts the identity anchor before the line's emotion.
-- **Clone:** required reference WAV (3–30 s, normalized 24 kHz mono) + transcript; import validates duration, clipping, silence, peak, and records provenance/rights.
-- **Voice Design:** text description → reference voice; saved designed voices become clone references.
-- **LoRA:** local adapter bundle; serving identity includes adapter generation SHA-256 and merged prompt; external mode reports unsupported before model load.
-- **Alias:** maps one speaker to another's config; still resolved to a canonical speaker at render time.
-
-**Identity anchor and style timeline:**
-
-- `character_style` is a constant anchor added at render time.
-- `style_timeline` changes the anchor from a given chunk index onward.
-- `active_character_style` (`app/tts.py:227`) selects the active point; `active_version_id` selects a voice version per chunk.
-- These are book-specific and are stripped when a cast is saved to the library (`get_portable_voice_config`).
-
-**Personas** (`app/generate_personas.py`):
-
-- The LLM reads book evidence and writes a character description.
-- Voice Design renders a reference; the design becomes a clone voice.
-- Default scope is "only characters without a voice yet"; saving current voices to the library first is optional.
-- Validation rejects aliases/personas that are not grounded in evidence or that target rejected identities.
-
-**Voice library / casts** (`app/routers/voice_library.py`):
-
-- `shared` pool contains narrator-like reusable voices.
-- Each cast has members with configs, assignments, line counts, traits, and provenance.
-- Import/export of casts is not a raw JSON merge: entries are portable configs plus book-scoped assignment metadata.
-- Apply can target the current book or multiple saved books; audio invalidation follows the existing chunk-input rules.
-- Fuzzy matching proposes character→member mappings; the user confirms.
-- Favorites influence suggestions.
-
-**Voice drift and suggestions:**
-
-- `voice_drift.py` compares rendered chunks to the speaker's reference with ECAPA embeddings (CPU-pinned), flags outliers, and preserves evidence.
-- `suggest_voices` matches downloaded LoRA voices to characters from traits/evidence; it is deliberately a GPU/LLM task.
-- `voice_reference.py` maintains the speaker model and reference cache.
-
-**Designer and clone imports** (`routers/voice_design.py`, `voice_reference_import.py`):
-
-- Voice Design preview/save/list/delete.
-- Clone upload stores the normalized WAV, measures it, records source/rights/provenance, and refuses invalid audio.
-- The library and designer both rely on path containment and bounded uploads.
-
-### 3.6 Editor, synthesis, takes, and speech verification
-
-**Purpose:** make each chunk listenable, editable, regenerable, and verifiable without re-rendering the book.
-
-**Chunk model** (`app/project.py`):
-
-- `group_into_chunks` (`:617`) turns script entries into chunks:
-  - splits on unspeakable content/scene breaks,
-  - computes character limits by language (e.g., CJK limits differ),
-  - retains source entry indices,
-  - assigns a stable `uid`,
-  - carries narrator/chapter/pause metadata.
-- `get_chunk_generation_inputs` (`:169`) defines what invalidates audio: speaker, text, instruct, pause, pronunciation rules, and related fields.
-- `chunks.json` is the render state; `ChunkStatusJournal` records status transitions for crash recovery.
-- Chunk insert/delete renumbers `id` but not `uid`; audio filenames use `uid`.
-
-**Synthesis engine** (`app/tts.py:836`):
-
-- Local Qwen3-TTS models are lazily loaded per voice family: custom, clone, design, LoRA.
-- External mode connects to one or more Gradio TTS servers; each `(url, worker)` gets its own client and lock.
-- `get_chunk_voice_inputs` / `voice_config_for_chunk` resolve aliases, versions, style timeline, and pronunciation context.
-- Seeds:
-  - `batch_seed` or per-chunk seed,
-  - `reproducible_takes` derives a seed from text + take.
-- VRAM-aware sub-batching:
-  - `_estimate_max_batch_size` computes KV-cache bytes from model dimensions,
-  - `_build_sub_batches` splits by item cap, length ratio, and minimum size,
-  - batch order is configurable.
-- `torch.compile` for the codec is optional and only applied where useful; ROCm gets a dynamo reset to avoid guard accumulation.
-- Local models are released when idle; `ensure_idle_local_models_released` prevents GPU work from starting while a model is still serving.
-
-**Single and batch generation:**
-
-- `ProjectManager.generate_chunk_audio` (`:1910`) freezes the chunk, resolves the voice, optionally applies pronunciation context, renders to a temp WAV, validates it, and publishes it.
-- `generate_chunks_parallel` (`:3181`) and `generate_chunks_batch` (`:3532`) coordinate batches, progress, cancellation, and per-chunk errors.
-- `routers/editor.py` exposes single generate, batch generate, fast batch, cancel, and per-chunk edit/insert/delete/restore.
-- Audio publication uses `AudioGenerationOwner` + `take_publication` receipts so a cancelled/foreign task cannot overwrite a newer take.
-
-**Synthesis recovery and windows:**
-
-- `synthesis_windows.py` splits long text at safe seams (`plan_synthesis_windows`) and assembles audio from independently rendered windows.
-- `synthesis_recovery.py` / `synthesis_recovery_*` capture model, serving, code, and asset identity so a recovered synthesis can prove it used the same inputs.
-- `synthesis_workspace.py` owns temporary working files and cleans them after success or crash.
-- `synthesis_audio.py` validates PCM shape, seams, silence, and joins.
-- The design is explicitly about **proof and bounded recovery**, not just retry sugar.
-
-**Speech verification** (`speech_verification*.py`):
-
-- Optional ASR verification compares generated audio to the intended text.
-- Runtime/model identity is recorded; primary and confirmation verifiers must be distinct.
-- `speech_verification_compare.py` handles tokenization, numeric ambiguity, and corroboration.
-- `speech_verification_receipt.py` binds the receipt to the chunk, book token, revision, speech input, and audio file version.
-- Failures can be recorded and retried; stale receipts are refused.
-
-**Take history** (`app/take_*.py`, `audio_take_history.py`):
-
-- Every successful render can be retained as a take version with metadata, audio, and generation context.
-- Policy config controls retention.
-- Restore validates the target, the current chunk identity, the take record, the speech receipt, and the generation proof.
-- Deletion/cleanup is bounded and refuses to remove referenced assets.
-- The editor exposes list/audition/restore/delete.
-
-**Drift check:**
-
-- `routers/editor.py` `drift_check` scores finished chunks against the speaker reference.
-- It runs as a CPU task (ECAPA pins CPU), exempt from the GPU lock.
-- Results are advisory flags; they do not rewrite audio.
-
-**Word timing:**
-
-- `word_timing.py` aligns chunk audio to words for word-level highlighting/editing.
-- CPU-only, bounded by the existing audio snapshot limits.
-
-**Pronunciation:**
-
-- `pronunciation.json` plus per-chunk occurrence rules rewrite text at render time.
-- `speech_text.py`, `speech_numbers.py`, `verbalization.py`, `comma_pauses.py` handle normalization/verbalization.
-- Occurrence rules are revision-bound and included in generation inputs.
-- The pronunciation panel supports global rules, occurrence-specific edits, previews, and auditions.
-
-### 3.7 Export, mastering, publication, and sound design
-
-**Purpose:** turn chunk audio into deliverable files without silently shipping truncated, corrupt, stale, or wrong-scope audio.
-
-**Merge/assembly** (`app/project.py`):
-
-- `merge_audio` (`:2143`) produces `cloned_audiobook.mp3` (128 kbps).
-- `merge_m4b` (`:2372`) produces `audiobook.m4b` with chapter markers, tags, and optional cover.
-- `export_chapters` (`:2943`) writes per-chapter MP3/WAV with filename templates, selection, changed-only reuse, and a manifest.
-- `export_audacity` (`:2225`) writes per-speaker WAV tracks, a `.lof` project file, and `labels.txt`.
-- All paths:
-  - capture source identities before decoding,
-  - spool PCM rather than retaining the whole book,
-  - use staging directories,
-  - validate the encoded output against the plan,
-  - verify sources did not change,
-  - atomically publish,
-  - notify quality/mastering callbacks.
-
-**Export quality** (`app/export_quality.py`):
-
-- A plan describes expected frames, sample rate, channels, format, pauses, chapters, and tags.
-- The encoded file is decoded/probed and compared to the plan.
-- Reports record codec/container, duration, channels, bitrate, chapter expectations, and hashes.
-- `ExportSourceSnapshot` binds the chunks and source files at capture time; `verify_sources()` refuses if they changed.
-- `ensure_export_stage_current` refuses if staging or output changed under the operation.
-- Failed validation leaves the prior good output intact.
-
-**Mastering** (`app/audio_mastering*.py`):
-
-- Optional loudness normalization (default target -18 LUFS, -2 dBTP; bounds -24..-14 LUFS, -9..-1 dBTP).
-- Measures before/after; reports mode (linear/dynamic), true peak, LRA, and output SHA-256.
-- Applies only to the assembled deliverable; source clips and Audacity tracks are unchanged.
-- Each FFmpeg phase has a finite timeout; failures are visible and do not replace a prior good file.
-
-**M4B specifics:**
-
-- Metadata tags: title, author, narrator, year, description.
-- Cover image validation (bytes, dimensions, pixel budget, trailing payload).
-- Chapters derive from source-group boundaries, not arbitrary chunk indices.
-- AAC encode is bounded by duration-derived timeout; `+faststart` for streaming.
-
-**Chapter export:**
-
-- Template fields include chapter number/title/book/series/volume.
-- Duplicate filenames are rejected, not silently overwritten.
-- `changed_only` reuses prior outputs only when the manifest is complete and the plan fingerprint matches; bytes are verified before reuse.
-- `chapter_timing_cache.py` stores timing facts for reuse.
-- The manifest is the authority for what was produced.
-
-**Sound design** (`app/sound_design_*.py`, `routers/sound_design.py`):
-
-- Immutable cue recipes bind book identity, source/script fingerprints, chunk UID, generation inputs, selected audio, and PCM shape.
-- Imported assets and renditions are content-addressed and ledgered.
-- A cue can reference an imported master/stem with declared origin; stems document provenance but are not silently mixed in.
-- Mix candidate review, approval, and delivery are separate stages; approval does not certify audio quality.
-- Source comparison before delivery is paginated; the client must explicitly confirm it reviewed all pages.
-- The feature is explicitly described as a foundation in `docs/sound-design.md`; some delivery integration remains incomplete.
-
-**Project scope** (`project_scope*.py`, `routers/project_scope.py`):
-
-- "Keep a later part of this book" removes a prefix at a reviewed chunk boundary.
-- Preview shows source word ranges, removed/retained text, chunk UIDs, voice assignments, audio integrity, take versions, and files kept outside scope.
-- Apply requires the complete ordered source-word projection to match the saved script.
-- Undo stores exact prior bytes and reuses the book transaction.
-- Older exports remain on disk but are not downloadable as current outputs until rebuilt.
-
-### 3.8 Voice Lab, Preparer, Dataset Builder, and LoRA training
-
-**Purpose:** turn existing audiobooks into new voices, and evaluate/promote those voices with evidence.
-
-#### Preparer (`alexandria_preparer_rocm_compatible.py`)
-
-Pipeline phases (separate subprocesses to avoid HIP/CUDA context contamination):
-
-1. **ASR** — decode audio to 24 kHz mono scratch; transcribe with whisper.cpp (GPU/CPU), WhisperX (CPU), or wav2vec2; optional diarization; produce word segments.
-2. **Enrich** — optional LLM pass (llama-cpp-python) to add speaker/narration style/emotion and clean alignment; chunk into ~10 s samples at natural boundaries.
-3. **Annotate** — optional source-guided alignment: load EPUB/TXT, build a proper-noun lexicon, fuzzy-match ASR against source, apply source spelling, assign speakers, compute SNR/quality, and write `metadata.jsonl` + WAV samples into a ZIP.
-
-Important properties:
-
-- The run directory is owned by a manifest/lock; phase children inherit the lock. A resumed run validates artifact identity before reuse.
-- Source alignment never silently moves a quote/anchor; ambiguous matches are surfaced.
-- The output ZIP family is published with a journal and reader admission (`alexandria_zip_publication.py`), so readers cannot observe a half-written multi-volume set.
-- `alexandria_batch_processor.py` runs the preparer over many audiobooks sequentially, with disk-space preflight, fuzzy source matching, per-file receipts, and volume-aware completion.
-- `alexandria_compare.py` is an interactive diff/review tool for `metadata.jsonl` against the original source; `alexandria_alignment.py` is the shared alignment primitive library.
-
-#### Dataset Builder (`routers/dataset_builder.py`)
-
-- Project metadata + rows (emotion/text/seed).
-- Generate one sample or batch with Voice Design.
-- Status, cancel, save as training dataset.
-- Rows preserve existing generation status/audio when definitions change.
-
-#### LoRA training (`app/train_lora.py`, `routers/lora.py`)
-
-- Dataset upload/validation; training as an owned subprocess holding the GPU lock.
-- Adapter artifacts validated (PEFT config, safetensors), named, and published transactionally.
-- Built-in adapters are read-only; user adapters can be deleted.
-- Evaluation:
-  - paired comparison audio,
-  - blind A/B human review sessions (identities hidden until submit),
-  - receipts and history.
-- Promotion:
-  - preserves the current production checkpoint for rollback,
-  - writes an audit receipt,
-  - refuses if evidence changed,
-  - can recover an interrupted checkpoint swap.
-- `promote_adapters.py` and `batch_adapter_registration.py` handle library-scale promotion/registration.
-
-#### Voice Lab (`routers/voicelab.py`, `tools/voice_lab/`)
-
-Stages:
-
-1. **Quality** — warning-only clip health/dedup audit.
-2. **Train** — one LoRA per deduplicated voice (`tools/voice_lab/batch_train_lora.py` drives `app/train_lora.py`).
-3. **Profile** — acoustic + LLM voice description (`tools/voice_lab/voice_profiler.py`; needs llama-cpp-python HIP build).
-4. **Name** — descriptive slug (`tools/voice_lab/name_voices.py`, pure stdlib), dry-run preview.
-
-The pipeline is one cancellable/pausable job. Stage scripts live outside `app/` and are invoked with a configured Python interpreter; the default is the running interpreter, but `ALEXANDRIA_ROCM_PYTHON`/`ALEXANDRIA_PREPARER_PYTHON` can override.
-
-**Dependency nuance:** `llama-cpp-python` is not in `requirements.txt` because the PyPI wheel is CPU-only. A fresh install must build the HIP version for the profile stage; Voice Lab preflight reports it missing until then.
-
-### 3.9 Reports, benchmarks, and run history
-
-- **Run history** (`app/run_history.py`): start/finish/update records under `run_history/`; artifacts carry hashes and declared sources. Listing is cached by file version so polling does not re-read every JSON.
-- **Reports** (`reports/`): Markdown review reports; `routers/editor.py` serves, lists, and optionally asks the LLM for a plain-language summary. Summary guards reject claims like "everything looks great" and unsupported completeness claims.
-- **Review checkpoints** (`/api/review/checkpoints`): summarized progress and resumability.
-- **Benchmark** (`app/benchmark_*.py`, `routers/benchmark.py`): manifest-driven environment/LLM/TTS/training benchmarks. Preflight validates fixtures, targets, and paths; start claims the GPU; cancel is owned. Remote execution uses an SSH path with strict protocol parsing.
-- **Results corpus:** `GOALS.md` (goals + evidence), `RECIPES.md` (winning/failing settings), `RESULTS_INDEX.md` (artifact index), `ab_test_runtime/experiments/` (artifacts). These are research evidence, not runtime configuration.
-
-### 3.10 Home workspace
-
-`app/static/js/app-workspace.js` and `docs/workspace-readiness.md` provide a **read-only** readiness view:
-
-- Uses existing authorities for script, recovery, cast, production, review, export, history.
-- "Continue" performs GETs only and navigates to existing screens; it does not start/resume/repair.
-- It explicitly distinguishes "present" from "verified": a file existing does not prove it matches current voices/script.
-- It refuses to read through a pending book transaction journal.
-
-This is a UX layer over existing facts, not a new workflow engine.
-
-### 3.11 Cross-feature interaction map
-
-| Change | Direct effects | Must check |
+## 3. Feature areas
+
+Each area below names the modules that own it, what the area guarantees, and what
+it explicitly refuses to claim. The last part matters: this codebase treats
+overclaiming as a bug class, and several modules exist only to keep a weaker signal
+from being read as a stronger one.
+
+### 3.1 Setup, configuration and the LLM provider
+
+**Modules:** `config_settings.py` (Pydantic models), `config_io.py`,
+`lmstudio_settings.py` (1,648 lines), `llm_provider.py`, `llm_failover*.py`,
+`llm_transport*.py`, `manual_transport.py`, `prompt_loader.py`, `prompts/`,
+`routers/system.py` (20 routes).
+
+Configuration is a single Pydantic-validated document written atomically to
+`CONFIG_PATH` (normally `app/config.json`; a generated file, not a tracked one)
+with a `.bak` rotation and a lock. The models are the contract:
+
+- `LLMConfig` — `base_url`, `api_key`, `model_name`, optional `context_length`,
+  `max_input_tokens`, `max_output_tokens`, plus `provider_headers` and
+  `provider_extra_body` for hosted APIs.
+- `TTSConfig` — `mode` (`local` | `external` | `mlx`), `url`, `external_urls`,
+  `external_timeout_seconds`, `device`, `language`, `parallel_workers`,
+  `max_new_tokens`, `compile_codec`, `mlx_python`, `mlx_models`.
+- `GenerationConfig` — `chunk_size` (default 3000), token budgets, sampling
+  (`temperature` 0.6, `top_p` 0.8, `top_k`, `min_p`, `presence_penalty`,
+  `banned_tokens`), `merge_narrators`, and the `context_rescue_windows`
+  (`[2000, 4000, 6000]`) / `context_rescue_retries` policy.
+- `ThreePassModelProfile` — per-pass overrides (`chunk_size`,
+  `segment_temperature`, `attribute_temperature`, `instruct_temperature`,
+  `segment_output_ratio`, `segmentation`, `pass1_format`).
+- `PromptConfig` — system/user prompts for generation and review, and
+  `attribution_preset` (default `michel2_full`).
+
+Three things are easy to get wrong here:
+
+1. **`config["llm"]` is a mirror of the active profile**, not the source of truth.
+   Always read through `get_active_llm_config`.
+2. **Profiles are more than an endpoint.** Local, remote (an LM Studio reached
+   over SSH or a forwarded port) and hosted differ in GPU admission
+   (§2.5), in cost warnings, and in which failure modes are possible.
+3. **Remote cost is warned, never enforced.** The UI confirmation is a prompt.
+
+`routers/system.py` also exposes the LLM concurrency probe, environment/GPU/disk
+diagnostics, and the update/health surfaces the launcher uses.
+
+### 3.2 Source ingestion and script selection
+
+**Modules:** `routers/script.py` (67 routes), uploads stage, `docx_*`,
+`epub_package.py`, `epub_publication.py`, `epub_extraction_report.py`,
+`source_*.py`, `calibre_*` (§3.13).
+
+An upload lands in an owned staging area with a content digest before it can be
+used. `POST /api/upload` plus `GET/POST /api/uploads[/select]` bind the *selection*
+to a specific staged file, so "the source" is a digest, not "whatever is in the
+folder". DOCX and EPUB are extracted with a report of what was dropped
+(`epub_extraction_report.py`: bounded import snapshots, no source rewriting).
+EPUB metadata/cover are *suggestions* only — `epub_publication.py` never applies
+metadata or writes project assets.
+
+`/api/script/ingest-status` and `/api/single-narrator/source-preview` serve the
+ingest UI; `/api/uploads/docx-retained` and `/api/uploads/epub-retained` tell the
+user which original file a project still depends on.
+
+### 3.3 The annotation pipeline (single-pass and three-pass)
+
+**Modules:** `generate_script.py` (2,668 lines), `three_pass_generate.py`
+(4,773 lines), `compact_pass1.py`, `pass_quality.py`, `chunk_quality.py`,
+`attribution_presets.py`, `segment_prompt.py`, `generation_checkpoint*.py`,
+`context_rescue*.py`, `prompt_response_parse.py`.
+
+- **Single-pass** generation produces the whole annotated script in one structured
+  pass with chunk-level retries.
+- **Three-pass** splits the work: pass 1 segments narration vs dialogue, pass 2
+  attributes each spoken line to a cast member, pass 3 writes the delivery
+  instruction. Each pass has its own prompt, temperature, output ratio and
+  validation; `compact_pass1.py` shrinks the intermediate form before pass 2.
+- **Quality gates.** `pass_quality.py` and `chunk_quality.py` are pure functions
+  that check a response against its source chunk (coverage, ordering, unsupported
+  scripts, malformed spans). A failing chunk is retried, escalated
+  (`context_rescue_windows`), or reported — never silently accepted.
+- **Structured output is not guaranteed.** A provider may ignore or reject the
+  schema; the pipeline validates the returned shape and indexes independently
+  rather than trusting the model's ids.
+- **Checkpoints are strict on purpose.** A checkpoint binds prompt variant, model,
+  cast hash and settings; changing any of them means the run cannot resume, by
+  design (§4.3).
+- **Recovery.** `GET /api/generate_script/recovery[/detail]` describes what a
+  crashed run left behind; `inject`/`skip`/`retry` operate on the failed unit
+  without restarting the book.
+
+### 3.4 Script review, aliases, roster and printed labels
+
+**Modules:** `review_script.py` (4,468 lines), `speaker_identity.py`,
+`character_roster*.py`, `routers/speaker_review.py` (6 routes),
+`routers/character_roster.py` (7 routes), `pronunciation.py`,
+`routers/pronunciation_panel.py` (11 routes), `character_aliases.json`.
+
+Review is a **second LLM pass with its own prompts**, not a re-run of generation:
+it proposes corrections with reasons, and the user accepts them. Three identity
+mechanisms sit beside it:
+
+- **Aliases.** `character_aliases.json` records that "the old man", "Mr. Hale" and
+  "Hale" are one character. The alias graph supports merge and split; a merge that
+  would produce a cycle is refused.
+- **Roster.** The character roster has its own preview/apply/undo with a
+  single-use exact undo (`POST /api/character_roster/undo`); it refuses when
+  protected files changed underneath it.
+- **Printed labels.** `speaker_identity.py` + `routers/speaker_review.py` handle
+  the case where the book itself prints the speaker ("HALE: ...") — caption
+  evidence is attributed with that provenance recorded, so a printed label is
+  never confused with an inferred one.
+
+**Pronunciation rules** are book-scoped replacements applied at speech-preparation
+time (`pronunciation.py`), with a panel that previews the effect on real lines.
+
+### 3.5 Casts, voices, personas and casting
+
+**Modules:** `voice_config_store.py` (the one locked write path for the active
+cast), `voice_candidates.py`, `personas.py`, `persona_prompts.py`,
+`persona_validation.py`, `voice_library.py`, `routers/voice_library.py` (11),
+`routers/voices.py` (29), `voice_design.py`, `routers/voice_design.py` (14),
+`voice_reference.py`, `voice_reference_import.py`, `voice_manifest.py`,
+`casting_catalog.py`, `casting_tags.py`, `routers/casting.py` (5),
+`builtin_lora/`, `lora_models/`, `designed_voices/`, `clone_voices/`.
+
+- **`voice_config.json`** maps character → voice, plus the style timeline, seeds
+  and per-character settings. All writes go through `voice_config_store.py`; a
+  second writer is a lost-update bug.
+- **Personas** are generated (by an LLM) or hand-authored descriptions that are
+  validated (`persona_validation.py`) before they can become a voice.
+- **A voice is a candidate before it is a selection.** `voice_candidates.py` is
+  "the one place a voice becomes a candidate"; `is_same_voice` defines voice
+  equality for dedup.
+- **Four voice sources:** designed (Qwen voice-design), cloned reference
+  (`voice_reference_import.py` normalises, measures, refuses and records),
+  LoRA adapter, and built-in. Every source carries a revision; a render binds the
+  revision it used.
+- **Casting** (§3.12) is the cross-book view: designed voices plus review marks
+  and descriptive tags (`casting_tags.py` derives gender/age/tone/texture from the
+  description — tags are search aids, never identity claims).
+
+### 3.6 Editor, synthesis, takes and verification
+
+**Modules:** `routers/editor.py` (81 routes), `project.py` (4,758 lines),
+`tts.py` (4,197 lines), `audio_generation_owner.py`, `synthesis_*.py` (12 modules),
+`take_publication.py`, `take_retention.py`, `take_restoration.py`,
+`audio_take_history.py`, `take_metadata_pool.py`, `word_timing.py`,
+`speech_verification*.py` (7 modules), `speech_numbers.py`, `speech_policy.py`,
+`speech_text.py`, `speech_retry.py`, `narration_markup.py`,
+`narration_markup_edit.py`, `voice_drift.py`, `chunk_outliers.py`,
+`chunk_outlier_check.py`, `sentence_gap_report.py`.
+
+The editor is where the product's promises are tested per line:
+
+- **Render.** `POST /api/chunks/{index}/generate` renders one chunk through
+  `audio_generation_owner.py`, which grants *exact-owner* admission for Editor
+  synthesis (direct Python callers stay unowned). The result is published by
+  `take_publication.py`, which binds the proven native render to the encoded
+  artefact.
+- **Takes.** `audio_take_history.py` keeps bounded, immutable snapshots;
+  `take_retention.py` is opt-in predecessor receipts; **the chunk row's
+  `audio_path` alone selects audio**. `take_restoration.py` restores a saved
+  performance only when its execution evidence matches.
+- **Synthesis windows and recovery.** `synthesis_windows.py` renders opt-in exact
+  spans of already-prepared speech (no guessed backend limits);
+  `synthesis_recovery*.py` reuses a window only when identity of the actual loaded
+  serving code, dependencies and inputs matches. `synthesis_workspace.py` is
+  registered disposable spill, separate from reusable audio evidence.
+- **Word timing.** `word_timing.py` runs ASR for one chunk. Its docstring states
+  the contract: *a timing match is never a pronunciation verdict*.
+- **Speech verification.** `speech_verification*.py` compares a finished take
+  against the intended text, with ASR discrepancies reported as ordered transcript
+  evidence, acoustic evidence for short utterances, and a finite revision-bound
+  receipt. It is off by default (`speech_verification_settings.py`) and never
+  claims lexical truth.
+- **Speech preparation.** `speech_numbers.py` verbalises money with cents, number
+  ranges and slash dates; `speech_policy.py` decides what the narrator voices when
+  the source has unspeakable marks; `speech_text.py` classifies non-prose risk;
+  `speech_retry.py` is a default-off, call-local, finite retry budget.
+- **Narration markup.** `narration_markup.py` is an explicit terminal-pause syntax;
+  ordinary text stays literal, and previews are book-bound before an atomic apply.
+- **Advisory checks.** `voice_drift.py` (speaker drift vs a reference),
+  `chunk_outliers.py` ("CPU proxies, not a real-speech quality qualification"),
+  `sentence_gap_report.py` (report-only analysis of gaps *inside* one take).
+
+### 3.7 Export, mastering and publication
+
+**Modules:** `audio_assembly.py`, `audio_export.py`, `audio_export_plan.py`,
+`audio_pcm_producer.py`, `audio_pcm_decode.py`, `audio_pcm_mux.py`,
+`audio_streaming.py`, `audio_mastering.py`, `audio_mastering_filter.py`,
+`audio_encoder_identity.py`, `audio_encoding_layout.py`, `audio_channels.py`,
+`audio_ffmpeg.py`, `audio_validation.py`, `m4b_encode.py`, `m4b_mux_profile.py`,
+`m4b_mux_worker.py`, `m4b_worker_request.py`, `m4b_metadata.py`, `m4b_cover.py`,
+`m4b_publication.py`, `audio_m4b_pcm.py`, `export_staging*.py` (6 modules),
+`export_publication.py`, `export_quality.py`, `export_quality_session.py`,
+`export_download.py`, `export_file_io.py`, `export_limits.py`,
+`readalong_export.py`, `readalong_sidecar.py`, `epub_readaloud.py`,
+`ruby_text.py`, `audiobookshelf_delivery.py`.
+
+The export path is the most heavily engineered part of the application, because it
+is where a crash costs the most:
+
+1. **Plan.** `audio_export_plan.py` computes exact source-frame geometry for the
+   incremental PCM assembler; `export_limits.py` fixes finite size limits shared
+   by request validation and assembly.
+2. **Stage.** `export_staging.py` (1,037 lines) creates crash-recoverable,
+   ownership-marked staging; `export_staging_directory.py`,
+   `export_staging_nested*.py` and `export_staging_records.py` handle nested
+   allocations and bounded receipts; `export_staging_retirement.py` (1,050 lines)
+   runs POSIX retirement transactions for creation, cleanup and recovery.
+3. **Assemble.** `audio_pcm_producer.py` builds disk-backed PCM preserving
+   Pydub's incremental promotion order; `audio_streaming.py` writes bounded PCM
+   WAVs; `audio_assembly.py` is buffered, no-crossfade assembly.
+4. **Encode.** All FFmpeg work is owned and cancellable
+   (`audio_ffmpeg.py`, `audio_encoder_identity.py` pins the binary and its version;
+   `audio_encoding_layout.py` chooses the output clock without reinterpreting
+   source PCM). M4B uses a versioned mux profile and an isolated worker
+   (`m4b_mux_worker.py`, strict bounded request shape).
+5. **Verify.** `export_quality.py` checks finished media against an independent
+   PCM plan; `export_quality_session.py` holds bounded session evidence. A quality
+   receipt describes *those* bytes.
+6. **Publish.** `export_publication.py` takes source snapshots and short
+   owner/book/chunk publication admission; `export_file_io.py` /
+   `export_download.py` allow Windows publication without reopening pinned paths.
+7. **Master.** `audio_mastering.py` / `audio_mastering_filter.py` apply optional,
+   *measured* processing (loudnorm), with pure settings shared to isolated workers.
+
+Outputs: MP3, chaptered M4B, per-chapter files (`chapter_exports/`), Audacity
+project ZIP, read-along sidecar (§3.16), EPUB read-aloud (§3.16), and sound-design
+mixes (§3.8). Delivery to Audiobookshelf is §3.14.
+
+### 3.8 Sound design
+
+**Modules:** `routers/sound_design.py` (22 routes) plus 30 `sound_design_*.py`
+modules; frontend `app-sound-design*.js` (8 modules).
+
+Sound design is a pipeline with an approval gate in the middle, and each stage
+refuses to stand in for the next:
+
+| Stage | Module | Guarantee |
 |---|---|---|
-| Upload/select book | Active script/voices/chunks/alises/sound sidecars switch | Book transaction, running tasks, recovery journal |
-| Generate script | New `annotated_script.json`; checkpoints; chunk inputs | GPU/LLM lock, source identity, prompt variant, cast hash |
-| Review script | Text/attribution/instructions change | Source binding, text-loss gates, audio invalidation |
-| Alias/roster apply | Future generation cast; speaker repair targets | Roster revision, undo, accepted lines are not rewritten |
-| Voice config change | Future chunk renders; drift reference | Chunk generation-input identity, active versions/timeline |
-| Render chunk | New audio + take + speech receipt | Audio owner, book token, generation inputs |
-| Edit/insert/delete chunk | Chunk list/UIDs, audio staleness | UID stability, status journal, take history |
-| Merge/export | Output files + quality receipts | Source snapshot, quality plan, staging, mastering |
-| Scope apply/undo | Script prefix removal/restoration | Source projection, protected files, export staleness |
-| LoRA promote | Production adapter checkpoint | Evaluation evidence, rollback backup, receipts |
+| Cue authoring | `sound_design_cues.py` | Strict immutable cue recipes; read-only, sample-exact placement |
+| Asset library | `sound_design_assets.py`, `sound_design_uploads.py`, `sound_design_decode.py` | Durable immutable asset records independent of the active book; quota-bounded private upload staging |
+| Audition | `sound_design_audition.py`, `sound_design_candidate_audition.py` | Short exact-frame excerpts; explicitly *not* media approval |
+| Capture | `sound_design_capture.py`, `sound_design_take_decode.py`, `sound_design_pcm.py` | Exact dry PCM from the export's owned, timeline-trimmed sources |
+| Mix | `sound_design_mix.py`, `sound_design_render.py`, `sound_design_staging.py` | Bounded exact-frame mixing inside an existing owned export worker; serialized rendering with crash accounting |
+| Candidate | `sound_design_candidate.py`, `sound_design_candidates.py` | Saved candidate metadata with a pinned PCM descriptor; revision-bound discard |
+| Approval | `sound_design_approval.py`, `sound_design_current.py` | Explicit consent to **one** full mixed candidate plus normalized delivery options |
+| Delivery | `sound_design_delivery.py`, `sound_design_publication.py`, `sound_design_download.py`, `sound_design_cover.py` | Quota-reserved, digest-verified streaming of an approved mix |
+| Lineage | `sound_design_renditions*.py`, `sound_design_registry.py`, `sound_design_rendition_cleanup.py` | Bounded immutable score lineage; "metadata is neither media admission nor approval" |
+
+The invariant to remember: **a rendition record is history, a candidate is audio,
+and approval is consent** — three different things stored three different ways.
+
+### 3.9 Voice Lab: preparation, datasets, LoRA, evaluation
+
+**Modules:** `routers/voicelab.py` (10), `routers/preparer.py` (7),
+`routers/dataset_builder.py` (11), `routers/lora.py` (21), `voicelab_settings.py`,
+`voice_manifest.py`, `voice_analysis_cache.py`, `voice_clustering.py`,
+`voice_dataset_merge.py`, `voice_reference.py`, `adapter_artifacts.py`,
+`adapter_checkpoint_transaction.py`, `adapter_publication.py`,
+`adapter_naming_transaction.py`, `adapter_static.py`, `lora_evidence.py`,
+`dataset_metadata.py`, `dataset_publication.py`, `preparer_*_settings.py`;
+worker `alexandria_preparer_rocm_compatible.py` at the repository root;
+`tools/voice_lab/`.
+
+The chain is: **existing audiobook → aligned dataset → LoRA adapter → profile →
+named voice**, with the preparer as the front half:
+
+- The **preparer** runs ASR + alignment + annotation over an audiobook directory,
+  writing `preparer_output/` and resumable scratch state. The router validates
+  numeric and enrichment settings with the *same* rules the CLI uses
+  (`preparer_numeric_settings.py`, `preparer_enrichment_settings.py`) so the two
+  entry points cannot drift.
+- **Dataset Builder** edits and generates training rows in `dataset_builder/`,
+  with batch generation and cancellation. `dataset_metadata.py` validates shapes
+  shared by uploads and standalone training metadata; `dataset_publication.py`
+  publishes a dataset only after private preparation succeeds.
+- **Voice Lab** deduplicates and analyses voices (`voice_analysis_cache.py` —
+  content identities shared by dedup and analysis caches), clusters speaker
+  identities deterministically (`voice_clustering.py`, complete-link with
+  overrides), merges datasets provenance-preservingly (`voice_dataset_merge.py`),
+  and picks the reference clip a dataset will be anchored to (`voice_reference.py`).
+- **Adapters** are published as recoverable whole-directory generations
+  (`adapter_checkpoint_transaction.py`), renamed replayably
+  (`adapter_naming_transaction.py`), and served through
+  `adapter_publication.py` / `adapter_static.py`. `adapter_artifacts.py` performs
+  read-only structural checks *without* loading the base model.
+- **Evaluation evidence** is versioned: `lora_evidence.py` defines the integrity
+  contract (`validate_serving_identity`, model settings) that blind review and
+  promotion rely on.
+
+### 3.10 Workspace, library, reports and run history
+
+**Modules:** `routers/scripts_library.py` (14), `book_workspace.py`,
+`collection_overview.py`, `run_history.py`, `workspace_guidance.py`,
+`diagnostics.py`, `saved_book*`, `scripts/` directory.
+
+- **Saved books** live under `scripts/<slug>/` with their script, voice config,
+  aliases, sound-design companions and export metadata. `book_state_transaction.py`
+  is what makes switching between them safe: a switch is a publication of a whole
+  file set, journaled, and `book_state_recovery.py` (#1660) gives an operator
+  recovery path for an interrupted switch.
+- **`book_workspace.py`** produces read-only, book-bound facts for the workflow
+  workspace — it never starts work.
+- **`collection_overview.py`** (1,031 lines) is a read-only overview that projects
+  durable per-book state. Its docstring is the rule: *"never start work"*. Opening
+  the library must not wake a GPU.
+- **`run_history.py`** records durable history for long tasks; `run_chains/`
+  groups related runs.
+- **`workspace_guidance.py`** is the message contract for guidance: English text
+  is preserved while the client localises via `app-i18n.js`, so a message can be
+  translated without the server inventing translations.
+- **`diagnostics.py`** builds sanitized, bounded support bundles and redacts
+  sensitive keys (`_key_is_sensitive`). It is the supported way to ask a user for
+  logs.
+
+### 3.11 Project scope (reversible suffix removal)
+
+**Modules:** 12 `project_scope_*.py` modules, `routers/project_scope.py` (6
+routes).
+
+Sometimes a book must lose its back matter, an appendix, or a whole trailing
+section. Doing that by hand corrupts three files at once. Project scope makes it a
+transaction:
+
+- `project_scope_plan.py` builds **one read-only, source-backed preview** of an
+  explicit suffix; `project_scope_source.py` provides ordered source-word
+  authority; `project_scope_partition.py` checks script/chunk boundaries;
+  `project_scope_literal.py` keeps an immutable retained-marker lineage;
+  `project_scope_voices.py` rebases the voice timeline for retained rows.
+- `project_scope_apply.py` performs a compound publication with **one bounded
+  persistent exact undo**. `project_scope_files.py` is the confined read-only file
+  authority shared by preview/apply/undo; `project_scope_assets.py` snapshots files
+  referenced by retained voices; `project_scope_audio.py` reads retained
+  selected-audio facts.
+- `project_scope_exports.py` (1,680 lines) keeps large older deliveries on disk
+  while fencing unchanged pre-scope files, so undo does not require re-exporting.
+- `project_scope_history.py` is read-only: a scope change **never rewrites
+  originating history records**.
+
+Undo is single-use and exact. If protected files changed after the apply, undo
+refuses rather than guessing.
+
+### 3.12 Casting library (#1532)
+
+**Modules:** `casting_catalog.py`, `casting_tags.py`, `routers/casting.py` (5
+routes), frontend `app-casting.js`, `app-casting-labels.js`,
+`app-casting-research.js` (1,731 lines); docs `casting-library-phase2.md`,
+`casting-library-trash.md`, `casting-research-design.md`.
+
+The casting library is the **cross-book** view of every designed voice, so a voice
+created for one book can be found, compared and reused in another. It adds:
+
+- A catalogue with review **marks** (`POST /api/casting/marks`,
+  `/marks/batch`) and lifecycle changes in batch (`/lifecycle/batch`).
+- Descriptive **tags** derived from the voice description — gender, age, tone,
+  texture. `casting_tags.py` is pure matching over words; tags are search aids and
+  the code says so.
+- **Trash** semantics (a deleted voice is recoverable, per the trash design doc).
+- `GET /api/casting/clone_config` exposes what a clone-based voice would need.
+
+### 3.13 Calibre OPDS import (#1734)
+
+**Modules:** `calibre_opds.py` (911 lines, slice 1: navigation + capture),
+`calibre_catalog.py` (857 lines, slice 2: one optional user-configured catalog),
+`calibre_import.py` (596 lines, slice 3: import into the existing upload
+authority); routes under `/api/calibre/*` in `routers/script.py`; docs
+`docs/calibre-opds.md`; frontend `app-calibre.js`.
+
+The design is deliberately narrow: **one** optional catalog, bounded navigation,
+and an import that goes *through* the existing upload authority rather than
+bypassing it.
+
+- `GET/POST /api/calibre/config`, `/browse-root`, `/browse-next` — bounded OPDS
+  navigation with cross-origin review (`CrossOriginReviewRequired`): a catalog that
+  redirects off-origin needs explicit user consent.
+- `/preview` → `/review/approve` → `/capture` (`/capture/status`,
+  `/capture/cancel`, `/capture/discard`) → `/import`. Capture is a staged,
+  cancellable download; import creates a normal upload-owned source.
+
+### 3.14 Audiobookshelf delivery
+
+**Modules:** `audiobookshelf_delivery.py` (1,385 lines), routes in
+`routers/editor.py`, frontend `app-audiobookshelf.js`.
+
+Delivery is **explicit and manual**: the user configures a server, picks a
+completed shareable export, and uploads it to a specific library item. The module
+records a receipt with the remote identifiers so a retry does not create a
+duplicate. It never publishes automatically and never treats a successful upload as
+an approval of the audio.
+
+### 3.15 Translated edition preview
+
+**Modules:** `translated_edition.py` (695 lines), `routers/translated_edition.py`
+(5 routes), frontend `app-translated-edition.js`.
+
+An opt-in, **local** translation preview of a saved script: the LLM proposes a
+translated edition, and the result is a **reviewable proposal** — not a new book,
+not an overwrite. `get_installed_pairs` / `is_pair_*` gate which language pairs are
+offered, so the UI cannot request a pair the local model was not set up for.
+
+### 3.16 Read-along sidecar and EPUB read-aloud (#1720, #1779, #1844)
+
+**Modules:** `readalong_sidecar.py` (439 lines), `readalong_export.py` (1,370
+lines), `epub_readaloud.py` (2,563 lines), `ruby_text.py`, `qwen_align.py` (836),
+`qwen_align_worker.py` (582), `qwen_runtime.py` (1,071), `qwen_score_decoder.py`.
+
+Two related outputs:
+
+- **Read-along sidecar (#1720)** — a bounded, versioned JSON sidecar that binds
+  word timings to **frames** of the rendered audio (with the audio's SHA-256 and
+  trim head frame), so a player can highlight text without re-deriving offsets.
+- **EPUB 3 read-aloud (#1779)** — a source-preserving export that adds SMIL
+  overlays to the *original* EPUB rather than rebuilding the book. `epub_readaloud.py`
+  validates URIs (`_check_raw_uri`, `_decode_uri_path`) and never rewrites the
+  source text; `ruby_text.py` is the single rule for how ruby annotations are
+  narrated, shared by script extraction and read-aloud.
+
+Alignment comes from the **Qwen3-ForcedAligner** integration (#1844), which is
+deliberately fail-closed and isolated: `qwen_runtime.py` discovers the runtime and
+runs an owned worker, `qwen_align_worker.py` runs **only** in the dedicated
+`qwen-env` interpreter, `qwen_align.py` holds the bounded pure helpers, and
+`qwen_score_decoder.py` decodes the maximum-score monotonic timestamps. If the
+aligner is unavailable, the export refuses rather than emitting approximate
+timings.
+
+### 3.17 Cross-feature map
+
+| If you change… | Also affected |
+|---|---|
+| Chunk fields | generation inputs hash, staleness, export PCM plan, take receipts, project scope partition |
+| Script bytes | script receipt, cast hash, checkpoints, read-along sidecar, EPUB export |
+| Voice config | cast hash, checkpoint validity, synthesis recovery identity, casting catalogue |
+| Speech preparation (`speech_*.py`) | word timing, verification receipts, read-along text, pronunciation rules |
+| Export staging | quality receipts, delivery receipts, project-scope export fencing |
+| `process_state` task names | admission, conflict matrix, UI Activity panel, run history |
+| Router registration | origin gate coverage, `/api/status/*` diagnostics, JS `api()` calls |
 
 ---
 
-## 4. Nuances, subtleties, and gotchas
+## 4. Nuances, subtleties and gotchas
+
+These are the rules that fail *silently* when ignored. Most of them exist because
+the alternative was a corrupted book or a lost take.
 
 ### 4.1 Concurrency and admission
 
-1. **`process_state` is not cross-process truth.** It is a per-process dict. If a second worker/process is running (e.g., a benchmark or a second server), only the task leases and GPU flock prevent collisions.
-2. **Check-then-start is a TOCTOU race.** Use `claim_gpu_task`/`reserve_background_task`; do not call `check_global_gpu_lock` and then set `running` yourself.
-3. **Only owned CPU claims exempt a task from GPU conflicts.** A task named in `NON_GPU_TASKS` is exempt; arbitrary "it's CPU-only" assumptions are not.
-4. **Remote LLM relaxation is config-sensitive.** If the profile is local or the config cannot be read, the full lock applies. This is intentional.
-5. **Startup recovery must preserve foreign work.** `ensure_startup_recovery` only cleans when no task lock is held. Never delete a `.lock` file to "unstick" startup.
-6. **Book switches require a quiet system.** `ensure_book_switch_allowed` refuses while tasks run or another process owns a task.
-7. **Cancellation is not instant.** Workers check at boundaries; an in-flight model/FFmpeg call may finish. Routes that claim otherwise are bugs.
-8. **The GPU lock is shared with the experiment queue.** `app/experiments/gpu_guard.py` refuses hand-run GPU work while `gpu_job.sh` holds the lock; an inherited queue lease is the only exception.
+1. **`process_state` is not cross-process truth.** It is a per-process dict. A
+   second server, a benchmark or a CLI is coordinated only by task leases and the
+   GPU flock.
+2. **Check-then-start is a TOCTOU race.** Use `claim_gpu_task` /
+   `reserve_background_task`; never call `check_global_gpu_lock` and then set
+   `running` yourself.
+3. **Only owned CPU claims exempt a task from GPU conflicts.** Being named in
+   `NON_GPU_TASKS` exempts a task; assuming "it's CPU-only" does not.
+4. **Remote LLM relaxation is config-sensitive.** A local profile — or a config
+   that cannot be read — gets the full lock. That is intentional.
+5. **Startup recovery must preserve foreign work.** `ensure_startup_recovery` only
+   cleans when no task lock is held. Never delete a `.lock` file to "unstick"
+   startup.
+6. **Book switches require a quiet system.** `ensure_book_switch_allowed` refuses
+   while tasks run or another process owns a task.
+7. **Cancellation is cooperative and not instant.** An in-flight model or ffmpeg
+   call finishes first.
+8. **The GPU lock is shared with the experiment queue.** `experiments/gpu_guard.py`
+   refuses hand-run GPU work while `gpu_job.sh` holds the lock; an inherited queue
+   lease is the only exception.
+9. **Synthesis has an exact-owner path.** Editor renders are admitted through
+   `audio_generation_owner.py`; a direct Python caller is unowned and must not
+   publish.
 
 ### 4.2 Data integrity and transactions
 
-1. **Every publication that replaces multiple related files needs a journal.** `book_state_transaction` is the model: stage, record old/new hashes, validate, `os.replace`, fsync, recover on startup.
-2. **Never write a JSON state file with a plain `open(..., "w")`.** Use `atomic_json_write`; a crash mid-write otherwise leaves a truncated file that the next startup may treat as "empty" state.
-3. **Read-modify-write JSON needs a lock.** `file_lock` is used for config, voice library, saved books, chunks, etc. A read followed by a write without the lock can lose a concurrent update.
-4. **Symlinks and path escapes are refused, not followed.** Use `is_path_inside`/realpath and reject links where the code does.
-5. **Book tokens are not decorative.** They bind an operation to source/script/voice/companion bytes; a stale token must produce a conflict, not a best-effort write.
-6. **Undo records are exact and single-use in practice.** Roster/scope undo refuses if protected files change. Do not "repair" an undo by guessing.
-7. **Save/load of a saved book retains companions.** Script, voice config, aliases, sound-design cues/renditions, and possibly export metadata travel together; do not copy only the script.
+1. **Every publication that replaces multiple related files needs a journal.**
+   `book_state_transaction.py` is the model: stage, record old/new hashes,
+   validate, `os.replace`, fsync, recover on startup.
+2. **Never write a JSON state file with a plain `open(..., "w")`.** Use
+   `atomic_json_write`; a crash mid-write leaves a truncated file that the next
+   startup may read as "empty".
+3. **Read-modify-write JSON needs the lock.** `file_lock` guards config, voice
+   library, saved books, chunks, take history. A read followed by a write without
+   the lock loses concurrent updates.
+4. **Symlinks and path escapes are refused, not followed.** Use
+   `is_path_inside`/realpath and keep the explicit symlink refusals.
+5. **Book tokens are not decorative.** They bind an operation to
+   source/script/voice/companion bytes; a stale token must produce a conflict, not
+   a best-effort write.
+6. **Undo records are exact and effectively single-use.** Roster and scope undo
+   refuse if protected files changed. Do not "repair" an undo by guessing.
+7. **Saved books retain companions.** Script, voice config, aliases, sound-design
+   cues/renditions and export metadata travel together; copying only the script
+   produces a book that looks right and renders wrong.
+8. **Per-UID status is a journal, not a rewrite.** `chunk_status_journal.py`
+   appends durable render updates while callers hold the chunks-file lock; readers
+   must fold it in order.
 
 ### 4.3 Identity and fingerprints
 
-1. **`id` vs `uid`:** `id` is the current list position; `uid` is permanent. Audio filenames use `uid`.
-2. **Generation inputs, not the whole chunk, define staleness.** Changing `audio_path` or UI-only fields does not invalidate audio; changing text/speaker/instruct/pause/pronunciation does.
-3. **Checkpoint fingerprints are strict on purpose.** If a prompt variant, cast hash, model, or context setting changes, resuming would mix incompatible work. Start over or use the matching settings.
-4. **Cast changes can invalidate a generation checkpoint** even if the script bytes are unchanged, because the roster/cast is part of the request identity.
-5. **Audio receipts bind bytes and versions.** A receipt from an older file does not certify a replaced file, even if the path is the same.
-6. **Export quality receipts describe a specific output.** Changing inputs after export does not retroactively invalidate the receipt's description of those bytes, but it does mean the receipt no longer describes the *current* book state. The workspace says this explicitly.
+1. **`id` vs `uid`:** `id` is the current list position; `uid` is permanent. Audio
+   filenames use `uid`.
+2. **Generation inputs, not the whole chunk, define staleness.** Changing
+   `audio_path` or UI-only fields does not invalidate audio; changing
+   text/speaker/instruct/take/voice revision/pronunciation does.
+3. **Checkpoint fingerprints are strict on purpose.** A prompt variant, cast hash,
+   model or context change means the run cannot resume — start over or restore the
+   settings.
+4. **Cast changes can invalidate a checkpoint** even when script bytes are
+   unchanged, because the roster is part of request identity.
+5. **Audio receipts bind bytes and versions.** A receipt from an older file does
+   not certify a replaced file at the same path.
+6. **Export quality receipts describe a specific output.** They stay true about
+   those bytes and stop describing the *current* book state after inputs change;
+   the workspace is expected to say exactly that.
+7. **Take snapshots are addressed by version, and selection is `audio_path`.**
+   Metadata alone never selects audio.
 
-### 4.4 LLM behavior
+### 4.4 LLM behaviour
 
-1. **`config["llm"]` is a mirror.** Always use `get_active_llm_config`; writing the mirror alone creates a stale endpoint bug.
-2. **Prompt variant and adapter are coupled.** An attribution adapter trained on one prompt shape should be served with that shape. The default `michel2_full` is not universal.
-3. **Structured output is not guaranteed.** A server may ignore or reject the JSON schema; the pipeline validates the returned shape and indexes independently.
-4. **Retries have a policy, not a vibe.** The pipeline tracks attempted prompts, truncation, reasoning escalation, near misses, and API exhaustion. Do not add an unbounded retry loop in a new call site.
-5. **API exhaustion can pause.** `on_api_exhaustion="pause"` freezes the run and keeps state; it is not the same as cancellation.
-6. **Reasoning tokens count.** Budgets and truncation checks account for them even when the provider omits `reasoning_tokens`.
-7. **Failover is sticky for the run.** A request already admitted to the primary may finish there; new requests go to the secondary. Do not assume per-request flapping.
-8. **Manual transport has no timeout.** It waits for a human. Cancel is the only exit.
-9. **Remote LLM cost is warned, not enforced.** The UI's `confirmIfRemote()` is a prompt, not a billing guard.
+1. **`config["llm"]` is a mirror.** Use `get_active_llm_config`.
+2. **Prompt variant and adapter are coupled.** An attribution adapter trained on
+   one prompt shape should be served with that shape; `michel2_full` is a default,
+   not a universal.
+3. **Structured output is not guaranteed.** Validate the returned shape and index
+   independently of the model's ids.
+4. **Retries have a policy, not a vibe.** Attempted prompts, truncation, reasoning
+   escalation, near misses and API exhaustion are tracked. Do not add an unbounded
+   retry loop in a new call site.
+5. **API exhaustion can pause.** `on_api_exhaustion="pause"` freezes the run and
+   keeps state; it is not cancellation.
+6. **Reasoning tokens count.** Budgets and truncation checks include them even when
+   the provider omits `reasoning_tokens`.
+7. **Failover is sticky for the run.** A request already admitted to the primary
+   may finish there; new requests go to the secondary.
+8. **Manual transport has no timeout.** It waits for a human; cancel is the only
+   exit.
+9. **Remote cost is warned, not enforced.** The confirmation is a prompt.
 
 ### 4.5 Audio and TTS
 
-1. **Local TTS models are memory-heavy and lazy.** Do not import torch at module top level in startup paths; do not start GPU work while a local model is still serving.
-2. **Batch size is estimated from KV cache, not guessed.** The same `max_new_tokens` feeds both estimation and generation; they must not drift.
-3. **External TTS mode is not feature-complete.** Voice Design and LoRA require local mode; external mode should fail before model load, not halfway through.
-4. **Seeds matter for reproducibility.** `reproducible_takes` derives a seed from text + take; changing text changes the take identity.
-5. **Take restoration is proof-based.** It validates the current chunk, the stored take, the speech receipt, and the generation identity. Restoring "the newest file" is not equivalent.
-6. **Speech verification is optional and can be wrong.** Its receipt says what was checked, by which model/runtime; it is evidence, not a guarantee of listening quality.
-7. **Drift is advisory.** A flagged chunk may still be acceptable; an unflagged chunk is not proven good.
-8. **Mastering is processing, not compliance.** -18 LUFS/-2 dBTP is a starting target, not a distribution certificate.
-9. **Chapter boundaries come from source grouping.** Do not derive them from chunk indices without the chapter-group logic.
+1. **One render, one owner.** Synthesis publishes through
+   `take_publication.py`; a render that bypasses the owner can be overwritten
+   mid-write.
+2. **Inter-chunk export timing is not intra-chunk assembly.** `synthesis_audio.py`
+   assembles internal windows; gaps between chunks belong to export.
+3. **Recovery reuse is identity-gated.** Reusing a window requires matching loaded
+   serving code, dependency bindings and inputs; a near-match is a refusal.
+4. **Encoded takes are validated before admission** (`audio_validation.py`), with
+   optional generated-speech admission checks.
+5. **Mastering is optional and measured.** Loudnorm results are recorded; do not
+   present an unmeasured gain as mastering.
+6. **M4B chapters follow the source clock** (`m4b_metadata.py`), not the encoder's
+   rounding.
+7. **The aligner runs in its own interpreter.** Never import the Qwen aligner into
+   the app's Python; `qwen_runtime.py` owns the boundary and fails closed.
 
-### 4.6 Platform
+### 4.6 Export and publication
 
-1. **Windows process ownership is native.** `windows_subprocess_owner.py` uses job objects; generic `kill(pid)` is insufficient for tree termination.
-2. **macOS has its own owner protocol.** `macos_subprocess_owner.py` and the macOS probe workflow exist because process ancestry/locks differ.
-3. **AMD on Windows is CPU-only.** ROCm is unavailable; do not enable GPU paths based on the presence of a Radeon card alone.
-4. **Apple Silicon is CPU-only for Qwen3-TTS.** MPS is not supported by the model; whisper.cpp may use Metal.
-5. **AMD APUs run TTS in fp32.** bf16 is broken on the 660M/680M/780M class.
-6. **The app is tested on Python 3.10.** Prebuilt NVIDIA SageAttention/FlashAttention wheels target 3.10; a different version stops before package installation.
+1. **Staging is ownership-marked and crash-recoverable.** Do not write export
+   artefacts directly to their final path.
+2. **Retirement is a transaction on POSIX.** `export_staging_retirement.py` exists
+   because deleting a staging tree while a reader holds it is not safe; use it.
+3. **Pinned readers on Windows.** `export_file_io.py` / `export_download.py` allow
+   publication without reopening a path another handle holds.
+4. **Quality verification uses an independent PCM plan.** Verifying an encode with
+   the same plan that produced it proves nothing.
+5. **Limits are finite and shared.** `export_limits.py` is the single source for
+   request validation and assembly limits.
 
-### 4.7 Security
+### 4.7 Frontend
 
-1. **Auth is off by default.** Bind to loopback or set `ALEXANDRIA_AUTH_PASSWORD`.
-2. **The origin gate is not CORS.** CORS protects reading responses; the origin gate protects sending mutations and DNS rebinding.
-3. **`GET /api/config` redacts secrets, but other diagnostics may expose paths.** Do not log full headers, API keys, or private source text.
-4. **Endpoint locality is a security control.** Do not relax `_validate_local_llm_base_url` to arbitrary hosts without an explicit allowlist.
-5. **Uploads are bounded and hashed.** Do not add a new upload path that bypasses the quota or the bounded decode.
-6. **Archive handling is hostile-input handling.** EPUB/ZIP/volume code validates member types, paths, sizes, and symlinks.
+1. **No framework, no bundler, no build step.** 45 plain modules in
+   `app/static/js/` loaded by `index.html`; a new file must be added to the page's
+   script list.
+2. **`app/static/js/app-core.js` is the shared runtime** (12,060 lines, ~452
+   functions):
+   `api()`, polling, toasts, state mirrors. Duplicating its helpers in a feature
+   module is how behaviour drifts.
+3. **The server is the truth.** Optimistic UI must reconcile with the next status
+   poll; nothing important may live only in browser memory.
+4. **`confirmIfRemote()` is a courtesy, not a guard.** The server still enforces
+   admission.
+5. **Localisation lives in `app-i18n.js`;** server guidance messages carry English
+   text plus keys (`workspace_guidance.py`) so the client can translate without the
+   server guessing.
+6. **Feature modules are large by design** (`app-workbench.js` 2,384 lines,
+   `app-casting-research.js` 1,731, `app-calibre.js` 1,459). Splitting one is a
+   refactor with real risk; do it deliberately.
 
-### 4.8 Frontend
+### 4.8 Tests and CI
 
-1. **No build step.** Script order in `app/static/index.html` is significant; functions are global. Adding a new `app-*.js` file requires adding a `<script>` tag in the right order.
-2. **The UI polls.** There is no push channel; stale responses are rejected with request/generation counters in several modules. Preserve those guards.
-3. **The workspace is read-only.** "Continue" must not start/resume work.
-4. **Optimistic UI is rare.** Most actions re-fetch authoritative state after a mutation; keep that pattern.
-5. **Accessibility/help text is part of the product.** Field help (`app-help.js`) and task guides (`app-guides.js`) are first-class.
-
-### 4.9 Tests and CI
-
-1. **Test discovery is a package contract.** `app/tests/__init__.py` must stay, or `unittest discover` runs zero tests.
-2. **The inventory is checked.** `app/tests/unit_test_inventory.json` lists test IDs; `update_test_inventory.py --check` and CI's shard checker fail if modules are dropped/duplicated.
-3. **Current scale (this revision):** 1,339 inventoried test modules and **10,422** test IDs. The README's "about 3,400 unit tests" is stale; trust the inventory.
-4. **Test modules import app code by bare name** (`import tts`) and each other by package path (`from tests.test_support import ...`). Adding a top-level import that requires a GPU breaks CI.
-5. **CI runs three unit shards plus a Windows-owner job.** The final `test` job verifies the shards together ran every inventoried test exactly once.
-6. **`./ready.sh` is required before committing.** It regenerates derived indexes/inventories/audits and runs the release verifier.
-7. **`verify_release.py --full` requires a real GPU/LLM and is manual.**
-8. **Fixtures must be synthetic or public-domain.** Never add copyrighted book text.
-
-### 4.10 Numbers and documentation drift
-
-Several counts in older docs are no longer current:
-
-- README says "181 routes"; the current tree declares **291** `@router.*` decorators across 17 router modules. The checked contract contains **292** `APIRoute` operations plus 7 mounts and 4 framework/document routes (**303** entries total).
-- README says "about 3,400 unit tests"; the current inventory has **10,422** test IDs.
-- README says data is under the app directory; the code defaults to the **repository root** (`get_runtime_data_dir(ROOT_DIR)`) and only uses `app/config.json` for legacy config placement.
-- `CLAUDE.md` describes `process_state` at `app.py`; it now lives in `app/core.py:555`.
-
-When docs and code disagree, treat code + committed contract/inventory + tests as authoritative, then update the docs.
+1. **`unittest`, not pytest.** 1,663 `test_*.py` modules under `app/tests/`; CI
+   shards them (`tests / unit (1/3)`…`(3/3)`).
+2. **`./ready.sh` before committing.** It is the repository's own gate.
+3. **Tests that need the GPU or a model are marked/skipped**, not silently slow.
+   A "passing" run on a machine without the model proves less than it looks.
+4. **E2E lives outside the unit suite** (`tools/e2e`), and `app/experiments/` (350
+   modules) is research code with its own conventions — do not import it into the
+   app.
+5. **`app/env` is required** to run tests; the system interpreter lacks the
+   dependencies.
 
 ---
 
@@ -1099,503 +930,357 @@ When docs and code disagree, treat code + committed contract/inventory + tests a
 
 | Term | Meaning |
 |---|---|
-| **Annotated script** | JSON array of `{speaker,text,instruct}` entries; the output of pass 3 and input to chunking. |
-| **Pass 1 / segment** | Split source text into narration and spoken entries. |
-| **Pass 2 / attribute** | Assign a speaker to each spoken entry. |
-| **Pass 3 / instruct** | Add a delivery instruction to each entry. |
-| **Roster** | The speaker names (and aliases) available to attribution. |
-| **Cast** | A reusable character→voice mapping stored in the voice library. |
-| **Voice config** | Per-speaker voice recipe(s), versions, style timeline. |
-| **Chunk** | A renderable unit derived from one or more script entries. |
-| **UID** | Stable chunk identifier used in filenames/receipts. |
-| **Take** | A retained rendering of a chunk. |
-| **Drift** | Acoustic distance between a rendered chunk and the speaker's reference. |
-| **Speech verification** | Optional ASR check that the audio says the intended text. |
-| **Synthesis window** | A safe sub-span of a chunk's text rendered separately and joined. |
-| **Publication** | The atomic, verified move of a completed artifact into its final path. |
-| **Receipt** | A structured record binding an output to its inputs/identity. |
-| **Book token / revision** | Digest binding an operation to a specific book/source/script/cast state. |
-| **Front matter** | Publisher/translator material before the story; may be stripped. |
-| **Literal source policy** | A mode where source wording is preserved rather than rewritten. |
-| **Labels-only review** | Review that returns only speaker/instruction labels, not text. |
-| **Scope** | A reviewed prefix removal from the active script. |
-| **Renderer** | The local or external TTS backend. |
+| **Book** | One project: source + script + voice config + chunks + audio + exports. Identified by a slug under `scripts/` |
+| **Script** | `annotated_script.json`: the ordered list of entries with speaker, text, instruction |
+| **Chunk** | A synthesis unit: one or more script entries grouped for TTS. Has `uid`, `id`, `audio_path`, `audio_revision` |
+| **Take** | One rendered performance of a chunk; the selected take is the one `audio_path` points at |
+| **Voice** | A voice definition (designed, cloned, LoRA, built-in) with a revision |
+| **Cast** | The character → voice mapping in `voice_config.json` |
+| **Persona** | A description that can become a designed voice |
+| **Receipt** | A record binding a result to the exact inputs and bytes that produced it |
+| **Publication** | Replacing the live file(s) atomically through a journal or staging transaction |
+| **Admission** | The permission to start work (GPU mutex + task lease + book guards) |
+| **Preparer** | The ASR/alignment pipeline that turns an audiobook into training data |
+| **Adapter** | A LoRA checkpoint directory plus its manifest |
 
-### 5.2 Key modules and responsibilities
+### 5.2 Module map
 
-| Path | Responsibility |
-|---|---|
-| `app/app.py` | FastAPI construction, middleware, mounts, router registration, lifespan recovery. |
-| `app/core.py` | `process_state`, task claims, GPU lock, ETA, subprocess log pump, shared helpers, report summaries. |
-| `app/routers/system.py` | Config, LLM test/models, LM Studio, stats, ETA, runs, prompts, version. |
-| `app/routers/script.py` | Uploads, preflight, generation/review/nickname/batch routes, status/logs. |
-| `app/routers/scripts_library.py` | Saved-book list/save/load/preflight/repair/delete. |
-| `app/routers/voices.py` | Voice config, candidates, versions, timelines, personas, suggestions. |
-| `app/routers/voice_library.py` | Cast create/save/match/apply, favorites, membership. |
-| `app/routers/voice_design.py` | Voice Design preview/save/list/delete; clone voice upload/list/delete. |
-| `app/routers/editor.py` | Chunks, generation, drift, takes, word timing, verification, merge/export/M4B/chapters, reports, checkpoints. |
-| `app/routers/lora.py` | Dataset upload/train, adapters, comparison, blind review, promotion/rollback. |
-| `app/routers/dataset_builder.py` | Synthetic dataset projects/rows/generation/save. |
-| `app/routers/preparer.py` | Single/batch preparer runs and output downloads. |
-| `app/routers/voicelab.py` | Voice Lab config/inspect/health/preflight/start/cancel/pause/resume. |
-| `app/routers/benchmark.py` | Benchmark preflight/start/cancel/status. |
-| `app/routers/character_roster.py` | Roster snapshot/preview/apply/undo/import reconciliation. |
-| `app/routers/speaker_review.py` | Bounded speaker-label review sessions. |
-| `app/routers/project_scope.py` | Scope preview/apply/undo. |
-| `app/routers/sound_design.py` | Assets, cues, renditions, candidates, mixes, delivery. |
-| `app/three_pass_generate.py` | Three-pass orchestration, checkpoints, validation, sizing. |
-| `app/generate_script.py` | Shared LLM call/retry/JSON parsing, source preprocessing, chunk splitting. |
-| `app/review_script.py` | Full-text/labels-only review, checkpointing, accounting. |
-| `app/llm_provider.py` | OpenAI client wrapper, failover, manual transport, retries/timeouts. |
-| `app/lmstudio_settings.py` | Local/remote LM Studio/llama.cpp status, limits, optimization. |
-| `app/tts.py` | `TTSEngine`, voice recipes, anchors, style/version resolution, timeline/pause helpers. |
-| `app/project.py` | `ProjectManager`: chunks, synthesis, takes, merge, exports. |
-| `app/book_state_transaction.py` | Recoverable multi-file active-book publication. |
-| `app/task_ownership.py` | Cross-process task/resource leases and startup admission. |
-| `app/experiments/gpu_guard.py` | Shared GPU queue lock and contention refusal. |
-| `app/export_quality.py` | Export plan/report validation and publication guards. |
-| `app/synthesis_*.py` | Windows, recovery, workspace, PCM assembly, receipts. |
-| `app/speech_verification*.py` | ASR verification runtime, comparison, receipts. |
-| `app/take_*.py`, `audio_take_history.py` | Take retention/restoration/publication. |
-| `app/sound_design_*.py` | Cue/asset/rendition/candidate/mix/delivery logic. |
-| `app/run_history.py` | Run records/artifacts. |
-| `app/benchmark_*.py` | Benchmark manifests, workers, validation, remote execution. |
-| `app/static/js/app-*.js` | Frontend features; `app-core.js` holds shared state/API/polling/tab logic. |
-| `alexandria_preparer_rocm_compatible.py` | Three-phase audiobook→dataset preparer. |
-| `alexandria_alignment.py` | Shared source/ASR alignment primitives. |
-| `alexandria_batch_processor.py` | Sequential multi-book preparer. |
-| `alexandria_compare.py` | Interactive metadata-vs-source review and correction. |
-| `alexandria_zip_publication.py` | Recoverable ZIP family publication/read admission. |
-| `alexandria_run_manifest.py` | Preparer run ownership/artifact validation. |
+`app/` contains **352** Python modules at its root (120,389 lines), plus
+`app/routers/` (20 files), `app/tests/` (1,663 test modules), `app/experiments/`
+(350 modules) and `app/static/` (77 files; 45 application JS modules under
+`app/static/js/`). The largest and most
+consequential modules:
+
+| Module | Lines | Role |
+|---|---|---|
+| `book_state_transaction.py` | 6,700 | Journaled publication of the active book's whole file set |
+| `three_pass_generate.py` | 4,773 | Segment → attribute → instruct pipeline |
+| `project.py` | 4,758 | Chunks, generation inputs, assembly, chapter plan |
+| `review_script.py` | 4,468 | Second-pass LLM review of the script |
+| `tts.py` | 4,197 | TTS engines (Qwen local, MLX, external pool) |
+| `core.py` | 2,997 | Paths, config, locks, `process_state`, admission |
+| `generate_script.py` | 2,668 | Single-pass annotation and chunk retries |
+| `epub_readaloud.py` | 2,563 | EPUB 3 read-aloud (SMIL) export |
+| `project_scope_exports.py` | 1,680 | Export fencing for reversible scope changes |
+| `lmstudio_settings.py` | 1,648 | LLM profiles, model discovery, provider settings |
+| `benchmark_runner.py` | 1,466 | Production-backed benchmark stage adapters |
+| `audiobookshelf_delivery.py` | 1,385 | Manual delivery + receipts |
+| `readalong_export.py` | 1,370 | Read-along and EPUB export workers |
+| `qwen_runtime.py` | 1,071 | Aligner runtime discovery, owned workers |
+| `export_staging_retirement.py` | 1,050 | POSIX retirement transactions |
+| `export_staging.py` | 1,037 | Crash-recoverable staging |
+| `sentence_gap_report.py` | 1,032 | Report-only intra-take gap analysis |
+| `collection_overview.py` | 1,031 | Read-only library overview |
+| `calibre_opds.py` | 911 | OPDS navigation and capture |
+| `synthesis_workspace.py` | 887 | Disposable synthesis spill |
+| `calibre_catalog.py` | 857 | One optional user catalog |
+| `qwen_align.py` | 836 | Fail-closed alignment helpers |
+| `translated_edition.py` | 695 | Opt-in translation preview |
+| `subprocess_ownership.py` | 673 | Child-process ownership per OS |
+| `audio_take_history.py` | 562 | Immutable take snapshots |
+| `export_quality.py` | 521 | Independent verification of finished media |
+| `casting_catalog.py` | 468 | Cross-book designed-voice catalogue |
+| `audio_export.py` | 465 | Cancellable CPU encoding, atomic publication |
+| `readalong_sidecar.py` | 439 | Frame-bound word-timing sidecar |
+
+Frontend: `app/static/js/app-core.js` (12,060 lines) is the shared runtime; the largest feature
+modules are `app-workbench.js` (2,384), `app-casting-research.js` (1,731),
+`app-calibre.js` (1,459), `app-single-voice.js` (652), `app-i18n.js` (469).
 
 ### 5.3 API surface
 
-- OpenAPI is served at `/openapi.json`; interactive docs at `/docs`.
-- The checked contract lives in `app/api_contract/openapi.json` and `app/api_contract/routes.json`.
-- Current tree: **17 feature routers**, **291 `@router.*` decorators**; the contract snapshot has **292 `APIRoute` operations**, 7 mounts, and 4 framework/document routes (**303 entries total**).
-- Route groups:
-  - system/config/LLM/status/runs/prompts;
-  - script/upload/preflight/review/aliases/batch/manual transport;
-  - saved scripts/preflight/repairs;
-  - voices/personas/versions/candidates/timelines/suggestions;
-  - voice library/casts;
-  - voice design/clone voices;
-  - editor/chunks/generation/drift/takes/word timing/speech verification;
-  - merge/export/M4B/chapters/Audacity/quality;
-  - LoRA/dataset/training/promotion;
-  - preparer/Voice Lab/benchmark;
-  - character roster/speaker review/project scope/sound design;
-  - Home workspace/readiness.
+**351 routes** across 19 routers. Every route is declared in `app/routers/` and
+registered in `app/app.py` (lines 304–374). Route counts and the path space each
+router owns:
 
-Mutation routes generally require a book token, revision, or expected identity; a 409 means "state changed, refresh", not "retry blindly".
+| Router | Routes | Example paths |
+|---|---|---|
+| `routers/editor.py` | 81 | `POST /api/chunks/{index}/word_timing` `GET /api/chunks/{index}/word_timing/audio` `GET /api/take_history_policy` |
+| `routers/script.py` | 67 | `GET /api/uploads` `POST /api/uploads/select` `GET /api/script/ingest-status` |
+| `routers/voices.py` | 29 | `GET /api/voices` `POST /api/voices/{speaker}/versions` `DELETE /api/voices/{speaker}/versions/{version_id}` |
+| `routers/sound_design.py` | 22 | `POST /api/sound_design/assets/import` `GET /api/sound_design/assets` `POST /api/sound_design/assets/{asset_id}/purge_incomplete` |
+| `routers/lora.py` | 21 | `POST /api/lora/upload_dataset` `GET /api/lora/datasets` `DELETE /api/lora/datasets/{dataset_id}` |
+| `routers/system.py` | 20 | `GET /api/tts/diagnostics` `POST /api/tts/external-capabilities` `POST /api/prompts/attribution_preview` |
+| `routers/voice_design.py` | 14 | `POST /api/voice_design/preview` `POST /api/voice_design/save` `GET /api/voice_design/list` |
+| `routers/scripts_library.py` | 14 | `GET /api/scripts` `GET /api/workspace` `GET /api/book/recovery` |
+| `routers/voice_library.py` | 11 | `GET /api/voice_library` `POST /api/voice_library/casts` `POST /api/voice_library/catalog_member` |
+| `routers/pronunciation_panel.py` | 11 | `GET /api/pronunciation` `POST /api/pronunciation/save` `POST /api/pronunciation/preview` |
+| `routers/dataset_builder.py` | 11 | `GET /api/dataset_builder/list` `POST /api/dataset_builder/create` `POST /api/dataset_builder/update_meta` |
+| `routers/voicelab.py` | 10 | `GET /api/voicelab/health` `GET /api/voicelab/diagnostics` `POST /api/voicelab/preflight` |
+| `routers/preparer.py` | 7 | `POST /api/preparer/start` `POST /api/preparer/cancel` `GET /api/preparer/list` |
+| `routers/character_roster.py` | 7 | `GET /source` `POST /preview` `POST /source` |
+| `routers/speaker_review.py` | 6 | `GET /options` `POST /preview` `POST /start` |
+| `routers/project_scope.py` | 6 | `POST /api/project/scope/preview` `GET /api/project/scope/entries` `POST /api/project/scope/apply` |
+| `routers/translated_edition.py` | 5 | `GET /api/translated_edition/pairs` `POST /api/translated_edition/proposals` `GET /api/translated_edition/latest-proposal` |
+| `routers/casting.py` | 5 | `GET /api/casting/voices` `POST /api/casting/marks` `POST /api/casting/marks/batch` |
+| `routers/benchmark.py` | 4 | `POST /api/benchmark/preflight` `POST /api/benchmark/start` `POST /api/benchmark/cancel` |
+
+(The table lists up to three example paths per router, not all of them. The full
+list is regenerable with the route extractor described in Appendix A.
+`routers/character_roster.py` and `routers/speaker_review.py` declare an
+`APIRouter` prefix, so their paths in the table are relative to
+`/api/character_roster` and `/api/speaker_review` respectively.)
+
+Status and control routes worth knowing: `/api/status` and
+`/api/status/{task_name}` (declared in `routers/script.py`, not `system.py`),
+`/api/chunks/status` (per-UID render state), `/api/status/eta`,
+`/api/system/stats`, `/api/runs`, `/api/audio/estimate`,
+`/api/chunks/playback_plan`, `/api/take_history_policy`,
+`/api/generate_script/preflight`, and the `/api/benchmark/{preflight,start,cancel,status}`
+quartet.
 
 ### 5.4 Configuration reference
 
-`AppConfig` (`app/config_settings.py:247`):
+One JSON document at `CONFIG_PATH` (`app/config.json` by default; absent from a
+fresh checkout because it is generated). Precedence: **environment variable →
+`config.json` → model defaults**. Shapes are Pydantic models in
+`config_settings.py` (see §3.1 for fields and defaults). Writes go through
+`config_io.py` with a lock and `.bak` rotation.
 
-```jsonc
-{
-  "llm_mode": "local",
-  "llm": { "...": "mirror of active profile" },
-  "llm_local": {
-    "base_url": "http://127.0.0.1:1234/v1",
-    "api_key": "local",
-    "model_name": "...",
-    "context_length": 32768,
-    "max_input_tokens": null,
-    "max_output_tokens": null,
-    "provider_headers": {},
-    "provider_extra_body": {},
-    "on_this_gpu": true,
-    "transport": "http",
-    "reasoning_effort": "low",
-    "request_timeout_seconds": null,
-    "connect_timeout_seconds": null,
-    "request_interval_seconds": 0,
-    "api_retry_limit": null,
-    "on_api_exhaustion": "fail",
-    "structured_output": "auto",
-    "retry_initial_delay_seconds": 1,
-    "retry_multiplier": 2,
-    "retry_max_delay_seconds": 30,
-    "retry_jitter": 0.2
-  },
-  "llm_remote": { "...": "optional" },
-  "llm_remote_ssh": null,
-  "llm_failover": false,
-  "tts": {
-    "mode": "local",
-    "url": "http://127.0.0.1:7860",
-    "external_urls": [],
-    "device": "auto",
-    "language": "English",
-    "parallel_workers": 2,
-    "batch_seed": null,
-    "reproducible_takes": false,
-    "synthesis_windows": {},
-    "synthesis_recovery": {},
-    "speech_verification": {},
-    "compile_codec": false,
-    "max_new_tokens": 2048,
-    "sub_batch_enabled": true,
-    "sub_batch_min_size": 4,
-    "sub_batch_ratio": 5,
-    "sub_batch_max_items": 0,
-    "pause_between_speakers_ms": 500,
-    "pause_same_speaker_ms": 250,
-    "design_text_min_chars": 12,
-    "design_text_max_chars": 500
-  },
-  "prompts": { "...": "..." },
-  "prompt_presets": [],
-  "generation": {
-    "chunk_size": 3000,
-    "max_tokens": 4096,
-    "temperature": 0.6,
-    "top_p": 0.8,
-    "top_k": 0,
-    "min_p": 0,
-    "presence_penalty": 0,
-    "banned_tokens": [],
-    "merge_narrators": false,
-    "context_rescue_windows": [2000, 4000, 6000],
-    "context_rescue_retries": 2,
-    "three_pass_segment_temperature": 0.1,
-    "three_pass_attribute_temperature": 0.1,
-    "three_pass_instruct_temperature": 0.1,
-    "three_pass_segment_output_ratio": 3.0,
-    "three_pass_chunk_size": 3000,
-    "three_pass_attribute_batch_size": 25,
-    "three_pass_attribute_context_chars": 2000,
-    "three_pass_attribute_target_chars": 0,
-    "three_pass_instruct_target_chars": 0,
-    "three_pass_instruct_context_chars": 0,
-    "three_pass_attribute_prompt_variant": "michel2_full",
-    "three_pass_segmentation": "auto",
-    "three_pass_pass1_format": "ordinary",
-    "three_pass_delivery_direction": "off",
-    "three_pass_quoted_must_be_spoken": true,
-    "three_pass_unquoted_must_be_narrator": true,
-    "three_pass_keep_whole_batch": false,
-    "three_pass_group_rule": false,
-    "three_pass_speaker_traits": false,
-    "three_pass_model_profiles": {}
-  }
-}
-```
+Three config surfaces are frequently confused:
 
-Notes:
-
-- `llm` is a mirror; `llm_mode` selects the real profile.
-- `api_key` may be `"env:NAME"`; resolved at request time.
-- `on_this_gpu` controls LLM/GPU conflict policy.
-- `transport: "manual"` switches to the mailbox UI.
-- `structured_output: "auto"` sends a JSON schema and falls back for the run if the server rejects it.
-- `three_pass_model_profiles` is merged over `app/three_pass_model_profiles.json`.
+- `llm` in `config.json` is a **mirror** of the active profile; the profiles
+  themselves live in the LM Studio settings section.
+- `prompts` holds custom prompt text; **absent means "use the shipped prompt"**,
+  and the prompt variant/adapter pairing still applies (§4.4).
+- `three_pass` holds per-pass overrides; unset values inherit `generation`.
 
 ### 5.5 On-disk layout
 
-```text
-<data_root>/
-├── app/config.json                 # legacy config placement when data_root == repo root
-├── config.json                     # otherwise
-├── state.json                      # active book identity/input
-├── annotated_script.json           # active script
-├── voice_config.json               # active voices
-├── character_aliases.json
-├── chunks.json
-├── voice_library.json
-├── pronunciation.json
-├── uploads/
-├── scripts/
-│   ├── <name>.json
-│   ├── <name>.voice_config.json
-│   └── <name>.meta.json
-├── voicelines/
-├── reports/
-├── run_history/
-├── logs/api/
-├── evaluation_reviews/
-├── manual_llm/
-├── chapter_exports/
-├── cloned_audiobook.mp3
-├── audiobook.m4b
-├── audacity_export.zip
-├── lora_models/
-├── lora_datasets/
-├── designed_voices/
-├── clone_voices/
-├── dataset_builder/
-├── dataset_temp/
-├── .task_ownership/
-├── .active_book_transaction.json
-└── export staging directories
+```
+<repo>/                       DATA_DIR by default (ALEXANDRIA_DATA_DIR overrides)
+├── app/                      code, static/js/, tests/, env/, experiments/, prompts/
+├── scripts/<slug>/           saved books (script, voice config, companions)
+├── uploads/                  staged sources (owned, digest-bound)
+├── voicelines/               rendered chunk audio
+├── take_history/             immutable take snapshots
+├── chapter_exports/          per-chapter exports
+├── reports/                  generated reports
+├── logs/api/                 request log (JSONL)
+├── run_history/, run_chains/ durable run records
+├── evaluation_reviews/       blind LoRA review records
+├── designed_voices/, clone_voices/, lora_models/, builtin_lora/
+├── dataset_builder/, lora_datasets/, preparer_output/
+├── docs/, tools/, codebase-analysis-docs/, ab_test_runtime/
+├── RESULTS_INDEX.md, results_index.csv        ← generated
+└── app/static/i18n/ui.en.json                ← generated
 ```
 
-`ab_test_runtime/experiments/` and `docs/results/` hold measurement artifacts, not runtime state.
+Everything above `app/` is runtime data except the tracked directories
+(`docs/`, `tools/`, `builtin_lora/`, `codebase-analysis-docs/`,
+`ab_test_runtime/`). **`builtin_lora/` is shipped content, not user data** — do not
+prune it.
 
 ### 5.6 Environment variables
 
-| Variable | Effect |
+193 distinct names are referenced in the tree. The ones that change runtime
+behaviour:
+
+| Group | Variables |
 |---|---|
-| `ALEXANDRIA_DATA_DIR` | Move all mutable state; config moves with it (except legacy repo-root placement). |
-| `ALEXANDRIA_HOST` / `ALEXANDRIA_PORT` | Bind address/port (default `127.0.0.1:4200`). |
-| `ALEXANDRIA_AUTH_USERNAME` / `ALEXANDRIA_AUTH_PASSWORD` | Optional HTTP Basic Auth. |
-| `ALEXANDRIA_ALLOWED_ORIGINS` / `ALEXANDRIA_ALLOWED_HOSTS` | Extra origin/host allowlists. |
-| `CORS_ORIGINS` | CORS allowlist (default localhost). |
-| `ALEXANDRIA_LLM_TIMEOUT` | Per-request LLM timeout (default 600 s). |
-| `ALEXANDRIA_ALLOW_CONTENTION` | Allow an experiment to run beside a GPU queue job. |
-| `GPU_LOCK` / `ALEXANDRIA_GPU_LOCK_*` | GPU queue lock path/inherited lease identity. |
-| `ALEXANDRIA_ROCM_PYTHON` / `ALEXANDRIA_PREPARER_PYTHON` / `ALEXANDRIA_SIBLING_PYTHON` | Override Python interpreters for Voice Lab/Preparer/experiments. |
-| `ALEXANDRIA_WHISPER_CPP_*` | Bundled whisper.cpp paths/model. |
-| `ALEXANDRIA_ZIPS_DIR`, `ALEXANDRIA_EPUB_DIRS`, `ALEXANDRIA_PROFILER_MODEL` | Tool-specific inputs. |
-| `ALEXANDRIA_ISOLATED_API_FIXTURE` | Marks the isolated API test fixture. |
-| `ALEXANDRIA_BUILD_COMMIT` / `ALEXANDRIA_RUN_ID` | Build/run identity used by diagnostics. |
+| Server | `ALEXANDRIA_HOST`, `ALEXANDRIA_PORT`, `ALEXANDRIA_DATA_DIR`, `ALEXANDRIA_BUILD_COMMIT`, `ALEXANDRIA_LLM_TIMEOUT`, `ALEXANDRIA_RUN_ID` |
+| Auth & origin | `ALEXANDRIA_AUTH_USERNAME`, `ALEXANDRIA_AUTH_PASSWORD` (enables HTTP Basic), `ALEXANDRIA_ALLOWED_HOSTS`, `ALEXANDRIA_ALLOWED_ORIGINS`, `CORS_ORIGINS` |
+| Interpreters | `ALEXANDRIA_QWEN_PYTHON`, `ALEXANDRIA_ROCM_PYTHON`, `ALEXANDRIA_PREPARER_PYTHON`, `ALEXANDRIA_SIBLING_PYTHON`, `ALEXANDRIA_QWEN_MODEL`, `ALEXANDRIA_PROFILER_MODEL` |
+| ASR | `ALEXANDRIA_WHISPER_CPP_BIN`, `ALEXANDRIA_WHISPER_CPP_MODEL`, `ALEXANDRIA_WHISPER_CPP_CONFIRM_MODEL` |
+| GPU lock | `GPU_LOCK`, `ALEXANDRIA_GPU_LOCK_FD`, `ALEXANDRIA_GPU_LOCK_HELD`, `ALEXANDRIA_GPU_LOCK_PID`, `GPU_PROGRESS_*` |
+| Storage | `ALEXANDRIA_EPUB_DIRS`, `ALEXANDRIA_ZIPS_DIR` |
+| Audiobookshelf | `ALEXANDRIA_ABS_SERVER_URL`, `ALEXANDRIA_ABS_API_KEY` |
+| Model downloads | `HF_TOKEN`, `HF_HUB_OFFLINE`, `HF_HUB_DISABLE_TELEMETRY`, `PYTORCH_CUDA_ALLOC_CONF`, `CMAKE_ARGS` |
+| Tooling | `AA2_PYTHON`, `UV_CONSTRAINT`, `PIP_CONSTRAINT` |
+
+The remaining ~150 are **test fixture hooks** (`FIXTURE_*`, `*_SOURCE`,
+`*_BASELINE*`, `AA2_TEST_*`). They are read by tests to inject failure modes; a
+production run never sets them, and a test that silently depends on one is a flake
+waiting to happen.
 
 ### 5.7 Commands
 
-From `app/` unless noted:
+| Task | Command |
+|---|---|
+| Install | `node install.js` (creates `app/env`, installs requirements) |
+| Run | `node start.js`, or `app/env/bin/python -m uvicorn app.app:app --host 127.0.0.1 --port 7860` from the repo root |
+| Full local gate | `./ready.sh` — regenerates derived files, installs git hooks, runs the verifier |
+| Regenerate derived files only | `tools/regen_derived.sh` |
+| Unit tests | `cd app && env/bin/python -m unittest discover -s tests -p 'test_*.py'` |
+| One test | `cd app && env/bin/python -m unittest tests.test_<module>` |
+| Benchmarks | `routers/benchmark.py` routes, or the workers in `app/benchmark_*` |
 
-```bash
-# Unit suite (CPU)
-python -m unittest discover -s . -p 'test_*.py'
+**`./ready.sh` is not optional.** It regenerates `RESULTS_INDEX.md`,
+`results_index.csv`, the three `ab_test_runtime/audit/*.json` files,
+`LEGACY_ATTRIBUTION_AUDIT_2026-08-05.md`, `app/tests/unit_test_inventory.json` and
+`app/static/i18n/ui.en.json`. A commit that changes module structure, test
+inventory or UI strings without regenerating these fails CI on a generated file,
+not on the code change.
 
-# Live API suite against an isolated disposable server
-python run_isolated_api_tests.py
-python run_isolated_api_tests.py --full   # GPU/LLM required
+### 5.8 Extension recipes
 
-# Contract/inventory checks
-python update_api_contract_snapshots.py --check
-python update_test_inventory.py --check
+**Add an API route.** Declare it in the owning `app/routers/*.py` module with a
+Pydantic request model; do not add it to `app/app.py`. If it mutates state, it is
+covered by the origin gate automatically — do not add an exemption. If it starts
+work, claim admission through `claim_gpu_task`/`reserve_background_task` and
+register in `process_state`.
 
-# Release gates
-python verify_release.py
-python verify_release.py --full
+**Add a frontend module.** Create `app/static/js/app-<feature>.js`, add it to the
+script list in `app/static/index.html`, reuse `api()`/polling from `app-core.js`,
+and add any new UI string through the i18n flow so `ui.en.json` regenerates.
 
-# From repo root: regenerate derived files, verify, stage
-./ready.sh
-```
+**Add a config field.** Add it to the relevant Pydantic model in
+`config_settings.py` with an explicit default and bounds, then read it through the
+model — never by indexing the raw dict.
 
-Other useful commands:
+**Add a persisted state file.** Give it an `atomic_json_write` path, a `file_lock`
+for read-modify-write, and a place in the book journal if it belongs to the active
+book's file set. If it can be rebuilt, say so and let startup rebuild it.
 
-```bash
-# Start the server directly
-cd app && python app.py
+**Add an export artefact.** Plan it in `audio_export_plan.py` terms, stage it
+through `export_staging.py`, verify it with an independent PCM plan, and record a
+quality receipt. Never write directly to the final path.
 
-# Start with the Pinokio allocator (installed app)
-# Use Pinokio's Start button; start.js sets ALEXANDRIA_PORT.
-```
-
-### 5.8 Extension points and safe change recipes
-
-**Add a new API route**
-
-1. Put it in the fitting `app/routers/*.py` (or a new router).
-2. Validate body/path with Pydantic and explicit identity/revision checks.
-3. Resolve/contain paths; bound uploads and JSON sizes.
-4. If it mutates book state, use `ensure_book_state` and the task/resource admission helpers.
-5. If it runs GPU/LLM work, reserve/claim a task and register the worker; do not run blocking work on the event loop.
-6. Add contract/recovery behavior and tests; update `app/api_contract/` snapshots intentionally.
-
-**Add a background task**
-
-1. Add an entry to `process_state` in `app/core.py`.
-2. Classify it in `GPU_TASKS` / `NON_GPU_TASKS` / `LLM_TASKS` if needed.
-3. Use `reserve_background_task` + `register_claimed_background_task` (or the existing helper for the pattern).
-4. Make the worker check cancellation and own its outputs.
-5. Record a run and artifacts if it produces durable outputs.
-6. Add UI status/ETA handling and tests.
-
-**Add an export format**
-
-1. Define an encoding plan with expected frames/rate/channels/container.
-2. Render to staging, validate the encoded output, verify source identity, then atomically publish.
-3. Record a quality receipt and any mastering report.
-4. Add download routes with path containment and stale-output rules.
-5. Add tests for truncation, cancellation, source change, and partial failure.
-
-**Add an attribution prompt variant**
-
-1. Implement a provider in `app/attribution_prompt_variants.py` that changes only the question, not the output contract.
-2. Add it to `VARIANTS` and the config literal.
-3. Ensure index-completeness, source binding, and speaker validation still run.
-4. Measure on a labelled set before making it a default; update `RECIPES.md`.
-5. Keep adapter/prompt coupling explicit.
-
-**Add a voice type**
-
-1. Define the request identity and voice-config fields.
-2. Add resolution in `voice_category`/`voice_config_for_chunk` and the TTS engine.
-3. Enforce local/external support boundaries early.
-4. Include it in generation-input identity, drift, and cast portability decisions.
-5. Add tests for missing/invalid assets and unsupported backends.
+**Add a long task.** Name it, add it to `GPU_TASKS`/`NON_GPU_TASKS`, give it a
+cancel event, a `process_state` entry, progress reporting, a `run_history` record,
+and a recovery story.
 
 ---
 
-## 6. Coverage, assumptions, and open questions
+## 6. Coverage, assumptions and open questions
 
-### 6.1 What this analysis covers
+### 6.1 What this analysis is based on
 
-- Runtime architecture, request/task lifecycle, storage, identity, concurrency, security, packaging.
-- All major feature families and their interactions.
-- The most important invariants and failure modes for code changes.
-- Current counts and doc drift.
+- **Mechanical extraction** of all 352 `app/*.py` modules (docstring, public
+  definitions, local dependencies), all 351 routes, all 45 JS modules, the config
+  models, the env-var names, and the on-disk path constants.
+- **Direct reading** of the cross-cutting modules: `app.py`, `core.py`,
+  `book_state_transaction.py` (structure and journal protocol), `project.py`
+  (generation inputs, chunk selection), `task_ownership.py`,
+  `request_origin.py`, `config_settings.py`, `export_staging*.py` (protocol),
+  and the docstrings of every subsystem boundary module.
+- **Spot verification** of claims in `CLAUDE.md` and the previous version of this
+  document against the tree.
 
-### 6.2 Assumptions (confidence)
+### 6.2 What it does not cover
 
-| Assumption | Confidence | Basis |
-|---|---|---|
-| The checkout is the live Pinokio install, not a clean release tag | High | `AGENTS.md`, directory location, local ignored data present |
-| The committed test inventory is the best current test count | High | `app/tests/unit_test_inventory.json` + CI checker |
-| The README's route/test counts are stale | High | Direct count of decorators/inventory |
-| Measurement claims in `GOALS.md`/`RECIPES.md` are as-reported, not independently reproduced here | High | No live GPU/LLM run performed |
-| `sound_design` delivery integration is incomplete | Medium-high | `docs/sound-design.md` explicitly says foundation/remaining work |
-| Some legacy docs (`CLAUDE.md` line references) lag the code | High | `process_state` moved to `core.py` |
+- **Test bodies.** 1,663 test modules were counted and their names used as
+  evidence of behaviour, not read line by line.
+- **`app/experiments/`** (350 modules). It is research code with its own
+  conventions; it is summarised, not analysed.
+- **`app/static/vendor/`** and third-party model code.
+- **Line-level behaviour of the largest modules** (`three_pass_generate.py`,
+  `review_script.py`, `tts.py`, `book_state_transaction.py`): their protocols and
+  invariants are described, their internals are not.
+- **Runtime behaviour.** No server was started, no book was generated, no export
+  was produced for this document. Everything here is derived from source.
 
-### 6.3 Open questions for the next analyst
+### 6.3 Open questions worth answering before a large change
 
-1. Which exact benchmark artifacts back the current README attribution table, and were they generated from this revision or an earlier one?
-2. Are all 292 `APIRoute` operations in `app/api_contract/routes.json` actually declared by the routers, and are the 7 mounts/4 framework routes intentional?
-3. Does every `process_state` task have a matching cross-process lease, or are any legacy paths still unprotected?
-4. Which sound-design routes are currently reachable from the UI, and which are API-only foundations?
-5. How much of the `ab_test_runtime/` corpus is required for reproduction versus historical evidence?
-6. Are there platform-specific paths (macOS owner, Windows job objects) that lack CI coverage on this branch?
+1. **Where does the single-pass path end and the three-pass path begin?** Both
+   exist and both are maintained; the UI decides, and the checkpoint formats
+   differ. Confirm which one a change targets.
+2. **How many places can publish audio?** `take_publication.py`,
+   `audio_generation_owner.py`, `synthesis_render.py` and export all touch audio
+   publication. Any new writer must use the owner path (§4.5).
+3. **Is `process_state` ever going to become cross-process?** Today leases are the
+   only cross-process truth; a change that assumes otherwise will corrupt state
+   under a second server.
+4. **How is the read-along sidecar versioned across exporter changes?** The
+   sidecar is versioned and frame-bound; a change to trimming or assembly changes
+   its meaning.
+5. **Which generated files does a given change touch?** `./ready.sh --paths`
+   prints the list; check it before committing.
 
-### 6.4 Suggested next steps
+### 6.4 How to re-verify this document
 
-- Run `./ready.sh` and the isolated API suite on a disposable data directory before making behavior changes.
-- Generate an OpenAPI diff after any route change.
-- For concurrency changes, add a multi-process test that exercises startup recovery and conflicting task locks.
-- For export changes, add a truncated/corrupt output test and verify the prior good file survives.
-- For prompt changes, pair the change with a labelled evaluation, not just a unit test.
+```bash
+# counts
+ls app/*.py | wc -l                                  # 352
+grep -c "include_router" app/app.py                  # 19
+ls app/routers/*.py | wc -l                          # 20 (19 + __init__)
+ls app/tests/test_*.py | wc -l                       # 1663
+ls app/static/*.js | wc -l                           # 45
+
+# routes
+grep -rn "@router\." app/routers/*.py | wc -l        # 353 decorators, 351 parsed routes
+
+# admission constants
+grep -n "process_state = \|NON_GPU_TASKS = \|GPU_TASKS = \|def check_global_gpu_lock" app/core.py
+
+# generated files
+tools/regen_derived.sh --paths
+```
+
+If a number here disagrees with the tree, the tree is right — regenerate with the
+extractor rather than editing prose by hand.
 
 ---
 
-## Appendix A — Analysis state block
+## Appendix A — State block
 
-```text
-INDEX_VERSION: 2026-11-20-c91bee0f
-REPO: alexandria-audiobook2
-MODE: read-only architecture/documentation analysis
-FILE_MAP_SUMMARY:
-  app/               304 files at app root (mostly Python modules, prompts, config); 17 routers; 55 static files
-  app/tests/         1,339 inventoried modules, 10,422 test ids
-  app/experiments/   361 measurement/tooling files
-  docs/              230 files (guides, features, results, wiki, audits)
-  root scripts       preparer, batch processor, compare, alignment, zip publication, manifests
-OPEN_QUESTIONS:
-  - benchmark artifact provenance vs current revision
-  - completeness of route contract coverage
-  - legacy task paths without cross-process leases
-  - current scope of sound-design delivery integration
-KNOWN_RISKS:
-  - GPU/task admission and book transaction invariants are easy to bypass
-  - config["llm"] mirror can point at a stale endpoint
-  - prompt/adapter and cast/checkpoint coupling
-  - auth off by default
-GLOSSARY_DELTA:
-  - book token, chunk UID, generation-input identity, receipt, publication
 ```
+INDEX_VERSION: 2026-11-24-a978efa25
+TARGET_SHA: a978efa252e042a16a28e9cabea1a85afc06b9a9
+TARGET_DATE: 2026-11-24
+SUPERSEDES: 2026-11-20-c91bee0f
+app_py_at_root: 352
+app_python_lines: 120389
+routers_py: 20            # 19 routers + __init__.py
+include_router_calls: 19
+routes: 351               # 353 @router. decorators; 2 not parsed as routes
+static_js: 45
+static_files: 77
+test_modules: 1663
+tests_all_py: 1679
+experiments_py: 350
+docs_files: 354
+tools_files: 87
+root_py: 20
+root_js: 10
+env_var_names: 193
+```
+
+Route counts per router (descending): editor 81, script 67, voices 29,
+sound_design 22, lora 21, system 20, voice_design 14, scripts_library 14,
+voice_library 11, pronunciation_panel 11, dataset_builder 11, voicelab 10,
+preparer 7, character_roster 7, speaker_review 6, project_scope 6,
+translated_edition 5, casting 5, benchmark 4.
 
 ## Appendix B — Priority file index
 
-| Priority | Path | Why |
-|---|---|---|
-| 1 | `app/app.py` | App composition/lifespan/middleware/routers |
-| 1 | `app/core.py` | Task/GPU/lock/ETA/process state |
-| 1 | `app/three_pass_generate.py` | Core script pipeline |
-| 1 | `app/project.py` | Chunks, synthesis, merge/export |
-| 1 | `app/tts.py` | Voice recipes and rendering |
-| 1 | `app/book_state_transaction.py` | Crash-safe book switches |
-| 1 | `app/task_ownership.py` | Cross-process admission |
-| 1 | `app/config_settings.py` | Config schema/validation |
-| 1 | `app/llm_provider.py` | LLM transport/failover |
-| 2 | `app/routers/editor.py` | Most user-visible audio/export actions |
-| 2 | `app/routers/script.py` | Upload/generation/review routes |
-| 2 | `app/routers/voices.py` | Voice assignment/personas |
-| 2 | `app/routers/voice_library.py` | Cast reuse |
-| 2 | `app/review_script.py` | Review pipeline |
-| 2 | `app/generate_script.py` | Shared LLM/JSON/source helpers |
-| 2 | `app/export_quality.py` | Export proof |
-| 2 | `app/experiments/gpu_guard.py` | Queue/GPU lock |
-| 2 | `app/static/js/app-core.js` | Frontend state/API/polling |
-| 2 | `app/static/js/app-workbench.js` | Frontend initialization |
-| 3 | `app/synthesis_*.py` | Synthesis recovery/windows |
-| 3 | `app/speech_verification*.py` | ASR verification |
-| 3 | `app/take_*.py` | Take history/restore |
-| 3 | `app/sound_design_*.py` | Sound design |
-| 3 | `app/character_roster*.py` | Identity review |
-| 3 | `app/project_scope*.py` | Scope apply/undo |
-| 3 | `app/lmstudio_settings.py` | LLM status/limits |
-| 3 | `app/run_history.py` | Run records |
-| 3 | `alexandria_preparer_rocm_compatible.py` | Voice dataset pipeline |
-| 4 | `app/benchmark_*.py` | Benchmarks |
-| 4 | `app/train_lora.py` | LoRA training |
-| 4 | `promote_adapters.py` | Adapter promotion |
-| 4 | `alexandria_compare.py`, `alexandria_alignment.py` | Dataset review/alignment |
-| 4 | `docs/README.md` | Documentation map |
-| 4 | `.github/CONTRIBUTING.md` | Test/contribution rules |
-| 4 | `README.md` | Product overview (counts may be stale) |
+| Read first when… | File |
+|---|---|
+| Understanding startup, paths, locks | `app/app.py`, `app/core.py` |
+| Changing anything persisted | `app/book_state_transaction.py`, `app/project.py` |
+| Changing chunk/audio selection | `app/project.py`, `app/take_publication.py`, `app/audio_take_history.py` |
+| Changing admission | `app/core.py` (`claim_gpu_task`, `gpu_lock_conflicts`), `app/task_ownership.py` |
+| Changing the LLM path | `app/lmstudio_settings.py`, `app/llm_provider.py`, `app/generate_script.py`, `app/three_pass_generate.py` |
+| Changing the script/review | `app/review_script.py`, `app/speaker_identity.py`, `app/character_roster*.py` |
+| Changing voices | `app/voice_config_store.py`, `app/voice_library.py`, `app/voice_reference_import.py` |
+| Changing TTS | `app/tts.py`, `app/synthesis_windows.py`, `app/synthesis_recovery*.py` |
+| Changing export | `app/audio_export_plan.py`, `app/export_staging.py`, `app/export_quality.py`, `app/audio_m4b_pcm.py` |
+| Changing read-along | `app/readalong_sidecar.py`, `app/readalong_export.py`, `app/epub_readaloud.py` |
+| Changing the frontend shell | `app/static/index.html`, `app/static/app-core.js` |
+| Changing tests/CI | `ready.sh`, `tools/regen_derived.sh`, `app/tests/` |
 
----
+## Appendix C — Area → file index
 
-## Appendix C — File index (top 50, priority order)
-
-`hash8` is the first 8 hex characters of the file's SHA-256 at revision `c91bee0f`; it changes with edits and is an anchor, not an authenticity claim.
-
-| # | Priority | Path | Type | Lines | hash8 | Notes |
-|---:|---|---|---|---:|---|---|
-| 1 | P1 | `app/app.py` | Python | 232 | `6989f076` | App/middleware/routers/lifespan |
-| 2 | P1 | `app/core.py` | Python | 2333 | `a794fef3` | process_state, GPU/task admission, ETA |
-| 3 | P1 | `app/three_pass_generate.py` | Python | 3994 | `9437085d` | Core three-pass pipeline |
-| 4 | P1 | `app/generate_script.py` | Python | 2633 | `60da16dc` | Shared LLM/JSON/source pipeline |
-| 5 | P1 | `app/review_script.py` | Python | 2028 | `acf4ba77` | Review, labels-only, accounting |
-| 6 | P1 | `app/llm_provider.py` | Python | 689 | `ed6585cf` | Profiles, failover, manual transport |
-| 7 | P1 | `app/lmstudio_settings.py` | Python | 1153 | `85c6b7fe` | LLM status/limits/optimization |
-| 8 | P1 | `app/tts.py` | Python | 3846 | `1d00de82` | TTS engine, voice recipes, timeline |
-| 9 | P1 | `app/project.py` | Python | 3800 | `ee3b5060` | Chunks, synthesis, merge/export |
-| 10 | P1 | `app/config_settings.py` | Python | 455 | `5dafac21` | Config schema/validation |
-| 11 | P1 | `app/task_ownership.py` | Python | 183 | `171085cc` | Cross-process leases |
-| 12 | P1 | `app/book_state_transaction.py` | Python | 304 | `7e1857b5` | Crash-safe book switches |
-| 13 | P2 | `app/run_history.py` | Python | 275 | `be7fdc7f` | Run records/artifacts |
-| 14 | P2 | `app/export_quality.py` | Python | 518 | `339c4ad4` | Export plan/report validation |
-| 15 | P2 | `app/speech_verification.py` | Python | 132 | `1444f8f9` | ASR verification entry |
-| 16 | P2 | `app/take_publication.py` | Python | 257 | `b32d3240` | Take publication admission |
-| 17 | P2 | `app/character_roster.py` | Python | 150 | `dc56c954` | Roster validation |
-| 18 | P2 | `app/speaker_review.py` | Python | 266 | `b32df356` | Speaker-label review core |
-| 19 | P2 | `app/project_scope_apply.py` | Python | 198 | `3d1a0253` | Scope apply/undo |
-| 20 | P2 | `app/sound_design_cues.py` | Python | 302 | `6f9a9eea` | Cue model/validation |
-| 21 | P2 | `app/routers/system.py` | Python | 1164 | `3c1f92c3` | Config/LLM/status routes |
-| 22 | P2 | `app/routers/script.py` | Python | 3073 | `9710394e` | Upload/generation/review routes |
-| 23 | P2 | `app/routers/editor.py` | Python | 1856 | `54313c31` | Audio/export routes |
-| 24 | P2 | `app/routers/voices.py` | Python | 1942 | `a82c9105` | Voice/persona routes |
-| 25 | P2 | `app/routers/voice_library.py` | Python | 644 | `fc15875d` | Cast routes |
-| 26 | P2 | `app/routers/lora.py` | Python | 1481 | `6efec149` | Training/evaluation/promotion routes |
-| 27 | P2 | `app/routers/character_roster.py` | Python | 203 | `33cd62ef` | Roster routes |
-| 28 | P2 | `app/routers/sound_design.py` | Python | 451 | `f4752410` | Sound-design routes |
-| 29 | P2 | `app/routers/voicelab.py` | Python | 975 | `4ef809c0` | Voice Lab routes |
-| 30 | P2 | `app/static/index.html` | HTML | 3800 | `c6e8ac24` | SPA markup/script order |
-| 31 | P2 | `app/static/js/app-core.js` | JavaScript | 8717 | `f865e21e` | Shared frontend state/API/polling |
-| 32 | P2 | `app/static/js/app-workbench.js` | JavaScript | 1484 | `8ed4a192` | Initialization |
-| 33 | P2 | `app/static/js/app-workspace.js` | JavaScript | 280 | `d5778bb6` | Read-only Home readiness |
-| 34 | P2 | `app/api_contract/routes.json` | JSON | 2719 | `eaff198a` | Route contract |
-| 35 | P2 | `app/api_contract/openapi.json` | JSON | 15234 | `fe8d1f6b` | OpenAPI contract |
-| 36 | P2 | `app/tests/unit_test_inventory.json` | JSON | 13088 | `8248cc2d` | Test inventory |
-| 37 | P2 | `alexandria_preparer_rocm_compatible.py` | Python | 3930 | `16996a7d` | Preparer phases |
-| 38 | P2 | `alexandria_batch_processor.py` | Python | 1110 | `ca8c18bb` | Batch preparer |
-| 39 | P2 | `alexandria_compare.py` | Python | 1036 | `19b9507f` | Metadata/source compare |
-| 40 | P2 | `alexandria_alignment.py` | Python | 1315 | `a37d84b8` | Alignment primitives |
-| 41 | P3 | `alexandria_zip_publication.py` | Python | 431 | `5245bfa2` | ZIP family publication |
-| 42 | P3 | `alexandria_run_manifest.py` | Python | 266 | `99e19891` | Preparer run manifest |
-| 43 | P3 | `install.js` | JavaScript | 186 | `784c7f35` | Pinokio install |
-| 44 | P3 | `start.js` | JavaScript | 38 | `be7c45ea` | Pinokio start/port capture |
-| 45 | P3 | `torch.js` | JavaScript | 100 | `0134e631` | Platform torch install |
-| 46 | P3 | `README.md` | Markdown | 1453 | `789d8653` | Product docs (some counts stale) |
-| 47 | P3 | `CLAUDE.md` | Markdown | 683 | `8efb8f59` | Agent/dev rules (some refs lag) |
-| 48 | P3 | `.github/CONTRIBUTING.md` | Markdown | 100 | `450d8314` | Test/PR rules |
-| 49 | P3 | `.github/workflows/tests.yml` | YAML | 177 | `1504157b` | CI shards/windows gates |
-| 50 | P3 | `docs/README.md` | Markdown | 31 | `7aeafad8` | Documentation map |
-
----
-
-*End of codebase knowledge document.*
+| Area | Primary files |
+|---|---|
+| Setup / LLM | `routers/system.py`, `lmstudio_settings.py`, `llm_provider.py`, `config_settings.py` |
+| Ingestion | `routers/script.py`, `epub_package.py`, `epub_publication.py`, `epub_extraction_report.py` |
+| Calibre | `calibre_opds.py`, `calibre_catalog.py`, `calibre_import.py`, `static/js/app-calibre.js` |
+| Generation | `generate_script.py`, `three_pass_generate.py`, `compact_pass1.py`, `pass_quality.py`, `chunk_quality.py` |
+| Review | `review_script.py`, `speaker_identity.py`, `routers/speaker_review.py`, `routers/character_roster.py` |
+| Pronunciation | `pronunciation.py`, `routers/pronunciation_panel.py` |
+| Casts / voices | `voice_config_store.py`, `voice_candidates.py`, `routers/voices.py`, `routers/voice_library.py`, `routers/voice_design.py` |
+| Casting library | `casting_catalog.py`, `casting_tags.py`, `routers/casting.py`, `static/js/app-casting*.js` |
+| Editor / synthesis | `routers/editor.py`, `project.py`, `tts.py`, `audio_generation_owner.py`, `synthesis_*.py` |
+| Verification | `word_timing.py`, `speech_verification*.py`, `voice_drift.py`, `chunk_outliers.py` |
+| Speech text | `speech_numbers.py`, `speech_policy.py`, `speech_text.py`, `speech_retry.py` |
+| Export | `audio_*.py`, `m4b_*.py`, `export_*.py`, `routers/editor.py` |
+| Read-along | `readalong_sidecar.py`, `readalong_export.py`, `epub_readaloud.py`, `qwen_*.py`, `ruby_text.py` |
+| Sound design | `sound_design_*.py`, `routers/sound_design.py` |
+| Delivery | `audiobookshelf_delivery.py`, `static/js/app-audiobookshelf.js` |
+| Translation | `translated_edition.py`, `routers/translated_edition.py` |
+| Project scope | `project_scope_*.py`, `routers/project_scope.py` |
+| Voice Lab | `routers/voicelab.py`, `routers/preparer.py`, `routers/dataset_builder.py`, `routers/lora.py`, `adapter_*.py`, `lora_evidence.py`, `tools/voice_lab/` |
+| Workspace | `routers/scripts_library.py`, `book_workspace.py`, `collection_overview.py`, `run_history.py`, `workspace_guidance.py` |
+| Benchmarks | `benchmark_*.py`, `routers/benchmark.py` |
+| Diagnostics | `diagnostics.py`, `api_logging.py`, `routers/system.py` |
