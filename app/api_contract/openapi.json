@@ -16575,7 +16575,7 @@
     },
     "/api/status": {
       "get": {
-        "description": "Discover registered tasks without serializing logs or live process handles.",
+        "description": "Discover registered tasks without serializing logs or live process handles.\n\n``start_time`` is surfaced per task here, and only for tasks whose entry\nactually carries the key, so a client can tell \"no run started since boot\"\n(present null) apart from \"unknown\" (absent). It is deliberately not added\nto ``get_task_lifecycle``, which other routes spread into richer payloads.",
         "operationId": "get_task_statuses_api_status_get",
         "responses": {
           "200": {

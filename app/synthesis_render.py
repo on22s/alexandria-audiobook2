@@ -127,15 +127,25 @@ def render_synthesis_windows(plan, render, output_path, settings, cancel_check=N
                 if retry_budget is not None:
                     retry_budget.check_active()
                 from audio_validation import publish_audio_output
-                from audio_generation_owner import (AudioGenerationCancelled, get_audio_generation_owner,
+                from audio_generation_owner import (AudioGenerationCancelled, ensure_audio_generation_commit_active,
                                                     ensure_audio_generation_publication)
                 from tts import ExportCancelled
                 try:
                     with ensure_audio_generation_publication():
                         if retry_budget is not None:
                             retry_budget.check_deadline()
-                        checker = None if get_audio_generation_owner() is not None else cancel_check
-                        if not publish_audio_output(assembled, output, cancel_check=checker):
+                        def publish_check():
+                            # Compose every independent signal at the final
+                            # publisher: the live exact owner, the caller's
+                            # predicate (owned or not) and the retry deadline.
+                            ensure_audio_generation_commit_active()
+                            if retry_budget is not None:
+                                retry_budget.check_deadline()
+                            from audio_generation_owner import AudioGenerationOwner, get_audio_generation_owner
+                            owner = get_audio_generation_owner()
+                            if owner is None or type(owner) is AudioGenerationOwner:
+                                ensure_audio_export_active(cancel_check)
+                        if not publish_audio_output(assembled, output, cancel_check=publish_check):
                             raise ExportCancelled('Internal recovery publication cancelled')
                 except AudioGenerationCancelled as error:
                     raise ExportCancelled('Internal recovery publication cancelled') from error

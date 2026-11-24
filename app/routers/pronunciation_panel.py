@@ -305,7 +305,9 @@ def validate_occurrence_edit(rules, row):
 def get_occurrence_response(request, row, rules, revision, projection, settings_source):
     return {'book_token': request.expected_book_token, 'uid': row['uid'], 'index': request.index,
             'revision': revision, 'rules': rules, 'coordinate_space': pronunciation.OCCURRENCE_COORDINATE_SPACE,
-            'offset_unit': 'unicode_codepoint', 'context': projection['context'],
+            'offset_unit': 'unicode_codepoint',
+            'context': {key: value for key, value in projection['context'].items()
+                        if key != 'voice_sha256_legacy'},
             'context_source': settings_source,
             'preview': {'text': projection['text'],
                         'decisions': projection.get('pronunciation_decisions', [])}}

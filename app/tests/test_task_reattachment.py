@@ -38,6 +38,37 @@ class TaskDiscoveryTests(unittest.TestCase):
             self.assertEqual(before,states)
             self.assertEqual(404,client.get('/api/status/missing').status_code)
 
+    def test_status_snapshot_surfaces_start_time_only_when_the_entry_has_it(self):
+        states={'review':{'running':False,'status':'idle','start_time':200.0,
+                          'logs':['private log'],'pid':1234,'process':object()},
+                'script':{'running':False,'status':'idle','start_time':None,'logs':[]},
+                'persona':{'running':False,'logs':['private persona log']},
+                'future_task':{'running':False}}
+        app=FastAPI();app.include_router(script.router)
+        with patch.object(script,'process_state',states),TestClient(app) as client:
+            res=client.get('/api/status')
+            self.assertEqual(200,res.status_code,res.text)
+            body=res.json()
+            self.assertEqual(200.0,body['review']['start_time'])
+            self.assertIn('start_time',body['script'])
+            self.assertIsNone(body['script']['start_time'])
+            self.assertNotIn('start_time',body['persona'])
+            self.assertNotIn('start_time',body['future_task'])
+            for entry in body.values():
+                self.assertNotIn('logs',entry)
+                self.assertNotIn('pid',entry)
+                self.assertNotIn('process',entry)
+
+    def test_status_snapshot_matches_registry_start_time_keys(self):
+        app=FastAPI();app.include_router(script.router)
+        with TestClient(app) as client:
+            body=client.get('/api/status').json()
+        for name,state in core.process_state.items():
+            if 'start_time' in state:
+                self.assertIn('start_time',body[name],name)
+            else:
+                self.assertNotIn('start_time',body[name],name)
+
 
 SOURCE=Path(__file__).resolve().parent.parent/'static/js/app-workbench.js'
 HARNESS=r"""
@@ -47,9 +78,18 @@ const helperStart=source.indexOf('        function reattachTaskActivity(');
 const dispatcherStart=source.indexOf('        async function reattachRunningPollers()');
 const code=source.slice(helperStart>=0?helperStart:dispatcherStart,source.indexOf('        // Init',dispatcherStart));
 const elements={},calls=[],warnings=[],requests=[];
-function el(id){return elements[id]||(elements[id]={disabled:false,style:{display:'none'},innerText:''});}
+function el(id){return elements[id]||(elements[id]={disabled:false,style:{display:'none'},title:'',_text:'',children:[],attributes:{},
+ get innerText(){return this.children.length?this.children.map(child=>child.textContent).join(''):this._text;},
+ set innerText(value){this.children=[];this._text=String(value);},
+ get textContent(){return this.innerText;},
+ set textContent(value){this.innerText=value;},
+ appendChild(child){this.children.push(child);return child;},
+ replaceChildren(...nodes){this.children=nodes;this._text='';},
+ setAttribute(name,value){this.attributes[name]=value;},
+ getAttribute(name){return Object.hasOwn(this.attributes,name)?this.attributes[name]:null;},
+ removeAttribute(name){delete this.attributes[name];}});}
 let statuses={};
-const ctx={document:{getElementById:el},console,showToast:(message,type)=>warnings.push([message,type]),
+const ctx={document:{getElementById:el,createTextNode:text=>({textContent:String(text)})},console,showToast:(message,type)=>warnings.push([message,type]),
  API:{get:async path=>{requests.push(path);return path==='/api/status'?statuses:{logs:['last log'],running:false,...(statuses[path.split('/').at(-1)]||{})};}},
  _pollScriptBatchLogs:()=>calls.push('batch_script'),scriptBatchPoller:null,
  pollScriptLogs:(task,done)=>calls.push(task),loadReviewBatchScripts:async()=>{},pollReviewBatch:()=>calls.push('batch_review'),
@@ -60,6 +100,7 @@ const ctx={document:{getElementById:el},console,showToast:(message,type)=>warnin
  pollExport:task=>calls.push(task),dsbLoadProjects:async name=>calls.push('dataset_builder:'+name),loadVoices:async()=>{},loadDesignedVoices:async()=>{},refreshLmStudioStatus:async()=>{},loadChunks:async()=>{},notifyJobDone:()=>{},
   attachEditorOutlierCheck:()=>calls.push('outlier_check'),
   t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),
+  createUiMessageNode:(tag,key,english)=>({tag,key,english,textContent:ctx.t(key,english)}),
   escapeHtml:value=>String(value),
   _startPolling:(key,fetch,options)=>{ctx.poll={key,fetch,options};calls.push(key);}};
 vm.createContext(ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function getTaskOwnershipMessage('),coreSource.indexOf('function renderActivity(')),ctx);vm.runInContext(coreSource.slice(coreSource.indexOf('function showActionError('),coreSource.indexOf('function showConfirm(')),ctx);const claimStart=coreSource.indexOf('const taskStartButtons =');vm.runInContext(coreSource.slice(claimStart,coreSource.indexOf('// --- API Helpers ---',claimStart)),ctx);vm.runInContext(code,ctx);

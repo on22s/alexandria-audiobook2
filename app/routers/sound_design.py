@@ -17,6 +17,7 @@ from sound_design_uploads import import_sound_asset_upload
 from upload_operation import await_upload_operation
 from audio_generation_owner import AudioGenerationCancelled
 from audio_validation import GeneratedAudioError
+from project_scope_exports import ExportRecoveryPending
 from tts import ExportCancelled
 from json_metadata import get_metadata_json_bytes
 from sound_design_edit import (MAX_CUE_REQUEST_BYTES, CueRequestError,
@@ -265,6 +266,12 @@ async def _dispatch_sound_candidate(request, operation, *, busy_conflicts=False)
         raise
     except SoundDeliveryIntegrityRequired as error:
         raise HTTPException(409,detail=error.report) from None
+    except ExportRecoveryPending:
+        # The previous delivery is durably fenced for the next book admission;
+        # report a recoverable pending state, never a bare Internal Server
+        # Error, and keep filesystem details in diagnostics (R11).
+        raise HTTPException(
+            409, 'Sound delivery is pending recovery; reload the book before retrying.') from None
     except (ValueError,OSError,TimeoutError,subprocess.SubprocessError,GeneratedAudioError):
         raise HTTPException(409,'Sound candidate is stale, busy or unavailable. Refresh before retrying.') from None
     finally:

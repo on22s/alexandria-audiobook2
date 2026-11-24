@@ -2,7 +2,7 @@
 import copy
 
 from audio_generation_owner import (ensure_audio_generation_active,ensure_audio_generation_book,
-    is_audio_generation_cancelled)
+    ensure_audio_generation_commit_active,is_audio_generation_cancelled)
 from speech_verification import verify_finished_speech
 from speech_verification_receipt import (get_current_speech_verification_receipt,
     get_speech_verification_receipt)
@@ -67,7 +67,8 @@ def recheck_editor_speech(manager,index,request,primary_runtime,confirmation_run
             raise ValueError('The selected audio changed before the check could be saved.')
         updated=manager._update_chunk_fields_by_uid(chunk['uid'],expected_chunk=chunk,
             expected_fields={key:chunk.get(key) for key in ('audio_path','audio_revision',
-                'speech_verification','speech_verification_recheck')},**fields)
+                'speech_verification','speech_verification_recheck')},
+            before_update=ensure_audio_generation_commit_active,**fields)
         if updated is None:
             raise ValueError('The selected line, input or take changed. Refresh Editor.')
     return {'receipt':receipt,'report':report,'book_token':request.expected_book_token,'uid':chunk['uid']}

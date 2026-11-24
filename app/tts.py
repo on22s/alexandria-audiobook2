@@ -470,6 +470,23 @@ VOICE_RENDER_IDENTITY_FIELDS = ("type", "voice", "character_style", "default_sty
 VOICE_PRONUNCIATION_EXCLUSIONS = frozenset(("character_style", "default_style", "seed"))
 
 
+def get_voice_render_identity(config, *, canonical=True):
+    """The render-affecting fields of one voice entry, per backend (Rule 15).
+
+    Only VoiceDesign turns `description` into speech instructions; custom,
+    clone, LoRA and ensemble renders never receive it. Replacing an inert
+    description with None keeps a cosmetic edit from reinterpreting finished
+    audio, pronunciation scope or a saved take. `canonical=False` rebuilds the
+    pre-#2170 projection verbatim, which existing scoped rules were written
+    with; only that compatibility path may ask for it.
+    """
+    identity = {field: copy.deepcopy((config or {}).get(field))
+                for field in VOICE_RENDER_IDENTITY_FIELDS}
+    if canonical and voice_category(config) != "design":
+        identity["description"] = None
+    return identity
+
+
 NARRATOR_SPELLINGS = ("NARRATOR", "Narrator")
 
 
@@ -705,7 +722,7 @@ def get_chunk_render_voice_selection(voices, speaker, chunk, index):
     raise VoiceAliasResolutionError(f"Alias chain for '{speaker}' exceeded 16 iterations")
 
 
-def get_chunk_voice_inputs(voices, chunk, index, resolve_alias=None):
+def get_chunk_voice_inputs(voices, chunk, index, resolve_alias=None, *, canonical=True):
     """Read effective inputs with the selected root first, then member voices.
 
     Only the root ensemble's members are read; a member that is itself an
@@ -714,7 +731,6 @@ def get_chunk_voice_inputs(voices, chunk, index, resolve_alias=None):
     """
     resolve_alias = resolve_alias or get_resolved_speaker
     speaker, effective, _ = get_chunk_render_voice_selection(voices, chunk.get("speaker"), chunk, index)
-    fields = VOICE_RENDER_IDENTITY_FIELDS
     inputs, pending, seen = {}, [(speaker, False)], set()
     while pending:
         name, is_member = pending.pop(0)
@@ -726,24 +742,33 @@ def get_chunk_voice_inputs(voices, chunk, index, resolve_alias=None):
             continue
         config = effective.get(name)
         config = config if isinstance(config, dict) else {}
-        inputs[name] = {field: copy.deepcopy(config.get(field)) for field in fields}
+        inputs[name] = get_voice_render_identity(config, canonical=canonical)
         if not is_member and voice_category(config) == "ensemble":
             pending.extend((member, True) for member in get_ensemble_member_names(config)
                            if isinstance(member, str))
     return inputs
 
 
-def get_pronunciation_render_context(voices, chunk, index, model_settings, *, source_speaker=None):
-    """Identify the selected root/group assignment and actual speech mode."""
-    inputs = get_chunk_voice_inputs(voices, chunk, index)
+def _get_pronunciation_voice_sha256(voices, chunk, index, *, canonical):
+    inputs = get_chunk_voice_inputs(voices, chunk, index, canonical=canonical)
     identity = {name: {key: value for key, value in fields.items()
                         if key not in VOICE_PRONUNCIATION_EXCLUSIONS}
                  for name, fields in inputs.items()}
     encoded = json.dumps(identity, sort_keys=True, ensure_ascii=False,
                          separators=(",", ":"), allow_nan=False).encode("utf-8", errors="surrogatepass")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def get_pronunciation_render_context(voices, chunk, index, model_settings, *, source_speaker=None):
+    """Identify the selected root/group assignment and actual speech mode."""
+    voice_sha256 = _get_pronunciation_voice_sha256(voices, chunk, index, canonical=True)
     context = {"speaker": chunk.get("speaker") if source_speaker is None else source_speaker,
-               "voice_sha256": hashlib.sha256(encoded).hexdigest(),
+               "voice_sha256": voice_sha256,
                **get_pronunciation_model_context(model_settings)}
+    legacy_sha256 = _get_pronunciation_voice_sha256(voices, chunk, index, canonical=False)
+    if legacy_sha256 != voice_sha256:
+        # Rules approved before #2170 were scoped with the raw description.
+        context["voice_sha256_legacy"] = legacy_sha256
     return {key: value if isinstance(value, str) and len(value) <= 256 else None
             for key, value in context.items()}
 

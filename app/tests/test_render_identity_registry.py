@@ -126,11 +126,13 @@ class TakeReceiptProjectionTests(unittest.TestCase):
         self.assertEqual(get_chunk_voice_inputs(VOICES, CHUNK, 0), {'ALICE': {
             'type': 'custom', 'voice': 'Ryan', 'character_style': 'calm',
             'default_style': None, 'seed': 1, 'ref_audio': 'a.wav',
-            'ref_text': None, 'description': 'd', 'adapter_id': None,
+            'ref_text': None, 'description': None, 'adapter_id': None,
             'adapter_path': None, 'adapter_generation_sha256': None,
             'members': None}})
         context = get_pronunciation_render_context(VOICES, CHUNK, 0, MODEL)
         self.assertEqual(context['voice_sha256'],
+                         'cac0dafc97460292e85233ccc8f50e0eb2ce7a1ba0f07c339e3f626b0a67a3ca')
+        self.assertEqual(context['voice_sha256_legacy'],
                          '0f33d037204696344599ef2245bb658c35d039b9f616dbdee88e93361861c973')
         self.assertEqual(get_recovery_digest({**VOICES['ALICE'], 'seed': 1}),
                          '6eb0dbb95cdb884d56656542f7b71508f1811ec123cb97f47e83462455f697c6')
