@@ -1800,10 +1800,7 @@ class InputSelectionDateOrderTests(BookProtocolCases, unittest.TestCase):
         return root, source
 
     def selection_state(self, root):
-        state = json.loads((Path(root) / 'state.json').read_text())
-        return {key: state.get(key) for key in (
-            'active_book_id', 'input_file_path', 'speech_date_order',
-            'script_selection_pending')}
+        return json.loads((Path(root) / 'state.json').read_text())
 
     def test_same_source_reselection_keeps_the_recorded_date_order(self):
         for order in ('dmy', 'mdy', None):
@@ -1901,10 +1898,24 @@ books.apply_book_input_selection(root,root+'/uploads/source.txt','source')
             live_root, _live_source = self.published_book(live_tmp)
             books.apply_book_input_selection(
                 str(live_root), str(live_root / 'uploads' / 'source.txt'), 'source')
-            keys = ('speech_date_order', 'script_selection_pending')
-            self.assertEqual({key: self.selection_state(live_root)[key] for key in keys},
-                             {key: self.selection_state(root)[key] for key in keys})
-            self.assertEqual('dmy', self.selection_state(root)['speech_date_order'])
+            # Compare the WHOLE replayed state with the direct path, not just
+            # the date-order keys. Only two fields may legitimately differ
+            # between two separate runs: `book_generation` is a fresh uuid per
+            # selection, and `input_file_path` embeds the run's data-dir path.
+            replayed = self.selection_state(root)
+            direct = self.selection_state(live_root)
+            allowed = {'book_generation', 'input_file_path'}
+            self.assertEqual(set(direct), set(replayed),
+                             'replay wrote a different set of state keys')
+            self.assertEqual(allowed,
+                             {key for key in replayed if replayed[key] != direct[key]},
+                             'replay diverged beyond the per-run fields')
+            # Pin the date order absolutely as well. If the shared selection
+            # path regresses and pops the order, both sides lose it and the
+            # replay-vs-direct comparison above would still hold, so the
+            # absolute value is what catches a regression in the writer.
+            self.assertEqual('dmy', replayed['speech_date_order'])
+            self.assertNotIn('script_selection_pending', replayed)
 
 
 class SavedBookTransactionHttpTests(unittest.TestCase):
