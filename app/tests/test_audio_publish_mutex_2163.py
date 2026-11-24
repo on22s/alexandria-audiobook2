@@ -15,6 +15,7 @@ from pathlib import Path
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from types import SimpleNamespace
 import types
@@ -1392,6 +1393,156 @@ class AudioPublishMutex2163Tests(unittest.TestCase):
             self.assertEqual(['successor'], states['audio']['logs'])
             self.assertEqual(before[0]['audio_revision'],
                              manager.load_chunks()[0]['audio_revision'])
+
+    def _book_owner(self, control, claim='a' * 32):
+        from audio_generation_owner import AudioGenerationOwner
+
+        def admit(*, allow_cancelled=False):
+            if (control.get('claim', claim) != claim
+                    or (control.get('cancel') and not allow_cancelled)):
+                raise AudioGenerationCancelled()
+            return nullcontext()
+        return AudioGenerationOwner(claim, admit)
+
+    def _start_book_holder(self, root, started, release):
+        from book_state_transaction import ensure_book_state
+
+        def hold():
+            with ensure_book_state(root):
+                started.set()
+                self.assertTrue(release.wait(10))
+        worker = threading.Thread(target=hold, daemon=True)
+        worker.start()
+        self.assertTrue(started.wait(5))
+        return worker
+
+    def _assert_owned_book_outwait(self, seconds, *, cancel=None, replace=None):
+        from audio_generation_owner import (ensure_audio_generation_book,
+                                            ensure_audio_generation_owner)
+        with self.fixture() as (root, manager, before, states):
+            control = {'cancel': False}
+            owner = self._book_owner(control)
+            started, release = threading.Event(), threading.Event()
+            holder = self._start_book_holder(root, started, release)
+            try:
+                def mutate():
+                    self.assertTrue(started.wait(5))
+                    time.sleep(.1)
+                    if cancel:
+                        control['cancel'] = True
+                    else:
+                        control['claim'] = 'b' * 32
+                worker = None
+                if cancel or replace:
+                    worker = threading.Thread(target=mutate, daemon=True)
+                    worker.start()
+                began = time.monotonic()
+                with ensure_audio_generation_owner(owner):
+                    with self.assertRaises(AudioGenerationCancelled):
+                        with ensure_audio_generation_book(root, timeout=.05):
+                            self.fail('A stopped or replaced owner was admitted')
+                waited = time.monotonic() - began
+                if worker is not None:
+                    worker.join(5)
+            finally:
+                release.set()
+                holder.join(5)
+            self.assertFalse(holder.is_alive())
+            self.assertLess(waited, seconds)
+
+    def test_owned_publisher_outwaits_book_holder_past_try_lock_bound(self):
+        # N1: an owned publisher formerly queued unbounded on the task mutex.
+        # It must still wait past the old try-lock bound for the book instead of
+        # discarding a finished export.
+        from audio_generation_owner import (ensure_audio_generation_book,
+                                            ensure_audio_generation_owner)
+        with self.fixture() as (root, manager, before, states):
+            owner = self._book_owner({'cancel': False})
+            started, release = threading.Event(), threading.Event()
+            holder = self._start_book_holder(root, started, release)
+            timer = threading.Timer(.3, release.set)
+            timer.start()
+            try:
+                began = time.monotonic()
+                with ensure_audio_generation_owner(owner):
+                    with ensure_audio_generation_book(root, timeout=.05):
+                        waited = time.monotonic() - began
+            finally:
+                release.set()
+                holder.join(5)
+                timer.cancel()
+            self.assertFalse(holder.is_alive())
+            self.assertGreaterEqual(waited, .2)
+
+    def test_cancel_during_owned_book_wait_refuses_promptly(self):
+        self._assert_owned_book_outwait(.9, cancel=True)
+
+    def test_replaced_claim_during_owned_book_wait_refuses(self):
+        self._assert_owned_book_outwait(.9, replace=True)
+
+    def test_book_switch_during_owned_book_wait_refuses(self):
+        from audio_generation_owner import (ensure_audio_generation_book,
+                                            ensure_audio_generation_owner)
+        import book_state_transaction
+        with self.fixture() as (root, manager, before, states):
+            owner = self._book_owner({'cancel': False})
+            started, release = threading.Event(), threading.Event()
+            holder = self._start_book_holder(root, started, release)
+            real = book_state_transaction.get_book_operation_identity
+            reads = []
+
+            def observe(path):
+                value = real(path)
+                if not reads:
+                    reads.append(value)
+                    (root / 'state.json').write_text(json.dumps({
+                        'active_book_id': 'other-book', 'book_generation': 'second'}))
+                return value
+            started_at = time.monotonic()
+            try:
+                with patch.object(book_state_transaction,
+                                  'get_book_operation_identity', observe):
+                    with ensure_audio_generation_owner(owner):
+                        with self.assertRaisesRegex(ValueError, 'changed'):
+                            with ensure_audio_generation_book(root, timeout=.3):
+                                self.fail('A changed book selection was admitted')
+                waited = time.monotonic() - started_at
+            finally:
+                release.set()
+                holder.join(5)
+            self.assertTrue(reads)
+            self.assertFalse(holder.is_alive())
+            self.assertLess(waited, .9)
+
+    def test_superseded_chapter_worker_cannot_overwrite_successor(self):
+        # N2/F08-chapter: a replaced chapter claim must not publish its result,
+        # logs, running bit or cleared cancel over the successor's live state.
+        with self.fixture() as (root, manager, before, states):
+            successor = 'b' * 32
+
+            def export_chapters(*args, **kwargs):
+                with core._gpu_lock:
+                    core._task_claims['chapter_export'] = {
+                        'id': successor, 'phase': 'started'}
+                    states['chapter_export'].update(
+                        status='running', error=None, cancel=True, running=True,
+                        logs=['successor'], result={'status': 'running'})
+                return True, 'synthetic chapter export'
+
+            async def exercise():
+                tasks = BackgroundTasks()
+                response = await editor.export_chapters(
+                    editor.ChapterExportRequest(format='wav'), tasks)
+                await tasks()
+                return response
+            with patch.object(manager, 'export_chapters', side_effect=export_chapters):
+                response = asyncio.run(exercise())
+            self.assertEqual({'status': 'started'}, response)
+            self.assertEqual('b' * 32, core._task_claims['chapter_export']['id'])
+            self.assertEqual({'status': 'running'}, states['chapter_export']['result'])
+            self.assertEqual(['successor'], states['chapter_export']['logs'])
+            self.assertTrue(states['chapter_export']['running'])
+            self.assertTrue(states['chapter_export']['cancel'])
 
 
 def _run_speech_lock_schedule():

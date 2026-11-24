@@ -148,64 +148,111 @@ def ensure_audio_generation_claim_current():
         validate()
 
 
+# Backstop only: a user cancel, claim replacement or book switch ends an
+# owned wait first. Observed publication holds were 56-65 s for 100 files
+# under load (review of #2163), so this leaves an order of magnitude.
+_OWNED_BOOK_WAIT_SECONDS = 600.0
+_BOOK_WAIT_RETRY_SECONDS = .01
+_BOOK_CHANGED_DETAIL = 'Book or Editor selection changed while waiting to publish audio.'
+
+
+def _get_book_identity(root):
+    from book_state_transaction import get_book_operation_identity
+    return get_book_operation_identity(root)
+
+
 @contextmanager
-def ensure_audio_generation_book(root, *, timeout=10):
+def ensure_audio_book_admission(root, *, timeout=10, recover=True, cancel_check=None,
+                                hold_publication=False, reuse=False):
+    """Admit the book under one audio-owner wait policy.
+
+    Owned publishers used to queue on the task mutex, unbounded, before trying
+    the book. With that mutex released, the queueing moved to the book try-lock,
+    so a chapter publication longer than the old bound would discard an already
+    finished export. An owned waiter therefore retries until admitted, until its
+    exact owner stops or is replaced (re-checked on every retry), until the
+    selected book generation changes, or until the owned backstop expires.
+    Unowned callers keep the historical single bounded admission.
+
+    No lock is held while waiting. ``cancel_check`` is an independent caller
+    predicate (for example an export's request event) and is polled without a
+    lock. ``hold_publication`` keeps the exact-owner lease for the body
+    (publishers); otherwise the owner is only re-checked before each attempt.
+    ``reuse`` accepts this thread's live book scope instead of taking it again.
+    """
+    from book_state_transaction import ensure_book_state, reuse_book_state
+
+    def admit_book(wait):
+        if reuse:
+            return reuse_book_state(root, timeout=wait)
+        return ensure_book_state(root, timeout=wait, recover=recover)
+
+    if _owner.get() is None:
+        with admit_book(timeout) as admitted:
+            yield admitted
+        return
+    deadline = time.monotonic() + max(timeout, _OWNED_BOOK_WAIT_SECONDS)
+    book = _get_book_identity(root)
+    while True:
+        if cancel_check is not None and cancel_check():
+            raise AudioGenerationCancelled()
+        with ExitStack() as stack:
+            if hold_publication:
+                stack.enter_context(ensure_audio_generation_publication())
+            else:
+                ensure_audio_generation_active()
+            try:
+                stack.enter_context(admit_book(0))
+            except TimeoutError:
+                pass
+            else:
+                if _get_book_identity(root) != book:
+                    raise ValueError(_BOOK_CHANGED_DETAIL)
+                yield
+                return
+        if _get_book_identity(root) != book:
+            raise ValueError(_BOOK_CHANGED_DETAIL)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('Could not admit audio publication to the active book.')
+        time.sleep(min(_BOOK_WAIT_RETRY_SECONDS, remaining))
+
+
+@contextmanager
+def ensure_audio_generation_book(root, *, timeout=10, cancel_check=None):
     """Admit owner and book without waiting for a book while holding the owner.
 
     Script admission takes the book before its task mutex. A failed try-lock
     must release our owner mutex before retrying so that admission can finish.
+    Owned publishers may outwait a long book publication; see
+    ``ensure_audio_book_admission``.
     """
-    from book_state_transaction import ensure_book_state
-    deadline = time.monotonic() + timeout
-    while True:
-        with ExitStack() as stack:
-            stack.enter_context(ensure_audio_generation_publication())
-            try:
-                stack.enter_context(ensure_book_state(root, timeout=0))
-            except TimeoutError:
-                pass
-            else:
-                yield
-                return
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise TimeoutError('Could not admit audio publication to the active book.')
-        time.sleep(min(.01, remaining))
+    with ensure_audio_book_admission(root, timeout=timeout, cancel_check=cancel_check,
+                                     hold_publication=True):
+        yield
 
 
 @contextmanager
-def reuse_audio_generation_book(root, *, timeout=10):
+def reuse_audio_generation_book(root, *, timeout=10, cancel_check=None):
     """Explicit parent publication inside a retention-owned book scope."""
     from book_state_transaction import is_book_state_admitted, reuse_book_state
     if is_book_state_admitted(root):
         with ensure_audio_generation_publication(), reuse_book_state(root):
             yield
     else:
-        with ensure_audio_generation_book(root, timeout=timeout):
+        with ensure_audio_generation_book(root, timeout=timeout, cancel_check=cancel_check):
             yield
 
 
 @contextmanager
-def ensure_audio_generation_book_work(root, *, timeout=10):
+def ensure_audio_generation_book_work(root, *, timeout=10, cancel_check=None):
     """Keep book identity stable for cancellable work, without an owner mutex.
 
     Renew exact owner admission before parent publication. Contending publishers
     use a book try-lock so a book holder can poll cancellation without deadlock.
     """
-    from book_state_transaction import reuse_book_state
-    deadline = time.monotonic() + timeout
-    with ExitStack() as stack:
-        while True:
-            ensure_audio_generation_active()
-            try:
-                stack.enter_context(reuse_book_state(root, timeout=0))
-            except TimeoutError:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise
-                time.sleep(min(.01, remaining))
-            else:
-                break
+    with ensure_audio_book_admission(root, timeout=timeout, reuse=True,
+                                     cancel_check=cancel_check):
         ensure_audio_generation_active()
         yield
 

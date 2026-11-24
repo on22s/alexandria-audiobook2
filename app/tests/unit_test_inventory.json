@@ -937,8 +937,10 @@
   ]
   , "test_audio_publish_mutex_2163": [
     "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_all_native_replace_call_sites_thread_commit_validation"
+    , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_book_switch_during_owned_book_wait_refuses"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_cancel_after_precommit_io_but_at_output_admission_refuses_swap"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_cancel_before_commit_refuses_publication"
+    , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_cancel_during_owned_book_wait_refuses_promptly"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_cleanup_revalidates_claim_under_chunk_lock"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_commit_check_does_not_reenter_owner_or_task_mutex"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_commit_check_without_validation_is_a_no_op_for_direct_callers"
@@ -957,10 +959,12 @@
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_mp3_merge_threads_commit_check_into_native_replace"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_native_replace_wiring_gate_rejects_inert_validators"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_no_task_scope_holds_the_global_mutex_across_publication"
+    , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_owned_publisher_outwaits_book_holder_past_try_lock_bound"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_owned_window_synthesis_cancel_refuses_parent_wav"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_owner_binding_oracle_rejects_admission_only_binding"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_refused_audio_reservation_restores_prior_lifecycle"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_registered_validation_runs_after_fsync_before_rename"
+    , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_replaced_claim_during_owned_book_wait_refuses"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_replacement_after_precommit_io_but_at_output_admission_refuses_swap"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_request_cancel_vetoes_sound_approval_swap"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_set_forward_move_revalidates_after_inner_preparation"
@@ -970,6 +974,7 @@
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_speech_recheck_and_editor_publish_do_not_invert_locks"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_speech_recheck_cancel_before_receipt_preserves_prior"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_stale_claim_before_commit_refuses_publication"
+    , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_superseded_chapter_worker_cannot_overwrite_successor"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_unrelated_admission_does_not_block_during_publication_io"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_windows_fallback_validates_after_lstat_before_native_replace"
   ]
@@ -2977,6 +2982,7 @@
     , "tests.test_chapter_export.DeferredExportCancelTests.test_cancel_between_claim_and_merge_worker_preserves_audio_artifacts"
     , "tests.test_chapter_export.DeferredExportCancelTests.test_new_merge_and_chapter_runs_still_clear_previous_run_cancel_and_export"
     , "tests.test_chapter_export.ExportChaptersTests.test_cancel_during_publication_restores_old_files_or_removes_new_files"
+    , "tests.test_chapter_export.ExportChaptersTests.test_cancel_with_incomplete_rollback_reports_pending_recovery"
     , "tests.test_chapter_export.ExportChaptersTests.test_changed_pause_defaults_rebuild_actual_audio_and_then_reuse_it"
     , "tests.test_chapter_export.ExportChaptersTests.test_duplicate_template_refuses_before_it_can_write_over_a_chapter"
     , "tests.test_chapter_export.ExportChaptersTests.test_failed_rollback_preserves_backups_and_reports_their_location"
@@ -10860,6 +10866,7 @@
     "tests.test_project_scope_exports.ScopeExportTests.test_export_inventory_row_limit_historical_reader"
     , "tests.test_project_scope_exports.ScopeExportTests.test_export_inventory_row_limit_pure_compatibility"
     , "tests.test_project_scope_exports.ScopeExportTests.test_malformed_export_proof_refuses_historical_and_current_readers"
+    , "tests.test_project_scope_exports.ScopeExportTests.test_pending_set_member_reader_names_pending_recovery"
     , "tests.test_project_scope_exports.ScopeExportTests.test_preserved_mp3_and_chapters_are_fenced_until_their_file_identity_changes"
   ]
   , "test_project_scope_failures": [
@@ -11851,6 +11858,7 @@
     , "tests.test_readalong_r4.R4FrameTruthTests.test_mixed_rate_channel_width_bounds_exact_to_plan"
     , "tests.test_readalong_r4.R4FrameTruthTests.test_mp3_decode_within_codec_delay_tolerance"
     , "tests.test_readalong_r4.R4FrameTruthTests.test_non_integer_ms_lengths_exact"
+    , "tests.test_readalong_r4.R4PublicationTests.test_cancel_with_incomplete_rollback_reports_pending_recovery"
     , "tests.test_readalong_r4.R4PublicationTests.test_cancellation_between_publications_rolls_back"
     , "tests.test_readalong_r4.R4PublicationTests.test_directory_first_target_preserves_directory_and_stage"
     , "tests.test_readalong_r4.R4PublicationTests.test_directory_later_target_rolls_back_earlier_regular_file"

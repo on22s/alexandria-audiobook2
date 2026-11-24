@@ -1050,19 +1050,23 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-23T22:08:10",
+  "written": "2026-11-24T05:59:09",
   "host": "mitch-linux",
   "git": {
-   "commit": "bb1993d57785d5cffbbffe8b0ec90d2a17253797",
-   "branch": "t3/repair-2163-r11-findings",
+   "commit": "9f4cb2ae126d725c95ffe714da1b995264b8a78e",
+   "branch": "HEAD",
    "dirty": true,
-   "source_state": "dirty:38e553b02080",
+   "source_state": "dirty:2b14170da8da",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/routers/editor.py",
-    "M  app/tests/test_editor_worker_io.py",
-    "M  app/tests/unit_test_inventory.json",
-    "M  app/tests/windows_only_skip_baseline.txt"
+    "M  app/audio_generation_owner.py",
+    "M  app/export_publication.py",
+    "M  app/sound_design_delivery.py",
+    "M  app/tests/test_audio_publish_mutex_2163.py",
+    "M  app/tests/test_chapter_export.py",
+    "M  app/tests/test_project_scope_exports.py",
+    "M  app/tests/test_readalong_r4.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",

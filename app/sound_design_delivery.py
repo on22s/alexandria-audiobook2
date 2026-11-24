@@ -5,9 +5,8 @@ import json
 import os
 from pathlib import Path
 
-from audio_generation_owner import (AudioGenerationCancelled,
+from audio_generation_owner import (AudioGenerationCancelled, ensure_audio_book_admission,
                                     ensure_audio_generation_commit_active)
-from book_state_transaction import ensure_book_state
 from export_file_io import replace_export_output
 from merge_integrity import get_source_integrity, is_source_integrity_admitted
 from sound_design_approval import (ensure_approved_sound_candidate, get_sound_delivery_options,
@@ -121,7 +120,7 @@ def ensure_sound_delivery_stage(manager, stage_name, candidate_revision, approva
         # Compare the exact rows bound by the publication snapshot, using the
         # ordinary Editor comparison and confirmation policy. Mix approval is
         # never a substitute for reviewing differences from source prose.
-        with ensure_book_state(root):
+        with ensure_audio_book_admission(root, cancel_check=cancel_check):
             state = safe_load_json(root / 'state.json', {})
             try:
                 script_bytes = Path(manager.script_path).read_bytes()
