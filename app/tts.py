@@ -265,8 +265,10 @@ def active_character_style(voice_data, chunk_index=None):
     style = (data.get("character_style") or data.get("default_style") or "").strip()
     if chunk_index is None:
         return style
+    timeline = data.get("style_timeline")
     points = [(get_style_timeline_index(point), point)
-              for point in data.get("style_timeline") or [] if isinstance(point, dict)]
+              for point in (timeline if isinstance(timeline, (list, tuple)) else [])
+              if isinstance(point, dict)]
     for index, point in sorted(points, key=lambda item: item[0]):
         if index <= chunk_index:
             style = (point.get("character_style") or "").strip()
@@ -285,7 +287,8 @@ def get_version_fields(voice_data, version_id):
     """-> the fields one of a character's voice versions puts over its entry,
     or None when the version does not exist. One overlay for the whole-book
     select route and the per-chunk version timeline (Rule 15)."""
-    version = ((voice_data or {}).get("versions") or {}).get(version_id)
+    versions = (voice_data or {}).get("versions")
+    version = versions.get(version_id) if isinstance(versions, dict) else None
     if not isinstance(version, dict):
         return None
     return {key: value for key, value in version.items() if key not in VERSION_OVERLAY_EXCLUDED}
@@ -304,8 +307,10 @@ def active_version_id(voice_data, chunk_index):
     if chunk_index is None:
         return None
     current = None
+    timeline = (voice_data or {}).get("version_timeline")
     points = [(get_style_timeline_index(point), point)
-              for point in (voice_data or {}).get("version_timeline") or [] if isinstance(point, dict)]
+              for point in (timeline if isinstance(timeline, (list, tuple)) else [])
+              if isinstance(point, dict)]
     for index, point in sorted(points, key=lambda item: item[0]):
         if index <= chunk_index:
             current = point.get("version_id")
@@ -313,6 +318,10 @@ def active_version_id(voice_data, chunk_index):
 
 
 def get_voice_alias(entry):
+    # A persisted non-object entry is malformed data, not an alias; readers
+    # (including the narrator fallback) treat it as "none" instead of raising.
+    if not isinstance(entry, dict):
+        return None
     alias = entry.get("alias_of") or entry.get("alias")
     return alias if isinstance(alias, str) and alias.strip() else None
 
@@ -532,6 +541,10 @@ def get_row_narrator_selection(voice_config, chunk, chunk_index):
     spelling = get_configured_narrator_spelling(voice_config)
     if spelling is None:
         return None
+    if not isinstance((voice_config or {}).get(spelling), dict):
+        # A persisted non-object spelling is an unavailable fallback, never a
+        # fatal error for a row that merely reaches a sibling (#2170 N1).
+        return None
     chain = voice_config_for_chunk(voice_config, spelling, chunk_index)
     if get_effective_saved_alias(chain, spelling, chunk_index) is not None:
         target = get_resolved_speaker(spelling, chain)
@@ -546,6 +559,27 @@ def get_row_narrator_selection(voice_config, chunk, chunk_index):
     target = get_resolved_speaker(spelling, materialized)
     selected = materialized.get(target) if isinstance(materialized, dict) else None
     return (target, selected, materialized) if isinstance(selected, dict) else None
+
+
+def _fallback_ensemble_nests_itself(selection, name, root_speaker, voice_config):
+    """Whether materializing this ensemble onto `name` would nest it in itself.
+
+    A saved ensemble whose members include the spelling being replaced, or the
+    row's root (including through an alias), cannot be the fallback for that
+    spelling: dispatch would resolve the member back to this ensemble and
+    refuse a nested ensemble. Keeping the spelling's own saved voice keeps a
+    base-playable row renderable (#2170 N2).
+    """
+    replaced = {name, root_speaker}
+    for member in get_ensemble_member_names(selection):
+        if member in replaced:
+            return True
+        try:
+            if get_resolved_speaker(member, voice_config) in replaced:
+                return True
+        except VoiceAliasResolutionError:
+            continue
+    return False
 
 
 def resolve_row_narrators(voices, effective, speaker, chunk, chunk_index, root_speaker=None):
@@ -597,9 +631,13 @@ def resolve_row_narrators(voices, effective, speaker, chunk, chunk_index, root_s
             continue
         if not isinstance(selection, dict):
             continue
-        if member.get(name) and voice_category(selection) == "ensemble":
-            # Keep a flat cast playable: turning a member into the fallback's
-            # ensemble would be a rejected nested ensemble.
+        if voice_category(selection) == "ensemble" and (
+                member.get(name)
+                or _fallback_ensemble_nests_itself(
+                    selection, name, root_speaker, resolved)):
+            # Keep a flat cast playable: turning a member, or the replaced
+            # spelling itself, into the fallback's ensemble would be a rejected
+            # nested ensemble (#2170 R6/N2).
             continue
         if resolved is effective:
             resolved = dict(effective)
@@ -641,7 +679,14 @@ def get_chunk_render_voice_selection(voices, speaker, chunk, index):
     for _ in range(16):
         if name in aliases:
             raise VoiceAliasResolutionError(f"Alias cycle detected for speaker '{speaker}'")
-        saved_alias = get_voice_alias(voices.get(name) or {})
+        entry = voices.get(name)
+        if is_narrator_name(name) and entry and not isinstance(entry, dict):
+            # A malformed narrator entry that this row actually renders is a
+            # row-scoped error; a sibling-only fallback resolves it as "no
+            # selection" in get_row_narrator_selection (#2170 N1).
+            raise VoiceAliasResolutionError(
+                f"Voice configuration for speaker '{name}' is malformed")
+        saved_alias = get_voice_alias(entry or {})
         selected = voices if saved_alias else resolve_narrator_voice_config(name, voices, chunk)
         effective = voice_config_for_chunk(selected, name, index)
         effective, reached = resolve_row_narrators(
@@ -680,7 +725,8 @@ def get_chunk_voice_inputs(voices, chunk, index, resolve_alias=None):
         name = resolve_alias(name, effective)
         if name in inputs:
             continue
-        config = effective.get(name) or {}
+        config = effective.get(name)
+        config = config if isinstance(config, dict) else {}
         inputs[name] = {field: copy.deepcopy(config.get(field)) for field in fields}
         if not is_member and voice_category(config) == "ensemble":
             pending.extend((member, True) for member in get_ensemble_member_names(config)
@@ -858,7 +904,7 @@ def voice_category(voice_data):
     the membership test isn't duplicated at every call site. Returns one of
     "clone", "lora", "design", "ensemble", or "custom".
     """
-    voice_type = (voice_data or {}).get("type", "custom")
+    voice_type = voice_data.get("type", "custom") if isinstance(voice_data, dict) else "custom"
     if voice_type == "clone":
         return "clone"
     if voice_type in ("lora", "builtin_lora"):
@@ -879,12 +925,21 @@ def resolve_narrator_voice_config(speaker, voice_config, chunk=None):
     if str(speaker or "").upper() != "NARRATOR":
         return voice_config
     narrator = voice_config.get("NARRATOR") or voice_config.get("Narrator") or {}
+    if not isinstance(narrator, dict):
+        # A malformed optional strategy is "no override", not an error for an
+        # unrelated row; the reached root spelling is rejected earlier (#2170 N1).
+        return voice_config
     strategy = narrator.get("narrator_strategy", "global")
+    if not isinstance(strategy, str):
+        strategy = "global"
+    versions = narrator.get("versions")
+    if not isinstance(versions, dict):
+        versions = {}
     chunk = chunk or {}
     selected = None
     if strategy in {"focus", "character", "character_gender", "character_age", "character_gender_age"}:
         focus = chunk.get("focus_speaker") or chunk.get("character_focus")
-        focus_voice = voice_config.get(focus) if focus and focus in voice_config else None
+        focus_voice = voice_config.get(focus) if isinstance(focus, str) and focus in voice_config else None
         if isinstance(focus_voice, dict):
             wanted_gender = chunk.get("narrator_gender") or chunk.get("focus_gender")
             wanted_age = chunk.get("narrator_age_group") or chunk.get("focus_age_group")
@@ -894,7 +949,7 @@ def resolve_narrator_voice_config(speaker, voice_config, chunk=None):
                 selected = focus_voice
     elif strategy == "chapter":
         version_id = chunk.get("narrator_version") or chunk.get("chapter_narrator_version")
-        selected = (narrator.get("versions") or {}).get(version_id) if version_id else None
+        selected = versions.get(version_id) if isinstance(version_id, str) and version_id else None
         if selected is None:
             selected = narrator
     elif strategy not in {"gender", "age", "gender_age"}:
@@ -902,7 +957,7 @@ def resolve_narrator_voice_config(speaker, voice_config, chunk=None):
     if selected is None and strategy in {"gender", "age", "gender_age"}:
         wanted_gender = chunk.get("narrator_gender") or chunk.get("focus_gender")
         wanted_age = chunk.get("narrator_age_group") or chunk.get("focus_age_group")
-        for version in (narrator.get("versions") or {}).values():
+        for version in versions.values():
             if not isinstance(version, dict):
                 continue
             gender_ok = strategy == "age" or not wanted_gender or version.get("gender") == wanted_gender

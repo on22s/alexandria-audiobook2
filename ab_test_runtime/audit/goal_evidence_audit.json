@@ -1050,16 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-23T22:12:42",
+  "written": "2026-11-24T07:00:05",
   "host": "mitch-linux",
   "git": {
-   "commit": "dcf1b7fe5dda424d8b7bf52fd9da8f89d030b7e0",
-   "branch": "t3/narrator-ensemble-v8",
+   "commit": "bdc9258f0cea6c571c29b8576559fe868814c62c",
+   "branch": "HEAD",
    "dirty": true,
-   "source_state": "dirty:c4260061578d",
+   "source_state": "dirty:4c1615c41beb",
    "source_state_detail": null,
    "modified_tracked_files": [
+    "M  app/routers/editor.py",
+    "M  app/routers/pronunciation_panel.py",
     "M  app/tests/test_narrator_ensemble_member.py",
+    "M  app/tests/test_pronunciation_panel.py",
     "M  app/tests/unit_test_inventory.json",
     "M  app/tts.py"
    ],

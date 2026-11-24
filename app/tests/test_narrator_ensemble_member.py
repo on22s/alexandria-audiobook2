@@ -1899,5 +1899,170 @@ class NarratorEnsembleMemberTests(unittest.TestCase):
                     self.assertEqual(group[0], solo[0],
                                      'Member spelling without an entry lost the row context')
 
+    def test_malformed_configured_narrator_is_an_unavailable_fallback(self):
+        """N1: every saved-config read is fuzzed with wrong types.
+
+        A sibling row that only reaches 'Narrator' must not abort on a
+        malformed configured 'NARRATOR', and the healthy member keeps its own
+        voice. Each row of the table is one persisted field shape.
+        """
+        from tts import get_chunk_render_voice_selection, get_chunk_voice_inputs
+
+        healthy = dict(type='custom', voice='Aiden', seed=7)
+        shapes = {
+            'scalar_int': (5, {}),
+            'scalar_str': ('old', {}),
+            'scalar_bool': (True, {}),
+            'list': (['x'], {}),
+            'null': (None, {}),
+            'empty_str': ('', {}),
+            'dict': ({'x': 1}, {}),
+            'strategy_int': ({**healthy, 'narrator_strategy': 7}, {}),
+            'strategy_bool': ({**healthy, 'narrator_strategy': True}, {}),
+            'strategy_list': ({**healthy, 'narrator_strategy': ['focus']}, {}),
+            'strategy_dict': ({**healthy, 'narrator_strategy': {'x': 1}}, {}),
+            'strategy_null': ({**healthy, 'narrator_strategy': None}, {}),
+            'versions_int': ({**healthy, 'narrator_strategy': 'chapter', 'versions': 5},
+                             {'narrator_version': 'V'}),
+            'versions_list': ({**healthy, 'narrator_strategy': 'chapter', 'versions': ['x']},
+                              {'narrator_version': 'V'}),
+            'versions_str': ({**healthy, 'narrator_strategy': 'chapter', 'versions': 'x'},
+                             {'narrator_version': 'V'}),
+            'gender_versions_list': ({**healthy, 'narrator_strategy': 'gender',
+                                      'versions': ['x']}, {'narrator_gender': 'male'}),
+            'versions_dict_bad': ({**healthy, 'narrator_strategy': 'chapter',
+                                   'versions': {'V': 'x'}}, {'narrator_version': 'V'}),
+            'versions_dict_nested': ({**healthy, 'narrator_strategy': 'chapter',
+                                      'versions': {'V': ['x']}}, {'narrator_version': 'V'}),
+            'nested_strategy': ({**healthy, 'narrator_strategy': {'x': ['y']}}, {}),
+            'focus_list': ({**healthy, 'narrator_strategy': 'focus'},
+                           {'focus_speaker': ['Y']}),
+            'focus_dict': ({**healthy, 'narrator_strategy': 'focus'},
+                           {'focus_speaker': {'Y': 1}}),
+            'focus_nested': ({**healthy, 'narrator_strategy': 'focus'},
+                             {'focus_speaker': {'x': ['y']}}),
+            'alias_int': ({**healthy, 'alias_of': 5}, {}),
+            'alias_list': ({**healthy, 'alias_of': ['Narrator']}, {}),
+            'alias_dict': ({**healthy, 'alias_of': {'a': 1}}, {}),
+            'alias_bool': ({**healthy, 'alias_of': True}, {}),
+            'members_int': ({**healthy, 'type': 'ensemble', 'members': 5}, {}),
+            'members_list_bad': ({**healthy, 'type': 'ensemble', 'members': [5, 'Narrator']}, {}),
+            'members_str': ({**healthy, 'type': 'ensemble', 'members': 'Narrator'}, {}),
+            'members_dict': ({**healthy, 'type': 'ensemble', 'members': {'Narrator': 1}}, {}),
+            'members_nested': ({**healthy, 'type': 'ensemble',
+                                'members': {'Narrator': {'x': ['y']}}}, {}),
+            'version_timeline_int': ({**healthy, 'version_timeline': 5}, {}),
+            'version_timeline_bool': ({**healthy, 'version_timeline': True}, {}),
+            'version_timeline_str': ({**healthy, 'version_timeline': 'V'}, {}),
+            'version_timeline_dict': ({**healthy, 'version_timeline': {'a': 1}}, {}),
+            'version_timeline_bad_points': ({**healthy, 'version_timeline': [5, None, 'x']}, {}),
+            'style_timeline_int': ({**healthy, 'style_timeline': 5}, {}),
+        }
+        for label, (narrator, extra) in shapes.items():
+            with self.subTest(label=label):
+                voices = {'NARRATOR': narrator, 'Narrator': dict(healthy),
+                          'READER': {'alias_of': 'Narrator'},
+                          'GROUP': {'type': 'ensemble', 'members': ['READER']},
+                          'Y': dict(type='custom', voice='Serena', seed=13)}
+                row = {'speaker': 'GROUP', 'text': 'Line.', 'index': 0, **extra}
+                canonical, resolved, _ = get_chunk_render_voice_selection(
+                    voices, 'GROUP', row, 0)
+                self.assertEqual('GROUP', canonical)
+                self.assertEqual({'GROUP', 'Narrator'},
+                                 set(get_chunk_voice_inputs(voices, row, 0)))
+                self.assertEqual(('Aiden', 7), (resolved['Narrator']['voice'],
+                                                resolved['Narrator']['seed']))
+
+    def test_malformed_configured_narrator_spares_healthy_rows_and_saves(self):
+        """N1: a malformed fallback cannot strand a batch or 500 an unrelated save."""
+        from contextlib import nullcontext
+        for grouped in (True, False):
+            owner = nullcontext() if grouped else self.case.owner()
+            with self.subTest(grouped=grouped), self.case.fixture() as (root, manager, _, _), owner:
+                voices = {'NARRATOR': 'old',
+                          'Narrator': dict(type='custom', voice='Aiden', seed=7),
+                          'READER': {'alias_of': 'Narrator'},
+                          'GROUP': {'type': 'ensemble', 'members': ['READER']},
+                          'Y': dict(type='custom', voice='Serena', seed=13)}
+                manager.save_chunks([
+                    dict(uid='group', index=0, speaker='GROUP', text='Group line.', status='pending'),
+                    dict(uid='good', index=1, speaker='Y', text='Healthy line.', status='pending')])
+                Path(manager.voice_config_path).write_text(json.dumps(voices))
+                (root / 'annotated_script.json').write_text(
+                    json.dumps([{'speaker': key} for key in voices]))
+                calls = []
+                engine = self._synthetic_engine(manager, calls)
+                with patch.object(manager, 'get_engine', return_value=engine):
+                    result = self._generate_batch(manager, grouped, [0, 1])
+                self.assertEqual([0, 1], sorted(result['completed']), result)
+                self.assertEqual([], result['failed'])
+                self.assertEqual(['done', 'done'],
+                                 [row['status'] for row in manager.load_chunks()])
+                with self.routed(root, manager, Path(manager.voice_config_path)):
+                    self.request('/api/voices/Y/versions', version_id='inactive',
+                                 config=dict(type='custom', voice='Vivian', seed=23))
+
+    def test_malformed_configured_narrator_reached_by_its_own_row_errors_there(self):
+        """N1: a malformed entry the row actually renders fails that row only."""
+        from contextlib import nullcontext
+        for grouped in (True, False):
+            owner = nullcontext() if grouped else self.case.owner()
+            with self.subTest(grouped=grouped), self.case.fixture() as (root, manager, _, _), owner:
+                voices = {'NARRATOR': 5,
+                          'Y': dict(type='custom', voice='Serena', seed=13)}
+                manager.save_chunks([
+                    dict(uid='narr', index=0, speaker='NARRATOR', text='Narration.', status='pending'),
+                    dict(uid='good', index=1, speaker='Y', text='Healthy.', status='pending')])
+                Path(manager.voice_config_path).write_text(json.dumps(voices))
+                (root / 'annotated_script.json').write_text(
+                    json.dumps([{'speaker': key} for key in voices]))
+                calls = []
+                engine = self._synthetic_engine(manager, calls)
+                with patch.object(manager, 'get_engine', return_value=engine):
+                    result = self._generate_batch(manager, grouped, [0, 1])
+                self.assertEqual([1], result['completed'], result)
+                self.assertEqual([0], [index for index, _ in result['failed']], result)
+                self.assertEqual(('error', 'done'),
+                                 tuple(row['status'] for row in manager.load_chunks()))
+
+    def test_self_referential_fallback_ensemble_keeps_own_voice(self):
+        """N2: an ensemble listing the replaced spelling must not nest itself."""
+        from tts import get_chunk_render_voice_selection, voice_category
+
+        voices = {'NARRATOR': {'alias_of': 'K'},
+                  'Narrator': dict(type='custom', voice='Ryan', seed=42),
+                  'K': {'type': 'ensemble', 'members': ['Narrator']},
+                  'READER': {'alias_of': 'Narrator'},
+                  'Y': dict(type='custom', voice='Serena', seed=13)}
+        for speaker in ('Narrator', 'READER'):
+            with self.subTest(speaker=speaker):
+                row = {'speaker': speaker, 'text': 'Line.', 'index': 0}
+                canonical, resolved, _ = get_chunk_render_voice_selection(
+                    voices, speaker, row, 0)
+                self.assertEqual('custom', voice_category(resolved.get('Narrator')),
+                                 'The fallback replaced the spelling with its own ensemble')
+                self.assertEqual(('Ryan', 42), (resolved['Narrator']['voice'],
+                                                resolved['Narrator']['seed']))
+
+    def test_export_readiness_uses_the_generation_row_seam(self):
+        """N3: export readiness agrees with a renderable dynamic narrator member."""
+        from routers import editor as editor_routes
+
+        with self.case.fixture() as (root, manager, _, _):
+            voices = {'NARRATOR': dict(type='custom', voice='Ryan', seed=42,
+                                       narrator_strategy='gender', ready=True,
+                                       versions={'M': dict(type='custom', voice='Aiden',
+                                                           seed=7, gender='male', ready=True)}),
+                      'GROUP': {'type': 'ensemble', 'members': ['Narrator'], 'ready': True},
+                      'Y': dict(type='custom', voice='Serena', seed=13, ready=True)}
+            rows = [{'speaker': 'GROUP', 'text': 'Line.', 'index': 0,
+                     'uid': 'a', 'narrator_gender': 'male'}]
+            Path(manager.voice_config_path).write_text(json.dumps(voices))
+            (root / 'annotated_script.json').write_text(json.dumps(rows))
+            with patch.multiple(editor_routes,
+                                SCRIPT_PATH=str(root / 'annotated_script.json'),
+                                DATA_DIR=str(root)):
+                self.assertEqual([], editor_routes.get_unready_export_speakers(rows))
+
 if __name__ == '__main__':
     unittest.main()
