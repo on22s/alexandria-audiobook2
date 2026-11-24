@@ -179,6 +179,36 @@ class IncrementalCastTests(unittest.TestCase):
                 usage = json.loads(out.read_text(encoding='utf8'))['provenance']['usage']
                 self.assertEqual({'prompt_tokens': 20, 'completion_tokens': None if missing else 10}, usage)
 
+    def test_no_choices_reply_is_refused_without_publishing(self):
+        """Both callers catch RuntimeError: a provider returning no choices must
+        land in that path, not escape as an IndexError traceback (#2276)."""
+        class NoChoices:
+            def __init__(self):
+                self.calls = 0
+                self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+            def create(self, **kwargs):
+                self.calls += 1
+                return SimpleNamespace(choices=[], usage=None)
+
+        for extra in (['--incremental'], []):
+            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as directory:
+                source, out = Path(directory) / 'book.txt', Path(directory) / 'cast.json'
+                source.write_text('Synthetic dialogue.', encoding='utf8')
+                out.write_bytes(b'previous complete cast')
+                client = NoChoices()
+                output = io.StringIO()
+                with patch('config_settings.load_app_config', return_value={}), \
+                     patch('lmstudio_settings.get_active_llm_config',
+                           return_value={'model_name': 'fixture'}), \
+                     patch('llm_provider.make_run_client', return_value=client), \
+                     contextlib.redirect_stdout(output):
+                    code = cast_list.main([str(source), '--out', str(out), *extra])
+                self.assertEqual(1, code)
+                self.assertEqual(b'previous complete cast', out.read_bytes())
+                self.assertIn('no choices', output.getvalue())
+                self.assertEqual(1, client.calls)
+
     def test_interrupted_finish_reasons_preserve_previous_complete_cast(self):
         for reason in ('content_filter', None, 'tool_calls'):
             with self.subTest(reason=reason), tempfile.TemporaryDirectory() as directory:

@@ -218,6 +218,18 @@ class RequestCastTests(unittest.TestCase):
             request_cast(client, "m", "text", 8000)
         self.assertEqual(1, client.calls)
 
+    def test_a_reply_with_no_choices_raises_a_handled_error_not_index_error(self):
+        client = _ScriptedClient([SimpleNamespace(choices=[]), _reply(_GOOD, "stop")])
+        with self.assertRaisesRegex(RuntimeError, "no choices"):
+            request_cast(client, "m", "text", 8000)
+        self.assertEqual(1, client.calls)
+
+    def test_a_reply_with_no_content_is_refused_not_crashed(self):
+        client = _ScriptedClient([_reply(None, "stop")])
+        with self.assertRaises(ValueError):
+            request_cast(client, "m", "text", 8000)
+        self.assertEqual(1, client.calls)
+
     def test_the_old_path_could_not_tell_a_loop_from_an_answer(self):
         # Guards the fixture: without the finish_reason check the looped text fails only as an
         # opaque JSON error, which is the failure this change replaces.

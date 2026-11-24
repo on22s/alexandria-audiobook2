@@ -109,10 +109,17 @@ def request_cast_list(client, model, text, max_tokens, max_attempts=MAX_ATTEMPTS
                          "reduce source characters/output tokens or use a larger context")
     for attempt in range(1, max_attempts + 1):
         r = client.chat.completions.create(model=model, temperature=0, **request)
-        if r.choices[0].finish_reason != "length":
-            if require_stop and r.choices[0].finish_reason != "stop":
-                raise ValueError(f"Cast window did not complete (finish_reason={r.choices[0].finish_reason!r})")
-            return parse_cast_list(r.choices[0].message.content), r, attempt
+        choices = getattr(r, "choices", None) or []
+        if not choices:
+            # A provider can answer with no choices at all; indexing it would
+            # crash with an unhandled IndexError instead of the refuse-and-keep-
+            # the-previous-cast path both callers already implement. It is not a
+            # length truncation, so the existing policy raises at once (#2276).
+            raise RuntimeError("cast list call returned no choices")
+        if choices[0].finish_reason != "length":
+            if require_stop and choices[0].finish_reason != "stop":
+                raise ValueError(f"Cast window did not complete (finish_reason={choices[0].finish_reason!r})")
+            return parse_cast_list(choices[0].message.content), r, attempt
         print(f"attempt {attempt}/{max_attempts}: reply hit max_tokens={max_tokens}; discarded",
               file=sys.stderr)
     raise RuntimeError(f"cast list truncated at max_tokens={max_tokens} on all {max_attempts} "

@@ -1050,21 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T13:47:03",
+  "written": "2026-11-24T13:51:13",
   "host": "mitch-linux",
   "git": {
-   "commit": "a978efa252e042a16a28e9cabea1a85afc06b9a9",
+   "commit": "fcedd5790426ec440e4ae39687d5a6935487569f",
    "branch": "fix/audit-tts-2271",
    "dirty": true,
-   "source_state": "dirty:d7aa650a8d74",
+   "source_state": "dirty:af77e0a3d9e3",
    "source_state_detail": null,
    "modified_tracked_files": [
-    " M app/cast_list.py",
-    "M  app/routers/script.py",
-    "A  app/tests/test_batch_script_worker_failure.py",
-    " M app/tests/test_incremental_cast.py",
-    " M app/tests/test_three_pass_cast.py",
-    " M app/tests/unit_test_inventory.json"
+    "M  app/cast_list.py",
+    "M  app/tests/test_incremental_cast.py",
+    "M  app/tests/test_three_pass_cast.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",
