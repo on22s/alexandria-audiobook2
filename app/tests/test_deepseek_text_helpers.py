@@ -73,22 +73,63 @@ class DeepSeekTextHelperTests(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertIsNone(extract_json_object(value))
 
-    def test_unclosed_brace_run_does_not_rescan_from_every_open_brace(self):
-        text = '{' * 2000
-        with patch.object(utils_module, 'extract_balanced',
-                          wraps=utils_module.extract_balanced) as balanced:
+    def test_brace_storms_are_refused_within_the_work_budget(self):
+        # Work (characters examined) is bounded, not wall-clock and not a
+        # candidate cap, so a reply of stray braces cannot rescan the tail
+        # from every earlier brace. A small explicit budget keeps this fast;
+        # the constant is sized for real replies separately.
+        budget = 200_000
+        for text in ('{' * 100000,
+                     '{' * 10000 + '}',
+                     '{' * 2000 + '}' * 2000):
+            with self.subTest(length=len(text)):
+                result, work = utils_module._extract_json_object_with_work(
+                    text, budget)
+                self.assertIsNone(result)
+                self.assertLessEqual(work, budget + len(text))
+
+    def test_unclosed_brace_run_does_not_scan_the_tail_even_once(self):
+        # With no closing brace anywhere, nothing can balance; the rfind skips
+        # all candidates and no scan is attempted.
+        with patch.object(utils_module, '_scan_balanced',
+                          wraps=utils_module._scan_balanced) as scan:
+            self.assertIsNone(extract_json_object('{' * 100000))
+        scan.assert_not_called()
+
+    def test_recursion_error_refuses_without_rescanning_from_each_brace(self):
+        text = '{"a":' * 5000 + '1' + '}' * 5000
+        with patch.object(utils_module, '_scan_balanced',
+                          wraps=utils_module._scan_balanced) as scan:
             self.assertIsNone(extract_json_object(text))
-        self.assertLessEqual(balanced.call_count, 1)
+        scan.assert_not_called()
+
+    def test_recursion_error_in_a_candidate_span_refuses_the_whole_reply(self):
+        # A deep junk object must not be skipped over to return a later,
+        # shallower object (or a truncated inner one): the reply is refused.
+        text = 'prefix ' + '{"a":' * 5000 + '1' + '}' * 5000 + ' {"ok": 1}'
+        with patch.object(utils_module, '_scan_balanced',
+                          wraps=utils_module._scan_balanced) as scan:
+            self.assertIsNone(extract_json_object(text))
+        self.assertEqual(1, scan.call_count)
 
     def test_valid_object_after_more_than_64_stray_open_braces_is_found(self):
         text = '{' * 100 + ' prior text {"ok": 1}'
         self.assertEqual({'ok': 1}, extract_json_object(text))
 
-    def test_deeply_nested_json_shapes_do_not_escape_recursion_error(self):
+    def test_valid_object_after_strays_in_a_large_reply_matches_the_reference(self):
+        # 200 strays in a ~20 KB reply is below the real work budget, so the
+        # answer must be exactly what the unbounded reference returns.
+        text = '{' * 200 + 'x' * 20000 + ' {"ok": 1}'
+        result, work = utils_module._extract_json_object_with_work(
+            text, utils_module.EXTRACT_JSON_OBJECT_WORK_BUDGET)
+        self.assertEqual({'ok': 1}, result)
+        self.assertLessEqual(work, utils_module.EXTRACT_JSON_OBJECT_WORK_BUDGET)
+        self.assertEqual(reference_extract_json_object(text), result)
+
+    def test_deeply_nested_json_shapes_are_refused_not_partially_parsed(self):
         self.assertIsNone(extract_json_object('[' * 5000 + ']' * 5000))
         self.assertIsNone(extract_json_object('[' * 5000 + ']' * 4999))
-        nested = extract_json_object('{"a":' * 5000 + '1' + '}' * 5000)
-        self.assertIsInstance(nested, dict)
+        self.assertIsNone(extract_json_object('{"a":' * 5000 + '1' + '}' * 5000))
 
     def test_faster_scan_matches_the_reference_on_randomized_text(self):
         rng = random.Random(20261124)

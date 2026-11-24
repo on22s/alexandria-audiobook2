@@ -201,6 +201,61 @@ def is_path_inside(path: str, base_dir: str) -> bool:
 
 # --- Balanced-bracket text extraction ---
 
+# Characters examined by the fallback brace scan plus characters handed to
+# json.loads before extract_json_object gives up on a reply. A normal reply
+# stays far below this; the budget only refuses pathological brace storms
+# whose repeated full-length rescans would already cost a second or more
+# (measured at roughly 1.5e7 characters/second of Python scan). It is a work
+# bound rather than a candidate cap, so a real object behind thousands of
+# stray braced spans is still found while the total work stays below it.
+EXTRACT_JSON_OBJECT_WORK_BUDGET = 20_000_000
+
+
+def _scan_balanced(text, open_char, close_char, search_from=0):
+    """Return (balanced_span_or_None, characters_examined).
+
+    Same escape-aware matching as extract_balanced; the extra count is the
+    text inspected by the find and the depth loop, so a caller can bound the
+    total work of repeated rescans without timing a wall clock.
+    """
+    start = text.find(open_char, search_from)
+    if start == -1:
+        return None, len(text) - search_from
+
+    examined = start - search_from
+    depth = 0
+    in_string = False
+    escape_next = False
+
+    for i in range(start, len(text)):
+        examined += 1
+        ch = text[i]
+
+        if escape_next:
+            escape_next = False
+            continue
+
+        if ch == '\\':
+            if in_string:
+                escape_next = True
+            continue
+
+        if ch == '"':
+            in_string = not in_string
+            continue
+
+        if in_string:
+            continue
+
+        if ch == open_char:
+            depth += 1
+        elif ch == close_char:
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1], examined
+    return None, examined
+
+
 def extract_balanced(text, open_char, close_char, search_from=0):
     """Find the first `open_char ... close_char`-balanced span in `text`
     starting the search at or after `search_from`, tracking string-escaping
@@ -226,40 +281,8 @@ def extract_balanced(text, open_char, close_char, search_from=0):
     semantics, so a stray unescaped backslash in malformed LLM output
     outside a string no longer causes a real closing bracket to be missed.
     """
-    start = text.find(open_char, search_from)
-    if start == -1:
-        return None
-
-    depth = 0
-    in_string = False
-    escape_next = False
-
-    for i in range(start, len(text)):
-        ch = text[i]
-
-        if escape_next:
-            escape_next = False
-            continue
-
-        if ch == '\\':
-            if in_string:
-                escape_next = True
-            continue
-
-        if ch == '"':
-            in_string = not in_string
-            continue
-
-        if in_string:
-            continue
-
-        if ch == open_char:
-            depth += 1
-        elif ch == close_char:
-            depth -= 1
-            if depth == 0:
-                return text[start:i + 1]
-    return None
+    span, _ = _scan_balanced(text, open_char, close_char, search_from)
+    return span
 
 
 def extract_json_object(text):
@@ -275,34 +298,59 @@ def extract_json_object(text):
     matches cleanly but isn't JSON. If a candidate span fails to parse,
     retry from just past that span's opening brace instead of giving up,
     so a real object later in the text still gets found.
+
+    The retries are bounded by EXTRACT_JSON_OBJECT_WORK_BUDGET characters of
+    scanning and parsing, so a reply of stray braces can no longer cost
+    quadratic time. A RecursionError anywhere refuses the reply (None): a
+    depth-over-limit document is not a usable object, and rescanning for a
+    deeper candidate would only return a truncated inner object.
     """
+    return _extract_json_object_with_work(
+        text, EXTRACT_JSON_OBJECT_WORK_BUDGET)[0]
+
+
+def _extract_json_object_with_work(text, work_budget):
+    """extract_json_object with an explicit budget; returns (result, work)."""
     if not text:
-        return None
+        return None, 0
 
     try:
         parsed = json.loads(text)
-        return parsed if isinstance(parsed, dict) else None
-    except (json.JSONDecodeError, RecursionError):
+        return (parsed if isinstance(parsed, dict) else None), len(text)
+    except RecursionError:
+        return None, len(text)
+    except json.JSONDecodeError:
         pass
+
+    # work starts at the characters the failed full-text json.loads examined.
+    work = len(text)
 
     # extract_balanced scans to the end of the text when an opening brace never
     # balances, so retrying from every "{" costs O(n) each. Once past the last
-    # closing brace no later candidate can balance either, so one rfind bounds
-    # the scan instead of capping the candidate count (a cap silently hides a
-    # real object behind enough stray braces).
+    # closing brace no later candidate can balance either, so one rfind skips
+    # that whole shape without spending work budget on it. The budget, not the
+    # rfind, is what bounds the remaining quadratic rescans.
     last_close = text.rfind('}')
     search_from = 0
     while True:
         start = text.find('{', search_from)
         if start == -1 or start > last_close:
-            return None
-        span = extract_balanced(text, '{', '}', search_from=start)
+            return None, work
+        span, examined = _scan_balanced(text, '{', '}', search_from=start)
+        work += examined
+        if work > work_budget:
+            return None, work
         if span is None:
             search_from = start + 1
             continue
+        work += len(span)
+        if work > work_budget:
+            return None, work
         try:
-            return json.loads(span)
-        except (json.JSONDecodeError, RecursionError):
+            return json.loads(span), work
+        except RecursionError:
+            return None, work
+        except json.JSONDecodeError:
             search_from = start + 1
 
 
