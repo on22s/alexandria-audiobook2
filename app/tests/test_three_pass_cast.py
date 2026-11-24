@@ -224,6 +224,14 @@ class RequestCastTests(unittest.TestCase):
             request_cast(client, "m", "text", 8000)
         self.assertEqual(1, client.calls)
 
+    def test_a_choice_without_a_message_raises_a_handled_error_not_attribute_error(self):
+        client = _ScriptedClient([SimpleNamespace(
+            choices=[SimpleNamespace(finish_reason="stop", message=None)]),
+            _reply(_GOOD, "stop")])
+        with self.assertRaisesRegex(RuntimeError, "no choices"):
+            request_cast(client, "m", "text", 8000)
+        self.assertEqual(1, client.calls)
+
     def test_a_reply_with_no_content_is_refused_not_crashed(self):
         client = _ScriptedClient([_reply(None, "stop")])
         with self.assertRaises(ValueError):
