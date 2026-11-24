@@ -336,6 +336,51 @@ def get_resolved_speaker(speaker, voice_config):
     raise VoiceAliasResolutionError(f"Alias chain for '{speaker}' exceeded 16 iterations")
 
 
+def get_ensemble_member_names(voice_data):
+    """The member names a saved ensemble config offers to dispatch (Rule 15).
+
+    A list/tuple is canonical; a mapping (which the version route accepts)
+    offers its keys; a bare string is one name. Any other shape is malformed
+    and offers nothing, so a corrupt entry settles as "no members configured"
+    instead of iterating an int (#2170 R2).
+
+    Every consumer (walker, projection, version route and dispatch) reads this
+    one function, so a persisted collection is normalized identically: order is
+    preserved and non-text entries are ignored rather than erroring in one
+    consumer and disappearing in another (#2170 F4). New writes reject such
+    collections at the public version/candidate/save seam.
+    """
+    members = (voice_data or {}).get("members")
+    if isinstance(members, dict):
+        names = list(members)
+    elif isinstance(members, (list, tuple)):
+        names = list(members)
+    elif isinstance(members, str):
+        return [members]
+    else:
+        return []
+    return [name for name in names if isinstance(name, str)]
+
+
+def validate_ensemble_members(members):
+    """Refuse an ordered member collection carrying a non-text name (#2170 F4).
+
+    Runtime normalization ignores such entries for already-persisted data, but
+    a new write must not silently discard part of what the client submitted.
+    Scalars keep the established "no members configured" settlement.
+    """
+    if isinstance(members, dict):
+        names = list(members)
+    elif isinstance(members, (list, tuple)):
+        names = list(members)
+    else:
+        return
+    if any(not isinstance(name, str) for name in names):
+        raise ValueError(
+            "Ensemble members must be an ordered list or object of speaker names; "
+            "every name must be text.")
+
+
 def voice_config_for_chunk(voice_config, speaker, chunk_index):
     """Apply selected versions before walking their members and aliases.
     Every reachable voice uses the containing line's source index."""
@@ -360,8 +405,9 @@ def voice_config_for_chunk(voice_config, speaker, chunk_index):
         alias = get_voice_alias(data)
         if alias is not None:
             pending.append(alias)
-        if voice_category(data) == "ensemble" and isinstance(data.get("members"), list):
-            pending.extend(member for member in data["members"] if isinstance(member, str))
+        if voice_category(data) == "ensemble":
+            pending.extend(member for member in get_ensemble_member_names(data)
+                           if isinstance(member, str))
     return {**voice_config, **updates} if updates else voice_config
 
 
@@ -371,33 +417,206 @@ VOICE_RENDER_IDENTITY_FIELDS = ("type", "voice", "character_style", "default_sty
 VOICE_PRONUNCIATION_EXCLUSIONS = frozenset(("character_style", "default_style", "seed"))
 
 
-def finalize_resolved_voice_config(resolved, speaker):
-    """Make a row-resolved narrator choice final for every downstream reader."""
-    if str(speaker or '').upper() != 'NARRATOR':
+NARRATOR_SPELLINGS = ("NARRATOR", "Narrator")
+
+
+def is_narrator_name(name):
+    """Whether a spelling is a narrator key the resolver recognizes."""
+    return isinstance(name, str) and name.upper() == "NARRATOR"
+
+
+def get_saved_voice_alias(voice_config, name):
+    """The explicit alias saved on a name, or None (never raises on a null entry)."""
+    entry = (voice_config or {}).get(name)
+    return get_voice_alias(entry) if isinstance(entry, dict) else None
+
+
+def get_configured_narrator_spelling(voice_config):
+    """The spelling the narrator resolver reads first, or None (Rule 15).
+
+    `resolve_narrator_voice_config` consults NARRATOR, then Narrator. Every
+    alias-precedence decision must consult that same entry, or the reached
+    spelling and the resolver disagree across mixed spellings (#2170 R1).
+    """
+    for key in NARRATOR_SPELLINGS:
+        if (voice_config or {}).get(key):
+            return key
+    return None
+
+
+def finalize_resolved_voice_config(resolved, speaker=None, names=None):
+    """Make row-resolved narrator choices final for every downstream reader.
+
+    A narrator can also be reached as an ensemble member, directly or through
+    an alias, where the row's top-level speaker is the ensemble rather than
+    NARRATOR. Finalize every reached narrator spelling, plus the spelling the
+    engine's resolver reads first, so the engine never re-applies a dynamic
+    strategy without this row's chunk context (#2170). Callers that already
+    walked the cast pass `names` to avoid scanning it again.
+    """
+    if names is not None and not names:
         return resolved
-    entry = resolved.get(speaker)
-    if not isinstance(entry, dict) or entry.get('narrator_strategy') in (None, 'global'):
-        return resolved
-    final = {key: value for key, value in entry.items() if key != 'narrator_strategy'}
-    return {**resolved, speaker: final}
+    if names is None:
+        targets = [key for key in resolved if is_narrator_name(key)]
+    else:
+        targets = list(names)
+        for key in NARRATOR_SPELLINGS:
+            if key in resolved and key not in targets:
+                targets.append(key)
+    final = None
+    for name in targets:
+        entry = resolved.get(name)
+        if not isinstance(entry, dict):
+            continue
+        if entry.get('narrator_strategy') in (None, 'global'):
+            continue
+        if final is None:
+            final = dict(resolved)
+        final[name] = {key: value for key, value in entry.items() if key != 'narrator_strategy'}
+    return resolved if final is None else final
+
+
+def resolve_reachable_narrators(voices, effective, speaker, chunk, index):
+    """Resolve each reachable narrator with this row's context before finalizing.
+
+    An ensemble member can be the narrator, directly or through an alias. Its
+    dynamic gender/chapter/focus strategy must see the row exactly as a direct
+    narrator render would, not be dropped before the engine dispatches it
+    (#2170). Only names reachable from this row's speaker are visited, and an
+    entry carrying an alias is followed exclusively: dispatch never reads the
+    members a selected alias masks, so neither does this walk.
+    """
+    resolved = effective
+    narrators = set()
+    pending, seen = [(speaker, True)], set()
+    while pending:
+        name, expand_members = pending.pop()
+        if name in seen or not isinstance(name, str):
+            continue
+        seen.add(name)
+        entry = resolved.get(name)
+        if not isinstance(entry, dict):
+            continue
+        if is_narrator_name(name):
+            narrators.add(name)
+        alias = get_voice_alias(entry)
+        if alias is not None:
+            pending.append((alias, expand_members))
+            continue
+        # Only the row's own root ensemble is rendered; dispatch refuses a
+        # member that is itself an ensemble before reading its descendants.
+        # Mirror that here so unreachable nodes are never inspected (#2170 R3).
+        if voice_category(entry) == "ensemble" and expand_members:
+            pending.extend((member, False) for member in get_ensemble_member_names(entry)
+                           if isinstance(member, str))
+    narrator_spelling = saved_narrator_alias = None
+    if narrators:
+        narrator_spelling = get_configured_narrator_spelling(voices)
+        saved_narrator_alias = (get_saved_voice_alias(voices, narrator_spelling)
+                                if narrator_spelling else None)
+    for name in narrators:
+        own_alias = get_saved_voice_alias(voices, name)
+        # A reached spelling's own explicit alias is what dispatch follows; it is
+        # never overwritten by the other narrator spelling's alias (#2170 F3).
+        if name != narrator_spelling and own_alias is not None:
+            continue
+        if saved_narrator_alias is not None:
+            # Dispatch consults this entry's alias. Materialize the alias target
+            # and its version/timeline chain onto every reached spelling that
+            # does not carry a distinct alias of its own, so an engine
+            # re-resolution can neither fall back to a dynamic strategy nor read
+            # the un-aliased spelling (#2170 R1).
+            try:
+                chain = voice_config_for_chunk(voices, narrator_spelling, index)
+                target = get_resolved_speaker(narrator_spelling, chain)
+            except VoiceAliasResolutionError:
+                if name == narrator_spelling:
+                    raise
+                # The configured spelling is unreached from this row and its
+                # alias is malformed (e.g. an upgraded v4 cycle). Dispatch would
+                # never follow that edge, so resolve the reached spelling exactly
+                # as dispatch does instead of failing the healthy row, its
+                # projection or an unrelated voice save (#2170 F2).
+                pass
+            else:
+                selected = chain.get(target) if isinstance(chain, dict) else None
+                if isinstance(selected, dict):
+                    if resolved is effective:
+                        resolved = dict(effective)
+                    targets = {key for key in narrators
+                               if key == narrator_spelling
+                               or get_saved_voice_alias(voices, key) is None}
+                    # The engine's resolver may read the sibling spelling first,
+                    # so settle any spelling present in the row that does not
+                    # carry a distinct alias of its own (#2170 R1/F3).
+                    for key in NARRATOR_SPELLINGS:
+                        if key in resolved and (key == narrator_spelling
+                                or get_saved_voice_alias(voices, key) is None):
+                            targets.add(key)
+                    for key in targets:
+                        resolved[key] = selected
+                    continue
+        if own_alias is not None:
+            # An explicit saved narrator alias outranks a dynamic strategy.
+            continue
+        selection = resolve_narrator_voice_config(name, voices, chunk)
+        materialized = voice_config_for_chunk(selection, name, index)
+        selected = materialized.get(name)
+        entry = resolved.get(name)
+        if not isinstance(selected, dict) or selected == entry:
+            continue
+        if resolved is effective:
+            resolved = dict(effective)
+        if materialized is not selection:
+            # Carry the selected voice's own alias/version chain (e.g. a focus
+            # alias whose target has an active timeline) into the row config.
+            for key, value in materialized.items():
+                if value is not selection.get(key):
+                    resolved[key] = value
+        resolved[name] = selected
+    return resolved, narrators
+
+
+def native_batch_matches_resolved(voices, name, index, resolved):
+    """Whether native batching's saved-config re-read is this row's selection.
+
+    Native batch consumers (`_local_batch_custom`/clone/LoRA/design) re-derive
+    the canonical entry with `voice_config_for_chunk(voices, name, index)`
+    instead of using the row-resolved voices. That re-read is only equivalent
+    when the render identity agrees; narrator alias/strategy materialization can
+    change it without clearing `native_batch`, which made a batch render the
+    pre-materialization narrator while single/projection used the alias target
+    (#2170 F1).
+    """
+    entry = resolved.get(name)
+    expected = voice_config_for_chunk(voices, name, index).get(name)
+    if not isinstance(entry, dict) or not isinstance(expected, dict):
+        return entry == expected
+    return all(entry.get(field) == expected.get(field) for field in VOICE_RENDER_IDENTITY_FIELDS)
 
 
 def get_chunk_render_voice_selection(voices, speaker, chunk, index):
     """Return the row's canonical speaker, materialized voices and native-batch eligibility."""
     name, aliases = speaker, {}
     native_batch = True
+    narrator_names = set()
     for _ in range(16):
         if name in aliases:
             raise VoiceAliasResolutionError(f"Alias cycle detected for speaker '{speaker}'")
         saved_alias = get_voice_alias(voices.get(name) or {})
         selected = voices if saved_alias else resolve_narrator_voice_config(name, voices, chunk)
         effective = voice_config_for_chunk(selected, name, index)
+        effective, reached = resolve_reachable_narrators(voices, effective, name, chunk, index)
+        narrator_names.update(reached)
         alias = get_voice_alias(effective.get(name) or {})
         native_batch = native_batch and selected is voices and alias == saved_alias
         if alias is None:
             if aliases:
                 effective = {**effective, **aliases}
-            return name, finalize_resolved_voice_config(effective, name), native_batch
+            effective = finalize_resolved_voice_config(effective, name, narrator_names)
+            if native_batch:
+                native_batch = native_batch_matches_resolved(voices, name, index, effective)
+            return name, effective, native_batch
         aliases[name] = effective[name]
         name = alias
     raise VoiceAliasResolutionError(f"Alias chain for '{speaker}' exceeded 16 iterations")
@@ -416,7 +635,8 @@ def get_chunk_voice_inputs(voices, chunk, index, resolve_alias=None):
         config = effective.get(name) or {}
         inputs[name] = {field: copy.deepcopy(config.get(field)) for field in fields}
         if voice_category(config) == "ensemble":
-            pending.extend(member for member in config.get("members") or [] if isinstance(member, str))
+            pending.extend(member for member in get_ensemble_member_names(config)
+                           if isinstance(member, str))
     return inputs
 
 
@@ -616,8 +836,8 @@ def resolve_narrator_voice_config(speaker, voice_config, chunk=None):
     selected = None
     if strategy in {"focus", "character", "character_gender", "character_age", "character_gender_age"}:
         focus = chunk.get("focus_speaker") or chunk.get("character_focus")
-        if focus and focus in voice_config:
-            focus_voice = voice_config[focus]
+        focus_voice = voice_config.get(focus) if focus and focus in voice_config else None
+        if isinstance(focus_voice, dict):
             wanted_gender = chunk.get("narrator_gender") or chunk.get("focus_gender")
             wanted_age = chunk.get("narrator_age_group") or chunk.get("focus_age_group")
             gender_ok = strategy not in {"character_gender", "character_gender_age"} or not wanted_gender or focus_voice.get("gender") == wanted_gender
@@ -2532,7 +2752,7 @@ class TTSEngine:
             prepared["text"], prepared["instruct"], voice_data, voice_config, output_path)
 
     def _get_ensemble_members(self, voice_data, voice_config):
-        members = voice_data.get("members") or []
+        members = get_ensemble_member_names(voice_data)
         if not members:
             raise ValueError("Ensemble voice has no members configured.")
 
@@ -2558,7 +2778,7 @@ class TTSEngine:
             voice_data=voice_data, voice_config=voice_config)
         if windowed is not None:
             return windowed
-        members = voice_data.get("members") or []
+        members = get_ensemble_member_names(voice_data)
         from synthesis_workspace import ensure_synthesis_workspace, get_synthesis_workspace_parent
         from synthesis_recovery_context import get_synthesis_recovery_parent
         from contextlib import ExitStack
