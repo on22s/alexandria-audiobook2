@@ -1,0 +1,666 @@
+{
+  "cases": {
+    "alias_custom": {
+      "chunk": {
+        "speaker": "A",
+        "text": "Synthetic fixture line.",
+        "uid": "fixture-line"
+      },
+      "inputs": {
+        "B": {
+          "adapter_generation_sha256": null,
+          "adapter_id": null,
+          "adapter_path": null,
+          "character_style": null,
+          "default_style": null,
+          "description": "A synthetic aliased voice",
+          "members": null,
+          "ref_audio": null,
+          "ref_text": null,
+          "seed": 2,
+          "type": "custom",
+          "voice": "Ryan"
+        }
+      },
+      "pronunciation_context": {
+        "engine_mode": "local",
+        "language": "English",
+        "speaker": "A",
+        "voice_sha256": "7749cbc48aebfaf5e29e97a774e6ab8e5a274bf54ba9f34b050ef668b7d61646"
+      },
+      "take_v3_digest": "a714ea69e298f90a416853e3dc7b87f8091dbe60b882dcaff53bdb67d4509c56",
+      "take_voice_identity": {
+        "adapter_generation_sha256": null,
+        "adapter_id": null,
+        "adapter_path": null,
+        "character_style": null,
+        "default_style": null,
+        "description": "A synthetic aliased voice",
+        "members": null,
+        "ref_audio": null,
+        "ref_text": null,
+        "seed": 2,
+        "type": "custom",
+        "voice": "Ryan"
+      },
+      "voices": {
+        "A": {
+          "alias_of": "B",
+          "description": "A synthetic alias label"
+        },
+        "B": {
+          "description": "A synthetic aliased voice",
+          "seed": 2,
+          "type": "custom",
+          "voice": "Ryan"
+        }
+      }
+    },
+    "builtin_lora": {
+      "chunk": {
+        "speaker": "A",
+        "text": "Synthetic fixture line.",
+        "uid": "fixture-line"
+      },
+      "inputs": {
+        "A": {
+          "adapter_generation_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "adapter_id": null,
+          "adapter_path": "synthetic-adapter",
+          "character_style": null,
+          "default_style": null,
+          "description": "A synthetic builtin adapter",
+          "members": null,
+          "ref_audio": null,
+          "ref_text": null,
+          "seed": 42,
+          "type": "builtin_lora",
+          "voice": null
+        }
+      },
+      "pronunciation_context": {
+        "engine_mode": "local",
+        "language": "English",
+        "speaker": "A",
+        "voice_sha256": "cdc4259c83ec2804cc0e24917a7d92b6b57602483b9ecc542ef9fc29cc68f5d3"
+      },
+      "take_v3_digest": "a1010ef4057447723a18db4a78e8c444295ded6180decb33124327476a459c99",
+      "take_voice_identity": {
+        "adapter_generation_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "adapter_id": null,
+        "adapter_path": "synthetic-adapter",
+        "character_style": null,
+        "default_style": null,
+        "description": "A synthetic builtin adapter",
+        "members": null,
+        "ref_audio": null,
+        "ref_text": null,
+        "seed": 42,
+        "type": "builtin_lora",
+        "voice": null
+      },
+      "voices": {
+        "A": {
+          "adapter_generation_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "adapter_path": "synthetic-adapter",
+          "description": "A synthetic builtin adapter",
+          "seed": 42,
+          "type": "builtin_lora"
+        }
+      }
+    },
+    "clone": {
+      "chunk": {
+        "speaker": "A",
+        "text": "Synthetic fixture line.",
+        "uid": "fixture-line"
+      },
+      "inputs": {
+        "A": {
+          "adapter_generation_sha256": null,
+          "adapter_id": null,
+          "adapter_path": null,
+          "character_style": null,
+          "default_style": null,
+          "description": "A synthetic cloned voice",
+          "members": null,
+          "ref_audio": "synthetic-ref.wav",
+          "ref_text": "Synthetic reference words",
+          "seed": 42,
+          "type": "clone",
+          "voice": null
+        }
+      },
+      "pronunciation_context": {
+        "engine_mode": "local",
+        "language": "English",
+        "speaker": "A",
+        "voice_sha256": "6c84d1926b859b42dd5c7560bdb24612435bf4724dbc1b7ce623ecc3f947c4ab"
+      },
+      "take_v3_digest": "a02c3d45fa538e115727ea07272d3738f906864a2ddab5ffaa2b44aaf839df4d",
+      "take_voice_identity": {
+        "adapter_generation_sha256": null,
+        "adapter_id": null,
+        "adapter_path": null,
+        "character_style": null,
+        "default_style": null,
+        "description": "A synthetic cloned voice",
+        "members": null,
+        "ref_audio": "synthetic-ref.wav",
+        "ref_text": "Synthetic reference words",
+        "seed": 42,
+        "type": "clone",
+        "voice": null
+      },
+      "voices": {
+        "A": {
+          "description": "A synthetic cloned voice",
+          "ref_audio": "synthetic-ref.wav",
+          "ref_text": "Synthetic reference words",
+          "seed": 42,
+          "type": "clone"
+        }
+      }
+    },
+    "custom": {
+      "chunk": {
+        "speaker": "A",
+        "text": "Synthetic fixture line.",
+        "uid": "fixture-line"
+      },
+      "inputs": {
+        "A": {
+          "adapter_generation_sha256": null,
+          "adapter_id": null,
+          "adapter_path": null,
+          "character_style": "calm",
+          "default_style": null,
+          "description": "Warm synthetic narrator",
+          "members": null,
+          "ref_audio": null,
+          "ref_text": null,
+          "seed": 42,
+          "type": "custom",
+          "voice": "Ryan"
+        }
+      },
+      "pronunciation_context": {
+        "engine_mode": "local",
+        "language": "English",
+        "speaker": "A",
+        "voice_sha256": "35da39d4142060755ebb80dafee58c3752bcb854fe79873cc5dfb38185da385a"
+      },
+      "take_v3_digest": "14d44dbcac25a038190540f75c09ac3069a42f3bbd6526d422283e9bbd267958",
+      "take_voice_identity": {
+        "adapter_generation_sha256": null,
+        "adapter_id": null,
+        "adapter_path": null,
+        "character_style": "calm",
+        "default_style": null,
+        "description": "Warm synthetic narrator",
+        "members": null,
+        "ref_audio": null,
+        "ref_text": null,
+        "seed": 42,
+        "type": "custom",
+        "voice": "Ryan"
+      },
+      "voices": {
+        "A": {
+          "character_style": "calm",
+          "description": "Warm synthetic narrator",
+          "seed": 42,
+          "type": "custom",
+          "voice": "Ryan"
+        }
+      }
+    },
+    "custom_version": {
+      "chunk": {
+        "speaker": "A",
+        "text": "Synthetic fixture line.",
+        "uid": "fixture-line"
+      },
+      "inputs": {
+        "A": {
+          "adapter_generation_sha256": null,
+          "adapter_id": null,
+          "adapter_path": null,
+          "character_style": null,
+          "default_style": null,
+          "description": "A synthetic version label",
+          "members": null,
+          "ref_audio": null,
+          "ref_text": null,
+          "seed": 5,
+          "type": "custom",
+          "voice": "Ryan"
+        }
+      },
+      "pronunciation_context": {
+        "engine_mode": "local",
+        "language": "English",
+        "speaker": "A",
+        "voice_sha256": "6d986ba91b2fa57cf51d9ca06bae53d765317a4dd1059cd0b51de63c1de787e8"
+      },
+      "take_v3_digest": "7958c80280eee036b67207c3d8042e015f18d0c9832eac82d03b730c1c539840",
+      "take_voice_identity": {
+        "adapter_generation_sha256": null,
+        "adapter_id": null,
+        "adapter_path": null,
+        "character_style": null,
+        "default_style": null,
+        "description": "A synthetic base label",
+        "members": null,
+        "ref_audio": null,
+        "ref_text": null,
+        "seed": 5,
+        "type": "custom",
+        "voice": "Ryan"
+      },
+      "voices": {
+        "A": {
+          "description": "A synthetic base label",
+          "seed": 5,
+          "type": "custom",
+          "version_timeline": [
+            {
+              "from_index": 0,
+              "version_id": "v2"
+            }
+          ],
+          "versions": {
+            "v2": {
+              "description": "A synthetic version label"
+            }
+          },
+          "voice": "Ryan"
+        }
+      }
+    },
+    "design": {
+      "chunk": {
+        "speaker": "A",
+        "text": "Synthetic fixture line.",
+        "uid": "fixture-line"
+      },
+      "inputs": {
+        "A": {
+          "adapter_generation_sha256": null,
+          "adapter_id": null,
+          "adapter_path": null,
+          "character_style": null,
+          "default_style": null,
+          "description": "A synthetic narrator voice",
+          "members": null,
+          "ref_audio": null,
+          "ref_text": null,
+          "seed": 42,
+          "type": "design",
+          "voice": null
+        }
+      },
+      "pronunciation_context": {
+        "engine_mode": "local",
+        "language": "English",
+        "speaker": "A",
+        "voice_sha256": "d56fc0c49f8a9eee83067334ce7c2fbc2e91ca2b3aa2fb9cca750143f1db4a00"
+      },
+      "take_v3_digest": "27732fe5f00838c4af169f2fbcc436bb2cd4403bdb4595728f98f7bf5361d9cd",
+      "take_voice_identity": {
+        "adapter_generation_sha256": null,
+        "adapter_id": null,
+        "adapter_path": null,
+        "character_style": null,
+        "default_style": null,
+        "description": "A synthetic narrator voice",
+        "members": null,
+        "ref_audio": null,
+        "ref_text": null,
+        "seed": 42,
+        "type": "design",
+        "voice": null
+      },
+      "voices": {
+        "A": {
+          "description": "A synthetic narrator voice",
+          "seed": 42,
+          "type": "design"
+        }
+      }
+    },
+    "design_version": {
+      "chunk": {
+        "speaker": "A",
+        "text": "Synthetic fixture line.",
+        "uid": "fixture-line"
+      },
+      "inputs": {
+        "A": {
+          "adapter_generation_sha256": null,
+          "adapter_id": null,
+          "adapter_path": null,
+          "character_style": null,
+          "default_style": null,
+          "description": "A synthetic version instruction",
+          "members": null,
+          "ref_audio": null,
+          "ref_text": null,
+          "seed": 5,
+          "type": "design",
+          "voice": null
+        }
+      },
+      "pronunciation_context": {
+        "engine_mode": "local",
+        "language": "English",
+        "speaker": "A",
+        "voice_sha256": "1eda12bd61b7e5aabed180ed26dff2f773d0d98590647faeed26d202c6a2156d"
+      },
+      "take_v3_digest": "5603b9f6bef58136a043df9d231615928b2cc9d726082835990261861328b97b",
+      "take_voice_identity": {
+        "adapter_generation_sha256": null,
+        "adapter_id": null,
+        "adapter_path": null,
+        "character_style": null,
+        "default_style": null,
+        "description": "A synthetic base instruction",
+        "members": null,
+        "ref_audio": null,
+        "ref_text": null,
+        "seed": 5,
+        "type": "design",
+        "voice": null
+      },
+      "voices": {
+        "A": {
+          "description": "A synthetic base instruction",
+          "seed": 5,
+          "type": "design",
+          "version_timeline": [
+            {
+              "from_index": 0,
+              "version_id": "v2"
+            }
+          ],
+          "versions": {
+            "v2": {
+              "description": "A synthetic version instruction"
+            }
+          }
+        }
+      }
+    },
+    "ensemble": {
+      "chunk": {
+        "speaker": "A",
+        "text": "Synthetic fixture line.",
+        "uid": "fixture-line"
+      },
+      "inputs": {
+        "A": {
+          "adapter_generation_sha256": null,
+          "adapter_id": null,
+          "adapter_path": null,
+          "character_style": null,
+          "default_style": null,
+          "description": "A synthetic group",
+          "members": [
+            "M"
+          ],
+          "ref_audio": null,
+          "ref_text": null,
+          "seed": null,
+          "type": "ensemble",
+          "voice": null
+        },
+        "M": {
+          "adapter_generation_sha256": null,
+          "adapter_id": null,
+          "adapter_path": null,
+          "character_style": null,
+          "default_style": null,
+          "description": "A synthetic member",
+          "members": null,
+          "ref_audio": null,
+          "ref_text": null,
+          "seed": 1,
+          "type": "custom",
+          "voice": "Ryan"
+        }
+      },
+      "pronunciation_context": {
+        "engine_mode": "local",
+        "language": "English",
+        "speaker": "A",
+        "voice_sha256": "c77401bec50aac04bf83ae39e7c8137dc82e0a694bd391a37cfc8f66f002ca0a"
+      },
+      "take_v3_digest": "487a967389cdaa086da825575cd03e672cd57f063fcd5af77e40a06dda8c85c2",
+      "take_voice_identity": {
+        "adapter_generation_sha256": null,
+        "adapter_id": null,
+        "adapter_path": null,
+        "character_style": null,
+        "default_style": null,
+        "description": "A synthetic group",
+        "members": [
+          "M"
+        ],
+        "ref_audio": null,
+        "ref_text": null,
+        "seed": null,
+        "type": "ensemble",
+        "voice": null
+      },
+      "voices": {
+        "A": {
+          "description": "A synthetic group",
+          "members": [
+            "M"
+          ],
+          "type": "ensemble"
+        },
+        "M": {
+          "description": "A synthetic member",
+          "seed": 1,
+          "type": "custom",
+          "voice": "Ryan"
+        }
+      }
+    },
+    "ensemble_design_member": {
+      "chunk": {
+        "speaker": "A",
+        "text": "Synthetic fixture line.",
+        "uid": "fixture-line"
+      },
+      "inputs": {
+        "A": {
+          "adapter_generation_sha256": null,
+          "adapter_id": null,
+          "adapter_path": null,
+          "character_style": null,
+          "default_style": null,
+          "description": "A synthetic group",
+          "members": [
+            "M"
+          ],
+          "ref_audio": null,
+          "ref_text": null,
+          "seed": null,
+          "type": "ensemble",
+          "voice": null
+        },
+        "M": {
+          "adapter_generation_sha256": null,
+          "adapter_id": null,
+          "adapter_path": null,
+          "character_style": null,
+          "default_style": null,
+          "description": "A synthetic designed member",
+          "members": null,
+          "ref_audio": null,
+          "ref_text": null,
+          "seed": 1,
+          "type": "design",
+          "voice": null
+        }
+      },
+      "pronunciation_context": {
+        "engine_mode": "local",
+        "language": "English",
+        "speaker": "A",
+        "voice_sha256": "1373605e632eeb85367c1d0b5e77c70d250a7d3b9d2307d108a4b9b5024fa8ae"
+      },
+      "take_v3_digest": "487a967389cdaa086da825575cd03e672cd57f063fcd5af77e40a06dda8c85c2",
+      "take_voice_identity": {
+        "adapter_generation_sha256": null,
+        "adapter_id": null,
+        "adapter_path": null,
+        "character_style": null,
+        "default_style": null,
+        "description": "A synthetic group",
+        "members": [
+          "M"
+        ],
+        "ref_audio": null,
+        "ref_text": null,
+        "seed": null,
+        "type": "ensemble",
+        "voice": null
+      },
+      "voices": {
+        "A": {
+          "description": "A synthetic group",
+          "members": [
+            "M"
+          ],
+          "type": "ensemble"
+        },
+        "M": {
+          "description": "A synthetic designed member",
+          "seed": 1,
+          "type": "design"
+        }
+      }
+    },
+    "lora": {
+      "chunk": {
+        "speaker": "A",
+        "text": "Synthetic fixture line.",
+        "uid": "fixture-line"
+      },
+      "inputs": {
+        "A": {
+          "adapter_generation_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "adapter_id": null,
+          "adapter_path": "synthetic-adapter",
+          "character_style": null,
+          "default_style": null,
+          "description": "A synthetic adapter voice",
+          "members": null,
+          "ref_audio": null,
+          "ref_text": null,
+          "seed": 42,
+          "type": "lora",
+          "voice": null
+        }
+      },
+      "pronunciation_context": {
+        "engine_mode": "local",
+        "language": "English",
+        "speaker": "A",
+        "voice_sha256": "a031d1d8d4194393a0e5158e6d0a69f791dd4875bdccfcde4e7373d9406258a5"
+      },
+      "take_v3_digest": "faa772a1a98e92de77110d58ec81830d4ed12b359d4524c4d99666fc365e9d7e",
+      "take_voice_identity": {
+        "adapter_generation_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "adapter_id": null,
+        "adapter_path": "synthetic-adapter",
+        "character_style": null,
+        "default_style": null,
+        "description": "A synthetic adapter voice",
+        "members": null,
+        "ref_audio": null,
+        "ref_text": null,
+        "seed": 42,
+        "type": "lora",
+        "voice": null
+      },
+      "voices": {
+        "A": {
+          "adapter_generation_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "adapter_path": "synthetic-adapter",
+          "description": "A synthetic adapter voice",
+          "seed": 42,
+          "type": "lora"
+        }
+      }
+    },
+    "narrator_focus": {
+      "chunk": {
+        "focus_speaker": "A",
+        "speaker": "NARRATOR",
+        "text": "Synthetic fixture line.",
+        "uid": "fixture-narrator"
+      },
+      "inputs": {
+        "NARRATOR": {
+          "adapter_generation_sha256": null,
+          "adapter_id": null,
+          "adapter_path": null,
+          "character_style": null,
+          "default_style": null,
+          "description": "A synthetic focus voice",
+          "members": null,
+          "ref_audio": null,
+          "ref_text": null,
+          "seed": 1,
+          "type": "custom",
+          "voice": "Aiden"
+        }
+      },
+      "pronunciation_context": {
+        "engine_mode": "local",
+        "language": "English",
+        "speaker": "NARRATOR",
+        "voice_sha256": "f5a1f3858596694972d97543c51f6e34b28866e26f9f34228e53769050832833"
+      },
+      "take_v3_digest": "0a5bd46392fb17095ac089f7640971f194fb39a98cbea59b741d417647688731",
+      "take_voice_identity": {
+        "adapter_generation_sha256": null,
+        "adapter_id": null,
+        "adapter_path": null,
+        "character_style": null,
+        "default_style": null,
+        "description": "A synthetic narrator label",
+        "members": null,
+        "ref_audio": null,
+        "ref_text": null,
+        "seed": 3,
+        "type": "custom",
+        "voice": "Ryan"
+      },
+      "voices": {
+        "A": {
+          "description": "A synthetic focus voice",
+          "seed": 1,
+          "type": "custom",
+          "voice": "Aiden"
+        },
+        "NARRATOR": {
+          "description": "A synthetic narrator label",
+          "narrator_strategy": "focus",
+          "seed": 3,
+          "type": "custom",
+          "voice": "Ryan"
+        }
+      }
+    }
+  },
+  "generated_by": "main a30acc3a5b314fcc4a5b34ca2a8e9e9ff12383da",
+  "settings": {
+    "language": "English",
+    "mode": "local"
+  }
+}

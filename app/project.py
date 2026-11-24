@@ -1973,7 +1973,9 @@ class ProjectManager:
                 "text_sha256": get_pronunciation_text_digest(chunk.get("text", "")),
                 "prepared_sha256": preparation["pronunciation_prepared_sha256"],
                 "speech_sha256": get_pronunciation_text_digest(preparation["text"]),
-                "context": chunk.get("_pronunciation_context", {}),
+                "context": {key: value for key, value in
+                            chunk.get("_pronunciation_context", {}).items()
+                            if key != "voice_sha256_legacy"},
                 "decisions": preparation["pronunciation_decisions"]}
         elif "pronunciation_receipt" in chunk:
             evidence["pronunciation_receipt"] = None
