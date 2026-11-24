@@ -93,10 +93,33 @@ def save_generated_wav(values, sample_rate, path, context="audio generation"):
 
 def publish_audio_output(staging_path, output_path, cancelled=None, *, cancel_check=None,
                          source_dir_fd=None, source_fd=None, source_version=None, destination_dir_fd=None):
-    """Publish a validated private file without racing stale-output cleanup."""
+    """Publish a validated private file without racing stale-output cleanup.
+
+    ``cancelled`` is the legacy Event API used by external-engine writers. Its
+    state must be honored at every recheck, including the Windows fallback that
+    runs after blocking identity reads, not only on entry.
+    """
+    def is_cancelled():
+        if cancelled is not None and cancelled.is_set():
+            return True
+        if cancel_check is not None and cancel_check():
+            return True
+        # A bound task owner is an independent authority from the backend's
+        # request-local Event. Production writers that pass only an Event (and
+        # conversion paths that pass neither) must still refuse after an
+        # acknowledged audio-task cancellation (R8).
+        from audio_generation_owner import (AudioGenerationCancelled,
+                                            ensure_audio_generation_commit_active,
+                                            get_audio_generation_owner)
+        if get_audio_generation_owner() is not None:
+            try:
+                ensure_audio_generation_commit_active()
+            except AudioGenerationCancelled:
+                return True
+        return False
+
     with ensure_audio_output(output_path):
-        if ((cancelled is not None and cancelled.is_set())
-                or (cancel_check is not None and cancel_check())):
+        if is_cancelled():
             return False
         if any(value is not None for value in (source_dir_fd, source_fd, source_version, destination_dir_fd)):
             from synthesis_workspace import _RAW_ENCODING_CHECKS
@@ -110,10 +133,15 @@ def publish_audio_output(staging_path, output_path, cancelled=None, *, cancel_ch
             name = os.path.basename(output_path)
             if not name or name in ('.', '..'):
                 raise ValueError('Invalid registered publication destination')
+            # The descriptor checks above can block; repeat the ownership
+            # check immediately before the only destructive call.
+            if is_cancelled():
+                return False
             os.replace(staging_path, name, src_dir_fd=source_dir_fd, dst_dir_fd=destination_dir_fd)
             _RAW_ENCODING_CHECKS[1](name, source_fd, source_version, destination_dir_fd)
         else:
-            replace_export_output(staging_path, output_path)
+            if replace_export_output(staging_path, output_path, cancel_check=is_cancelled) is False:
+                return False
         return True
 
 

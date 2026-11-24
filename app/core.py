@@ -32,7 +32,7 @@ from fastapi.responses import JSONResponse
 from character_evidence import aliases_for
 from speaker_identity import is_speaker_merge_allowed
 from audio_generation_owner import (AUDIO_GENERATION_CANCELLED, AudioGenerationCancelled, AudioGenerationOwner,
-                                    ensure_audio_generation_owner)
+                                    ensure_audio_generation_owner, get_audio_generation_owner)
 from project import ProjectManager
 from config_settings import load_app_config
 from diagnostics import redact_text
@@ -890,7 +890,40 @@ def _publish_task_claim_state(task_name, cpu_only):
         state.pop('_script_published_cleanup_stop', None)
         state.pop('worker_claim_id', None)
         state['start_time'] = None
+    if task_name == "audio":
+        # Each newly admitted audio operation owns its public result: a
+        # previous merge's terminal status (cancelled/done) must not outlive
+        # a fresh render or batch that is now starting (R6).
+        state.update(status="running", error=None)
     state.update(running=True, cpu_only=cpu_only)
+
+
+def update_claimed_task_state(task_name, claim_id=None, *, logs_append=None, **fields):
+    """Apply live state only while the caller's exact claim is still current.
+
+    Stale workers (a replaced claim or one whose successor already published)
+    must never overwrite a successor's terminal status, cancel flag or logs
+    (R4/R6). The captured owner is used when no explicit claim id is supplied.
+    Returns True when applied, False when a claim exists but is stale, and
+    None when the caller has no bound authority at all (direct/legacy call).
+    """
+    owner = get_audio_generation_owner()
+    if claim_id is None:
+        claim_id = owner.claim_id if owner is not None else None
+    if claim_id is None:
+        # No bound authority at all (direct/legacy caller): the claim check
+        # below is inapplicable, distinct from a stale/mismatched claim.
+        return None
+    with _gpu_lock:
+        current = _task_claims.get(task_name)
+        if (current is None or current.get('id') != claim_id
+                or current.get('phase') != 'started'):
+            return False
+        state = process_state[task_name]
+        state.update(fields)
+        if logs_append is not None:
+            state.setdefault('logs', []).append(logs_append)
+        return True
 
 
 def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False, resources=None,
@@ -1124,14 +1157,44 @@ def _ensure_owned_task_started(task_name, claim_id, already_started=False):
 
 @contextmanager
 def _ensure_audio_task_owner(claim_id, *, allow_cancelled=False, task_name='audio'):
-    # Same mutex as cancel admission. Always acquire it before Project chunk locks.
+    # Entry validation only. No task holds the global mutex across book, chunk
+    # or output work: every owner carries a commit-boundary validator instead,
+    # so an Editor writer holding chunk/output locks can never cycle with a
+    # speech/export worker that needs those locks while admitted.
     with _gpu_lock:
         owner = _task_claims.get(task_name)
         if (owner is None or owner["id"] != claim_id or owner["phase"] != "started"
                 or (process_state[task_name].get("cancel", False) and not allow_cancelled)):
             raise AudioGenerationCancelled('Speech verification cancelled' if task_name == 'speech_verification'
                                            else AUDIO_GENERATION_CANCELLED)
-        yield
+    yield
+
+
+def _audio_task_owner_validation(claim_id, *, task_name='audio'):
+    """Coherent commit-time claim/cancel check without reentering owner admission.
+
+    One _gpu_lock acquisition covers both reads so a claim replacement cannot
+    pair an old id with its successor's uncancelled flag. The lock is held only
+    for this snapshot, never across publication I/O, so unrelated admission
+    still proceeds. Book/Editor-held callers may take it: every _gpu_lock ->
+    book acquisition in this module is a timeout=0 try-lock, so no path waits
+    on a book journal while holding it (idle and active Cancel included).
+    """
+    with _gpu_lock:
+        owner = _task_claims.get(task_name)
+        if (owner is None or owner["id"] != claim_id or owner["phase"] != "started"
+                or process_state[task_name].get("cancel", False)):
+            raise AudioGenerationCancelled('Speech verification cancelled' if task_name == 'speech_verification'
+                                           else AUDIO_GENERATION_CANCELLED)
+
+
+def _audio_task_owner_claim_validation(claim_id, *, task_name='audio'):
+    """Coherent claim-only check for cleanup settlement; cancellation is expected."""
+    with _gpu_lock:
+        owner = _task_claims.get(task_name)
+        if owner is None or owner["id"] != claim_id or owner["phase"] != "started":
+            raise AudioGenerationCancelled('Speech verification cancelled' if task_name == 'speech_verification'
+                                           else AUDIO_GENERATION_CANCELLED)
 
 
 def _run_owned_background_task(task_name, claim_id, callback, already_started=False):
@@ -1141,8 +1204,11 @@ def _run_owned_background_task(task_name, claim_id, callback, already_started=Fa
         # R2: read-along builds publish through ExportSourceSnapshot, whose
         # admission needs the exact-owner callback (cancel + book fencing).
         # Without an owner those checks were no-ops for readalong tasks.
-        owner = (AudioGenerationOwner(claim_id, functools.partial(_ensure_audio_task_owner,
-                    claim_id,task_name=task_name))
+        owner = (AudioGenerationOwner(claim_id,
+                    functools.partial(_ensure_audio_task_owner, claim_id, task_name=task_name),
+                    validate=functools.partial(_audio_task_owner_validation, claim_id, task_name=task_name),
+                    validate_claim=functools.partial(_audio_task_owner_claim_validation,
+                                                     claim_id, task_name=task_name))
                  if task_name in ('audio', 'speech_verification', 'm4b_export',
                                   'chapter_export', 'audacity_export',
                                   'readalong_sidecar', 'readaloud_epub') else None)

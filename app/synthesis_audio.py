@@ -282,14 +282,30 @@ def assemble_synthesis_windows(plan, results, output_path, *, policy=None, cance
         check()
         validate_synthesis_audio(staged, 'Complete internal synthesis', text, cancel_check)
         check()
-        from audio_generation_owner import (AudioGenerationCancelled, get_audio_generation_owner,
+        from audio_generation_owner import (AudioGenerationCancelled, ensure_audio_generation_commit_active,
                                             ensure_audio_generation_publication)
         try:
             # Exact-owner admission precedes the striped file lock, as it does
             # at Project attachment. Never reenter that nonreentrant owner lock.
             with ensure_audio_generation_publication():
-                checker = None if get_audio_generation_owner() is not None else cancel_check
-                if not publish_audio_output(staged, output, cancel_check=checker):
+                from speech_retry import get_speech_retry_budget
+                retry_budget = get_speech_retry_budget()
+
+                def publish_check():
+                    # Revalidate the live claim/cancel here (the captured owner
+                    # is no longer serialized across its yield), then honor the
+                    # caller's predicate for direct callers and production
+                    # owners alike, and the retry deadline when one is active
+                    # (R7). A non-production fixture owner may carry a locking
+                    # predicate that cannot run under its admission scope.
+                    ensure_audio_generation_commit_active()
+                    if retry_budget is not None:
+                        retry_budget.check_deadline()
+                    from audio_generation_owner import AudioGenerationOwner, get_audio_generation_owner
+                    owner = get_audio_generation_owner()
+                    if owner is None or type(owner) is AudioGenerationOwner:
+                        check()
+                if not publish_audio_output(staged, output, cancel_check=publish_check):
                     raise ExportCancelled('Internal synthesis publication cancelled')
         except AudioGenerationCancelled as error:
             raise ExportCancelled('Internal synthesis publication cancelled') from error

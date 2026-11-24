@@ -26,14 +26,23 @@ class AudioGenerationOwner:
 
     Thread workers share this immutable wrapper. Only the live callback grants
     authority; a persisted claim ID never substitutes for calling it.
+
+    ``validate`` is an optional plain callback for commit-time claim/cancel
+    checks. It must never reenter ``admit``: the owner mutex is non-reentrant
+    by contract and a publication lease may already be held. Owners without it
+    (direct callers and fixtures) simply skip the commit re-check.
     """
     claim_id: str
     admit: object
+    validate: object = None
+    validate_claim: object = None
 
     def __post_init__(self):
         if (not isinstance(self.claim_id, str)
                 or re.fullmatch(r'[0-9a-f]{32}', self.claim_id) is None
-                or not callable(self.admit)):
+                or not callable(self.admit)
+                or (self.validate is not None and not callable(self.validate))
+                or (self.validate_claim is not None and not callable(self.validate_claim))):
             raise ValueError('Audio owner needs a live admission and task claim')
 
     def __call__(self, *, allow_cancelled=False):
@@ -99,6 +108,44 @@ def ensure_audio_generation_publication(*, allow_cancelled=False):
 def ensure_audio_generation_active():
     with ensure_audio_generation_publication():
         pass
+
+
+def ensure_audio_generation_commit_active():
+    """Re-check the live claim/cancel state at the final publication commit.
+
+    Uses the production owner's optional plain ``validate`` callback rather
+    than reentering ``admit``: the owner mutex is non-reentrant and a
+    publication lease may already be held, including with the book or Editor
+    lock held. Owners without ``validate`` (direct callers and fixtures) are
+    unchanged and skip this check.
+
+    Production callers place this after output admission and fsync, directly
+    before the rename, so cancellation arriving during blocking precommit I/O
+    is observed. Residual race: the check and the rename are not one atomic
+    operation, so a cancel landing in that final gap can still publish; no
+    broader guarantee is claimed.
+    """
+    owner = _owner.get()
+    if owner is None:
+        return
+    validate = getattr(owner, 'validate', None)
+    if validate is not None:
+        validate()
+
+
+def ensure_audio_generation_claim_current():
+    """Revalidate claim identity at a cleanup settlement boundary.
+
+    Cancellation is expected during cleanup, so this path checks only the
+    exact claim id and phase. It uses the same coherent snapshot as the
+    commit validator and never reenters owner admission.
+    """
+    owner = _owner.get()
+    if owner is None:
+        return
+    validate = getattr(owner, 'validate_claim', None)
+    if validate is not None:
+        validate()
 
 
 @contextmanager

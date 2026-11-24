@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 
+from audio_generation_owner import (AudioGenerationCancelled,
+                                    ensure_audio_generation_commit_active)
 from book_state_transaction import ensure_book_state
 from export_file_io import replace_export_output
 from merge_integrity import get_source_integrity, is_source_integrity_admitted
@@ -231,10 +233,20 @@ def save_sound_delivery(manager, stage_name, candidate_revision, approval_revisi
             quality=None, mastering=mastering, encoding=encoding, warnings=[])
         with snapshot.ensure_publication(str(output), report):
             from project_scope_exports import publish_export_with_receipt
+            def sound_publication_check():
+                # Request cancellation (the HTTP operation's own event) is
+                # independent of the task owner's cancel flag; honor both at
+                # the receipt/native replacement boundary.
+                ensure_audio_generation_commit_active()
+                return bool(cancel_check is not None and cancel_check())
+            def replace():
+                if replace_export_output(output, destination,
+                        cancel_check=sound_publication_check) is False:
+                    raise AudioGenerationCancelled()
             publish_export_with_receipt(manager.root_dir, str(output), destination,
-                report.get('sha256'),
-                lambda: replace_export_output(output, destination),
-                expected_version=report.get('file_version'))
+                report.get('sha256'), replace,
+                expected_version=report.get('file_version'),
+                cancel_check=sound_publication_check)
             try:
                 version = get_export_file_version(destination)
                 if version[:4] != report['file_version'][:4]:

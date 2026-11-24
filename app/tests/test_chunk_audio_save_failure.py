@@ -158,7 +158,7 @@ def export(source,name):
  relative='voicelines/'+name+'.wav';shutil.copyfile(source,root/relative);return relative
 m._export_chunk_audio=export
 publish=project.publish_audio_output
-def stop_after_install(*args):
+def stop_after_install(*args, **kwargs):
  publish(*args);os._exit(93)
 project.publish_audio_output=stop_after_install
 m._publish_generated_chunk_audio(m.load_chunks()[0],str(root/'fresh.wav'),'NARRATOR')

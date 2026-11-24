@@ -54,7 +54,7 @@ from readalong_sidecar import (build_readalong_sidecar, get_audio_file_sha256,
                                map_word_spans_to_frames, get_readalong_timing_report)
 from speech_text import get_speech_preparation
 from tts import ExportCancelled, ensure_audio_export_active, iter_timeline, get_trim_bounds_ms
-from audio_generation_owner import AudioGenerationCancelled
+from audio_generation_owner import AudioGenerationCancelled, ensure_audio_generation_commit_active
 
 _HEX64_RE = re.compile(r"[0-9a-f]{64}")
 MAX_RETAINED_EPUB_BYTES = 2 * 1024**3
@@ -463,13 +463,18 @@ def _publish_pair_transaction(source_snapshot, pairs, cancel_check, staging_path
                     report = outputs.pop(source)
                     outputs[target] = publish_export_set_member(source_snapshot.root, member, report)
                 ensure_audio_export_active(cancel_check)
+            ensure_audio_generation_commit_active()
             for target in _targets:
                 report = outputs.get(target, {})
                 digest = report.get('sha256')
                 if isinstance(digest, str):
                     record_export_publication(source_snapshot.root, target, digest,
                         report.get('file_version'), export_set=True)
-            retain[0] = not write_set_journal(source_snapshot.root, _targets, _backups, committed=True)
+            # The set stays reversible until this durable commit; a cancel or
+            # replaced claim acknowledged during the moves or receipts refuses.
+            ensure_audio_generation_commit_active()
+            retain[0] = not write_set_journal(source_snapshot.root, _targets, _backups, committed=True,
+                                              commit_check=ensure_audio_generation_commit_active)
         except ExportCommitUncertain:
             retain[0] = True
             raise
