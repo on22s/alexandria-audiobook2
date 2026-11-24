@@ -905,5 +905,50 @@ class AcceptedNearMissResumeTests(unittest.TestCase):
                     self.assertEqual(before, checkpoint.read_bytes())
 
 
+_FILLER = (
+    "amber birch cedar dune ember fjord glacier harbour island juniper kettle lantern "
+    "meadow nectar orchard pebble quartz river saddle timber umber valley willow xenon "
+    "yellow zephyr").split() * 12
+
+
+class ContainedSeparateDuplicateGateTests(unittest.TestCase):
+    LINE = "Where is the train?"
+
+    def _source(self, occurrences=1):
+        quotes = " ".join('"%s" she asked.' % self.LINE for _ in range(occurrences))
+        return " ".join(_FILLER) + " " + quotes
+
+    def _entries(self):
+        return ([_entry(word) for word in _FILLER[:120]]
+                + [_entry(self.LINE, "MARTA")]
+                + [_entry(word) for word in _FILLER[120:]]
+                + [_entry(self.LINE, "PORTER")])
+
+    def test_separate_character_duplicate_fails_chunk_quality(self):
+        report = validate_chunk_quality(self._source(), self._entries())
+
+        codes = {finding["code"] for finding in report["findings"]}
+        self.assertIn("source_unsupported_contained_duplicate", codes)
+        self.assertEqual({"source_unsupported_contained_duplicate"}, codes)
+        self.assertFalse(report["passed"])
+
+    def test_source_backed_repeat_passes_chunk_quality(self):
+        report = validate_chunk_quality(self._source(occurrences=2), self._entries())
+
+        self.assertEqual([], report["findings"])
+        self.assertTrue(report["passed"])
+
+    def test_final_generation_gate_blocks_the_separate_duplicate(self):
+        entries = self._entries()
+        source = self._source()
+
+        self.assertFalse(generate_script.passes_final_generation_gate(
+            validate_chunk_quality(source, entries),
+            generate_script.audit_script(entries, source)))
+        self.assertTrue(generate_script.passes_final_generation_gate(
+            validate_chunk_quality(self._source(occurrences=2), entries),
+            generate_script.audit_script(entries, self._source(occurrences=2))))
+
+
 if __name__ == "__main__":
     unittest.main()

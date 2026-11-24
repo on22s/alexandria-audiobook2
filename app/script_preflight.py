@@ -378,15 +378,16 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         all_emitted = output_counts[ident]
         if all_emitted <= capacity + added_capacity:
             continue
-        if not carriers[ident]:
+        if not carriers[ident] and not separate[ident]:
             continue
         proven_emitted = quote_counts[ident] + len(separate[ident])
         ambiguous = unknown_rendering or proven_emitted <= capacity + added_capacity
         findings.append(_finding(
             "manual_review" if ambiguous else "blocking", "contained_source_duplicate",
             "Contained phrase repetition needs review of its rendering/source provenance."
-            if ambiguous else "A quotation is also inside a larger entry and exceeds distinct "
-            "source support. Regenerate losslessly; do not delete legitimate source repeats.",
+            if ambiguous else "A character line exceeds its distinct source support, either "
+            "repeated as separate entries or also inside a larger entry. Regenerate losslessly; "
+            "do not delete legitimate source repeats.",
             sorted(i + 1 for i in carriers[ident].union(separate[ident])), phrase=needle,
             source_occurrences=capacity, possible_expansion_occurrences=added_capacity,
             output_quotation_occurrences=proven_emitted, all_text_occurrences=all_emitted,

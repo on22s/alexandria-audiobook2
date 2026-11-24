@@ -8,7 +8,8 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from routers import scripts_library
-from script_preflight import audit_script, audit_unicode_text
+from script_preflight import (audit_script, audit_unicode_text,
+                              find_contained_source_duplicates)
 from script_repair import build_deterministic_repair
 from speaker_repair import apply_speaker_selections, build_speaker_review
 from content_repair import apply_content_selections, build_content_review
@@ -529,6 +530,107 @@ class MixedSourceRepairRouteTests(unittest.TestCase):
                         self.assertEqual(409, refused.exception.status_code)
                         self.assertEqual(before, book.read_bytes())
                 self.assertEqual(source_before, source.read_bytes())
+
+
+_SEPARATE_DUPLICATE_FILLER = (
+    "amber birch cedar dune ember fjord glacier harbour island juniper kettle lantern "
+    "meadow nectar orchard pebble quartz river saddle timber umber valley willow xenon "
+    "yellow zephyr").split() * 5
+
+
+class ContainedSeparateDuplicateTests(unittest.TestCase):
+    """A line repeated as separate character entries is still source-counted."""
+
+    LINE = "Where is the train?"
+
+    def _entries(self, line=None):
+        before = [_entry(word) for word in _SEPARATE_DUPLICATE_FILLER[:60]]
+        after = [_entry(word) for word in _SEPARATE_DUPLICATE_FILLER[60:]]
+        return (before + [_entry(line or self.LINE, "MARTA")] + after
+                + [_entry(line or self.LINE, "PORTER")])
+
+    def _source(self, occurrences=1, extra=""):
+        quotes = " ".join('"%s" she asked.' % self.LINE for _ in range(occurrences))
+        return " ".join(_SEPARATE_DUPLICATE_FILLER) + extra + " " + quotes
+
+    def _duplicate_findings(self, entries, source):
+        return [finding for finding in find_contained_source_duplicates(entries, source)
+                if finding["code"] == "contained_source_duplicate"]
+
+    def test_separate_character_duplicate_is_reported(self):
+        entries = self._entries()
+        findings = self._duplicate_findings(entries, self._source())
+
+        self.assertEqual(1, len(findings))
+        duplicate = findings[0]
+        self.assertEqual("blocking", duplicate["severity"])
+        self.assertEqual([61, 132], duplicate["entry_numbers"])
+        self.assertEqual(1, duplicate["details"]["source_occurrences"])
+        self.assertEqual(2, duplicate["details"]["all_text_occurrences"])
+        self.assertEqual(2, duplicate["details"]["output_quotation_occurrences"])
+
+    def test_two_source_occurrences_are_a_legitimate_repeat(self):
+        self.assertEqual([], self._duplicate_findings(self._entries(), self._source(2)))
+
+    def test_short_line_repeated_as_often_as_the_source_is_not_reported(self):
+        source = " ".join(_SEPARATE_DUPLICATE_FILLER) + ' "Yes." "Yes." "Yes."'
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("Yes.", "MARTA"), _entry("Yes.", "PORTER"),
+                      _entry("Yes.", "ANNA")])
+
+        self.assertEqual([], self._duplicate_findings(entries, source))
+
+    def test_case_punctuation_and_quote_style_follow_the_source_count(self):
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("yes.", "MARTA"), _entry("Yes", "PORTER")])
+        repeated = " ".join(_SEPARATE_DUPLICATE_FILLER) + " \u201cYES!\u201d he said. \u00abyes\u00bb she said."
+        single = " ".join(_SEPARATE_DUPLICATE_FILLER) + " \u201cYES!\u201d he said."
+
+        self.assertEqual([], self._duplicate_findings(entries, repeated))
+        self.assertTrue(self._duplicate_findings(entries, single))
+
+    def test_japanese_quoted_line_follows_the_source_count(self):
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("\u306f\u3044", "MARTA"), _entry("\u306f\u3044", "PORTER")])
+        once = " ".join(_SEPARATE_DUPLICATE_FILLER) + " \u300c\u306f\u3044\u300d\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002"
+        twice = once + " \u300c\u306f\u3044\u300d\u3068\u5f7c\u5973\u306f\u7b54\u3048\u305f\u3002"
+
+        finding = self._duplicate_findings(entries, once)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual([], self._duplicate_findings(entries, twice))
+
+    def test_line_split_across_two_entries_is_not_reported(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + ' "Do not wait for me" she said.')
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("Do not wait", "MARTA"), _entry("for me", "MARTA")])
+
+        self.assertEqual([], self._duplicate_findings(entries, source))
+
+    def test_unknown_number_rendering_downgrades_to_manual_review(self):
+        findings = self._duplicate_findings(self._entries(),
+                                            self._source(extra=" Chapter 2."))
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+        self.assertTrue(findings[0]["details"]["rendering_capacity_unknown"])
+
+    def test_missing_source_abstains(self):
+        entries = self._entries()
+
+        self.assertEqual([], find_contained_source_duplicates(entries, None))
+        self.assertNotIn("contained_source_duplicate",
+                         {finding["code"] for finding in audit_script(entries)["findings"]})
+
+    def test_audit_script_surfaces_the_separate_duplicate_as_blocking(self):
+        report = audit_script(self._entries(), self._source())
+
+        duplicate = next(finding for finding in report["findings"]
+                         if finding["code"] == "contained_source_duplicate")
+        self.assertEqual("blocking", duplicate["severity"])
+        self.assertFalse(report["can_apply_repairs"])
+        self.assertEqual(1, report["counts"]["blocking"])
 
 
 if __name__ == "__main__":
