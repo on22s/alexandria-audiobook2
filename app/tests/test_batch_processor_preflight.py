@@ -509,6 +509,98 @@ class BatchProcessorPreflightTests(unittest.TestCase):
                 else:
                     self.assertIn("calculating after first file completes", lines[0])
 
+    def test_validation_oserror_fails_only_that_file_and_batch_continues(self):
+        first, second = self.root / "first.wav", self.root / "second.wav"
+        first.touch()
+        second.touch()
+        processor = batch.BatchProcessor(str(self.model), force=True)
+        original = batch.get_output_volumes
+        def lookup(path):
+            if "first" in path:
+                raise OSError("permission denied")
+            return original(path)
+        processed = []
+        def worker(path, index, total):
+            processed.append(path)
+            processor.results["succeeded"].append({
+                "file": path, "output": "fixture.zip", "output_size_mb": 0,
+                "time": "0s", "time_seconds": 0})
+        with patch.object(batch, "get_output_volumes", side_effect=lookup), \
+                patch.object(batch, "log_gpu_stats"), \
+                patch.object(batch, "save_batch_receipt"), \
+                patch.object(processor, "ensure_disk_space", return_value=True), \
+                patch.object(processor, "process_file", side_effect=worker):
+            result = processor.run([str(first), str(second)])
+        self.assertEqual([str(second)], processed)
+        self.assertFalse(result)
+        self.assertEqual(1, len(processor.results["failed"]))
+        self.assertEqual({"file": str(first), "reason": "permission denied"},
+                         processor.results["failed"][0])
+
+    def test_batch_progress_excludes_files_that_failed_validation(self):
+        paths = [self.root / name for name in ("first.wav", "second.wav", "third.wav")]
+        for path in paths:
+            path.touch()
+        processor = batch.BatchProcessor(str(self.model), force=True)
+        original = batch.get_output_volumes
+        def lookup(path):
+            if "first" in path:
+                raise OSError("permission denied")
+            return original(path)
+        def worker(path, index, total):
+            processor.results["succeeded"].append({
+                "file": path, "output": "fixture.zip", "output_size_mb": 0,
+                "time": "0s", "time_seconds": 0})
+        with patch.object(batch, "get_output_volumes", side_effect=lookup), \
+                patch.object(batch, "log_gpu_stats"), patch.object(batch.time, "sleep"), \
+                patch.object(batch, "save_batch_receipt"), \
+                patch.object(processor, "ensure_disk_space", return_value=True), \
+                patch.object(processor, "process_file", side_effect=worker), \
+                self.assertLogs(batch.logger, "INFO") as logs:
+            processor.run([str(path) for path in paths])
+        progress = [line for line in logs.output if "Batch progress" in line]
+        self.assertEqual(2, len(progress))
+        self.assertIn("1/2 files (50.0%)", progress[0])
+        self.assertIn("2/2 files (100.0%)", progress[1])
+
+    def test_all_files_failing_validation_return_failure_without_dispatch(self):
+        first, second = self.root / "first.wav", self.root / "second.wav"
+        first.touch()
+        second.touch()
+        processor = batch.BatchProcessor(str(self.model), force=True)
+        with patch.object(batch, "get_output_volumes", side_effect=OSError("unreadable output")), \
+                patch.object(batch, "log_gpu_stats"), \
+                patch.object(processor, "process_file") as process:
+            result = processor.run([str(first), str(second)])
+        self.assertFalse(result)
+        process.assert_not_called()
+        self.assertEqual([{"file": str(first), "reason": "unreadable output"},
+                          {"file": str(second), "reason": "unreadable output"}],
+                         processor.results["failed"])
+
+    def test_process_file_stat_oserror_records_failure_without_aborting(self):
+        audio = self.root / "book.wav"
+        audio.touch()
+        processor = batch.BatchProcessor(str(self.model), skip_disk_check=True)
+        with patch.object(batch, "get_volume_state", side_effect=OSError("stale volume")):
+            processor.process_file(str(audio), 1, 1)
+        self.assertEqual([], processor.results["succeeded"])
+        self.assertEqual([{"file": str(audio), "reason": "stale volume"}],
+                         processor.results["failed"])
+
+    def test_disk_probe_oserror_stays_a_disk_refusal_not_a_file_error(self):
+        audio = self.root / "book.wav"
+        audio.touch()
+        processor = batch.BatchProcessor(str(self.model))
+        with patch.object(batch, "get_disk_probe_path", side_effect=OSError("probe failed")), \
+                patch.object(batch, "start_owned_subprocess") as launch:
+            processor.process_file(str(audio), 1, 1)
+        launch.assert_not_called()
+        self.assertTrue(processor.disk_refused)
+        self.assertEqual(1, len(processor.results["failed"]))
+        self.assertEqual(str(audio), processor.results["failed"][0]["file"])
+        self.assertIn("Disk space admission refused", processor.results["failed"][0]["reason"])
+
     def test_failed_rerun_invalidates_previous_completion_marker(self):
         audio = self.root / "book.wav"
         audio.touch()
