@@ -451,45 +451,48 @@ class BatchProcessor:
 
         for audio_file in audio_files:
             audio_path = Path(audio_file)
+            try:
+                if not audio_path.is_file():
+                    logger.error(f"  ✗ Audio file not found: {audio_file}")
+                    self.results["skipped"].append({
+                        "file": audio_file,
+                        "reason": "Audio file not found"
+                    })
+                    continue
 
-            if not audio_path.is_file():
-                logger.error(f"  ✗ Audio file not found: {audio_file}")
-                self.results["skipped"].append({
-                    "file": audio_file,
-                    "reason": "Audio file not found"
-                })
-                continue
+                if audio_path.suffix.lower() not in self.SUPPORTED_FORMATS:
+                    logger.warning(f"  ⚠ Unsupported format: {audio_file}")
+                    self.results["skipped"].append({
+                        "file": audio_file,
+                        "reason": "Unsupported audio format"
+                    })
+                    continue
 
-            if audio_path.suffix.lower() not in self.SUPPORTED_FORMATS:
-                logger.warning(f"  ⚠ Unsupported format: {audio_file}")
-                self.results["skipped"].append({
-                    "file": audio_file,
-                    "reason": "Unsupported audio format"
-                })
-                continue
+                # Check if output already exists (resume capability)
+                expected_output = get_output_name(audio_file)
+                completed_volumes = get_completed_volumes(
+                    audio_file, expected_output, self.get_matched_source(audio_file)) if not self.force else []
+                if completed_volumes:
+                    output_size_mb = sum(os.path.getsize(path) for path in completed_volumes) / (1024 * 1024)
+                    logger.info(f"  ⊘ {audio_path.name} → already processed: {len(completed_volumes)} ZIP volume(s) ({output_size_mb:.1f} MB)")
+                    self.results["skipped"].append({
+                        "file": audio_file,
+                        "output": completed_volumes[0],
+                        "outputs": completed_volumes,
+                        "output_size_mb": output_size_mb,
+                        "reason": "Already processed (use --force to reprocess)"
+                    })
+                    continue
+                if (os.path.exists(expected_output + ".complete.json") or
+                        get_output_volumes(expected_output)) and not self.force:
+                    logger.warning(f"  ⚠ Dataset completion record missing or invalid, reprocessing: {expected_output}")
 
-            # Check if output already exists (resume capability)
-            expected_output = get_output_name(audio_file)
-            completed_volumes = get_completed_volumes(
-                audio_file, expected_output, self.get_matched_source(audio_file)) if not self.force else []
-            if completed_volumes:
-                output_size_mb = sum(os.path.getsize(path) for path in completed_volumes) / (1024 * 1024)
-                logger.info(f"  ⊘ {audio_path.name} → already processed: {len(completed_volumes)} ZIP volume(s) ({output_size_mb:.1f} MB)")
-                self.results["skipped"].append({
-                    "file": audio_file,
-                    "output": completed_volumes[0],
-                    "outputs": completed_volumes,
-                    "output_size_mb": output_size_mb,
-                    "reason": "Already processed (use --force to reprocess)"
-                })
-                continue
-            if (os.path.exists(expected_output + ".complete.json") or
-                    get_output_volumes(expected_output)) and not self.force:
-                logger.warning(f"  ⚠ Dataset completion record missing or invalid, reprocessing: {expected_output}")
-
-            file_size_mb = audio_path.stat().st_size / (1024 * 1024)
-            logger.info(f"  ✓ {audio_path.name} ({file_size_mb:.1f} MB)")
-            valid_files.append(audio_file)
+                file_size_mb = audio_path.stat().st_size / (1024 * 1024)
+                logger.info(f"  ✓ {audio_path.name} ({file_size_mb:.1f} MB)")
+                valid_files.append(audio_file)
+            except OSError as error:
+                # One unreadable file must not abort the whole batch.
+                self._record_file_error(audio_file, error)
 
         logger.info(f"  ├─ Model: {Path(self.model_path).name}")
         if self.fallback_model:
@@ -590,13 +593,26 @@ class BatchProcessor:
                 raise ValueError("No source match: " + ', '.join(missing) + "; explicitly use --allow-no-source for ASR-only")
         self.source_matches.update({audio: report['source'] for audio, report in reports.items()})
 
+    def _record_file_error(self, audio_file, error):
+        """Fail only this file; the rest of the batch keeps running."""
+        logger.error(f"✗ ERROR: {Path(audio_file).name} - {error}")
+        self.results["failed"].append({
+            "file": audio_file,
+            "reason": str(error)
+        })
+
     def process_file(self, audio_file, file_index, total_files):
         """Process a single audio file with real-time output streaming."""
-        if not self.skip_disk_check and audio_file not in self.audio_durations:
-            self.audio_durations[audio_file] = get_audio_duration_seconds(audio_file)
-        if not self.ensure_disk_space(audio_file, self.get_disk_estimate_gb(audio_file)):
+        try:
+            if not self.skip_disk_check and audio_file not in self.audio_durations:
+                self.audio_durations[audio_file] = get_audio_duration_seconds(audio_file)
+            if not self.ensure_disk_space(audio_file, self.get_disk_estimate_gb(audio_file)):
+                return
+            file_size = os.path.getsize(audio_file) / (1024 * 1024)
+        except OSError as error:
+            # A stale or unreadable source fails only this file, not the batch.
+            self._record_file_error(audio_file, error)
             return
-        file_size = os.path.getsize(audio_file) / (1024 * 1024)
 
         logger.info("=" * 70)
         logger.info(f"▶ Processing [{file_index}/{total_files}] {Path(audio_file).name}")
@@ -615,9 +631,14 @@ class BatchProcessor:
             logger.info(f"  └─ Batch ETA: calculating after first file completes...")
         logger.info("=" * 70)
 
-        output_name = get_output_name(audio_file)
-        previous_volumes = get_volume_state(output_name)
-        source_identity = get_source_identity(audio_file)
+        try:
+            output_name = get_output_name(audio_file)
+            previous_volumes = get_volume_state(output_name)
+            source_identity = get_source_identity(audio_file)
+        except OSError as error:
+            self._record_file_error(audio_file, error)
+            return
+
         cmd = [
             sys.executable,
             "-u",  # Unbuffered output for real-time streaming
@@ -846,7 +867,7 @@ class BatchProcessor:
         # Validate all files first (also skips already-processed)
         try:
             valid_files = self.validate_files(audio_files)
-        except ValueError as exc:
+        except (ValueError, OSError) as exc:
             logger.error(str(exc))
             return False
 
@@ -863,6 +884,8 @@ class BatchProcessor:
             logger.error("No valid files to process (see skipped/failed reasons above)")
             return False
 
+        # Files that failed validation are not part of the dispatched total.
+        validation_failures = len(self.results["failed"])
         self.disk_refused = False
         self.audio_durations = {path: get_audio_duration_seconds(path) for path in valid_files}
 
@@ -883,7 +906,8 @@ class BatchProcessor:
 
                 # Show overall batch progress after each file
                 if len(valid_files) > 1:
-                    completed = len(self.results["succeeded"]) + len(self.results["failed"])
+                    completed = (len(self.results["succeeded"]) + len(self.results["failed"])
+                                 - validation_failures)
                     progress_pct = (completed / len(valid_files)) * 100
                     elapsed = time.monotonic() - self.batch_start_time
                     logger.info(f"\n📊 Batch progress: {completed}/{len(valid_files)} files ({progress_pct:.1f}%) | Total elapsed: {format_duration(elapsed)}")
