@@ -51,6 +51,8 @@ def get_alignment_report_quality(path, audio, source, output):
 def save_alignment_markdown(rows, path):
     def cell(value):
         return str(value).replace('|', r'\|').replace('\n', ' ').replace('\r', ' ')
+    def name(value):
+        return Path(value).name if isinstance(value, str) and value else None
     lines = ['# Test corpus dry-run report', '',
         'ASR-only pre-scan of 30 initial provisional chunks; ASR is bounded to 813 seconds, with no LLM annotation or dataset export.',
         'ASR takes time and writes its normal scratch/checkpoint files. These samples do not measure whole-book alignment.', '',
@@ -59,8 +61,8 @@ def save_alignment_markdown(rows, path):
     for row in rows:
         quality = row.get('quality', {})
         average = f"{quality['average_ratio']:.3f}" if quality else '-'
-        values = [Path(row['audio']).name, Path(row['source']).name if row['source'] else '-',
-                  row['status'], average, quality.get('sampled', '-'),
+        values = [name(row.get('audio')) or '-', name(row.get('source')) or '-',
+                  row.get('status', '-'), average, quality.get('sampled', '-'),
                   quality.get('below_60_percent', '-'), quality.get('review_needed', '-')]
         lines.append('| ' + ' | '.join(cell(value) for value in values) + ' |')
     descriptor, temporary = tempfile.mkstemp(prefix='.dry-report-', dir=path.parent)
@@ -91,13 +93,29 @@ def main():
     run_dir = Path(tempfile.mkdtemp(prefix='prescan-', dir=reports_root))
     rows, failures, attempted = [], 0, 0
     for pair in pairs:
-        row = {'audio': pair['audio'], 'source': pair['source'], 'status': 'no source match'}
+        audio_name = (pair.get('audio') if isinstance(pair, dict) else None)
+        row_audio = audio_name if isinstance(audio_name, str) and audio_name else None
+        try:
+            if not isinstance(pair, dict):
+                raise TypeError('pair must be an object')
+            if row_audio is None:
+                raise ValueError('pair audio must be a nonempty path string')
+            source_value = pair['source']
+            if source_value is not None and not isinstance(source_value, str):
+                raise ValueError('pair source must be a path string or null')
+        except (KeyError, TypeError, ValueError) as error:
+            failures += 1
+            rows.append({'audio': row_audio, 'source': None,
+                         'status': 'failed: ' + str(error)})
+            print(f"FAILED: {pair!r}: {error}", flush=True)
+            continue
+        row = {'audio': row_audio, 'source': source_value, 'status': 'no source match'}
         rows.append(row)
-        if not pair['source']:
+        if not source_value:
             continue
         attempted += 1
         try:
-            audio, source = Path(pair['audio']).resolve(strict=True), Path(pair['source']).resolve(strict=True)
+            audio, source = Path(row_audio).resolve(strict=True), Path(source_value).resolve(strict=True)
             name = pair['output_name']
             if not isinstance(name, str) or Path(name).name != name or name in ('', '.', '..'):
                 raise ValueError('unsafe pair output name')

@@ -4176,6 +4176,10 @@
     "tests.test_corpus_prefix.CorpusPrefixTests.test_real_shell_dispatch_bounds_each_asr_request"
     , "tests.test_corpus_prefix.CorpusPrefixTests.test_receipt_refuses_short_samples_and_unbounded_identity"
   ]
+  , "test_corpus_prescan_malformed_pairs": [
+    "tests.test_corpus_prescan_malformed_pairs.CorpusAlignmentPrescanMalformedPairTests.test_each_malformed_pair_is_a_failed_row_and_other_pairs_still_run"
+    , "tests.test_corpus_prescan_malformed_pairs.CorpusAlignmentPrescanMalformedPairTests.test_report_markdown_survives_a_failed_row_without_paths"
+  ]
   , "test_corpus_read_efficiency": [
     "tests.test_corpus_read_efficiency.CorpusReadEfficiencyTests.test_casefold_ties_have_identical_order_and_selection"
     , "tests.test_corpus_read_efficiency.CorpusReadEfficiencyTests.test_txt_manifest_uses_one_disk_read_and_preserves_decoding_and_hash"
