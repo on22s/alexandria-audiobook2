@@ -1050,23 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T05:59:09",
+  "written": "2026-11-24T06:36:38",
   "host": "mitch-linux",
   "git": {
-   "commit": "9f4cb2ae126d725c95ffe714da1b995264b8a78e",
+   "commit": "96a7ea24d03f5cc079ba964ff89a14e1afb66d0c",
    "branch": "HEAD",
    "dirty": true,
-   "source_state": "dirty:2b14170da8da",
+   "source_state": "dirty:0680635c1632",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/audio_generation_owner.py",
-    "M  app/export_publication.py",
-    "M  app/sound_design_delivery.py",
-    "M  app/tests/test_audio_publish_mutex_2163.py",
-    "M  app/tests/test_chapter_export.py",
-    "M  app/tests/test_project_scope_exports.py",
-    "M  app/tests/test_readalong_r4.py",
-    "M  app/tests/unit_test_inventory.json"
+    "M  app/audio_generation_owner.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",

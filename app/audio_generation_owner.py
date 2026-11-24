@@ -163,7 +163,7 @@ def _get_book_identity(root):
 
 @contextmanager
 def ensure_audio_book_admission(root, *, timeout=10, recover=True, cancel_check=None,
-                                hold_publication=False, reuse=False):
+                                hold_publication=False, reuse=False, timeout_message=None):
     """Admit the book under one audio-owner wait policy.
 
     Owned publishers used to queue on the task mutex, unbounded, before trying
@@ -179,6 +179,8 @@ def ensure_audio_book_admission(root, *, timeout=10, recover=True, cancel_check=
     lock. ``hold_publication`` keeps the exact-owner lease for the body
     (publishers); otherwise the owner is only re-checked before each attempt.
     ``reuse`` accepts this thread's live book scope instead of taking it again.
+    ``timeout_message`` replaces the raw lock timeout only for the admission
+    attempt, never for a TimeoutError the caller's body raises.
     """
     from book_state_transaction import ensure_book_state, reuse_book_state
 
@@ -188,7 +190,13 @@ def ensure_audio_book_admission(root, *, timeout=10, recover=True, cancel_check=
         return ensure_book_state(root, timeout=wait, recover=recover)
 
     if _owner.get() is None:
-        with admit_book(timeout) as admitted:
+        with ExitStack() as stack:
+            try:
+                admitted = stack.enter_context(admit_book(timeout))
+            except TimeoutError as error:
+                if timeout_message is None:
+                    raise
+                raise TimeoutError(timeout_message) from error
             yield admitted
         return
     deadline = time.monotonic() + max(timeout, _OWNED_BOOK_WAIT_SECONDS)
@@ -227,8 +235,9 @@ def ensure_audio_generation_book(root, *, timeout=10, cancel_check=None):
     Owned publishers may outwait a long book publication; see
     ``ensure_audio_book_admission``.
     """
-    with ensure_audio_book_admission(root, timeout=timeout, cancel_check=cancel_check,
-                                     hold_publication=True):
+    with ensure_audio_book_admission(
+            root, timeout=timeout, cancel_check=cancel_check, hold_publication=True,
+            timeout_message='Could not admit audio publication to the active book.'):
         yield
 
 
