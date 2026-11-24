@@ -1050,20 +1050,18 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T14:29:31",
+  "written": "2026-11-24T14:31:58",
   "host": "mitch-linux",
   "git": {
-   "commit": "2e92f8fd3005b2dca1f92932e18777819b3cecd8",
+   "commit": "09d752fd15acfbd78acebd4659ba7ba723d95627",
    "branch": "fix/audit-prep-2264",
    "dirty": true,
-   "source_state": "dirty:2760407095b3",
+   "source_state": "dirty:46edc22c89a7",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "MM alexandria_preparer_rocm_compatible.py",
-    " M app/tests/test_deepseek_text_helpers.py",
-    "M  app/tests/test_preparer_asr_validation.py",
-    " M app/utils.py",
-    "M  app/whisper_cpp_runtime.py"
+    " M alexandria_preparer_rocm_compatible.py",
+    "M  app/tests/test_deepseek_text_helpers.py",
+    "M  app/utils.py"
    ],
    "untracked_harness_files": [
     "app/tests/test_preparer_annotate_confidence.py"

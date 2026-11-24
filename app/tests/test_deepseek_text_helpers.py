@@ -1,12 +1,40 @@
 """Source-backed transformations and malformed-prose recovery stay guarded."""
+import json
+import random
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+import utils as utils_module
 from apostrophe_repair import restore_stripped_apostrophes
 from chunk_quality import validate_chunk_quality
 from utils import extract_json_object, is_path_inside
 from tests.test_support import can_symlink
+
+
+def reference_extract_json_object(text):
+    """The pre-fix scan, kept to prove the faster scan is results-identical."""
+    if not text:
+        return None
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else None
+    except json.JSONDecodeError:
+        pass
+    search_from = 0
+    while True:
+        start = text.find('{', search_from)
+        if start == -1:
+            return None
+        span = utils_module.extract_balanced(text, '{', '}', search_from=start)
+        if span is None:
+            search_from = start + 1
+            continue
+        try:
+            return json.loads(span)
+        except json.JSONDecodeError:
+            search_from = start + 1
 
 _SYMLINK_SKIP_REASON = 'symlink creation not permitted (WinError 1314 / host refusal)'
 
@@ -44,6 +72,36 @@ class DeepSeekTextHelperTests(unittest.TestCase):
         for value in ('Notes { unfinished', '{"ok":', 'not JSON', '[1, 2]'):
             with self.subTest(value=value):
                 self.assertIsNone(extract_json_object(value))
+
+    def test_unclosed_brace_run_does_not_rescan_from_every_open_brace(self):
+        text = '{' * 2000
+        with patch.object(utils_module, 'extract_balanced',
+                          wraps=utils_module.extract_balanced) as balanced:
+            self.assertIsNone(extract_json_object(text))
+        self.assertLessEqual(balanced.call_count, 1)
+
+    def test_valid_object_after_more_than_64_stray_open_braces_is_found(self):
+        text = '{' * 100 + ' prior text {"ok": 1}'
+        self.assertEqual({'ok': 1}, extract_json_object(text))
+
+    def test_deeply_nested_json_shapes_do_not_escape_recursion_error(self):
+        self.assertIsNone(extract_json_object('[' * 5000 + ']' * 5000))
+        self.assertIsNone(extract_json_object('[' * 5000 + ']' * 4999))
+        nested = extract_json_object('{"a":' * 5000 + '1' + '}' * 5000)
+        self.assertIsInstance(nested, dict)
+
+    def test_faster_scan_matches_the_reference_on_randomized_text(self):
+        rng = random.Random(20261124)
+        alphabet = '{}[]"\\ ab1:,.-_'
+        for _ in range(1000):
+            text = ''.join(rng.choice(alphabet)
+                           for _ in range(rng.randint(0, 80)))
+            try:
+                expected = reference_extract_json_object(text)
+            except RecursionError:
+                continue
+            with self.subTest(text=text):
+                self.assertEqual(expected, extract_json_object(text))
 
     def test_filesystem_root_contains_child_and_sibling_prefix_stays_outside(self):
         with tempfile.TemporaryDirectory() as tmp:

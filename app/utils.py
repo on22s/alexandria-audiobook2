@@ -282,13 +282,19 @@ def extract_json_object(text):
     try:
         parsed = json.loads(text)
         return parsed if isinstance(parsed, dict) else None
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, RecursionError):
         pass
 
+    # extract_balanced scans to the end of the text when an opening brace never
+    # balances, so retrying from every "{" costs O(n) each. Once past the last
+    # closing brace no later candidate can balance either, so one rfind bounds
+    # the scan instead of capping the candidate count (a cap silently hides a
+    # real object behind enough stray braces).
+    last_close = text.rfind('}')
     search_from = 0
     while True:
         start = text.find('{', search_from)
-        if start == -1:
+        if start == -1 or start > last_close:
             return None
         span = extract_balanced(text, '{', '}', search_from=start)
         if span is None:
@@ -296,7 +302,7 @@ def extract_json_object(text):
             continue
         try:
             return json.loads(span)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, RecursionError):
             search_from = start + 1
 
 
