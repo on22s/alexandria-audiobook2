@@ -1428,6 +1428,12 @@
     , "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_refusal_matches_uncached_after_settings_change"
     , "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_source_settings_windows_and_prompts_invalidate"
   ]
+  , "test_batch_script_worker_failure": [
+    "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_all_success_still_reports_finished"
+    , "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_cancel_with_a_real_exception_logs_it_and_agrees_with_history"
+    , "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_cleanup_failure_after_publish_keeps_the_done_row_and_reports_it"
+    , "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_raising_worker_fails_its_book_and_every_failure_is_logged"
+  ]
   , "test_batch_style_timeline": [
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_design_dynamic_narrator_and_ensemble_receive_actual_resolved_style_prompts"
     , "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_external_custom_and_local_lora_keep_original_indices"
@@ -7576,6 +7582,7 @@
     , "tests.test_incremental_cast.IncrementalCastTests.test_interrupted_finish_reasons_preserve_previous_complete_cast"
     , "tests.test_incremental_cast.IncrementalCastTests.test_invalid_reply_shapes_are_rejected"
     , "tests.test_incremental_cast.IncrementalCastTests.test_merge_preserves_prior_aliases_and_is_idempotent"
+    , "tests.test_incremental_cast.IncrementalCastTests.test_no_choices_reply_is_refused_without_publishing"
     , "tests.test_incremental_cast.IncrementalCastTests.test_opt_in_removes_whole_book_limit_and_records_complete_coverage"
     , "tests.test_incremental_cast.IncrementalCastTests.test_real_manual_and_http_wrappers_receive_identical_validated_windows"
     , "tests.test_incremental_cast.IncrementalCastTests.test_saved_configuration_drives_cli_defaults_and_explicit_off_wins"
@@ -16985,6 +16992,11 @@
     , "tests.test_three_pass_cast.CastTests.test_roster_leads_with_the_cast_and_shows_its_aliases"
     , "tests.test_three_pass_cast.CastTests.test_tool_reply_parsing"
     , "tests.test_three_pass_cast.RequestCastTests.test_a_bad_reply_that_finished_normally_raises_at_once_without_retrying"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_choice_without_a_message_raises_a_handled_error_not_attribute_error"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_reply_with_no_choices_raises_a_handled_error_not_index_error"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_reply_with_no_content_is_refused_not_crashed"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_truncated_reply_with_no_message_on_every_attempt_names_the_cap_cause"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_truncated_reply_with_no_message_still_discards_and_retries"
     , "tests.test_three_pass_cast.RequestCastTests.test_every_attempt_truncated_raises_naming_the_cause_not_a_json_error"
     , "tests.test_three_pass_cast.RequestCastTests.test_the_old_path_could_not_tell_a_loop_from_an_answer"
     , "tests.test_three_pass_cast.RequestCastTests.test_truncated_reply_is_discarded_and_the_retry_is_used"
