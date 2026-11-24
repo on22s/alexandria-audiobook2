@@ -1514,6 +1514,76 @@ class AudioPublishMutex2163Tests(unittest.TestCase):
             self.assertFalse(holder.is_alive())
             self.assertLess(waited, .9)
 
+    def test_unreadable_book_identity_during_owned_wait_is_not_a_switch(self):
+        # An atomic save of the same book can replace state.json mid-read. Each
+        # position in turn fails: before the wait, during it, and on admission.
+        from audio_generation_owner import (ensure_audio_generation_book,
+                                            ensure_audio_generation_book_work,
+                                            ensure_audio_generation_owner)
+        import book_state_transaction
+        real = book_state_transaction.get_book_operation_identity
+        for admit in (ensure_audio_generation_book, ensure_audio_generation_book_work):
+            for failing in ({0}, {1, 2}, set(range(1, 400))):
+                for error in (ValueError('Scope file was replaced while reading.'),
+                              FileNotFoundError('state.json')):
+                    with self.subTest(admit=admit.__name__, failing=len(failing),
+                                      error=type(error).__name__), self.fixture() as (
+                                          root, manager, before, states):
+                        owner = self._book_owner({'cancel': False})
+                        started, release = threading.Event(), threading.Event()
+                        holder = self._start_book_holder(root, started, release)
+                        reads = []
+
+                        def observe(path):
+                            reads.append(None)
+                            if len(reads) == 4:
+                                release.set()
+                            if len(reads) - 1 in failing:
+                                raise error
+                            return real(path)
+                        try:
+                            with patch.object(book_state_transaction,
+                                              'get_book_operation_identity', observe):
+                                with ensure_audio_generation_owner(owner):
+                                    with admit(root):
+                                        admitted = True
+                        finally:
+                            release.set()
+                            holder.join(5)
+                        self.assertTrue(admitted)
+                        self.assertGreaterEqual(len(reads), 4)
+
+    def test_book_switch_after_unreadable_identity_is_still_refused(self):
+        from audio_generation_owner import (ensure_audio_generation_book,
+                                            ensure_audio_generation_owner)
+        import book_state_transaction
+        real = book_state_transaction.get_book_operation_identity
+        with self.fixture() as (root, manager, before, states):
+            owner = self._book_owner({'cancel': False})
+            started, release = threading.Event(), threading.Event()
+            holder = self._start_book_holder(root, started, release)
+            reads = []
+
+            def observe(path):
+                reads.append(None)
+                if len(reads) == 1:
+                    raise ValueError('Scope file was replaced while reading.')
+                if len(reads) == 3:
+                    (root / 'state.json').write_text(json.dumps({
+                        'active_book_id': 'other-book', 'book_generation': 'second'}))
+                return real(path)
+            try:
+                with patch.object(book_state_transaction,
+                                  'get_book_operation_identity', observe):
+                    with ensure_audio_generation_owner(owner):
+                        with self.assertRaisesRegex(ValueError, 'changed'):
+                            with ensure_audio_generation_book(root):
+                                self.fail('A changed book selection was admitted')
+            finally:
+                release.set()
+                holder.join(5)
+            self.assertGreaterEqual(len(reads), 3)
+
     def test_superseded_chapter_worker_cannot_overwrite_successor(self):
         # N2/F08-chapter: a replaced chapter claim must not publish its result,
         # logs, running bit or cleared cancel over the successor's live state.

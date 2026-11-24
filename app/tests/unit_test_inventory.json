@@ -937,6 +937,7 @@
   ]
   , "test_audio_publish_mutex_2163": [
     "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_all_native_replace_call_sites_thread_commit_validation"
+    , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_book_switch_after_unreadable_identity_is_still_refused"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_book_switch_during_owned_book_wait_refuses"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_cancel_after_precommit_io_but_at_output_admission_refuses_swap"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_cancel_before_commit_refuses_publication"
@@ -975,6 +976,7 @@
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_speech_recheck_cancel_before_receipt_preserves_prior"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_stale_claim_before_commit_refuses_publication"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_superseded_chapter_worker_cannot_overwrite_successor"
+    , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_unreadable_book_identity_during_owned_wait_is_not_a_switch"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_unrelated_admission_does_not_block_during_publication_io"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_windows_fallback_validates_after_lstat_before_native_replace"
   ]

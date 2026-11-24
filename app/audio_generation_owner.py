@@ -156,9 +156,21 @@ _BOOK_WAIT_RETRY_SECONDS = .01
 _BOOK_CHANGED_DETAIL = 'Book or Editor selection changed while waiting to publish audio.'
 
 
-def _get_book_identity(root):
+def _get_book_identity(root, attempts=1):
+    """The selected book generation, or None when it cannot be read right now.
+
+    A waiter reads without the book lock, so an ordinary atomic save can replace
+    state.json mid-read. That is not evidence of a book switch: the caller keeps
+    waiting and compares only identities it really read.
+    """
     from book_state_transaction import get_book_operation_identity
-    return get_book_operation_identity(root)
+    for attempt in range(attempts):
+        try:
+            return get_book_operation_identity(root)
+        except (OSError, ValueError):
+            if attempt + 1 < attempts:
+                time.sleep(_BOOK_WAIT_RETRY_SECONDS)
+    return None
 
 
 @contextmanager
@@ -200,7 +212,13 @@ def ensure_audio_book_admission(root, *, timeout=10, recover=True, cancel_check=
             yield admitted
         return
     deadline = time.monotonic() + max(timeout, _OWNED_BOOK_WAIT_SECONDS)
-    book = _get_book_identity(root)
+    book = _get_book_identity(root, attempts=10)
+
+    def ensure_same_book(attempts=1):
+        current = _get_book_identity(root, attempts)
+        if book is not None and current is not None and current != book:
+            raise ValueError(_BOOK_CHANGED_DETAIL)
+
     while True:
         if cancel_check is not None and cancel_check():
             raise AudioGenerationCancelled()
@@ -214,12 +232,10 @@ def ensure_audio_book_admission(root, *, timeout=10, recover=True, cancel_check=
             except TimeoutError:
                 pass
             else:
-                if _get_book_identity(root) != book:
-                    raise ValueError(_BOOK_CHANGED_DETAIL)
+                ensure_same_book(attempts=10)
                 yield
                 return
-        if _get_book_identity(root) != book:
-            raise ValueError(_BOOK_CHANGED_DETAIL)
+        ensure_same_book()
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise TimeoutError('Could not admit audio publication to the active book.')
