@@ -3,6 +3,7 @@ import copy
 from contextlib import nullcontext
 import json
 import math
+import mmap
 import os
 from pathlib import Path
 import stat
@@ -383,18 +384,48 @@ def export_audio_segment(segment, path, format_name, cancel_check, mastering=Non
                             control.close()
 
 
-def run_encoder(raw_path, output_path, settings):
+def _get_encoder_segment(source, settings):
+    """Back Pydub's segment with the staged PCM instead of copying it.
+
+    Returns the segment and the read-only mapping it depends on, if any. The
+    mapping (not the file descriptor) is what Pydub streams during export, so
+    the caller must close it before the process can replace the source on
+    Windows. Pydub copies 24-bit PCM to 32-bit while constructing a segment, so
+    that width keeps the original whole-file read.
+    """
     from pydub import AudioSegment
+    width, channels = settings['sample_width'], settings['channels']
+    frame_width = width * channels
+    info = os.fstat(source.fileno())
+    if not stat.S_ISREG(info.st_mode) or info.st_size % frame_width:
+        raise ValueError("data length must be a multiple of '(sample_width * channels)'")
+    if info.st_size == 0:
+        segment = AudioSegment(data=b'', sample_width=width,
+                               frame_rate=settings['frame_rate'], channels=channels)
+        return segment, None
+    if width == 3:
+        return AudioSegment(data=source.read(), sample_width=width,
+                            frame_rate=settings['frame_rate'], channels=channels), None
+    segment = AudioSegment(data=b'', sample_width=width,
+                           frame_rate=settings['frame_rate'], channels=channels)
+    segment._data = mmap.mmap(source.fileno(), 0, access=mmap.ACCESS_READ)
+    return segment, segment._data
+
+
+def run_encoder(raw_path, output_path, settings):
     if write_pcm_wav(raw_path, output_path, settings):
         return
     with _open_encoder_file(raw_path, 'rb', settings) as source:
-        data = source.read()
-    segment = AudioSegment(data=data,
-                           sample_width=settings['sample_width'],
-                           frame_rate=settings['frame_rate'], channels=settings['channels'])
-    with _open_encoder_file(output_path, 'wb+', settings) as target:
-        segment.export(target, format=settings['format'], **settings['options'])
-        _record_encoder_output(target, output_path, settings)
+        segment, mapping = _get_encoder_segment(source, settings)
+    try:
+        # Pydub owns the staged WAV, ffmpeg argv/options, tags, cover and id3
+        # handling; streaming from the mapping keeps its output byte-identical.
+        with _open_encoder_file(output_path, 'wb+', settings) as target:
+            segment.export(target, format=settings['format'], **settings['options'])
+            _record_encoder_output(target, output_path, settings)
+    finally:
+        if mapping is not None:
+            mapping.close()
 
 
 if __name__ == '__main__':
