@@ -1760,6 +1760,153 @@ with books.ensure_book_state(str(root)):
                     self.assertEqual(b'human edit after the crash', (root / name).read_bytes())
 
 
+class InputSelectionDateOrderTests(BookProtocolCases, unittest.TestCase):
+    """A selection that keeps the published script must keep the date order too.
+
+    #2297: ``apply_book_input_selection`` popped ``speech_date_order`` outside
+    the branch that decides whether the source is a new book, so re-selecting
+    the active upload kept the script, binding and chunks but reset the order.
+    The pop now follows the same ``rebound_binding is not None`` branch as the
+    pending flag, which is exactly the condition that keeps the script.
+    """
+    source_bytes = b'A synthetic source used only for regression fixtures.\n'
+    script_bytes = b'[{"speaker":"N","text":"She wrote on 1/2/1900."}]'
+
+    def published_book(self, root, *, date_order='dmy'):
+        from script_selection_binding import capture_generation_selection, publish_generated_script
+        root = Path(root)
+        uploads = root / 'uploads'; uploads.mkdir()
+        source = uploads / 'source.txt'; source.write_bytes(self.source_bytes)
+        (root / 'annotated_script.json').write_bytes(self.script_bytes)
+        (root / 'voice_config.json').write_bytes(b'{}')
+        state = {'active_book_id': 'source', 'book_generation': 'generation-a',
+                 'input_file_path': str(source)}
+        (root / 'state.json').write_text(json.dumps(state))
+        selected = capture_generation_selection(str(root), str(source))
+        state.update(script_generation_run_id='f' * 32,
+                     script_generation_base_sha256=hashlib.sha256(self.script_bytes).hexdigest())
+        (root / 'state.json').write_text(json.dumps(state))
+        publish_generated_script(str(root), selected['book_token'], str(source),
+                                 selected['source_sha256'], self.script_bytes,
+                                 expected_run_id='f' * 32)
+        state = json.loads((root / 'state.json').read_text())
+        state.pop('speech_date_order', None)
+        if date_order is not None:
+            state['speech_date_order'] = date_order
+        (root / 'state.json').write_text(json.dumps(state))
+        (root / 'chunks.json').write_text(json.dumps([{
+            'id': 0, 'uid': 'line-0', 'text': 'She wrote on 1/2/1900.',
+            'speaker': 'N', 'status': 'done', 'audio_path': 'line-0.wav'}], indent=2))
+        return root, source
+
+    def selection_state(self, root):
+        state = json.loads((Path(root) / 'state.json').read_text())
+        return {key: state.get(key) for key in (
+            'active_book_id', 'input_file_path', 'speech_date_order',
+            'script_selection_pending')}
+
+    def test_same_source_reselection_keeps_the_recorded_date_order(self):
+        for order in ('dmy', 'mdy', None):
+            with self.subTest(order=order), tempfile.TemporaryDirectory() as tmp:
+                root, source = self.published_book(tmp, date_order=order)
+                books.apply_book_input_selection(str(root), str(source), 'source')
+                state = json.loads((root / 'state.json').read_text())
+                self.assertEqual(order, state.get('speech_date_order'))
+                self.assertNotIn('script_selection_pending', state)
+                rows = json.loads((root / 'chunks.json').read_text())
+                self.assertEqual([('line-0', 'done')],
+                                 [(row['uid'], row['status']) for row in rows])
+
+    def test_identical_bytes_under_another_path_keep_the_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, source = self.published_book(tmp)
+            renamed = root / 'uploads' / 'renamed.txt'
+            renamed.write_bytes(self.source_bytes)
+            books.apply_book_input_selection(str(root), str(renamed), 'renamed')
+            state = json.loads((root / 'state.json').read_text())
+            self.assertEqual(('renamed', str(renamed), 'dmy'),
+                             (state['active_book_id'], state['input_file_path'],
+                              state['speech_date_order']))
+            self.assertNotIn('script_selection_pending', state)
+
+    def test_changed_bytes_start_a_new_book_and_reset_the_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, source = self.published_book(tmp)
+            source.write_bytes(b'Different bytes under the same filename.\n')
+            books.apply_book_input_selection(str(root), str(source), 'source')
+            state = json.loads((root / 'state.json').read_text())
+            self.assertNotIn('speech_date_order', state)
+            self.assertTrue(state['script_selection_pending'])
+
+    def test_same_bytes_without_a_usable_published_script_start_a_new_book(self):
+        from script_selection_binding import BINDING_NAME
+        for damaged in ('binding', 'script'):
+            with self.subTest(damaged=damaged), tempfile.TemporaryDirectory() as tmp:
+                root, source = self.published_book(tmp)
+                if damaged == 'binding':
+                    (root / BINDING_NAME).unlink()
+                else:
+                    (root / 'annotated_script.json').write_bytes(
+                        b'[{"speaker":"N","text":"A different published script."}]')
+                books.apply_book_input_selection(str(root), str(source), 'source')
+                state = json.loads((root / 'state.json').read_text())
+                self.assertNotIn('speech_date_order', state)
+                self.assertTrue(state['script_selection_pending'])
+
+    def test_selection_already_pending_resets_the_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, source = self.published_book(tmp)
+            state = json.loads((root / 'state.json').read_text())
+            state['script_selection_pending'] = True
+            (root / 'state.json').write_text(json.dumps(state))
+            books.apply_book_input_selection(str(root), str(source), 'source')
+            state = json.loads((root / 'state.json').read_text())
+            self.assertNotIn('speech_date_order', state)
+            self.assertTrue(state['script_selection_pending'])
+
+    def test_interrupted_selection_replays_the_same_state(self):
+        # Kill the publisher just after it puts the new state.json in place, so
+        # recovery replays a selection journal written by the fixed path.
+        worker = '''
+import os,sys
+import book_state_transaction as books
+import source_upload_publication as publication
+root,protocol=sys.argv[1],sys.argv[2];count=0
+if protocol=='v3':
+ publication.probe_exchange_support=lambda _fd:False
+seam=books._move if protocol=='v3' else books._exchange
+limit=2 if protocol=='v3' else 1
+def stop(*args,**kwargs):
+ global count
+ result=seam(*args,**kwargs);count+=1
+ if count==limit:os._exit(77)
+ return result
+if protocol=='v3':
+ books._move=stop
+else:
+ books._exchange=stop
+books.apply_book_input_selection(root,root+'/uploads/source.txt','source')
+'''
+        with tempfile.TemporaryDirectory() as tmp, \
+                tempfile.TemporaryDirectory() as live_tmp:
+            root, _source = self.published_book(tmp)
+            result = subprocess.run(
+                [sys.executable, '-c', worker, str(root), self._book_protocol],
+                capture_output=True, text=True, timeout=15)
+            self.assertEqual(77, result.returncode, result.stderr)
+            self.assertTrue((root / books.JOURNAL).exists())
+            with books.ensure_book_state(str(root)):
+                pass
+            self.assertFalse((root / books.JOURNAL).exists())
+            live_root, _live_source = self.published_book(live_tmp)
+            books.apply_book_input_selection(
+                str(live_root), str(live_root / 'uploads' / 'source.txt'), 'source')
+            keys = ('speech_date_order', 'script_selection_pending')
+            self.assertEqual({key: self.selection_state(live_root)[key] for key in keys},
+                             {key: self.selection_state(root)[key] for key in keys})
+            self.assertEqual('dmy', self.selection_state(root)['speech_date_order'])
+
+
 class SavedBookTransactionHttpTests(unittest.TestCase):
     def test_http_load_failure_preserves_prior_book_and_success_publishes_all(self):
         from contextlib import ExitStack

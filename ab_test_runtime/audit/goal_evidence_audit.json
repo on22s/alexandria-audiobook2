@@ -1050,16 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T14:03:02",
+  "written": "2026-11-24T17:01:59",
   "host": "mitch-linux",
   "git": {
-   "commit": "9cb0d15ef7b4d629335b263ffcbce9e493043ebb",
-   "branch": "HEAD",
+   "commit": "972bb969c617e4bd22cbdc6bfd9762081cc61e05",
+   "branch": "fix/2297-date-order-reselect",
    "dirty": true,
-   "source_state": "dirty:fdf75a7c8ac6",
+   "source_state": "dirty:2214affa74f9",
    "source_state_detail": null,
    "modified_tracked_files": [
-    " M app/tests/unit_test_inventory.json"
+    "M  app/book_state_transaction.py",
+    "M  app/tests/test_book_state_transaction.py",
+    "M  app/tests/test_journal_identity_readers.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",
