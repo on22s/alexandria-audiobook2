@@ -1050,20 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T15:58:54",
+  "written": "2026-11-24T14:03:02",
   "host": "mitch-linux",
   "git": {
-   "commit": "3291eaa08e3ec98113353ceb49776682282aebeb",
-   "branch": "fix/audit-prep-2264",
+   "commit": "9cb0d15ef7b4d629335b263ffcbce9e493043ebb",
+   "branch": "HEAD",
    "dirty": true,
-   "source_state": "dirty:ffb73bd4b4b2",
+   "source_state": "dirty:fdf75a7c8ac6",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  alexandria_preparer_rocm_compatible.py",
-    "M  app/tests/test_deepseek_text_helpers.py",
-    "M  app/tests/test_preparer_annotate_confidence.py",
-    "M  app/tests/unit_test_inventory.json",
-    "M  app/utils.py"
+    " M app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",
