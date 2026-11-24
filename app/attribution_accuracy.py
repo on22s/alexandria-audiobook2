@@ -153,9 +153,9 @@ def score_run(named_entries, gold, include_disputed=False):
                            []).append((position, entry))
     results = []
     for position, item in enumerate(gold["entries"]):
-        validate_gold_entry(item, position)
-        if item.get("disputed") and not include_disputed:
+        if isinstance(item, dict) and item.get("disputed") and not include_disputed:
             continue
+        validate_gold_entry(item, position)
         entry = find_entry(named_entries, item, by_text)
         actual = normalize_speaker(entry.get("speaker")) if entry else ""
         expected = normalize_speaker(item["expected_speaker"])

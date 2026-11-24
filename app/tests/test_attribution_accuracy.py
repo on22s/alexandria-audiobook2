@@ -98,6 +98,18 @@ class MalformedGoldRowTests(unittest.TestCase):
     def test_a_valid_row_still_scores(self):
         self.assertTrue(self.score(dict(self.VALID))[0]["correct"])
 
+    def test_a_skipped_disputed_row_is_not_validated(self):
+        incomplete = {"id": "d", "disputed": True}
+        self.assertEqual([], score_run(self.NAMED, {"entries": [incomplete]}))
+        with self.assertRaises(ValueError):
+            score_run(self.NAMED, {"entries": [incomplete]}, include_disputed=True)
+
+    def test_a_scored_disputed_row_is_still_validated_and_scores(self):
+        valid = dict(self.VALID, disputed=True)
+        self.assertEqual([], score_run(self.NAMED, {"entries": [valid]}))
+        scored = score_run(self.NAMED, {"entries": [valid]}, include_disputed=True)
+        self.assertTrue(scored[0]["correct"])
+
     def test_malformed_rows_fail_loudly_and_name_the_row(self):
         cases = {
             "missing line": ({k: v for k, v in self.VALID.items() if k != "line"},
