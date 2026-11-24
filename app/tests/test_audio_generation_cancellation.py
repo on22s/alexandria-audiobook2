@@ -167,42 +167,69 @@ class AudioGenerationCancellationTests(unittest.TestCase):
             self.assertEqual(before[0]['audio_revision'], manager.load_chunks()[0]['audio_revision'])
             self.assertFalse(list(root.glob('chunk_*.wav')))
 
-    def test_admitted_publication_finishes_before_cancel_is_acknowledged(self):
-        for boundary in ("publication", "cleanup"):
-            with self.subTest(boundary=boundary), self.fixture(1) as (root, manager, before, state):
-                entered = threading.Event(); cancel_started = threading.Event(); cancelled = threading.Event()
-                release_started = threading.Event(); cancel_finished = threading.Event()
-                original_release = core.release_gpu_task_claim
-                def release(*args, **kwargs):
-                    if boundary == "cleanup" and core._task_claims.get("audio"):
-                        self.assertFalse(state["audio"]["running"])
-                        release_started.set(); self.assertTrue(cancel_finished.wait(5))
-                    return original_release(*args, **kwargs)
-                events = []; original = manager._update_chunk_fields_by_uid; errors = []
-                def update(*args, **kwargs):
-                    if kwargs.get('audio_source'):
-                        entered.set(); self.assertTrue(cancel_started.wait(3)); self.assertFalse(cancelled.is_set())
-                        result = original(*args, **kwargs); events.append('attached'); return result
-                    return original(*args, **kwargs)
-                def cancel():
-                    try:
-                        self.assertTrue(entered.wait(3)); cancel_started.set()
-                        if boundary == "cleanup": self.assertTrue(release_started.wait(5))
-                        editor._apply_audio_cancel(); events.append('cancel_acknowledged'); cancelled.set()
-                    except BaseException as exc: errors.append(exc)
-                    finally: cancel_finished.set()
-                self.engine(manager)
-                async def exercise():
-                    tasks = BackgroundTasks(); await self.start('single', tasks, [0]); await tasks()
-                worker = threading.Thread(target=cancel)
-                with patch.object(manager, '_update_chunk_fields_by_uid', side_effect=update), \
-                     patch.object(core, 'release_gpu_task_claim', side_effect=release):
-                    worker.start()
-                    try: asyncio.run(exercise())
-                    finally: worker.join(5)
-                self.assertFalse(worker.is_alive()); self.assertEqual([], errors); self.assertTrue(cancelled.is_set())
-                self.assertEqual(['attached', 'cancel_acknowledged'], events)
-                self.assertNotEqual(before[0]['audio_revision'], manager.load_chunks()[0]['audio_revision'])
+    def test_cancel_at_publication_boundary_is_acknowledged_and_refuses_commit(self):
+        # Issue #2163: publication no longer holds the global task mutex across
+        # I/O, so cancellation is acknowledged while a publish is in flight and
+        # the commit-boundary re-check must refuse to rename staged audio.
+        with self.fixture(1) as (root, manager, before, state):
+            entered = threading.Event(); cancel_started = threading.Event()
+            cancel_done = threading.Event(); errors = []
+            original = manager._update_chunk_fields_by_uid
+            def update(*args, **kwargs):
+                if kwargs.get('audio_source'):
+                    entered.set(); self.assertTrue(cancel_started.wait(3))
+                    self.assertTrue(cancel_done.wait(3))
+                return original(*args, **kwargs)
+            def cancel():
+                try:
+                    self.assertTrue(entered.wait(3)); cancel_started.set()
+                    self.assertEqual({'status': 'cancelling'}, editor._apply_audio_cancel())
+                except BaseException as exc: errors.append(exc)
+                finally: cancel_done.set()
+            self.engine(manager)
+            async def exercise():
+                tasks = BackgroundTasks(); await self.start('single', tasks, [0]); await tasks()
+            worker = threading.Thread(target=cancel)
+            with patch.object(manager, '_update_chunk_fields_by_uid', side_effect=update):
+                worker.start()
+                try: asyncio.run(exercise())
+                finally: cancel_done.set(); worker.join(5)
+            self.assertFalse(worker.is_alive()); self.assertEqual([], errors)
+            self.assertTrue(cancel_done.is_set())
+            self.assertEqual(before, manager.load_chunks())
+            self.assertFalse(list(root.glob('voicelines/*.wav')))
+
+    def test_cancel_at_cleanup_boundary_waits_for_claim_release(self):
+        # Cleanup still serializes cancellation with claim release; publication
+        # has already committed by the time release holds the mutex.
+        with self.fixture(1) as (root, manager, before, state):
+            release_started = threading.Event(); cancel_finished = threading.Event()
+            original_release = core.release_gpu_task_claim
+            def release(*args, **kwargs):
+                if core._task_claims.get("audio"):
+                    self.assertFalse(state["audio"]["running"])
+                    release_started.set(); self.assertTrue(cancel_finished.wait(5))
+                return original_release(*args, **kwargs)
+            cancel_errors = []
+            def cancel():
+                try:
+                    self.assertTrue(release_started.wait(5))
+                    self.assertEqual({'status': 'cancelling'}, editor._apply_audio_cancel())
+                except BaseException as exc:
+                    cancel_errors.append(exc)
+                finally:
+                    cancel_finished.set()
+            self.engine(manager)
+            async def exercise():
+                tasks = BackgroundTasks(); await self.start('single', tasks, [0]); await tasks()
+            worker = threading.Thread(target=cancel)
+            with patch.object(core, 'release_gpu_task_claim', side_effect=release):
+                worker.start()
+                try: asyncio.run(exercise())
+                finally: cancel_finished.set(); worker.join(5)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual([], cancel_errors)
+            self.assertNotEqual(before[0]['audio_revision'], manager.load_chunks()[0]['audio_revision'])
 
     def test_owner_context_is_scoped_and_released_claim_cannot_publish(self):
         with self.fixture(1):
@@ -271,7 +298,10 @@ class AudioGenerationCancellationTests(unittest.TestCase):
             original = manager._update_chunk_fields_by_uid; errors = []; events = []; results = []
             def update(*args, **kwargs):
                 if 'status' not in kwargs:
-                    entered.set(); self.assertTrue(attempted.wait(3)); self.assertFalse(acknowledged.is_set())
+                    entered.set(); self.assertTrue(attempted.wait(3))
+                    # Issue #2163: cleanup is admitted with allow_cancelled, so
+                    # cancellation is acknowledged while this read is waiting.
+                    self.assertTrue(acknowledged.wait(3))
                 result = original(*args, **kwargs)
                 if kwargs.get('status') == 'error': events.append('restored')
                 return result
@@ -289,7 +319,7 @@ class AudioGenerationCancellationTests(unittest.TestCase):
             try: asyncio.run(tasks())
             finally: worker.join(5)
             self.assertFalse(worker.is_alive()); self.assertEqual([], errors); self.assertTrue(acknowledged.is_set())
-            self.assertEqual(['restored', 'cancel_acknowledged'], events)
+            self.assertEqual(['cancel_acknowledged', 'restored'], events)
             self.assertEqual([(1, [])], results); self.assertEqual(captured, manager.load_chunks()[0])
 
     def test_recovery_parent_renews_exact_book_uid_inputs_and_live_owner(self):

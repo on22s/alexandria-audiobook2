@@ -259,18 +259,24 @@ class ChunkStatusJournal:
             save_adapter_publication_bytes(str(self.path), _get_json_bytes(header) + b"\n")
             self._versions = self._get_versions()
 
-    def _append(self, record):
+    def _append(self, record, before_append=None):
         record = dict(record, sequence=self._sequence + 1)
         payload = _get_json_bytes(record) + b"\n"
         self._versions = None  # a failed append must force recovery on the next read
         with self.path.open("ab") as handle:
+            # Opening the append stream is the last potentially blocking
+            # preparation. Serialization performs no durable mutation, so the
+            # caller's guard runs here, after the descriptor exists and
+            # immediately before the first observable write (R2/R5/F01).
+            if before_append is not None:
+                before_append()
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
         self._sequence += 1
         self._versions = self._get_versions()
 
-    def apply_update(self, uid, changes):
+    def apply_update(self, uid, changes, before_append=None):
         self.ensure_writable()
         if (uid not in self._by_uid or not isinstance(changes, dict) or not changes
                 or not set(changes).issubset(FIELDS)):
@@ -282,7 +288,8 @@ class ChunkStatusJournal:
             raise ValueError('Prior-take metadata is full. Disable automatic history before editing more lines.')
         before_paths = (previous.get('audio_path'), *get_retained_audio_paths(previous))
         after_paths = (updated.get('audio_path'), *get_retained_audio_paths(updated))
-        self._append({"type": "update", "uid": uid, "changes": changes})
+        self._append({"type": "update", "uid": uid, "changes": changes},
+                     before_append=before_append)
         for path in before_paths:
             key = get_chunk_audio_key(self.snapshot, path)
             self._audio_references[key] -= 1
@@ -293,10 +300,12 @@ class ChunkStatusJournal:
         self._by_uid[uid].update(copy.deepcopy(changes))
         return copy.deepcopy(self._by_uid[uid])
 
-    def save_compacted(self, rows, save_snapshot=None):
+    def save_compacted(self, rows, save_snapshot=None, before_replace=None):
         """Journal the target hash before atomically replacing the snapshot."""
         self.ensure_writable()
         payload = json.dumps(rows, ensure_ascii=False, indent=2, allow_nan=False).encode("utf-8")
+        if before_replace is not None:
+            before_replace()
         self._append({"type": "compact", "snapshot_sha256": hashlib.sha256(payload).hexdigest()})
         self._versions = None
         if save_snapshot is None:

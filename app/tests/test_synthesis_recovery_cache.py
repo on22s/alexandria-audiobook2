@@ -75,9 +75,9 @@ class RecoveryStorageTests(unittest.TestCase):
     def test_writer_owner_and_reader_closed_repeated_cross_thread_admission(self):
         with self.open_cache() as storage:
             real_save = storage._save_index
-            def checked_save(body):
+            def checked_save(body, *, settle=False):
                 self.assertEqual(1, self.depth)
-                return real_save(body)
+                return real_save(body, settle=settle)
             with patch.object(storage, '_save_index', side_effect=checked_save):
                 self.save(storage, self.body())
             with storage.read_transaction() as transaction:
@@ -113,6 +113,65 @@ class RecoveryStorageTests(unittest.TestCase):
             with cache.RecoveryCacheStorage(self.root, cancelled):
                 pass
         self.assertEqual(before, self.index().read_bytes())
+
+    def test_interrupted_initialization_pending_is_recovered(self):
+        # F06: cancellation during the initial empty-index fsync can leave a
+        # valid staged initialization with no committed index. Two independent
+        # opens must recover it instead of raising FileNotFoundError.
+        directory = self.root / cache.CACHE_DIRECTORY
+        directory.mkdir(mode=0o700)
+        directory.chmod(0o700)
+        body = {'version': 1, 'requests': {}}
+        payload = cache._canonical_bytes(body)
+        envelope = {**body, 'sha256': hashlib.sha256(payload).hexdigest()}
+        for name in (cache.PENDING_NAME, cache.INDEX_NAME + '.lock'):
+            path = directory / name
+            path.write_bytes(cache._canonical_bytes(envelope) if name == cache.PENDING_NAME else b'')
+            path.chmod(0o600)
+        for _ in range(2):
+            with self.open_cache() as storage:
+                with storage.read_transaction() as transaction:
+                    self.assertEqual({'version': 1, 'requests': {}}, transaction.data)
+            self.assertTrue(self.index().exists())
+            self.assertFalse((directory / cache.PENDING_NAME).exists())
+
+    def test_unknown_staged_index_is_still_refused(self):
+        # F06 must not adopt an unknown forward proposal as initialization.
+        directory = self.root / cache.CACHE_DIRECTORY
+        directory.mkdir(mode=0o700)
+        directory.chmod(0o700)
+        body = self.body()
+        payload = cache._canonical_bytes(body)
+        envelope = {**body, 'sha256': hashlib.sha256(payload).hexdigest()}
+        pending = directory / cache.PENDING_NAME
+        pending.write_bytes(cache._canonical_bytes(envelope))
+        pending.chmod(0o600)
+        lock = directory / (cache.INDEX_NAME + '.lock')
+        lock.write_bytes(b'')
+        lock.chmod(0o600)
+        with self.assertRaises(cache.RecoveryCacheUnavailable):
+            with self.open_cache():
+                pass
+        self.assertEqual(cache._canonical_bytes(envelope), pending.read_bytes())
+
+    def test_retirement_settles_after_payload_removal_when_owner_stops(self):
+        # F06: once payloads are unlinked, the index removal is mandatory.
+        # Revalidating the owner at that rename would advertise complete rows
+        # whose WAVs no longer exist.
+        source, metadata = self.audio_source()
+        state = {'stop': False}
+
+        def validate():
+            if state['stop']:
+                raise RuntimeError('cancelled')
+
+        with cache.RecoveryCacheStorage(self.root, self.admit, validate=validate) as storage:
+            self.assertTrue(self.save_audio(storage, source, metadata))
+            state['stop'] = True
+            storage.retire_request('a' * 64)
+            with storage.read_transaction() as transaction:
+                self.assertNotIn('a' * 64, transaction.data['requests'])
+        self.assertEqual([], list(self.index().parent.glob('*.wav')))
 
     def test_contention_is_nonblocking_and_releases_owner(self):
         with self.open_cache() as storage:
@@ -411,11 +470,11 @@ with cache.RecoveryCacheStorage(sys.argv[1], nullcontext) as storage:
         source, metadata = self.audio_source()
         with self.open_cache() as storage:
             real_save = storage._save_index
-            def fail_complete(body):
+            def fail_complete(body, *, settle=False):
                 if any(row['state'] == 'complete' for request in body['requests'].values()
                        for row in request['windows'].values()):
                     raise OSError('interrupted completion')
-                return real_save(body)
+                return real_save(body, settle=settle)
             with patch.object(storage, '_save_index', side_effect=fail_complete):
                 with self.assertRaises(OSError):
                     self.save_audio(storage, source, metadata)

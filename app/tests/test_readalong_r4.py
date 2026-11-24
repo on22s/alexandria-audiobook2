@@ -583,6 +583,43 @@ class R4PublicationTests(unittest.TestCase):
             self.assertEqual(old_mp3, (Path(tmp) / "cloned_audiobook.mp3").read_bytes())
             self.assertEqual(old_side, (Path(tmp) / "readalong.sidecar.json").read_bytes())
 
+    def test_cancel_with_incomplete_rollback_reports_pending_recovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _setup_book(tmp, [(4800, 24000, 1, 2)] * 2)
+            manager = ProjectManager(tmp)
+            ok, msg = build_sidecar_export(manager, lambda: False)
+            self.assertTrue(ok, msg)
+            chunks = json.loads((Path(tmp) / "chunks.json").read_text(encoding="utf-8"))
+            chunks[0]["pause_after"] = 500
+            (Path(tmp) / "chunks.json").write_text(json.dumps(chunks), encoding="utf-8")
+            import project_scope_exports
+            import readalong_export
+            orig_ensure = readalong_export.ensure_audio_export_active
+            move = book_state_transaction._move
+            published = []
+
+            def flaky_replace(src, dst, **kwargs):
+                result = move(src, dst, **kwargs)
+                if str(dst) == str(Path(tmp) / "cloned_audiobook.mp3"):
+                    published.append(True)
+                return result
+
+            def cancel_after_publish(check=None):
+                if published:
+                    from tts import ExportCancelled
+                    raise ExportCancelled("cancelled between publications")
+                return orig_ensure(check)
+
+            with patch.object(book_state_transaction, "_move", side_effect=flaky_replace), \
+                    patch.object(readalong_export, "ensure_audio_export_active",
+                                 side_effect=cancel_after_publish), \
+                    patch.object(project_scope_exports, "recover_failed_export_set",
+                                 return_value=False):
+                ok, msg = build_sidecar_export(manager, lambda: False)
+            self.assertFalse(ok)
+            self.assertIn("rollback is pending recovery", msg.lower())
+            self.assertNotEqual("Export cancelled", msg)
+
     def test_stale_admission_between_publications_rolls_back(self):
         with tempfile.TemporaryDirectory() as tmp:
             _setup_book(tmp, [(4800, 24000, 1, 2)] * 2)

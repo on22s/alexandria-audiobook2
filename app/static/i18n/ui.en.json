@@ -3498,6 +3498,7 @@
   "safety.editor.speech.cancel-unconfirmed": "Speech-check cancellation is unconfirmed",
   "safety.editor.speech.snapshot-changed": "Speech recheck recorded, but the review snapshot changed. Refresh review for current evidence.",
   "safety.editor.word-timing.cancel-unconfirmed": "Timing cancellation is unconfirmed",
+  "safety.export.pending_recovery": "This export is pending recovery; retry after the next book admission finishes or attempts it.",
   "safety.export.previous_book": "This export belongs to a previous book; rebuild it before downloading.",
   "safety.export.previous_scope": "This export predates the selected source scope. Rebuild it before downloading.",
   "safety.generation.admission_source_changed": "The selected source changed during admission; no worker was started.",

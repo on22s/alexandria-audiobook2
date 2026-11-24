@@ -46,6 +46,7 @@ from literal_policy import (ensure_literal_narration, bind_literal_chunks,
 from audio_validation import publish_audio_output, remove_stale_audio, validate_generated_audio
 from audio_generation_owner import (AUDIO_GENERATION_CANCELLED, AudioGenerationCancelled,
                                     ensure_audio_generation_active, ensure_audio_generation_publication,
+                                    ensure_audio_generation_commit_active, ensure_audio_generation_claim_current,
                                     ensure_audio_generation_book, ensure_audio_generation_book_work, reuse_audio_generation_book,
                                     get_audio_generation_owner, is_audio_generation_cancelled,
                                     run_with_audio_generation_owner)
@@ -1313,8 +1314,14 @@ class ProjectManager:
         """Identify the file whose rows have already received stable UIDs."""
         return get_chunk_state_file_version(self.chunks_path)
 
-    def _save_chunks_locked(self, chunks, uids_backfilled=False, *, retained_update_uid=None):
-        """Publish rows and retain UID validation only for known-valid writes."""
+    def _save_chunks_locked(self, chunks, uids_backfilled=False, *, retained_update_uid=None,
+                            before_replace=None):
+        """Publish rows and retain UID validation only for known-valid writes.
+
+        ``before_replace`` runs at the durable-commit boundary (after staging
+        and fsync, before the snapshot rename) so a caller can refuse a write
+        whose exact claim or cancellation changed while preparing it (R2/R5).
+        """
         if (os.path.lexists(os.path.join(self.root_dir, TAKE_HISTORY_POLICY))
                 or any(row.get(RETAINED_TAKE_KEY) is not None for row in chunks)):
             previous = (self._get_saved_chunk_rows_locked()
@@ -1324,9 +1331,11 @@ class ProjectManager:
         def save_snapshot(rows):
             nonlocal written_bytes
             options = {'return_written_bytes': True} if uids_backfilled and sys.platform == 'win32' else {}
-            written_bytes = atomic_json_write(rows, self.chunks_path, **options, allow_nonatomic_fallback=False)
+            written_bytes = atomic_json_write(rows, self.chunks_path, **options,
+                allow_nonatomic_fallback=False, before_replace=before_replace)
         if get_chunk_state_file_version(get_chunk_status_journal_path(self.chunks_path)) is not None:
-            self._get_status_journal_locked().save_compacted(chunks, save_snapshot=save_snapshot)
+            self._get_status_journal_locked().save_compacted(chunks, save_snapshot=save_snapshot,
+                                                            before_replace=before_replace)
             self._status_journal = None
         else:
             save_snapshot(chunks)
@@ -1821,12 +1830,18 @@ class ProjectManager:
     def _update_chunk_fields_by_uid(self, uid, expected_chunk=None, required_status=None,
                                     audio_source=None, expected_fields=None, expected_related_chunks=None,
                                     require_target=False, publication_audio=None, restore_speech_receipt=False,
-                                    audio_source_authority=None, **kwargs):
+                                    audio_source_authority=None, before_update=None, **kwargs):
         """Conditionally publish to the live UID under one lock, preserving other rows.
 
         Generation compares only captured render inputs. An owned converted temp
         file is promoted under this same guard, after conversion outside the lock.
         Existing non-generation callers retain the UID-only update contract.
+
+        ``before_update`` is an optional raise-to-veto command run while both the
+        chunk mutex and the file lock are held, immediately before a metadata
+        write. Cleanup and speech recheck pass an exact-owner/claim validator
+        here instead of checking before the lock is acquired, so a successor
+        that installed its claim while this worker waited cannot be overwritten.
         """
         if not uid:
             return None
@@ -1893,6 +1908,7 @@ class ProjectManager:
                         break
                 else:
                     raise ValueError("Both chunk audio publication slots are referenced; preserve the shared takes before retrying")
+                ensure_audio_generation_commit_active()
                 kwargs["audio_path"] = candidate
                 if audio_source_authority is not None:
                     published_path = str(audio_source_authority.stage.directory.parent.parent / candidate)
@@ -1900,7 +1916,9 @@ class ProjectManager:
                 else:
                     with open(audio_source, "rb+") as handle:
                         os.fsync(handle.fileno())
-                    publish_audio_output(audio_source, self.get_chunk_audio_path(candidate))
+                    if publish_audio_output(audio_source, self.get_chunk_audio_path(candidate),
+                            cancel_check=ensure_audio_generation_commit_active) is False:
+                        raise AudioGenerationCancelled()
                 sync_adapter_directory(self.voicelines_dir)
                 final_path = (published_path if audio_source_authority is not None
                               else self.get_chunk_audio_path(candidate))
@@ -1935,6 +1953,12 @@ class ProjectManager:
                     kwargs['speech_verification'] = {**receipt,
                         'audio_file_version': list(publication_version[:5])}
             if kwargs:
+                # Under both locks: an obsolete worker whose claim was
+                # replaced while it waited for the chunk mutex must not write.
+                # The same guard is threaded into the durable write below so a
+                # cancellation during staging/serialization is also observed.
+                if before_update is not None:
+                    before_update()
                 if audio_source is not None and publication_retry_budget is not None:
                     publication_retry_budget.check_active()
                 if audio_source_authority is not None:
@@ -1947,11 +1971,12 @@ class ProjectManager:
                         preserve_retained_takes(self.root_dir, [chunk], [changed])
                         if changed.get(RETAINED_TAKE_KEY) != chunk.get(RETAINED_TAKE_KEY):
                             kwargs[RETAINED_TAKE_KEY] = changed.get(RETAINED_TAKE_KEY)
-                    chunk = journal.apply_update(uid, kwargs)
+                    chunk = journal.apply_update(uid, kwargs, before_append=before_update)
                 else:
                     chunk.update(kwargs)
                     self._save_chunks_locked(chunks, uids_backfilled=bool(chunk.get("uid")),
-                        retained_update_uid=uid if RETAINED_TAKE_KEY in kwargs else None)
+                        retained_update_uid=uid if RETAINED_TAKE_KEY in kwargs else None,
+                        before_replace=before_update)
             return chunk
 
     def _publish_generated_chunk_audio(self, chunk, temp_path, speaker, recovery_parent=None, publication_admission=None):
@@ -2041,8 +2066,13 @@ class ProjectManager:
                         raise SynthesisWorkspaceUnavailable('Publication writer changed after workspace admission')
                     source_authority.check()
                     authority_options['audio_source_authority'] = source_authority
+                # Selecting the new take is a separate durable decision from
+                # installing the slot. Revalidate the exact owner under both
+                # locks so an acknowledged cancel after the slot rename but
+                # before its directory sync cannot still select it (R2).
                 updated = self._update_chunk_fields_by_uid(
                     chunk["uid"], expected_chunk=chunk, audio_source=staged_path,
+                    before_update=ensure_audio_generation_commit_active,
                     publication_audio=publication['audio'] if publication is not None else None,
                     status="done", audio_revision=revision, error=None, drift=None, outlier=None, **authority_options, **evidence)
             if updated is None:
@@ -2126,8 +2156,14 @@ class ProjectManager:
         with scope as retained, self._ensure_chunk_generation_publication(chunk) as current_book:
             if not current_book:
                 return None
+            # Ordinary owned status writes (generating/error/done) must carry
+            # the exact-claim guard into the durable write; genuinely unowned
+            # callers keep the UID-only contract, and claim-only validation
+            # still permits the same owner to record its own error (R5).
+            guarded = (ensure_audio_generation_claim_current
+                       if get_audio_generation_owner() is not None else None)
             return self._update_chunk_fields_by_uid(
-                chunk.get("uid"), expected_chunk=chunk, **fields, **retained)
+                chunk.get("uid"), expected_chunk=chunk, before_update=guarded, **fields, **retained)
 
     def _capture_take_publication_admission(self, engine, parent, index, chunk, voice_config, speaker):
         if parent is None or not get_take_history_policy(self.root_dir)['enabled']:
@@ -2306,10 +2342,19 @@ class ProjectManager:
                 current = self._update_chunk_fields_by_uid(chunk.get("uid"), expected_chunk=chunk)
                 if current is not None and current.get("status") == "generating":
                     retry_fields = {} if speech_retry_attempts is None else {"speech_retry_attempts": speech_retry_attempts}
+                    # Revalidate the claim under the chunk mutex, immediately
+                    # before the write: a successor may have installed its
+                    # claim while this obsolete worker waited for that lock.
                     return self._update_chunk_fields_by_uid(
                         chunk.get("uid"), expected_chunk=chunk, required_status="generating",
                         status=(chunk.get("status", "pending") if chunk.get("status") != "generating" else "pending"),
-                        error=chunk.get("error"), **retry_fields)
+                        error=chunk.get("error"), before_update=ensure_audio_generation_claim_current,
+                        **retry_fields)
+                if current is not None:
+                    # A read that finds an already-settled row is only
+                    # countable for the successor's exact claim; otherwise the
+                    # obsolete cleanup must report zero (R5).
+                    ensure_audio_generation_claim_current()
                 return current
         except AudioGenerationCancelled:
             # A replaced/released owner has no authority even for cleanup.
@@ -2890,7 +2935,9 @@ class ProjectManager:
                 from project_scope_exports import publish_export_with_receipt
 
                 def replace():
-                    replace_export_output(pending_output, output_path)
+                    if replace_export_output(pending_output, output_path,
+                            cancel_check=ensure_audio_generation_commit_active) is False:
+                        raise AudioGenerationCancelled()
                     # The publisher verifies the installed file separately.
                     publication_outputs.pop(pending_output)
 
@@ -3227,9 +3274,12 @@ class ProjectManager:
             source_snapshot.verify_sources()
             with source_snapshot.ensure_publication(pending_output, quality_report):
                 from project_scope_exports import publish_export_with_receipt
+                def replace():
+                    if replace_export_output(pending_output, output_path,
+                            cancel_check=ensure_audio_generation_commit_active) is False:
+                        raise AudioGenerationCancelled()
                 publish_export_with_receipt(self.root_dir, pending_output, output_path,
-                    quality_report.get('sha256'),
-                    lambda: replace_export_output(pending_output, output_path),
+                    quality_report.get('sha256'), replace,
                     expected_version=quality_report.get('file_version'))
             quality_report = {**quality_report, 'skipped_chunks': skipped}
             notify_completed_export(output_path, 'audiobook.m4b', quality_report, export_quality_callback)
@@ -3477,7 +3527,8 @@ class ProjectManager:
 
                 from project_scope_exports import (
                     ExportCommitUncertain, ExportSetChanged, publish_export_set_member,
-                    get_export_set_cleanup_pending_detail, recover_failed_export_set,
+                    get_export_set_cleanup_pending_detail,
+                    get_export_set_rollback_pending_detail, recover_failed_export_set,
                     preflight_export_publication_batch, read_publication_journal,
                     read_set_journal, record_export_publication,
                     write_set_journal)
@@ -3505,14 +3556,20 @@ class ProjectManager:
                         ensure_audio_export_active(cancel_check)
                         with admit():
                             publish('manifest.json')
+                        ensure_audio_generation_commit_active()
                         for target in _targets:
                             report = outputs.get(target, {})
                             digest = report.get('sha256')
                             if isinstance(digest, str):
                                 record_export_publication(self.root_dir, target, digest,
                                     report.get('file_version'), export_set=True)
+                        # The whole set is reversible until this durable commit;
+                        # a cancel or replaced claim acknowledged during the
+                        # member moves or receipt recording must refuse it.
+                        ensure_audio_generation_commit_active()
                         retain_backup = not write_set_journal(
-                            self.root_dir, _targets, _backups, committed=True)
+                            self.root_dir, _targets, _backups, committed=True,
+                            commit_check=ensure_audio_generation_commit_active)
                     except ExportCommitUncertain:
                         retain_backup = True
                         raise
@@ -3522,8 +3579,13 @@ class ProjectManager:
                         except BaseException:
                             retain_backup = True
                             raise
-                        if isinstance(error, ExportCancelled) and not retain_backup:
-                            return False, "Export cancelled"
+                        if isinstance(error, (ExportCancelled, AudioGenerationCancelled)):
+                            if not retain_backup:
+                                return False, "Export cancelled"
+                            # The undo did not finish; the intent journal and
+                            # backups remain fenced. Report the phase-specific
+                            # pending state, not an ordinary cancellation (F04).
+                            return False, get_export_set_rollback_pending_detail(staging_dir)
                         if isinstance(error, ExportSetChanged):
                             return False, str(error)
                         raise
@@ -4268,13 +4330,17 @@ class ProjectManager:
                           f"lacks MP3 encoder (libmp3lame). Falling back to WAV.")
                     raise RuntimeError("MP3 export produced invalid file")
                 validate_generated_audio(staged_mp3, "MP3 chunk export")
-                publish_audio_output(staged_mp3, mp3_filepath)
+                if publish_audio_output(staged_mp3, mp3_filepath,
+                        cancel_check=ensure_audio_generation_commit_active) is False:
+                    raise AudioGenerationCancelled()
             finally:
                 if os.path.exists(staged_mp3):
                     os.remove(staged_mp3)
             return f"voicelines/{mp3_filename}"
 
         except Exception as e:
+            if isinstance(e, AudioGenerationCancelled):
+                raise
             if "invalid file" not in str(e).lower():
                 print(f"MP3 conversion failed: {e}")
             wav_filename = f"{filename_base}.wav"
@@ -4284,7 +4350,9 @@ class ProjectManager:
             os.close(fd)
             try:
                 shutil.copy2(temp_path, staged_wav)
-                publish_audio_output(staged_wav, wav_filepath)
+                if publish_audio_output(staged_wav, wav_filepath,
+                        cancel_check=ensure_audio_generation_commit_active) is False:
+                    raise AudioGenerationCancelled()
             finally:
                 if os.path.exists(staged_wav):
                     os.remove(staged_wav)
