@@ -9,10 +9,10 @@ import subprocess
 import sys
 import tempfile
 
-from alexandria_run_manifest import get_file_identity, write_json_atomic
+from alexandria_run_manifest import (CorpusPairError, get_file_identity,
+                                     validate_corpus_pair, write_json_atomic)
 from alexandria_file_lock import acquire_exclusive_file_lock
 from alexandria_zip_publication import ensure_zip_family_readable
-from corpus_pairs import CorpusPairError, validate_corpus_pair
 
 
 def get_dataset_identity(output):

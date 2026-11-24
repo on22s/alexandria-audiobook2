@@ -7,8 +7,8 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-from alexandria_run_manifest import get_file_identity, write_json_atomic
-from corpus_pairs import CorpusPairError, validate_corpus_pair
+from alexandria_run_manifest import (CorpusPairError, get_file_identity,
+                                     validate_corpus_pair, write_json_atomic)
 
 PRESCAN_SAMPLE_COUNT = 30
 # Existing ASR windows cover 30 + 29 * 27 = 813 seconds. Sparse speech may
