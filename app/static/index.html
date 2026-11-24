@@ -4397,7 +4397,7 @@
                                 <p id="export-mastering-status" role="status" aria-live="polite" class="small mt-2" data-i18n="audio.mastering.status-default">Off by default. Export explicitly, then check the measured results.</p>
                                 <div id="export-mastering-reports" class="small"></div>
                             </details>
-                            <details id="abs-delivery-options" class="workflow-disclosure mt-3 text-start">
+                            <details id="abs-delivery-options" class="workflow-disclosure mt-3 text-start" ontoggle="loadAbsSavedConfig()">
                                 <summary data-i18n="audio.abs.title">Send to Audiobookshelf (manual)</summary>
                                 <p class="small mt-2" data-i18n="audio.abs.intro">Sends one finished, integrity-checked MP3 or M4B export to your Audiobookshelf server. Nothing leaves this machine until you preview the exact destination, bytes, and metadata below and confirm. The local export is kept on cancel or failure, and delivery status never changes export status.</p>
                                 <p class="small mb-0"><a href="https://api.audiobookshelf.org/" rel="noreferrer" data-help-key="audiobookshelfApiDocs" data-i18n="audio.abs.docs">Audiobookshelf API docs</a></p>
