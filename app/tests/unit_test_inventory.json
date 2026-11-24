@@ -4582,14 +4582,18 @@
     , "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_reasoning_sampling_in_serialized_sdk_body"
   ]
   , "test_deepseek_text_helpers": [
-    "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_deeply_nested_json_shapes_do_not_escape_recursion_error"
+    "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_brace_storms_are_refused_within_the_work_budget"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_deeply_nested_json_shapes_are_refused_not_partially_parsed"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_faster_scan_matches_the_reference_on_randomized_text"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_filesystem_root_contains_child_and_sibling_prefix_stays_outside"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_latin_accent_case_is_source_backed_but_new_letters_fail"
-    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_unclosed_brace_run_does_not_rescan_from_every_open_brace"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_recursion_error_in_a_candidate_span_refuses_the_whole_reply"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_recursion_error_refuses_without_rescanning_from_each_brace"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_unclosed_brace_run_does_not_scan_the_tail_even_once"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_unmatched_prose_brace_does_not_hide_later_object"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_uppercase_suffixes_preserve_case_and_damage_gate"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_valid_object_after_more_than_64_stray_open_braces_is_found"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_valid_object_after_strays_in_a_large_reply_matches_the_reference"
   ]
   , "test_deepseek_ui_state": [
     "tests.test_deepseek_ui_state.UiStateTests.test_connection_results_are_bound_to_current_profile_and_request"
@@ -10331,8 +10335,11 @@
     , "tests.test_preparer_admission_cancel.PreparerAdmissionCancelTests.test_upload_failure_or_request_cancel_releases_pending_owner_and_partial_stages"
   ]
   , "test_preparer_annotate_confidence": [
-    "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_invalid_confidence_drops_the_chunk_instead_of_crashing"
+    "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_boolean_confidence_is_rejected_as_non_numeric"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_invalid_confidence_drops_the_chunk_instead_of_crashing"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_invalid_confidence_is_counted_like_a_low_confidence_drop"
     , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_numeric_confidence_still_passes_the_quality_filter"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_resume_does_not_redo_or_duplicate_the_rejected_chunk"
   ]
   , "test_preparer_asr_limits": [
     "tests.test_preparer_asr_limits.PreparerAsrLimitTests.test_actual_asr_phase_bounds_detection_diarization_and_fallback_but_keeps_full_scratch"
@@ -19333,6 +19340,7 @@
     , "tests.test_word_timing.WordTimingTests.test_cache_is_bound_to_audio_text_and_model_and_never_rewrites_them"
     , "tests.test_word_timing.WordTimingTests.test_cancel_before_start_does_not_launch_a_child"
     , "tests.test_word_timing.WordTimingTests.test_foreign_audio_and_stale_revision_refused_before_asr"
+    , "tests.test_word_timing.WordTimingTests.test_huge_int_offsets_from_the_shared_converter_raise_value_error"
     , "tests.test_word_timing.WordTimingTests.test_invalid_overlap_saturation_and_nonfinite_timestamps_are_rejected"
     , "tests.test_word_timing.WordTimingTests.test_known_answer_words_and_contractions_keep_real_bounds"
     , "tests.test_word_timing.WordTimingTests.test_mutation_during_asr_is_refused_without_publishing_or_overwriting_cache"
