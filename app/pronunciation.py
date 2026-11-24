@@ -476,8 +476,10 @@ def get_occurrence_pronunciation_resolution(text, entries, pattern=None, *, rule
         if rule['id'] in conflicts:
             decision['reason'] = 'overlapping_approved_spans'
             continue
+        accepted_voices = (context.get('voice_sha256'), context.get('voice_sha256_legacy'))
         mismatch = next((key for key, value in rule.get('restrictions', {}).items()
-                         if context.get(key) != value), None)
+                         if context.get(key) != value
+                         and not (key == 'voice_sha256' and value in accepted_voices)), None)
         if mismatch:
             decision['reason'] = 'scope_mismatch:' + mismatch
             continue

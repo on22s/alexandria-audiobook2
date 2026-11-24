@@ -200,6 +200,22 @@ class ExportQualityApiTests(unittest.TestCase):
             self.assertEqual([], evidence['reports'])
             self.assertEqual(1, evidence['unavailable'])
 
+    def test_superseded_attempt_cannot_replace_current_public_attempt(self):
+        # F09: a successor may install its own attempt for the same task/book.
+        # Completion and failure from the older attempt must not replace the
+        # public attempt the API is now showing.
+        with self.fixture() as (_root, _manager, states, _client, token):
+            state = states['audio']
+            older = session.ExportQualityAttempt(state, token)
+            newer = session.ExportQualityAttempt(state, token)
+            self.assertIs(newer.attempt, state['export_quality_attempt'])
+            older.finish(True, 'done')
+            self.assertIs(newer.attempt, state['export_quality_attempt'])
+            self.assertEqual('running', state['export_quality_attempt']['status'])
+            older.fail(RuntimeError('late failure'))
+            self.assertIs(newer.attempt, state['export_quality_attempt'])
+            self.assertEqual('running', state['export_quality_attempt']['status'])
+
 
 if __name__ == '__main__':
     unittest.main()

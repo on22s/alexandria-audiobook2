@@ -1,6 +1,7 @@
 """Keep large older deliveries on disk while fencing unchanged pre-scope files."""
 from contextlib import contextmanager, nullcontext
 import base64
+import contextvars
 import hashlib
 import json
 import os
@@ -249,8 +250,8 @@ def write_publication_ledger(root, raw, *, before_replace=None):
     _write_publication_bytes(root, PUBLICATIONS_FILE, raw, '.export-ledger-', before_replace)
 
 
-def write_atomic(root, name, raw):
-    _write_publication_bytes(root, name, raw, '.export-meta-')
+def write_atomic(root, name, raw, before_replace=None):
+    _write_publication_bytes(root, name, raw, '.export-meta-', before_replace)
 
 
 JOURNAL_PHASES = ('intent', 'committed')
@@ -262,6 +263,15 @@ class ExportSetChanged(ValueError):
 
 class ExportCommitUncertain(OSError):
     """A visible commit decision still needs its directory sync."""
+
+
+class ExportRecoveryPending(RuntimeError):
+    """A failed publication left its intent journal and proposed ledger on disk.
+
+    The terminal outcome must say recovery is pending, not report an ordinary
+    cancellation: the guarded artifacts still belong to the unfinished
+    transaction and the next book admission will replay the rollback.
+    """
 
 
 def _capture_proof(root, name, *, limit=MAX_ARTIFACT_HASH_BYTES, include_bytes=False,
@@ -352,16 +362,16 @@ def _require_publication_version(root, name, proof, *, allow_hardlinks=False):
     return info
 
 
-def _write_export_journal(root, name, record):
+def _write_export_journal(root, name, record, before_replace=None):
     payload = serialize_publication_receipts(record)
     if len(payload) > MAX_PUBLICATION_JOURNAL_BYTES:
         raise ValueError('Export publication journal exceeds its bound.')
-    write_atomic(root, name, payload)
+    write_atomic(root, name, payload, before_replace=before_replace)
 
 
-def _write_export_commit(root, name, record, read_journal, confirm):
+def _write_export_commit(root, name, record, read_journal, confirm, before_replace=None):
     try:
-        _write_export_journal(root, name, record)
+        _write_export_journal(root, name, record, before_replace=before_replace)
     except OSError:
         try:
             observed = read_journal(root)
@@ -579,7 +589,7 @@ def set_journal_members(root, targets, backups, *, staged=None, receipts=None, s
 
 
 def write_set_journal(root, targets, backups, prior_ledger=None, committed=False, *,
-                      staged=None, sources=None):
+                      staged=None, sources=None, commit_check=None):
     root = Path(os.path.abspath(root))
     if committed:
         record = read_set_journal(root)
@@ -588,9 +598,16 @@ def write_set_journal(root, targets, backups, prior_ledger=None, committed=False
         _sync_export_target_parents(root, (member['target'] for member in record['members']))
         if record['version'] == 3:
             _check_export_set_commit(root, record, verify_backups=True)
+        # Last safe boundary before the durable intent->committed decision:
+        # after parent sync, ledger/backup verification and the journal's own
+        # staged write + fsync, immediately before the commit rename (R1).
+        if commit_check is not None:
+            commit_check()
         record = {**record, 'phase': 'committed'}
         _write_export_commit(root, PUBLICATION_SET_JOURNAL, record, read_set_journal,
-                             _confirm_export_set_commit)
+                             _confirm_export_set_commit,
+                             before_replace=(None if commit_check is None else
+                                             (lambda _staged, _raw: commit_check())))
         # Readers fence guarded journals until retirement. A cleanup problem
         # after the durable decision may keep the stage, but cannot undo it.
         return recover_set_journal(root, cleanup_stage=False)
@@ -735,6 +752,27 @@ def _require_set_parents(root, member, names=None):
         raise ExportSetChanged('Export set parent changed during publication.')
 
 
+_FORWARD_MOVE_VALIDATOR = contextvars.ContextVar(
+    'export_forward_move_validator', default=None)
+
+
+@contextmanager
+def _forward_export_move():
+    """Authorize only forward publication moves for the enclosed call.
+
+    Recovery performs its own independently authorized moves and must not be
+    refused by a stop that only fences new publication. Keeping this as a
+    context value leaves ``_move_guarded_set_file``'s call signature stable
+    for existing callers and fixtures.
+    """
+    from audio_generation_owner import ensure_audio_generation_commit_active
+    token = _FORWARD_MOVE_VALIDATOR.set(ensure_audio_generation_commit_active)
+    try:
+        yield
+    finally:
+        _FORWARD_MOVE_VALIDATOR.reset(token)
+
+
 def _move_guarded_set_file(root, member, source, destination, proof):
     from book_state_transaction import _move
     linked = (_allows_linked_predecessor(member['target'])
@@ -747,20 +785,35 @@ def _move_guarded_set_file(root, member, source, destination, proof):
         _move(root / source, root / destination, exclusive=True, anchor=root,
               anchor_identity=tuple(parents[source][0]),
               source_parent_identity=parents[source], destination_parent_identity=parents[destination],
-              expected_source_identity=source_identity)
+              expected_source_identity=source_identity,
+              before_move=_FORWARD_MOVE_VALIDATOR.get())
     except (FileExistsError, ValueError) as error:
         raise ExportSetChanged('Export set member changed during its move.') from error
 
 
 def publish_export_set_member(root, member, report):
     """Move each admitted object exclusively, then verify what actually moved."""
+    from audio_generation_owner import ensure_audio_generation_commit_active
+    # Revalidate exact ownership at the publication boundary: the set journal
+    # already contains intent, but the captured owner is no longer serialized
+    # across its yield, so a cancel or claim replacement here must refuse the
+    # move (including a reused/manifest-only set) before any target changes.
+    ensure_audio_generation_commit_active()
     root = Path(os.path.abspath(root))
     target, backup, source = (member[key] for key in ('target', 'backup', 'source'))
     before = member['before']
     _require_set_version(root, target, before,
                          allow_hardlinks=_allows_linked_predecessor(target))
     if before is not None:
-        _move_guarded_set_file(root, member, target, backup, before)
+        # Identity above is prepared; recheck exact ownership immediately
+        # before the first forward mutation. The restore move inside the
+        # failure branch below is recovery and must remain authorized (R13).
+        from audio_generation_owner import ensure_audio_generation_commit_active
+        ensure_audio_generation_commit_active()
+        # The lowest exclusive move repeats this after its own blocking
+        # descriptor/parent/identity preparation (F03).
+        with _forward_export_move():
+            _move_guarded_set_file(root, member, target, backup, before)
         saved = {'file_version': list(_version((root / backup).lstat()))}
         if saved['file_version'][:4] != before['file_version'][:4]:
             # POSIX no-overwrite protects the destination, but cannot bind
@@ -768,7 +821,10 @@ def publish_export_set_member(root, member, report):
             if not os.path.lexists(root / target):
                 _move_guarded_set_file(root, member, backup, target, saved)
             raise ExportSetChanged('Export set predecessor changed during backup.')
-    _move_guarded_set_file(root, member, source, target, report)
+    from audio_generation_owner import ensure_audio_generation_commit_active
+    ensure_audio_generation_commit_active()
+    with _forward_export_move():
+        _move_guarded_set_file(root, member, source, target, report)
     version = list(_version((root / target).lstat()))
     if version[:4] != member['new']['file_version']:
         raise ExportSetChanged('Export set output changed during publication.')
@@ -996,6 +1052,18 @@ def recover_failed_export_set(root, staging_path):
 
 def get_export_set_cleanup_pending_detail(staging_path):
     return f'Export committed; pending recovery. Recovery files kept at {staging_path}.'
+
+
+def get_export_set_rollback_pending_detail(staging_path):
+    """Phase-specific outcome when an interrupted undo did not finish.
+
+    The intent journal, backups and external bytes are preserved; the next
+    book admission attempts recovery. This is deliberately distinct from both
+    an ordinary cancellation (which finished its rollback) and a committed
+    export whose cleanup is pending.
+    """
+    return (f'Export rollback is pending recovery; the next book admission '
+            f'will attempt it. Recovery files kept at {staging_path}.')
 
 
 def _sync_export_target_parents(root, targets):
@@ -1285,7 +1353,8 @@ def preflight_export_publication_batch(root, paths):
 
 
 def publish_export_with_receipt(root, staged_path, destination, sha256, replace,
-                                expected_version=None, *, admit_replace=nullcontext):
+                                expected_version=None, *, admit_replace=nullcontext,
+                                cancel_check=None):
     import shutil
     from book_state_transaction import is_book_state_admitted
 
@@ -1360,11 +1429,17 @@ def publish_export_with_receipt(root, staged_path, destination, sha256, replace,
         if len(proposed_bytes) > MAX_BOOK_METADATA_BYTES:
             raise ValueError('Export publication receipt ledger exceeds its bound.')
         _write_owned_ledger(root, proposed_bytes, PUBLICATION_JOURNAL, journal)
+        if cancel_check is None:
+            from audio_generation_owner import ensure_audio_generation_commit_active
+            cancel_check = ensure_audio_generation_commit_active
         with admit_replace():
             if get_export_reader_identity(root) != identity:
                 raise ValueError('Export book changed before publication.')
             _require_publication_version(root, relative, prior_proof)
             _require_publication_version(root, staged_relative, staged_proof)
+            if cancel_check is not None and cancel_check() is True:
+                from audio_generation_owner import AudioGenerationCancelled
+                raise AudioGenerationCancelled()
             replace()
         installed = settle_publication_receipt(root, relative, sha256, staged_proof['file_version'])
         journal = read_publication_journal(root)
@@ -1377,8 +1452,60 @@ def publish_export_with_receipt(root, staged_path, destination, sha256, replace,
                                  read_publication_journal, _confirm_single_export_commit)
     except ExportCommitUncertain:
         raise
-    except BaseException:
-        recover_publication_journal(root)
+    except BaseException as error:
+        from audio_generation_owner import AudioGenerationCancelled
+        from tts import ExportCancelled
+        if not isinstance(error, (AudioGenerationCancelled, ExportCancelled)):
+            # Preserve historical behavior for ordinary faults: a rollback
+            # failure surfaces its own error to the caller.
+            recover_publication_journal(root)
+            raise
+        try:
+            recovered = recover_publication_journal(root)
+        except BaseException:
+            recovered = False
+        if not recovered and os.path.lexists(os.path.join(root, PUBLICATION_JOURNAL)):
+            # A cancellation whose rollback/cleanup did not finish would
+            # otherwise be reported as an ordinary cancelled task. Describe
+            # only the artifacts actually still on disk: rollback may already
+            # have restored the original ledger even when cleanup failed (R14).
+            notes = []
+            try:
+                pending = read_publication_journal(root)
+            except (OSError, ValueError):
+                pending = None
+            if pending is not None:
+                notes.append('the intent journal remains')
+                try:
+                    _records, current_raw = read_publication_receipts(root, include_bytes=True)
+                    ledger = pending.get('ledger') or {}
+                    prior_raw = _get_prior_ledger_raw(ledger)
+                    writes = ledger.get('writes') or []
+                    proposed_sha = ((writes[1] or {}).get('sha256')
+                                    if len(writes) == 2 else None)
+                    current_sha = (hashlib.sha256(current_raw).hexdigest()
+                                   if current_raw is not None else None)
+                except (OSError, ValueError, KeyError, TypeError):
+                    pass
+                else:
+                    # Name original/proposed only when the bytes match the
+                    # journal's own authority. A valid but unrelated ledger is
+                    # neither, and saying otherwise hides a real conflict (F10).
+                    if current_raw == prior_raw:
+                        notes.append('the original receipt ledger is restored')
+                    elif proposed_sha is not None and current_sha == proposed_sha:
+                        notes.append('a proposed receipt ledger remains')
+                    else:
+                        notes.append('an unrelated or unverified receipt ledger remains')
+                backup_name = pending.get('backup')
+                if (isinstance(backup_name, str) and backup_name
+                        and os.path.lexists(root / backup_name)):
+                    notes.append('a rollback backup remains')
+            else:
+                notes.append('recovery state remains')
+            raise ExportRecoveryPending(
+                'Export publication is pending recovery; the next book admission '
+                'will attempt it' + (f" ({', '.join(notes)})." if notes else '.')) from error
         raise
     cleanup_ok = True
     if backup is not None:
@@ -1471,7 +1598,10 @@ def get_historical_export_reason(root, path, *, expected_sha256=None, expected_v
     set_journal = read_set_journal(root)
     if is_export_set_pending(set_journal):
         if any(member['target'] == relative for member in set_journal['members']):
-            return reason
+            # A fenced set (intent or committed-cleanup) is not merely a
+            # previous-book artifact: name its pending recovery so the reader
+            # reason matches the worker's outcome (F04).
+            return 'pending'
     if not path.is_file():
         return reason if expected_version is not None else None
     version = expected_version if expected_version is not None else list(_version(path.stat()))
@@ -1542,5 +1672,8 @@ def require_scope_export_current(root, path, *, expected_sha256=None, expected_v
         if reason == 'book':
             raise AppError(409, 'This export belongs to a previous book; rebuild it before downloading.',
                            key='safety.export.previous_book')
+        if reason == 'pending':
+            raise AppError(409, 'This export is pending recovery; retry after the next book admission finishes or attempts it.',
+                           key='safety.export.pending_recovery')
         raise AppError(409, 'This export predates the selected source scope. Rebuild it before downloading.',
                        key='safety.export.previous_scope')

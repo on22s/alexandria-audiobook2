@@ -108,13 +108,13 @@ class _IndexTransaction:
         self._closed = False
         self._written = False
 
-    def commit(self):
+    def commit(self, *, settle=False):
         if (self._closed or self._written or not self._writable
                 or threading.get_ident() != self._thread):
             raise RecoveryCacheUnavailable('inactive_index_admission')
         # Even an ambiguous failure requires a new transaction/disk reread.
         self._written = True
-        self._storage._save_index(self.data)
+        self._storage._save_index(self.data, settle=settle)
 
 
 class RecoveryCacheStorage:
@@ -124,9 +124,14 @@ class RecoveryCacheStorage:
     be a cache lock or call back into these methods. This class never infers
     authority from persisted claim fields. Use it as a context manager.
     """
-    def __init__(self, project_root, admit):
+    def __init__(self, project_root, admit, validate=None):
         self.project_root = Path(project_root)
         self.admit = admit
+        # Optional plain commit validator (never reenters ``admit``). It is
+        # consulted after the index is staged and fsynced, immediately before
+        # its rename, so an obsolete claim cannot turn a reserved window into
+        # a reusable complete one (R9).
+        self.validate = validate
         self._parent_fd = None
         self._directory_fd = None
 
@@ -157,7 +162,7 @@ class RecoveryCacheStorage:
                     if created:
                         self._save_index({'version': 1, 'requests': {}})
                     else:
-                        self._load_index()  # Missing/corrupt existing authority is never reset.
+                        self._load_or_recover_index()  # Missing/corrupt authority is never guessed.
             return self
         except BaseException:
             self.close()
@@ -172,6 +177,18 @@ class RecoveryCacheStorage:
             if descriptor is not None:
                 setattr(self, name, None)
                 os.close(descriptor)
+
+    def _check_owner(self):
+        """Validate the live exact owner at a durable cache mutation boundary.
+
+        Direct writers/fixtures without a bound owner are unaffected (the
+        validator is a no-op). Callers may also supply an explicit ``validate``.
+        """
+        if self.validate is not None:
+            self.validate()
+        else:
+            from audio_generation_owner import ensure_audio_generation_commit_active
+            ensure_audio_generation_commit_active()
 
     def _check_root(self):
         if self._directory_fd is None or self._parent_fd is None:
@@ -286,6 +303,10 @@ class RecoveryCacheStorage:
                 pass
             else:
                 raise RecoveryCacheUnavailable('version_already_exists')
+            # Promotion is the first durable payload mutation; refuse it for an
+            # obsolete claim (reserved stays charged for reconciliation). The
+            # later completion-index commit validates again after staging (R9).
+            self._check_owner()
             os.rename(stage, final, src_dir_fd=self._directory_fd, dst_dir_fd=self._directory_fd)
             os.fsync(self._directory_fd)
             transaction.data['requests'][request_key]['windows'][index]['state'] = 'complete'
@@ -360,7 +381,7 @@ class RecoveryCacheStorage:
         with self.write_transaction() as transaction:
             requests = transaction.data['requests']
             request = requests.get(request_key)
-            changed = False
+            changed = unlinked = False
             if request is not None:
                 if request['uid'] != uid:
                     raise RecoveryCacheUnavailable('request_uid_changed')
@@ -368,6 +389,7 @@ class RecoveryCacheStorage:
                          if row['state'] == 'reserved' and row['claim'] != claim}
                 if stale:
                     self._unlink_rows(request_key, stale)
+                    unlinked = True
                     for index in stale:
                         del request['windows'][index]
                     changed = True
@@ -380,11 +402,12 @@ class RecoveryCacheStorage:
                 for key, candidate in list(requests.items()):
                     if key != request_key and not any(row['claim'] == claim for row in candidate['windows'].values()):
                         self._unlink_rows(key, candidate['windows'])
+                        unlinked = True
                         del requests[key]
                         changed = True
                         break
             if changed:
-                transaction.commit()
+                transaction.commit(settle=unlinked)
 
     def retire_request(self, request_key):
         """Remove known paths before freeing charge; call only after parent commit.
@@ -400,9 +423,12 @@ class RecoveryCacheStorage:
                 return
             # Even when a prior attempt unlinked everything before failing, its
             # charge cannot be released until directory durability succeeds.
+            # The unlink is irreversible and already done, so settlement must
+            # not be refused by a cancel/claim change: leaving the rows would
+            # advertise complete windows with no payload (F06).
             self._unlink_rows(request_key, request['windows'])
             del transaction.data['requests'][request_key]
-            transaction.commit()
+            transaction.commit(settle=True)
     @contextmanager
     def _locked_index(self):
         fd = self._open_regular(INDEX_NAME + '.lock', os.O_RDWR | os.O_CREAT, maximum=1)
@@ -431,16 +457,7 @@ class RecoveryCacheStorage:
         # No owner/book/chunk callback under this cache-only admission.
         return self._transaction(False)
 
-    def _load_index(self):
-        fd = self._open_regular(INDEX_NAME, os.O_RDONLY, maximum=MAX_INDEX_BYTES)
-        with os.fdopen(fd, 'rb') as handle:
-            before = os.fstat(handle.fileno())
-            data = handle.read(MAX_INDEX_BYTES + 1)
-            after = os.fstat(handle.fileno())
-        if (len(data) > MAX_INDEX_BYTES or len(data) != before.st_size or
-                (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) !=
-                (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)):
-            raise RecoveryCacheUnavailable('unstable_index')
+    def _parse_index_bytes(self, data):
         try:
             document = json.loads(data, object_pairs_hook=_unique_object)
             if not isinstance(document, dict) or set(document) != {'version', 'requests', 'sha256'}:
@@ -453,7 +470,58 @@ class RecoveryCacheStorage:
         except (ValueError, UnicodeError, RecursionError) as error:
             raise RecoveryCacheUnavailable('invalid_index_json') from error
 
-    def _save_index(self, body):
+    def _load_or_recover_index(self):
+        """Load the index, completing an interrupted initialization if needed.
+
+        A directory created for this cache can exist with only the lock and a
+        staged ``index.pending`` when cancellation lands during the initial
+        empty-index fsync. That is recoverable initialization authority, not a
+        corrupt index: adopt the staged envelope and publish it. A staged
+        non-empty forward index or a corrupt pending file is still refused.
+        """
+        try:
+            self._load_index()
+        except FileNotFoundError:
+            self._recover_initialization()
+
+    def _recover_initialization(self):
+        try:
+            fd = self._open_regular(PENDING_NAME, os.O_RDONLY, maximum=MAX_INDEX_BYTES)
+        except FileNotFoundError:
+            # No staged initialization proposal: an established cache
+            # directory with a missing index is unknown authority. Refuse it
+            # instead of silently reinitializing an empty cache.
+            raise
+        with os.fdopen(fd, 'rb') as handle:
+            before = os.fstat(handle.fileno())
+            data = handle.read(MAX_INDEX_BYTES + 1)
+            after = os.fstat(handle.fileno())
+        if (len(data) > MAX_INDEX_BYTES or len(data) != before.st_size or
+                (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) !=
+                (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)):
+            raise RecoveryCacheUnavailable('unstable_index')
+        document = self._parse_index_bytes(data)
+        if document['requests']:
+            # A staged forward write is not initialization authority and its
+            # owner may be gone. Never adopt or discard it silently.
+            raise RecoveryCacheUnavailable('ambiguous_index_initialization')
+        os.replace(PENDING_NAME, INDEX_NAME, src_dir_fd=self._directory_fd, dst_dir_fd=self._directory_fd)
+        os.fsync(self._directory_fd)
+        self._check_root()
+
+    def _load_index(self):
+        fd = self._open_regular(INDEX_NAME, os.O_RDONLY, maximum=MAX_INDEX_BYTES)
+        with os.fdopen(fd, 'rb') as handle:
+            before = os.fstat(handle.fileno())
+            data = handle.read(MAX_INDEX_BYTES + 1)
+            after = os.fstat(handle.fileno())
+        if (len(data) > MAX_INDEX_BYTES or len(data) != before.st_size or
+                (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) !=
+                (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)):
+            raise RecoveryCacheUnavailable('unstable_index')
+        return self._parse_index_bytes(data)
+
+    def _save_index(self, body, *, settle=False):
         _validate_body(body)
         payload = _canonical_bytes(body)
         envelope = {**copy.deepcopy(body), 'sha256': hashlib.sha256(payload).hexdigest()}
@@ -469,6 +537,13 @@ class RecoveryCacheStorage:
             handle.flush()
             os.fsync(handle.fileno())
         self._check_root()
+        # Staged and durable: revalidate the live owner at the last safe
+        # boundary before the index rename makes completion observable.
+        # ``settle`` is used only after irreversible payload removal: the rows
+        # must leave the index even if the owner was cancelled meanwhile,
+        # otherwise the index advertises complete WAVs that no longer exist.
+        if not settle:
+            self._check_owner()
         os.replace(PENDING_NAME, INDEX_NAME, src_dir_fd=self._directory_fd, dst_dir_fd=self._directory_fd)
         os.fsync(self._directory_fd)
         self._check_root()

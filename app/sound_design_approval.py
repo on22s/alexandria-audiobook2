@@ -5,7 +5,8 @@ from pathlib import Path
 import subprocess
 
 from adapter_publication import save_adapter_publication_bytes
-from audio_generation_owner import ensure_audio_generation_publication
+from audio_generation_owner import (ensure_audio_generation_commit_active,
+                                    ensure_audio_generation_publication)
 from audio_mastering import get_mastering_options
 from book_state_transaction import get_snapshot_digest
 from export_quality import get_export_quality_options
@@ -199,7 +200,16 @@ def save_sound_candidate_approval(root, stage_name, expected_candidate, delivery
             current,_ = capture_scope_file(root,relative,limit=MAX_APPROVAL_BYTES,cancel_check=check)
             if current != proof:
                 raise ValueError('Sound approval changed before publication')
-            save_adapter_publication_bytes(root/relative,raw,mode=0o600)
+            def before_replace():
+                # The HTTP operation's request-cancellation event is separate
+                # from the task owner's cancel flag; it must veto the swap too.
+                # Take the possibly-blocking owner snapshot first, then read
+                # the non-blocking request event immediately before the swap
+                # so a request cancelled during the mutex wait is observed (R3).
+                ensure_audio_generation_commit_active()
+                check()
+            save_adapter_publication_bytes(root/relative,raw,mode=0o600,
+                                           before_replace=before_replace)
     return document
 
 
