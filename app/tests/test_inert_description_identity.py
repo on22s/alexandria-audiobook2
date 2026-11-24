@@ -65,6 +65,32 @@ def changed_fields(before, after):
 
 
 class InertDescriptionIdentityTests(unittest.TestCase):
+    def test_description_through_a_narrator_inside_an_ensemble(self):
+        # The group reaches Narrator, whose own entry is absent, so the row
+        # settles it on the configured NARRATOR fallback (#2170 ensembles).
+        def snapshot(kind, description, chapter=None):
+            chosen = {'type': kind, 'voice': 'Ryan', 'seed': 7, 'description': description}
+            narrator = ({'alias_of': 'D'} if chapter is None else
+                        {'type': 'custom', 'voice': 'Serena', 'seed': 3,
+                         'narrator_strategy': 'chapter', 'versions': {'v': chosen}})
+            voices = {'A': {'type': 'ensemble', 'members': ['B', 'Narrator'], 'description': 'group'},
+                      'B': {'type': 'custom', 'voice': 'Aiden', 'seed': 5},
+                      'NARRATOR': narrator, 'D': chosen}
+            chunk = dict(CHUNK, **({} if chapter is None else {'narrator_version': chapter}))
+            inputs = get_chunk_voice_inputs(voices, chunk, 0)
+            raw = get_chunk_voice_inputs(voices, chunk, 0, canonical=False)
+            context = get_pronunciation_render_context(voices, chunk, 0, SETTINGS)
+            self.assertTrue(any(value.get('type') == kind and value.get('voice') == 'Ryan'
+                                for value in inputs.values()), inputs)
+            return inputs, raw, context['voice_sha256']
+        for chapter in (None, 'v'):
+            for kind, inert in (('custom', True), ('clone', True), ('design', False)):
+                with self.subTest(chapter=chapter, kind=kind):
+                    before, after = snapshot(kind, 'Old', chapter), snapshot(kind, 'New', chapter)
+                    self.assertEqual(inert, before[0] == after[0])
+                    self.assertEqual(inert, before[2] == after[2])
+                    self.assertNotEqual(before[1], after[1])
+
     def test_description_only_edit_is_inert_for_every_non_design_voice(self):
         for category in ('custom', 'clone', 'lora', 'builtin_lora', 'ensemble'):
             with self.subTest(category=category):

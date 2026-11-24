@@ -296,3 +296,31 @@ class PronunciationPanelTests(unittest.TestCase):
                 engine.assert_not_called()
                 self.assertFalse(core.process_state['audio']['running'])
                 self.assertEqual('failed', core.process_state['audio']['status'])
+
+    @use_private_cpu_fixture_lock()
+    def test_audition_resolves_a_dynamic_narrator_ensemble_member_like_generation(self):
+        rows = self.pm.load_chunks()
+        rows[0].update(speaker='GROUP', text='Rom Vale.', narrator_gender='male')
+        self.pm.save_chunks(rows)
+        (self.root/'voice_config.json').write_text(json.dumps({
+            'NARRATOR': {'type': 'custom', 'voice': 'Ryan', 'seed': 42,
+                         'narrator_strategy': 'gender',
+                         'versions': {'M': {'type': 'custom', 'voice': 'Aiden',
+                                            'seed': 7, 'gender': 'male'}}},
+            'GROUP': {'type': 'ensemble', 'members': ['Narrator'], 'seed': 42}}))
+        self.request['expected_book_token'] = editor.get_snapshot_digest(
+            editor.get_editor_book_identity(self.tmp.name))
+        seen = []
+
+        class Engine:
+            def generate_voice(inner, text, instruct, speaker, voices, output):
+                seen.append((speaker, (voices.get('Narrator') or {}).get('voice')))
+                self.assertEqual('GROUP', speaker)
+                sf.write(output, np.ones(800) * 0.1, 8000)
+                return True
+
+        with patch.object(self.pm, 'get_engine', return_value=Engine()):
+            response = self.client.post('/api/pronunciation/audition',
+                                        json={**self.request, 'text': 'Rom'})
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertEqual([('GROUP', 'Aiden')], seen)
