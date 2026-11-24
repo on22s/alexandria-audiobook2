@@ -6186,17 +6186,41 @@ def ensure_batch_script_output(job, state):
 
 
 def _run_batch_script_job(job, state, log_path, total):
-    with ensure_batch_script_output(job, state) as prepared:
-        if prepared is None:
-            state["tasks"][job["index"]]["status"] = (
-                "cancelled" if state.get("cancel") else "failed")
-            return
-        if prepared == "skipped":
-            # The collision policy skipped this book before generation; it was
-            # never attempted, so it is not a failure (#2201).
-            state["tasks"][job["index"]]["status"] = "skipped"
-            return
-        _run_claimed_batch_script_job(prepared, state, log_path, total)
+    index = job["index"]
+    try:
+        with ensure_batch_script_output(job, state) as prepared:
+            if prepared is None:
+                state["tasks"][index]["status"] = (
+                    "cancelled" if state.get("cancel") else "failed")
+                return
+            if prepared == "skipped":
+                # The collision policy skipped this book before generation; it was
+                # never attempted, so it is not a failure (#2201).
+                state["tasks"][index]["status"] = "skipped"
+                return
+            _run_claimed_batch_script_job(prepared, state, log_path, total)
+    except Exception as error:
+        # A worker that raises (e.g. the subprocess could not be started) left
+        # its row "running" forever and only the first future's error reached
+        # the log, because the loop stops at the first future.result() raise
+        # (#2271). Terminal state and a per-book log line belong to the worker
+        # itself so every failure is reported and the book is never left live.
+        task = state["tasks"][index]
+        if task.get("status") == "done":
+            # The book was already generated and saved; a later cleanup failure
+            # must not deny that published success, but it must not vanish
+            # either. Keep the row and report the error for the run.
+            state["logs"].append(
+                f"[{index + 1}] Cleanup failed after "
+                f"'{task.get('saved_as', job['safe_stem'])}' was saved: {error}")
+        else:
+            # A real exception is a failure even while a cancel is in flight:
+            # the run history records the error as failed, so the row must
+            # agree, and the error is always logged (#2271).
+            task["status"] = "failed"
+            state["logs"].append(
+                f"[{index + 1}] Failed: {job['filename']} — {error}")
+        raise
 
 
 def _run_claimed_batch_script_job(job, state, log_path, total):

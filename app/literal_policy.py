@@ -179,8 +179,9 @@ def retain_literal_policy(entries, policy):
     if policy is None:
         return entries
     ensure_literal_narration(entries, policy)
-    retained = [{key: copy.deepcopy(value) for key, value in entry.items()
-                 if key != SCRIPT_POLICY_KEY} for entry in entries]
+    retained = [copy.deepcopy(entries[0])]
+    retained.extend({key: copy.deepcopy(value) for key, value in entry.items()
+                     if key != SCRIPT_POLICY_KEY} for entry in entries[1:])
     retained[0][SCRIPT_POLICY_KEY] = copy.deepcopy(policy)
     return retained
 
