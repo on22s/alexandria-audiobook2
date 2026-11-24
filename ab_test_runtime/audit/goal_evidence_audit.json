@@ -1050,19 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T07:00:05",
+  "written": "2026-11-24T13:04:51",
   "host": "mitch-linux",
   "git": {
-   "commit": "bdc9258f0cea6c571c29b8576559fe868814c62c",
+   "commit": "fba13cd621b5eb42fc96af0e0fe26a5f59f725ea",
    "branch": "HEAD",
    "dirty": true,
-   "source_state": "dirty:4c1615c41beb",
+   "source_state": "dirty:f4e8b1e1e786",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/routers/editor.py",
-    "M  app/routers/pronunciation_panel.py",
     "M  app/tests/test_narrator_ensemble_member.py",
-    "M  app/tests/test_pronunciation_panel.py",
     "M  app/tests/unit_test_inventory.json",
     "M  app/tts.py"
    ],

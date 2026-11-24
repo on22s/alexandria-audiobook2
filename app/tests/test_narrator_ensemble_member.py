@@ -2064,5 +2064,324 @@ class NarratorEnsembleMemberTests(unittest.TestCase):
                                 DATA_DIR=str(root)):
                 self.assertEqual([], editor_routes.get_unready_export_speakers(rows))
 
+    def _fallback_shapes(self):
+        """Saveable fallback shapes (#2170 N2) and the voice each must keep."""
+        ryan = dict(type='custom', voice='Ryan', seed=42)
+        serena = dict(type='custom', voice='Serena', seed=13)
+        return {
+            # The three blocking shapes: a per-chunk version alias, an
+            # ensemble inside the fallback, and the configured spelling itself
+            # as a member.
+            'version_member_alias': ({
+                'NARRATOR': {'alias_of': 'K'}, 'Narrator': ryan,
+                'K': {'type': 'ensemble', 'members': ['M']},
+                'M': {'type': 'custom', 'voice': 'Aiden', 'seed': 7,
+                      'versions': {'A': {'alias_of': 'Narrator'}},
+                      'version_timeline': [{'from_index': 0, 'version_id': 'A'}]},
+                'Y': serena}, 'Narrator'),
+            'two_ensembles': ({
+                'NARRATOR': {'alias_of': 'K'}, 'Narrator': ryan,
+                'K': {'type': 'ensemble', 'members': ['L']},
+                'L': {'type': 'ensemble', 'members': ['Narrator']},
+                'Y': serena}, 'Narrator'),
+            'member_upper_spelling': ({
+                'NARRATOR': {'alias_of': 'K'}, 'Narrator': ryan,
+                'K': {'type': 'ensemble', 'members': ['NARRATOR']},
+                'Y': serena}, 'Narrator'),
+            # Ensembles that reference each other, a lowercase spelling used
+            # as a member, two alias hops, a reader root and duplicates.
+            'two_ensembles_mutual': ({
+                'NARRATOR': {'alias_of': 'K'}, 'Narrator': ryan,
+                'K': {'type': 'ensemble', 'members': ['L']},
+                'L': {'type': 'ensemble', 'members': ['K']},
+                'Y': serena}, 'Narrator'),
+            'member_lower_spelling': ({
+                'NARRATOR': {'alias_of': 'K'}, 'Narrator': ryan,
+                'narrator': {'alias_of': 'NARRATOR'},
+                'K': {'type': 'ensemble', 'members': ['narrator']},
+                'Y': serena}, 'Narrator'),
+            'alias_two_hops': ({
+                'NARRATOR': {'alias_of': 'H2'}, 'H2': {'alias_of': 'H1'},
+                'H1': {'alias_of': 'K'}, 'Narrator': ryan,
+                'K': {'type': 'ensemble', 'members': ['Narrator']},
+                'Y': serena}, 'Narrator'),
+            'reader_root': ({
+                'NARRATOR': {'alias_of': 'K'}, 'Narrator': ryan,
+                'READER': {'alias_of': 'Narrator'},
+                'K': {'type': 'ensemble', 'members': ['READER']},
+                'Y': serena}, 'READER'),
+            'duplicate_members': ({
+                'NARRATOR': {'alias_of': 'K'}, 'Narrator': ryan,
+                'K': {'type': 'ensemble', 'members': ['Narrator', 'Narrator']},
+                'Y': serena}, 'Narrator'),
+            'version_overlay_members': ({
+                'NARRATOR': {'alias_of': 'K'}, 'Narrator': ryan,
+                'K': {'type': 'ensemble', 'members': ['Y'],
+                      'versions': {'V': {'type': 'ensemble', 'members': ['Narrator']}},
+                      'version_timeline': [{'from_index': 0, 'version_id': 'V'}]},
+                'Y': serena}, 'Narrator'),
+        }
+
+    def test_fallback_ensemble_closure_shapes_keep_the_saved_voice(self):
+        """N2: every saveable nesting shape stays renderable and keeps its voice."""
+        from tts import (get_chunk_render_voice_selection, get_chunk_voice_inputs,
+                         refuses_nested_ensemble, voice_category)
+
+        for label, (voices, speaker) in self._fallback_shapes().items():
+            with self.subTest(shape=label):
+                row = {'speaker': speaker, 'text': 'Line.', 'index': 0}
+                canonical, resolved, _ = get_chunk_render_voice_selection(
+                    voices, speaker, row, 0)
+                self.assertEqual('Narrator', canonical)
+                self.assertEqual('custom', voice_category(resolved.get('Narrator')),
+                                 'the fallback replaced the spelling with an ensemble')
+                self.assertEqual(('Ryan', 42),
+                                 (resolved['Narrator']['voice'], resolved['Narrator']['seed']))
+                self.assertFalse(refuses_nested_ensemble(resolved, canonical))
+                # The projection readiness reads must agree with dispatch.
+                projected = get_chunk_voice_inputs(voices, row, 0)
+                self.assertIn(('Ryan', 42),
+                              {(value.get('voice'), value.get('seed'))
+                               for value in projected.values()})
+
+    def test_legitimate_fallback_ensemble_is_still_applied(self):
+        """R6: a flat fallback with no self-reference must be applied."""
+        from tts import (get_chunk_render_voice_selection, get_chunk_voice_inputs,
+                         refuses_nested_ensemble)
+
+        voices = {'NARRATOR': {'alias_of': 'K'},
+                  'Narrator': dict(type='custom', voice='Ryan', seed=42),
+                  'K': {'type': 'ensemble', 'members': ['Y', 'Z']},
+                  'Y': dict(type='custom', voice='Serena', seed=13),
+                  'Z': dict(type='custom', voice='Vivian', seed=23)}
+        row = {'speaker': 'Narrator', 'text': 'Line.', 'index': 0}
+        canonical, resolved, _ = get_chunk_render_voice_selection(voices, 'Narrator', row, 0)
+        self.assertEqual('ensemble', resolved['Narrator']['type'])
+        self.assertFalse(refuses_nested_ensemble(resolved, canonical))
+        projected = get_chunk_voice_inputs(voices, row, 0)
+        self.assertEqual({('Serena', 13), ('Vivian', 23)},
+                         {(value.get('voice'), value.get('seed'))
+                          for name, value in projected.items() if name in ('Y', 'Z')})
+        # A member narrator inside a flat cast keeps its own voice.
+        group = json.loads(json.dumps(voices))
+        group['GROUP'] = {'type': 'ensemble', 'members': ['Narrator']}
+        _, grouped, _ = get_chunk_render_voice_selection(
+            group, 'GROUP', {'speaker': 'GROUP', 'text': 'Line.', 'index': 0}, 0)
+        self.assertEqual('custom', grouped['Narrator']['type'])
+        self.assertEqual(('Ryan', 42),
+                         (grouped['Narrator']['voice'], grouped['Narrator']['seed']))
+
+    def test_nested_fallback_shapes_render_the_saved_voice(self):
+        """N2: the rendered request, not just the absence of an error."""
+        from tests.test_narrator_dispatch_identity import serving_identity
+
+        for label, (voices, speaker) in self._fallback_shapes().items():
+            with self.subTest(shape=label), self.case.fixture() as (root, manager, _, _), self.case.owner():
+                row = dict(manager.load_chunks()[0], index=0, uid='tested', status='pending',
+                           audio_path=None, audio_revision=None, speaker=speaker,
+                           text='Synthetic line.')
+                manager.save_chunks([row])
+                Path(manager.voice_config_path).write_text(json.dumps(voices))
+                (root / 'annotated_script.json').write_text(
+                    json.dumps([dict(row, speaker=key) for key in voices]))
+                calls = []
+                engine = self._synthetic_engine(manager, calls)
+                with patch.object(manager, 'get_engine', return_value=engine), \
+                        patch('synthesis_recovery.capture_native_serving_identity',
+                              side_effect=serving_identity), \
+                        patch('synthesis_recovery_serving.capture_native_custom_serving_identity',
+                              side_effect=serving_identity):
+                    ok, detail = manager.generate_chunk_audio(0)
+                self.assertTrue(ok, detail)
+                self.assertEqual({('Ryan', 42)},
+                                 {(name, seed) for name, seed in calls},
+                                 'the fallback did not render the saved voice')
+
+    def test_export_readiness_agrees_for_nested_fallback_shapes(self):
+        """N2/N3: readiness and generation agree on every blocking shape."""
+        from routers import editor as editor_routes
+        from tests.test_narrator_dispatch_identity import serving_identity
+
+        for label, (voices, speaker) in self._fallback_shapes().items():
+            with self.subTest(shape=label), self.case.fixture() as (root, manager, _, _), self.case.owner():
+                def readable(value):
+                    if not isinstance(value, dict):
+                        return value
+                    marked = {**value, 'ready': True}
+                    versions = value.get('versions')
+                    if isinstance(versions, dict):
+                        marked['versions'] = {
+                            version_id: ({**config, 'ready': True}
+                                         if isinstance(config, dict) else config)
+                            for version_id, config in versions.items()}
+                    return marked
+
+                marked = {name: readable(entry) for name, entry in voices.items()}
+                row = dict(manager.load_chunks()[0], index=0, uid='tested', status='pending',
+                           audio_path=None, audio_revision=None, speaker=speaker,
+                           text='Synthetic line.')
+                manager.save_chunks([row])
+                Path(manager.voice_config_path).write_text(json.dumps(marked))
+                (root / 'annotated_script.json').write_text(
+                    json.dumps([dict(row, speaker=key) for key in marked]))
+                with patch.multiple(editor_routes,
+                                    SCRIPT_PATH=str(root / 'annotated_script.json'),
+                                    DATA_DIR=str(root)):
+                    self.assertEqual([], editor_routes.get_unready_export_speakers(
+                        [dict(row, speaker=speaker)]))
+                calls = []
+                engine = self._synthetic_engine(manager, calls)
+                with patch.object(manager, 'get_engine', return_value=engine), \
+                        patch('synthesis_recovery.capture_native_serving_identity',
+                              side_effect=serving_identity), \
+                        patch('synthesis_recovery_serving.capture_native_custom_serving_identity',
+                              side_effect=serving_identity):
+                    ok, detail = manager.generate_chunk_audio(0)
+                self.assertTrue(ok, detail)
+                self.assertEqual({('Ryan', 42)}, {(name, seed) for name, seed in calls})
+
+    def test_fallback_closure_never_adds_a_refusal(self):
+        """N2 property: a fallback may not refuse where the saved row renders."""
+        import random
+
+        from tts import (get_chunk_render_voice_selection, refuses_nested_ensemble,
+                         voice_config_for_chunk)
+
+        def case(rng):
+            custom = lambda: {'type': 'custom', 'voice': rng.choice(['Ryan', 'Serena']),
+                              'seed': rng.randint(0, 9)}
+            spellings = rng.sample(['NARRATOR', 'Narrator', 'narrator'], rng.randint(1, 2))
+            if not ({'NARRATOR', 'Narrator'} & set(spellings)):
+                spellings.append('Narrator')
+            voices = {name: custom() for name in ('A', 'B', 'Y', 'Z')}
+            voices.update({name: custom() for name in spellings})
+            voices['H1'] = {'alias_of': rng.choice(['A', 'B', 'Y'] + spellings)}
+            voices['H2'] = {'alias_of': 'H1'}
+            pool = ['A', 'B', 'Y', 'Z', 'H1', 'H2'] + spellings
+            shape = rng.choice(['chain', 'version', 'spelling', 'mutual', 'flat'])
+            if shape == 'chain':
+                voices['K'] = {'type': 'ensemble', 'members': ['L']}
+                voices['L'] = {'type': 'ensemble', 'members': [rng.choice(spellings)]}
+            elif shape == 'version':
+                voices['K'] = {'type': 'ensemble', 'members': ['M']}
+                voices['M'] = {'type': 'custom', 'voice': 'Aiden', 'seed': 7,
+                               'versions': {'V': {'alias_of': rng.choice(spellings)}},
+                               'version_timeline': [{'from_index': 0, 'version_id': 'V'}]}
+            elif shape == 'spelling':
+                voices['K'] = {'type': 'ensemble', 'members': [rng.choice(spellings)]}
+            elif shape == 'mutual':
+                voices['K'] = {'type': 'ensemble', 'members': ['L']}
+                voices['L'] = {'type': 'ensemble', 'members': ['K']}
+            else:
+                voices['K'] = {'type': 'ensemble', 'members': rng.sample(pool, 2)}
+            voices[rng.choice(['NARRATOR', 'Narrator'])] = {'alias_of': 'K'}
+            speaker = rng.choice(list(voices))
+            chunk = {'text': 'Line.', 'index': rng.randint(0, 2)}
+            return voices, speaker, chunk
+
+        rng = random.Random(20261124)
+        for _ in range(1000):
+            voices, speaker, chunk = case(rng)
+            try:
+                canonical, resolved, _ = get_chunk_render_voice_selection(
+                    voices, speaker, chunk, chunk['index'])
+            except ValueError:
+                continue
+            saved = voice_config_for_chunk(voices, speaker, chunk['index'])
+            added_refusal = (refuses_nested_ensemble(resolved, canonical)
+                             and not refuses_nested_ensemble(saved, speaker))
+            self.assertFalse(added_refusal, (voices, speaker, chunk))
+
+    def test_fallback_closure_is_member_order_independent(self):
+        """N2: member order and hash order cannot change the outcome."""
+        import random
+
+        from tts import (get_chunk_render_voice_selection, get_chunk_voice_inputs,
+                         refuses_nested_ensemble)
+
+        rng = random.Random(7)
+        base = {'NARRATOR': {'alias_of': 'K'},
+                'Narrator': {'type': 'custom', 'voice': 'Ryan', 'seed': 42},
+                'K': {'type': 'ensemble', 'members': []},
+                'L': {'type': 'ensemble', 'members': ['Narrator', 'Y']},
+                'M': {'type': 'custom', 'voice': 'Aiden', 'seed': 7,
+                      'versions': {'V': {'alias_of': 'Narrator'}},
+                      'version_timeline': [{'from_index': 0, 'version_id': 'V'}]},
+                'Y': {'type': 'custom', 'voice': 'Serena', 'seed': 13}}
+        for members in (['L', 'M', 'Y'], ['Y', 'M', 'L'], ['M', 'Y', 'L']):
+            voices = json.loads(json.dumps(base))
+            voices['K']['members'] = list(members)
+            row = {'speaker': 'Narrator', 'text': 'Line.', 'index': 0}
+            canonical, resolved, _ = get_chunk_render_voice_selection(
+                voices, 'Narrator', row, 0)
+            self.assertEqual('custom', resolved['Narrator']['type'])
+            self.assertFalse(refuses_nested_ensemble(resolved, canonical))
+            self.assertEqual({('Ryan', 42)},
+                             {(value.get('voice'), value.get('seed'))
+                              for value in get_chunk_voice_inputs(voices, row, 0).values()})
+
+    def test_narrator_chapter_version_requires_a_text_id(self):
+        """T1: a non-text narrator_version is ignored, not an unhashable lookup."""
+        from tts import get_voice_alias, voice_category, get_version_fields
+        from tts import resolve_narrator_voice_config
+
+        narrator = {'type': 'custom', 'voice': 'Ryan', 'seed': 42,
+                    'narrator_strategy': 'chapter',
+                    'versions': {'V': {'type': 'custom', 'voice': 'Aiden', 'seed': 7}}}
+        config = {'NARRATOR': narrator, 'Narrator': narrator}
+        for bad in (['V'], {'V': 1}, 5, True):
+            row = {'text': 'Line.', 'narrator_version': bad}
+            self.assertIs(config, resolve_narrator_voice_config('NARRATOR', config, row))
+        selected = resolve_narrator_voice_config(
+            'NARRATOR', config, {'text': 'Line.', 'narrator_version': 'V'})
+        self.assertEqual(('Aiden', 7),
+                         (selected['NARRATOR']['voice'], selected['NARRATOR']['seed']))
+        self.assertIsNone(get_voice_alias(5))
+        self.assertEqual('custom', voice_category(5))
+        self.assertIsNone(get_version_fields({'versions': 5}, 'V'))
+        from tts import get_row_narrator_selection
+        self.assertIsNone(get_row_narrator_selection({'NARRATOR': 5}, {}, 0))
+
+    def test_alias_chain_root_version_keeps_the_saved_voice(self):
+        """N2: the row's rendered root is the canonical spelling, not the alias key."""
+        from tts import (get_chunk_render_voice_selection, refuses_nested_ensemble)
+
+        voices = {'NARRATOR': {'alias_of': 'K'},
+                  'Narrator': dict(type='custom', voice='Ryan', seed=42),
+                  'H1': {'alias_of': 'A'}, 'H2': {'alias_of': 'H1'},
+                  'A': dict(type='custom', voice='Vivian', seed=92,
+                            versions={'V': {'alias_of': 'Y'}},
+                            version_timeline=[{'from_index': 0, 'version_id': 'V'}]),
+                  'Y': dict(type='custom', voice='Ryan', seed=83,
+                            versions={'V': {'alias_of': 'Narrator'}},
+                            version_timeline=[{'from_index': 0, 'version_id': 'V'}]),
+                  'K': {'type': 'ensemble', 'members': ['L']},
+                  'L': {'type': 'ensemble', 'members': ['Narrator']}}
+        row = {'speaker': 'H2', 'text': 'Line.', 'index': 0}
+        canonical, resolved, _ = get_chunk_render_voice_selection(voices, 'H2', row, 0)
+        self.assertEqual('Narrator', canonical)
+        self.assertEqual('custom', resolved['Narrator']['type'])
+        self.assertEqual(('Ryan', 42),
+                         (resolved['Narrator']['voice'], resolved['Narrator']['seed']))
+        self.assertFalse(refuses_nested_ensemble(resolved, canonical))
+
+    def test_existing_refusal_is_not_silently_replaced(self):
+        """N2: a row base already refuses keeps refusing, not a different voice."""
+        from tts import (get_chunk_render_voice_selection, refuses_nested_ensemble)
+
+        voices = {'NARRATOR': {'alias_of': 'K'},
+                  'Narrator': {'type': 'ensemble', 'members': ['L']},
+                  'L': {'type': 'ensemble', 'members': ['Y']},
+                  'K': {'type': 'ensemble', 'members': ['Y']},
+                  'Y': dict(type='custom', voice='Serena', seed=13)}
+        row = {'speaker': 'Narrator', 'text': 'Line.', 'index': 0}
+        canonical, resolved, _ = get_chunk_render_voice_selection(voices, 'Narrator', row, 0)
+        self.assertEqual('ensemble', resolved['Narrator']['type'])
+        self.assertEqual(['L'], resolved['Narrator']['members'],
+                         'the already-refusing row was replaced by the fallback')
+        self.assertTrue(refuses_nested_ensemble(resolved, canonical))
+
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -561,25 +561,34 @@ def get_row_narrator_selection(voice_config, chunk, chunk_index):
     return (target, selected, materialized) if isinstance(selected, dict) else None
 
 
-def _fallback_ensemble_nests_itself(selection, name, root_speaker, voice_config):
-    """Whether materializing this ensemble onto `name` would nest it in itself.
+def refuses_nested_ensemble(voice_config, speaker):
+    """Whether dispatch refuses this row's root as a nested ensemble (#2170 N2).
 
-    A saved ensemble whose members include the spelling being replaced, or the
-    row's root (including through an alias), cannot be the fallback for that
-    spelling: dispatch would resolve the member back to this ensemble and
-    refuse a nested ensemble. Keeping the spelling's own saved voice keeps a
-    base-playable row renderable (#2170 N2).
+    Runs the engine's flat-ensemble rule over the materialized row from its
+    root, so the fallback decision reaches the same verdict as generation
+    (Rule 15) instead of re-walking members with a second, partial rule.
     """
-    replaced = {name, root_speaker}
-    for member in get_ensemble_member_names(selection):
-        if member in replaced:
-            return True
-        try:
-            if get_resolved_speaker(member, voice_config) in replaced:
-                return True
-        except VoiceAliasResolutionError:
-            continue
-    return False
+    try:
+        root = get_resolved_speaker(speaker, voice_config)
+        voice_data = (voice_config or {}).get(root)
+        if voice_category(voice_data) != "ensemble":
+            return False
+        resolve_flat_ensemble_members(voice_config, voice_data)
+        return False
+    except ValueError:
+        return True
+
+
+def _apply_narrator_selection(resolved, name, selection, chain, target, chunk_index):
+    """A copy of the row with one narrator selection and its overlays applied."""
+    applied = dict(resolved)
+    if chain is not None:
+        for descendant, _ in iter_dispatch_voice_names(chain, target, chunk_index):
+            value = chain.get(descendant)
+            if isinstance(value, dict):
+                applied[descendant] = value
+    applied[name] = selection
+    return applied
 
 
 def resolve_row_narrators(voices, effective, speaker, chunk, chunk_index, root_speaker=None):
@@ -594,13 +603,10 @@ def resolve_row_narrators(voices, effective, speaker, chunk, chunk_index, root_s
     """
     root_speaker = speaker if root_speaker is None else root_speaker
     reachable = iter_dispatch_voice_names(effective, speaker, chunk_index)
-    reached, member = [], {}
-    for name, is_member in reachable:
-        if not is_narrator_name(name):
-            continue
-        if name not in member:
+    reached = []
+    for name, _ in reachable:
+        if is_narrator_name(name) and name not in reached:
             reached.append(name)
-        member[name] = member.get(name, False) or is_member
     paths = [name for name in reached if name in NARRATOR_SPELLINGS]
     if not paths:
         return effective, reached
@@ -631,23 +637,16 @@ def resolve_row_narrators(voices, effective, speaker, chunk, chunk_index, root_s
             continue
         if not isinstance(selection, dict):
             continue
+        applied = _apply_narrator_selection(
+            resolved, name, selection, selection_chain, selection_target, chunk_index)
         if voice_category(selection) == "ensemble" and (
-                member.get(name)
-                or _fallback_ensemble_nests_itself(
-                    selection, name, root_speaker, resolved)):
-            # Keep a flat cast playable: turning a member, or the replaced
-            # spelling itself, into the fallback's ensemble would be a rejected
-            # nested ensemble (#2170 R6/N2).
+                refuses_nested_ensemble(resolved, speaker)
+                or refuses_nested_ensemble(applied, speaker)):
+            # Keep the spelling's own saved voice: a fallback that would nest an
+            # ensemble, or a row that already refuses, must not gain a new
+            # row-scoped refusal and must not replace a refusal silently (#2170 N2).
             continue
-        if resolved is effective:
-            resolved = dict(effective)
-        if selection_chain is not None:
-            for descendant, _ in iter_dispatch_voice_names(
-                    selection_chain, selection_target, chunk_index):
-                value = selection_chain.get(descendant)
-                if isinstance(value, dict):
-                    resolved[descendant] = value
-        resolved[name] = selection
+        resolved = applied
     return resolved, reached
 
 
@@ -914,6 +913,31 @@ def voice_category(voice_data):
     if voice_type == "ensemble":
         return "ensemble"
     return "custom"
+
+
+def resolve_flat_ensemble_members(voice_config, voice_data):
+    """Resolved member names dispatch renders for a one-level ensemble.
+
+    The single flat-ensemble rule (Rule 15): at least one member, and every
+    member resolves to a present, non-ensemble entry. Dispatch's own member
+    check reads this function, and so does the narrator fallback's nesting
+    decision, so readiness and generation cannot disagree (#2170 N2).
+    """
+    members = get_ensemble_member_names(voice_data)
+    if not members:
+        raise ValueError("Ensemble voice has no members configured.")
+    resolved = []
+    for member in members:
+        name = get_resolved_speaker(member, voice_config)
+        entry = (voice_config or {}).get(name)
+        if not entry:
+            raise ValueError(f"Ensemble member '{name}' has no voice configuration.")
+        if voice_category(entry) == "ensemble":
+            raise ValueError(
+                f"Ensemble member '{name}' is itself an ensemble; "
+                f"ensembles cannot be nested.")
+        resolved.append(name)
+    return resolved
 
 
 def resolve_narrator_voice_config(speaker, voice_config, chunk=None):
@@ -2855,22 +2879,9 @@ class TTSEngine:
             prepared["text"], prepared["instruct"], voice_data, voice_config, output_path)
 
     def _get_ensemble_members(self, voice_data, voice_config):
-        members = get_ensemble_member_names(voice_data)
-        if not members:
-            raise ValueError("Ensemble voice has no members configured.")
-
-        resolved_members = [get_resolved_speaker(member, voice_config) for member in members]
+        resolved_members = resolve_flat_ensemble_members(voice_config, voice_data)
         for member in resolved_members:
-            member_data = voice_config.get(member)
-            if not member_data:
-                raise ValueError(
-                    f"Ensemble member '{member}' has no voice configuration.")
-            # One level only: an ensemble of ensembles would recurse forever.
-            if voice_category(member_data) == "ensemble":
-                raise ValueError(
-                    f"Ensemble member '{member}' is itself an ensemble; "
-                    f"ensembles cannot be nested.")
-            self.get_voice_backend(voice_category(member_data))
+            self.get_voice_backend(voice_category(voice_config[member]))
         return resolved_members
 
     def _generate_ensemble_voice_prepared(self, text, instruct_text, voice_data, voice_config, output_path):
