@@ -1411,6 +1411,8 @@
   ]
   , "test_batch_script_worker_failure": [
     "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_all_success_still_reports_finished"
+    , "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_cancel_with_a_real_exception_logs_it_and_agrees_with_history"
+    , "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_cleanup_failure_after_publish_keeps_the_done_row_and_reports_it"
     , "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_raising_worker_fails_its_book_and_every_failure_is_logged"
   ]
   , "test_batch_style_timeline": [
@@ -16812,6 +16814,7 @@
     , "tests.test_three_pass_cast.CastTests.test_roster_leads_with_the_cast_and_shows_its_aliases"
     , "tests.test_three_pass_cast.CastTests.test_tool_reply_parsing"
     , "tests.test_three_pass_cast.RequestCastTests.test_a_bad_reply_that_finished_normally_raises_at_once_without_retrying"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_choice_without_a_message_raises_a_handled_error_not_attribute_error"
     , "tests.test_three_pass_cast.RequestCastTests.test_a_reply_with_no_choices_raises_a_handled_error_not_index_error"
     , "tests.test_three_pass_cast.RequestCastTests.test_a_reply_with_no_content_is_refused_not_crashed"
     , "tests.test_three_pass_cast.RequestCastTests.test_every_attempt_truncated_raises_naming_the_cause_not_a_json_error"

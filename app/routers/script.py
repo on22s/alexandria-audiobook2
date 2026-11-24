@@ -6205,9 +6205,19 @@ def _run_batch_script_job(job, state, log_path, total):
         # the log, because the loop stops at the first future.result() raise
         # (#2271). Terminal state and a per-book log line belong to the worker
         # itself so every failure is reported and the book is never left live.
-        cancelled = bool(state.get("cancel"))
-        state["tasks"][index]["status"] = "cancelled" if cancelled else "failed"
-        if not cancelled:
+        task = state["tasks"][index]
+        if task.get("status") == "done":
+            # The book was already generated and saved; a later cleanup failure
+            # must not deny that published success, but it must not vanish
+            # either. Keep the row and report the error for the run.
+            state["logs"].append(
+                f"[{index + 1}] Cleanup failed after "
+                f"'{task.get('saved_as', job['safe_stem'])}' was saved: {error}")
+        else:
+            # A real exception is a failure even while a cancel is in flight:
+            # the run history records the error as failed, so the row must
+            # agree, and the error is always logged (#2271).
+            task["status"] = "failed"
             state["logs"].append(
                 f"[{index + 1}] Failed: {job['filename']} — {error}")
         raise
