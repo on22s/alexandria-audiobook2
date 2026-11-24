@@ -183,7 +183,7 @@
             applyLoraProgressState(progressBar, 'running');
             applyLoraProgress(progressBar, 0, currentEpoch, maxEpochs);
 
-            _startPolling('lora_training', () => API.get('/api/status/lora_training'), {
+            return _startPolling('lora_training', () => API.get('/api/status/lora_training'), { taskName: 'lora_training',
                 intervalMs: 2000,
                 doneCheck: status => !status.running,
                 onTick: status => {

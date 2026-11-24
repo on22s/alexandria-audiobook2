@@ -114,7 +114,7 @@ ctx.API.get=path=>{
  return Promise.resolve({running:false,logs:[]});
 };
 for(const change of [
- ()=>{ctx._scriptRecoveryBookEpoch=1;},
+ ()=>{ctx._bookSelectionEpoch=1;ctx._scriptRecoveryBookEpoch=1;},
  ()=>{ctx._selectedUploadIdentity={filename:'B.txt',token:'t'};},
  ()=>{ctx._scriptRecoveryAcceptedRun=1;},
  ()=>{ctx._scriptRecoveryTerminalToken=1;},
@@ -1031,3 +1031,231 @@ assert(!el('script-logs').innerText.includes('RETIRED FLAG STALE'),'retired reco
                       "innerText = ''"):
             self.assertNotIn(clear, body, f'batch preparation clears the shared pane: {clear}')
         self.assertIn("createTaskLogRenderer(logEl, 'batch_script')", source)
+
+    # ── r10 Astra findings (r11 repairs) ──────────────────────────
+    def test_terminal_registry_releases_controls_and_consumes_inflight_detail(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const held={...idle,status:'failed',start_time:100,ownership_unconfirmed:true,has_history:true};
+const done={...idle,status:'done',start_time:100,has_history:true};
+let registries=0;
+ctx.API.get=async path=>{
+ if(path==='/api/status'){registries++;return registries===1?{review:held}:{review:done};}
+ if(path.endsWith('/review'))return new Promise(()=>{});
+ return {running:false,logs:[],start_time:null};
+};
+await ctx.reattachRunningPollers();
+const record=ctx.poll;
+assert.strictEqual(record.key,'reattach:review');
+await record.options.onDone({...done,logs:['Terminal result']});
+assert.strictEqual(el('script-logs').innerText,'Terminal result');
+assert.strictEqual(el('btn-review-script').disabled,false);
+assert.strictEqual(el('btn-cancel-review').style.display,'none');
+""")
+
+    def test_initial_config_during_held_detail_still_restores_history(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const done=n=>({...idle,status:'done',start_time:n,has_history:true});
+const completed={script:done(100),persona:done(200),audio:done(300),voicelab:done(400)};
+let releasePersona,releaseOpening,reads=0;
+const personaGate=new Promise(r=>releasePersona=r), opening=new Promise(r=>releaseOpening=r);
+ctx.API.get=path=>{
+ if(path==='/api/status'){reads++;return reads===1?opening:Promise.resolve(completed);}
+ const name=path.split('/').at(-1);
+ if(name==='persona')return personaGate.then(()=>({...completed.persona,logs:['persona done']}));
+ if(name==='script')return Promise.reject(Error('script down'));
+ return Promise.resolve({...completed[name],logs:[name+' history']});
+};
+const work=ctx.reattachRunningPollers();
+const openingState={script:done(100),persona:done(200),audio:done(300),voicelab:done(400)};
+releaseOpening(openingState);
+for(let i=0;i<8;i++){await Promise.resolve();}
+// Config installs the saved book while the Persona detail is held.
+ctx._scriptRecoveryBookEpoch=1;
+releasePersona();
+await work;
+assert(el('script-logs').innerText.includes('could not be loaded'));
+assert.strictEqual(el('voices-logs').innerText,'persona done');
+assert.strictEqual(el('audio-logs').innerText,'audio history');
+assert.strictEqual(el('voicelab-logs').innerText,'voicelab history');
+""")
+
+    def test_pending_declined_attachment_is_retried_at_the_final_registry(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const pending={...idle,running:true,status:'starting',worker_pending:true,start_time:null,has_history:false};
+const live={...idle,running:true,status:'running',start_time:800,task_claim_id:'b'.repeat(32),worker_claim_id:'b'.repeat(32),has_history:true};
+let reads=0,detail=0;
+ctx.API.get=path=>{
+ if(path==='/api/status'){reads++;return Promise.resolve({script:pending});}
+ if(path.endsWith('/script')){detail++;return Promise.resolve(detail===1?idle:live);}
+ return Promise.resolve({running:false,logs:[],start_time:null});
+};
+await ctx.reattachRunningPollers();
+assert(calls.includes('script'),'declined pending reservation was not retried: '+JSON.stringify(calls));
+""")
+
+    def test_accepted_script_fences_the_retained_review_poll(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const held={...idle,status:'failed',start_time:100,ownership_unconfirmed:true,has_history:true};
+for(const accepted of [true,false]){
+ ctx.window=ctx;ctx._scriptRecoveryBookEpoch=0;ctx._selectedUploadIdentity=null;
+ ctx._scriptRecoveryAcceptedRun=0;ctx._scriptRecoveryTerminalToken=0;
+ ctx.getScriptAdmissionByToken=token=>accepted&&token===7?{token:7,state:'accepted'}:null;
+ ctx.API.get=path=>path==='/api/status'?Promise.resolve({review:held}):path.endsWith('/review')?new Promise(()=>{}):Promise.resolve({running:false,logs:[],start_time:null});
+ await ctx.reattachRunningPollers();
+ el('script-logs').innerText='';
+ ctx._scriptRecoveryAcceptedRun=7;
+ ctx.poll.options.onTick({running:true,ownership_unconfirmed:false,status:'running',start_time:150,logs:['Earlier review run']});
+ if(accepted){assert(!el('script-logs').innerText.includes('Earlier review run'));}
+ else {assert(el('script-logs').innerText.includes('Earlier review run'));}
+}
+""")
+
+    def test_newer_same_task_renderer_is_not_overwritten_by_older_retained_detail(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const held={...idle,status:'failed',start_time:150,ownership_unconfirmed:true,has_history:true};
+let resolveDetail;
+const gate=new Promise(r=>resolveDetail=r);
+ctx.window=ctx;ctx._scriptRecoveryBookEpoch=0;ctx._selectedUploadIdentity=null;
+ctx.API.get=path=>{
+ if(path==='/api/status')return Promise.resolve({review:held});
+ if(path.endsWith('/review'))return gate;
+ return Promise.resolve({running:false,logs:[],start_time:null});
+};
+await ctx.reattachRunningPollers();
+ctx.createTaskLogRenderer(el('script-logs'),'review')({running:true,start_time:200,logs:['New owner first line']});
+resolveDetail({running:true,ownership_unconfirmed:false,status:'running',start_time:150,logs:['Earlier review run, delayed hydrate']});
+for(let i=0;i<10;i++){await Promise.resolve();}
+assert.strictEqual(el('script-logs').innerText,'New owner first line');
+""")
+
+    def test_script_adoption_does_not_skip_unrelated_histories(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const done=n=>({...idle,status:'done',start_time:n,has_history:true});
+const active={...idle,running:true,status:'running',start_time:100,has_history:true};
+const hist={persona:done(200),audio:done(300),voicelab:done(400)};
+ctx.window=ctx;ctx._scriptRecoveryBookEpoch=0;ctx._selectedUploadIdentity=null;
+ctx._scriptRecoveryAcceptedRun=0;
+ctx.getScriptAdmissionByToken=()=>null;
+ctx.observeScriptRecoveryRun=()=>{ctx._scriptRecoveryAcceptedRun=9;return 9;};
+ctx.API.get=path=>{
+ if(path==='/api/status')return Promise.resolve({...hist,script:active});
+ if(path.endsWith('/script'))return Promise.resolve({...active,task_claim_id:'b'.repeat(32)});
+ const name=path.split('/').at(-1);
+ if(hist[name])return Promise.resolve({...hist[name],logs:[name+' finished']});
+ return Promise.resolve({running:false,logs:[],start_time:null});
+};
+await ctx.reattachRunningPollers();
+assert.strictEqual(el('voices-logs').innerText,'persona finished');
+assert.strictEqual(el('audio-logs').innerText,'audio finished');
+assert.strictEqual(el('voicelab-logs').innerText,'voicelab finished');
+""")
+
+    def test_book_selection_fences_retained_persona_and_script_poll_paints(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const held={...idle,status:'failed',start_time:100,ownership_unconfirmed:true,has_history:true};
+for(const task of ['script','persona']){
+ ctx.window=ctx;ctx._scriptRecoveryBookEpoch=0;ctx._selectedUploadIdentity=null;
+ ctx._scriptRecoveryAcceptedRun=0;ctx._scriptRecoveryTerminalToken=0;
+ ctx.API.get=path=>path==='/api/status'?Promise.resolve({[task]:held}):path.endsWith('/'+task)?new Promise(()=>{}):Promise.resolve({running:false,logs:[],start_time:null});
+ await ctx.reattachRunningPollers();
+ const paneId=task==='persona'?'voices-logs':'script-logs';
+ el(paneId).innerText='';
+ ctx._selectedUploadIdentity={filename:'Next.txt',token:'d'};
+ ctx.poll.options.onTick({running:true,ownership_unconfirmed:false,status:'running',start_time:200,logs:['Old run returned']});
+ assert(!el(paneId).innerText.includes('Old run returned'),task+' painted after a settled selection');
+ assert.strictEqual(el('btn-snapshot-script').style.display,'none');
+}
+""")
+
+    def test_failed_registry_read_does_not_silence_the_installed_observer(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const held={...idle,status:'failed',start_time:100,ownership_unconfirmed:true,has_history:true};
+const done={...idle,status:'done',start_time:100,has_history:true};
+let reads=0,fail=false;
+ctx.window=ctx;ctx._scriptRecoveryBookEpoch=0;ctx._selectedUploadIdentity=null;
+ctx.API.get=path=>{
+ if(path==='/api/status'){reads++;if(fail)throw Error('registry unavailable');return Promise.resolve({review:held});}
+ if(path.endsWith('/review'))return new Promise(()=>{});
+ return Promise.resolve({running:false,logs:[],start_time:null});
+};
+await ctx.reattachRunningPollers();
+const installed=ctx.poll;
+fail=true;await ctx.reattachRunningPollers();
+await installed.options.onDone({...done,logs:['Cleanup released']});
+assert.strictEqual(el('script-logs').innerText,'Cleanup released');
+""")
+
+    def test_older_same_task_renderer_is_superseded_by_a_newer_retained_warning(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const current={...idle,status:'failed',start_time:200,ownership_unconfirmed:true,has_history:true};
+ctx.window=ctx;ctx._scriptRecoveryBookEpoch=0;ctx._selectedUploadIdentity=null;
+ctx.createTaskLogRenderer(el('voices-logs'),'persona')({running:false,status:'done',start_time:100,logs:['Previous persona completed successfully']});
+ctx.API.get=path=>path==='/api/status'?Promise.resolve({persona:current}):path.endsWith('/persona')?Promise.resolve({...current,logs:['Worker cleanup failed']}):Promise.resolve({running:false,logs:[],start_time:null});
+await ctx.reattachRunningPollers();
+assert(el('voices-logs').innerText.includes('still holding'));
+assert.notStrictEqual(el('voices-logs').title,'Restored persona logs');
+assert(el('btn-gen-personas').disabled);
+""")
+
+    def test_rollback_restores_title_metadata_with_identical_text(self):
+        self.run_js(r"""
+const idle={running:false,ownership_unconfirmed:false,status:'idle',start_time:null,has_history:false};
+const done=n=>({...idle,status:'done',start_time:n,has_history:true});
+const live={...idle,running:true,status:'running',start_time:200,has_history:true};
+let blockerResolve,entered=false,stage=1,registries=0;
+const blocker=new Promise(r=>blockerResolve=r);
+ctx.API.get=path=>{
+ if(path==='/api/status'){
+  registries++;
+  if(stage===1)return Promise.resolve({review:done(100)});
+  return Promise.resolve({review:done(100),script:done(200),...(stage>=2&&registries%2===0?{dataset_builder:{...idle,running:true,status:'running',start_time:300,has_history:true}}:{})});
+ }
+ if(path.endsWith('/dataset_builder')){entered=true;return blocker.then(()=>({running:false}));}
+ if(path.endsWith('/script'))return Promise.resolve(stage===1?idle:{...done(200),logs:['Same visible text']});
+ if(path.endsWith('/review'))return Promise.resolve({...done(100),logs:['Same visible text']});
+ return Promise.resolve({running:false,logs:[],start_time:null});
+};
+await ctx.reattachRunningPollers();
+assert.strictEqual(el('script-logs').innerText,'Same visible text');
+assert.strictEqual(el('script-logs').title,'Restored review logs');
+stage=2;const second=ctx.reattachRunningPollers();
+for(let i=0;i<200&&!entered;i++){await Promise.resolve();}
+assert(entered,'second pass did not reach the final-only attachment');
+assert.strictEqual(el('script-logs').title,'Restored script logs');
+// A real Generate is accepted while the final-only attachment is in flight.
+ctx._scriptRecoveryAcceptedRun=1;
+blockerResolve();await second;
+assert.strictEqual(el('script-logs').innerText,'Same visible text');
+ctx.createTaskLogRenderer(el('script-logs'),'script')({...live,task_claim_id:'c'.repeat(32),worker_claim_id:'c'.repeat(32),logs:['Now rendering Script']});
+assert.strictEqual(el('script-logs').innerText,'Now rendering Script');
+assert.strictEqual(el('script-logs').title,'');
+""")
+
+    def test_protocol_ratchets_for_stale_renderers_observer_handles_and_locale(self):
+        # F04: an incremental renderer must reset when another writer detached
+        # its previous node; a stale shared-pane discovery needs the admission
+        # guard before it can take the pane.
+        core = (fixture.Path(__file__).resolve().parent.parent / 'static/js/app-core.js').read_text()
+        workbench = (fixture.Path(__file__).resolve().parent.parent / 'static/js/app-workbench.js').read_text()
+        self.assertIn('lastNode && lastNode.parentNode !== element', core)
+        self.assertIn("name !== 'script' && sharedPaneTasks.has(name) && scriptPaneOwned()", workbench)
+        # F12: the common polling layer owns the task handle and both button and
+        # Workspace installations pass taskName.
+        self.assertIn('const _taskPollHandles = new Map();', core)
+        self.assertIn('_taskPollHandles.set(taskName, { key, stop });', core)
+        self.assertIn('return _startPolling(`logs:${taskName}`, fetchStatus, { taskName,', core)
+        self.assertIn("return _startPolling('persona', () => API.get('/api/status/persona'), { taskName: 'persona',", core)
+        self.assertIn('stopPolling = _startPolling(`reattach:${taskName}`', workbench)
+        # F14: a locale change re-localizes the owned diagnostic/title chrome.
+        i18n = (fixture.Path(__file__).resolve().parent.parent / 'static/js/app-i18n.js').read_text()
+        self.assertIn('window._relocalizeLogPaneChrome?.();', i18n)
+        self.assertIn('window._relocalizeLogPaneChrome = relocalizeLogPaneChrome;', workbench)

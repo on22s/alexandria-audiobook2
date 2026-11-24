@@ -456,10 +456,12 @@ function applyUiLocale(locale) {
         selector.value = uiLocale;
     }
     applyUiCatalog();
+    window._relocalizeLogPaneChrome?.();
     if (!uiCatalogs.has(uiLocale) && Object.hasOwn(UI_CATALOG_URLS, uiLocale)) {
         return loadUiCatalog(uiLocale).then(catalog => {
             if (catalog) {
                 applyUiCatalog();
+                window._relocalizeLogPaneChrome?.();
             }
             return catalog;
         });

@@ -413,7 +413,7 @@
             const progEl = document.getElementById('vl-stage-progress');
             const colours = { pending: 'secondary', running: 'primary', done: 'success', failed: 'danger', cancelled: 'warning' };
             const renderLogs = createTaskLogRenderer(logEl, 'voicelab');
-            _startPolling('voicelab', () => API.get('/api/status/voicelab?include_health=true'), {
+            return _startPolling('voicelab', () => API.get('/api/status/voicelab?include_health=true'), { taskName: 'voicelab',
                 doneCheck: s => !s.running,
                 onTick: s => {
                     if (s.health) {

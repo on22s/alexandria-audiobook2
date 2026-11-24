@@ -100,9 +100,14 @@ statuses={script:live};const stale=delay();
 let n=0;context.API.get=u=>u==='/api/status/script'&&n++===0?stale.p:initialGet(u);
 await gen.listeners.click();await settle();const token=context._scriptRecoveryAcceptedRun;
 context.reattachTaskActivity('script',[],'script-logs',null,{...live,ownership_unconfirmed:true});await settle();statuses.script=done;
-await tick();await settle();const before={text:el('script-logs').textContent,snapshot:el('btn-snapshot-script').style.display,notices:effects.notifications.length,active:context._scriptRecoveryRunActive};
+// The installed reattach observer replaces the button poller's handle (F12),
+// so the live poll may already be stopped; the user-visible guarantee is that
+// it cannot repaint the terminal pane.
+if (timers.length) { await tick(); }
+await settle();const before={text:el('script-logs').textContent,snapshot:el('btn-snapshot-script').style.display,notices:effects.notifications.length,active:context._scriptRecoveryRunActive};
 stale.yes({...live,logs:['STALE']});await settle();const late={text:el('script-logs').innerText,snapshot:el('btn-snapshot-script').style.display,active:context._scriptRecoveryRunActive};
-await tick();await settle();log({before,late,jobs:effects.notifications,releases:effects.releases,reads:effects.reads.length});
+if (timers.length) { await tick(); }
+await settle();log({before,late,jobs:effects.notifications,releases:effects.releases,reads:effects.reads.length});
 """
 
 CASES['hydrate-delayed'] = r"""

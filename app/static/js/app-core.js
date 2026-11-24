@@ -1421,25 +1421,42 @@
         function createTaskLogRenderer(element, taskName = null) {
             let previousLogs = null;
             let previousRunId = null;
+            let lastNode = null;
             return status => {
                 if (!element) { return; }
                 const update = getTaskLogUpdate(previousLogs, previousRunId,
                     status.logs || [], status.run_id || status.start_time || null);
                 if (!update.changed) { return update; }
+                const runStart = Number.isFinite(status.start_time) ? status.start_time : null;
+                // Never mutate the DOM for an older writer while a newer foreign
+                // live writer owns the pane. Cache nothing so the next admitted
+                // write repaints the complete snapshot (F04).
+                if (taskName && typeof window !== 'undefined' && window._rendererMayWrite
+                    && !window._rendererMayWrite(element, taskName, runStart)) {
+                    previousLogs = null; lastNode = null;
+                    return { ...update, changed: false };
+                }
                 const followTail = previousLogs === null
                     || element.scrollHeight - element.clientHeight - element.scrollTop <= 24;
                 const scrollPosition = element.scrollTop;
                 element.style.whiteSpace = 'pre-wrap';
-                if (update.reset) {
-                    element.innerText = update.text;
+                // If another writer replaced or cleared the pane, the incremental
+                // prefix is gone; repaint the complete snapshot instead of
+                // appending a suffix onto foreign text (F04).
+                const detached = !update.reset && lastNode && lastNode.parentNode !== element;
+                if (update.reset || detached) {
+                    element.innerText = update.logs.join('\n');
+                    lastNode = null;
                 } else {
-                    element.appendChild(document.createTextNode(update.text));
+                    const node = document.createTextNode(update.text);
+                    element.appendChild(node);
+                    lastNode = node;
                 }
                 previousLogs = update.logs;
                 previousRunId = update.runId;
-                // The renderer takes pane authority explicitly; the whole-pane
-                // read is gone and the writer identity is the task it renders.
-                window._notePaneRendererWrite?.(element, taskName, Number.isFinite(status.start_time) ? status.start_time : null);
+                // The renderer takes pane authority explicitly with the task it
+                // renders, its run start, and a complete snapshot marker.
+                window._notePaneRendererWrite?.(element, taskName, runStart, true);
                 element.scrollTop = followTail ? element.scrollHeight : scrollPosition;
                 return update;
             };
@@ -4736,7 +4753,7 @@
             // loop is owned by _startPolling.
             scriptBatchPoller = true;
 
-            return _startPolling('batch_script', () => API.get('/api/status/batch_script'), {
+            return _startPolling('batch_script', () => API.get('/api/status/batch_script'), { taskName: 'batch_script',
                 doneCheck: state => !state.running,
                 onTick: state => {
                     renderLogs(state);
@@ -5637,7 +5654,7 @@
         function pollReviewBatch() {
             const logEl = document.getElementById('script-logs');
             const renderLogs = createTaskLogRenderer(logEl, 'batch_review');
-            return _startPolling('batch_review', () => API.get('/api/status/batch_review'), {
+            return _startPolling('batch_review', () => API.get('/api/status/batch_review'), { taskName: 'batch_review',
                 doneCheck: state => !state.running,
                 onTick: state => {
                     renderLogs(state);
@@ -5949,7 +5966,7 @@
             const renderLogs = createTaskLogRenderer(logEl, 'persona');
             const statusSpan = document.getElementById('persona-status');
             const cancelButton = document.getElementById('btn-cancel-personas');
-            return _startPolling('persona', () => API.get('/api/status/persona'), {
+            return _startPolling('persona', () => API.get('/api/status/persona'), { taskName: 'persona',
                 intervalMs: 1500,
                 doneCheck: status => !status.running,
                 onTick: status => {
@@ -11126,7 +11143,8 @@
             const cancelBtn = config.cancelId ? document.getElementById(config.cancelId) : null;
             statusEl.textContent = t('core.export.in-progress', 'Exporting...');
             if (cancelBtn) { cancelBtn.style.display = ''; }
-            _startPolling(taskName, () => API.get(`/api/status/${taskName}`), {
+            return _startPolling(taskName, () => API.get(`/api/status/${taskName}`), {
+                taskName,
                 doneCheck: status => !status.running,
                 onTick: status => {
                     const last = status.logs[status.logs.length - 1] || '';
@@ -11542,7 +11560,11 @@
             return true;
         }
 
-        function _startPolling(key, fetchFn, { intervalMs = 1000, doneCheck, onTick, onDone, immediate = true, pauseWhenHidden = false, displayLabel = null, scriptRunToken = typeof window !== 'undefined' ? (window._scriptRecoveryRunToken || 0) : 0 } = {}) {
+        // The common polling layer is the ONE place a task's observer handle is
+        // installed. Button starts and Workspace restores both pass taskName, so
+        // switching keys (logs:review -> reattach:review and back) stops the
+        // exact previous handle instead of leaving two pollers (F12).
+        function _startPolling(key, fetchFn, { intervalMs = 1000, doneCheck, onTick, onDone, immediate = true, pauseWhenHidden = false, displayLabel = null, taskName = null, scriptRunToken = typeof window !== 'undefined' ? (window._scriptRecoveryRunToken || 0) : 0 } = {}) {
             const myGen = (_pollGen[key] = (_pollGen[key] || 0) + 1);
             const isScriptPoll = key === 'logs:script' || key === 'reattach:script';
             let consecutiveErrors = 0;
@@ -11702,7 +11724,21 @@
             // it just bumps the generation counter, which the next tick (in
             // flight or scheduled) will see and exit on. It refuses to stop a
             // successor that already took over the same key.
-            return () => { if (_pollGen[key] === myGen) { _pollGen[key] = (_pollGen[key] || 0) + 1; } };
+            const stop = () => { if (_pollGen[key] === myGen) { _pollGen[key] = (_pollGen[key] || 0) + 1; } };
+            if (taskName) {
+                const previous = _taskPollHandles.get(taskName);
+                _taskPollHandles.delete(taskName);
+                if (previous && previous.key !== key) { try { previous.stop(); } catch (e) { /* already stopped */ } }
+                _taskPollHandles.set(taskName, { key, stop });
+            }
+            return stop;
+        }
+        const _taskPollHandles = new Map();
+        function stopInstalledTaskPoller(taskName) {
+            const entry = _taskPollHandles.get(taskName);
+            if (!entry) { return; }
+            _taskPollHandles.delete(taskName);
+            try { entry.stop(); } catch (e) { /* already stopped */ }
         }
 
         // A run can pause ITSELF (retries exhausted with "pause and wait for me"
@@ -11986,7 +12022,7 @@
                 initialStatus = null;
                 return status;
             };
-            return _startPolling(`logs:${taskName}`, fetchStatus, {
+            return _startPolling(`logs:${taskName}`, fetchStatus, { taskName,
                 scriptRunToken,
                 doneCheck: status => !status.running,
                 onTick: status => {

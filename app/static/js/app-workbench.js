@@ -1302,7 +1302,7 @@
             if (dsbPolling) { dsbPolling(); }
             const logsEl = document.getElementById('dsb-logs');
             const renderLogs = createTaskLogRenderer(logsEl, 'dataset_builder');
-            dsbPolling = _startPolling(`dataset_builder:${name}`, () => datasetFetchStatus(name), {
+            dsbPolling = _startPolling(`dataset_builder:${name}`, () => datasetFetchStatus(name), { taskName: 'dataset_builder',
                 intervalMs: 2000,
                 doneCheck: result => !!result && !result.running && !result.ownership_unconfirmed,
                 onTick: result => {
@@ -1729,9 +1729,18 @@
             const generation = options.generation === undefined ? null : options.generation;
             const paneFence = typeof options.paneFence === 'function' ? options.paneFence : () => true;
             const wasActive = bridge?._scriptRecoveryRunActive;
+            let record;
+            const ownsInstalled = () => {
+                const owner = _taskOwners.get(taskName);
+                return !owner || owner === record;
+            };
             if (taskName === 'script' && initialState?.worker_pending) {
                 const stop = pollScriptLogs('script', null, wasActive ? bridge._scriptRecoveryRunToken : 0, initialState);
-                return { id: getRunIdentity(taskName, initialState), kind: 'pending', generation, stop: () => { if (typeof stop === 'function') { stop(); } } };
+                return {
+                    id: getRunIdentity(taskName, initialState), kind: 'pending', generation, started: true,
+                    stop: () => { if (typeof stop === 'function') { stop(); } },
+                    release: null, retire: null,
+                };
             }
             const scriptRunToken = taskName === 'script'
                 ? (bridge?.observeScriptRecoveryRun?.(initialState?.task_claim_id,
@@ -1749,19 +1758,35 @@
             buttons.forEach(button => { button.disabled = true; });
             if (initialState?.ownership_unconfirmed) {
                 const message = getTaskOwnershipMessage(initialState);
-                if (statusEl) { writeOwnershipWarning(statusEl, taskName, message); }
+                if (statusEl) { writeOwnershipWarning(statusEl, taskName, message, { runStart: initialState.start_time }); }
                 else { showToast(message, 'warning'); }
             }
-            else if (statusEl) { writePaneText(statusEl, taskName, 'live', t('core.task.restored-running', '{task} running...', {task: label})); }
+            else if (statusEl) { writePaneText(statusEl, taskName, 'live', t('core.task.restored-running', '{task} running...', {task: label}), { runStart: initialState?.start_time, complete: false }); }
             else { showToast(t('core.task.still-running', '{task} is still running.', {task: label}), 'info'); }
             let terminalHandled = false;
             let stopPolling;
-            let record;
             const claim = typeof taskStartClaims === 'undefined' ? null : taskStartClaims.get(taskName);
             const releaseClaim = () => {
                 if (!claim || taskStartClaims.get(taskName) === claim) { releaseTaskStart(taskName); }
             };
             const ownsScriptControls = () => !scriptRunToken || bridge._scriptRecoveryRunToken === scriptRunToken;
+            const paintTerminal = state => {
+                if (!statusEl) {
+                    const message = (state?.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
+                    showToast(message, 'info');
+                    return;
+                }
+                if (!paneFence()) { return; }
+                const logs = Array.isArray(state?.logs) ? state.logs : [];
+                if (logs.length) {
+                    const text = logs.slice(-1)[0];
+                    if (writePaneText(statusEl, taskName, state?.ownership_unconfirmed ? 'retained' : 'live', text, { runStart: state?.start_time, complete: false })) {
+                        statusEl.innerText = text;
+                    }
+                } else {
+                    writePaneText(statusEl, taskName, 'live', t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label}), { runStart: state?.start_time, complete: true });
+                }
+            };
             if (observed && bridge?.registerScriptTerminalCleanup) {
                 const detachObserver = () => {
                     releaseClaim();
@@ -1773,33 +1798,33 @@
                     detachObserver();
                     if (!ownsScriptControls()) { return; }
                     buttons.forEach(button => { button.disabled = false; });
-                    if (!statusEl) {
-                        const message = (state?.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
-                        showToast(message, 'info');
-                    } else if (paneFence()) {
-                        const message = (state?.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
-                        writePaneText(statusEl, taskName, state?.ownership_unconfirmed ? 'retained' : 'live', message, {runStart: state?.start_time});
-                    }
+                    paintTerminal(state);
                     if (afterDone) { afterDone(); }
                 }, detachObserver);
             }
             stopPolling = _startPolling(`reattach:${taskName}`, () => API.get(`/api/status/${encodeURIComponent(taskName)}`), {
+                taskName,
                 scriptRunToken,
                 // When Generate is pending, a terminal status can belong to the
                 // observed task that caused the start to be refused.
                 doneCheck: state => observed?.state !== 'provisional' && !state.running && !state.ownership_unconfirmed,
                 onTick: state => {
-                    if (typeof record !== 'undefined' && record) {
+                    if (record) {
                         record.detail = state;
                         if (state && !state.running && !state.ownership_unconfirmed) { record.retired = true; }
                     }
                     if (!ownsScriptControls() || (scriptRunToken && bridge._scriptRecoveryTerminalToken === scriptRunToken)) { return; }
-                    if (!paneFence()) { return; }
+                    if (!ownsInstalled() || !paneFence()) { return; }
                     if (scriptRunToken) { bridge.syncSnapshotButton?.(state); }
-                    const last = (state.logs || []).slice(-1)[0];
-                    if (statusEl && state.ownership_unconfirmed) { writeOwnershipWarning(statusEl, taskName, getTaskOwnershipMessage(state)); }
-                    else if (statusEl && last) {
-                        if (writePaneText(statusEl, taskName, 'live', last, {runStart: state.start_time})) { statusEl.innerText = last; }
+                    const logs = Array.isArray(state.logs) ? state.logs : [];
+                    if (statusEl && state.ownership_unconfirmed) {
+                        writeOwnershipWarning(statusEl, taskName, getTaskOwnershipMessage(state), { runStart: state.start_time });
+                    } else if (statusEl && logs.length) {
+                        // A partial render is allowed, but its authority records
+                        // complete=false so a later history pass can replace it
+                        // with the full same-run snapshot (F03).
+                        const text = logs.slice(-1)[0];
+                        if (writePaneText(statusEl, taskName, 'live', text, { runStart: state.start_time, complete: false })) { statusEl.innerText = text; }
                     }
                 },
                 onDone: async state => {
@@ -1807,20 +1832,19 @@
                     if (observed) { return; }
                     terminalHandled = true;
                     if (record) { record.retired = true; }
+                    const current = ownsInstalled();
+                    if (current) {
+                        buttons.forEach(button => { button.disabled = false; });
+                        runTerminalControls(taskName);
+                        if (taskName === 'script') {
+                            const gen = document.getElementById('btn-gen-script');
+                            if (gen && !scriptBatchPoller) { gen.disabled = false; }
+                        }
+                        if (_taskOwners.get(taskName) === record) { _taskOwners.delete(taskName); }
+                    }
                     releaseClaim();
                     if (!ownsScriptControls()) { return; }
-                    buttons.forEach(button => { button.disabled = false; });
-                    if (taskName === 'script') {
-                        const gen = document.getElementById('btn-gen-script');
-                        if (gen && !scriptBatchPoller) { gen.disabled = false; }
-                    }
-                    if (!statusEl) {
-                        const message = (state.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
-                        showToast(message, 'info');
-                    } else if (paneFence()) {
-                        const message = (state.logs || []).slice(-1)[0] || t('core.task.finished-result-unavailable', '{task} finished; the original request result is unavailable after reload.', {task: label});
-                        if (writePaneText(statusEl, taskName, 'live', message, {runStart: state.start_time})) { statusEl.innerText = message; }
-                    }
+                    paintTerminal(state);
                     notifyJobDone(taskName, '', 'finished', state);
                     if (afterDone) { await afterDone(); }
                 },
@@ -1829,24 +1853,22 @@
                 id: getRunIdentity(taskName, initialState),
                 kind: initialState?.ownership_unconfirmed ? 'retained' : (initialState?.worker_pending ? 'pending' : 'live'),
                 generation,
+                paneId: options.paneId || statusId || null,
+                buttons,
+                started: true,
                 stop: () => stopPolling?.(),
                 release: releaseClaim,
-                retire: state => {
-                    if (terminalHandled) { return; }
-                    terminalHandled = true;
-                    if (state?.ownership_unconfirmed) { buttons.forEach(button => { button.disabled = false; }); }
-                    if (statusEl) {
-                        const auth = getPaneAuthority(statusEl);
-                        if (auth.writer === taskName) { writeOwnershipWarning(statusEl, taskName, ''); }
-                    }
-                },
+                retire: () => {},
             };
             return record;
         }
 
-        // One pane-authority protocol for every shared log pane. A writer owns a
-        // pane only at the rank it was admitted at; continuations revalidate the
-        // exact node and the exact write version before mutating anything.
+
+        // ── Pane authority: one protocol for every shared log writer ──
+        // A writer owns a pane at a rank and for a run. Writes from an older run
+        // of the same task, a foreign live writer, or a stale continuation are
+        // refused before the DOM is touched. Every asynchronous continuation
+        // revalidates the node, the version and the owner.
         const PANE_RANK = { default: 0, diagnostic: 1, retained: 2, live: 3 };
         const _paneAuthority = new WeakMap();
         const _warningPaneText = new WeakMap();
@@ -1856,7 +1878,7 @@
             if (!el) { return null; }
             let auth = _paneAuthority.get(el);
             if (!auth) {
-                auth = { writer: null, rank: PANE_RANK.default, epoch: 0, runStart: null };
+                auth = { writer: null, rank: PANE_RANK.default, epoch: 0, runStart: null, complete: false };
                 _paneAuthority.set(el, auth);
             }
             return auth;
@@ -1874,24 +1896,50 @@
             auth.writer = null;
             auth.rank = PANE_RANK.default;
             auth.runStart = null;
+            auth.complete = false;
             auth.epoch++;
             return true;
+        }
+        function restoredTitleText(task) {
+            return t('core.task.logs-restored', 'Restored {task} logs', {task: String(task || '').replaceAll('_', ' ')});
+        }
+        function paneAttr(el, name) {
+            return el && typeof el.getAttribute === 'function' ? el.getAttribute(name) : null;
+        }
+        function setPaneAttr(el, name, value) {
+            if (el && typeof el.setAttribute === 'function') { el.setAttribute(name, value); }
+        }
+        function removePaneAttr(el, name) {
+            if (el && typeof el.removeAttribute === 'function') { el.removeAttribute(name); }
+        }
+        function setRestoredPaneTitle(el, task) {
+            el.title = restoredTitleText(task);
+            setPaneAttr(el, 'data-restored-log', task);
+            _restoredPaneTitle.set(el, { task });
         }
         function clearRestoredPaneTitle(el) {
             if (!el) { return; }
             const owned = _restoredPaneTitle.get(el);
-            if (owned === undefined) { return; }
-            if (el.title === owned) { el.title = ''; }
+            const marker = paneAttr(el, 'data-restored-log');
+            if (owned === undefined && marker === null) { return; }
             _restoredPaneTitle.delete(el);
+            // A cloned/replaced node copies the marker attribute, so clear the
+            // tooltip even when this exact element is not in the WeakMap (P01).
+            removePaneAttr(el, 'data-restored-log');
+            if (marker !== null) {
+                const expected = restoredTitleText(marker);
+                if (el.title === expected || el.title === '') { el.title = ''; }
+                else if (owned && el.title === restoredTitleText(owned.task)) { el.title = ''; }
+            } else if (owned) {
+                const expected = restoredTitleText(owned.task);
+                if (el.title === expected) { el.title = ''; }
+            }
         }
-        function setRestoredPaneTitle(el, title) {
-            el.title = title;
-            _restoredPaneTitle.set(el, title);
-        }
-        function writeOwnershipWarning(el, writer, message) {
+        function writeOwnershipWarning(el, writer, message, options = {}) {
             if (!el) { return false; }
             const auth = getPaneAuthority(el);
             const prior = _warningPaneText.get(el);
+            const runStart = Number.isFinite(options.runStart) ? options.runStart : null;
             if (!message) {
                 if (auth.writer !== writer) { return false; }
                 const blank = !el.textContent || el.textContent === prior;
@@ -1899,17 +1947,21 @@
                 if (blank) { el.textContent = ''; }
                 return true;
             }
-            // A newer live writer from another task owns the pane: never clobber it.
+            // A live writer from another task always wins.
             if (auth.rank >= PANE_RANK.live && auth.writer && auth.writer !== writer) { return false; }
-            // Only replace our own warning, known restored history, or an empty
-            // pane. Foreign/unowned text and newer live text are preserved.
+            // The same task may have a completed renderer from an older run; a
+            // newer retained warning supersedes it, but not its own run or a
+            // genuinely newer one (F11).
+            const olderSameTaskRender = auth.rank >= PANE_RANK.live && auth.writer === writer
+                && Number.isFinite(auth.runStart) && Number.isFinite(runStart) && runStart > auth.runStart;
+            if (auth.rank >= PANE_RANK.live && auth.writer === writer && !olderSameTaskRender) { return false; }
             const current = el.textContent;
             const knownHistory = (auth.writer === 'history')
                 || (current !== '' && current === _knownHistoryText.get(el));
-            if (current && current !== prior && !knownHistory) { return false; }
+            if (current && current !== prior && !knownHistory && !olderSameTaskRender) { return false; }
             el.textContent = message;
             _warningPaneText.set(el, message);
-            auth.writer = writer; auth.rank = PANE_RANK.retained; auth.runStart = null; auth.epoch++;
+            auth.writer = writer; auth.rank = PANE_RANK.retained; auth.runStart = runStart; auth.complete = true; auth.epoch++;
             clearRestoredPaneTitle(el);
             _knownHistoryText.delete(el);
             return true;
@@ -1918,30 +1970,45 @@
             if (!el) { return false; }
             const auth = getPaneAuthority(el);
             const level = PANE_RANK[rank] || 0;
+            const runStart = Object.prototype.hasOwnProperty.call(options, 'runStart') && Number.isFinite(options.runStart)
+                ? options.runStart : null;
+            const complete = options.complete !== false;
             if (level < auth.rank) { return false; }
             if (level === auth.rank && auth.writer && auth.writer !== writer) { return false; }
+            if (level === auth.rank && auth.writer === writer
+                && Number.isFinite(auth.runStart) && Number.isFinite(runStart)
+                && runStart < auth.runStart) { return false; }
+            // A complete same-run snapshot may replace a partial last-line
+            // render written by the retained observer (F03).
             el.textContent = message;
             auth.writer = writer; auth.rank = level; auth.epoch++;
-            if (Object.prototype.hasOwnProperty.call(options, 'runStart')) { auth.runStart = options.runStart; }
+            if (runStart !== null) { auth.runStart = runStart; }
+            auth.complete = complete;
             if (level >= PANE_RANK.retained) {
                 clearRestoredPaneTitle(el);
                 _knownHistoryText.delete(el);
             }
             return true;
         }
-        function notePaneRendererWrite(element, writer, runStart) {
+        function notePaneRendererWrite(element, writer, runStart, complete = true) {
             if (!element) { return; }
             const auth = getPaneAuthority(element);
             auth.writer = writer || 'renderer';
             auth.rank = PANE_RANK.live;
             auth.epoch++;
             auth.runStart = Number.isFinite(runStart) ? runStart : null;
+            auth.complete = complete !== false;
             clearRestoredPaneTitle(element);
             _knownHistoryText.delete(element);
         }
+        function rendererMayWrite(element, taskName, runStart) {
+            if (!element || !taskName) { return true; }
+            const auth = getPaneAuthority(element);
+            if (auth.rank < PANE_RANK.live || !auth.writer || auth.writer === taskName) { return true; }
+            if (!Number.isFinite(auth.runStart) || !Number.isFinite(runStart)) { return true; }
+            return runStart >= auth.runStart;
+        }
         // One per-task identity for opening, detail and final registry entries.
-        // Claim IDs win when present; claimless summaries compare finite start
-        // times so two genuinely different successors are not merged (A2).
         function getRunIdentity(name, state) {
             if (!state) { return null; }
             const claim = state.task_claim_id || state.worker_claim_id || null;
@@ -1949,36 +2016,91 @@
             const start = claim ? null : (Number.isFinite(state.start_time) ? state.start_time : null);
             return JSON.stringify([name, claim, kind, start]);
         }
-        const _taskOwners = new Map();
-        // Installed observer handles survive dispatches so a proven owner change
-        // (retained -> live) stops the exact old poller, even across keys (A9).
-        const _taskPollers = new Map();
-        function registerTaskPoller(name, stop, identity, generation) {
-            if (typeof stop !== 'function') { return; }
-            const previous = _taskPollers.get(name);
-            if (previous && previous.stop !== stop) { try { previous.stop(); } catch (e) { /* already stopped */ } }
-            _taskPollers.set(name, { stop, identity, generation: generation || 0 });
+        function sameRunIdentity(opening, live) {
+            if (!opening || !live) { return false; }
+            const before = opening.task_claim_id || opening.worker_claim_id || null;
+            const now = live.task_claim_id || live.worker_claim_id || null;
+            if (before || now) { return !!before && before === now; }
+            return Number.isFinite(opening.start_time) && Number.isFinite(live.start_time)
+                && opening.start_time === live.start_time;
         }
-        function stopTaskPoller(name, record) {
-            const entry = _taskPollers.get(name);
-            if (!entry) { return; }
-            // The newest dispatch owns the handle; an older pass must not stop it.
-            if (record && entry.generation > (record.generation || 0)) { return; }
-            try { entry.stop(); } catch (e) { /* already stopped */ }
-            if (_taskPollers.get(name) === entry) { _taskPollers.delete(name); }
+
+        // ── Installed observer ownership ──
+        // _taskOwners survives dispatches: an existing observer stays
+        // authoritative for its own run/book until a replacement is installed
+        // or its owner retires. A dispatch that fails before installing a
+        // replacement must not silence it (F10).
+        const _taskOwners = new Map();
+        const RETIRE_BUTTONS = {
+            script: ['btn-gen-script'], batch_script: ['btn-gen-script'],
+            review: ['btn-review-script', 'btn-review-script-contextual'],
+            batch_review: ['btn-review-batch-start'],
+            nicknames: ['btn-find-nicknames'], cast_list: ['btn-build-cast-list'],
+            persona: ['btn-gen-personas'], voicelab: ['btn-vl-start'],
+            lora_training: ['btn-lora-train'], word_timing: ['editor-word-timing'],
+            speech_verification: ['editor-line-speech-recheck'],
+            lmstudio_optimize: ['lmstudio-optimize-toggle'], voices: ['btn-suggest-voices'],
+        };
+        const RETIRE_CANCEL = {
+            script: ['btn-cancel-script', 'btn-pause-script'],
+            batch_script: ['btn-pause-batch-script', 'btn-cancel-batch-script'],
+            review: ['btn-cancel-review', 'btn-pause-review'],
+            batch_review: ['btn-pause-batch-review', 'btn-cancel-batch-review'],
+            nicknames: ['btn-pause-nick', 'btn-cancel-nick'], cast_list: ['btn-cancel-cast-list'],
+            persona: ['btn-cancel-personas'], voicelab: ['btn-vl-cancel', 'btn-vl-pause'],
+            lora_training: ['btn-lora-cancel'], word_timing: ['editor-word-cancel'],
+        };
+        function runTerminalControls(name) {
+            const buttons = Object.prototype.hasOwnProperty.call(RETIRE_BUTTONS, name) ? RETIRE_BUTTONS[name] : [];
+            const cancels = Object.prototype.hasOwnProperty.call(RETIRE_CANCEL, name) ? RETIRE_CANCEL[name] : [];
+            for (const id of buttons) {
+                const button = document.getElementById(id); if (button) { button.disabled = false; }
+            }
+            for (const id of cancels) {
+                const button = document.getElementById(id); if (button) { button.style.display = 'none'; }
+            }
+            if (name === 'review') {
+                if (typeof _showReviewControls === 'function') { _showReviewControls(false); }
+                if (typeof _disableReviewButtons === 'function') { _disableReviewButtons(false); }
+            }
+            if (name === 'persona') {
+                const status = document.getElementById('persona-status'); if (status) { status.innerText = ''; }
+            }
+        }
+        function releaseTerminalControls(name, terminalState, record) {
+            if (record) { record.terminalPending = true; }
+            runTerminalControls(name);
+            if (typeof taskStartClaims !== 'undefined' && taskStartClaims.has(name)) { releaseTaskStart(name); }
+            if (record && record.paneId) {
+                const pane = document.getElementById(record.paneId);
+                const auth = getPaneAuthority(pane);
+                if (auth && auth.writer === name && auth.rank === PANE_RANK.retained) { writeOwnershipWarning(pane, name, ''); }
+            }
+        }
+        function retireTaskOwnership(name, terminalState) {
+            const record = _taskOwners.get(name);
+            if (!record) { return; }
+            record.retired = true;
+            _taskOwners.delete(name);
+            // A terminal registry must release this exact owner's controls even
+            // when the observer is stopped before its own terminal tick (F01).
+            if (terminalState && !terminalState.running) { runTerminalControls(name); }
+            if (record.paneId) {
+                const pane = document.getElementById(record.paneId);
+                const auth = getPaneAuthority(pane);
+                if (auth && auth.writer === name && auth.rank === PANE_RANK.retained) {
+                    writeOwnershipWarning(pane, name, '');
+                }
+            }
+            for (const button of record.buttons || []) { button.disabled = false; }
+            if (typeof record.stop === 'function') { record.stop(); }
+            if (typeof record.release === 'function') { record.release(); }
+            if (typeof record.retire === 'function') { record.retire(terminalState); }
         }
         if (typeof window !== 'undefined') {
             window._notePaneRendererWrite = notePaneRendererWrite;
-        }
-        function retireTaskOwnership(owners, name, terminalState) {
-            const record = owners.get(name);
-            if (!record) { return; }
-            owners.delete(name);
-            record.retired = true;
-            if (typeof record.retire === 'function') { record.retire(terminalState); }
-            stopTaskPoller(name, record);
-            if (typeof record.stop === 'function') { record.stop(); }
-            if (typeof record.release === 'function') { record.release(); }
+            window._rendererMayWrite = rendererMayWrite;
+            window._stopInstalledTaskPoller = typeof stopInstalledTaskPoller === 'function' ? stopInstalledTaskPoller : window._stopInstalledTaskPoller;
         }
 
         let _reattachGeneration = 0;
@@ -1997,6 +2119,15 @@
                 if (!latest || start > latest.start) { latest = { name, start, logs: status.logs }; }
             }
             return latest;
+        }
+
+        function getNewestKnownStart(taskNames, registry) {
+            let newest = -Infinity;
+            for (const name of taskNames) {
+                const state = registry[name];
+                if (state && Number.isFinite(state.start_time) && state.start_time > newest) { newest = state.start_time; }
+            }
+            return newest;
         }
 
         function getLogRestoreIdentity(owner) {
@@ -2029,6 +2160,26 @@
             return false;
         }
 
+        // Re-localize client-authored pane chrome without refetching history or
+        // touching literal worker text (F14).
+        function relocalizeLogPaneChrome() {
+            for (const id of ['script-logs', 'voices-logs', 'audio-logs', 'voicelab-logs']) {
+                const el = document.getElementById(id);
+                if (!el) { continue; }
+                const diagnostic = _logRestoreDiagnostics.get(id);
+                if (diagnostic && diagnostic.el === el && el.textContent === diagnostic.text) {
+                    const next = t('core.task.logs-restore-failed', 'Earlier log history could not be loaded. Check the connection, then reload.');
+                    if (next !== el.textContent) { el.textContent = next; }
+                    diagnostic.text = next;
+                }
+                const restored = _restoredPaneTitle.get(el);
+                const marker = paneAttr(el, 'data-restored-log');
+                if (restored) { el.title = restoredTitleText(restored.task); }
+                else if (marker !== null) { el.title = restoredTitleText(marker); }
+            }
+        }
+        if (typeof window !== 'undefined') { window._relocalizeLogPaneChrome = relocalizeLogPaneChrome; }
+
         // Restore each running task independently: remote LLM work can coexist
         // with local training/Voice Lab and CPU exports.
         async function reattachRunningPollers() {
@@ -2042,26 +2193,19 @@
                 acceptedToken: bridge?._scriptRecoveryAcceptedRun || 0,
                 terminalToken: bridge?._scriptRecoveryTerminalToken || 0
             };
-            const contextFence = () => generation === _reattachGeneration
-                && (bridge?._scriptRecoveryBookEpoch || 0) === dispatchState.bookEpoch
-                && (bridge?._selectedUploadIdentity || null) === dispatchState.selection;
+            const bookChanged = () => (bridge?._scriptRecoveryBookEpoch || 0) !== dispatchState.bookEpoch;
+            const selectionChanged = () => (bridge?._selectedUploadIdentity || null) !== dispatchState.selection;
+            // Speculative continuation: belongs to this dispatch only.
+            const contextFence = () => generation === _reattachGeneration && !bookChanged() && !selectionChanged();
+            // An installed observer stays authoritative for its own book until a
+            // replacement is installed; a failed newer dispatch must not silence
+            // it (F10).
+            const installedContextFence = () => !bookChanged() && !selectionChanged();
             const tokenFence = () => (bridge?._scriptRecoveryAcceptedRun || 0) === dispatchState.acceptedToken
                 && (bridge?._scriptRecoveryTerminalToken || 0) === dispatchState.terminalToken;
-            const dispatchFence = () => contextFence() && tokenFence();
-            // The initial config installs the saved book after a reload. That is
-            // not a user selection, so re-baseline once and let the fresh history
-            // pass belong to the settled book. A genuine selection bumps
-            // _bookSelectionEpoch and keeps the stale fence.
-            const rebalanceInitialConfig = () => {
-                if (generation !== _reattachGeneration) { return false; }
-                if ((bridge?._bookSelectionEpoch || 0) !== selectionEpoch) { return false; }
-                if ((bridge?._scriptRecoveryBookEpoch || 0) === dispatchState.bookEpoch) { return false; }
-                dispatchState.bookEpoch = bridge._scriptRecoveryBookEpoch || 0;
-                return true;
-            };
-            // A confirmed Script admission owns the shared pane. A numeric token
-            // advance alone is provisional/refused bookkeeping and must not hide a
-            // legitimate same-run detail from the old owner (A3).
+            const terminalFence = () => (bridge?._scriptRecoveryTerminalToken || 0) === dispatchState.terminalToken;
+            // A confirmed Script admission owns the shared script pane. It is
+            // scoped to that pane and to non-Script writers.
             const scriptPaneOwned = () => {
                 if (!bridge) { return false; }
                 const accepted = bridge._scriptRecoveryAcceptedRun || 0;
@@ -2072,22 +2216,19 @@
                     ? bridge.getScriptAdmissionByToken?.(runToken) : null;
                 return !!active && active.state === 'accepted';
             };
-            const sameRunIdentity = (opening, live) => {
-                if (!opening || !live) { return false; }
-                const before = opening.task_claim_id || opening.worker_claim_id || null;
-                const now = live.task_claim_id || live.worker_claim_id || null;
-                if (before || now) { return !!before && before === now; }
-                return Number.isFinite(opening.start_time) && Number.isFinite(live.start_time)
-                    && opening.start_time === live.start_time;
+            // The initial config installs the saved book after a reload. That is
+            // not a user selection, so re-baseline at every await boundary; a
+            // genuine selection bumps _bookSelectionEpoch and stays fenced (F02).
+            const rebalanceInitialConfig = () => {
+                if (generation !== _reattachGeneration) { return false; }
+                if ((bridge?._bookSelectionEpoch || 0) !== selectionEpoch) { return false; }
+                if ((bridge?._scriptRecoveryBookEpoch || 0) === dispatchState.bookEpoch) { return false; }
+                dispatchState.bookEpoch = bridge._scriptRecoveryBookEpoch || 0;
+                return true;
             };
-            const taskOwners = new Map();
-            let statuses;
-            let running = {};
-            let staleDispatch = false;
-            // Only a config that was still loading when this pass finished needs
-            // the one fresh post-config pass; an already-settled config must not
-            // trigger a duplicate dispatch.
             let configSettled = false;
+            let statuses;
+            let staleDispatch = false;
             if (bridge?._initialConfigReady && typeof bridge._initialConfigReady.then === 'function') {
                 bridge._initialConfigReady.then(() => { configSettled = true; }).catch(() => {});
             }
@@ -2098,20 +2239,32 @@
                 { elementId: 'audio-logs', tasks: ['audio'] },
                 { elementId: 'voicelab-logs', tasks: ['voicelab'] },
             ];
-            // Snapshot the pane node, its text, title and writer version before
-            // the first await: a live writer can paint during the opening status
-            // request and an older registry must not revoke it (A5).
+            const sharedPaneTasks = new Set(logGroups[0].tasks);
+            const controlGroups = new Map(logGroups.flatMap(group =>
+                group.tasks.map(name => [name, group.elementId])));
+            controlGroups.set('preparer', 'preparer-controls');
+            controlGroups.set('batch_preparer', 'preparer-controls');
             const paneStates = logGroups.map(group => {
                 const pane = document.getElementById(group.elementId);
-                return { el: pane, version: paneVersion(pane),
-                    text: pane ? pane.innerText : undefined, title: pane ? pane.title : undefined };
+                const auth = getPaneAuthority(pane);
+                return {
+                    el: pane, version: auth ? auth.epoch : 0,
+                    text: pane ? pane.innerText : undefined, title: pane ? pane.title : undefined,
+                    writer: auth ? auth.writer : null, rank: auth ? auth.rank : 0,
+                    runStart: auth ? auth.runStart : null, complete: auth ? auth.complete : false,
+                    restoredTitle: pane ? _restoredPaneTitle.get(pane) : undefined,
+                    knownHistory: pane ? _knownHistoryText.get(pane) : undefined,
+                    warning: pane ? _warningPaneText.get(pane) : undefined,
+                };
             });
             const paneNodes = new Map(logGroups.map((group, index) => [group.elementId, paneStates[index].el]));
-            const sharedPaneTasks = new Set(logGroups[0].tasks);
             const pollGenerations = logGroups.map(group => getLogPollGeneration(group.tasks));
-            // A task's own observer only needs the book/selection/generation fence;
-            // pane authority still rejects a foreign live writer.
-            const paneWriteFence = () => contextFence();
+
+            const paneFenceFor = name => {
+                if (name === 'script') { return () => !selectionChanged(); }
+                if (sharedPaneTasks.has(name)) { return () => installedContextFence() && !scriptPaneOwned(); }
+                return () => installedContextFence();
+            };
 
             const show = (id, disp = 'inline-block') => {
                 const el = document.getElementById(id); if (el) { el.style.display = disp; }
@@ -2129,22 +2282,24 @@
                 script: async () => {
                     const dispatchTask = statuses.script || null;
                     const live = await API.get('/api/status/script');
-                    if (!dispatchFence()) { return; }
+                    // A generator that terminates while this detail is in flight
+                    // must not be re-adopted as a new observed run (rescore-6).
+                    if (!tokenFence() && !sameRunIdentity(statuses.script, live)) { return; }
+                    if (!contextFence() && !sameRunIdentity(statuses.script, live)) { return; }
                     if (dispatchTask?.book_token && live?.book_token
                         && dispatchTask.book_token !== live.book_token) { return; }
                     if (!live?.running && !live?.ownership_unconfirmed) { return; }
-                    const bridge = typeof window !== 'undefined' ? window : null;
                     if (bridge?._scriptRecoveryRunActive
                         && (bridge._scriptRecoveryAcceptedRun || 0) !== dispatchState.acceptedToken) { return; }
                     if (live.worker_pending) {
-                        return reattachTaskActivity('script', [], 'script-logs', null, live, { generation });
+                        return reattachTaskActivity('script', [], 'script-logs', null, live, { generation, paneFence: paneFenceFor('script') });
                     }
                     const recoveryRunToken = bridge?.observeScriptRecoveryRun?.(live.task_claim_id,
                         live.running && !live.ownership_unconfirmed) || null;
                     const observed = bridge?.getScriptAdmissionByToken?.(recoveryRunToken);
                     if (bridge?.observeScriptRecoveryRun && (!observed
                         || (observed.state === 'provisional' && bridge._scriptRecoveryRunToken !== recoveryRunToken))) {
-                        return reattachTaskActivity('script', [], 'script-logs', null, live, { generation });
+                        return reattachTaskActivity('script', [], 'script-logs', null, live, { generation, paneFence: paneFenceFor('script') });
                     }
                     if (observed) { bridge.acceptScriptAdmission(observed.id); }
                     disable('btn-gen-script');
@@ -2201,8 +2356,8 @@
                     show('lora-progress-section', 'block');
                     return pollLoraTraining();
                 },
-                preparer: () => { return _pollPreparerLogs('preparer'); },
-                batch_preparer: () => { return _pollPreparerLogs('batch_preparer'); },
+                preparer: () => _pollPreparerLogs('preparer'),
+                batch_preparer: () => _pollPreparerLogs('batch_preparer'),
                 audio: () => {
                     show('btn-cancel-merge');
                     return pollLogs('audio', 'audio-logs', () => {
@@ -2210,15 +2365,16 @@
                         window.resetExportQualityView?.();
                     });
                 },
-                benchmark: () => { refreshBenchmarkStatus(); },
-                audacity_export: () => { pollExport('audacity_export'); },
-                m4b_export: () => { pollExport('m4b_export'); },
-                chapter_export: () => { pollExport('chapter_export'); },
+                benchmark: () => { refreshBenchmarkStatus(); return true; },
+                audacity_export: () => pollExport('audacity_export'),
+                m4b_export: () => pollExport('m4b_export'),
+                chapter_export: () => pollExport('chapter_export'),
                 dataset_builder: async () => {
                     const state = await API.get('/api/status/dataset_builder');
-                    if (!state.running) { return; }
+                    if (!state.running) { return true; }
                     if (!state.dataset_name) { throw new Error('Active Dataset Builder project is unavailable'); }
                     await dsbLoadProjects(state.dataset_name);
+                    return true;
                 },
                 voices: () => reattachTaskActivity('voices', ['btn-suggest-voices'], 'suggest-status', loadVoices, null, { generation }),
                 llm_test: () => reattachTaskActivity('llm_test', ['llm-test-btn'], 'llm-test-result', null, null, { generation }),
@@ -2238,51 +2394,14 @@
                     }, null, { generation });
                 },
                 drift_check: () => reattachTaskActivity('drift_check', [], null, () => loadChunks(false), null, { generation }),
-                outlier_check: async () => { attachEditorOutlierCheck(await API.get('/api/status/outlier_check')); },
-            };
-
-            const controlGroups = new Map(logGroups.flatMap(group =>
-                group.tasks.map(name => [name, group.elementId])));
-            controlGroups.set('preparer', 'preparer-controls');
-            controlGroups.set('batch_preparer', 'preparer-controls');
-            const RETIRE_BUTTONS = {
-                script: ['btn-gen-script'], batch_script: ['btn-gen-script'],
-                review: [], batch_review: ['btn-review-batch-start'],
-                nicknames: ['btn-find-nicknames'], cast_list: ['btn-build-cast-list'],
-                persona: ['btn-gen-personas'], lora_training: ['btn-lora-train'],
-                word_timing: ['editor-word-timing'], speech_verification: ['editor-line-speech-recheck'],
-                lmstudio_optimize: ['lmstudio-optimize-toggle'], voices: ['btn-suggest-voices'],
-            };
-            const RETIRE_CANCEL = {
-                script: ['btn-cancel-script', 'btn-pause-script'],
-                batch_script: ['btn-pause-batch-script', 'btn-cancel-batch-script'],
-                batch_review: ['btn-pause-batch-review', 'btn-cancel-batch-review'],
-                nicknames: ['btn-pause-nick', 'btn-cancel-nick'], cast_list: ['btn-cancel-cast-list'],
-                lora_training: ['btn-lora-cancel'], word_timing: ['editor-word-cancel'],
+                outlier_check: async () => { attachEditorOutlierCheck(await API.get('/api/status/outlier_check')); return true; },
             };
 
             const makeTaskRecord = (name, state, kind, id, stop, release) => ({
-                id,
-                kind,
-                generation,
+                id, kind, generation, paneId: controlGroups.get(name) || null, started: true,
                 stop: typeof stop === 'function' ? stop : () => {},
                 release: typeof release === 'function' ? release : () => {},
-                retire: finalState => {
-                    if (finalState?.ownership_unconfirmed) {
-                        for (const buttonId of RETIRE_BUTTONS[name] || []) {
-                            const b = document.getElementById(buttonId); if (b) { b.disabled = false; }
-                        }
-                        for (const buttonId of RETIRE_CANCEL[name] || []) {
-                            const b = document.getElementById(buttonId); if (b) { b.style.display = 'none'; }
-                        }
-                    }
-                    const paneId = controlGroups.get(name);
-                    const pane = paneId ? document.getElementById(paneId) : null;
-                    if (pane) {
-                        const auth = getPaneAuthority(pane);
-                        if (auth.writer === name) { writeOwnershipWarning(pane, name, ''); }
-                    }
-                },
+                retire: () => {},
             });
 
             const attachRunningControls = async (source, options = {}) => {
@@ -2294,73 +2413,84 @@
                     if (!isRunning) { continue; }
                     if (options.onlySlow && !slow.has(name)) { continue; }
                     if (options.skipSlow && slow.has(name)) { continue; }
+                    // A stale discovery may restore independent controls, but it
+                    // must not give a shared-pane adapter authority over a pane a
+                    // confirmed Script already owns (F04/F06).
+                    if (name !== 'script' && sharedPaneTasks.has(name) && scriptPaneOwned()) { continue; }
                     const id = getRunIdentity(name, source[name]);
                     const kind = source[name]?.ownership_unconfirmed ? 'retained' : (source[name]?.worker_pending ? 'pending' : 'live');
-                    const existing = taskOwners.get(name);
-                    // A retired record is never adopted again: its worker ended,
-                    // so the same registry entry is a fresh successor to observe.
-                    if (existing && existing.id === id && existing.kind === kind && !existing.retired) { continue; }
-                    // A newer dispatch owns this task; an older pass must not revoke it.
+                    const existing = _taskOwners.get(name);
+                    // Within this dispatch the owner is already installed (the
+                    // second, final attach). Across dispatches a fresh observer
+                    // replaces it so the old key's handle is stopped (F12).
+                    if (existing && existing.generation === generation && existing.id === id
+                        && existing.kind === kind && !existing.retired && existing.started) { continue; }
                     if (existing && existing.generation > generation) { continue; }
-                    if (existing) { retireTaskOwnership(taskOwners, name, source[name]); }
+                    if (existing) { retireTaskOwnership(name, source[name]); }
                     const group = controlGroups.get(name) || name;
                     if (!attachments.has(group)) { attachments.set(group, []); }
                     attachments.get(group).push(name);
                 }
                 await Promise.allSettled([...attachments.values()].map(async names => {
                     for (const name of names) {
-                        if (!options.ignoreFence && !dispatchFence()) { return; }
-                        if (taskOwners.get(name)?.generation > generation) { continue; }
+                        if (!options.ignoreFence && !contextFence()) { return; }
+                        if (_taskOwners.get(name)?.generation > generation) { continue; }
                         const state = source[name];
                         const kind = state?.ownership_unconfirmed ? 'retained' : (state?.worker_pending ? 'pending' : 'live');
                         const id = getRunIdentity(name, state);
-                        const installed = _taskPollers.get(name);
-                        if (installed && installed.identity !== id) { stopTaskPoller(name); }
                         if (state?.ownership_unconfirmed) {
                             const record = reattachTaskActivity(name, [], controlGroups.get(name) || null, null, state,
-                                { generation, paneFence: sharedPaneTasks.has(name) && name !== 'script' ? paneWriteFence : undefined });
-                            if (record && typeof record === 'object') {
+                                { generation, paneId: controlGroups.get(name) || null, paneFence: paneFenceFor(name) });
+                            if (record && record.started) {
                                 if (!record.id) { record.id = id; record.kind = kind; }
                                 if (record.generation === null || record.generation === undefined) { record.generation = generation; }
-                                taskOwners.set(name, record);
-                                registerTaskPoller(name, record.stop, id, generation);
+                                _taskOwners.set(name, record);
                             }
                             continue;
                         }
                         const attach = Object.prototype.hasOwnProperty.call(reattachers, name)
                             ? reattachers[name] : () => reattachTaskActivity(name, [], controlGroups.get(name) || null, null, state,
-                                { generation, paneFence: sharedPaneTasks.has(name) && name !== 'script' ? paneWriteFence : undefined });
+                                { generation, paneId: controlGroups.get(name) || null, paneFence: paneFenceFor(name) });
                         try {
                             const result = await attach();
-                            if (!options.ignoreFence && !dispatchFence()) { return; }
-                            if (result && typeof result === 'object') {
+                            if (!options.ignoreFence && !contextFence()) { return; }
+                            if (result === undefined || result === null) {
+                                // A declined adapter records nothing: the next
+                                // registry pass retries it exactly once (F05).
+                                continue;
+                            }
+                            if (typeof result === 'object') {
+                                if (!result.started) { continue; }
                                 if (!result.id) { result.id = id; result.kind = kind; }
+                                if (!result.paneId) { result.paneId = controlGroups.get(name) || null; }
                                 if (result.generation === null || result.generation === undefined) { result.generation = generation; }
-                                taskOwners.set(name, result);
-                                registerTaskPoller(name, result.stop, id, generation);
+                                _taskOwners.set(name, result);
                             } else {
-                                const record = makeTaskRecord(name, state, kind, id,
-                                    typeof result === 'function' ? result : null, null);
-                                taskOwners.set(name, record);
-                                registerTaskPoller(name, record.stop, id, generation);
+                                _taskOwners.set(name, makeTaskRecord(name, state, kind, id,
+                                    typeof result === 'function' ? result : null, null));
                             }
                         } catch (e) {
-                            if (!dispatchFence()) { return; }
+                            if (!contextFence()) { return; }
                             showActionError(`Could not restore ${name.replaceAll('_', ' ')} controls`, e, 'Check the app connection and task status before starting again; the task may still be running.', 'warning');
                         }
                     }
                 }));
             };
 
-            const releaseObsoleteControls = final => {
-                if (!dispatchFence()) { return; }
-                for (const name of [...taskOwners.keys()]) {
-                    const record = taskOwners.get(name);
-                    // Never let an older pass retire a record a newer pass installed.
+            const obsoleteSweep = final => {
+                if (!installedContextFence()) { return; }
+                for (const name of [..._taskOwners.keys()]) {
+                    const record = _taskOwners.get(name);
                     if (record && record.generation > generation) { continue; }
                     const state = final[name];
-                    if (!state || !(state.running || state.ownership_unconfirmed)) {
-                        retireTaskOwnership(taskOwners, name, state);
+                    if (state && (state.running || state.ownership_unconfirmed)) { continue; }
+                    if (record && record.generation === generation) {
+                        // Let this dispatch's own in-flight adapter consume one
+                        // verified terminal detail and paint it; only its controls
+                        // and claim are released now (F01).
+                        releaseTerminalControls(name, state, record);
+                    } else {
+                        retireTaskOwnership(name, state);
                     }
                 }
             };
@@ -2368,16 +2498,23 @@
             try {
                 statuses = await API.get('/api/status');
             } catch (e) {
-                if (generation === _reattachGeneration && dispatchFence()) {
+                if (generation === _reattachGeneration && contextFence()) {
                     showActionError('Could not restore running task controls', e, 'Check the app connection and reload task status before starting new work; a task may still be running.', 'warning');
                 }
                 return;
             }
             if (generation !== _reattachGeneration) { return; }
-            if (!dispatchFence()) { rebalanceInitialConfig(); }
-            staleDispatch = !dispatchFence();
+            if (!contextFence() && !rebalanceInitialConfig()) { staleDispatch = true; }
             const registry = statuses;
-            await attachRunningControls(registry, { ignoreFence: staleDispatch });
+            // Only the adoption performed BY this attach is absorbed into the
+            // dispatch tokens; a token that advances later is a competing owner.
+            const acceptedBeforeOpening = bridge?._scriptRecoveryAcceptedRun || 0;
+            const terminalBeforeOpening = bridge?._scriptRecoveryTerminalToken || 0;
+            await attachRunningControls(registry, { ignoreFence: !!staleDispatch });
+            if (contextFence()) {
+                if ((bridge?._scriptRecoveryAcceptedRun || 0) !== acceptedBeforeOpening) { dispatchState.acceptedToken = bridge._scriptRecoveryAcceptedRun || 0; }
+                if ((bridge?._scriptRecoveryTerminalToken || 0) !== terminalBeforeOpening) { dispatchState.terminalToken = bridge._scriptRecoveryTerminalToken || 0; }
+            }
 
             const hydrateNames = new Set([...logGroups.flatMap(group => group.tasks),
                 ...Object.keys(statuses).filter(name => statuses[name]?.ownership_unconfirmed)]);
@@ -2385,29 +2522,27 @@
             const fetched = [];
             const hydration = [...hydrateNames].map(async taskName => {
                 if (statuses[taskName]?.running && !statuses[taskName]?.ownership_unconfirmed) { return null; }
-                const held = taskOwners.get(taskName);
+                const held = _taskOwners.get(taskName);
                 if (statuses[taskName]?.ownership_unconfirmed && held) {
                     const paneId = controlGroups.get(taskName);
                     const paneNode = paneId ? paneNodes.get(paneId) : null;
                     // Detached continuation: restore must not block on a held
                     // detail read, but every paint is fenced to the exact node,
-                    // owner, run identity and accepted generation (A3, A4).
+                    // owner, run and accepted generation.
                     API.get(`/api/status/${taskName}`).then(state => {
                         held.detail = state;
                         if (generation !== _reattachGeneration) { return; }
-                        // A confirmed Script successor owns the shared pane. It only
-                        // suppresses this continuation when it is a DIFFERENT task or
-                        // run; the accepted Script observer's own hydration still paints.
-                        if (scriptPaneOwned()
+                        if (paneId === 'script-logs' && scriptPaneOwned()
                             && !(taskName === 'script' && sameRunIdentity(statuses[taskName], state))) { return; }
                         if (!contextFence() && !sameRunIdentity(statuses[taskName], state)) { return; }
-                        if (taskOwners.get(taskName) !== held || held.retired) { return; }
+                        if (_taskOwners.get(taskName) !== held || held.retired) { return; }
+                        if (held.terminalPending && state && state.running && !state.ownership_unconfirmed) { return; }
                         if (paneId && state && state.running && !state.ownership_unconfirmed && Array.isArray(state.logs) && state.logs.length) {
                             const pane = document.getElementById(paneId);
                             if (!pane || pane !== paneNode) { return; }
-                            const last = state.logs.slice(-1)[0];
-                            if (writePaneText(pane, taskName, 'live', last, {runStart: state.start_time})) { pane.innerText = last; }
-                            if (taskName === 'script') { window.syncSnapshotButton?.(state); }
+                            const text = state.logs.join('\n');
+                            if (writePaneText(pane, taskName, 'live', text, { runStart: state.start_time, complete: true })) { pane.innerText = text; }
+                            if (taskName === 'script' && !selectionChanged()) { window.syncSnapshotButton?.(state); }
                         }
                     }).catch(() => {});
                     return [taskName, held.detail || { ...statuses[taskName], logs: [] }];
@@ -2421,8 +2556,6 @@
                 }
             });
             fetched.push(...await Promise.all(hydration));
-            staleDispatch = staleDispatch || !dispatchFence();
-            const hydrated = Object.fromEntries(fetched.filter(Boolean));
             let recheckRegistry = registry;
             let recheckFailed = false;
             try {
@@ -2432,16 +2565,16 @@
                 recheckFailed = true;
             }
             if (generation !== _reattachGeneration) { return; }
-            if (!dispatchFence()) { rebalanceInitialConfig(); }
-            staleDispatch = staleDispatch || !dispatchFence();
+            if (!contextFence() && !rebalanceInitialConfig()) { staleDispatch = true; }
 
+            const hydrated = Object.fromEntries(fetched.filter(Boolean));
             const finalStatuses = { ...statuses, ...hydrated };
             for (const [name, state] of Object.entries(recheckRegistry)) {
                 finalStatuses[name] = { ...(finalStatuses[name] || {}), ...state };
             }
-            running = Object.fromEntries(Object.entries(finalStatuses).map(([name, state]) =>
+            const running = Object.fromEntries(Object.entries(finalStatuses).map(([name, state]) =>
                 [name, !!(state.running || state.ownership_unconfirmed)]));
-            releaseObsoleteControls(recheckFailed ? finalStatuses : recheckRegistry);
+            obsoleteSweep(recheckFailed ? finalStatuses : recheckRegistry);
 
             const controlStatuses = { ...(recheckFailed ? statuses : recheckRegistry) };
             for (const [name, state] of Object.entries(hydrated)) {
@@ -2452,33 +2585,33 @@
                     controlStatuses[name] = { ...(fresh || {}), ...state };
                 }
             }
+            const acceptedBeforeFinal = bridge?._scriptRecoveryAcceptedRun || 0;
+            const terminalBeforeFinal = bridge?._scriptRecoveryTerminalToken || 0;
             await attachRunningControls(controlStatuses, { skipSlow: true });
-            staleDispatch = staleDispatch || !dispatchFence();
+            if (contextFence()) {
+                if ((bridge?._scriptRecoveryAcceptedRun || 0) !== acceptedBeforeFinal) { dispatchState.acceptedToken = bridge._scriptRecoveryAcceptedRun || 0; }
+                if ((bridge?._scriptRecoveryTerminalToken || 0) !== terminalBeforeFinal) { dispatchState.terminalToken = bridge._scriptRecoveryTerminalToken || 0; }
+            }
             statuses = finalStatuses;
 
             const paneWrites = [];
             logGroups.forEach((group, index) => {
-                if (staleDispatch || !dispatchFence()) { return; }
-                if (pollGenerations[index] !== getLogPollGeneration(group.tasks)) { return; }
+                if (!contextFence() || !tokenFence()) { return; }
                 const identityChanged = group.tasks.some(name => !recheckFailed
                     && getLogRestoreIdentity(recheckRegistry[name]) !== getLogRestoreIdentity(registry[name]));
-                // Liveness comes from the settled registry, never from a stale
-                // retained hydration fallback that a later recheck already retired.
                 const groupLive = group.tasks.some(name => running[name] || hydrated[name]?.running);
-                // A live owner renders itself; never paint history/diagnostic
-                // over an attached successor in the same pane.
                 if (groupLive) { return; }
                 const pane = paneStates[index];
                 const el = document.getElementById(group.elementId);
                 if (!el || el !== pane.el || el.innerText !== pane.text || el.title !== pane.title) { return; }
                 const auth = getPaneAuthority(el);
                 const latest = getLatestCompletedLog(group.tasks, hydrated);
-                // A proven live renderer that already shows the newest available
-                // run is newer than this history pass; a failed older sibling
-                // read must not erase it (A7).
-                if (auth.rank >= PANE_RANK.live && auth.writer
-                    && Number.isFinite(auth.runStart)
-                    && (!latest || auth.runStart >= latest.start)) { return; }
+                const newestKnown = getNewestKnownStart(group.tasks, recheckFailed ? finalStatuses : recheckRegistry);
+                // A proven live renderer that is complete and already shows the
+                // newest known run survives; an older or partial render does not
+                // (F03/A7).
+                if (auth.rank >= PANE_RANK.live && auth.writer && auth.complete !== false
+                    && Number.isFinite(auth.runStart) && auth.runStart >= newestKnown) { return; }
                 const untouched = auth.epoch === pane.version;
                 const ownedHistory = auth.writer === 'history';
                 const unowned = auth.rank === PANE_RANK.default;
@@ -2492,60 +2625,70 @@
                     || getUnresolvedLogFailure(group.tasks, failedHydration, recheckRegistry, latest, null)) {
                     restore();
                     const diagnostic = t('core.task.logs-restore-failed', 'Earlier log history could not be loaded. Check the connection, then reload.');
-                    if (writePaneText(el, 'history', 'diagnostic', diagnostic)) {
+                    if (writePaneText(el, 'history', 'diagnostic', diagnostic, { complete: true })) {
                         el.innerText = diagnostic;
                         el.title = '';
                         _logRestoreDiagnostics.set(group.elementId, { el, text: diagnostic });
                         paneWrites.push({ index, el, version: getPaneAuthority(el).epoch,
-                            text: pane.text, title: pane.title, written: el.innerText });
+                            text: pane.text, title: pane.title, written: el.innerText,
+                            writer: pane.writer, rank: pane.rank, runStart: pane.runStart, complete: pane.complete,
+                            restoredTitle: pane.restoredTitle, knownHistory: pane.knownHistory, warning: pane.warning });
                     }
                     return;
                 }
                 if (latest) {
                     const restoredText = latest.logs.join('\n');
                     restore();
-                    if (writePaneText(el, 'history', 'diagnostic', restoredText)) {
+                    if (writePaneText(el, 'history', 'diagnostic', restoredText, { complete: true })) {
                         el.innerText = restoredText;
-                        setRestoredPaneTitle(el, t('core.task.logs-restored', 'Restored {task} logs', {task: latest.name.replaceAll('_', ' ')}));
+                        setRestoredPaneTitle(el, latest.name);
                         el.scrollTop = el.scrollHeight;
                         _knownHistoryText.set(el, restoredText);
                         _logRestoreDiagnostics.delete(group.elementId);
                         paneWrites.push({ index, el, version: getPaneAuthority(el).epoch,
-                            text: pane.text, title: pane.title, written: el.innerText });
+                            text: pane.text, title: pane.title, written: el.innerText,
+                            writer: pane.writer, rank: pane.rank, runStart: pane.runStart, complete: pane.complete,
+                            restoredTitle: pane.restoredTitle, knownHistory: pane.knownHistory, warning: pane.warning });
                     }
-                } else if (stillOwned) {
+                } else if (stillOwned && stillOwned.el === el && stillOwned.text === el.textContent) {
                     restore();
-                    if (writePaneText(el, 'history', 'diagnostic', '')) {
+                    if (writePaneText(el, 'history', 'diagnostic', '', { complete: true })) {
                         el.innerText = '';
                         el.title = '';
                         _logRestoreDiagnostics.delete(group.elementId);
                         paneWrites.push({ index, el, version: getPaneAuthority(el).epoch,
-                            text: pane.text, title: pane.title, written: el.innerText });
+                            text: pane.text, title: pane.title, written: el.innerText,
+                            writer: pane.writer, rank: pane.rank, runStart: pane.runStart, complete: pane.complete,
+                            restoredTitle: pane.restoredTitle, knownHistory: pane.knownHistory, warning: pane.warning });
                     }
                 }
             });
 
-            if (!staleDispatch && dispatchFence()) {
+            if (contextFence()) {
                 await attachRunningControls(controlStatuses, { onlySlow: true });
             }
-            // Roll back a provisional history write only when this exact version
-            // still owns this exact node; an identical successor write or a
-            // replaced node is left alone (A8, DOM replacement).
+            // Roll back a provisional write only when this exact version still
+            // owns this exact node, and restore the ownership metadata together
+            // with the visible text/title (F13, P01).
             for (const write of paneWrites) {
                 const attached = document.getElementById(logGroups[write.index].elementId);
-                if (dispatchFence() && attached === write.el) { continue; }
+                if (contextFence() && tokenFence() && attached === write.el) { continue; }
                 const auth = getPaneAuthority(write.el);
                 if (auth.epoch !== write.version || auth.writer !== 'history') { continue; }
                 if (write.el.innerText !== write.written) { continue; }
                 write.el.innerText = write.text;
                 write.el.title = write.title;
-                if (write.text && write.title) { _knownHistoryText.set(write.el, write.text); }
-                else { _knownHistoryText.delete(write.el); }
-                auth.epoch++;
+                if (write.restoredTitle === undefined) { removePaneAttr(write.el, 'data-restored-log'); _restoredPaneTitle.delete(write.el); }
+                else { _restoredPaneTitle.set(write.el, write.restoredTitle); setPaneAttr(write.el, 'data-restored-log', write.restoredTitle.task); }
+                if (write.knownHistory === undefined) { _knownHistoryText.delete(write.el); }
+                else { _knownHistoryText.set(write.el, write.knownHistory); }
+                if (write.warning === undefined) { _warningPaneText.delete(write.el); }
+                else { _warningPaneText.set(write.el, write.warning); }
+                auth.writer = write.writer; auth.rank = write.rank; auth.runStart = write.runStart;
+                auth.complete = write.complete; auth.epoch++;
             }
             // A config-late reload still needs one fresh reconciliation on the
-            // settled book; the persistent owner registry prevents duplicate
-            // pollers and the newest generation supersedes this one.
+            // settled book; a settled config must not trigger a duplicate pass.
             if (generation === _reattachGeneration && !bridge?._initialConfigApplied
                 && !configSettled
                 && bridge?._initialConfigReady && typeof bridge._initialConfigReady.then === 'function') {
@@ -2775,7 +2918,8 @@
             const logEl = document.getElementById('preparer-logs');
             const renderLogs = createTaskLogRenderer(logEl, taskName);
 
-            _startPolling(taskName, () => API.get(`/api/status/${taskName}`), {
+            return _startPolling(taskName, () => API.get(`/api/status/${taskName}`), {
+                taskName,
                 doneCheck: state => !state.running,
                 onTick: state => {
                     if (prepActiveTask !== taskName) { return; }
