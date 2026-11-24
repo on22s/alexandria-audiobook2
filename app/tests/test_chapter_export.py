@@ -255,6 +255,34 @@ class ExportChaptersTests(unittest.TestCase):
                     for name, contents in before.items():
                         self.assertTrue(contents == (out / name).read_bytes(), name)
 
+    def test_cancel_with_incomplete_rollback_reports_pending_recovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pm, chunks = _project(tmp)
+            out = Path(tmp, CHAPTER_EXPORT_DIR)
+            cancelled = False
+            with patch.object(pm, 'load_chunks', return_value=chunks):
+                self.assertTrue(pm.export_chapters(fmt='wav')[0])
+                _tone(str(Path(tmp, 'voicelines', 'c0.wav')), 0.9, hz=700)
+                move = book_state_transaction._move
+
+                def cancel_after_first_publication(src, dst, **kwargs):
+                    nonlocal cancelled
+                    result = move(src, dst, **kwargs)
+                    if Path(dst).parent == out and Path(dst).suffix == '.wav':
+                        cancelled = True
+                    return result
+
+                import project_scope_exports
+                with patch.object(book_state_transaction, '_move',
+                                  side_effect=cancel_after_first_publication), \
+                        patch.object(project_scope_exports, 'recover_failed_export_set',
+                                     return_value=False):
+                    success, message = pm.export_chapters(
+                        fmt='wav', cancel_check=lambda: cancelled)
+            self.assertFalse(success)
+            self.assertIn('Export rollback is pending recovery', message)
+            self.assertNotEqual('Export cancelled', message)
+
     def test_failed_rollback_preserves_backups_and_reports_their_location(self):
         with tempfile.TemporaryDirectory() as tmp:
             pm, chunks = _project(tmp)

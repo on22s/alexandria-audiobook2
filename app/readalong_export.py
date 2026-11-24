@@ -54,7 +54,7 @@ from readalong_sidecar import (build_readalong_sidecar, get_audio_file_sha256,
                                map_word_spans_to_frames, get_readalong_timing_report)
 from speech_text import get_speech_preparation
 from tts import ExportCancelled, ensure_audio_export_active, iter_timeline, get_trim_bounds_ms
-from audio_generation_owner import AudioGenerationCancelled
+from audio_generation_owner import AudioGenerationCancelled, ensure_audio_generation_commit_active
 
 _HEX64_RE = re.compile(r"[0-9a-f]{64}")
 MAX_RETAINED_EPUB_BYTES = 2 * 1024**3
@@ -440,8 +440,9 @@ def _publish_pair_transaction(source_snapshot, pairs, cancel_check, staging_path
     backup_dir.mkdir(exist_ok=True)
 
     from project_scope_exports import (
-        ExportCommitUncertain, get_export_set_cleanup_pending_detail, publish_export_set_member,
-        preflight_export_publication_batch,
+        ExportCommitUncertain, ExportRecoveryPending,
+        get_export_set_cleanup_pending_detail, get_export_set_rollback_pending_detail,
+        publish_export_set_member, preflight_export_publication_batch,
         read_publication_journal, read_set_journal, record_export_publication,
         recover_failed_export_set, write_set_journal)
     with source_snapshot.ensure_publication_transaction(outputs) as admit:
@@ -463,22 +464,33 @@ def _publish_pair_transaction(source_snapshot, pairs, cancel_check, staging_path
                     report = outputs.pop(source)
                     outputs[target] = publish_export_set_member(source_snapshot.root, member, report)
                 ensure_audio_export_active(cancel_check)
+            ensure_audio_generation_commit_active()
             for target in _targets:
                 report = outputs.get(target, {})
                 digest = report.get('sha256')
                 if isinstance(digest, str):
                     record_export_publication(source_snapshot.root, target, digest,
                         report.get('file_version'), export_set=True)
-            retain[0] = not write_set_journal(source_snapshot.root, _targets, _backups, committed=True)
+            # The set stays reversible until this durable commit; a cancel or
+            # replaced claim acknowledged during the moves or receipts refuses.
+            ensure_audio_generation_commit_active()
+            retain[0] = not write_set_journal(source_snapshot.root, _targets, _backups, committed=True,
+                                              commit_check=ensure_audio_generation_commit_active)
         except ExportCommitUncertain:
             retain[0] = True
             raise
-        except BaseException:
+        except BaseException as error:
             try:
                 retain[0] = not recover_failed_export_set(source_snapshot.root, staging_path)
             except BaseException:
                 retain[0] = True
                 raise
+            if retain[0] and isinstance(error, (ExportCancelled, AudioGenerationCancelled)):
+                # The undo did not finish: the intent journal and backups stay
+                # fenced. Report that phase-specific state instead of an
+                # ordinary cancellation (F04).
+                raise ExportRecoveryPending(
+                    get_export_set_rollback_pending_detail(staging_path)) from error
             raise
     if retain[0]:
         raise RuntimeError(get_export_set_cleanup_pending_detail(staging_path))

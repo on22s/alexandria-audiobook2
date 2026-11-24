@@ -15,8 +15,8 @@ import os
 from pathlib import Path
 
 from audio_generation_owner import (ensure_audio_generation_active,
-    ensure_audio_generation_book_work, get_audio_generation_claim_id,
-    reuse_audio_generation_book)
+    ensure_audio_generation_book_work, ensure_audio_generation_commit_active,
+    get_audio_generation_claim_id, reuse_audio_generation_book)
 from audio_take_history import AudioTakeHistory, _version
 from book_state_transaction import ensure_book_state, get_book_operation_token
 from take_publication import (NATIVE_TAKE_KINDS, KEY, _is_current_engine, _read_audio,
@@ -285,6 +285,12 @@ def restore_editor_take(manager, index, request, expected):
                         _get_target(manager, index, request, expected)
                         updated = manager._update_chunk_fields_by_uid(current['uid'], expected_chunk=current,
                             expected_fields={key:current.get(key) for key in ('audio_path','audio_revision','status')},
+                            # The slot copy and the row selection are separate
+                            # writes. Revalidate the live claim/cancel at the
+                            # final selection, after staging I/O and journal
+                            # serialization, so an acknowledged stop cannot
+                            # still install the historical take (F02).
+                            before_update=ensure_audio_generation_commit_active,
                             audio_source=str(path), publication_audio=proof['audio'],
                             restore_speech_receipt=speech is not None,
                             take=candidate['take'], status='done', audio_revision=proof['audio_revision'],

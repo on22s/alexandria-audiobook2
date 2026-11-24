@@ -574,6 +574,7 @@
     "'This delivery retry is no longer running.'",
     "'This explanation run is no longer active'",
     "'This export belongs to a previous book; rebuild it before downloading.'",
+    "'This export is pending recovery; retry after the next book admission finishes or attempts it.'",
     "'This export predates the selected source scope. Rebuild it before downloading.'",
     "'This is a character-state voice; apply it from Voice changes on its state card'",
     "'This line exceeds the occurrence editor text limit.'",

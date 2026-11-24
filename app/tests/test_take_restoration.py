@@ -142,6 +142,61 @@ class TakeRestorationTests(unittest.TestCase):
                 with SynthesisWorkspaceRegistry(root) as registry:self.assertEqual(registry.body['rows'],{})
 
     @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
+    def test_restore_refuses_stop_before_final_journal_append(self):
+        # F02: the slot copy and the row selection are separate durable
+        # writes. A stop acknowledged during the final journal serialization
+        # must refuse the selection; validating only while reading the target
+        # leaves the historical take selected after an acknowledged cancel.
+        import core
+        import chunk_status_journal as journal_module
+        from audio_generation_owner import AudioGenerationCancelled
+        for stop in ('cancel', 'replace'):
+            with self.subTest(stop=stop), self.prepared(journal=True) as args:
+                root, manager, _, request, origin, original, current, displaced, saved = args
+                states = {'audio': dict(running=True, status='running',
+                                        cancel=False, logs=[])}
+                claim = 'a' * 32
+                seen = {}
+                real_bytes = journal_module._get_json_bytes
+
+                def change():
+                    if seen.get('acknowledged'):
+                        return
+                    with core._gpu_lock:
+                        if stop == 'cancel':
+                            states['audio']['cancel'] = True
+                        else:
+                            core._task_claims['audio'] = {
+                                'id': 'd' * 32, 'phase': 'started'}
+                    seen['acknowledged'] = True
+
+                def serialized(data):
+                    if (data.get('type') == 'update'
+                            and data['changes'].get('audio_revision')
+                            == origin['audio_revision']):
+                        change()
+                    return real_bytes(data)
+
+                def work():
+                    try:
+                        restore_editor_take(manager, 0, request, current)
+                    except BaseException as error:  # noqa: BLE001 - classified below
+                        seen['error'] = error
+
+                with patch.object(core, '_task_claims',
+                                  {'audio': {'id': claim, 'phase': 'started'}}), \
+                     patch.object(core, '_gpu_leases', {}), \
+                     patch.object(core, 'process_state', states), \
+                     patch.object(journal_module, '_get_json_bytes', serialized):
+                    core._run_owned_background_task(
+                        'audio', claim, work, already_started=True)
+                self.assertTrue(seen.get('acknowledged'))
+                self.assertIsInstance(seen.get('error'), AudioGenerationCancelled)
+                row = manager.load_chunks()[0]
+                self.assertEqual(current['audio_revision'], row['audio_revision'])
+                self.assertEqual(displaced, (root / row['audio_path']).read_bytes())
+
+    @unittest.skipUnless(is_synthesis_workspace_supported(), 'Registered restore staging requires durable directory storage')
     def test_changed_batch_seed_cannot_erase_proven_take(self):
         for changed in (999, -1):
             with self.subTest(changed=changed), self.prepared(batch_seed=123) as args:

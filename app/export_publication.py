@@ -6,9 +6,10 @@ import os
 import stat
 import time
 
-from audio_generation_owner import (AudioGenerationCancelled, ensure_audio_generation_book,
+from audio_generation_owner import (AudioGenerationCancelled, ensure_audio_book_admission,
+                                    ensure_audio_generation_book,
                                     ensure_audio_generation_publication)
-from book_state_transaction import get_book_operation_identity, ensure_book_state
+from book_state_transaction import get_book_operation_identity
 from chapter_timing_cache import read_source_identity
 from editor_poll_snapshot import get_snapshot_digest
 from export_quality import get_export_file_version
@@ -17,22 +18,26 @@ from utils import file_lock
 
 
 @contextmanager
-def _ensure_export_book(root, timeout=10):
+def _ensure_export_book(root, timeout=10, cancel_check=None):
     try:
-        with ensure_audio_generation_book(root, timeout=timeout):
+        with ensure_audio_generation_book(root, timeout=timeout,
+                                          cancel_check=cancel_check):
             yield
     except AudioGenerationCancelled as error:
         raise ExportCancelled('Export cancelled') from error
 
 
 @contextmanager
-def _ensure_export_capture(root, *, recover=True):
+def _ensure_export_capture(root, *, recover=True, cancel_check=None):
     # Loaders and settings providers may themselves check the task owner. Admit
     # around capture, while holding only the book lock during those callbacks.
+    # An owned capture may outwait a long book publication (see the shared
+    # audio-book admission policy) instead of failing at the old try-lock bound.
     try:
         with ensure_audio_generation_publication():
             pass
-        with ensure_book_state(root, recover=recover):
+        with ensure_audio_book_admission(root, recover=recover,
+                                         cancel_check=cancel_check):
             yield
         with ensure_audio_generation_publication():
             pass
@@ -91,7 +96,8 @@ class ExportSourceSnapshot:
         self.real_root = os.path.realpath(self.root)
         ensure_audio_export_active(cancel_check)
         state_path = os.path.join(self.root, 'state.json')
-        with _ensure_export_capture(self.root, recover=expected_editor_revision is None):
+        with _ensure_export_capture(self.root, recover=expected_editor_revision is None,
+                                    cancel_check=self.cancel_check):
             # A retained script from an older selection must never certify this
             # capture. The request-time preflight checks the same fence, but the
             # shared capture is also entered by workers and other exporters, so
@@ -179,7 +185,8 @@ class ExportSourceSnapshot:
     def ensure_set_publication(self, outputs):
         """Admit a prechecked staged/retained set in one publication transaction."""
         with self._ensure_set_admission(outputs,
-                lambda remaining: _ensure_export_book(self.root, timeout=remaining)):
+                lambda remaining: _ensure_export_book(self.root, timeout=remaining,
+                                                      cancel_check=self.cancel_check)):
             yield
 
     @contextmanager
@@ -192,7 +199,7 @@ class ExportSourceSnapshot:
         belong here. Cancellation predicates may query the already held owner.
         """
         ensure_audio_export_active(self.cancel_check)
-        with _ensure_export_book(self.root):
+        with _ensure_export_book(self.root, cancel_check=self.cancel_check):
             active = True
             @contextmanager
             def admit():

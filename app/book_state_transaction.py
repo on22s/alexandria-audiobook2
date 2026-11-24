@@ -2149,7 +2149,8 @@ def _anchored_mutation(anchor, source, destination, *, anchor_identity=None,
 
 def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=None,
           root_guard=None, source_parent_identity=None, destination_parent_identity=None,
-          expected_source_identity=None, expected_source_generation=None):
+          expected_source_identity=None, expected_source_generation=None,
+          before_move=None):
     """Move one name, optionally proving what it moves (the #1816 rule).
 
     With exclusive=True this is an atomic no-overwrite rename: an occupied
@@ -2203,9 +2204,19 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
             or expected_source_identity is not None or expected_source_generation is not None):
         if not exclusive or anchor is None:
             raise ValueError('Book move expectation requires an anchored exclusive move; recovery evidence was preserved')
+
+    def require_forward_authority():
+        # Forward-only pre-move validator: after every blocking preparation and
+        # identity/parent check, immediately before the exclusive rename, so a
+        # stop acknowledged during preparation cannot still move the object.
+        # Recovery passes no callback and performs its own authorized moves.
+        if before_move is not None:
+            before_move()
+
     if exclusive:
         from source_upload_publication import move_source_upload_exclusively
         if anchor is None:
+            require_forward_authority()
             move_source_upload_exclusively(source, destination)
         elif os.name == 'nt':
             from windows_export_staging_directory import guard_windows_book_move_parents
@@ -2274,6 +2285,7 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                                 'Book artifact changed during its move; recovery evidence was preserved') from error
                         if generation != expected_source_generation:
                             raise ValueError('Book artifact changed during its move; recovery evidence was preserved')
+                require_forward_authority()
                 # Rename the object the handle verified, not whatever the source
                 # name holds by now (#1660): a path rename would re-resolve it.
                 from windows_export_staging_directory import StageDirectoryChanged, windows_rename_verified
@@ -2322,6 +2334,7 @@ def _move(source, destination, *, exclusive=False, anchor=None, anchor_identity=
                 pair.require_named_parents()
                 pair.require_expected_parents()
                 require_expected_source()
+                require_forward_authority()
                 move_source_upload_exclusively(pair.source_name, pair.destination_name,
                     source_dir_fd=pair.source_fd, destination_dir_fd=pair.destination_fd)
                 try:
