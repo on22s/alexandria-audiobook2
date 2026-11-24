@@ -20,7 +20,7 @@ from audio_generation_owner import (ensure_audio_generation_active,
 from audio_take_history import AudioTakeHistory, _version
 from book_state_transaction import ensure_book_state, get_book_operation_token
 from take_publication import (NATIVE_TAKE_KINDS, KEY, _is_current_engine, _read_audio,
-    get_receipt_voice_digest, validate_take_publication)
+    get_legacy_v3_voice_digest, get_receipt_voice_digest, validate_take_publication)
 from timeline_anchors import resolve_timeline_anchors
 from utils import file_lock
 
@@ -146,8 +146,13 @@ def _get_matching_request(manager, engine, index, candidate, proof):
         if not isinstance(selected, dict):
             continue
         digest = get_receipt_voice_digest(proof['version'], selected, proof.get('seed'))
+        # A main-era v3 take hashed an inert description into its digest; the
+        # current entry reproduces that exact value only while the entry itself
+        # is unchanged, so a later edit cannot authorize the same receipt.
+        legacy_digest = (get_legacy_v3_voice_digest(selected, proof.get('seed'))
+                         if proof['version'] >= 3 else None)
         if (voice_category(selected) == category
-                and digest == proof['dependencies']['voice_sha256']):
+                and proof['dependencies']['voice_sha256'] in (digest, legacy_digest)):
             try:
                 if category == 'custom':
                     request = get_custom_voice_request(choice, get_resolved_speaker(speaker, choice),

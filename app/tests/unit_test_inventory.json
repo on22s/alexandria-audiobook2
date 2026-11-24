@@ -7588,6 +7588,23 @@
     , "tests.test_indextts_source_pin.IndexTtsSourcePinTests.test_missing_pinned_commit_fails_before_installation"
     , "tests.test_indextts_source_pin.IndexTtsSourcePinTests.test_wrong_dirty_and_untracked_cached_sources_fail_before_installation"
   ]
+  , "test_inert_description_identity": [
+    "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_alias_label_is_inert_but_an_alias_to_design_still_invalidates"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_any_other_field_or_a_type_change_still_invalidates"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_canonical_pronunciation_scope_survives_a_description_edit"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_description_edit_keeps_done_chunk_and_export_current"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_description_only_edit_is_inert_for_every_non_design_voice"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_description_only_edit_still_changes_every_design_voice"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_ensemble_with_a_design_member_still_invalidates"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_legacy_pronunciation_scope_still_applies_until_a_description_edit"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_legacy_v3_take_digest_authorizes_only_the_unchanged_entry"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_main_generated_legacy_fixtures_reproduce_exactly"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_narrator_strategy_follows_the_selected_category"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_occurrence_response_keeps_the_public_context_shape"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_pronunciation_receipt_drops_the_compatibility_digest_before_saving"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_random_ordinary_configs_keep_their_identity"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_version_timeline_description_follows_the_effective_category"
+  ]
   , "test_inline_ids": [
     "tests.test_inline_ids.InlineIdTests.test_inline_element_straddling_two_sentences_keeps_id_once"
     , "tests.test_inline_ids.InlineIdTests.test_inline_id_in_single_sentence_in_multi_sentence_block"
