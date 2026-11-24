@@ -1050,21 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T10:39:55",
+  "written": "2026-11-24T11:21:08",
   "host": "mitch-linux",
   "git": {
-   "commit": "d01e7010d023627ed3e8d9bab050c4b68e17062e",
+   "commit": "ec54e7f17e79af2b5fc128b7cddd4420f1f53317",
    "branch": "HEAD",
    "dirty": true,
-   "source_state": "dirty:f9f14b8caf4d",
+   "source_state": "dirty:cdc7231c5484",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/api_contract/openapi.json",
-    "M  app/routers/script.py",
-    "M  app/static/js/app-workbench.js",
-    "M  app/tests/test_completed_log_hydration_js.py",
-    "M  app/tests/test_task_reattachment.py",
-    "M  app/tests/unit_test_inventory.json"
+    " M app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",
