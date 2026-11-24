@@ -44,8 +44,11 @@ def open_export_reader(path):
         raise
 
 
-def replace_export_output(source, destination):
+def replace_export_output(source, destination, *, cancel_check=None):
     """Publish atomically; the native Windows fallback retains destination metadata."""
+    # Callers hold output admission and have already checked ownership before
+    # reaching this writer. The fallback's final check sits after its blocking
+    # identity work; the ordinary path replaces here without further I/O.
     try:
         os.replace(source, destination)
     except PermissionError as error:
@@ -57,6 +60,13 @@ def replace_export_output(source, destination):
                     or getattr(info, 'st_file_attributes', 0) & 0x400):
                 raise error
         import ctypes
+        # Prepare the native callable and both absolute paths first. Both can
+        # block (DLL binding, path resolution), so the cancellation predicate
+        # must be the last thing before the destructive call (R10).
         api = _windows_api()
-        if not api.ReplaceFileW(os.path.abspath(destination), os.path.abspath(source), None, 0, None, None):
+        native_destination = os.path.abspath(destination)
+        native_source = os.path.abspath(source)
+        if cancel_check is not None and cancel_check():
+            return False
+        if not api.ReplaceFileW(native_destination, native_source, None, 0, None, None):
             raise ctypes.WinError(ctypes.get_last_error()) from error

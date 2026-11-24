@@ -66,7 +66,7 @@ class ScopeVoiceTests(unittest.TestCase):
             self.assertEqual(before, config)
 
     def test_repeated_effective_voice_metadata_refuses_expanded_preview_limit(self):
-        voices = {'Hero': {'type':'custom', 'voice':'Ryan', 'description':'Synthetic description. ' * 100}}
+        voices = {'Hero': {'type':'custom', 'voice':'Ryan', 'character_style':'Synthetic description. ' * 100}}
         original = copy.deepcopy(voices)
         with patch('project_scope_voices.MAX_SCOPE_VOICE_MAPPING_BYTES', 3000):
             with self.assertRaisesRegex(ValueError, 'bounded scope preview'):

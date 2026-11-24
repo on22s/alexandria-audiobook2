@@ -706,7 +706,8 @@ class RegisteredEncodingSource:
                 _RAW_ENCODING_CHECKS[1](Path(self.published).name, self.source_fd, self.version, self.destination_fd)
 
     def publish(self, destination):
-        from audio_generation_owner import ensure_audio_generation_publication
+        from audio_generation_owner import (ensure_audio_generation_commit_active,
+                                            ensure_audio_generation_publication)
         from audio_validation import publish_audio_output
         with ensure_audio_generation_publication():
             if publish_audio_output is not self.publisher:
@@ -717,7 +718,8 @@ class RegisteredEncodingSource:
             os.fsync(self.source_fd)
             if not self.publisher(Path(self.path).name, destination,
                     source_dir_fd=self.directory_fd, source_fd=self.source_fd, source_version=self.version,
-                    destination_dir_fd=self.destination_fd):
+                    destination_dir_fd=self.destination_fd,
+                    cancel_check=ensure_audio_generation_commit_active):
                 from audio_generation_owner import AudioGenerationCancelled
                 raise AudioGenerationCancelled()
             self.published = str(destination)

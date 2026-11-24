@@ -6465,8 +6465,21 @@ def _read_annotated_script_comparison(*, expected_source_sha256=None):
 
 @router.get("/api/status")
 async def get_task_statuses():
-    """Discover registered tasks without serializing logs or live process handles."""
-    return {name: get_task_lifecycle(name, states=process_state) for name in process_state}
+    """Discover registered tasks without serializing logs or live process handles.
+
+    ``start_time`` is surfaced per task here, and only for tasks whose entry
+    actually carries the key, so a client can tell "no run started since boot"
+    (present null) apart from "unknown" (absent). It is deliberately not added
+    to ``get_task_lifecycle``, which other routes spread into richer payloads.
+    """
+    statuses = {}
+    for name in process_state:
+        lifecycle = get_task_lifecycle(name, states=process_state)
+        state = process_state.get(name) or {}
+        if 'start_time' in state:
+            lifecycle['start_time'] = state.get('start_time')
+        statuses[name] = lifecycle
+    return statuses
 
 
 @router.get("/api/status/{task_name}")

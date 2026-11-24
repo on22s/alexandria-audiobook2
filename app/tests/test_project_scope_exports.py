@@ -68,6 +68,26 @@ class ScopeExportTests(unittest.TestCase):
                     self.assertEqual(before_state, state.read_bytes())
                     self.assertEqual(before_mp3, mp3.read_bytes())
 
+    def test_pending_set_member_reader_names_pending_recovery(self):
+        from export_quality import get_export_file_identity
+        from project_scope_exports import get_historical_export_reason, read_set_journal, write_set_journal
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            (root / 'state.json').write_text(json.dumps(
+                {'active_book_id': 'book', 'book_generation': 'generation'}))
+            out = root / 'chapter_exports'
+            out.mkdir()
+            target, backup = out / 'manifest.json', root / 'stage' / 'old' / 'manifest.json'
+            target.write_bytes(b'prior manifest')
+            stage = root / 'stage'
+            (stage / 'old').mkdir(parents=True)
+            source = stage / 'manifest.json'
+            source.write_bytes(b'new manifest')
+            write_set_journal(root, [str(target)], [str(backup)],
+                              staged=[get_export_file_identity(source)], sources=[str(source)])
+            self.assertEqual('intent', read_set_journal(root)['phase'])
+            self.assertEqual('pending', get_historical_export_reason(root, target))
+
     def test_export_inventory_row_limit_pure_compatibility(self):
         def rows(count):
             return {f'synthetic/file-{i}.txt':[1,2,3,4,5] for i in range(count)}

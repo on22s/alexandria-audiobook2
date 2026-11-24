@@ -64,7 +64,7 @@ from core import (
     check_global_gpu_lock,
     claim_gpu_task, schedule_claimed_background_task,
     reserve_background_task, register_claimed_background_task, release_gpu_task_claim,
-    process_state, is_task_running,
+    process_state, is_task_running, update_claimed_task_state,
     project_manager,
 )
 from generation_checkpoint_deltas import load_generation_checkpoint_document
@@ -79,7 +79,7 @@ from project import (CHAPTER_EXPORT_DIR, CHAPTER_TEMPLATE_FIELDS,
                      get_playback_trim_plan, get_speaker)
 from runtime_estimate import get_book_runtime_estimate
 from routers.voices import get_script_speaker
-from tts import (voice_config_for_chunk, resolve_narrator_voice_config, voice_category,
+from tts import (voice_category, get_chunk_render_voice_selection, get_ensemble_member_names,
                  ExportCancelled, ensure_audio_export_active, get_pause_duration_ms)
 from timeline_anchors import resolve_timeline_anchors
 import voice_drift
@@ -1192,25 +1192,30 @@ async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks,
             raise HTTPException(status_code=400, detail="Cannot generate audio for an empty line")
 
         def task():
-            state = process_state["audio"]
-            state["start_time"] = time.time()
-            state["logs"] = [f"Generating chunk {index}..."]
-            state["status"] = "running"
-            state["error"] = None
+            # Every public lifecycle write is bound to this worker's exact
+            # claim. A successor that installed its own claim (or acknowledged
+            # its own cancel) while this worker ran must not be overwritten
+            # during completion or in the finally block (F08).
+            _set_audio_task_state(start_time=time.time(),
+                                  logs=[f"Generating chunk {index}..."],
+                                  status="running", error=None)
+
+            def log(message):
+                _set_audio_task_state(logs_append=message)
+
             try:
                 success, message = project_manager.generate_chunk_audio(index, admitted_chunk=requested[index])
                 cancelled = not success and message == AUDIO_GENERATION_CANCELLED
-                state["status"] = "cancelled" if cancelled else ("done" if success else "failed")
-                state["error"] = None if success or cancelled else message
-                state["logs"].append(
-                    f"Generation {'complete' if success else 'failed'}: {message}")
+                _set_audio_task_state(
+                    status="cancelled" if cancelled else ("done" if success else "failed"),
+                    error=None if success or cancelled else message)
+                log(f"Generation {'complete' if success else 'failed'}: {message}")
             except Exception as exc:
                 logger.exception("Single-chunk generation error")
-                state["status"] = "failed"
-                state["error"] = str(exc)
-                state["logs"].append(f"Generation failed: {exc}")
+                _set_audio_task_state(status="failed", error=str(exc))
+                log(f"Generation failed: {exc}")
             finally:
-                state["running"] = False
+                _set_audio_task_state(running=False)
 
         # Same GPU resource as /api/generate_batch - must not race it. See F-032.
         register_claimed_background_task(background_tasks, "audio", claim_id, task)
@@ -1597,9 +1602,17 @@ def _start_merge_audio(background_tasks, request):
         admitted_snapshot = report["snapshot"]
 
         def task():
-            process_state["audio"]["start_time"] = time.time()
-            process_state["audio"]["logs"] = ["Starting merge..."]
+            # Every public-state write below is claim-aware: once a successor
+            # owns "audio", this obsolete worker must not clobber its status,
+            # cancel flag, logs or running state (R4/R6).
+            _set_audio_task_state(start_time=time.time(),
+                                      logs_append=None, logs=["Starting merge..."],
+                                      status="running", error=None)
             quality_attempt = None
+
+            def log(message):
+                _set_audio_task_state(logs_append=message)
+
             try:
                 with ensure_book_state(DATA_DIR):
                     current, chunks = _ensure_editor_integrity_locked()
@@ -1608,27 +1621,50 @@ def _start_merge_audio(background_tasks, request):
                 quality_attempt = get_export_quality_attempt(request, process_state["audio"])
                 success, msg = project_manager.merge_audio(
                     cancel_check=lambda: process_state["audio"]["cancel"],
-                    progress_callback=lambda m: process_state["audio"]["logs"].append(m),
+                    progress_callback=log,
                     chunks=chunks, **ensure_export_mastering_context(request, process_state["audio"]),
                     **quality_attempt.kwargs)
                 quality_attempt.finish(success, msg)
                 if success:
-                    process_state["audio"]["logs"].append(f"Merge complete: {msg}")
+                    _set_audio_task_state(status="done",
+                                              logs_append=f"Merge complete: {msg}")
                 elif msg == "Merge cancelled":
-                    process_state["audio"]["logs"].append("Merge cancelled")
+                    _set_audio_task_state(status="cancelled",
+                                              logs_append="Merge cancelled")
                 else:
-                    process_state["audio"]["logs"].append(f"Merge failed: {msg}")
+                    _set_audio_task_state(status="failed", error=msg,
+                                              logs_append=f"Merge failed: {msg}")
             except Exception as e:
                 record_export_quality_error(quality_attempt, e)
-                process_state["audio"]["logs"].append('Merge cancelled' if isinstance(e, ExportCancelled)
-                                                    else f"Merge error: {e}")
+                cancelled = isinstance(e, (ExportCancelled, AudioGenerationCancelled))
+                _set_audio_task_state(
+                    status="cancelled" if cancelled else "failed",
+                    error=None if cancelled else str(e),
+                    logs_append='Merge cancelled' if cancelled else f"Merge error: {e}")
             finally:
-                process_state["audio"]["running"] = False
-                process_state["audio"]["cancel"] = False
+                # Release owns running-state removal only for the live claim;
+                # clearing cancel here must not erase a successor's request.
+                _set_audio_task_state(running=False, cancel=False)
 
         # Keep the existing atomic owned GPU/TTS admission after integrity approval.
     schedule_claimed_background_task(background_tasks, "audio", task)
     return {"status": "started"}
+
+def _set_audio_task_state(*, logs_append=None, **fields):
+    """Publish audio worker state only while its exact claim is current.
+
+    Direct/legacy callers with no bound owner (``None``) keep the historical
+    write; a stale worker (``False``) is silently dropped so it cannot erase a
+    successor's terminal status, cancel flag or logs (R4/R6).
+    """
+    result = update_claimed_task_state("audio", logs_append=logs_append, **fields)
+    if result is None:
+        state = process_state["audio"]
+        state.update(fields)
+        if logs_append is not None:
+            state.setdefault("logs", []).append(logs_append)
+    return result is not False
+
 
 def get_export_task_result(success, message):
     """Adapt the project's success flag and exact cancellation sentinel, not logs."""
@@ -1637,7 +1673,7 @@ def get_export_task_result(success, message):
 
 
 def get_export_task_error(error):
-    if isinstance(error, ExportCancelled):
+    if isinstance(error, (ExportCancelled, AudioGenerationCancelled)):
         return {'status': 'cancelled', 'message': 'Export cancelled'}
     return {'status': 'failed', 'message': str(error)}
 
@@ -1734,14 +1770,13 @@ def get_unready_export_speakers(admitted_rows):
             speaker = get_script_speaker(chunk)
             if not speaker:
                 continue
-            canonical = project_manager._resolve_alias(speaker, voices)
-            effective = voice_config_for_chunk(
-                resolve_narrator_voice_config(canonical, voices, chunk), canonical, index)
+            canonical, effective, _ = get_chunk_render_voice_selection(
+                voices, speaker, chunk, index)
             config = effective.get(canonical) or {}
             if not config.get("ready"):
                 missing.add(speaker)
             if voice_category(config) == "ensemble":
-                for member in config.get("members") or []:
+                for member in get_ensemble_member_names(config):
                     if not (effective.get(member) or {}).get("ready"):
                         missing.add(speaker)
     except (TypeError, ValueError, AttributeError) as exc:
@@ -1962,7 +1997,19 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
     state = process_state["chapter_export"]
 
     def task():
-        state["logs"] = ["Starting chapter export..."]
+        # A superseded chapter worker (replaced claim) must not overwrite a
+        # successor's result, logs, running bit or acknowledged cancel, in the
+        # body or in the finally block (F08). Direct/legacy callers with no
+        # bound claim keep the historical write.
+        def publish(**fields):
+            if update_claimed_task_state("chapter_export", **fields) is None:
+                state.update(fields)
+
+        def log(message):
+            if update_claimed_task_state("chapter_export", logs_append=message) is None:
+                state.setdefault("logs", []).append(message)
+
+        publish(logs=["Starting chapter export..."])
         quality_attempt = None
         try:
             quality_attempt = get_export_quality_attempt(request, state,
@@ -1978,19 +2025,18 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
                 volume_number=request.volume_number, chapters=chapters,
                 changed_only=request.changed_only,
                 expected_editor_revision=expected_editor_revision,
-                progress_callback=lambda m: state["logs"].append(m),
+                progress_callback=log,
                 cancel_check=lambda: state["cancel"], **ensure_export_mastering_context(request, state),
                 **quality_attempt.kwargs)
             quality_attempt.finish(success, msg)
-            state["result"] = get_export_task_result(success, msg)
-            state["logs"].append(f"Export complete: {msg}" if success else f"Export failed: {msg}")
+            publish(result=get_export_task_result(success, msg))
+            log(f"Export complete: {msg}" if success else f"Export failed: {msg}")
         except Exception as e:
             record_export_quality_error(quality_attempt, e)
-            state["result"] = get_export_task_error(e)
-            state["logs"].append(f"Export error: {e}")
+            publish(result=get_export_task_error(e))
+            log(f"Export error: {e}")
         finally:
-            state["running"] = False
-            state["cancel"] = False
+            publish(running=False, cancel=False)
 
     await asyncio.to_thread(_reserve_export_task, background_tasks,
                             "chapter_export", admission, task)
@@ -3146,19 +3192,16 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
 
         def progress_callback(completed, failed, total):
             """Update logs with progress."""
-            process_state["audio"]["logs"].append(
-                f"Progress: {completed + failed}/{total} ({completed} done, {failed} failed)"
-            )
+            _set_audio_task_state(logs_append=(
+                f"Progress: {completed + failed}/{total} ({completed} done, {failed} failed)"))
 
         def cancel_check():
             return process_state["audio"]["cancel"]
 
         def task():
-            process_state["audio"]["running"] = True
-            process_state["audio"]["start_time"] = time.time()
-            process_state["audio"]["logs"] = [
-                f"Starting parallel generation of {total} chunks with {workers} workers..."
-            ]
+            _set_audio_task_state(running=True, start_time=time.time(),
+                status="running", error=None,
+                logs=[f"Starting parallel generation of {total} chunks with {workers} workers..."])
             try:
                 results = project_manager.generate_chunks_parallel(
                     indices, workers, progress_callback, cancel_check=cancel_check,
@@ -3170,16 +3213,21 @@ async def generate_batch_endpoint(request: BatchGenerateRequest, background_task
                 msg = f"Batch generation complete: {completed} succeeded, {failed} failed"
                 if cancelled:
                     msg += f", {cancelled} cancelled"
-                process_state["audio"]["logs"].append(msg)
+                # Each batch owns its terminal status: a prior cancelled merge
+                # must not linger once this operation succeeds (R6).
+                status = "failed" if failed else ("cancelled" if cancelled else "done")
+                error = results["failed"][0][1] if results["failed"] else None
+                _set_audio_task_state(status=status, error=error,
+                                          logs_append=msg)
                 if results["failed"]:
                     for idx, err in results["failed"]:
-                        process_state["audio"]["logs"].append(f"  Chunk {idx} failed: {err}")
+                        _set_audio_task_state(logs_append=f"  Chunk {idx} failed: {err}")
             except Exception as e:
                 logger.exception("Batch generation error")
-                process_state["audio"]["logs"].append(f"Batch generation error: {e}")
+                _set_audio_task_state(status="failed", error=str(e),
+                                          logs_append=f"Batch generation error: {e}")
             finally:
-                process_state["audio"]["running"] = False
-                process_state["audio"]["cancel"] = False
+                _set_audio_task_state(running=False, cancel=False)
 
         register_claimed_background_task(background_tasks, "audio", claim_id, task)
         return {"status": "started", "workers": workers, "total_chunks": total}
@@ -3215,19 +3263,16 @@ async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background
         total = len(indices)
 
         def progress_callback(completed, failed, total):
-            process_state["audio"]["logs"].append(
-                f"Progress: {completed + failed}/{total} ({completed} done, {failed} failed)"
-            )
+            _set_audio_task_state(logs_append=(
+                f"Progress: {completed + failed}/{total} ({completed} done, {failed} failed)"))
 
         def cancel_check():
             return process_state["audio"]["cancel"]
 
         def task():
-            process_state["audio"]["running"] = True
-            process_state["audio"]["start_time"] = time.time()
-            process_state["audio"]["logs"] = [
-                f"Starting batch generation of {total} chunks (batch_size={batch_size}, seed={batch_seed})..."
-            ]
+            _set_audio_task_state(running=True, start_time=time.time(),
+                status="running", error=None,
+                logs=[f"Starting batch generation of {total} chunks (batch_size={batch_size}, seed={batch_seed})..."])
             try:
                 results = project_manager.generate_chunks_batch(
                     indices, batch_seed, batch_size, progress_callback,
@@ -3240,16 +3285,19 @@ async def generate_batch_fast_endpoint(request: BatchGenerateRequest, background
                 msg = f"Batch generation complete: {completed} succeeded, {failed} failed"
                 if cancelled:
                     msg += f", {cancelled} cancelled"
-                process_state["audio"]["logs"].append(msg)
+                status = "failed" if failed else ("cancelled" if cancelled else "done")
+                error = results["failed"][0][1] if results["failed"] else None
+                _set_audio_task_state(status=status, error=error,
+                                          logs_append=msg)
                 if results["failed"]:
                     for idx, err in results["failed"]:
-                        process_state["audio"]["logs"].append(f"  Chunk {idx} failed: {err}")
+                        _set_audio_task_state(logs_append=f"  Chunk {idx} failed: {err}")
             except Exception as e:
                 logger.exception("Batch generation error")
-                process_state["audio"]["logs"].append(f"Batch generation error: {e}")
+                _set_audio_task_state(status="failed", error=str(e),
+                                          logs_append=f"Batch generation error: {e}")
             finally:
-                process_state["audio"]["running"] = False
-                process_state["audio"]["cancel"] = False
+                _set_audio_task_state(running=False, cancel=False)
 
         register_claimed_background_task(background_tasks, "audio", claim_id, task)
         return {"status": "started", "batch_seed": batch_seed, "batch_size": batch_size, "total_chunks": total}
@@ -3275,9 +3323,8 @@ def _apply_audio_cancel():
         if outcome is not None:
             return outcome
 
-    # Idle: book journal before the GPU mutex, the same order as edits and
-    # generation start. Keep the idle decision and disk reset atomic with new
-    # audio claims by holding the claim mutex across the reset.
+    # Idle: keep the startup admission and book-state fences through the reset.
+    # The GPU mutex guards ownership checks, never chunk I/O.
     reset_count = 0
     try:
         with ExitStack() as admission:
@@ -3302,20 +3349,23 @@ def _apply_audio_cancel():
                     return outcome
                 raise HTTPException(status_code=409, detail="Another worker owns an active task; cancel it on its owning server")
             with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
+                # The startup admission barrier rejects new task leases while
+                # the idle reset holds it. An Editor writer can hold the chunk
+                # lock while waiting for the commit validator's task mutex.
                 with _gpu_lock:
                     outcome = request_owned_cancel()
-                    if outcome is not None:
-                        return outcome
-                    # A foreign server may own the render even when our local
-                    # flag is idle. Update only still-generating UIDs, never
-                    # replace a full snapshot over newer journal completions.
-                    for chunk in project_manager.load_chunks():
-                        if chunk.get("status") == "generating":
-                            updated = project_manager._update_chunk_fields_by_uid(
-                                chunk.get("uid"), expected_chunk=chunk,
-                                required_status="generating", status="pending")
-                            if updated is not None:
-                                reset_count += 1
+                if outcome is not None:
+                    return outcome
+                # A foreign server may own the render even when our local
+                # flag is idle. Update only still-generating UIDs, never
+                # replace a full snapshot over newer journal completions.
+                for chunk in project_manager.load_chunks():
+                    if chunk.get("status") == "generating":
+                        updated = project_manager._update_chunk_fields_by_uid(
+                            chunk.get("uid"), expected_chunk=chunk,
+                            required_status="generating", status="pending")
+                        if updated is not None:
+                            reset_count += 1
     except (TimeoutError, OSError, ValueError) as error:
         fault = get_book_fault_response(error)
         raise HTTPException(status_code=fault.status_code if fault else 409,

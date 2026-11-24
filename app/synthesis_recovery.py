@@ -6,6 +6,7 @@ from pathlib import Path
 
 from synthesis_recovery_cache import (RecoveryCacheStorage, RecoveryCacheUnavailable,
                                       is_recovery_storage_platform_supported)
+from audio_generation_owner import ensure_audio_generation_commit_active
 from synthesis_recovery_context import get_synthesis_recovery_parent
 from synthesis_recovery_identity import RecoveryIdentityUnavailable, get_recovery_digest
 from synthesis_recovery_native import ensure_native_recovery_model_capture
@@ -146,7 +147,8 @@ def ensure_synthesis_recovery(engine, category, plan, settings, request=None):
     try:
         with ensure_native_recovery_serving(engine, identity):
             session.check()
-            storage = RecoveryCacheStorage(parent.project_root, parent.admit)
+            storage = RecoveryCacheStorage(parent.project_root, parent.admit,
+                                            validate=ensure_audio_generation_commit_active)
             try:
                 storage.__enter__()
                 session.storage = storage
@@ -168,7 +170,8 @@ def retire_committed_synthesis_recovery(parent, receipt):
             or not isinstance(recovery.get('request_sha256'), str)):
         return
     try:
-        with RecoveryCacheStorage(parent.project_root, parent.admit) as storage:
+        with RecoveryCacheStorage(parent.project_root, parent.admit,
+                                      validate=ensure_audio_generation_commit_active) as storage:
             storage.retire_request(recovery['request_sha256'])
     except Exception:
         logging.getLogger(__name__).debug('Committed synthesis cache cleanup deferred', exc_info=True)

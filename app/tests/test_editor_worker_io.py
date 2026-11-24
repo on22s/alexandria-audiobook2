@@ -1,5 +1,6 @@
 import asyncio
 import builtins
+from contextlib import ExitStack
 import copy
 import json
 from pathlib import Path
@@ -9,7 +10,9 @@ import unittest
 from unittest.mock import patch
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+import core
+from book_state_transaction import ensure_book_state
 from routers import editor
 from project import ProjectManager
 from tests.test_support import use_private_cpu_fixture_lock
@@ -101,40 +104,72 @@ class EditorWorkerIoTests(unittest.TestCase):
             self.assertEqual('Updated', pm.load_chunks()[0]['text'])
             self.assertFalse(list(root.glob('.alexandria-export-*.zip')))
 
-    def test_idle_reset_holds_claim_lock_until_native_chunk_write_finishes(self):
-        with tempfile.TemporaryDirectory() as root:
+    @use_private_cpu_fixture_lock()
+    def test_idle_reset_fences_real_audio_claim_until_chunk_write_finishes(self):
+        with tempfile.TemporaryDirectory() as root, ExitStack() as stack:
             pm = ProjectManager(root)
             pm.save_chunks([{'speaker': 'Hero', 'text': 'Hello', 'status': 'generating'}])
-            state = copy.deepcopy(editor.process_state); state['audio']['running'] = False
-            arrived, release, claimed = threading.Event(), threading.Event(), threading.Event()
-            original = pm.load_chunks
-            def read():
+            script = Path(root) / 'annotated_script.json'
+            script.write_text('[{"speaker":"Hero","text":"Hello"}]')
+            state = copy.deepcopy(core.process_state)
+            for entry in state.values():
+                entry['running'] = False
+            arrived, release = threading.Event(), threading.Event()
+            update_chunk = pm._update_chunk_fields_by_uid
+
+            def paused_update(*args, **kwargs):
                 arrived.set()
-                if not release.wait(3): raise TimeoutError('idle reset fixture not released')
-                return original()
-            def next_claim():
-                with editor._gpu_lock:
-                    state['audio']['running'] = True
-                    claimed.set()
+                if not release.wait(8):
+                    raise AssertionError('idle reset fixture not released')
+                return update_chunk(*args, **kwargs)
+
+            def reserve_audio():
+                with editor.ensure_audio_generation_claim() as claim:
+                    return claim
+
+            def assert_book_fenced():
+                with self.assertRaises(TimeoutError):
+                    with ensure_book_state(root, timeout=0):
+                        self.fail('another book operation entered during the idle reset')
+
             async def run():
                 pending = asyncio.create_task(editor.cancel_audio())
-                watchdog = threading.Timer(0.5, release.set); watchdog.start()
-                contender = None
                 try:
                     self.assertTrue(await asyncio.to_thread(arrived.wait, 2))
-                    contender = threading.Thread(target=next_claim); contender.start()
-                    self.assertFalse(await asyncio.to_thread(claimed.wait, 0.05), 'new audio claim overtook the idle disk reset')
+                    # The coherent owner validator on a different writer must
+                    # still be able to take this mutex while the reset does I/O.
+                    self.assertTrue(core._gpu_lock.acquire(blocking=False))
+                    core._gpu_lock.release()
+                    await asyncio.to_thread(assert_book_fenced)
+                    with self.assertRaises(HTTPException) as refusal:
+                        await asyncio.wait_for(asyncio.to_thread(reserve_audio), timeout=2)
+                    self.assertIn('Task admission or startup recovery is in progress',
+                                  refusal.exception.detail)
+                    self.assertNotIn('audio', core._task_claims)
+                    self.assertFalse(state['audio']['running'])
                 finally:
-                    release.set(); watchdog.cancel()
+                    release.set()
                     result = await pending
-                    if contender is not None: await asyncio.to_thread(contender.join, 2)
-                self.assertEqual(1, result['reset_chunks'])
-                self.assertTrue(claimed.is_set())
+                self.assertEqual({'status': 'not_running', 'reset_chunks': 1}, result)
+                self.assertEqual('pending', pm.load_chunks()[0]['status'])
+                claim = await asyncio.to_thread(reserve_audio)
+                self.assertEqual(claim, core._task_claims['audio']['id'])
                 self.assertTrue(state['audio']['running'])
-            with patch.object(editor, 'project_manager', pm), patch.object(editor, 'process_state', state), \
-                 patch.object(pm, 'load_chunks', side_effect=read):
+
+            for module, name, value in (
+                (core, 'process_state', state), (editor, 'process_state', state),
+                (core, '_task_claims', {}), (core, '_gpu_leases', {}),
+                (core, 'DATA_DIR', root), (editor, 'DATA_DIR', root),
+                (editor, 'SCRIPT_PATH', str(script)), (editor, 'project_manager', pm),
+            ):
+                stack.enter_context(patch.object(module, name, value))
+            stack.enter_context(patch.object(pm, '_update_chunk_fields_by_uid', side_effect=paused_update))
+            stack.enter_context(patch.object(core, 'llm_is_on_this_gpu', return_value=False))
+            try:
                 asyncio.run(run())
-            self.assertEqual('pending', pm.load_chunks()[0]['status'])
+            finally:
+                for name, owner in list(core._task_claims.items()):
+                    core.release_gpu_task_claim(name, owner['id'])
 
     def test_running_cancel_sets_flag_without_reading_or_resetting_chunks(self):
         state = copy.deepcopy(editor.process_state); state['audio']['running'] = True

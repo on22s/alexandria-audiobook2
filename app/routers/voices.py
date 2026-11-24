@@ -61,7 +61,8 @@ from core import (
 from lmstudio_settings import get_active_llm_config, get_current_status, get_effective_max_tokens
 from voice_manifest import get_adapter_id_alias_map, get_adapter_manifest_rows, get_resolved_adapter_id_mapping, validate_adapter_name
 from tts import (VERSION_OVERLAY_EXCLUDED, get_style_timeline_index, get_version_fields,
-                 get_voice_config_for_version, resolve_narrator_voice_config, voice_category, voice_is_set)
+                 get_voice_config_for_version, resolve_narrator_voice_config, validate_ensemble_members,
+                 voice_category, voice_is_set)
 from timeline_anchors import (TIMELINE_KEYS, TIMELINE_VIEW_FIELDS, ambiguous_uids, build_uid_index, delete_style_points,
                               canonical_point_payload,
                               get_anchor_uid, get_timeline_index_spelling, replace_style_point,
@@ -525,6 +526,18 @@ def get_validated_voice_changes(speaker, before, after, *, check_timeline=False,
             value = config["seed"]
             if isinstance(value, bool) or not re.fullmatch(r"-?\d+", str(value)):
                 raise HTTPException(status_code=422, detail="Voice seed must be an integer or -1")
+    # Only member collections this save writes are validated: an already
+    # persisted partial collection keeps the runtime normalization policy so
+    # unrelated edits are not refused, but a new write must not silently drop
+    # part of what the client submitted (#2170 F4).
+    for config, previous in seed_configs:
+        previous_members = previous.get("members") if isinstance(previous, dict) else None
+        if (isinstance(config, dict)
+                and config.get("members") != previous_members):
+            try:
+                validate_ensemble_members(config.get("members"))
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
     points = after.get("version_timeline") or []
     removed = set(old_versions) - set(versions)
     applied = {point.get("version_id") for point in points if isinstance(point, dict)} | {after.get("active_version")}

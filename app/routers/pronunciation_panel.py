@@ -24,8 +24,7 @@ from routers.editor import (check_chunk_identity, SCRIPT_PATH, _ensure_editor_ch
 from project import get_speaker, get_occurrence_speech_projection
 from speech_numbers import STATE_KEY as DATE_ORDER_KEY, get_book_date_order_status
 from speech_text import get_prelexicon_speech_normalization
-from tts import (get_resolved_speaker, is_voice_config_present, resolve_narrator_voice_config,
-                 voice_config_for_chunk)
+from tts import (is_voice_config_present, get_chunk_render_voice_selection)
 from timeline_anchors import resolve_timeline_anchors
 from utils import atomic_json_write, file_lock, safe_load_json
 
@@ -162,9 +161,9 @@ def generate_pronunciation_audition(request):
             if not isinstance(voices, dict):
                 raise HTTPException(status_code=422, detail='Voice configuration must contain an object.')
             voices = resolve_timeline_anchors(voices, chunks)
-            speaker = get_resolved_speaker(get_speaker(row), voices)
-            voices = copy.deepcopy(voice_config_for_chunk(
-                resolve_narrator_voice_config(speaker, voices, row), speaker, request.index))
+            speaker, voices, _ = get_chunk_render_voice_selection(
+                voices, get_speaker(row), row, request.index)
+            voices = copy.deepcopy(voices)
             if not is_voice_config_present(speaker, voices):
                 raise HTTPException(status_code=400, detail='Assign a voice to this line before auditioning.')
         if not request.text.strip() or (request.replacement is not None and not request.replacement.strip()):
@@ -306,7 +305,9 @@ def validate_occurrence_edit(rules, row):
 def get_occurrence_response(request, row, rules, revision, projection, settings_source):
     return {'book_token': request.expected_book_token, 'uid': row['uid'], 'index': request.index,
             'revision': revision, 'rules': rules, 'coordinate_space': pronunciation.OCCURRENCE_COORDINATE_SPACE,
-            'offset_unit': 'unicode_codepoint', 'context': projection['context'],
+            'offset_unit': 'unicode_codepoint',
+            'context': {key: value for key, value in projection['context'].items()
+                        if key != 'voice_sha256_legacy'},
             'context_source': settings_source,
             'preview': {'text': projection['text'],
                         'decisions': projection.get('pronunciation_decisions', [])}}

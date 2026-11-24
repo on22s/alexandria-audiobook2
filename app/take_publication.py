@@ -35,13 +35,24 @@ _RECEIPT_SCHEMAS = {1: _V1_KEYS, 2: _V1_KEYS | frozenset(('seed',)),
 _MAX_RECEIPT_VERSION = max(_RECEIPT_SCHEMAS)
 
 
-def get_take_voice_identity(selected, seed=None):
+def get_take_voice_identity(selected, seed=None, *, canonical=True):
     """Render-affecting voice fields bound by a version-3 take receipt."""
-    from tts import VOICE_RENDER_IDENTITY_FIELDS
-    identity = {field: selected.get(field) for field in VOICE_RENDER_IDENTITY_FIELDS}
+    from tts import get_voice_render_identity
+    identity = get_voice_render_identity(selected, canonical=canonical)
     if seed is not None:
         identity['seed'] = seed
     return identity
+
+
+def get_legacy_v3_voice_digest(selected, seed=None):
+    """The pre-#2170 v3 digest, which included an inert description.
+
+    Restoration accepts it only when it is exactly this entry's raw projection,
+    so a main-era take still authorizes while its description is unchanged; a
+    later edit makes it differ and the take stays audition-only (fail closed).
+    """
+    from synthesis_recovery_identity import get_recovery_digest
+    return get_recovery_digest(get_take_voice_identity(selected, seed, canonical=False))
 
 
 def get_receipt_voice_digest(version, selected, seed=None):

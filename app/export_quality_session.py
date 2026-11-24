@@ -236,6 +236,15 @@ class ExportQualityAttempt:
         if not audacity and options is not None:
             self.kwargs['export_quality'] = options
 
+    def _owns_public_attempt(self):
+        """Whether the shared task still displays this exact attempt.
+
+        A successor may install a distinct ExportQualityAttempt for the same
+        book/task. Completion, progress and rejection writes from the older
+        attempt must not replace that public attempt (F09).
+        """
+        return self.state.get('export_quality_attempt') is self.attempt
+
     def _capture_bound(self):
         """Recapture the input revision without nested book admission (e-8).
 
@@ -258,6 +267,8 @@ class ExportQualityAttempt:
     def publish(self, report):
         if report.get('status') not in ('verified', 'review'):
             raise ValueError('Only completed export evidence can be published.')
+        if not self._owns_public_attempt():
+            return
         summary = dict(get_report_summary(report), book_token=self.book_token)
         # Bind to the start input only if it is unchanged at publication.
         # Failed/unknown capture is explicit unbound evidence; publish
@@ -300,6 +311,8 @@ class ExportQualityAttempt:
         self.state['export_quality_attempt'] = self.attempt
 
     def finish(self, success, message):
+        if not self._owns_public_attempt():
+            return
         status = 'done' if success else ('cancelled' if message in ('Export cancelled', 'Merge cancelled') else 'failed')
         self.attempt = {**self.attempt, 'status': status}
         self.state['export_quality_attempt'] = self.attempt
@@ -307,6 +320,8 @@ class ExportQualityAttempt:
             self._reject({'status': 'failed', 'stage': 'export', 'reason': str(message)[:240]})
 
     def fail(self, error):
+        if not self._owns_public_attempt():
+            return
         self.attempt = {**self.attempt, 'status': 'failed'}
         self.state['export_quality_attempt'] = self.attempt
         report = get_report_summary(getattr(error, 'report', {}))
