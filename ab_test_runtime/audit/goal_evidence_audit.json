@@ -1050,15 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T14:03:02",
+  "written": "2026-11-24T16:28:02",
   "host": "mitch-linux",
   "git": {
-   "commit": "9cb0d15ef7b4d629335b263ffcbce9e493043ebb",
-   "branch": "HEAD",
+   "commit": "be0c076841677f01a5db15559aed276b69889e6c",
+   "branch": "t3/fix-2294-delivery-retry",
    "dirty": true,
-   "source_state": "dirty:fdf75a7c8ac6",
+   "source_state": "dirty:d523f8083538",
    "source_state_detail": null,
    "modified_tracked_files": [
+    " M app/delivery_review.py",
+    " M app/tests/test_delivery_fallback.py",
     " M app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
