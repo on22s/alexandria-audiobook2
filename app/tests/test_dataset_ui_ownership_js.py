@@ -655,9 +655,9 @@ assert.strictEqual(polls.length,1,'failure must not start a status poll');
         self.run_scenario(r'''
 let poll;context._startPolling=(key,fetch,options)=>{poll=options;return ()=>{};};
 run("dsbCurrentProject='Book';dsbBatchRunning=true;");context.dsbStartPolling('Book');
-const el=context.document.getElementById('dsb-logs');let text='',replaces=0,appends=0;
-Object.defineProperty(el,'innerText',{get:()=>text,set:value=>{text=value;replaces++;}});
-el.appendChild=node=>{text+=node.textContent;appends++;};el.scrollHeight=1000;el.clientHeight=100;
+const el=context.document.getElementById('dsb-logs');let text='',replaces=0,appends=0,nodes=[];
+Object.defineProperty(el,'innerText',{get:()=>text,set:value=>{nodes.forEach(node=>{node.parentNode=null;});nodes=[];text=value;replaces++;}});
+el.appendChild=node=>{node.parentNode=el;nodes.push(node);text+=node.textContent;appends++;};el.scrollHeight=1000;el.clientHeight=100;
 const tick=logs=>poll.onTick({running:true,run_id:'one',logs,samples:[]});
 tick(['first','second']);assert.strictEqual(el.scrollTop,1000);el.scrollTop=200;
 tick(['first','second','third']);assert.strictEqual(el.scrollTop,200);assert.strictEqual(appends,1);assert.strictEqual(replaces,1);
