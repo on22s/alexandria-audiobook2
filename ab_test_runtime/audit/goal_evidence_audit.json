@@ -1050,13 +1050,13 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T11:02:20",
+  "written": "2026-11-24T11:21:08",
   "host": "mitch-linux",
   "git": {
-   "commit": "f899a8ae2be2064e22d4e7abe0f6907dafefaa66",
+   "commit": "ec54e7f17e79af2b5fc128b7cddd4420f1f53317",
    "branch": "HEAD",
    "dirty": true,
-   "source_state": "dirty:f051702c0aec",
+   "source_state": "dirty:cdc7231c5484",
    "source_state_detail": null,
    "modified_tracked_files": [
     " M app/tests/unit_test_inventory.json"
