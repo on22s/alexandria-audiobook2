@@ -3324,9 +3324,8 @@ def _apply_audio_cancel():
         if outcome is not None:
             return outcome
 
-    # Idle: book journal before the GPU mutex, the same order as edits and
-    # generation start. Keep the idle decision and disk reset atomic with new
-    # audio claims by holding the claim mutex across the reset.
+    # Idle: keep the startup admission and book-state fences through the reset.
+    # The GPU mutex guards ownership checks, never chunk I/O.
     reset_count = 0
     try:
         with ExitStack() as admission:
@@ -3351,10 +3350,9 @@ def _apply_audio_cancel():
                     return outcome
                 raise HTTPException(status_code=409, detail="Another worker owns an active task; cancel it on its owning server")
             with ensure_book_state(os.path.dirname(SCRIPT_PATH), timeout=0.25):
-                # The book journal already fences new audio claims (they take
-                # its try-lock). Never hold the task mutex across chunk I/O:
-                # an Editor writer can hold the chunk lock while waiting for
-                # the coherent commit validator to take that mutex.
+                # The startup admission barrier rejects new task leases while
+                # the idle reset holds it. An Editor writer can hold the chunk
+                # lock while waiting for the commit validator's task mutex.
                 with _gpu_lock:
                     outcome = request_owned_cancel()
                 if outcome is not None:

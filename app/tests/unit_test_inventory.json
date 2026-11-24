@@ -5532,7 +5532,7 @@
     , "tests.test_editor_validation_findings.EditorValidationFindingTests.test_negative_pause_request_cannot_persist_negative_duration"
   ]
   , "test_editor_worker_io": [
-    "tests.test_editor_worker_io.EditorWorkerIoTests.test_idle_reset_holds_claim_lock_until_native_chunk_write_finishes"
+    "tests.test_editor_worker_io.EditorWorkerIoTests.test_idle_reset_fences_real_audio_claim_until_chunk_write_finishes"
     , "tests.test_editor_worker_io.EditorWorkerIoTests.test_native_io_and_chunk_edits_leave_same_event_loop_ping_responsive"
     , "tests.test_editor_worker_io.EditorWorkerIoTests.test_running_cancel_sets_flag_without_reading_or_resetting_chunks"
   ]
