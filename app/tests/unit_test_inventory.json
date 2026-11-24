@@ -16976,6 +16976,8 @@
     , "tests.test_three_pass_cast.RequestCastTests.test_a_choice_without_a_message_raises_a_handled_error_not_attribute_error"
     , "tests.test_three_pass_cast.RequestCastTests.test_a_reply_with_no_choices_raises_a_handled_error_not_index_error"
     , "tests.test_three_pass_cast.RequestCastTests.test_a_reply_with_no_content_is_refused_not_crashed"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_truncated_reply_with_no_message_on_every_attempt_names_the_cap_cause"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_truncated_reply_with_no_message_still_discards_and_retries"
     , "tests.test_three_pass_cast.RequestCastTests.test_every_attempt_truncated_raises_naming_the_cause_not_a_json_error"
     , "tests.test_three_pass_cast.RequestCastTests.test_the_old_path_could_not_tell_a_loop_from_an_answer"
     , "tests.test_three_pass_cast.RequestCastTests.test_truncated_reply_is_discarded_and_the_retry_is_used"

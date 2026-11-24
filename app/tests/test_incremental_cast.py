@@ -185,6 +185,7 @@ class IncrementalCastTests(unittest.TestCase):
         IndexError/AttributeError traceback (#2276)."""
         for label, build_reply in (
                 ('empty choices', lambda: SimpleNamespace(choices=[], usage=None)),
+                ('missing choices', lambda: SimpleNamespace(choices=None, usage=None)),
                 ('choice without a message', lambda: SimpleNamespace(
                     choices=[SimpleNamespace(finish_reason='stop', message=None)],
                     usage=None))):

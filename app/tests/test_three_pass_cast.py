@@ -212,6 +212,24 @@ class RequestCastTests(unittest.TestCase):
                 request_cast(client, "m", "text", 8000, max_attempts=3)
         self.assertEqual(3, client.calls)
 
+    def test_a_truncated_reply_with_no_message_still_discards_and_retries(self):
+        for reply in (SimpleNamespace(choices=[SimpleNamespace(finish_reason="length", message=None)]),
+                      SimpleNamespace(choices=[SimpleNamespace(finish_reason="length")])):
+            with self.subTest(shape=reply.choices[0].__dict__):
+                client = _ScriptedClient([reply, _reply(_GOOD, "stop")])
+                with contextlib.redirect_stderr(io.StringIO()):
+                    cast, _, attempts = request_cast(client, "m", "text", 8000)
+                self.assertEqual(([{"name": "ANNE SHIRLEY", "aliases": ["ANNE"]}], 2, 2),
+                                 (cast, attempts, client.calls))
+
+    def test_a_truncated_reply_with_no_message_on_every_attempt_names_the_cap_cause(self):
+        client = _ScriptedClient([SimpleNamespace(
+            choices=[SimpleNamespace(finish_reason="length", message=None)])] * 3)
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, "truncated at max_tokens=8000"):
+                request_cast(client, "m", "text", 8000, max_attempts=3)
+        self.assertEqual(3, client.calls)
+
     def test_a_bad_reply_that_finished_normally_raises_at_once_without_retrying(self):
         client = _ScriptedClient([_reply("not json", "stop"), _reply(_GOOD, "stop")])
         with self.assertRaises(ValueError):
@@ -219,10 +237,13 @@ class RequestCastTests(unittest.TestCase):
         self.assertEqual(1, client.calls)
 
     def test_a_reply_with_no_choices_raises_a_handled_error_not_index_error(self):
-        client = _ScriptedClient([SimpleNamespace(choices=[]), _reply(_GOOD, "stop")])
-        with self.assertRaisesRegex(RuntimeError, "no choices"):
-            request_cast(client, "m", "text", 8000)
-        self.assertEqual(1, client.calls)
+        for reply in (SimpleNamespace(choices=[]), SimpleNamespace(choices=None),
+                      SimpleNamespace()):
+            with self.subTest(reply=reply):
+                client = _ScriptedClient([reply, _reply(_GOOD, "stop")])
+                with self.assertRaisesRegex(RuntimeError, "no choices"):
+                    request_cast(client, "m", "text", 8000)
+                self.assertEqual(1, client.calls)
 
     def test_a_choice_without_a_message_raises_a_handled_error_not_attribute_error(self):
         client = _ScriptedClient([SimpleNamespace(
