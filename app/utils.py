@@ -208,52 +208,13 @@ def is_path_inside(path: str, base_dir: str) -> bool:
 # (measured at roughly 1.5e7 characters/second of Python scan). It is a work
 # bound rather than a candidate cap, so a real object behind thousands of
 # stray braced spans is still found while the total work stays below it.
+#
+# The ceiling for an object embedded in free-form prose follows from that: the
+# failed whole-text json.loads, one scan and one parse cost about 3x the
+# object's length, so the largest embedded object that survives is roughly
+# 6.67 MB (EXTRACT_JSON_OBJECT_WORK_BUDGET / 3). A clean top-level object is
+# parsed before any of this and is not subject to the budget.
 EXTRACT_JSON_OBJECT_WORK_BUDGET = 20_000_000
-
-
-def _scan_balanced(text, open_char, close_char, search_from=0):
-    """Return (balanced_span_or_None, characters_examined).
-
-    Same escape-aware matching as extract_balanced; the extra count is the
-    text inspected by the find and the depth loop, so a caller can bound the
-    total work of repeated rescans without timing a wall clock.
-    """
-    start = text.find(open_char, search_from)
-    if start == -1:
-        return None, len(text) - search_from
-
-    examined = start - search_from
-    depth = 0
-    in_string = False
-    escape_next = False
-
-    for i in range(start, len(text)):
-        examined += 1
-        ch = text[i]
-
-        if escape_next:
-            escape_next = False
-            continue
-
-        if ch == '\\':
-            if in_string:
-                escape_next = True
-            continue
-
-        if ch == '"':
-            in_string = not in_string
-            continue
-
-        if in_string:
-            continue
-
-        if ch == open_char:
-            depth += 1
-        elif ch == close_char:
-            depth -= 1
-            if depth == 0:
-                return text[start:i + 1], examined
-    return None, examined
 
 
 def extract_balanced(text, open_char, close_char, search_from=0):
@@ -281,8 +242,40 @@ def extract_balanced(text, open_char, close_char, search_from=0):
     semantics, so a stray unescaped backslash in malformed LLM output
     outside a string no longer causes a real closing bracket to be missed.
     """
-    span, _ = _scan_balanced(text, open_char, close_char, search_from)
-    return span
+    start = text.find(open_char, search_from)
+    if start == -1:
+        return None
+
+    depth = 0
+    in_string = False
+    escape_next = False
+
+    for i in range(start, len(text)):
+        ch = text[i]
+
+        if escape_next:
+            escape_next = False
+            continue
+
+        if ch == '\\':
+            if in_string:
+                escape_next = True
+            continue
+
+        if ch == '"':
+            in_string = not in_string
+            continue
+
+        if in_string:
+            continue
+
+        if ch == open_char:
+            depth += 1
+        elif ch == close_char:
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+    return None
 
 
 def extract_json_object(text):
@@ -336,14 +329,16 @@ def _extract_json_object_with_work(text, work_budget):
         start = text.find('{', search_from)
         if start == -1 or start > last_close:
             return None, work
-        span, examined = _scan_balanced(text, '{', '}', search_from=start)
-        work += examined
-        if work > work_budget:
-            return None, work
+        span = extract_balanced(text, '{', '}', search_from=start)
         if span is None:
+            # The scan ran from this "{" to the end without balancing.
+            work += len(text) - start
+            if work > work_budget:
+                return None, work
             search_from = start + 1
             continue
-        work += len(span)
+        # One scan and one json.loads, charged together before the parse.
+        work += 2 * len(span)
         if work > work_budget:
             return None, work
         try:

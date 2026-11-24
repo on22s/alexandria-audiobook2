@@ -4612,8 +4612,8 @@
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_faster_scan_matches_the_reference_on_randomized_text"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_filesystem_root_contains_child_and_sibling_prefix_stays_outside"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_latin_accent_case_is_source_backed_but_new_letters_fail"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_recursion_error_from_the_whole_text_parse_refuses_without_scanning"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_recursion_error_in_a_candidate_span_refuses_the_whole_reply"
-    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_recursion_error_refuses_without_rescanning_from_each_brace"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_unclosed_brace_run_does_not_scan_the_tail_even_once"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_unmatched_prose_brace_does_not_hide_later_object"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_uppercase_suffixes_preserve_case_and_damage_gate"
@@ -10416,7 +10416,9 @@
     , "tests.test_preparer_admission_cancel.PreparerAdmissionCancelTests.test_upload_failure_or_request_cancel_releases_pending_owner_and_partial_stages"
   ]
   , "test_preparer_annotate_confidence": [
-    "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_boolean_confidence_is_rejected_as_non_numeric"
+    "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_average_confidence_matches_numpy_mean_exactly"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_boolean_confidence_is_rejected_as_non_numeric"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_eight_words_at_the_threshold_are_kept"
     , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_invalid_confidence_drops_the_chunk_instead_of_crashing"
     , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_invalid_confidence_is_counted_like_a_low_confidence_drop"
     , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_numeric_confidence_still_passes_the_quality_filter"

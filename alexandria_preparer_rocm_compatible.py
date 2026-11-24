@@ -2001,29 +2001,34 @@ def _check_llm_fail_rate(stats):
 def get_average_word_confidence(word_segments):
     """Average ASR word confidence, refusing values the filter cannot read.
 
-    The annotate phase loads asr_segments.json directly instead of passing it
-    through get_validated_word_segments, so an edited or third-party artifact
-    can carry a boolean, string, None, NaN or an integer too large for float().
-    np.mean() turns those into opaque TypeError/OverflowError or a NaN that
-    silently passes the ``< min_confidence`` test; the caller drops the chunk
-    instead so a corrupt value cannot stand in for a quality measurement.
+    Hardening, not a user-visible crash fix: annotate_chunks verifies the ASR
+    artifact's sha256 before reading it (is_verified_artifact), so an edited
+    file is refused earlier. The remaining source is an ASR provider whose
+    confidence get_validated_word_segments does not check. A boolean, string,
+    None, NaN or an integer too large for float() would otherwise become an
+    opaque TypeError/OverflowError or a NaN that silently passes the
+    ``< min_confidence`` test; the caller drops the chunk instead so a corrupt
+    value cannot stand in for a quality measurement.
+
+    Valid values are averaged exactly as before: np.mean over the original
+    validated values, so integer and numpy dtypes keep their base behaviour
+    (an empty list still yields 1.0).
     """
-    total = 0.0
+    values = []
     for index, segment in enumerate(word_segments):
         value = segment.get("confidence", 1.0)
         if isinstance(value, bool) or not isinstance(value, Real):
             raise ValueError(
                 f"ASR word segment {index} has non-numeric confidence")
         try:
-            value = float(value)
+            finite = math.isfinite(float(value))
         except OverflowError:
-            raise ValueError(
-                f"ASR word segment {index} has non-finite confidence") from None
-        if not math.isfinite(value):
+            finite = False
+        if not finite:
             raise ValueError(
                 f"ASR word segment {index} has non-finite confidence")
-        total += value
-    return total / len(word_segments) if word_segments else 1.0
+        values.append(value)
+    return float(np.mean(values)) if values else 1.0
 
 
 def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,

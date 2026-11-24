@@ -14,7 +14,9 @@ from tests.test_support import can_symlink
 
 
 def reference_extract_json_object(text):
-    """The pre-fix scan, kept to prove the faster scan is results-identical."""
+    """origin/main's unbounded extract_json_object, used as the differential
+    reference: the budgeted version must return the same answer below budget.
+    It calls the shared extract_balanced, which is byte-identical to main."""
     if not text:
         return None
     try:
@@ -74,10 +76,12 @@ class DeepSeekTextHelperTests(unittest.TestCase):
                 self.assertIsNone(extract_json_object(value))
 
     def test_brace_storms_are_refused_within_the_work_budget(self):
-        # Work (characters examined) is bounded, not wall-clock and not a
-        # candidate cap, so a reply of stray braces cannot rescan the tail
-        # from every earlier brace. A small explicit budget keeps this fast;
-        # the constant is sized for real replies separately.
+        # Work (characters scanned and parsed) is bounded, not wall-clock and
+        # not a candidate cap, so a reply of stray braces cannot rescan the
+        # tail from every earlier brace. A small explicit budget keeps this
+        # fast; the constant is sized for real replies separately. The last
+        # increment before the check can be 2x the text, so work overshoots by
+        # at most that much.
         budget = 200_000
         for text in ('{' * 100000,
                      '{' * 10000 + '}',
@@ -86,29 +90,40 @@ class DeepSeekTextHelperTests(unittest.TestCase):
                 result, work = utils_module._extract_json_object_with_work(
                     text, budget)
                 self.assertIsNone(result)
-                self.assertLessEqual(work, budget + len(text))
+                self.assertLessEqual(work, budget + 2 * len(text))
 
     def test_unclosed_brace_run_does_not_scan_the_tail_even_once(self):
         # With no closing brace anywhere, nothing can balance; the rfind skips
         # all candidates and no scan is attempted.
-        with patch.object(utils_module, '_scan_balanced',
-                          wraps=utils_module._scan_balanced) as scan:
+        with patch.object(utils_module, 'extract_balanced',
+                          wraps=utils_module.extract_balanced) as scan:
             self.assertIsNone(extract_json_object('{' * 100000))
         scan.assert_not_called()
 
-    def test_recursion_error_refuses_without_rescanning_from_each_brace(self):
-        text = '{"a":' * 5000 + '1' + '}' * 5000
-        with patch.object(utils_module, '_scan_balanced',
-                          wraps=utils_module._scan_balanced) as scan:
-            self.assertIsNone(extract_json_object(text))
+    def test_recursion_error_from_the_whole_text_parse_refuses_without_scanning(self):
+        # Inject RecursionError so the test does not depend on the
+        # interpreter's own JSON recursion limit (3.12+ parses much deeper).
+        with patch.object(utils_module.json, 'loads',
+                          side_effect=RecursionError), \
+                patch.object(utils_module, 'extract_balanced',
+                             wraps=utils_module.extract_balanced) as scan:
+            self.assertIsNone(extract_json_object('{"a": 1}'))
         scan.assert_not_called()
 
     def test_recursion_error_in_a_candidate_span_refuses_the_whole_reply(self):
         # A deep junk object must not be skipped over to return a later,
         # shallower object (or a truncated inner one): the reply is refused.
-        text = 'prefix ' + '{"a":' * 5000 + '1' + '}' * 5000 + ' {"ok": 1}'
-        with patch.object(utils_module, '_scan_balanced',
-                          wraps=utils_module._scan_balanced) as scan:
+        # The depth failure is injected so the test is version-independent.
+        text = 'prefix {"a": 1} {"ok": 1}'
+
+        def loads(value, *args, **kwargs):
+            if value == text:
+                raise json.JSONDecodeError("Expecting value", value, 0)
+            raise RecursionError("depth limit")
+
+        with patch.object(utils_module.json, 'loads', side_effect=loads), \
+                patch.object(utils_module, 'extract_balanced',
+                             wraps=utils_module.extract_balanced) as scan:
             self.assertIsNone(extract_json_object(text))
         self.assertEqual(1, scan.call_count)
 
@@ -129,7 +144,14 @@ class DeepSeekTextHelperTests(unittest.TestCase):
     def test_deeply_nested_json_shapes_are_refused_not_partially_parsed(self):
         self.assertIsNone(extract_json_object('[' * 5000 + ']' * 5000))
         self.assertIsNone(extract_json_object('[' * 5000 + ']' * 4999))
-        self.assertIsNone(extract_json_object('{"a":' * 5000 + '1' + '}' * 5000))
+        # Inject the depth failure rather than relying on the interpreter's
+        # JSON limit, which 3.12+ raises high enough to parse this object and
+        # return it (base would have parsed it too, so the refusal is only
+        # guaranteed when the parser actually raises).
+        deep = '{"a":' * 5000 + '1' + '}' * 5000
+        with patch.object(utils_module.json, 'loads',
+                          side_effect=RecursionError):
+            self.assertIsNone(extract_json_object(deep))
 
     def test_faster_scan_matches_the_reference_on_randomized_text(self):
         rng = random.Random(20261124)

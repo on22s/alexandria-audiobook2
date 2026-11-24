@@ -3,6 +3,7 @@ import json
 import math
 import os
 from pathlib import Path
+import random
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -69,6 +70,47 @@ class AnnotateConfidenceTests(unittest.TestCase):
                 [word("Only.", 0.0, 1.2, 0.95)], workdir=tmp)
         self.assertEqual(["Only."], [row["text"] for row in rows])
         self.assertEqual([], rejected)
+
+    def test_eight_words_at_the_threshold_are_kept(self):
+        # A running sum averaged eight 0.85s to 0.8499999999999999 and the
+        # strict "< 0.85" filter dropped a chunk that np.mean (base) keeps.
+        words = [word(f"w{i}", i * 0.15, (i + 1) * 0.15, 0.85)
+                 for i in range(8)]
+        with tempfile.TemporaryDirectory() as tmp:
+            rows, rejected, _, _ = self.run_annotation(words, workdir=tmp)
+        self.assertEqual([" ".join(f"w{i}" for i in range(8))],
+                         [row["text"] for row in rows])
+        self.assertEqual([], rejected)
+
+    def test_average_confidence_matches_numpy_mean_exactly(self):
+        # Base averaged np.mean over the raw list, so integer and numpy inputs
+        # keep their dtype. Converting each value to float first flips ties
+        # near the threshold for float32 input, so this pins the dtype.
+        self.assertEqual(1.0, preparer.get_average_word_confidence([]))
+        self.assertEqual(0.85, preparer.get_average_word_confidence(
+            [{"confidence": 0.85}] * 8))
+        # All-float32 input keeps base's float32 accumulation; converting each
+        # value to Python float first changes the mean by a few ulps.
+        f32 = [np.float32(0.86), np.float32(0.84)]
+        self.assertNotEqual(float(np.mean(f32)),
+                            float(np.mean([float(v) for v in f32])))
+        self.assertEqual(float(np.mean(f32)),
+                         preparer.get_average_word_confidence(
+                             [{"confidence": v} for v in f32]))
+        rng = random.Random(20261124)
+        for _ in range(500):
+            values = [rng.choice((
+                round(rng.uniform(0, 1), 3),
+                rng.randint(0, 1),
+                np.float32(round(rng.uniform(0, 1), 3)),
+                np.float64(round(rng.uniform(0, 1), 3)),
+            )) for _ in range(rng.randint(0, 40))]
+            segments = [{"confidence": value} for value in values]
+            expected = float(np.mean(values)) if values else 1.0
+            with self.subTest(values=values):
+                self.assertEqual(
+                    expected,
+                    preparer.get_average_word_confidence(segments))
 
     def test_boolean_confidence_is_rejected_as_non_numeric(self):
         # bool is a Real: without the explicit guard True/False would average
