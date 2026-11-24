@@ -85,6 +85,59 @@ class ScoringTest(unittest.TestCase):
 
 
 
+class MalformedGoldRowTests(unittest.TestCase):
+    """A bad gold row must stop the scorer, not bend the accuracy number."""
+
+    NAMED = [{"speaker": "ROXY", "text": "A line."}]
+    VALID = {"id": "x", "entry_index": 0, "line": "A line.",
+             "expected_speaker": "ROXY"}
+
+    def score(self, item):
+        return score_run(self.NAMED, {"entries": [item]})
+
+    def test_a_valid_row_still_scores(self):
+        self.assertTrue(self.score(dict(self.VALID))[0]["correct"])
+
+    def test_a_skipped_disputed_row_is_not_validated(self):
+        incomplete = {"id": "d", "disputed": True}
+        self.assertEqual([], score_run(self.NAMED, {"entries": [incomplete]}))
+        with self.assertRaises(ValueError):
+            score_run(self.NAMED, {"entries": [incomplete]}, include_disputed=True)
+
+    def test_a_scored_disputed_row_is_still_validated_and_scores(self):
+        valid = dict(self.VALID, disputed=True)
+        self.assertEqual([], score_run(self.NAMED, {"entries": [valid]}))
+        scored = score_run(self.NAMED, {"entries": [valid]}, include_disputed=True)
+        self.assertTrue(scored[0]["correct"])
+
+    def test_malformed_rows_fail_loudly_and_name_the_row(self):
+        cases = {
+            "missing line": ({k: v for k, v in self.VALID.items() if k != "line"},
+                             "line"),
+            "missing entry_index": ({k: v for k, v in self.VALID.items()
+                                     if k != "entry_index"}, "entry_index"),
+            "missing id": ({k: v for k, v in self.VALID.items() if k != "id"}, "id"),
+            "missing expected_speaker": ({k: v for k, v in self.VALID.items()
+                                          if k != "expected_speaker"},
+                                         "expected_speaker"),
+            "blank expected_speaker": (dict(self.VALID, expected_speaker="  "),
+                                       "expected_speaker"),
+            "null expected_speaker": (dict(self.VALID, expected_speaker=None),
+                                      "expected_speaker"),
+            "blank line": (dict(self.VALID, line=" "), "line"),
+            "string entry_index": (dict(self.VALID, entry_index="0"), "entry_index"),
+            "negative entry_index": (dict(self.VALID, entry_index=-1), "entry_index"),
+            "not an object": ("not a gold row", "object"),
+        }
+        for name, (item, expected) in cases.items():
+            with self.subTest(name):
+                with self.assertRaises(ValueError) as raised:
+                    self.score(item)
+                message = str(raised.exception)
+                self.assertIn("gold entry 0", message)
+                self.assertIn(expected, message)
+
+
 class GoldFixtureIntegrityTest(unittest.TestCase):
     """A gold fixture is an answer key; a duplicated line votes twice.
 

@@ -40,6 +40,19 @@ class WordTimingTests(unittest.TestCase):
         for start, end in [(float('nan'), 1), (0, float('inf')), (-1, 1), (1, 1), (2, 1), (0, 3), (True, 1)]:
             with self.subTest(start=start, end=end), self.assertRaises(ValueError):
                 get_validated_word_spans('Amber', [{'word': 'Amber', 'start': start, 'end': end}], 2)
+        with self.subTest(field='duration'), self.assertRaises(ValueError):
+            get_validated_word_spans(
+                'Amber', [{'word': 'Amber', 'start': 0, 'end': 1}], 10**400)
+
+    def test_huge_int_offsets_from_the_shared_converter_raise_value_error(self):
+        from whisper_cpp_runtime import get_coalesced_whisper_cpp_segments
+        segments = get_coalesced_whisper_cpp_segments([
+            {'text': 'huge',
+             'offsets': {'from': 10**400, 'to': 10**400 + 1}}])
+        self.assertEqual([[10**400, 10**400 + 1]],
+                         [[seg['start'], seg['end']] for seg in segments])
+        with self.assertRaisesRegex(ValueError, 'ASR timestamps'):
+            get_validated_word_spans('huge', segments, 1.0)
         for rows in [
             [{'word': 'Amber', 'start': 0, 'end': 1}, {'word': 'arrives', 'start': 0, 'end': 1}],
             [{'word': 'Amber', 'start': 0, 'end': 1}, {'word': 'arrives', 'start': .9, 'end': 1.5}],
