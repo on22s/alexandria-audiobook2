@@ -425,7 +425,12 @@ def run_encoder(raw_path, output_path, settings):
             _record_encoder_output(target, output_path, settings)
     finally:
         if mapping is not None:
-            mapping.close()
+            try:
+                mapping.close()
+            except BufferError:
+                # A failed export's traceback still exports the mapping; its
+                # real error must survive. Process exit unmaps it.
+                pass
 
 
 if __name__ == '__main__':

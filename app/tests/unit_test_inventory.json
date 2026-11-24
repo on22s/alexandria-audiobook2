@@ -834,8 +834,11 @@
   ]
   , "test_audio_encoder_streaming_2279": [
     "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_encoder_never_reads_the_whole_pcm"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_mapped_and_copied_layouts_match_pydub"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_partial_frame_source_is_refused"
     , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_raw_export_copies_source_bytes"
     , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_registered_encoder_files_stream_and_record_completion"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_staging_write_failure_is_not_masked_by_mapping_cleanup"
     , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_streamed_cover_art_matches_pydub"
     , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_streamed_output_matches_pydub_for_used_options_and_widths"
   ]
@@ -1315,6 +1318,7 @@
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_mixed_batch_refuses_invalid_inputs_but_accepts_verified_resume_skips"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_multivolume_success_is_recorded_and_source_change_reprocesses"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_preparer_path_does_not_depend_on_current_directory"
+    , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_process_file_oserror_does_not_stop_the_next_file"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_process_file_stat_oserror_records_failure_without_aborting"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_receipt_write_failure_keeps_previous_receipt"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_same_metadata_audio_replacement_invalidates_real_resume"

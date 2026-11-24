@@ -588,6 +588,19 @@ class BatchProcessorPreflightTests(unittest.TestCase):
         self.assertEqual([{"file": str(audio), "reason": "stale volume"}],
                          processor.results["failed"])
 
+    def test_process_file_oserror_does_not_stop_the_next_file(self):
+        first, second = self.root / "first.wav", self.root / "second.wav"
+        first.touch()
+        second.touch()
+        processor = batch.BatchProcessor(str(self.model), skip_disk_check=True, force=True)
+        with patch.object(batch, "get_volume_state", side_effect=OSError("stale volume")), \
+                patch.object(batch, "log_gpu_stats"), patch.object(batch.time, "sleep"), \
+                patch.object(batch, "save_batch_receipt"):
+            result = processor.run([str(first), str(second)])
+        self.assertFalse(result)
+        self.assertEqual([str(first), str(second)],
+                         [item["file"] for item in processor.results["failed"]])
+
     def test_disk_probe_oserror_stays_a_disk_refusal_not_a_file_error(self):
         audio = self.root / "book.wav"
         audio.touch()

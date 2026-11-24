@@ -94,6 +94,42 @@ class AudioEncoderStreamingTests(unittest.TestCase):
                                      make_settings(bitrate='128k', cover=str(cover)))
             self.assertEqual(expected.read_bytes(), streamed.read_bytes())
 
+    def test_mapped_and_copied_layouts_match_pydub(self):
+        cases = ((2, 2, PCM), (4, 1, PCM), (4, 2, PCM), (3, 1, PCM[:48000]), (2, 1, b''))
+        for width, channels, data in cases:
+            with self.subTest(width=width, channels=channels, size=len(data)), \
+                    tempfile.TemporaryDirectory() as tmp:
+                raw, streamed, expected = (Path(tmp) / name for name in (
+                    'input.pcm', 'streamed.mp3', 'expected.mp3'))
+                raw.write_bytes(data)
+                segment = AudioSegment(data=data, sample_width=width,
+                                       frame_rate=24000, channels=channels)
+                with expected.open('wb') as handle:
+                    segment.export(handle, format='mp3', bitrate='128k')
+                settings = {**make_settings(width=width, bitrate='128k'), 'channels': channels}
+                audio_export.run_encoder(str(raw), str(streamed), settings)
+                self.assertEqual(expected.read_bytes(), streamed.read_bytes())
+
+    def test_partial_frame_source_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = Path(tmp) / 'input.pcm'
+            raw.write_bytes(PCM + b'x')
+            with self.assertRaisesRegex(ValueError, 'multiple of'):
+                audio_export.run_encoder(str(raw), str(Path(tmp) / 'out.mp3'), make_settings())
+
+    def test_staging_write_failure_is_not_masked_by_mapping_cleanup(self):
+        def fail_holding_buffer(writer, data):
+            view = memoryview(data).cast('B')
+            raise OSError(28, 'No space left on device', str(len(view)))
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = Path(tmp) / 'input.pcm'
+            raw.write_bytes(PCM)
+            with patch('wave.Wave_write.writeframesraw', fail_holding_buffer), \
+                    self.assertRaises(OSError) as raised:
+                audio_export.run_encoder(str(raw), str(Path(tmp) / 'out.mp3'),
+                                         make_settings(bitrate='128k'))
+            self.assertEqual(28, raised.exception.errno)
+
     def test_raw_export_copies_source_bytes(self):
         with tempfile.TemporaryDirectory() as tmp:
             raw, encoded = Path(tmp) / 'input.pcm', Path(tmp) / 'output.raw'
