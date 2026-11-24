@@ -38,6 +38,37 @@ class TaskDiscoveryTests(unittest.TestCase):
             self.assertEqual(before,states)
             self.assertEqual(404,client.get('/api/status/missing').status_code)
 
+    def test_status_snapshot_surfaces_start_time_only_when_the_entry_has_it(self):
+        states={'review':{'running':False,'status':'idle','start_time':200.0,
+                          'logs':['private log'],'pid':1234,'process':object()},
+                'script':{'running':False,'status':'idle','start_time':None,'logs':[]},
+                'persona':{'running':False,'logs':['private persona log']},
+                'future_task':{'running':False}}
+        app=FastAPI();app.include_router(script.router)
+        with patch.object(script,'process_state',states),TestClient(app) as client:
+            res=client.get('/api/status')
+            self.assertEqual(200,res.status_code,res.text)
+            body=res.json()
+            self.assertEqual(200.0,body['review']['start_time'])
+            self.assertIn('start_time',body['script'])
+            self.assertIsNone(body['script']['start_time'])
+            self.assertNotIn('start_time',body['persona'])
+            self.assertNotIn('start_time',body['future_task'])
+            for entry in body.values():
+                self.assertNotIn('logs',entry)
+                self.assertNotIn('pid',entry)
+                self.assertNotIn('process',entry)
+
+    def test_status_snapshot_matches_registry_start_time_keys(self):
+        app=FastAPI();app.include_router(script.router)
+        with TestClient(app) as client:
+            body=client.get('/api/status').json()
+        for name,state in core.process_state.items():
+            if 'start_time' in state:
+                self.assertIn('start_time',body[name],name)
+            else:
+                self.assertNotIn('start_time',body[name],name)
+
 
 SOURCE=Path(__file__).resolve().parent.parent/'static/js/app-workbench.js'
 HARNESS=r"""

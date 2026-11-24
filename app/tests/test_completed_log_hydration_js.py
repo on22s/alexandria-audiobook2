@@ -88,7 +88,9 @@ for(const id of ['script-logs','voices-logs','audio-logs','voicelab-logs']){
     def test_newest_failed_hydration_never_shows_an_older_run_log(self):
         self.run_js(r"""
 const M='Earlier log history could not be loaded. Check the connection, then reload.';
-statuses={review:{running:false,start_time:200},script:{running:false,start_time:100}};
+// Real /api/status shape: lifecycle fields plus start_time for tasks that carry it.
+statuses={review:{running:false,ownership_unconfirmed:false,status:'failed',start_time:200},
+          script:{running:false,ownership_unconfirmed:false,status:'idle',start_time:100}};
 ctx.API.get=async path=>{
   if(path==='/api/status'){return statuses;}
   if(path.endsWith('/review')){throw Error('503');}
@@ -102,7 +104,8 @@ assert.strictEqual(el('script-logs').title,'');
 
     def test_older_failed_hydration_still_shows_the_newest_readable_run(self):
         self.run_js(r"""
-statuses={script:{running:false,start_time:100},review:{running:false,start_time:200}};
+statuses={script:{running:false,ownership_unconfirmed:false,status:'failed',start_time:100},
+          review:{running:false,ownership_unconfirmed:false,status:'idle',start_time:200}};
 ctx.API.get=async path=>{
   if(path==='/api/status'){return statuses;}
   if(path.endsWith('/script')){throw Error('503');}
@@ -117,7 +120,9 @@ assert.strictEqual(el('script-logs').title,'Restored review logs');
     def test_failed_hydration_without_a_timestamp_reports_honestly(self):
         self.run_js(r"""
 const M='Earlier log history could not be loaded. Check the connection, then reload.';
-statuses={script:{running:false},review:{running:false}};
+// Absent start_time is "unknown", not "never ran": report the failure.
+statuses={script:{running:false,ownership_unconfirmed:false,status:'failed'},
+          review:{running:false,ownership_unconfirmed:false,status:'failed'}};
 ctx.API.get=async path=>{
   if(path==='/api/status'){return statuses;}
   if(path.endsWith('/review')){throw Error('503');}
@@ -126,6 +131,90 @@ ctx.API.get=async path=>{
 };
 await ctx.reattachRunningPollers();
 assert.strictEqual(el('script-logs').innerText,M);
+""")
+
+    def test_failed_never_run_task_cannot_outrank_an_older_readable_log(self):
+        self.run_js(r"""
+// Present null + idle status => no run since boot, so it cannot outrank a
+// readable older log (A1).
+statuses={review:{running:false,ownership_unconfirmed:false,status:'idle',start_time:null},
+          script:{running:false,ownership_unconfirmed:false,status:'idle',start_time:100}};
+ctx.API.get=async path=>{
+  if(path==='/api/status'){return statuses;}
+  if(path.endsWith('/review')){throw Error('503');}
+  if(path.endsWith('/script')){return {running:false,start_time:100,logs:['older script log']};}
+  return {running:false,logs:[]};
+};
+await ctx.reattachRunningPollers();
+assert.strictEqual(el('script-logs').innerText,'older script log');
+assert.strictEqual(el('script-logs').title,'Restored script logs');
+""")
+
+    def test_never_run_failure_does_not_hide_a_newer_readable_log(self):
+        self.run_js(r"""
+// A2: the newest readable log succeeded; an unrelated never-run task's fetch
+// fails. The readable log and its tooltip must stay exactly as base.
+statuses={script:{running:false,ownership_unconfirmed:false,status:'idle',start_time:300},
+          review:{running:false,ownership_unconfirmed:false,status:'idle',start_time:100},
+          cast_list:{running:false,ownership_unconfirmed:false,status:'idle',start_time:null}};
+ctx.API.get=async path=>{
+  if(path==='/api/status'){return statuses;}
+  if(path.endsWith('/cast_list')){throw Error('503');}
+  if(path.endsWith('/script')){return {running:false,start_time:300,logs:['newest script log']};}
+  if(path.endsWith('/review')){return {running:false,start_time:100,logs:['older review log']};}
+  return {running:false,start_time:null,logs:[]};
+};
+await ctx.reattachRunningPollers();
+assert.strictEqual(el('script-logs').innerText,'newest script log');
+assert.strictEqual(el('script-logs').title,'Restored script logs');
+""")
+
+    def test_never_run_failure_alone_writes_no_line(self):
+        self.run_js(r"""
+// Present null + idle status with no readable log and no other failure: the
+// task never ran, so there is nothing to report.
+statuses={review:{running:false,ownership_unconfirmed:false,status:'idle',start_time:null}};
+ctx.API.get=async path=>{
+  if(path==='/api/status'){return statuses;}
+  if(path.endsWith('/review')){throw Error('503');}
+  return {running:false,start_time:null,logs:[]};
+};
+await ctx.reattachRunningPollers();
+assert.strictEqual(el('script-logs').innerText,'');
+assert.strictEqual(el('script-logs').children.length,0);
+assert.strictEqual(el('script-logs').title,'');
+""")
+
+    def test_null_start_time_with_non_idle_status_is_unknown(self):
+        self.run_js(r"""
+const M='Earlier log history could not be loaded. Check the connection, then reload.';
+// Present null but status is not idle => unknown, report honestly.
+statuses={review:{running:false,ownership_unconfirmed:false,status:'failed',start_time:null},
+          script:{running:false,ownership_unconfirmed:false,status:'idle',start_time:100}};
+ctx.API.get=async path=>{
+  if(path==='/api/status'){return statuses;}
+  if(path.endsWith('/review')){throw Error('503');}
+  if(path.endsWith('/script')){return {running:false,start_time:100,logs:['older script log']};}
+  return {running:false,logs:[]};
+};
+await ctx.reattachRunningPollers();
+assert.strictEqual(el('script-logs').innerText,M);
+""")
+
+    def test_equal_start_times_are_not_newer(self):
+        self.run_js(r"""
+// Ties are ambiguous; keep the readable newest log rather than replace it.
+statuses={review:{running:false,ownership_unconfirmed:false,status:'failed',start_time:200},
+          script:{running:false,ownership_unconfirmed:false,status:'idle',start_time:200}};
+ctx.API.get=async path=>{
+  if(path==='/api/status'){return statuses;}
+  if(path.endsWith('/review')){throw Error('503');}
+  if(path.endsWith('/script')){return {running:false,start_time:200,logs:['readable tie']};}
+  return {running:false,logs:[]};
+};
+await ctx.reattachRunningPollers();
+assert.strictEqual(el('script-logs').innerText,'readable tie');
+assert.strictEqual(el('script-logs').title,'Restored script logs');
 """)
 
     def test_successful_empty_hydration_does_not_write_the_diagnostic(self):
@@ -197,7 +286,7 @@ assert.strictEqual(el('script-logs').children.length,0);
     def test_a_later_failed_newest_run_replaces_an_already_restored_older_log(self):
         self.run_js(r"""
 const M='Earlier log history could not be loaded. Check the connection, then reload.';
-statuses={review:{running:false,start_time:100}};
+statuses={review:{running:false,ownership_unconfirmed:false,status:'idle',start_time:100}};
 ctx.API.get=async path=>{
   if(path==='/api/status'){return statuses;}
   if(path.endsWith('/review')){return {running:false,start_time:100,logs:['older review log']};}
@@ -205,7 +294,7 @@ ctx.API.get=async path=>{
 };
 await ctx.reattachRunningPollers();
 assert.strictEqual(el('script-logs').innerText,'older review log');
-statuses={review:{running:false,start_time:200}};
+statuses={review:{running:false,ownership_unconfirmed:false,status:'failed',start_time:200}};
 ctx.API.get=async path=>{
   if(path==='/api/status'){return statuses;}
   if(path.endsWith('/review')){throw Error('503');}
@@ -229,10 +318,78 @@ assert.strictEqual(el('script-logs').innerText,'');
 assert.strictEqual(el('script-logs').children.length,0);
 """)
 
+    def test_locale_repaint_then_empty_success_clears_the_line_in_every_locale(self):
+        self.run_js(r"""
+const M='Earlier log history could not be loaded. Check the connection, then reload.';
+const repaints={en:M,ja:'以前のログ履歴を読み込めませんでした。接続を確認してから再読み込みしてください。',
+  'es-419':'No se pudo cargar el historial de registros anterior. Comprueba la conexión y vuelve a cargar.',
+  'zh-CN':'无法加载更早的日志历史。请检查连接，然后重新加载。'};
+statuses={};
+for(const [locale,text] of Object.entries(repaints)){
+  ctx.API.get=async path=>{if(path==='/api/status'){return statuses;}throw Error('offline');};
+  await ctx.reattachRunningPollers();
+  assert.strictEqual(el('script-logs').children.length,1,locale);
+  // The data-i18n sweep repaints the existing node in place.
+  el('script-logs').children[0].textContent=text;
+  assert.strictEqual(el('script-logs').innerText,text,locale);
+  ctx.API.get=async path=>path==='/api/status'?statuses:{running:false,start_time:100,logs:[]};
+  await ctx.reattachRunningPollers();
+  assert.strictEqual(el('script-logs').innerText,'',locale);
+  assert.strictEqual(el('script-logs').children.length,0,locale);
+  assert.strictEqual(el('script-logs').title,'',locale);
+}
+""")
+
+    def test_locale_repaint_then_second_failure_keeps_the_line(self):
+        self.run_js(r"""
+const M='Earlier log history could not be loaded. Check the connection, then reload.';
+statuses={};
+ctx.API.get=async path=>{if(path==='/api/status'){return statuses;}throw Error('offline');};
+await ctx.reattachRunningPollers();
+el('script-logs').children[0].textContent='repainted';
+assert.strictEqual(el('script-logs').innerText,'repainted');
+await ctx.reattachRunningPollers();
+assert.strictEqual(el('script-logs').innerText,M);
+assert.strictEqual(el('script-logs').children.length,1);
+assert.strictEqual(el('script-logs').title,'');
+""")
+
+    def test_locale_repaint_then_readable_success_replaces_the_line(self):
+        self.run_js(r"""
+statuses={};
+ctx.API.get=async path=>{if(path==='/api/status'){return statuses;}throw Error('offline');};
+await ctx.reattachRunningPollers();
+el('script-logs').children[0].textContent='repainted';
+ctx.API.get=async path=>{
+  if(path==='/api/status'){return statuses;}
+  if(path.endsWith('/review')){return {running:false,start_time:200,logs:['readable after repaint']};}
+  return {running:false,start_time:0,logs:[]};
+};
+await ctx.reattachRunningPollers();
+assert.strictEqual(el('script-logs').innerText,'readable after repaint');
+assert.strictEqual(el('script-logs').title,'Restored review logs');
+assert.strictEqual(el('script-logs').children.length,0);
+""")
+
+    def test_repainted_line_is_not_confused_with_foreign_text(self):
+        self.run_js(r"""
+statuses={};
+ctx.API.get=async path=>{if(path==='/api/status'){return statuses;}throw Error('offline');};
+await ctx.reattachRunningPollers();
+assert.strictEqual(el('script-logs').children.length,1);
+// Another writer replaces our node with its own text: an empty success must
+// keep it, matching the protection for text written by other code.
+el('script-logs').innerText='foreign output';
+ctx.API.get=async path=>path==='/api/status'?statuses:{running:false,start_time:100,logs:[]};
+await ctx.reattachRunningPollers();
+assert.strictEqual(el('script-logs').innerText,'foreign output');
+""")
+
     def test_failed_newest_hydration_reports_the_line_even_over_live_text(self):
         self.run_js(r"""
 const M='Earlier log history could not be loaded. Check the connection, then reload.';
-statuses={review:{running:false,start_time:200},script:{running:false,start_time:100}};
+statuses={review:{running:false,ownership_unconfirmed:false,status:'failed',start_time:200},
+          script:{running:false,ownership_unconfirmed:false,status:'idle',start_time:100}};
 ctx.API.get=async path=>{
   if(path==='/api/status'){return statuses;}
   if(path.endsWith('/review')){throw Error('503');}

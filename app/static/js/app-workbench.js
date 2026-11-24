@@ -1809,6 +1809,7 @@
         }
 
         let _reattachGeneration = 0;
+        const _historyPaneNode = new WeakMap();
         const _historyPaneText = new WeakMap();
         function getLogPollGeneration(taskNames) {
             const polls = typeof _pollGen === 'undefined' ? {} : _pollGen;
@@ -1827,16 +1828,21 @@
         }
 
         // A failed hydration must never be papered over with an older run's
-        // log. The failed task's own start time decides whether it outranks the
-        // newest readable log; when the snapshot cannot say, report honestly
-        // rather than guess (the failure may be the newer run).
+        // log. A failed task's finite start time decides whether it outranks the
+        // newest readable log. A present null with an idle status means no run
+        // started since the server booted, so it cannot outrank; absent, or null
+        // with any other status, is unknown, so report honestly.
         function getCompletedLogView(taskNames, hydrated, snapshot, failed) {
             const latest = getLatestCompletedLog(taskNames, hydrated);
             const failures = taskNames.filter(name => failed.has(name));
             if (!failures.length) { return { latest }; }
             const failedIsNewer = failures.some(name => {
-                const start = snapshot?.[name]?.start_time;
-                return !Number.isFinite(start) || !latest || start > latest.start;
+                const entry = snapshot?.[name];
+                if (!entry || !Object.hasOwn(entry, 'start_time')) { return true; }
+                const start = entry.start_time;
+                if (start === null) { return entry.status !== 'idle'; }
+                if (!Number.isFinite(start)) { return true; }
+                return !latest || start > latest.start;
             });
             return { latest, diagnostic: failedIsNewer };
         }
@@ -1901,11 +1907,16 @@
                 const view = getCompletedLogView(group.tasks, hydrated, snapshot, failed);
                 const el = document.getElementById(group.elementId);
                 if (!el) { return; }
-                const previousHistory = _historyPaneText.get(el);
-                if (view.diagnostic && (view.latest || !el.innerText || el.innerText === previousHistory)) {
-                    el.replaceChildren(createUiMessageNode('span', 'core.task.logs-history-failed', 'Earlier log history could not be loaded. Check the connection, then reload.'));
+                const historyNode = _historyPaneNode.get(el);
+                const ownsHistoryPane = Boolean(historyNode) && el.children.length === 1 && el.children[0] === historyNode;
+                const previousText = _historyPaneText.get(el);
+                const ownsPreviousText = previousText !== undefined && el.innerText === previousText;
+                if (view.diagnostic && (view.latest || !el.innerText || ownsHistoryPane || ownsPreviousText)) {
+                    const node = createUiMessageNode('span', 'core.task.logs-history-failed', 'Earlier log history could not be loaded. Check the connection, then reload.');
+                    el.replaceChildren(node);
                     el.title = '';
                     el.scrollTop = el.scrollHeight;
+                    _historyPaneNode.set(el, node);
                     _historyPaneText.set(el, el.innerText);
                     return;
                 }
@@ -1913,9 +1924,11 @@
                     el.innerText = view.latest.logs.join('\n');
                     el.title = t('core.task.logs-restored', 'Restored {task} logs', {task: view.latest.name.replaceAll('_', ' ')});
                     el.scrollTop = el.scrollHeight;
+                    _historyPaneNode.delete(el);
                     _historyPaneText.set(el, el.innerText);
-                } else if (previousHistory !== undefined && el.innerText === previousHistory) {
+                } else if (ownsHistoryPane || ownsPreviousText) {
                     el.replaceChildren();
+                    _historyPaneNode.delete(el);
                     _historyPaneText.delete(el);
                 }
             });
