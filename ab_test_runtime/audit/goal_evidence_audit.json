@@ -1050,16 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T11:21:08",
+  "written": "2026-11-24T13:08:58",
   "host": "mitch-linux",
   "git": {
-   "commit": "ec54e7f17e79af2b5fc128b7cddd4420f1f53317",
-   "branch": "HEAD",
+   "commit": "a978efa252e042a16a28e9cabea1a85afc06b9a9",
+   "branch": "fix/audit-training-2272",
    "dirty": true,
-   "source_state": "dirty:cdc7231c5484",
+   "source_state": "dirty:6e0f8723004f",
    "source_state_detail": null,
    "modified_tracked_files": [
-    " M app/tests/unit_test_inventory.json"
+    "M  app/tests/test_voice_analysis_checkpoint_shards.py",
+    "M  app/voice_analysis_cache.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",

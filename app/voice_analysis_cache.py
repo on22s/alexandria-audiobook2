@@ -158,11 +158,61 @@ def _load_voice_analysis_pickle_file(path, default):
         return default
 
 
-def _load_voice_analysis_pickle_locked(path, default):
-    value = _load_voice_analysis_pickle_file(path, default)
+_UNREADABLE_SHARD = object()
+
+
+def _get_voice_analysis_shard_sequence(name):
+    """Return our shard's sequence prefix, or None for a foreign file name."""
+    prefix = name.split("-")[0]
+    if not (prefix.isascii() and prefix.isdigit()):
+        return None
+    return int(prefix)
+
+
+def _quarantine_voice_analysis_shard(shard, reason):
+    """Warn and preserve a shard this reader cannot merge; never delete it."""
+    import os
+    print(f"Warning: invalid cache shard {shard}: {reason}; preserving as .corrupt")
+    try:
+        os.replace(shard, shard.with_suffix(shard.suffix + ".corrupt"))
+    except OSError:
+        pass
+
+
+def _get_voice_analysis_shard_problem(value, record):
+    """Return why a readable shard cannot be merged, or None when it is valid."""
+    if not isinstance(record, dict):
+        return "record is not a mapping"
+    if "nested" not in record or "updates" not in record:
+        return "record is missing nested/updates"
+    if type(record["nested"]) is not bool:
+        return "nested must be a boolean"
+    updates = record["updates"]
+    if not isinstance(updates, dict):
+        return "updates must be a mapping"
+    if record["nested"]:
+        for component, entries in updates.items():
+            if not isinstance(entries, dict):
+                return f"nested update {component!r} is not a mapping"
+            if isinstance(value, dict) and component in value and not isinstance(value[component], dict):
+                return f"nested update {component!r} cannot merge with the existing value"
+    return None
+
+
+def _merge_voice_analysis_shards(path, value):
+    """Merge durable shards in order; return the value and the shards consumed.
+
+    A shard this reader cannot merge is quarantined beside its siblings rather
+    than dropped, so compaction never deletes work it could not read.
+    """
+    consumed = []
     for shard in sorted(path.with_suffix(path.suffix + ".parts").glob("*.pkl")):
-        record = _load_voice_analysis_pickle_file(shard, None)
-        if record is None:
+        record = _load_voice_analysis_pickle_file(shard, _UNREADABLE_SHARD)
+        if record is _UNREADABLE_SHARD:
+            continue  # Already warned about and quarantined by the file reader.
+        problem = _get_voice_analysis_shard_problem(value, record)
+        if problem is not None:
+            _quarantine_voice_analysis_shard(shard, problem)
             continue
         updates = record["updates"]
         value = dict(value) if value is not None else {}
@@ -171,7 +221,13 @@ def _load_voice_analysis_pickle_locked(path, default):
                 value[component] = {**value.get(component, {}), **entries}
         else:
             value.update(updates)
-    return value
+        consumed.append(shard)
+    return value, consumed
+
+
+def _load_voice_analysis_pickle_locked(path, default):
+    value = _load_voice_analysis_pickle_file(path, default)
+    return _merge_voice_analysis_shards(path, value)[0]
 
 
 def save_voice_analysis_pickle(value, path):
@@ -202,7 +258,9 @@ def save_voice_analysis_checkpoint(updates, path, nested=False):
     with file_lock(path):
         directory = path.with_suffix(path.suffix + ".parts")
         directory.mkdir(exist_ok=True)
-        previous = max((int(part.name.split("-")[0]) for part in directory.glob("*.pkl")), default=0)
+        sequences = (_get_voice_analysis_shard_sequence(part.name)
+                     for part in directory.glob("*.pkl"))
+        previous = max((sequence for sequence in sequences if sequence is not None), default=0)
         sequence = max(time.time_ns(), previous + 1)
         shard = directory / f"{sequence:020d}-{uuid.uuid4().hex}.pkl"
         save_voice_analysis_pickle({"nested": nested, "updates": updates}, shard)
@@ -217,7 +275,8 @@ def compact_voice_analysis_checkpoints(path):
         shards = sorted(directory.glob("*.pkl"))
         if not shards:
             return
-        value = _load_voice_analysis_pickle_locked(path, {})
+        value = _load_voice_analysis_pickle_file(path, {})
+        value, consumed = _merge_voice_analysis_shards(path, value)
         save_voice_analysis_pickle(value, path)
-        for shard in shards:
+        for shard in consumed:
             shard.unlink(missing_ok=True)
