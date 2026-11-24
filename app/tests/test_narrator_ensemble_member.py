@@ -410,7 +410,9 @@ class NarratorEnsembleMemberTests(unittest.TestCase):
                     result = manager.generate_chunks_batch([0, 1], batch_size=2,
                                                            batch_group_by_type=grouped)
                 self.assertEqual([1], result['completed'])
-                self.assertEqual([(0, "Alias cycle detected for speaker 'READER'")], result['failed'])
+                self.assertEqual(1, len(result['failed']))
+                self.assertEqual(0, result['failed'][0][0])
+                self.assertIn('Alias cycle detected', result['failed'][0][1])
                 self.assertEqual(0, result['cancelled'])
                 bad, good = manager.load_chunks()
                 self.assertEqual(('error', None), (bad['status'], bad.get('audio_path')))
@@ -518,7 +520,6 @@ class NarratorEnsembleMemberTests(unittest.TestCase):
                         manager.update_chunk(0, {'take': 3})
                         manager._publish_generated_chunk_audio(manager.load_chunks()[0], str(fresh), speaker)
                         current = manager.load_chunks()[0]
-                        displaced = (root / current['audio_path']).read_bytes()
                         with AudioTakeHistory(root)._locked() as document:
                             saved = next(row for row in document['records']
                                          if row['audio_revision'] == live['audio_revision'])
@@ -745,20 +746,20 @@ class NarratorEnsembleMemberTests(unittest.TestCase):
                         self.assertNotIn('Vivian', [name for name, _, _ in calls])
                         live = manager.load_chunks()[0]
                         full = json.loads(voice_path.read_bytes())
-                        selected = manager.get_chunk_render_voice_config(full, speaker, live, 0)
+                        canonical, selected, _ = get_chunk_render_voice_selection(
+                            full, speaker, live, 0)
                         projected = get_chunk_voice_inputs(full, live, 0)
-                        selected_narrators = {key: value for key, value in selected.items()
-                                              if key.upper() == 'NARRATOR'}
-                        projected_narrators = {key: value for key, value in projected.items()
-                                               if key.upper() == 'NARRATOR'}
-                        self.assertTrue(selected_narrators and projected_narrators,
-                                        (selected_narrators, projected_narrators))
+                        if speaker == 'NARRATOR':
+                            # The explicit alias keeps its canonical target rather
+                            # than being flattened onto the spelling (#2170 R5).
+                            self.assertEqual('Y', canonical)
+                            self.assertEqual('Y', selected['NARRATOR']['alias_of'])
+                        else:
+                            self.assertEqual('Serena', selected['Narrator']['voice'])
                         self.assertEqual({('Serena', 13)},
                                          {(value.get('voice'), value.get('seed'))
-                                          for value in selected_narrators.values()})
-                        self.assertEqual({('Serena', 13)},
-                                         {(value.get('voice'), value.get('seed'))
-                                          for value in projected_narrators.values()},
+                                          for value in projected.values()
+                                          if value.get('voice')},
                                          'Projection disagrees with the rendered narrator alias')
                         self.assertEqual(before, json.loads(voice_path.read_bytes()),
                                          'Resolution mutated the saved voice config')
@@ -823,7 +824,6 @@ class NarratorEnsembleMemberTests(unittest.TestCase):
                     manager._publish_generated_chunk_audio(
                         manager.load_chunks()[0], str(fresh), 'READER')
                     current = manager.load_chunks()[0]
-                    displaced = (root / current['audio_path']).read_bytes()
                     with AudioTakeHistory(root)._locked() as document:
                         saved = next(row for row in document['records']
                                      if row['audio_revision'] == live['audio_revision'])
@@ -1053,7 +1053,7 @@ class NarratorEnsembleMemberTests(unittest.TestCase):
         effective = tts.voice_config_for_chunk(voices, 'GROUP', 0)
         with patch.object(tts, 'resolve_narrator_voice_config',
                           wraps=tts.resolve_narrator_voice_config) as inspect:
-            resolved, reached = tts.resolve_reachable_narrators(
+            resolved, reached = tts.resolve_row_narrators(
                 voices, effective, 'GROUP', row, 0)
         self.assertEqual(set(), set(reached),
                          'A narrator behind a rejected nested ensemble was reached')
@@ -1127,25 +1127,26 @@ class NarratorEnsembleMemberTests(unittest.TestCase):
                                          book_token=snapshot['book_token'],
                                          voices={'NARRATOR': {'alias_of': 'Y'}})
                         data = json.loads(voice_path.read_bytes())
-                        _, resolved, native = get_chunk_render_voice_selection(
+                        canonical, resolved, native = get_chunk_render_voice_selection(
                             data, speaker, row, 0)
-                        if speaker != 'GROUP':
-                            self.assertFalse(
-                                native,
-                                'Native batch would re-read the pre-materialization narrator')
-                        narrator_entries = {key: value for key, value in resolved.items()
-                                            if key.upper() == 'NARRATOR'
-                                            and isinstance(value, dict)}
-                        self.assertEqual({('Serena', 13)},
-                                         {(value.get('voice'), value.get('seed'))
-                                          for value in narrator_entries.values()})
                         projected = get_chunk_voice_inputs(data, row, 0)
-                        projected_narrators = {key: value for key, value in projected.items()
-                                               if key.upper() == 'NARRATOR'
-                                               and isinstance(value, dict)}
+                        if speaker == 'NARRATOR':
+                            # The configured alias keeps its canonical target, so
+                            # the saved-config re-read is still this row (#2170 R5).
+                            self.assertEqual('Y', canonical)
+                            self.assertTrue(native,
+                                            'Static narrator alias lost safe native batching')
+                            self.assertEqual('Y', resolved['NARRATOR']['alias_of'])
+                        elif speaker in ('Narrator', 'READER'):
+                            # The sibling fallback renames the reached spelling, so
+                            # its saved-config re-read is not this row.
+                            self.assertEqual('Narrator', canonical)
+                            self.assertFalse(native)
+                            self.assertEqual('Serena', resolved['Narrator']['voice'])
                         self.assertEqual({('Serena', 13)},
                                          {(value.get('voice'), value.get('seed'))
-                                          for value in projected_narrators.values()})
+                                          for value in projected.values()
+                                          if value.get('voice')})
                         calls, wav = self.render(root, manager, dispatch, windows=windows)
                         self.assertEqual({'Serena'}, {name for name, _, _ in calls})
                         self.assertEqual({13}, {seed for _, _, seed in calls})
@@ -1449,7 +1450,6 @@ class NarratorEnsembleMemberTests(unittest.TestCase):
                                 proof['dependencies']['voice_sha256'],
                                 'Receipt did not bind the spelling own alias')
                         other = 'Narrator' if speaker == 'NARRATOR' else 'NARRATOR'
-                        key = 'alias_of'
                         replacement = {'NARRATOR': {'alias_of': 'Y2'},
                                        'Narrator': {'alias_of': 'Y2'}}[other]
                         with self.routed(root, manager, voice_path):
@@ -1708,6 +1708,196 @@ class NarratorEnsembleMemberTests(unittest.TestCase):
                                  (group_timeline['status'], group_timeline['audio_path']))
                 self.assertEqual('done', healthy_timeline['status'])
                 self.assertNotEqual('rev3-group', group_timeline['voice_revision'])
+
+    def test_timeline_walk_skips_masked_and_nested_members(self):
+        """R1: an alias mask or a rejected nested ensemble hides its members."""
+        from tts import get_chunk_voice_inputs, voice_config_for_chunk
+
+        bad = {'type': 'custom', 'voice': 'Ryan', 'seed': 42,
+               'versions': {'bad': {'character_style': 5}},
+               'version_timeline': [{'from_index': 0, 'version_id': 'bad'}]}
+        y = dict(type='custom', voice='Serena', seed=13)
+        masked = {'ROOT': {'type': 'ensemble', 'alias_of': 'Y', 'members': {'META': 1}},
+                  'Y': y, 'META': bad}
+        effective = voice_config_for_chunk(masked, 'ROOT', 0)
+        self.assertNotEqual(5, effective.get('META', {}).get('character_style'),
+                            'The walker materialized a member hidden behind an alias')
+        self.assertEqual({'Y'}, set(get_chunk_voice_inputs(
+            masked, {'speaker': 'ROOT', 'text': 'x'}, 0)))
+        nested = {'ROOT': {'type': 'ensemble', 'members': ['INNER']},
+                  'INNER': {'type': 'ensemble', 'members': {'META': 1}},
+                  'META': bad, 'Y': y}
+        effective = voice_config_for_chunk(nested, 'ROOT', 0)
+        self.assertNotEqual(5, effective.get('META', {}).get('character_style'),
+                            'The walker descended into a rejected nested ensemble')
+        self.assertEqual({'ROOT', 'INNER'}, set(get_chunk_voice_inputs(
+            nested, {'speaker': 'ROOT', 'text': 'x'}, 0)))
+
+    def test_malformed_optional_sibling_target_does_not_abort_healthy_rows(self):
+        """R2: a malformed optional fallback is unavailable, not fatal."""
+        from contextlib import nullcontext
+        from tts import (get_chunk_render_voice_selection, get_resolved_speaker,
+                         VoiceAliasResolutionError)
+
+        voices = {'NARRATOR': {'alias_of': 'LEGACY'}, 'LEGACY': 'old',
+                  'Narrator': dict(type='custom', voice='Aiden', seed=7),
+                  'READER': {'alias_of': 'Narrator'},
+                  'GROUP': {'type': 'ensemble', 'members': ['READER']},
+                  'Y': dict(type='custom', voice='Serena', seed=13),
+                  'HEALTHY': {'type': 'ensemble', 'members': ['Y']}}
+        row = {'speaker': 'GROUP', 'text': 'Group line.', 'index': 0}
+        canonical, resolved, _ = get_chunk_render_voice_selection(voices, 'GROUP', row, 0)
+        self.assertEqual('GROUP', canonical)
+        self.assertEqual(('Aiden', 7),
+                         (resolved['Narrator']['voice'], resolved['Narrator']['seed']),
+                         'A malformed unreached sibling aborted a healthy group')
+        with self.assertRaises(VoiceAliasResolutionError):
+            get_resolved_speaker('LEGACY', voices)
+        for grouped in (True, False):
+            owner = nullcontext() if grouped else self.case.owner()
+            with self.subTest(grouped=grouped), self.case.fixture() as (root, manager, _, _), owner:
+                manager.save_chunks([
+                    dict(uid='group', index=0, speaker='GROUP', text='Group line.', status='pending'),
+                    dict(uid='good', index=1, speaker='HEALTHY', text='Healthy line.', status='pending')])
+                Path(manager.voice_config_path).write_text(json.dumps(voices))
+                (root / 'annotated_script.json').write_text(
+                    json.dumps([dict(row, speaker=key) for key in voices]))
+                calls = []
+                engine = self._synthetic_engine(manager, calls)
+                with patch.object(manager, 'get_engine', return_value=engine):
+                    result = self._generate_batch(manager, grouped, [0, 1])
+                self.assertEqual([0, 1], sorted(result['completed']), result)
+                self.assertEqual([], result['failed'])
+
+    def test_active_version_alias_precedes_sibling_fallback(self):
+        """R3: the reached spelling's active-version alias wins, and its cycle fails."""
+        from tts import (get_chunk_render_voice_selection, get_custom_voice_request,
+                         VoiceAliasResolutionError)
+
+        voices = {'NARRATOR': {'alias_of': 'Y'},
+                  'Y': dict(type='custom', voice='Serena', seed=13),
+                  'Narrator': {'type': 'custom', 'voice': 'Ryan', 'seed': 42,
+                               'versions': {'V': {'type': 'custom', 'alias_of': 'Z'}},
+                               'version_timeline': [{'from_index': 0, 'version_id': 'V'}]},
+                  'Z': dict(type='custom', voice='Vivian', seed=23),
+                  'READER': {'alias_of': 'Narrator'},
+                  'GROUP': {'type': 'ensemble', 'members': ['READER']}}
+        for speaker in ('Narrator', 'READER', 'GROUP'):
+            row = {'speaker': speaker, 'text': 'Line.', 'index': 0}
+            canonical, resolved, _ = get_chunk_render_voice_selection(voices, speaker, row, 0)
+            key = 'Z' if speaker == 'GROUP' else canonical
+            request = get_custom_voice_request(resolved, key, 'neutral')
+            self.assertEqual(('Vivian', 23), (request.voice, request.seed), speaker)
+        canonical, resolved, _ = get_chunk_render_voice_selection(
+            voices, 'NARRATOR', {'speaker': 'NARRATOR', 'text': 'Line.', 'index': 0}, 0)
+        self.assertEqual('Y', canonical)
+        self.assertEqual('Serena', resolved['Y']['voice'])
+        cycled = json.loads(json.dumps(voices))
+        cycled['Z'] = {'alias_of': 'Narrator'}
+        with self.assertRaises(VoiceAliasResolutionError):
+            get_chunk_render_voice_selection(
+                cycled, 'Narrator', {'speaker': 'Narrator', 'text': 'Line.', 'index': 0}, 0)
+
+    def test_native_eligibility_distinguishes_absent_and_null_voice(self):
+        """R4: absent and explicit null are different provider requests."""
+        from tts import get_chunk_render_voice_selection, get_custom_voice_request, voice_config_for_chunk
+
+        voices = {'NARRATOR': {'alias_of': 'Y'},
+                  'Y': {'type': 'custom', 'seed': '13',
+                        'versions': {'V': {'type': 'custom', 'seed': '13'}},
+                        'version_timeline': [{'from_index': 0, 'version_id': 'V'}]},
+                  'Narrator': {'type': 'custom', 'seed': '13',
+                               'versions': {'V': {'type': 'custom', 'voice': None, 'seed': '13'}},
+                               'version_timeline': [{'from_index': 0, 'version_id': 'V'}]}}
+        row = {'speaker': 'Narrator', 'text': 'Line.', 'index': 0}
+        canonical, resolved, native = get_chunk_render_voice_selection(voices, 'Narrator', row, 0)
+        self.assertFalse(native, 'Native re-read would send a different request')
+        request = get_custom_voice_request(resolved, canonical, 'neutral')
+        self.assertEqual(('Ryan', 13), (request.voice, request.seed))
+        saved = voice_config_for_chunk(voices, 'Narrator', 0)['Narrator']
+        self.assertIn('voice', saved)
+        self.assertIsNone(saved['voice'])
+
+    def test_explicit_alias_keeps_canonical_pronunciation_target(self):
+        """R5: an explicit alias keeps its target identity and safe native batch."""
+        from tts import get_chunk_render_voice_selection, get_chunk_voice_inputs
+
+        voices = {'NARRATOR': {'type': 'custom', 'voice': 'Ryan', 'seed': 42,
+                               'alias_of': 'Y'},
+                  'Y': dict(type='custom', voice='Serena', seed=13)}
+        row = {'speaker': 'NARRATOR', 'text': 'Ann.', 'index': 0}
+        canonical, resolved, native = get_chunk_render_voice_selection(voices, 'NARRATOR', row, 0)
+        self.assertEqual('Y', canonical)
+        self.assertTrue(native, 'A static explicit alias lost native batching')
+        self.assertEqual('Y', resolved['NARRATOR']['alias_of'])
+        self.assertEqual({'Y'}, set(get_chunk_voice_inputs(voices, row, 0)),
+                         'Projection was re-keyed away from the canonical target')
+
+    def test_fallback_ensemble_materializes_member_overlays(self):
+        """R6: a fallback onto an ensemble keeps its members' active overlays."""
+        from tts import get_chunk_render_voice_selection
+
+        voices = {'NARRATOR': {'alias_of': 'K'},
+                  'Narrator': dict(type='custom', voice='Ryan', seed=42),
+                  'READER': {'alias_of': 'Narrator'},
+                  'K': {'type': 'ensemble', 'members': ['Z']},
+                  'Z': {'type': 'custom', 'voice': 'Ryan', 'seed': 42,
+                        'versions': {'V': {'type': 'custom', 'voice': 'Aiden', 'seed': 7}},
+                        'version_timeline': [{'from_index': 0, 'version_id': 'V'}]}}
+        for speaker in ('Narrator', 'READER', 'NARRATOR', 'K'):
+            row = {'speaker': speaker, 'text': 'Line.', 'index': 0}
+            canonical, resolved, _ = get_chunk_render_voice_selection(voices, speaker, row, 0)
+            self.assertEqual(('Aiden', 7),
+                             (resolved['Z']['voice'], resolved['Z']['seed']), speaker)
+        group = json.loads(json.dumps(voices))
+        group['GROUP'] = {'type': 'ensemble', 'members': ['Narrator']}
+        canonical, resolved, _ = get_chunk_render_voice_selection(
+            group, 'GROUP', {'speaker': 'GROUP', 'text': 'Line.', 'index': 0}, 0)
+        self.assertEqual('custom', resolved['Narrator'].get('type'),
+                         'A flat cast member was converted into a nested ensemble')
+
+    def test_reached_spellings_resolve_deterministically(self):
+        """R7: member order and process hash order cannot change the decision."""
+        from tts import get_chunk_render_voice_selection
+
+        cast = {'NARRATOR': {'type': 'custom', 'voice': 'Ryan', 'seed': 42,
+                             'narrator_strategy': 'focus'},
+                'Narrator': {'type': 'custom', 'voice': 'Ryan', 'seed': 42,
+                             'versions': {'V': {'type': 'custom', 'voice': 'Vivian', 'seed': 23}},
+                             'version_timeline': [{'from_index': 0, 'version_id': 'V'}]},
+                'FOCUS': {'alias_of': 'Narrator'},
+                'GROUP': {'type': 'ensemble', 'members': ['NARRATOR', 'Narrator']}}
+        row = {'speaker': 'GROUP', 'text': 'Line.', 'index': 0, 'focus_speaker': 'FOCUS'}
+        decisions = []
+        for members in (['NARRATOR', 'Narrator'], ['Narrator', 'NARRATOR']):
+            variant = json.loads(json.dumps(cast))
+            variant['GROUP']['members'] = members
+            canonical, resolved, _ = get_chunk_render_voice_selection(variant, 'GROUP', row, 0)
+            decisions.append((canonical,
+                              resolved['NARRATOR'].get('voice'),
+                              resolved['Narrator'].get('voice')))
+        self.assertEqual(decisions[0], decisions[1])
+        self.assertEqual('Vivian', decisions[0][1])
+        self.assertEqual('Vivian', decisions[0][2])
+
+    def test_dynamic_narrator_member_without_own_entry_matches_direct(self):
+        """R8: a dynamic narrator spelling need not have a separate saved entry."""
+        expected = {'gender': ('Aiden', 7), 'chapter': ('Aiden', 7),
+                    'focus': ('Vivian', 23)}
+        for strategy, (voice, seed) in expected.items():
+            for dispatch in ('single', 'batch'):
+                with self.subTest(strategy=strategy, dispatch=dispatch), \
+                        self.case.fixture() as (root, manager, _, _), self.case.owner():
+                    self.install_dynamic(root, manager, strategy, 'Narrator')
+                    saved = json.loads(Path(manager.voice_config_path).read_text())
+                    self.assertNotIn('Narrator', saved)
+                    group, _ = self.render(root, manager, dispatch)
+                    self.assertEqual((voice, 'neutral', seed), group[0])
+                    manager.save_chunks([dict(manager.load_chunks()[0], speaker='Narrator')])
+                    solo, _ = self.render(root, manager, dispatch)
+                    self.assertEqual([(voice, 'neutral', seed)], solo)
+                    self.assertEqual(group[0], solo[0],
+                                     'Member spelling without an entry lost the row context')
 
 if __name__ == '__main__':
     unittest.main()

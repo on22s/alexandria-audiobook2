@@ -322,13 +322,23 @@ class VoiceAliasResolutionError(ValueError):
 
 
 def get_resolved_speaker(speaker, voice_config):
-    """Follow speaker aliases, refusing cycles or an excessive chain."""
+    """Follow speaker aliases, refusing cycles or an excessive chain.
+
+    A truthy non-object target is a malformed entry. Raising the row-scoped
+    alias error (rather than an AttributeError) lets a reached row settle and
+    lets an optional fallback treat the edge as unavailable (#2170 R2).
+    """
     name, seen = speaker, set()
     for _ in range(16):
         if name in seen:
             raise VoiceAliasResolutionError(f"Alias cycle detected for speaker '{speaker}'")
         seen.add(name)
-        entry = voice_config.get(name) or {}
+        entry = (voice_config or {}).get(name)
+        if not entry:
+            return name
+        if not isinstance(entry, dict):
+            raise VoiceAliasResolutionError(
+                f"Voice configuration for speaker '{name}' is malformed")
         alias = get_voice_alias(entry)
         if alias is None:
             return name
@@ -381,33 +391,67 @@ def validate_ensemble_members(members):
             "every name must be text.")
 
 
-def voice_config_for_chunk(voice_config, speaker, chunk_index):
-    """Apply selected versions before walking their members and aliases.
-    Every reachable voice uses the containing line's source index."""
-    if not isinstance((voice_config or {}).get(speaker), dict):
-        return voice_config
-    pending, seen, updates = [speaker], set(), {}
+def get_materialized_voice_entry(voice_config, name, chunk_index):
+    """One saved entry with its active version and style timeline applied.
+
+    The single entry-level materialization shared by the row walker, narrator
+    resolution and projection, so every consumer reads the same overlay
+    (#2170 R7)."""
+    data = (voice_config or {}).get(name)
+    if not isinstance(data, dict):
+        return None
+    version_id = active_version_id(data, chunk_index) if data.get("version_timeline") else None
+    versioned = get_voice_config_for_version(data, version_id or None)
+    if versioned is not data:
+        data = versioned
+    if data.get("style_timeline"):
+        data = {**data, "character_style": active_character_style(data, chunk_index)}
+    return data
+
+
+def iter_dispatch_voice_names(voice_config, speaker, chunk_index):
+    """The ordered ``(name, is_member)`` entries dispatch reads for one row.
+
+    Dispatch follows a selected alias exclusively and renders only the root
+    ensemble's members: a member that is itself an ensemble is refused before
+    its descendants are read. Mirroring those boundaries keeps a malformed
+    entry behind a mask or in a rejected nested ensemble unread (#2170 R1/R3).
+    Order follows the saved member order, never hash iteration order (#2170 R7).
+    """
+    pending, seen, result = [(speaker, False)], set(), []
     while pending:
-        name = pending.pop()
-        if name in seen:
+        name, is_member = pending.pop(0)
+        if name in seen or not isinstance(name, str):
             continue
         seen.add(name)
-        data = voice_config.get(name)
-        if not isinstance(data, dict):
+        result.append((name, is_member))
+        entry = get_materialized_voice_entry(voice_config, name, chunk_index)
+        if not isinstance(entry, dict):
             continue
-        version_id = active_version_id(data, chunk_index) if data.get("version_timeline") else None
-        versioned = get_voice_config_for_version(data, version_id or None)
-        if versioned is not data:
-            updates[name] = data = versioned
-        if data.get("style_timeline"):
-            data = {**data, "character_style": active_character_style(data, chunk_index)}
-            updates[name] = data
-        alias = get_voice_alias(data)
+        alias = get_voice_alias(entry)
         if alias is not None:
-            pending.append(alias)
-        if voice_category(data) == "ensemble":
-            pending.extend(member for member in get_ensemble_member_names(data)
+            pending.append((alias, is_member))
+            continue
+        if not is_member and voice_category(entry) == "ensemble":
+            pending.extend((member, True) for member in get_ensemble_member_names(entry)
                            if isinstance(member, str))
+    return result
+
+
+def voice_config_for_chunk(voice_config, speaker, chunk_index):
+    """Materialize every entry dispatch can read for one row.
+
+    Every reachable voice uses the containing line's source index. A selected
+    alias masks its members and only the root ensemble's members are expanded,
+    so the walk matches dispatch instead of over-consuming an unused member
+    (#2170 R1/R3)."""
+    if not isinstance((voice_config or {}).get(speaker), dict):
+        return voice_config
+    updates = {}
+    for name, _ in iter_dispatch_voice_names(voice_config, speaker, chunk_index):
+        entry = get_materialized_voice_entry(voice_config, name, chunk_index)
+        if entry is not None and entry is not voice_config.get(name):
+            updates[name] = entry
     return {**voice_config, **updates} if updates else voice_config
 
 
@@ -421,13 +465,19 @@ NARRATOR_SPELLINGS = ("NARRATOR", "Narrator")
 
 
 def is_narrator_name(name):
-    """Whether a spelling is a narrator key the resolver recognizes."""
+    """Whether a spelling is a narrator key the strategy resolver recognizes."""
     return isinstance(name, str) and name.upper() == "NARRATOR"
 
 
 def get_saved_voice_alias(voice_config, name):
     """The explicit alias saved on a name, or None (never raises on a null entry)."""
     entry = (voice_config or {}).get(name)
+    return get_voice_alias(entry) if isinstance(entry, dict) else None
+
+
+def get_effective_saved_alias(voice_config, name, chunk_index):
+    """The alias a name actually uses after its active version is applied."""
+    entry = get_materialized_voice_entry(voice_config, name, chunk_index)
     return get_voice_alias(entry) if isinstance(entry, dict) else None
 
 
@@ -445,24 +495,19 @@ def get_configured_narrator_spelling(voice_config):
 
 
 def finalize_resolved_voice_config(resolved, speaker=None, names=None):
-    """Make row-resolved narrator choices final for every downstream reader.
+    """Strip a row-resolved narrator strategy so the engine cannot re-resolve it.
 
-    A narrator can also be reached as an ensemble member, directly or through
-    an alias, where the row's top-level speaker is the ensemble rather than
-    NARRATOR. Finalize every reached narrator spelling, plus the spelling the
-    engine's resolver reads first, so the engine never re-applies a dynamic
-    strategy without this row's chunk context (#2170). Callers that already
-    walked the cast pass `names` to avoid scanning it again.
+    Dynamic selection happens once per row in `resolve_row_narrators`; leaving
+    `narrator_strategy` on a canonical narrator spelling lets the engine
+    re-apply it without this row's chunk context (#2170). Every canonical
+    spelling is finalized because the engine reads NARRATOR before Narrator
+    regardless of which spelling the row reached.
     """
-    if names is not None and not names:
-        return resolved
-    if names is None:
-        targets = [key for key in resolved if is_narrator_name(key)]
-    else:
-        targets = list(names)
-        for key in NARRATOR_SPELLINGS:
-            if key in resolved and key not in targets:
-                targets.append(key)
+    targets = [key for key in resolved if key in NARRATOR_SPELLINGS]
+    if names:
+        targets.extend(name for name in names if name not in targets)
+    if isinstance(speaker, str) and is_narrator_name(speaker) and speaker not in targets:
+        targets.append(speaker)
     final = None
     for name in targets:
         entry = resolved.get(name)
@@ -476,105 +521,90 @@ def finalize_resolved_voice_config(resolved, speaker=None, names=None):
     return resolved if final is None else final
 
 
-def resolve_reachable_narrators(voices, effective, speaker, chunk, index):
-    """Resolve each reachable narrator with this row's context before finalizing.
+def get_row_narrator_selection(voice_config, chunk, chunk_index):
+    """The one row-effective narrator choice, or None when nothing overrides.
 
-    An ensemble member can be the narrator, directly or through an alias. Its
-    dynamic gender/chapter/focus strategy must see the row exactly as a direct
-    narrator render would, not be dropped before the engine dispatches it
-    (#2170). Only names reachable from this row's speaker are visited, and an
-    entry carrying an alias is followed exclusively: dispatch never reads the
-    members a selected alias masks, so neither does this walk.
+    A configured alias is the fallback for the sibling spelling; otherwise a
+    dynamic strategy resolves from this row's context. Computed once per row so
+    two reached spellings cannot overwrite each other in traversal order
+    (#2170 R3/R7/R8).
     """
+    spelling = get_configured_narrator_spelling(voice_config)
+    if spelling is None:
+        return None
+    chain = voice_config_for_chunk(voice_config, spelling, chunk_index)
+    if get_effective_saved_alias(chain, spelling, chunk_index) is not None:
+        target = get_resolved_speaker(spelling, chain)
+        selected = chain.get(target) if isinstance(chain, dict) else None
+        return (target, selected, chain) if isinstance(selected, dict) else None
+    selection = resolve_narrator_voice_config(spelling, voice_config, chunk)
+    if selection is voice_config:
+        # A global strategy with no alias leaves the saved entry authoritative;
+        # it must not overwrite a distinct sibling spelling.
+        return None
+    materialized = voice_config_for_chunk(selection, spelling, chunk_index)
+    target = get_resolved_speaker(spelling, materialized)
+    selected = materialized.get(target) if isinstance(materialized, dict) else None
+    return (target, selected, materialized) if isinstance(selected, dict) else None
+
+
+def resolve_row_narrators(voices, effective, speaker, chunk, chunk_index):
+    """Settle every narrator dispatch can reach with this row's context.
+
+    Deterministic: reachable names come from ordered casts, and one
+    row-effective narrator selection is computed before it is applied, so two
+    reached spellings cannot overwrite each other (#2170 R7). A reached
+    spelling's own effective alias always wins over the sibling fallback
+    (#2170 R3/R5); an unreached configured spelling's malformed alias is only
+    an unavailable fallback (#2170 R2), while a reached one still raises.
+    """
+    reachable = iter_dispatch_voice_names(effective, speaker, chunk_index)
+    reached, member = [], {}
+    for name, is_member in reachable:
+        if not is_narrator_name(name):
+            continue
+        if name not in member:
+            reached.append(name)
+        member[name] = member.get(name, False) or is_member
+    paths = [name for name in reached if name in NARRATOR_SPELLINGS]
+    if not paths:
+        return effective, reached
+    spelling = get_configured_narrator_spelling(voices)
+    selection = selection_target = selection_chain = None
+    if spelling is not None:
+        try:
+            selected = get_row_narrator_selection(voices, chunk, chunk_index)
+        except VoiceAliasResolutionError:
+            if spelling in reached:
+                raise
+            # The configured spelling is not rendered by this row; its broken
+            # alias cannot affect a sibling spelling's own resolution.
+            selected = None
+        if selected is not None:
+            selection_target, selection, selection_chain = selected
     resolved = effective
-    narrators = set()
-    pending, seen = [(speaker, True)], set()
-    while pending:
-        name, expand_members = pending.pop()
-        if name in seen or not isinstance(name, str):
+    for name in paths:
+        entry = get_materialized_voice_entry(resolved, name, chunk_index)
+        if isinstance(entry, dict) and get_voice_alias(entry) is not None:
+            # An explicit alias (raw or from the active version) is what
+            # dispatch follows; never replace it with the sibling's target.
             continue
-        seen.add(name)
-        entry = resolved.get(name)
-        if not isinstance(entry, dict):
+        if not isinstance(selection, dict):
             continue
-        if is_narrator_name(name):
-            narrators.add(name)
-        alias = get_voice_alias(entry)
-        if alias is not None:
-            pending.append((alias, expand_members))
-            continue
-        # Only the row's own root ensemble is rendered; dispatch refuses a
-        # member that is itself an ensemble before reading its descendants.
-        # Mirror that here so unreachable nodes are never inspected (#2170 R3).
-        if voice_category(entry) == "ensemble" and expand_members:
-            pending.extend((member, False) for member in get_ensemble_member_names(entry)
-                           if isinstance(member, str))
-    narrator_spelling = saved_narrator_alias = None
-    if narrators:
-        narrator_spelling = get_configured_narrator_spelling(voices)
-        saved_narrator_alias = (get_saved_voice_alias(voices, narrator_spelling)
-                                if narrator_spelling else None)
-    for name in narrators:
-        own_alias = get_saved_voice_alias(voices, name)
-        # A reached spelling's own explicit alias is what dispatch follows; it is
-        # never overwritten by the other narrator spelling's alias (#2170 F3).
-        if name != narrator_spelling and own_alias is not None:
-            continue
-        if saved_narrator_alias is not None:
-            # Dispatch consults this entry's alias. Materialize the alias target
-            # and its version/timeline chain onto every reached spelling that
-            # does not carry a distinct alias of its own, so an engine
-            # re-resolution can neither fall back to a dynamic strategy nor read
-            # the un-aliased spelling (#2170 R1).
-            try:
-                chain = voice_config_for_chunk(voices, narrator_spelling, index)
-                target = get_resolved_speaker(narrator_spelling, chain)
-            except VoiceAliasResolutionError:
-                if name == narrator_spelling:
-                    raise
-                # The configured spelling is unreached from this row and its
-                # alias is malformed (e.g. an upgraded v4 cycle). Dispatch would
-                # never follow that edge, so resolve the reached spelling exactly
-                # as dispatch does instead of failing the healthy row, its
-                # projection or an unrelated voice save (#2170 F2).
-                pass
-            else:
-                selected = chain.get(target) if isinstance(chain, dict) else None
-                if isinstance(selected, dict):
-                    if resolved is effective:
-                        resolved = dict(effective)
-                    targets = {key for key in narrators
-                               if key == narrator_spelling
-                               or get_saved_voice_alias(voices, key) is None}
-                    # The engine's resolver may read the sibling spelling first,
-                    # so settle any spelling present in the row that does not
-                    # carry a distinct alias of its own (#2170 R1/F3).
-                    for key in NARRATOR_SPELLINGS:
-                        if key in resolved and (key == narrator_spelling
-                                or get_saved_voice_alias(voices, key) is None):
-                            targets.add(key)
-                    for key in targets:
-                        resolved[key] = selected
-                    continue
-        if own_alias is not None:
-            # An explicit saved narrator alias outranks a dynamic strategy.
-            continue
-        selection = resolve_narrator_voice_config(name, voices, chunk)
-        materialized = voice_config_for_chunk(selection, name, index)
-        selected = materialized.get(name)
-        entry = resolved.get(name)
-        if not isinstance(selected, dict) or selected == entry:
+        if member.get(name) and voice_category(selection) == "ensemble":
+            # Keep a flat cast playable: turning a member into the fallback's
+            # ensemble would be a rejected nested ensemble.
             continue
         if resolved is effective:
             resolved = dict(effective)
-        if materialized is not selection:
-            # Carry the selected voice's own alias/version chain (e.g. a focus
-            # alias whose target has an active timeline) into the row config.
-            for key, value in materialized.items():
-                if value is not selection.get(key):
-                    resolved[key] = value
-        resolved[name] = selected
-    return resolved, narrators
+        if selection_chain is not None:
+            for descendant, _ in iter_dispatch_voice_names(
+                    selection_chain, selection_target, chunk_index):
+                value = selection_chain.get(descendant)
+                if isinstance(value, dict):
+                    resolved[descendant] = value
+        resolved[name] = selection
+    return resolved, reached
 
 
 def native_batch_matches_resolved(voices, name, index, resolved):
@@ -583,16 +613,18 @@ def native_batch_matches_resolved(voices, name, index, resolved):
     Native batch consumers (`_local_batch_custom`/clone/LoRA/design) re-derive
     the canonical entry with `voice_config_for_chunk(voices, name, index)`
     instead of using the row-resolved voices. That re-read is only equivalent
-    when the render identity agrees; narrator alias/strategy materialization can
-    change it without clearing `native_batch`, which made a batch render the
-    pre-materialization narrator while single/projection used the alias target
-    (#2170 F1).
+    when the render identity agrees, including whether a field is absent versus
+    explicitly null: the two produce different provider requests through the
+    category defaults (#2170 F1/R4).
     """
     entry = resolved.get(name)
     expected = voice_config_for_chunk(voices, name, index).get(name)
     if not isinstance(entry, dict) or not isinstance(expected, dict):
         return entry == expected
-    return all(entry.get(field) == expected.get(field) for field in VOICE_RENDER_IDENTITY_FIELDS)
+    for field in VOICE_RENDER_IDENTITY_FIELDS:
+        if (field in entry, entry.get(field)) != (field in expected, expected.get(field)):
+            return False
+    return True
 
 
 def get_chunk_render_voice_selection(voices, speaker, chunk, index):
@@ -606,7 +638,7 @@ def get_chunk_render_voice_selection(voices, speaker, chunk, index):
         saved_alias = get_voice_alias(voices.get(name) or {})
         selected = voices if saved_alias else resolve_narrator_voice_config(name, voices, chunk)
         effective = voice_config_for_chunk(selected, name, index)
-        effective, reached = resolve_reachable_narrators(voices, effective, name, chunk, index)
+        effective, reached = resolve_row_narrators(voices, effective, name, chunk, index)
         narrator_names.update(reached)
         alias = get_voice_alias(effective.get(name) or {})
         native_batch = native_batch and selected is voices and alias == saved_alias
@@ -623,19 +655,28 @@ def get_chunk_render_voice_selection(voices, speaker, chunk, index):
 
 
 def get_chunk_voice_inputs(voices, chunk, index, resolve_alias=None):
-    """Read effective inputs with the selected root first, then member voices."""
+    """Read effective inputs with the selected root first, then member voices.
+
+    Only the root ensemble's members are read; a member that is itself an
+    ensemble is refused by dispatch, so its descendants are not projected
+    (#2170 R1).
+    """
     resolve_alias = resolve_alias or get_resolved_speaker
     speaker, effective, _ = get_chunk_render_voice_selection(voices, chunk.get("speaker"), chunk, index)
     fields = VOICE_RENDER_IDENTITY_FIELDS
-    inputs, pending = {}, [speaker]
+    inputs, pending, seen = {}, [(speaker, False)], set()
     while pending:
-        name = resolve_alias(pending.pop(), effective)
+        name, is_member = pending.pop(0)
+        if name in seen:
+            continue
+        seen.add(name)
+        name = resolve_alias(name, effective)
         if name in inputs:
             continue
         config = effective.get(name) or {}
         inputs[name] = {field: copy.deepcopy(config.get(field)) for field in fields}
-        if voice_category(config) == "ensemble":
-            pending.extend(member for member in get_ensemble_member_names(config)
+        if not is_member and voice_category(config) == "ensemble":
+            pending.extend((member, True) for member in get_ensemble_member_names(config)
                            if isinstance(member, str))
     return inputs
 
