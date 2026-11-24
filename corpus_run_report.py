@@ -12,6 +12,7 @@ import tempfile
 from alexandria_run_manifest import get_file_identity, write_json_atomic
 from alexandria_file_lock import acquire_exclusive_file_lock
 from alexandria_zip_publication import ensure_zip_family_readable
+from corpus_pairs import CorpusPairError, validate_corpus_pair
 
 
 def get_dataset_identity(output):
@@ -110,7 +111,8 @@ def save_corpus_report(index, output_dir):
         audio_name = row['audio'] if isinstance(row['audio'], str) and row['audio'] else None
         values = [index['run_id'], Path(audio_name).name if audio_name else '-', status] + ['-'] * 10
         if status != 'no source match':
-            attempted += 1
+            if row.get('attempted', True):
+                attempted += 1
             try:
                 if status != 'completed':
                     raise ValueError(status)
@@ -138,8 +140,11 @@ def save_corpus_report(index, output_dir):
                     warnings.append(f"{label}: {counters['realign_events']} realign events; inspect cursor recovery.")
             except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
                 failures += 1
-                values[2] = 'failed: ' + str(error)
-                print(f"FAILED: {row['audio']}: {error}", file=sys.stderr, flush=True)
+                message = str(error)
+                if not message.startswith('failed: '):
+                    message = 'failed: ' + message
+                values[2] = message
+                print(f"FAILED: {row['audio']}: {message}", file=sys.stderr, flush=True)
         lines.append('| ' + ' | '.join(cell(v) for v in values) + ' |')
     lines += ['', '## Aggregate stats across completed pairs', '',
         f"- Total segments emitted: **{sum(d['totals']['segments_total'] for d in metrics)}**",
@@ -209,19 +214,11 @@ def run_corpus(repo, pairs_path, output_dir, model, fallback):
         write_json_atomic(index, output_dir / 'corpus_attempts.json')
     save_index()
     for pair in pairs:
-        audio_name = (pair.get('audio') if isinstance(pair, dict) else None)
-        row_audio = audio_name if isinstance(audio_name, str) and audio_name else None
         try:
-            if not isinstance(pair, dict):
-                raise TypeError('pair must be an object')
-            if row_audio is None:
-                raise ValueError('pair audio must be a nonempty path string')
-            source_value = pair['source']
-            if source_value is not None and not isinstance(source_value, str):
-                raise ValueError('pair source must be a path string or null')
-        except (KeyError, TypeError, ValueError) as error:
-            index['rows'].append({'audio': row_audio, 'source': None,
-                                  'status': 'failed: ' + str(error)})
+            row_audio, source_value = validate_corpus_pair(pair)
+        except CorpusPairError as error:
+            index['rows'].append({'audio': error.audio, 'source': None,
+                                  'status': 'failed: ' + str(error), 'attempted': False})
             print(f"FAILED: {pair!r}: {error}", file=sys.stderr, flush=True)
             save_index()
             continue

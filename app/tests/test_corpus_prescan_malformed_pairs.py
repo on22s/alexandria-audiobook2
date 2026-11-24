@@ -59,6 +59,13 @@ class CorpusAlignmentPrescanMalformedPairTests(unittest.TestCase):
         self.assertEqual(len(pairs) + 1, len(report['rows']))
         for row in report['rows'][:-1]:
             self.assertTrue(row['status'].startswith('failed: '), row)
+        self.assertEqual('a.wav', report['rows'][0]['audio'])
+        self.assertEqual("failed: 'source'", report['rows'][0]['status'])
+        self.assertEqual('failed: pair must be an object', report['rows'][1]['status'])
+        self.assertEqual('failed: pair audio must be a nonempty path string',
+                         report['rows'][2]['status'])
+        self.assertEqual('failed: pair source must be a path string or null',
+                         report['rows'][-2]['status'])
         self.assertEqual('a.wav', report['rows'][-2]['audio'])
         self.assertTrue(report['rows'][-2]['status'].startswith('failed: '))
         self.assertEqual('measured', report['rows'][-1]['status'])

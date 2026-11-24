@@ -25,6 +25,7 @@ class CorpusRunReportMalformedPairTests(unittest.TestCase):
             {'audio': None, 'source': None},
             {'audio': 5, 'source': None},
             {'audio': '', 'source': None},
+            {'audio': 'c.wav', 'source': 5},
             {'audio': 'b.wav', 'source': None},
         ]
         with tempfile.TemporaryDirectory() as tmp:
@@ -40,11 +41,21 @@ class CorpusRunReportMalformedPairTests(unittest.TestCase):
         self.assertEqual(len(pairs), len(index['rows']))
         for row in index['rows'][:-1]:
             self.assertTrue(row['status'].startswith('failed: '), row)
+        self.assertEqual('a.wav', index['rows'][0]['audio'])
+        self.assertEqual("failed: 'source'", index['rows'][0]['status'])
+        self.assertEqual('failed: pair must be an object', index['rows'][1]['status'])
+        self.assertEqual('failed: pair audio must be a nonempty path string',
+                         index['rows'][-3]['status'])
+        self.assertEqual('failed: pair source must be a path string or null',
+                         index['rows'][-2]['status'])
+        self.assertEqual('c.wav', index['rows'][-2]['audio'])
         self.assertEqual('no source match', index['rows'][-1]['status'])
         self.assertIn('| - | failed:', report)
         self.assertIn("'source'", report)
         self.assertIn('pair must be an object', report)
-        self.assertIn('5 pair(s) failed', report)
+        self.assertIn('6 pair(s) failed', report)
+        self.assertIn('0 attempted', report)
+        self.assertNotIn('failed: failed:', report)
 
     def test_report_reader_records_a_failed_row_without_an_audio_path(self):
         module = load_subject()

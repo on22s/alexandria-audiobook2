@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 
 from alexandria_run_manifest import get_file_identity, write_json_atomic
+from corpus_pairs import CorpusPairError, validate_corpus_pair
 
 PRESCAN_SAMPLE_COUNT = 30
 # Existing ASR windows cover 30 + 29 * 27 = 813 seconds. Sparse speech may
@@ -93,19 +94,11 @@ def main():
     run_dir = Path(tempfile.mkdtemp(prefix='prescan-', dir=reports_root))
     rows, failures, attempted = [], 0, 0
     for pair in pairs:
-        audio_name = (pair.get('audio') if isinstance(pair, dict) else None)
-        row_audio = audio_name if isinstance(audio_name, str) and audio_name else None
         try:
-            if not isinstance(pair, dict):
-                raise TypeError('pair must be an object')
-            if row_audio is None:
-                raise ValueError('pair audio must be a nonempty path string')
-            source_value = pair['source']
-            if source_value is not None and not isinstance(source_value, str):
-                raise ValueError('pair source must be a path string or null')
-        except (KeyError, TypeError, ValueError) as error:
+            row_audio, source_value = validate_corpus_pair(pair)
+        except CorpusPairError as error:
             failures += 1
-            rows.append({'audio': row_audio, 'source': None,
+            rows.append({'audio': error.audio, 'source': None,
                          'status': 'failed: ' + str(error)})
             print(f"FAILED: {pair!r}: {error}", flush=True)
             continue
