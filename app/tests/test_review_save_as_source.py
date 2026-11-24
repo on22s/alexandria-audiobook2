@@ -253,6 +253,39 @@ class ReviewSaveAsSourceTests(unittest.TestCase):
             with self.assertRaises(spans.review.ReviewSourceContradiction):
                 spans.review.get_review_source_snapshot(str(data), str(active), updated, changed)
 
+    def test_review_preserves_pre_review_key_order_on_every_entry_point(self):
+        rows = [{'text': RAW, 'speaker': 'NARRATOR', 'speaker_gender': 'male',
+                 'speaker_age_group': 'adult', 'speaker_ageless': False,
+                 'instruct': 'Plain narration.', 'spoken': False,
+                 'source_span': [0, len(RAW)]}]
+        expected = list(rows[0])
+        paths = (('loaded', 0), ('loaded', 2), ('direct', 2), ('batch', 2))
+        for custom, (mode, count) in product((False, True), paths):
+            with self.subTest(custom=custom, mode=mode, count=count), \
+                    TemporaryDirectory() as tmp, ExitStack() as stack:
+                data, active, _, _, api = self.workspace(
+                    Path(tmp), stack, custom=custom, rows=rows)
+                name = self.save_copy(api, count)
+                saved = data / 'scripts' / f'{name}.json'
+                if mode == 'loaded':
+                    self.library_request(api, 'load', name)
+                    output = active
+                else:
+                    (data / 'scripts' / 'other.json').write_text(
+                        json.dumps([{'text': 'A different book.'}]))
+                    self.library_request(api, 'load', 'other')
+                    output = saved
+                calls, log = self.run_entry_point(api, data, mode, name, output)
+                result = json.loads(output.read_bytes())
+                self.assertEqual(2, len(result), log)
+                for index, row in enumerate(result):
+                    # The second row is relabelled MIRA, so its stale speaker
+                    # traits are cleared; the surviving keys keep their order.
+                    want = expected if index == 0 else [
+                        key for key in expected if key not in
+                        ('speaker_gender', 'speaker_age_group', 'speaker_ageless')]
+                    self.assertEqual(want, list(row), log)
+
     def test_publication_refuses_when_a_deep_parent_binding_changes_during_review(self):
         with TemporaryDirectory() as tmp, ExitStack() as stack:
             data, active, _, _, api = self.workspace(Path(tmp), stack, custom=True)
