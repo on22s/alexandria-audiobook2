@@ -627,6 +627,10 @@
     , "tests.test_attribution_accuracy.GoldFixtureIntegrityTest.test_ids_are_unique_in_every_fixture"
     , "tests.test_attribution_accuracy.GoldSetTest.test_disputed_entries_are_withheld_by_default"
     , "tests.test_attribution_accuracy.GoldSetTest.test_gold_set_loads_and_is_well_formed"
+    , "tests.test_attribution_accuracy.MalformedGoldRowTests.test_a_scored_disputed_row_is_still_validated_and_scores"
+    , "tests.test_attribution_accuracy.MalformedGoldRowTests.test_a_skipped_disputed_row_is_not_validated"
+    , "tests.test_attribution_accuracy.MalformedGoldRowTests.test_a_valid_row_still_scores"
+    , "tests.test_attribution_accuracy.MalformedGoldRowTests.test_malformed_rows_fail_loudly_and_name_the_row"
     , "tests.test_attribution_accuracy.RestrictedCandidates.test_a_character_absent_from_the_window_is_dropped"
     , "tests.test_attribution_accuracy.RestrictedCandidates.test_a_character_named_in_the_window_is_kept"
     , "tests.test_attribution_accuracy.RestrictedCandidates.test_a_substring_does_not_keep_a_character"
@@ -4204,6 +4208,10 @@
     "tests.test_corpus_prefix.CorpusPrefixTests.test_real_shell_dispatch_bounds_each_asr_request"
     , "tests.test_corpus_prefix.CorpusPrefixTests.test_receipt_refuses_short_samples_and_unbounded_identity"
   ]
+  , "test_corpus_prescan_malformed_pairs": [
+    "tests.test_corpus_prescan_malformed_pairs.CorpusAlignmentPrescanMalformedPairTests.test_each_malformed_pair_is_a_failed_row_and_other_pairs_still_run"
+    , "tests.test_corpus_prescan_malformed_pairs.CorpusAlignmentPrescanMalformedPairTests.test_report_markdown_survives_a_failed_row_without_paths"
+  ]
   , "test_corpus_read_efficiency": [
     "tests.test_corpus_read_efficiency.CorpusReadEfficiencyTests.test_casefold_ties_have_identical_order_and_selection"
     , "tests.test_corpus_read_efficiency.CorpusReadEfficiencyTests.test_txt_manifest_uses_one_disk_read_and_preserves_decoding_and_hash"
@@ -4222,6 +4230,10 @@
     "tests.test_corpus_review_regressions.CorpusReviewRegressions.test_actual_corpus_dispatch_completes_and_rechecks_every_volume"
     , "tests.test_corpus_review_regressions.CorpusReviewRegressions.test_actual_ctc_tail_owns_each_overlap_word_once"
     , "tests.test_corpus_review_regressions.CorpusReviewRegressions.test_native_multivolume_exports_are_owned_and_all_revalidated"
+  ]
+  , "test_corpus_run_report_malformed_pairs": [
+    "tests.test_corpus_run_report_malformed_pairs.CorpusRunReportMalformedPairTests.test_report_reader_records_a_failed_row_without_an_audio_path"
+    , "tests.test_corpus_run_report_malformed_pairs.CorpusRunReportMalformedPairTests.test_run_corpus_indexes_each_malformed_pair_and_publishes_the_report"
   ]
   , "test_cors_auth_order": [
     "tests.test_cors_auth_order.CorsAuthOrderTests.test_native_allowed_denied_origins_and_optional_auth"
@@ -4324,6 +4336,10 @@
     , "tests.test_dataset_builder_benchmark_lifetime.BuilderBenchmarkLifetimeTests.test_native_two_clip_result_reports_aggregate_throughput_without_per_sample_batch_times"
     , "tests.test_dataset_builder_benchmark_lifetime.BuilderBenchmarkLifetimeTests.test_real_completed_worker_does_not_need_done_log_and_reports_one_batch_throughput"
     , "tests.test_dataset_builder_benchmark_lifetime.BuilderBenchmarkLifetimeTests.test_timeout_keeps_globals_and_temp_project_until_worker_has_stopped"
+  ]
+  , "test_dataset_builder_cancel_claim": [
+    "tests.test_dataset_builder_cancel_claim.DatasetBuilderCancelClaimTests.test_cancel_right_after_start_stops_the_batch"
+    , "tests.test_dataset_builder_cancel_claim.DatasetBuilderCancelClaimTests.test_stale_cancel_does_not_stop_a_new_batch"
   ]
   , "test_dataset_builder_foreign_ownership": [
     "tests.test_dataset_builder_foreign_ownership.DatasetBuilderForeignOwnershipTests.test_mutations_refuse_foreign_generation_and_preserve_project_bytes"
@@ -18638,9 +18654,15 @@
     "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_actual_phases_write_linear_embedding_bytes_and_preserve_full_pickle"
     , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_clock_rollback_cannot_reverse_checkpoint_updates"
     , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_compaction_interruption_replays_latest_updates_without_mutating_inputs"
+    , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_compaction_keeps_a_malformed_shard_whose_quarantine_rename_fails"
+    , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_compaction_keeps_a_shard_that_lands_after_the_merge"
+    , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_compaction_preserves_a_malformed_shard_and_publishes_the_readable_progress"
     , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_downstream_readers_see_journal_only_data_and_missing_cache_still_fails"
     , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_failed_shard_publication_preserves_prior_progress_and_corrupt_shard_is_quarantined"
+    , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_foreign_shard_name_does_not_break_sequence_numbering"
     , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_interrupted_group_checkpoint_resumes_without_base_or_reextracting_prior_groups"
+    , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_malformed_shard_record_is_quarantined_and_valid_shards_still_merge"
+    , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_quarantine_does_not_overwrite_an_existing_corrupt_copy"
   ]
   , "test_voice_analysis_identity": [
     "tests.test_voice_analysis_identity.CollectedModelArtifactTests.test_active_local_and_collected_paths_match_pretrainer_contract"
