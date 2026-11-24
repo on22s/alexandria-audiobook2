@@ -832,6 +832,13 @@
     , "tests.test_audio_encoder_identity.AudioEncoderIdentityTests.test_reported_version_changes_digest_and_invalid_output_refuses"
     , "tests.test_audio_encoder_identity.AudioEncoderIdentityTests.test_version_probe_uses_absolute_captured_file_and_detects_replacement"
   ]
+  , "test_audio_encoder_streaming_2279": [
+    "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_encoder_never_reads_the_whole_pcm"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_raw_export_copies_source_bytes"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_registered_encoder_files_stream_and_record_completion"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_streamed_cover_art_matches_pydub"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_streamed_output_matches_pydub_for_used_options_and_widths"
+  ]
   , "test_audio_ffmpeg_diagnostics": [
     "tests.test_audio_ffmpeg_diagnostics.AudioFFmpegDiagnosticsTests.test_failed_encoder_preserves_runtime_error_and_final_diagnostic"
     , "tests.test_audio_ffmpeg_diagnostics.AudioFFmpegDiagnosticsTests.test_large_noisy_output_retains_final_record_and_environment_without_disk_spool"
@@ -979,6 +986,9 @@
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_unreadable_book_identity_during_owned_wait_is_not_a_switch"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_unrelated_admission_does_not_block_during_publication_io"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_windows_fallback_validates_after_lstat_before_native_replace"
+  ]
+  , "test_audio_streaming_direct_wav_2278": [
+    "tests.test_audio_streaming_direct_wav_2278.DirectCombinedWavLayoutTests.test_eight_bit_pcm_skips_the_direct_writer_and_keeps_pydub_bias"
   ]
   , "test_audio_take_history": [
     "tests.test_audio_take_history.AudioTakeHistoryTests.test_candidate_speech_evidence_binds_archived_bytes_inputs_and_identity"
@@ -1285,11 +1295,14 @@
     , "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_utf16_bom_nul_refuses_before_preflight_and_dispatch"
   ]
   , "test_batch_processor_preflight": [
-    "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_audio_change_before_publication_preserves_zip_without_receipt"
+    "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_all_files_failing_validation_return_failure_without_dispatch"
+    , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_audio_change_before_publication_preserves_zip_without_receipt"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_audio_directory_is_not_processed"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_batch_main_holds_gpu_lease_through_run"
+    , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_batch_progress_excludes_files_that_failed_validation"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_batch_summary_writes_a_complete_final_receipt"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_changed_text_during_worker_cannot_publish_completion_receipt"
+    , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_disk_probe_oserror_stays_a_disk_refusal_not_a_file_error"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_eta_uses_only_the_matching_successful_time_population"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_failed_rerun_invalidates_previous_completion_marker"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_folder_discovery_ignores_audio_named_directory"
@@ -1302,6 +1315,7 @@
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_mixed_batch_refuses_invalid_inputs_but_accepts_verified_resume_skips"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_multivolume_success_is_recorded_and_source_change_reprocesses"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_preparer_path_does_not_depend_on_current_directory"
+    , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_process_file_stat_oserror_records_failure_without_aborting"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_receipt_write_failure_keeps_previous_receipt"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_same_metadata_audio_replacement_invalidates_real_resume"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_same_stem_inputs_have_distinct_stable_output_names"
@@ -1311,6 +1325,7 @@
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_text_identity_uses_one_streamed_content_read"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_thread_start_failure_stops_worker_and_retains_process_group"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_unresponsive_child_is_reaped_after_interrupt"
+    , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_validation_oserror_fails_only_that_file_and_batch_continues"
   ]
   , "test_batch_reader_file_lifetime": [
     "tests.test_batch_reader_file_lifetime.BatchReaderFileLifetimeTests.test_batch_iterator_closes_before_yield_and_on_decode_error"
