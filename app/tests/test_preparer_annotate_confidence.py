@@ -4,12 +4,15 @@ import math
 import os
 from pathlib import Path
 import random
+import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import alexandria_preparer_rocm_compatible as preparer
 
@@ -29,7 +32,8 @@ class AnnotateConfidenceTests(unittest.TestCase):
             return {"choices": [{"message": {"content": text}}]}
         return SimpleNamespace(create_chat_completion=complete)
 
-    def run_annotation(self, words, *, workdir, resume=False, llm=None):
+    def run_annotation(self, words, *, workdir, resume=False, llm=None,
+                       min_confidence=0.85):
         samples = np.sin(np.arange(57600) * .05).astype("float32") * .1
         llm = llm or self.make_llm()
         old = Path.cwd()
@@ -43,6 +47,7 @@ class AnnotateConfidenceTests(unittest.TestCase):
                 rows = preparer.annotate_chunks(
                     words, "mock.gguf", 1.0, samples, resume=resume,
                     min_chunk_duration=1, batch_size=1,
+                    min_confidence=min_confidence,
                     run_identity={"test": "fixture"})
             rejected_path = Path("dataset_temp/rejected_chunks.jsonl")
             rejected = ([json.loads(line) for line in
@@ -78,6 +83,19 @@ class AnnotateConfidenceTests(unittest.TestCase):
                  for i in range(8)]
         with tempfile.TemporaryDirectory() as tmp:
             rows, rejected, _, _ = self.run_annotation(words, workdir=tmp)
+        self.assertEqual([" ".join(f"w{i}" for i in range(8))],
+                         [row["text"] for row in rows])
+        self.assertEqual([], rejected)
+
+    def test_float32_words_at_the_threshold_are_kept(self):
+        # Base compared the float32 np.mean against min_confidence in float32;
+        # converting the mean to Python float (float64) first made 8 x
+        # np.float32(0.65) average below 0.65 and drop a chunk base keeps.
+        words = [word(f"w{i}", i * 0.15, (i + 1) * 0.15, np.float32(0.65))
+                 for i in range(8)]
+        with tempfile.TemporaryDirectory() as tmp:
+            rows, rejected, _, _ = self.run_annotation(
+                words, workdir=tmp, min_confidence=0.65)
         self.assertEqual([" ".join(f"w{i}" for i in range(8))],
                          [row["text"] for row in rows])
         self.assertEqual([], rejected)

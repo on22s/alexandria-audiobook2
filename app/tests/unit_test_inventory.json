@@ -10419,6 +10419,7 @@
     "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_average_confidence_matches_numpy_mean_exactly"
     , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_boolean_confidence_is_rejected_as_non_numeric"
     , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_eight_words_at_the_threshold_are_kept"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_float32_words_at_the_threshold_are_kept"
     , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_invalid_confidence_drops_the_chunk_instead_of_crashing"
     , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_invalid_confidence_is_counted_like_a_low_confidence_drop"
     , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_numeric_confidence_still_passes_the_quality_filter"

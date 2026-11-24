@@ -2028,7 +2028,7 @@ def get_average_word_confidence(word_segments):
             raise ValueError(
                 f"ASR word segment {index} has non-finite confidence")
         values.append(value)
-    return float(np.mean(values)) if values else 1.0
+    return np.mean(values) if values else 1.0
 
 
 def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
