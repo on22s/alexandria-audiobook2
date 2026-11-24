@@ -1997,6 +1997,35 @@ def _check_llm_fail_rate(stats):
             f"unannotated raw text) but check the LLM connection."
         )
 
+
+def get_average_word_confidence(word_segments):
+    """Average ASR word confidence, refusing values the filter cannot read.
+
+    The annotate phase loads asr_segments.json directly instead of passing it
+    through get_validated_word_segments, so an edited or third-party artifact
+    can carry a boolean, string, None, NaN or an integer too large for float().
+    np.mean() turns those into opaque TypeError/OverflowError or a NaN that
+    silently passes the ``< min_confidence`` test; the caller drops the chunk
+    instead so a corrupt value cannot stand in for a quality measurement.
+    """
+    total = 0.0
+    for index, segment in enumerate(word_segments):
+        value = segment.get("confidence", 1.0)
+        if isinstance(value, bool) or not isinstance(value, Real):
+            raise ValueError(
+                f"ASR word segment {index} has non-numeric confidence")
+        try:
+            value = float(value)
+        except OverflowError:
+            raise ValueError(
+                f"ASR word segment {index} has non-finite confidence") from None
+        if not math.isfinite(value):
+            raise ValueError(
+                f"ASR word segment {index} has non-finite confidence")
+        total += value
+    return total / len(word_segments) if word_segments else 1.0
+
+
 def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                     resume=False, audio_source_path=None, fallback_model_path=None,
                     source_state=None, source_threshold=0.65, keep_unaligned=False,
@@ -2325,14 +2354,24 @@ def annotate_chunks(word_segments, model_path, chunk_size, audio_24k_source,
                         timing['audio_read'] += time.monotonic() - t0
 
                         # Check confidence
-                        confidences = [w.get("confidence", 1.0) for w in chunk_word_data]
-                        avg_confidence = np.mean(confidences) if confidences else 1.0
-                        if avg_confidence < min_confidence:
+                        try:
+                            avg_confidence = get_average_word_confidence(
+                                chunk_word_data)
+                        except ValueError as confidence_error:
                             drop_chunk = True
-                            reason_rejected = f"low_confidence ({avg_confidence:.2f} < {min_confidence})"
+                            reason_rejected = f"invalid_confidence ({confidence_error})"
                             stats['source_action']['dropped_low_quality'] += 1
                             timing['dropped_chunks'] += 1
-                            logger.info(f"  ↪ DROPPED chunk at {current_start:.2f}s ({reason_rejected})")
+                            logger.warning(
+                                f"  ↪ DROPPED chunk at {current_start:.2f}s "
+                                f"({reason_rejected})")
+                        else:
+                            if avg_confidence < min_confidence:
+                                drop_chunk = True
+                                reason_rejected = f"low_confidence ({avg_confidence:.2f} < {min_confidence})"
+                                stats['source_action']['dropped_low_quality'] += 1
+                                timing['dropped_chunks'] += 1
+                                logger.info(f"  ↪ DROPPED chunk at {current_start:.2f}s ({reason_rejected})")
 
                         # Check SNR
                         if not drop_chunk:

@@ -10330,6 +10330,10 @@
     , "tests.test_preparer_admission_cancel.PreparerAdmissionCancelTests.test_cancel_rejects_idle_and_signals_only_active_disposable_child"
     , "tests.test_preparer_admission_cancel.PreparerAdmissionCancelTests.test_upload_failure_or_request_cancel_releases_pending_owner_and_partial_stages"
   ]
+  , "test_preparer_annotate_confidence": [
+    "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_invalid_confidence_drops_the_chunk_instead_of_crashing"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_numeric_confidence_still_passes_the_quality_filter"
+  ]
   , "test_preparer_asr_limits": [
     "tests.test_preparer_asr_limits.PreparerAsrLimitTests.test_actual_asr_phase_bounds_detection_diarization_and_fallback_but_keeps_full_scratch"
     , "tests.test_preparer_asr_limits.PreparerAsrLimitTests.test_limits_use_existing_window_overlap_and_reject_invalid_values_before_loading"
