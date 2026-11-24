@@ -87,6 +87,33 @@ def normalize_line(value):
     return " ".join(str(value or "").split())
 
 
+GOLD_ENTRY_KEYS = ("id", "entry_index", "line", "expected_speaker")
+
+
+def validate_gold_entry(item, position):
+    """Refuse a gold row this scorer cannot read, naming the row.
+
+    A gold fixture is an answer key. Skipping a bad row, or scoring a blank
+    expected speaker as a wrong answer, changes the accuracy number instead of
+    reporting that the instrument is broken (Rule 21).
+    """
+    if not isinstance(item, dict):
+        raise ValueError(f"gold entry {position} is not an object")
+    label = f"gold entry {position}"
+    if isinstance(item.get("id"), str) and item["id"].strip():
+        label = f"{label} ({item['id']})"
+    missing = [key for key in GOLD_ENTRY_KEYS if key not in item]
+    if missing:
+        raise ValueError(f"{label} is missing {', '.join(missing)}")
+    if type(item["entry_index"]) is not int or item["entry_index"] < 0:
+        raise ValueError(f"{label} has a non-integer entry_index")
+    if not isinstance(item["line"], str) or not item["line"].strip():
+        raise ValueError(f"{label} has an empty or non-string line")
+    if (not isinstance(item["expected_speaker"], str)
+            or not item["expected_speaker"].strip()):
+        raise ValueError(f"{label} has an empty or non-string expected_speaker")
+
+
 def find_entry(named_entries, item, by_text):
     """Locate the gold line in a run, by index first and then by text.
 
@@ -125,7 +152,8 @@ def score_run(named_entries, gold, include_disputed=False):
         by_text.setdefault(normalize_line(entry.get("text")),
                            []).append((position, entry))
     results = []
-    for item in gold["entries"]:
+    for position, item in enumerate(gold["entries"]):
+        validate_gold_entry(item, position)
         if item.get("disputed") and not include_disputed:
             continue
         entry = find_entry(named_entries, item, by_text)

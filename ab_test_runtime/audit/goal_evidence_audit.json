@@ -1050,17 +1050,17 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T14:01:56",
+  "written": "2026-11-24T14:29:19",
   "host": "mitch-linux",
   "git": {
-   "commit": "1d929ce98e70b868afcc753ff490cf3984cdbedf",
+   "commit": "5a7083fe2e25f496a4e31d3f71598358144451fe",
    "branch": "fix/audit-training-2272",
    "dirty": true,
-   "source_state": "dirty:746557aa2d21",
+   "source_state": "dirty:3dc35704f80c",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "A  app/tests/test_corpus_run_report_malformed_pairs.py",
-    "M  corpus_run_report.py"
+    "M  app/attribution_accuracy.py",
+    "M  app/tests/test_attribution_accuracy.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",
