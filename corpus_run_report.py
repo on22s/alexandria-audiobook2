@@ -107,7 +107,8 @@ def save_corpus_report(index, output_dir):
     metrics, rates, warnings, failures, attempted = [], [], [], 0, 0
     for row in index['rows']:
         status = row['status']
-        values = [index['run_id'], Path(row['audio']).name, status] + ['-'] * 10
+        audio_name = row['audio'] if isinstance(row['audio'], str) and row['audio'] else None
+        values = [index['run_id'], Path(audio_name).name if audio_name else '-', status] + ['-'] * 10
         if status != 'no source match':
             attempted += 1
             try:
@@ -208,15 +209,31 @@ def run_corpus(repo, pairs_path, output_dir, model, fallback):
         write_json_atomic(index, output_dir / 'corpus_attempts.json')
     save_index()
     for pair in pairs:
-        row = {'audio': pair['audio'], 'source': pair['source'], 'status': 'no source match'}
+        audio_name = (pair.get('audio') if isinstance(pair, dict) else None)
+        row_audio = audio_name if isinstance(audio_name, str) and audio_name else None
+        try:
+            if not isinstance(pair, dict):
+                raise TypeError('pair must be an object')
+            if row_audio is None:
+                raise ValueError('pair audio must be a nonempty path string')
+            source_value = pair['source']
+            if source_value is not None and not isinstance(source_value, str):
+                raise ValueError('pair source must be a path string or null')
+        except (KeyError, TypeError, ValueError) as error:
+            index['rows'].append({'audio': row_audio, 'source': None,
+                                  'status': 'failed: ' + str(error)})
+            print(f"FAILED: {pair!r}: {error}", file=sys.stderr, flush=True)
+            save_index()
+            continue
+        row = {'audio': row_audio, 'source': source_value, 'status': 'no source match'}
         index['rows'].append(row)
-        if not pair['source']:
+        if not source_value:
             save_index()
             continue
         row['status'] = 'pending'
         save_index()
         try:
-            audio, source = Path(pair['audio']).resolve(strict=True), Path(pair['source']).resolve(strict=True)
+            audio, source = Path(row_audio).resolve(strict=True), Path(source_value).resolve(strict=True)
             name = pair['output_name']
             if not isinstance(name, str) or Path(name).name != name or name in ('', '.', '..'):
                 raise ValueError('unsafe pair output name')

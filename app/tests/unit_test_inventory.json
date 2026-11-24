@@ -4199,6 +4199,10 @@
     , "tests.test_corpus_review_regressions.CorpusReviewRegressions.test_actual_ctc_tail_owns_each_overlap_word_once"
     , "tests.test_corpus_review_regressions.CorpusReviewRegressions.test_native_multivolume_exports_are_owned_and_all_revalidated"
   ]
+  , "test_corpus_run_report_malformed_pairs": [
+    "tests.test_corpus_run_report_malformed_pairs.CorpusRunReportMalformedPairTests.test_report_reader_records_a_failed_row_without_an_audio_path"
+    , "tests.test_corpus_run_report_malformed_pairs.CorpusRunReportMalformedPairTests.test_run_corpus_indexes_each_malformed_pair_and_publishes_the_report"
+  ]
   , "test_cors_auth_order": [
     "tests.test_cors_auth_order.CorsAuthOrderTests.test_native_allowed_denied_origins_and_optional_auth"
   ]
