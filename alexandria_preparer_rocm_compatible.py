@@ -1046,7 +1046,11 @@ def get_validated_word_segments(word_segments, audio_duration):
             if not isinstance(value, Real) or isinstance(value, bool):
                 raise ValueError(
                     f"ASR word segment {index} has non-numeric {label}")
-            if not math.isfinite(float(value)):
+            try:
+                finite = math.isfinite(float(value))
+            except OverflowError:
+                finite = False
+            if not finite:
                 raise ValueError(
                     f"ASR word segment {index} has non-finite {label}")
         start = float(start)

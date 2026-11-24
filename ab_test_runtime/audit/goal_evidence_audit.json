@@ -1050,25 +1050,24 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-24T14:14:43",
+  "written": "2026-11-24T14:29:31",
   "host": "mitch-linux",
   "git": {
-   "commit": "a978efa252e042a16a28e9cabea1a85afc06b9a9",
+   "commit": "2e92f8fd3005b2dca1f92932e18777819b3cecd8",
    "branch": "fix/audit-prep-2264",
    "dirty": true,
-   "source_state": "dirty:e5982f6f657b",
+   "source_state": "dirty:2760407095b3",
    "source_state_detail": null,
    "modified_tracked_files": [
-    " M alexandria_preparer_rocm_compatible.py",
-    "M  app/audio_channels.py",
-    "M  app/tests/test_audio_channels.py",
+    "MM alexandria_preparer_rocm_compatible.py",
     " M app/tests/test_deepseek_text_helpers.py",
-    " M app/tests/test_preparer_asr_validation.py",
-    " M app/tests/unit_test_inventory.json",
+    "M  app/tests/test_preparer_asr_validation.py",
     " M app/utils.py",
-    " M app/whisper_cpp_runtime.py"
+    "M  app/whisper_cpp_runtime.py"
    ],
-   "untracked_harness_files": null,
+   "untracked_harness_files": [
+    "app/tests/test_preparer_annotate_confidence.py"
+   ],
    "harness_sha256": "ef3dd7e55d1687f51b2b6e09481a1d92388cc91e773a25149bdc15216d5e6c13",
    "harness_sha256_scheme": "sha256-lf-v1"
   },

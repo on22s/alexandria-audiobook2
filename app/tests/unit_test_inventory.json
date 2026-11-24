@@ -10336,9 +10336,7 @@
     , "tests.test_preparer_asr_limits.PreparerAsrLimitTests.test_primary_and_each_fallback_receive_same_bounded_audio"
   ]
   , "test_preparer_asr_validation": [
-    "tests.test_preparer_asr_validation.AnnotateConfidenceTests.test_invalid_confidence_drops_the_chunk_instead_of_crashing"
-    , "tests.test_preparer_asr_validation.AnnotateConfidenceTests.test_numeric_confidence_still_passes_the_quality_filter"
-    , "tests.test_preparer_asr_validation.WhisperCppTests.test_adapter_parses_json_written_by_cli"
+    "tests.test_preparer_asr_validation.WhisperCppTests.test_adapter_parses_json_written_by_cli"
     , "tests.test_preparer_asr_validation.WhisperCppTests.test_adapter_reports_cli_failure"
     , "tests.test_preparer_asr_validation.WhisperCppTests.test_english_only_model_rejects_other_languages"
     , "tests.test_preparer_asr_validation.WhisperCppTests.test_huge_int_offsets_survive_conversion_and_are_rejected_as_non_finite"
