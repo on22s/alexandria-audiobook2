@@ -170,11 +170,16 @@ def _get_voice_analysis_shard_sequence(name):
 
 
 def _quarantine_voice_analysis_shard(shard, reason):
-    """Warn and preserve a shard this reader cannot merge; never delete it."""
+    """Warn and preserve a shard this reader cannot merge; never delete evidence."""
     import os
     print(f"Warning: invalid cache shard {shard}: {reason}; preserving as .corrupt")
+    target = shard.with_suffix(shard.suffix + ".corrupt")
+    counter = 0
+    while target.exists():
+        counter += 1
+        target = shard.with_suffix(shard.suffix + f".{counter}.corrupt")
     try:
-        os.replace(shard, shard.with_suffix(shard.suffix + ".corrupt"))
+        os.replace(shard, target)
     except OSError:
         pass
 

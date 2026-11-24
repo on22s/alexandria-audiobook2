@@ -834,6 +834,16 @@
     , "tests.test_audio_encoder_identity.AudioEncoderIdentityTests.test_reported_version_changes_digest_and_invalid_output_refuses"
     , "tests.test_audio_encoder_identity.AudioEncoderIdentityTests.test_version_probe_uses_absolute_captured_file_and_detects_replacement"
   ]
+  , "test_audio_encoder_streaming_2279": [
+    "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_encoder_never_reads_the_whole_pcm"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_mapped_and_copied_layouts_match_pydub"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_partial_frame_source_is_refused"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_raw_export_copies_source_bytes"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_registered_encoder_files_stream_and_record_completion"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_staging_write_failure_is_not_masked_by_mapping_cleanup"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_streamed_cover_art_matches_pydub"
+    , "tests.test_audio_encoder_streaming_2279.AudioEncoderStreamingTests.test_streamed_output_matches_pydub_for_used_options_and_widths"
+  ]
   , "test_audio_ffmpeg_diagnostics": [
     "tests.test_audio_ffmpeg_diagnostics.AudioFFmpegDiagnosticsTests.test_failed_encoder_preserves_runtime_error_and_final_diagnostic"
     , "tests.test_audio_ffmpeg_diagnostics.AudioFFmpegDiagnosticsTests.test_large_noisy_output_retains_final_record_and_environment_without_disk_spool"
@@ -981,6 +991,9 @@
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_unreadable_book_identity_during_owned_wait_is_not_a_switch"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_unrelated_admission_does_not_block_during_publication_io"
     , "tests.test_audio_publish_mutex_2163.AudioPublishMutex2163Tests.test_windows_fallback_validates_after_lstat_before_native_replace"
+  ]
+  , "test_audio_streaming_direct_wav_2278": [
+    "tests.test_audio_streaming_direct_wav_2278.DirectCombinedWavLayoutTests.test_eight_bit_pcm_skips_the_direct_writer_and_keeps_pydub_bias"
   ]
   , "test_audio_take_history": [
     "tests.test_audio_take_history.AudioTakeHistoryTests.test_candidate_speech_evidence_binds_archived_bytes_inputs_and_identity"
@@ -1287,11 +1300,14 @@
     , "tests.test_batch_prepared_sources.BatchPreparedSourcesTests.test_utf16_bom_nul_refuses_before_preflight_and_dispatch"
   ]
   , "test_batch_processor_preflight": [
-    "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_audio_change_before_publication_preserves_zip_without_receipt"
+    "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_all_files_failing_validation_return_failure_without_dispatch"
+    , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_audio_change_before_publication_preserves_zip_without_receipt"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_audio_directory_is_not_processed"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_batch_main_holds_gpu_lease_through_run"
+    , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_batch_progress_excludes_files_that_failed_validation"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_batch_summary_writes_a_complete_final_receipt"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_changed_text_during_worker_cannot_publish_completion_receipt"
+    , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_disk_probe_oserror_stays_a_disk_refusal_not_a_file_error"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_eta_uses_only_the_matching_successful_time_population"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_failed_rerun_invalidates_previous_completion_marker"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_folder_discovery_ignores_audio_named_directory"
@@ -1304,6 +1320,8 @@
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_mixed_batch_refuses_invalid_inputs_but_accepts_verified_resume_skips"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_multivolume_success_is_recorded_and_source_change_reprocesses"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_preparer_path_does_not_depend_on_current_directory"
+    , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_process_file_oserror_does_not_stop_the_next_file"
+    , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_process_file_stat_oserror_records_failure_without_aborting"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_receipt_write_failure_keeps_previous_receipt"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_same_metadata_audio_replacement_invalidates_real_resume"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_same_stem_inputs_have_distinct_stable_output_names"
@@ -1313,6 +1331,7 @@
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_text_identity_uses_one_streamed_content_read"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_thread_start_failure_stops_worker_and_retains_process_group"
     , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_unresponsive_child_is_reaped_after_interrupt"
+    , "tests.test_batch_processor_preflight.BatchProcessorPreflightTests.test_validation_oserror_fails_only_that_file_and_batch_continues"
   ]
   , "test_batch_reader_file_lifetime": [
     "tests.test_batch_reader_file_lifetime.BatchReaderFileLifetimeTests.test_batch_iterator_closes_before_yield_and_on_decode_error"
@@ -1410,6 +1429,12 @@
     , "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_preparation_and_dispatch_scan_once_without_mutating_input"
     , "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_refusal_matches_uncached_after_settings_change"
     , "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_source_settings_windows_and_prompts_invalidate"
+  ]
+  , "test_batch_script_worker_failure": [
+    "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_all_success_still_reports_finished"
+    , "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_cancel_with_a_real_exception_logs_it_and_agrees_with_history"
+    , "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_cleanup_failure_after_publish_keeps_the_done_row_and_reports_it"
+    , "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_raising_worker_fails_its_book_and_every_failure_is_logged"
   ]
   , "test_batch_style_timeline": [
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_design_dynamic_narrator_and_ensemble_receive_actual_resolved_style_prompts"
@@ -7571,6 +7596,7 @@
     , "tests.test_incremental_cast.IncrementalCastTests.test_interrupted_finish_reasons_preserve_previous_complete_cast"
     , "tests.test_incremental_cast.IncrementalCastTests.test_invalid_reply_shapes_are_rejected"
     , "tests.test_incremental_cast.IncrementalCastTests.test_merge_preserves_prior_aliases_and_is_idempotent"
+    , "tests.test_incremental_cast.IncrementalCastTests.test_no_choices_reply_is_refused_without_publishing"
     , "tests.test_incremental_cast.IncrementalCastTests.test_opt_in_removes_whole_book_limit_and_records_complete_coverage"
     , "tests.test_incremental_cast.IncrementalCastTests.test_real_manual_and_http_wrappers_receive_identical_validated_windows"
     , "tests.test_incremental_cast.IncrementalCastTests.test_saved_configuration_drives_cli_defaults_and_explicit_off_wins"
@@ -7630,6 +7656,7 @@
     , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_description_edit_keeps_done_chunk_and_export_current"
     , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_description_only_edit_is_inert_for_every_non_design_voice"
     , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_description_only_edit_still_changes_every_design_voice"
+    , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_description_through_a_narrator_inside_an_ensemble"
     , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_ensemble_with_a_design_member_still_invalidates"
     , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_legacy_pronunciation_scope_still_applies_until_a_description_edit"
     , "tests.test_inert_description_identity.InertDescriptionIdentityTests.test_legacy_v3_take_digest_authorizes_only_the_unchanged_entry"
@@ -9480,6 +9507,60 @@
     , "tests.test_narrator_dispatch_identity.NarratorDispatchIdentityTests.test_metadata_only_control_restores_and_keeps_provider_and_bytes"
     , "tests.test_narrator_dispatch_identity.NarratorDispatchIdentityTests.test_removed_speaker_reports_normal_mismatch_and_preserves_audio"
   ]
+  , "test_narrator_ensemble_member": [
+    "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_active_version_alias_precedes_sibling_fallback"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_active_version_controls_effective_voice_and_seed"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_alias_chain_root_version_keeps_the_saved_voice"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_alias_member_uses_active_version_and_ignores_inactive_change"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_alias_selected_voice_skips_masked_narrator_member"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_aliased_entry_does_not_inspect_masked_members"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_batching_keeps_native_grouping_for_unsplit_rows"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_cycle_still_settles_bad_row_without_aborting_healthy_row"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_default_global_alias_receipt_and_restore"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_default_global_saved_alias_native_batch_matches_single_and_projection"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_dict_members_version_resolves_narrator_like_direct"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_direct_narrator_member_matches_alias_member"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_distinct_narrator_spelling_aliases_are_not_silently_overwritten"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_dynamic_focus_does_not_override_saved_narrator_alias"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_dynamic_narrator_member_without_own_entry_matches_direct"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_dynamic_strategy_matches_direct_narration_for_every_member"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_ensemble_member_shape_policy_is_shared_by_projection_and_dispatch"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_existing_refusal_is_not_silently_replaced"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_explicit_alias_keeps_canonical_pronunciation_target"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_export_readiness_agrees_for_nested_fallback_shapes"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_export_readiness_uses_the_generation_row_seam"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_fallback_closure_is_member_order_independent"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_fallback_closure_never_adds_a_refusal"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_fallback_ensemble_closure_shapes_keep_the_saved_voice"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_fallback_ensemble_materializes_member_overlays"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_focus_alias_target_timeline_matches_direct_and_group"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_focus_cycle_in_ensemble_member_is_refused_and_batch_settles"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_legacy_non_dict_version_can_be_repaired_by_both_save_routes"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_legitimate_fallback_ensemble_is_still_applied"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_malformed_configured_narrator_is_an_unavailable_fallback"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_malformed_configured_narrator_reached_by_its_own_row_errors_there"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_malformed_configured_narrator_spares_healthy_rows_and_saves"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_malformed_optional_sibling_target_does_not_abort_healthy_rows"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_malformed_scalar_members_settle_as_configuration_error"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_mixed_narrator_spelling_binds_rendering_and_receipt"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_mixed_spelling_saved_alias_precedence_across_dispatch"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_mixed_spelling_saved_alias_receipt_and_restore"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_narrator_chapter_version_requires_a_text_id"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_narrator_derived_identities_and_audio_invalidation"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_native_eligibility_distinguishes_absent_and_null_voice"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_nested_ensemble_is_not_inspected"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_nested_fallback_shapes_render_the_saved_voice"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_new_ensemble_member_entries_reject_partial_collections"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_reached_spellings_resolve_deterministically"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_real_take_receipt_stability_and_restore"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_saved_alias_precedence_survives_recovery_settlement"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_saved_alias_target_timeline_across_reached_spellings"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_self_referential_fallback_ensemble_keeps_own_voice"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_timeline_walk_skips_masked_and_nested_members"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_unconfigured_focus_under_character_gender_does_not_abort_rows"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_unreached_configured_narrator_cycle_spares_each_reached_spelling_and_recovers"
+    , "tests.test_narrator_ensemble_member.NarratorEnsembleMemberTests.test_unreached_configured_narrator_cycle_spares_healthy_rows_projection_and_saves"
+  ]
   , "test_narrator_prior_wiring": [
     "tests.test_narrator_prior_wiring.PromptTest.test_a_narrator_of_NARRATOR_is_rejected"
     , "tests.test_narrator_prior_wiring.PromptTest.test_it_uses_the_shared_helper_not_a_second_wording"
@@ -11188,6 +11269,7 @@
   , "test_pronunciation_panel": [
     "tests.test_pronunciation_panel.PronunciationPanelTests.test_atomic_failure_preserves_file_and_preview_uses_production_matching"
     , "tests.test_pronunciation_panel.PronunciationPanelTests.test_audition_produces_playable_audio_without_rewriting_script_or_lexicon"
+    , "tests.test_pronunciation_panel.PronunciationPanelTests.test_audition_resolves_a_dynamic_narrator_ensemble_member_like_generation"
     , "tests.test_pronunciation_panel.PronunciationPanelTests.test_audition_uses_real_dispatch_with_draft_at_production_substitution_stage"
     , "tests.test_pronunciation_panel.PronunciationPanelTests.test_date_order_choice_is_saved_in_book_state_and_refused_when_stale_or_busy"
     , "tests.test_pronunciation_panel.PronunciationPanelTests.test_empty_missing_flat_and_invalid_documents"
@@ -13192,6 +13274,38 @@
   , "test_review_force_js": [
     "tests.test_review_force_js.ReviewForceJsTests.test_all_review_handlers_forward_checkbox"
   ]
+  , "test_review_key_order": [
+    "tests.test_review_key_order.ReviewKeyOrderTests.test_explicitly_cleared_key_is_omitted_and_survivors_keep_order"
+    , "tests.test_review_key_order.ReviewKeyOrderTests.test_labels_only_corrected_speaker_keeps_source_key_order"
+    , "tests.test_review_key_order.ReviewKeyOrderTests.test_modified_surviving_fields_keep_their_original_positions"
+    , "tests.test_review_key_order.ReviewKeyOrderTests.test_nested_metadata_key_order_is_not_rewritten"
+    , "tests.test_review_key_order.ReviewKeyOrderTests.test_partial_label_retention_keeps_source_key_order"
+    , "tests.test_review_key_order.ReviewKeyOrderTests.test_reported_reorder_is_fixed_and_no_value_changes"
+    , "tests.test_review_key_order.ReviewKeyOrderTests.test_review_batch_unchanged_control"
+    , "tests.test_review_key_order.ReviewKeyOrderTests.test_supported_keys_added_to_a_legacy_row_are_appended_in_schema_order"
+  ]
+  , "test_review_key_order_lineage": [
+    "tests.test_review_key_order_lineage.ReviewKeyOrderLineageTests.test_ambiguous_repeated_text_lineage_fails_safe"
+    , "tests.test_review_key_order_lineage.ReviewKeyOrderLineageTests.test_checkpoint_merge_then_identical_retained_row"
+    , "tests.test_review_key_order_lineage.ReviewKeyOrderLineageTests.test_checkpoint_resume_rebinds_each_split_child_to_its_parent"
+    , "tests.test_review_key_order_lineage.ReviewKeyOrderLineageTests.test_equal_row_count_split_and_merge_reuse_is_stable"
+    , "tests.test_review_key_order_lineage.ReviewKeyOrderLineageTests.test_legacy_checkpoint_prefix_without_batch_lengths"
+    , "tests.test_review_key_order_lineage.ReviewKeyOrderLineageTests.test_merge_last_parent_sharing_text_with_a_retained_row_is_stable"
+    , "tests.test_review_key_order_lineage.ReviewKeyOrderLineageTests.test_rebind_rename_failure_preserves_publication_and_retry_repairs"
+    , "tests.test_review_key_order_lineage.ReviewKeyOrderLineageTests.test_receipt_reuse_honours_cancellation"
+    , "tests.test_review_key_order_lineage.ReviewKeyOrderLineageTests.test_receipt_reuse_preserves_split_and_merge_layouts"
+    , "tests.test_review_key_order_lineage.ReviewKeyOrderLineageTests.test_receipt_reuse_read_error_and_missing_output_fail_loud"
+    , "tests.test_review_key_order_lineage.ReviewKeyOrderLineageTests.test_receipt_reuse_revalidates_output_replaced_under_the_lock"
+    , "tests.test_review_key_order_lineage.ReviewKeyOrderLineageTests.test_standalone_parent_alias_refuses_concurrent_edits"
+  ]
+  , "test_review_key_order_publication": [
+    "tests.test_review_key_order_publication.ReviewKeyOrderPublicationTests.test_checkpoint_resume_rebinds_retained_rows_to_current_source_order"
+    , "tests.test_review_key_order_publication.ReviewKeyOrderPublicationTests.test_literal_marker_is_not_displaced_by_a_new_annotation"
+    , "tests.test_review_key_order_publication.ReviewKeyOrderPublicationTests.test_literal_marker_keeps_position_when_row_is_unchanged"
+    , "tests.test_review_key_order_publication.ReviewKeyOrderPublicationTests.test_receipt_reuse_rebinds_output_after_order_only_input_edit"
+    , "tests.test_review_key_order_publication.ReviewKeyOrderPublicationTests.test_receipt_reuse_upgrades_a_prior_out_of_order_publication"
+    , "tests.test_review_key_order_publication.ReviewKeyOrderPublicationTests.test_standalone_publication_refuses_a_concurrent_key_reorder"
+  ]
   , "test_review_labels_only": [
     "tests.test_review_labels_only.ReviewLabelsTests.test_bad_labels_retry_and_bind_corrected_response"
     , "tests.test_review_labels_only.ReviewLabelsTests.test_corrects_speaker_without_reemitting_text_or_losing_metadata"
@@ -13362,6 +13476,76 @@
     , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_proven_historic_prefix_survives_the_next_batch_save"
     , "tests.test_review_receipt_identity_boundary.TrustBoundaryTests.test_standalone_forward_split_reports_original_count"
   ]
+  , "test_review_round4_compact": [
+    "tests.test_review_round4_compact.Compact.test_failed_tail_compaction_retains_original_prefix"
+  ]
+  , "test_review_round4_evidence": [
+    "tests.test_review_round4_evidence.Controls.test_ambiguous_receiver_does_not_change_disk"
+    , "tests.test_review_round4_evidence.Controls.test_real_source_spans_around_repeated_text"
+    , "tests.test_review_round4_evidence.Controls.test_second_interruption_preserves_checkpoint_prefix_layout"
+  ]
+  , "test_review_round4_independent": [
+    "tests.test_review_round4_independent.Independent.test_cancel_between_transient_rename_attempts"
+    , "tests.test_review_round4_independent.Independent.test_chain_and_rotated_source"
+    , "tests.test_review_round4_independent.Independent.test_duplicate_in_next_batch_does_not_defeat_checkpoint_rebind"
+    , "tests.test_review_round4_independent.Independent.test_editor_changes_separate_input_while_output_locked"
+    , "tests.test_review_round4_independent.Independent.test_key_order_only_editor_save_after_receipt_match"
+    , "tests.test_review_round4_independent.Independent.test_native_checkpoint_ignores_unprocessed_suffix"
+    , "tests.test_review_round4_independent.Independent.test_post_narrator_merge_idempotence"
+    , "tests.test_review_round4_independent.Independent.test_punctuation_only_row_before_spoken_line"
+    , "tests.test_review_round4_independent.Independent.test_same_file_completion_after_editor_save"
+  ]
+  , "test_review_round4_invariants": [
+    "tests.test_review_round4_invariants.Boundaries.test_cancel_before_flat_migration_leaves_the_flat_receipt"
+    , "tests.test_review_round4_invariants.Boundaries.test_cross_boundary_resegmentation_unknown_lineage_no_write"
+    , "tests.test_review_round4_invariants.Boundaries.test_distinct_existing_paths_with_symlink_parent_component"
+    , "tests.test_review_round4_invariants.Boundaries.test_legacy_checkpoint_cannot_rebind_retained_work_to_future_batches"
+    , "tests.test_review_round4_invariants.Boundaries.test_reuse_of_already_correct_output_must_preserve_later_order_save"
+  ]
+  , "test_review_round4_supplemental": [
+    "tests.test_review_round4_supplemental.Supplemental.test_alias_disposition_uses_published_coordinates"
+    , "tests.test_review_round4_supplemental.Supplemental.test_alias_flat_receipt_reuses_reviewed_script"
+    , "tests.test_review_round4_supplemental.Supplemental.test_ambiguous_split_and_merge_groups"
+    , "tests.test_review_round4_supplemental.Supplemental.test_flat_match_uses_the_publication_it_actually_validated"
+    , "tests.test_review_round4_supplemental.Supplemental.test_legacy_migration_failure_keeps_old_publication"
+    , "tests.test_review_round4_supplemental.Supplemental.test_legacy_receipt_is_not_restored_over_a_new_checkpoint"
+    , "tests.test_review_round4_supplemental.Supplemental.test_separate_reuse_checks_saved_ancestry_through_publication"
+  ]
+  , "test_review_round5_repairs": [
+    "tests.test_review_round5_repairs.LineageAlternatingTargetScaling.test_more_alternating_targets_than_a_fixed_window_stay_linear"
+    , "tests.test_review_round5_repairs.LineageAuditScaling.test_2000_repeated_identical_rows_merge_to_last_parent"
+    , "tests.test_review_round5_repairs.LineageAuditScaling.test_40000_token_entry_completes_within_generous_bound"
+    , "tests.test_review_round5_repairs.LineageCollidingTargetCache.test_total_hash_collisions_do_not_corrupt_cached_groups"
+    , "tests.test_review_round5_repairs.LineageDistinctLengthScaling.test_long_rows_with_many_distinct_lengths_hash_linearly"
+    , "tests.test_review_round5_repairs.LineageDistinctLengthScaling.test_one_to_one_distinct_lengths_hash_linearly"
+    , "tests.test_review_round5_repairs.LineageDuplicateLayoutScaling.test_identical_rows_derive_layouts_linearly"
+    , "tests.test_review_round5_repairs.LineageInterleavedRepeatScaling.test_interleaved_repeat_conflicting_layouts_fail_closed"
+    , "tests.test_review_round5_repairs.LineageInterleavedRepeatScaling.test_interleaved_repeat_keeps_its_analysis"
+    , "tests.test_review_round5_repairs.LineageInterleavedRepeatScaling.test_production_resume_wrapper_keeps_interleaved_repeat_linear"
+    , "tests.test_review_round5_repairs.LineageOperationScaling.test_duplicate_surplus_candidate_extension"
+    , "tests.test_review_round5_repairs.LineageOperationScaling.test_merge_many_distinct_rows_into_one_output_row"
+    , "tests.test_review_round5_repairs.LineageOperationScaling.test_split_one_source_row_into_many_output_rows"
+    , "tests.test_review_round5_repairs.LineageRepeatedMergeScaling.test_repeated_identical_merges_verify_each_group_once"
+    , "tests.test_review_round5_repairs.LineageScale.test_lineage_scan_is_subquadratic"
+    , "tests.test_review_round5_repairs.LineageTargetAnalysisCache.test_alternating_targets_keep_each_layout"
+    , "tests.test_review_round5_repairs.LineageTargetAnalysisCache.test_calls_do_not_mask_a_later_ambiguous_source"
+    , "tests.test_review_round5_repairs.LineageTargetAnalysisCache.test_calls_do_not_share_source_identity_or_limit"
+    , "tests.test_review_round5_repairs.LineageTargetAnalysisCache.test_character_merge_takes_last_parent_across_repeats"
+    , "tests.test_review_round5_repairs.LineageTargetAnalysisCache.test_narrator_run_keeps_first_row_layout_across_repeats"
+    , "tests.test_review_round5_repairs.LineageTargetAnalysisCache.test_partial_retention_keeps_consumed_prefix"
+    , "tests.test_review_round5_repairs.LineageTargetAnalysisCache.test_repeated_identical_targets_take_last_parent"
+    , "tests.test_review_round5_repairs.LineageTargetAnalysisCache.test_repeated_identical_targets_with_conflicting_layouts_fail_closed"
+    , "tests.test_review_round5_repairs.LineageTargetAnalysisCache.test_source_limit_boundaries_are_exact"
+    , "tests.test_review_round5_repairs.LineageTargetAnalysisCache.test_source_start_filters_reachable_layouts"
+    , "tests.test_review_round5_repairs.LineageTargetAnalysisCache.test_target_cache_does_not_mask_another_targets_ambiguity"
+    , "tests.test_review_round5_repairs.LineageTargetAnalysisCache.test_unicode_punctuation_and_empty_rows_merge_correctly"
+    , "tests.test_review_round5_repairs.MergeLayout.test_character_merge_takes_last_parent_not_a_middle_parent"
+    , "tests.test_review_round5_repairs.MergeLayout.test_narrator_merge_keeps_its_own_first_row_layout"
+    , "tests.test_review_round5_repairs.MergeLayout.test_narrator_run_starting_with_model_merge_agrees_on_force_and_reuse"
+    , "tests.test_review_round5_repairs.SnapshotWindow.test_checkpoint_that_appears_after_match_is_refused"
+    , "tests.test_review_round5_repairs.SnapshotWindow.test_out_of_place_key_order_edit_in_snapshot_window_refused"
+    , "tests.test_review_round5_repairs.SnapshotWindow.test_out_of_place_value_edit_in_snapshot_window_refused"
+  ]
   , "test_review_save_as_source": [
     "tests.test_review_save_as_source.ReviewSaveAsSourceTests.test_contextual_direct_and_batch_review_bound_copies_in_both_layouts"
     , "tests.test_review_save_as_source.ReviewSaveAsSourceTests.test_copy_rejects_missing_renamed_or_changed_evidence_and_modified_replies"
@@ -13369,6 +13553,7 @@
     , "tests.test_review_save_as_source.ReviewSaveAsSourceTests.test_multiple_saved_hops_cannot_drop_an_ambiguous_parent_witness"
     , "tests.test_review_save_as_source.ReviewSaveAsSourceTests.test_publication_refuses_when_a_deep_parent_binding_changes_during_review"
     , "tests.test_review_save_as_source.ReviewSaveAsSourceTests.test_repeated_save_as_preserves_scoped_cut_and_refuses_a_child_span_overrun"
+    , "tests.test_review_save_as_source.ReviewSaveAsSourceTests.test_review_preserves_pre_review_key_order_on_every_entry_point"
   ]
   , "test_review_scoped_source_span": [
     "tests.test_review_scoped_source_span.CutEvidenceTests.test_inserted_excluded_mark_cannot_earn_a_receipt"
@@ -16821,6 +17006,11 @@
     , "tests.test_three_pass_cast.CastTests.test_roster_leads_with_the_cast_and_shows_its_aliases"
     , "tests.test_three_pass_cast.CastTests.test_tool_reply_parsing"
     , "tests.test_three_pass_cast.RequestCastTests.test_a_bad_reply_that_finished_normally_raises_at_once_without_retrying"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_choice_without_a_message_raises_a_handled_error_not_attribute_error"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_reply_with_no_choices_raises_a_handled_error_not_index_error"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_reply_with_no_content_is_refused_not_crashed"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_truncated_reply_with_no_message_on_every_attempt_names_the_cap_cause"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_truncated_reply_with_no_message_still_discards_and_retries"
     , "tests.test_three_pass_cast.RequestCastTests.test_every_attempt_truncated_raises_naming_the_cause_not_a_json_error"
     , "tests.test_three_pass_cast.RequestCastTests.test_the_old_path_could_not_tell_a_loop_from_an_answer"
     , "tests.test_three_pass_cast.RequestCastTests.test_truncated_reply_is_discarded_and_the_retry_is_used"
