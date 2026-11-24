@@ -808,6 +808,8 @@
     "tests.test_audio_channels.AudioChannelTests.test_actual_preview_import_and_asr_stream_select_same_channel"
     , "tests.test_audio_channels.AudioChannelTests.test_batch_http_consumes_previews_once_and_dispatches_selected_channel"
     , "tests.test_audio_channels.AudioChannelTests.test_cancelled_preview_stops_owned_child_before_returning"
+    , "tests.test_audio_channels.AudioChannelTests.test_malformed_ffprobe_output_preserves_the_parse_cause"
+    , "tests.test_audio_channels.AudioChannelTests.test_malformed_ffprobe_output_raises_the_documented_value_error"
     , "tests.test_audio_channels.AudioChannelTests.test_metadata_wait_does_not_block_async_request_loop"
     , "tests.test_audio_channels.AudioChannelTests.test_mono_default_parity_missing_right_and_unknown_selection"
     , "tests.test_audio_channels.AudioChannelTests.test_move_is_single_use_and_failed_copy_does_not_delete_source"
@@ -818,6 +820,7 @@
     , "tests.test_audio_channels.AudioChannelTests.test_single_http_retries_same_audio_after_preview_source_has_moved"
     , "tests.test_audio_channels.AudioChannelTests.test_stage_preview_and_clone_import_use_same_bytes_and_keep_provenance"
     , "tests.test_audio_channels.AudioChannelTests.test_staging_reuses_original_expires_and_refuses_foreign_handles"
+    , "tests.test_audio_channels.AudioChannelTests.test_valid_ffprobe_streams_are_counted_and_empty_streams_are_refused"
   ]
   , "test_audio_channels_js": [
     "tests.test_audio_channels_js.AudioChannelsJsTests.test_closed_or_changed_picker_discards_late_audio_and_cleans_late_upload"
@@ -4579,10 +4582,14 @@
     , "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_reasoning_sampling_in_serialized_sdk_body"
   ]
   , "test_deepseek_text_helpers": [
-    "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_filesystem_root_contains_child_and_sibling_prefix_stays_outside"
+    "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_deeply_nested_json_shapes_do_not_escape_recursion_error"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_faster_scan_matches_the_reference_on_randomized_text"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_filesystem_root_contains_child_and_sibling_prefix_stays_outside"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_latin_accent_case_is_source_backed_but_new_letters_fail"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_unclosed_brace_run_does_not_rescan_from_every_open_brace"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_unmatched_prose_brace_does_not_hide_later_object"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_uppercase_suffixes_preserve_case_and_damage_gate"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_valid_object_after_more_than_64_stray_open_braces_is_found"
   ]
   , "test_deepseek_ui_state": [
     "tests.test_deepseek_ui_state.UiStateTests.test_connection_results_are_bound_to_current_profile_and_request"
@@ -10329,9 +10336,13 @@
     , "tests.test_preparer_asr_limits.PreparerAsrLimitTests.test_primary_and_each_fallback_receive_same_bounded_audio"
   ]
   , "test_preparer_asr_validation": [
-    "tests.test_preparer_asr_validation.WhisperCppTests.test_adapter_parses_json_written_by_cli"
+    "tests.test_preparer_asr_validation.AnnotateConfidenceTests.test_invalid_confidence_drops_the_chunk_instead_of_crashing"
+    , "tests.test_preparer_asr_validation.AnnotateConfidenceTests.test_numeric_confidence_still_passes_the_quality_filter"
+    , "tests.test_preparer_asr_validation.WhisperCppTests.test_adapter_parses_json_written_by_cli"
     , "tests.test_preparer_asr_validation.WhisperCppTests.test_adapter_reports_cli_failure"
     , "tests.test_preparer_asr_validation.WhisperCppTests.test_english_only_model_rejects_other_languages"
+    , "tests.test_preparer_asr_validation.WhisperCppTests.test_huge_int_offsets_survive_conversion_and_are_rejected_as_non_finite"
+    , "tests.test_preparer_asr_validation.WhisperCppTests.test_validator_rejects_huge_int_timestamps_without_overflow"
     , "tests.test_preparer_asr_validation.WhisperCppTests.test_zero_duration_words_are_coalesced_without_losing_text"
     , "tests.test_preparer_asr_validation.WordSegmentValidationTests.test_backward_timeline_is_rejected"
     , "tests.test_preparer_asr_validation.WordSegmentValidationTests.test_clean_segments_are_copied_without_mutating_input"

@@ -89,6 +89,34 @@ class AudioChannelTests(unittest.TestCase):
         finally:
             _PREVIEW_SLOTS.release(); _PREVIEW_SLOTS.release()
 
+    @staticmethod
+    def ffprobe_capture(stdout):
+        def capture(*args, **kwargs):
+            return SimpleNamespace(stdout=stdout, check_returncode=lambda: None)
+        return capture
+
+    def test_malformed_ffprobe_output_raises_the_documented_value_error(self):
+        from audio_channels import get_audio_channel_count
+        for stdout in (None, b'[]', b'{}', b'{"streams": [{}]}',
+                       b'{"streams": "not-a-list"}', b'{"streams": 3}'):
+            with self.subTest(stdout=stdout), self.assertRaisesRegex(
+                    ValueError, 'Could not determine the source audio channels'):
+                get_audio_channel_count(self.path, self.ffprobe_capture(stdout))
+
+    def test_malformed_ffprobe_output_preserves_the_parse_cause(self):
+        from audio_channels import get_audio_channel_count
+        with self.assertRaises(ValueError) as raised:
+            get_audio_channel_count(self.path, self.ffprobe_capture(None))
+        self.assertIsInstance(raised.exception.__cause__, TypeError)
+
+    def test_valid_ffprobe_streams_are_counted_and_empty_streams_are_refused(self):
+        from audio_channels import get_audio_channel_count
+        self.assertEqual(2, get_audio_channel_count(
+            self.path, self.ffprobe_capture(b'{"streams": [{"channels": 2}]}')))
+        with self.assertRaisesRegex(ValueError, 'Could not determine'):
+            get_audio_channel_count(
+                self.path, self.ffprobe_capture(b'{"streams": []}'))
+
     def test_staging_reuses_original_expires_and_refuses_foreign_handles(self):
         store = AudioChannelStaging(self.root)
         token, path = store.create_stage('original.wav', 'clone')

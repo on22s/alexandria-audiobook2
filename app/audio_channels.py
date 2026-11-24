@@ -17,8 +17,13 @@ def get_audio_channel_count(path, capture=None):
                              '-show_entries', 'stream=channels', '-of', 'json', str(path)],
                             **({'stdout': subprocess.PIPE, 'stderr': subprocess.PIPE} if capture is subprocess.run else {}), timeout=15)
     result.check_returncode()
-    streams = json.loads(result.stdout)['streams']
-    count = streams[0]['channels'] if streams else None
+    try:
+        data = json.loads(result.stdout)
+        streams = data.get('streams') if isinstance(data, dict) else None
+        count = streams[0]['channels'] if streams else None
+    except (ValueError, TypeError, KeyError, IndexError, AttributeError) as error:
+        raise ValueError(
+            'Could not determine the source audio channels.') from error
     if type(count) is not int or not 1 <= count <= 65535:
         raise ValueError('Could not determine the source audio channels.')
     return count
