@@ -21,10 +21,10 @@ for(const [status,color] of [['failed','bg-danger'],['done','bg-success'],['canc
 
     def test_unchanged_and_appended_logs_avoid_full_dom_and_metric_work(self):
         self.run_js(r"""
-let text='',replacements=0,appends=0,scrolls=0;
-const el=element('lora-train-logs');Object.defineProperty(el,'innerText',{set:v=>{replacements++;text=v;}});
+let text='',replacements=0,appends=0,scrolls=0;const children=[];
+const el=element('lora-train-logs');Object.defineProperty(el,'innerText',{set:v=>{for(const child of children){child.parentNode=null;}children.length=0;replacements++;text=v;}});
 let position=0;Object.defineProperty(el,'scrollTop',{get:()=>position,set:v=>{scrolls++;position=v;}});el.scrollHeight=42;el.clientHeight=10;
-ctx.document.createTextNode=text=>({text});el.appendChild=node=>{appends++;text+=node.text;};
+ctx.document.createTextNode=text=>({text});el.appendChild=node=>{node.parentNode=el;children.push(node);appends++;text+=node.text;};
 ctx._startPolling=(key,fetch,options)=>ctx.poll={key,fetch,options};ctx.pollLoraTraining(8);
 assert.strictEqual(ctx.poll.options.intervalMs,2000);const tick=ctx.poll.options.onTick;
 const logs=['[EPOCH] 2/8 avg_loss=0.43',...Array.from({length:10000},(_,i)=>'ordinary '+i)];

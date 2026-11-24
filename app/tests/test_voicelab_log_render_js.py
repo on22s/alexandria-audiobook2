@@ -8,10 +8,10 @@ class VoicelabLogRenderJsTests(unittest.TestCase):
 
     def test_long_log_appends_only_suffix_and_unchanged_ticks_do_not_write(self):
         self.run_js(r"""
-const el=element('voicelab-logs');let text='',replacements=0,appendBytes=0,appends=0,scrolls=0;
-Object.defineProperty(el,'innerText',{get:()=>text,set:value=>{replacements++;text=value;}});
+const el=element('voicelab-logs');const children=[];let text='',replacements=0,appendBytes=0,appends=0,scrolls=0;
+Object.defineProperty(el,'innerText',{get:()=>text,set:value=>{for(const child of children){child.parentNode=null;}children.length=0;replacements++;text=value;}});
 Object.defineProperty(el,'scrollTop',{set:value=>{scrolls++;}});
-ctx.document.createTextNode=text=>({text});el.appendChild=node=>{appends++;appendBytes+=Buffer.byteLength(node.text);text+=node.text;};
+ctx.document.createTextNode=text=>({text});el.appendChild=node=>{node.parentNode=el;children.push(node);appends++;appendBytes+=Buffer.byteLength(node.text);text+=node.text;};
 ctx.pollVoicelab('A');const tick=ctx.poll.options.onTick;
 const logs=Array.from({length:10000},(_,i)=>'original line '+i);
 tick({run_id:'one',running:true,logs:logs.slice(),tasks:[]});assert.strictEqual(replacements,1);

@@ -8,8 +8,8 @@ SOURCE = Path(os.environ.get('CORE_LOG_SOURCE', Path(__file__).resolve().parent.
 SETUP = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),source=fs.readFileSync(process.argv[1],'utf8');
 const elements={},polls={},pause=[],manual=[],activity=[];let notices=0;
-function element(id){if(elements[id]){return elements[id];}let text='';const stats={replaces:0,appends:0,scrolls:0};let scrollPosition=0;const el={value:'',style:{},stats,scrollHeight:42,clientHeight:42};
-Object.defineProperty(el,'innerText',{get:()=>text,set:value=>{text=value;stats.replaces++;}});Object.defineProperty(el,'scrollTop',{get:()=>scrollPosition,set:value=>{scrollPosition=value;stats.scrolls++;}});el.appendChild=node=>{text+=node.textContent;stats.appends++;};elements[id]=el;return el;}
+function element(id){if(elements[id]){return elements[id];}let text='';const children=[];const stats={replaces:0,appends:0,scrolls:0};let scrollPosition=0;const el={value:'',style:{},stats,scrollHeight:42,clientHeight:42};
+Object.defineProperty(el,'innerText',{get:()=>text,set:value=>{for(const child of children){child.parentNode=null;}children.length=0;text=value;stats.replaces++;}});Object.defineProperty(el,'scrollTop',{get:()=>scrollPosition,set:value=>{scrollPosition=value;stats.scrolls++;}});el.appendChild=node=>{node.parentNode=el;children.push(node);text+=node.textContent;stats.appends++;};elements[id]=el;return el;}
 const ctx={window:null,console,Date,document:{getElementById:element,querySelector:()=>null,createTextNode:text=>({textContent:text}),createElement:()=>({textContent:''})},API:{get:async()=>({})},
  _startPolling:(key,fetch,options)=>polls[key]={fetch,...options},syncPauseButton:(...args)=>pause.push(args),syncSnapshotButton:()=>{},renderManualRequest:(...args)=>manual.push(args),renderActivity:(...args)=>activity.push(args),
  _updateReviewBatchTotals:()=>{},notifyJobDone:()=>notices++,_showTaskRecoveryPanel:()=>{},loadSavedScripts:()=>{},loadVoices:async()=>{},showToast:()=>{},loadChunks:()=>{}};ctx.window=ctx;

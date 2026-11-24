@@ -72,7 +72,11 @@ for (const mode of ['running','idle','unavailable']) {
         }}, setInterval:(fn,ms)=>{timers.push(ms);return timers.length;},
         _resetPauseBtn:id=>{assert.strictEqual(id,'btn-vl-pause');resets++;},
         refreshVoicelabHealth:()=>{health++;},
-        _startPolling:(key,fetchFn,options)=>{pollers.push({key,fetchFn,options});},
+        _startPolling:(key,fetchFn,options)=>{
+            const poller = {key,fetchFn,options};
+            pollers.push(poller);
+            return () => {const index = pollers.indexOf(poller); if (index !== -1) {pollers.splice(index,1);}};
+        },
         escapeHtml:String,
         t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),
         taskStatusLabel:status=>status,
