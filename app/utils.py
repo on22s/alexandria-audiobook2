@@ -409,6 +409,20 @@ def _fsync_copied_file(path):
         pass
 
 
+def is_same_review_file(first, second):
+    """Whether two path spellings name one existing physical file.
+
+    Lexical abspath is deliberately not trusted: a symlinked parent followed by
+    ``..`` can collapse to the same spelling while naming different inodes.
+    """
+    if first is None or second is None:
+        return False
+    try:
+        return os.path.samefile(first, second)
+    except (OSError, ValueError):
+        return False
+
+
 def atomic_json_write(data, target_path, max_retries=5, *, sort_keys=False, trailing_newline=False,
                       newline=None, allow_nonatomic_fallback=True, return_written_bytes=False,
                       encoder=None, before_replace=None):

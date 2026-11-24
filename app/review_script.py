@@ -14,6 +14,7 @@ if __name__ == '__main__':
     _startup_sys.excepthook = _startup_exception
 
 from chunk_status_journal import remove_chunk_snapshot
+import bisect
 import errno
 import os
 import stat
@@ -592,23 +593,27 @@ def get_current_output_fingerprint(output_path):
 
 
 def get_coherent_output_snapshot(output_path, expected_sha256=None):
-    """Return (digest, count) from one read of the current output.
+    """Return (digest, count, exact bytes) from one read of the current output.
 
+    The exact bytes are the authentication anchor for completion reuse: a later
+    read that re-hashes to the same entry digest is not proof that nothing was
+    edited (key order does not change the digest), so reuse must compare bytes.
     When the input and output are the same file, ``expected_sha256`` is the
     digest of the input observation; a disagreement means the file changed
     between observations and no completion may be inferred from that pair.
     """
     try:
-        with open(output_path, encoding='utf-8') as stream:
-            published = json.load(stream)
-    except (OSError, ValueError, TypeError):
+        with open(output_path, 'rb') as stream:
+            raw = stream.read()
+        published = json.loads(raw.decode('utf-8'))
+    except (OSError, ValueError, TypeError, UnicodeError):
         return None
     if not isinstance(published, list) or not published:
         return None
     digest = get_review_entries_fingerprint(published)
     if expected_sha256 is not None and digest != expected_sha256:
         return None
-    return digest, len(published)
+    return digest, len(published), raw
 
 
 def get_current_output_entry_count(output_path):
@@ -638,7 +643,7 @@ def get_reusable_review_completion(input_path, output_path, input_sha256, output
     current output layout, the backward execution identity and the companions.
     """
     acceptable = {fingerprint, *(item for item in legacy_fingerprints if isinstance(item, str))}
-    in_place = os.path.abspath(input_path) == os.path.abspath(output_path)
+    in_place = is_review_same_file(input_path, output_path)
     document = load_review_receipt_document(output_path)
     checkpoint_path = get_review_progress_paths(output_path)[0]
 
@@ -658,8 +663,8 @@ def get_reusable_review_completion(input_path, output_path, input_sha256, output
         if fact is None or (checkpoint is not None
                 and checkpoint.get('execution_sha256') in acceptable):
             return False
-        if (fact.get('input_path') != os.path.abspath(input_path)
-                or fact.get('output_path') != os.path.abspath(output_path)
+        if (not is_review_recorded_path(fact.get('input_path'), input_path)
+                or not is_review_recorded_path(fact.get('output_path'), output_path)
                 or fact.get('fingerprint') not in acceptable
                 or fact.get('settings_fingerprint') != settings_fingerprint
                 or fact.get('output_sha256') != output_sha256
@@ -685,8 +690,8 @@ def get_reusable_review_completion(input_path, output_path, input_sha256, output
         if not completed and not are_review_checkpoint_coordinates_valid(
                 proof, validate_lengths=False):
             return False
-        if (forward.get('input_path') != os.path.abspath(input_path)
-                or forward.get('output_path') != os.path.abspath(output_path)):
+        if (not is_review_recorded_path(forward.get('input_path'), input_path)
+                or not is_review_recorded_path(forward.get('output_path'), output_path)):
             return False
         if (proof.get('settings_fingerprint') != forward.get('settings_fingerprint')
                 or settings_fingerprint is None
@@ -1402,6 +1407,10 @@ def _load_resume_state(output_path, total_batches_estimate, batch_size, context_
 
     source_offsets = get_review_resume_source_offsets(
         checkpoint, entries, batch_size, input_sha256=input_sha256)
+    if checkpoint and all_corrected:
+        consumed = source_offsets[-1] if source_offsets else None
+        all_corrected = get_review_rows_bound_to_source_order(
+            all_corrected, entries, source_limit=consumed)
     resume_offset = source_offsets[-1] if source_offsets else 0
     return (all_corrected, total_stats, previous_tail, completed_batches,
             batch_lengths, failed_batches, resume_offset, checkpoint)
@@ -1490,8 +1499,9 @@ def _atomic_write_bytes(path, payload):
 
 
 def publish_standalone_review(script_path, output_path, output_entries, companions, *,
-                              expected_sha256=None, staged_voice_bytes=None,
-                              staged_alias_bytes=None, expected_companions=None):
+                              expected_sha256=None, expected_source=None,
+                              staged_voice_bytes=None, staged_alias_bytes=None,
+                              expected_companions=None):
     """Publish a standalone review under one destination lock with rollback."""
     from contextlib import ExitStack
     expected = expected_companions if isinstance(expected_companions, dict) else companions
@@ -1503,7 +1513,7 @@ def publish_standalone_review(script_path, output_path, output_entries, companio
             locks.enter_context(file_lock(voice_path))
         if alias_path:
             locks.enter_context(file_lock(alias_path))
-        if os.path.abspath(script_path) == os.path.abspath(output_path):
+        if is_review_same_file(script_path, output_path):
             current = get_coherent_output_snapshot(
                 output_path, expected_sha256=expected_sha256)
             if current is None:
@@ -1527,6 +1537,19 @@ def publish_standalone_review(script_path, output_path, output_entries, companio
             with open(path, 'rb') as stream:
                 return stream.read()
         original_output = read_original(output_path)
+        if expected_source is not None:
+            expected_bytes, expected_dev, expected_ino = expected_source
+            try:
+                observed = os.stat(output_path)
+            except OSError as error:
+                raise ValueError(
+                    'The review input changed or could not be read. Retry from the current script.'
+                ) from error
+            if (original_output != expected_bytes
+                    or (observed.st_dev, observed.st_ino) != (expected_dev, expected_ino)
+                    or not is_review_same_file(script_path, output_path)):
+                raise ValueError(
+                    'The review input changed or could not be read. Retry from the current script.')
         original_voice = read_original(voice_path)
         original_alias = read_original(alias_path)
         # Persist checked recovery copies before touching any destination, so
@@ -2111,6 +2134,671 @@ def apply_review_annotations(entry, reply):
     return entry
 
 
+def get_review_row_in_source_key_order(source, row):
+    """Return ``row`` shaped like ``source`` without losing reviewed values.
+
+    A surviving source key keeps its original position with the edited value;
+    a key review removed is dropped; a key genuinely introduced by review is
+    appended in ``row``'s deterministic insertion order (schema order for plain
+    annotation edits, donor order for speaker rebinding). Relative order of
+    every surviving source key is therefore identical before and after review
+    (#2257).
+    """
+    order = list(source) + [key for key in row if key not in source]
+    return {key: row[key] for key in order if key in row}
+
+
+def is_review_same_file(first, second):
+    """Whether two spellings name one physical file (including parent aliases)."""
+    from utils import is_same_review_file
+    return is_same_review_file(first, second)
+
+
+def is_review_recorded_path(recorded, candidate):
+    """Compare a fact's recorded path using physical identity when possible."""
+    if not isinstance(recorded, str) or not candidate:
+        return False
+    if os.path.exists(recorded) and os.path.exists(candidate):
+        return is_review_same_file(recorded, candidate)
+    return os.path.abspath(recorded) == os.path.abspath(candidate)
+
+
+_LINEAGE_SEPARATOR = object()
+_LINEAGE_HASH_BASE = 1000003
+_LINEAGE_HASH_MASK = (1 << 64) - 1
+
+
+def get_review_token_rolling_hash(tokens):
+    """Return an order-sensitive digest of ``tokens`` in one linear pass."""
+    total = 0
+    for token in tokens:
+        total = (total * _LINEAGE_HASH_BASE
+                 + (hash(token) & _LINEAGE_HASH_MASK)) & _LINEAGE_HASH_MASK
+    return total
+
+
+def get_review_token_prefix_hashes(tokens):
+    """Return the rolling digest of every prefix of ``tokens`` (index 0 empty)."""
+    hashes = [0]
+    total = 0
+    for token in tokens:
+        total = (total * _LINEAGE_HASH_BASE
+                 + (hash(token) & _LINEAGE_HASH_MASK)) & _LINEAGE_HASH_MASK
+        hashes.append(total)
+    return hashes
+
+
+class _ReviewSourceRowIndexEntry:
+    """One distinct source token tuple at a given length."""
+
+    __slots__ = ('key', 'positions', 'layouts')
+
+    def __init__(self, key, position):
+        self.key = key
+        self.positions = [position]
+        self.layouts = None
+
+
+def get_review_source_length_index(source_tokens, source_rows):
+    """Index source rows by token length, then by order-sensitive digest.
+
+    Grouping by length means a target is only matched against prefix lengths
+    that actually occur in the source. Within a length, a single rolling digest
+    per distinct row makes prefix lookup a dictionary probe rather than a slice
+    and hash of ``target[:length]`` for every candidate length. A digest
+    collision is resolved by exact token comparison, and repeated identical
+    rows record the maximum position of each layout so a whole-row match costs
+    one layout probe per layout instead of one step per duplicate position.
+    Returns ``(index, single_length)``. When every non-empty source row has
+    one length (the common case), the bucket is keyed by the exact tuple so a
+    query is the original one C-level slice-and-hash lookup; otherwise buckets
+    are keyed by digest and the query hashes the target once.
+    """
+    lengths = {len(tokens) for tokens in source_tokens if tokens}
+    single_length = next(iter(lengths)) if len(lengths) == 1 else None
+    index = {}
+    for position, tokens in enumerate(source_tokens):
+        if not tokens:
+            continue
+        bucket = index.setdefault(len(tokens), {})
+        key = tuple(tokens)
+        if single_length is None:
+            bucket_key = get_review_token_rolling_hash(tokens)
+        else:
+            # The exact tuple is both the bucket key and the verification key.
+            bucket_key = key
+        existing = bucket.get(bucket_key)
+        if existing is None:
+            bucket[bucket_key] = _ReviewSourceRowIndexEntry(key, position)
+            continue
+        if single_length is not None:
+            # Exact-key bucket: a repeat is the same row, never a collision.
+            entries = (existing,)
+        else:
+            entries = existing if isinstance(existing, list) else [existing]
+            if entries is not existing:
+                bucket[bucket_key] = entries
+        for entry in entries:
+            if entry.key == key:
+                entry.positions.append(position)
+                if entry.layouts is None:
+                    entry.layouts = {}
+                    for earlier in entry.positions:
+                        entry.layouts[tuple(source_rows[earlier])] = earlier
+                else:
+                    entry.layouts[tuple(source_rows[position])] = position
+                break
+        else:
+            entries.append(_ReviewSourceRowIndexEntry(key, position))
+    return index, single_length
+
+
+def get_review_token_prefix_equal(target, length, key):
+    """Exact equality of ``target[:length]`` and a source row's token tuple."""
+    if len(key) != length:
+        return False
+    for offset in range(length):
+        if target[offset] != key[offset]:
+            return False
+    return True
+
+
+def get_review_source_prefix_entries(target, index, lengths, single_length=None):
+    """Yield ``(length, positions, layouts)`` for source rows prefixing ``target``.
+
+    ``lengths`` is the source's sorted distinct row lengths. One rolling-hash
+    pass over ``target`` replaces a slice and hash of ``target[:length]`` per
+    length, so a query costs O(target tokens + matching rows), independent of
+    unrelated source lengths. When the source has a single distinct row length,
+    ``single_length`` selects the exact tuple bucket so the query is one
+    C-level slice-and-hash lookup. ``layouts`` maps a full-row layout to its
+    greatest position when the matched tuple occurs more than once, else None.
+    """
+    target_len = len(target)
+    if single_length is not None:
+        if single_length <= target_len:
+            entry = index[single_length].get(tuple(target[:single_length]))
+            if entry is not None:
+                yield single_length, entry.positions, entry.layouts
+        return
+    prefix_hashes = get_review_token_prefix_hashes(target)
+    for length in lengths:
+        if length > target_len:
+            break
+        entries = index[length].get(prefix_hashes[length])
+        if entries is None:
+            continue
+        if not isinstance(entries, list):
+            entries = (entries,)
+        for entry in entries:
+            if get_review_token_prefix_equal(target, length, entry.key):
+                yield length, entry.positions, entry.layouts
+
+
+def get_review_source_prefix_positions(target, index, lengths):
+    """Yield ``(length, positions)`` for source rows prefixing ``target``.
+
+    Retained as the stable ``(length, positions)`` view of the prefix query for
+    callers and probes that do not need the precomputed duplicate layouts.
+    """
+    single_length = None
+    if len(lengths) == 1:
+        bucket = index[lengths[0]]
+        if bucket and isinstance(next(iter(bucket)), tuple):
+            single_length = lengths[0]
+    for length, positions, _layouts in get_review_source_prefix_entries(
+            target, index, lengths, single_length):
+        yield length, positions
+
+
+def get_review_lineage_z_array(pattern, text):
+    """Return ``(z_array, offset)`` for ``pattern + [separator] + text``.
+
+    Exact (no hashing): the window of ``text`` at ``index`` equals ``pattern``
+    exactly when ``z_array[offset + index] >= len(pattern)``. Used only when
+    many candidate windows share one target so their equality is decided by a
+    single linear pass instead of re-walking each window.
+    """
+    sequence = list(pattern) + [_LINEAGE_SEPARATOR] + list(text)
+    size = len(sequence)
+    z = [0] * size
+    left = right = 0
+    for index in range(1, size):
+        if index <= right:
+            z[index] = min(right - index + 1, z[index - left])
+        while index + z[index] < size and sequence[z[index]] == sequence[index + z[index]]:
+            z[index] += 1
+        if index + z[index] - 1 > right:
+            left = index
+            right = index + z[index] - 1
+    return z, len(pattern) + 1
+
+
+def get_review_source_order_templates(rows, source_rows, source_limit=None):
+    """Derive each reviewed row's source key order from verified text lineage.
+
+    Only the verified consumed prefix of the source is considered when a limit
+    is supplied, so retained checkpoint rows cannot borrow a future batch's
+    layout. Ambiguous derivations (including empty/punctuation-only rows and
+    alternative multi-row groups) return None.
+
+    A character merged row takes its last parent's layout, which is the
+    binder's own rule, so reuse and --force-review agree. A NARRATOR run is the
+    one legitimate exception: post-review narrator merging emits the run in its
+    first row's layout, and that first row may itself be a model merge, so any
+    consumed parent layout is authentic for a NARRATOR merge. A NARRATOR row in
+    any other layout is a stale publication and is replaced by the last parent.
+
+    Source rows are indexed by token length then rolling digest with exact
+    verification, so a row can only start a group when it is a prefix of the
+    target. A query hashes the target's tokens once and probes one digest per
+    distinct source length, so its cost is O(target tokens) rather than a slice
+    and hash of every prefix. An exact-length match is resolved from the
+    precomputed distinct layouts, so repeated identical rows cost one layout
+    probe rather than one step per duplicate position. A group's end offset is
+    fixed by its start row, so candidates reduce to one boundary lookup and one
+    exact window check: a full receipt reuse or checkpoint resume is linear in
+    the consumed tokens plus the rows that actually start at a matching prefix,
+    with no growing prefix copies or repeated suffix scans.
+    """
+    if not rows or not source_rows:
+        return None
+    limit = len(source_rows) if source_limit is None else min(len(source_rows), source_limit)
+    if limit <= 0:
+        return None
+    source_rows = source_rows[:limit]
+    output_tokens = [normalize_text(row.get('text', '')).split() for row in rows]
+    source_tokens = [normalize_text(row.get('text', '')).split() for row in source_rows]
+    if any(not tokens for tokens in output_tokens):
+        return None
+
+    source_index, source_single_length = get_review_source_length_index(
+        source_tokens, source_rows)
+    source_lengths = sorted(source_index)
+    source_offsets = [0] * (len(source_tokens) + 1)
+    for position, tokens in enumerate(source_tokens):
+        source_offsets[position + 1] = source_offsets[position] + len(tokens)
+    source_token_count = source_offsets[-1]
+    # The first row boundary at each token offset. Empty rows repeat an offset,
+    # so ``setdefault`` keeps the earliest index, which is the row that actually
+    # completed the preceding non-empty row.
+    boundary_at = {}
+    for position, offset in enumerate(source_offsets):
+        boundary_at.setdefault(offset, position)
+
+    def window_matches(first, last, target):
+        offset = 0
+        for position in range(first, last + 1):
+            row_tokens = source_tokens[position]
+            width = len(row_tokens)
+            if row_tokens != target[offset:offset + width]:
+                return False
+            offset += width
+        return offset == len(target)
+
+    # The same target text can be queried once per skipped source row. Cache
+    # the verified prefix entries for the immediately previous target only, so
+    # repeated targets re-filter by ``start`` instead of re-verifying prefixes;
+    # memory stays O(matches for one target).
+    prefix_cache_key = None
+    prefix_cache_matches = None
+
+    def get_prefix_matches(target):
+        nonlocal prefix_cache_key, prefix_cache_matches
+        key = tuple(target)
+        if prefix_cache_matches is None or key != prefix_cache_key:
+            prefix_cache_key = key
+            prefix_cache_matches = list(get_review_source_prefix_entries(
+                target, source_index, source_lengths, source_single_length))
+        return prefix_cache_matches
+
+    def iter_verified_groups(candidates, target):
+        """Yield ``(first, last)`` groups whose rows exactly spell ``target``."""
+        if not candidates:
+            return
+        target_len = len(target)
+        first_min = min(first for first, _ in candidates)
+        last_max = max(last for _, last in candidates)
+        region_size = source_offsets[last_max + 1] - source_offsets[first_min]
+        # One exact Z pass over the covered rows is O(target + region); direct
+        # per-candidate comparison is bounded by O(candidates * target). Take the
+        # cheaper exact route, so duplicate-prefix surpluses never re-walk a
+        # shared suffix per candidate.
+        if len(candidates) * target_len <= target_len + region_size:
+            for first, last in candidates:
+                if window_matches(first, last, target):
+                    yield first, last
+            return
+        region = []
+        for position in range(first_min, last_max + 1):
+            region.extend(source_tokens[position])
+        z, base = get_review_lineage_z_array(target, region)
+        region_base = source_offsets[first_min]
+        for first, last in candidates:
+            if z[base + source_offsets[first] - region_base] >= target_len:
+                yield first, last
+
+    def iter_target_layout_hits(target, start):
+        """Yield ``(layout, trigger position)`` for layouts reachable from ``start``.
+
+        Exact-length occurrences report their own position; a multi-row group
+        reports its first row, the greatest position at which it becomes
+        reachable. A layout is therefore reachable for a query bounded by
+        ``query_start`` exactly when its trigger is ``>= query_start``.
+        """
+        target_len = len(target)
+        for length, positions, exact_layouts in get_prefix_matches(target):
+            if positions[-1] < start:
+                continue
+            if length == target_len:
+                # The starting row already consumes the whole target. Duplicate
+                # rows share one tuple, so probe the distinct layouts (bounded by
+                # the number of key orders) instead of every matching position.
+                if exact_layouts is None:
+                    first = positions[0]
+                    if first >= start:
+                        yield tuple(list(source_rows[first])), first
+                else:
+                    for layout, last_position in exact_layouts.items():
+                        if last_position >= start:
+                            yield layout, last_position
+                continue
+            candidates = []
+            begin = bisect.bisect_left(positions, start)
+            for offset in range(begin, len(positions)):
+                first = positions[offset]
+                # Not enough tokens remain from this row to reach the target.
+                if source_token_count - source_offsets[first] < target_len:
+                    continue
+                # A group of whole rows can only end where a row boundary sits
+                # exactly target_len tokens after its start.
+                end = boundary_at.get(source_offsets[first] + target_len)
+                if end is None:
+                    continue
+                candidates.append((first, end - 1))
+            for first, last in iter_verified_groups(candidates, target):
+                yield tuple(list(source_rows[last])), first
+
+    def scan_target_layouts(target, start):
+        """Reachable layouts for one query, verifying each candidate once."""
+        layouts = set()
+        for layout, _position in iter_target_layout_hits(target, start):
+            layouts.add(layout)
+            if len(layouts) > 1:
+                break
+        return layouts
+
+    def analyze_target(target, start):
+        """Verify every group of ``target`` reachable from ``start`` once.
+
+        Returns ``(build_start, trigger_positions, trigger_layouts)`` so a later,
+        larger start is answered by one bisect instead of re-verifying anything.
+        """
+        layout_trigger = {}
+        for layout, position in iter_target_layout_hits(target, start):
+            if layout_trigger.get(layout, -1) < position:
+                layout_trigger[layout] = position
+        ordered = sorted(layout_trigger.items(), key=lambda item: item[1])
+        triggers = [position for _layout, position in ordered]
+        layouts = [layout for layout, _position in ordered]
+        return start, triggers, layouts
+
+    # Repeated identical targets (a receipt reuse or checkpoint resume of
+    # identical multi-row merges) would otherwise rebuild the same exact
+    # verification for every output row. A target seen once is answered by the
+    # uncached scan, so the distinct-target common path keeps its old cost; on
+    # the first repeat its verified trigger summary is built once and stays
+    # resident for the rest of the call, so intervening single-use rows cannot
+    # evict it. The key is the exact target tokens; source rows, source_limit
+    # and starts are fixed/clamped for the call, so no entry can leak across
+    # sources or limits. Retained state is one exact key tuple per distinct
+    # target plus, for a repeated target, one trigger per distinct layout that
+    # was actually verified, i.e. bounded by the one verification pass spent on
+    # that target.
+    target_analyses = {}
+    unseen_target = object()
+    last_query_key = None
+    last_query_result = None
+
+    def reachable_layouts(analysis, start):
+        _build_start, triggers, layouts = analysis
+        begin = bisect.bisect_left(triggers, start)
+        reachable = len(triggers) - begin
+        if reachable > 1:
+            return {layouts[begin], layouts[begin + 1]}
+        if reachable == 1:
+            return {layouts[begin]}
+        return set()
+
+    def token_groups(target, start):
+        """Distinct contiguous source groups from ``start`` producing ``target``.
+
+        A target's verification is amortized across repeats: the first repeat
+        builds the trigger summary, later queries only bisect it. The result is
+        capped at two because every caller asks only whether it is ambiguous.
+        """
+        nonlocal last_query_key, last_query_result
+        target_len = len(target)
+        # The common fixed-length apposition is the exact-length branch with no
+        # multi-row candidate; keep its original O(distinct layouts) cost and
+        # skip the amortization bookkeeping entirely.
+        if source_single_length is not None:
+            if target_len < source_single_length:
+                return set()
+            if target_len == source_single_length:
+                entry = source_index[source_single_length].get(tuple(target))
+                if entry is None or entry.positions[-1] < start:
+                    return set()
+                if entry.layouts is None:
+                    first = entry.positions[0]
+                    if first < start:
+                        return set()
+                    return {tuple(list(source_rows[first]))}
+                reachable = []
+                for layout, last_position in entry.layouts.items():
+                    if last_position >= start:
+                        reachable.append(layout)
+                        if len(reachable) > 1:
+                            return {reachable[0], reachable[1]}
+                return set(reachable)
+        key = tuple(target)
+        signature = (key, start)
+        # The merge and split checks ask the identical question in one step.
+        if signature == last_query_key:
+            return last_query_result
+        last_query_key = signature
+        cached = target_analyses.get(key, unseen_target)
+        if cached is unseen_target:
+            # First sight: keep the previous uncached scan cost and only record
+            # that the target was seen, so a single-use row never pays for the
+            # full verification an analysis performs.
+            target_analyses[key] = None
+            result = scan_target_layouts(target, start)
+        elif cached is None or cached[0] > start:
+            # First repeat, or a query that starts before the retained build:
+            # verify every reachable group once and keep the summary for the
+            # rest of the call.
+            analysis = analyze_target(target, start)
+            target_analyses[key] = analysis
+            result = reachable_layouts(analysis, start)
+        else:
+            result = reachable_layouts(cached, start)
+        last_query_result = result
+        return result
+
+    templates = [None] * len(rows)
+    skipped = set()
+    out = 0
+    source = 0
+    while out < len(rows) and source < len(source_rows):
+        tokens = source_tokens[source]
+        if not tokens:
+            source += 1
+            continue
+        target = output_tokens[out]
+        if len(token_groups(target, source)) > 1:
+            return None
+        merged = None
+        offset = 0
+        target_len = len(target)
+        # Compare only the newly consumed row against the matching target slice;
+        # copying and re-comparing the growing accumulation was quadratic.
+        for following in range(source, len(source_tokens)):
+            row_tokens = source_tokens[following]
+            end = offset + len(row_tokens)
+            if end > target_len or row_tokens != target[offset:end]:
+                break
+            offset = end
+            if offset == target_len:
+                merged = following
+                break
+        if merged is not None and merged > source:
+            parent_layouts = {tuple(list(source_rows[index]))
+                              for index in range(source, merged + 1)}
+            narrator_run = (str(rows[out].get('speaker', '')).strip().casefold()
+                            == 'narrator')
+            if narrator_run and tuple(list(rows[out])) in parent_layouts:
+                templates[out] = list(rows[out])
+            else:
+                templates[out] = list(source_rows[merged])
+            out += 1
+            source = merged + 1
+            continue
+        split = None
+        offset = 0
+        tokens_len = len(tokens)
+        for size in range(1, len(rows) - out + 1):
+            row_tokens = output_tokens[out + size - 1]
+            end = offset + len(row_tokens)
+            if end > tokens_len or row_tokens != tokens[offset:end]:
+                break
+            offset = end
+            if offset == tokens_len:
+                split = size
+                break
+        if split is not None:
+            if len(token_groups(tokens, source)) > 1:
+                return None
+            template = list(source_rows[source])
+            for index in range(out, out + split):
+                templates[index] = template
+            out += split
+            source += 1
+            continue
+        skipped.add(tuple(tokens))
+        source += 1
+    if out != len(rows):
+        return None
+    emitted = {tuple(tokens) for tokens in output_tokens}
+    ambiguous = skipped.union(tuple(tokens) for tokens in source_tokens[source:])
+    if ambiguous.intersection(emitted):
+        return None
+    return templates
+
+
+def get_review_rows_in_templates_order(rows, templates):
+    """Apply ordered source templates to rows without changing their values."""
+    return [get_review_row_in_source_key_order(template, row)
+            for template, row in zip(templates, rows)]
+
+
+def get_review_rows_bound_to_source_order(rows, source_rows, source_limit=None):
+    """Apply the shared lineage protocol to retained or reused rows.
+
+    Ambiguous lineage is never guessed: the rows are returned untouched so a
+    publication cannot be reassigned to the wrong source layout.
+    """
+    templates = get_review_source_order_templates(rows, source_rows, source_limit)
+    if templates is None:
+        return rows
+    return get_review_rows_in_templates_order(rows, templates)
+
+
+def ensure_reused_review_output_key_order(input_path, output_path, source_entries,
+                                          source_bytes, expected_output_sha256, *,
+                                          source_identity=None, data_dir=None,
+                                          receipt_bytes=None, legacy_fact=None,
+                                          direction='forward', observed_output_bytes=None,
+                                          execution_sha256=None,
+                                          legacy_execution_sha256=()):
+    """Validate and rebind one reused publication under the output lock.
+
+    Both files and the source witness are revalidated immediately before the
+    single recoverable commit. ``observed_output_bytes`` must be the exact bytes
+    captured by the coherent snapshot that authenticated this reuse: anything
+    else (including a key-order-only edit that leaves the entry digest intact)
+    is refused for in-place and out-of-place outputs alike. An active
+    same-execution checkpoint that appeared after the match is refused under the
+    same lock. Layout comes from verified lineage; an ambiguous mapping is a
+    no-op. Output rebinding and legacy receipt migration share one rollback, so
+    neither can be left partially published.
+    """
+    from script_selection_binding import verify_review_source_identity
+    authenticated = ((legacy_fact or {}).get('output_sha256')
+                     or expected_output_sha256)
+    acceptable_executions = {item for item in (execution_sha256, *legacy_execution_sha256)
+                             if isinstance(item, str)}
+    receipt_path = get_review_receipt_path(output_path)
+    checkpoint_path = _checkpoint_path(output_path)
+    same_file = is_review_same_file(input_path, output_path)
+    with file_lock(output_path):
+        current_receipt = None
+        if os.path.exists(receipt_path):
+            with open(receipt_path, 'rb') as stream:
+                current_receipt = stream.read()
+        if receipt_bytes is not None and current_receipt != receipt_bytes:
+            raise ValueError('The completed review receipt changed during reuse.')
+        if os.path.exists(checkpoint_path):
+            try:
+                checkpoint = load_generation_checkpoint_document(checkpoint_path)
+            except (OSError, ValueError, TypeError) as error:
+                raise ValueError(
+                    'A review checkpoint changed during completion reuse.') from error
+            if (isinstance(checkpoint, dict)
+                    and checkpoint.get('execution_sha256') in acceptable_executions):
+                raise ValueError(
+                    'A review checkpoint became active during completion reuse.')
+        with open(output_path, 'rb') as stream:
+            output_bytes = stream.read()
+        if observed_output_bytes is None:
+            raise ValueError('The reviewed output was not authenticated for reuse.')
+        if output_bytes != observed_output_bytes:
+            raise ValueError('The reviewed output changed after it was observed for reuse.')
+        try:
+            published = json.loads(output_bytes.decode('utf-8'))
+        except (ValueError, UnicodeError) as error:
+            raise ValueError('The reviewed output is unreadable during reuse.') from error
+        if not isinstance(published, list) or not published:
+            raise ValueError('The reviewed output changed during completion reuse.')
+        authenticated_now = get_review_entries_fingerprint(published) == authenticated
+        # A direct hit must be authenticated by the coherent snapshot; an edit
+        # in the snapshot -> observation window is never a completion reuse.
+        # A legacy migration instead records a historical validated digest that
+        # may legitimately differ from bytes an editor published since; it is
+        # allowed out of place because it authenticates no current byte.
+        if legacy_fact is None and not authenticated_now:
+            raise ValueError('The reviewed output changed during completion reuse.')
+        if legacy_fact is not None and same_file and not authenticated_now:
+            raise ValueError('The reviewed output changed during completion reuse.')
+        with open(input_path, 'rb') as stream:
+            if stream.read() != source_bytes:
+                raise ValueError('The review input changed during completion reuse.')
+        if source_identity is not None and data_dir is not None:
+            verify_review_source_identity(data_dir, source_identity)
+        rebound = published
+        if not same_file and authenticated_now:
+            templates = get_review_source_order_templates(published, source_entries)
+            if templates is not None:
+                candidate = get_review_rows_in_templates_order(published, templates)
+                if [list(row) for row in candidate] != [list(row) for row in published]:
+                    rebound = candidate
+        with open(input_path, 'rb') as stream:
+            if stream.read() != source_bytes:
+                raise ValueError('The review input changed during completion reuse.')
+        if source_identity is not None and data_dir is not None:
+            verify_review_source_identity(data_dir, source_identity)
+        ensure_review_not_cancelled()
+        if rebound is published and legacy_fact is None:
+            return
+        recovery = str(output_path) + '.review_reuse_recovery'
+        staged = {}
+        if legacy_fact is not None:
+            os.makedirs(recovery, exist_ok=True)
+            for name, payload in (('output.json', output_bytes),
+                                  ('receipt.json', current_receipt)):
+                if payload is not None:
+                    staged[os.path.join(recovery, name)] = (payload, output_path if name.startswith('output') else receipt_path)
+            for target, (payload, _) in staged.items():
+                _atomic_write_bytes(target, payload)
+        try:
+            if rebound is not published:
+                atomic_json_write(rebound, output_path, allow_nonatomic_fallback=False,
+                                  before_replace=ensure_review_not_cancelled)
+            if legacy_fact is not None:
+                ensure_review_not_cancelled()
+                save_durable_review_fact(output_path, direction, legacy_fact,
+                                         top_level=load_review_receipt_document(output_path))
+        except BaseException:
+            for target, (payload, path) in staged.items():
+                try:
+                    _atomic_write_bytes(path, payload)
+                except OSError:
+                    record_failure('review_reuse_rollback_incomplete', None,
+                                   task='review', resource=path,
+                                   operation='ensure_reused_review_output_key_order')
+            raise
+        finally:
+            for target in staged:
+                try:
+                    os.remove(target)
+                except OSError:
+                    pass
+            try:
+                os.rmdir(recovery)
+            except OSError:
+                pass
+
+
 def get_review_source_narration(entry):
     """Return the quote-derived role hint for lossless metadata boundary checks."""
     from dialogue_spans import get_source_narration
@@ -2223,7 +2911,8 @@ def get_review_labelled_entries(batch_entries, ordered):
                  'instruct': labels['instruct']}
         entry, warning = get_review_speaker_bound_entry(entry, [original], [], batch_entries,
                                                        get_review_annotations(labels))
-        bound.append(apply_review_annotations(entry, labels))
+        bound.append(get_review_row_in_source_key_order(
+            original, apply_review_annotations(entry, labels)))
         if warning:
             warnings.append({**warning, 'entry_number': number})
     return bound, warnings
@@ -2884,6 +3573,7 @@ def get_review_source_binding(batch_entries, entries, literal_source_preserving=
                     [original for _, _, original in sources], batch_entries,
                     get_review_annotations(entry))
                 row = apply_review_annotations(row, entry)
+                row = get_review_row_in_source_key_order(original, row)
                 bound.append(row)
                 if 'source_span' in facts and len(group) == 1:
                     span_fragments[start]['rows'][-1] = row
@@ -3612,7 +4302,9 @@ def main():
     legacy_fingerprints = (() if legacy_fingerprint in (None, receipt_fingerprint)
                            else (legacy_fingerprint,))
     direction = getattr(args, 'review_pass', 'forward')
-    in_place = os.path.abspath(script_path) == os.path.abspath(output_path)
+    in_place = is_review_same_file(script_path, output_path)
+    input_stat = os.stat(script_path)
+    expected_source_identity = (original_script_bytes, input_stat.st_dev, input_stat.st_ino)
     snapshot = get_coherent_output_snapshot(
         output_path, expected_sha256=source_sha256 if in_place else None)
     if in_place and snapshot is None:
@@ -3620,7 +4312,8 @@ def main():
         if close:
             close()
         raise ValueError('The review input changed or could not be read. Retry from the current script.')
-    current_output_sha, output_entry_count = snapshot if snapshot else (None, None)
+    current_output_sha, output_entry_count, output_snapshot_bytes = (
+        snapshot if snapshot else (None, None, None))
     settings_fingerprint = get_review_settings_fingerprint(
         config, llm_config, gen_params, args, client, model_name, review_source_text, entries)
     backward_fingerprint = None
@@ -3640,7 +4333,7 @@ def main():
     if direction == 'backward':
         forward_fact = read_durable_review_fact(output_path, 'forward')
         if (in_place and forward_fact is not None
-                and forward_fact.get('output_path') == os.path.abspath(output_path)
+                and is_review_recorded_path(forward_fact.get('output_path'), output_path)
                 and forward_fact.get('settings_fingerprint') == settings_fingerprint
                 and forward_fact.get('output_sha256') == source_sha256
                 and forward_fact.get('companions') == companions):
@@ -3649,15 +4342,25 @@ def main():
             parent_input_sha256 = forward_fact.get('input_sha256')
             parent_publication_sha256 = forward_fact.get('output_sha256')
             parent_entry_count = forward_fact.get('entries_after')
+    try:
+        with open(get_review_receipt_path(output_path), 'rb') as stream:
+            receipt_bytes_before_match = stream.read()
+    except OSError:
+        receipt_bytes_before_match = None
     matched, receipt_reason, reused_summary, reused_unverified, legacy_fact = get_reusable_review_completion(
         script_path, output_path, source_sha256, current_output_sha, receipt_fingerprint,
         legacy_fingerprints, direction, companions, settings_fingerprint=settings_fingerprint,
         backward_fingerprint=backward_fingerprint,
         output_entry_count=output_entry_count)
     if matched and not args.force_review:
-        if legacy_fact is not None:
-            save_durable_review_fact(output_path, direction, legacy_fact,
-                                     top_level=load_review_receipt_document(output_path))
+        ensure_review_not_cancelled()
+        ensure_reused_review_output_key_order(
+            script_path, output_path, entries, original_script_bytes, current_output_sha,
+            source_identity=review_source_identity, data_dir=data_dir,
+            receipt_bytes=receipt_bytes_before_match, legacy_fact=legacy_fact,
+            direction=direction, observed_output_bytes=output_snapshot_bytes,
+            execution_sha256=receipt_fingerprint,
+            legacy_execution_sha256=legacy_fingerprints)
         print(receipt_reason)
         print('No changes since the completed review; use --force-review to rerun.')
         before = len(entries) if reused_unverified else reused_summary.get('entries_before', len(entries))
@@ -3729,8 +4432,7 @@ def main():
                 and checkpoint.get('consumed_forward_fingerprint') == forward_fact.get('fingerprint')
                 and checkpoint.get('companions') == forward_fact.get('companions')
                 and in_place
-                and checkpoint.get('input_path', os.path.abspath(output_path))
-                    == os.path.abspath(output_path)):
+                and is_review_recorded_path(checkpoint.get('input_path'), output_path)):
             consumed_forward_sha256 = checkpoint['consumed_forward_sha256']
             consumed_forward_fingerprint = checkpoint['consumed_forward_fingerprint']
             parent_input_sha256 = checkpoint.get('parent_input_sha256', forward_fact.get('input_sha256'))
@@ -4213,7 +4915,7 @@ def main():
                         args.context_window, all_corrected, total_stats, previous_tail,
                         batch_lengths, failed_batches, source_sha256,
                         output_sha256, writer=checkpoint_writer, source_offsets=source_offsets, literal_policy=literal_policy, execution_sha256=receipt_fingerprint, accounting=accounting)
-    in_place_output = os.path.abspath(output_path) == os.path.abspath(script_path)
+    in_place_output = is_review_same_file(output_path, script_path)
     output_coordinates = (in_place_output and not (active_review or saved_review)
                           and output_sha256 != source_sha256)
     next_entries = output_entries if output_coordinates else entries
@@ -4290,6 +4992,7 @@ def main():
         publish_standalone_review(script_path, output_path, output_entries, companions,
             expected_companions=post_dedupe_companions,
             expected_sha256=source_sha256 if in_place else None,
+            expected_source=expected_source_identity if in_place else None,
             staged_voice_bytes=staged_voice_bytes,
             staged_alias_bytes=staged_alias_bytes)
     committed_companions = get_published_companion_identity(

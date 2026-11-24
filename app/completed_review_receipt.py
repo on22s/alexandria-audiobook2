@@ -2,7 +2,7 @@
 import hashlib
 import json
 import os
-from utils import atomic_json_write, file_lock
+from utils import atomic_json_write, file_lock, is_same_review_file
 
 VERSION = 1
 REVIEW_ALGORITHM_VERSION = 11
@@ -35,6 +35,15 @@ def get_review_receipt_path(output_path):
     return get_review_progress_paths(output_path)[1]
 
 
+def _receipt_path_matches(recorded, candidate):
+    """Compare a recorded path by physical identity when both files exist."""
+    if not isinstance(recorded, str) or not candidate:
+        return False
+    if os.path.exists(recorded) and os.path.exists(candidate):
+        return is_same_review_file(recorded, candidate)
+    return os.path.abspath(recorded) == os.path.abspath(candidate)
+
+
 def read_validated_completed_review(input_path, output_path, input_sha256, fingerprint,
                                     legacy_fingerprints=(), *, companions=None):
     """Validate the flat receipt once and return (matched, reason, identity).
@@ -57,8 +66,8 @@ def read_validated_completed_review(input_path, output_path, input_sha256, finge
         if (not isinstance(receipt, dict) or type(receipt.get('version')) is not int
                 or receipt['version'] != VERSION):
             return False, 'unsupported completed-review receipt', identity
-        if (receipt.get('input_path') != os.path.abspath(input_path)
-                or receipt.get('output_path') != os.path.abspath(output_path)
+        if (not _receipt_path_matches(receipt.get('input_path'), input_path)
+                or not _receipt_path_matches(receipt.get('output_path'), output_path)
                 or receipt.get('fingerprint') not in acceptable):
             return False, 'completed-review settings changed', identity
         with open(output_path, encoding='utf-8') as stream:
@@ -68,7 +77,7 @@ def read_validated_completed_review(input_path, output_path, input_sha256, finge
         output_sha = get_review_entries_fingerprint(output)
         if receipt.get('output_sha256') != output_sha:
             return False, 'completed-review output changed', identity
-        expected = output_sha if os.path.abspath(input_path) == os.path.abspath(output_path) else receipt.get('input_sha256')
+        expected = output_sha if is_same_review_file(input_path, output_path) else receipt.get('input_sha256')
         if input_sha256 != expected:
             return False, 'completed-review input changed', identity
         if os.path.exists(get_review_progress_paths(output_path)[0]):
