@@ -1311,6 +1311,7 @@
   "error.review.restart_receipt_discard_failed": "审校检查点已丢弃，但审校完成凭据因无法删除而被保留；新审校尚未启动。脚本和编辑内容已保留。请启用即使内容未更改也重新审校的选项，然后点击开始审校，从第 1 批开始。",
   "error.review.restart_reservation_lost": "审校进度（检查点和审校完成凭据）已丢弃，但由于任务预留已失效，新审校尚未启动。脚本和编辑内容已保留。请点击开始审校，从第 1 批开始。",
   "error.review.restart_start_failed": "审校进度（检查点和审校完成凭据）已丢弃，但由于无法注册后台任务，新审校尚未启动。脚本和编辑内容已保留。请检查审校日志，然后点击开始审校，从第 1 批开始。",
+  "safety.export.pending_recovery": "此导出正在等待恢复；请在下次书籍准入完成或尝试后重试。",
   "safety.export.previous_book": "此导出属于之前的书籍。请重新生成后再下载。",
   "safety.export.previous_scope": "此导出早于当前选择的源文本范围。请重新生成后再下载。",
   "safety.generation.book_recovery_detail": "书籍恢复：{detail}",

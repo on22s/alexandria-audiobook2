@@ -881,7 +881,10 @@ def _reap_gpu_leases():
                 return
         time.sleep(0.1)
 
-def _publish_task_claim_state(task_name, cpu_only):
+_AUDIO_LIFECYCLE_FIELDS = ('status', 'error')
+
+
+def _publish_task_claim_state(task_name, cpu_only, owner=None):
     """Initialize the live task entry while holding the admission mutex."""
     state = process_state[task_name]
     if "cancel" in state:
@@ -893,7 +896,14 @@ def _publish_task_claim_state(task_name, cpu_only):
     if task_name == "audio":
         # Each newly admitted audio operation owns its public result: a
         # previous merge's terminal status (cancelled/done) must not outlive
-        # a fresh render or batch that is now starting (R6).
+        # a fresh render or batch that is now starting (R6). Keep the prior
+        # lifecycle on the claim so a reservation that never starts work (a
+        # refused admission or a synchronous sound render that never owns an
+        # audio terminal writer) restores it instead of leaving a false
+        # running status (F07).
+        if owner is not None:
+            owner['prior_audio_lifecycle'] = {
+                key: state[key] for key in _AUDIO_LIFECYCLE_FIELDS if key in state}
         state.update(status="running", error=None)
     state.update(running=True, cpu_only=cpu_only)
 
@@ -991,7 +1001,7 @@ def claim_gpu_task(task_name: str, *, llm_config=None, cpu_only=False, resources
                 # publishes its book transaction and live task state.
                 owner.update(phase="pending", defer_process_state=True)
             else:
-                _publish_task_claim_state(task_name, cpu_only)
+                _publish_task_claim_state(task_name, cpu_only, owner)
             _task_claims[task_name] = owner
             return claim_id
         except BaseException as error:
@@ -1034,6 +1044,19 @@ def release_gpu_task_claim(task_name: str, claim_id=None, pending_only=False):
                     state.pop(field, None)
                 state.update(owner['prior_script_status'])
             state["running"] = False
+            if task_name == 'audio' and owner is not None:
+                # A reservation that never published a terminal audio status
+                # (refused admission, synchronous sound render, crashed worker)
+                # must not leave status=running with no owner. Restore the
+                # lifecycle this reservation displaced; a worker that did
+                # publish a terminal status keeps it (F07).
+                prior = owner.get('prior_audio_lifecycle')
+                if prior is not None and state.get('status') == 'running':
+                    for key in _AUDIO_LIFECYCLE_FIELDS:
+                        if key in prior:
+                            state[key] = prior[key]
+                        else:
+                            state.pop(key, None)
         _task_claims.pop(task_name, None)
         handle = _gpu_leases.pop(task_name, None)
         try:
@@ -1101,7 +1124,7 @@ def activate_background_task_claim(task_name, claim_id):
                 state = process_state[task_name]
                 owner['prior_script_status'] = {field: state[field] for field in _SCRIPT_RESERVATION_FIELDS
                                                 if field in state}
-            _publish_task_claim_state(task_name, owner["cpu_only"])
+            _publish_task_claim_state(task_name, owner["cpu_only"], owner)
             del owner["defer_process_state"]
 
 

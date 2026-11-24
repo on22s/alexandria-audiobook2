@@ -3525,7 +3525,8 @@ class ProjectManager:
 
                 from project_scope_exports import (
                     ExportCommitUncertain, ExportSetChanged, publish_export_set_member,
-                    get_export_set_cleanup_pending_detail, recover_failed_export_set,
+                    get_export_set_cleanup_pending_detail,
+                    get_export_set_rollback_pending_detail, recover_failed_export_set,
                     preflight_export_publication_batch, read_publication_journal,
                     read_set_journal, record_export_publication,
                     write_set_journal)
@@ -3576,8 +3577,13 @@ class ProjectManager:
                         except BaseException:
                             retain_backup = True
                             raise
-                        if isinstance(error, (ExportCancelled, AudioGenerationCancelled)) and not retain_backup:
-                            return False, "Export cancelled"
+                        if isinstance(error, (ExportCancelled, AudioGenerationCancelled)):
+                            if not retain_backup:
+                                return False, "Export cancelled"
+                            # The undo did not finish; the intent journal and
+                            # backups remain fenced. Report the phase-specific
+                            # pending state, not an ordinary cancellation (F04).
+                            return False, get_export_set_rollback_pending_detail(staging_dir)
                         if isinstance(error, ExportSetChanged):
                             return False, str(error)
                         raise

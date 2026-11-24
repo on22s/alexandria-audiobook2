@@ -440,8 +440,9 @@ def _publish_pair_transaction(source_snapshot, pairs, cancel_check, staging_path
     backup_dir.mkdir(exist_ok=True)
 
     from project_scope_exports import (
-        ExportCommitUncertain, get_export_set_cleanup_pending_detail, publish_export_set_member,
-        preflight_export_publication_batch,
+        ExportCommitUncertain, ExportRecoveryPending,
+        get_export_set_cleanup_pending_detail, get_export_set_rollback_pending_detail,
+        publish_export_set_member, preflight_export_publication_batch,
         read_publication_journal, read_set_journal, record_export_publication,
         recover_failed_export_set, write_set_journal)
     with source_snapshot.ensure_publication_transaction(outputs) as admit:
@@ -478,12 +479,18 @@ def _publish_pair_transaction(source_snapshot, pairs, cancel_check, staging_path
         except ExportCommitUncertain:
             retain[0] = True
             raise
-        except BaseException:
+        except BaseException as error:
             try:
                 retain[0] = not recover_failed_export_set(source_snapshot.root, staging_path)
             except BaseException:
                 retain[0] = True
                 raise
+            if retain[0] and isinstance(error, (ExportCancelled, AudioGenerationCancelled)):
+                # The undo did not finish: the intent journal and backups stay
+                # fenced. Report that phase-specific state instead of an
+                # ordinary cancellation (F04).
+                raise ExportRecoveryPending(
+                    get_export_set_rollback_pending_detail(staging_path)) from error
             raise
     if retain[0]:
         raise RuntimeError(get_export_set_cleanup_pending_detail(staging_path))

@@ -43,22 +43,42 @@ def _m4b_settlement_ok(outcome):
 _REPLACEMENT_CALLS = ('replace_export_output', 'publish_audio_output')
 
 
+_COMMIT_VALIDATOR = 'ensure_audio_generation_commit_active'
+
+
+def _calls_commit_validator(function):
+    """True when the function's executable body calls the commit validator.
+
+    Comment text and a function's name are not evidence: a ``is_cancelled``
+    that only mentions the validator in a comment and returns a constant must
+    be rejected (F12).
+    """
+    import ast
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Call):
+            continue
+        name = (node.func.attr if isinstance(node.func, ast.Attribute)
+                else getattr(node.func, 'id', None))
+        if name == _COMMIT_VALIDATOR:
+            return True
+    return False
+
+
 def _native_replace_wiring_violations(source):
     """Return violations of the production replacement-callback contract.
 
     A ``replace_export_output``/``publish_audio_output`` call must pass an
-    effective ``cancel_check`` keyword whose value is a real callable
-    (``ensure_audio_generation_commit_active`` or a local predicate that
-    references it), never a literal/None or a comment-only mention.
+    effective ``cancel_check`` keyword whose value is a real callable: either
+    the commit validator itself or a local function whose executable body
+    calls it. A named no-op (even with the validator's name in a comment) is
+    inert, not evidence of wiring.
     """
     import ast
     import textwrap
     text = textwrap.dedent(source)
     tree = ast.parse(text)
-    names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
-    references_validator = ('ensure_audio_generation_commit_active' in names
-                            or 'ensure_audio_generation_commit_active'
-                            in text.replace('# ', ''))
+    functions = {node.name: node for node in ast.walk(tree)
+                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
     violations = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -77,17 +97,13 @@ def _native_replace_wiring_violations(source):
             continue
         target = (value.id if isinstance(value, ast.Name)
                   else value.attr if isinstance(value, ast.Attribute) else None)
-        if target is None:
-            violations.append(f'{name} cancel_check is not a callable name')
-        elif target == 'ensure_audio_generation_commit_active':
+        if target == _COMMIT_VALIDATOR:
             continue
-        elif target == 'is_cancelled' and references_validator:
-            continue
-        elif target not in names or not references_validator:
+        function = functions.get(target)
+        if function is None:
+            violations.append(f'{name} cancel_check {target!r} is not a local callable')
+        elif not _calls_commit_validator(function):
             violations.append(f'{name} cancel_check {target!r} is inert')
-    if not violations and 'ensure_audio_generation_commit_active' not in names \
-            and 'is_cancelled' not in names:
-        violations.append('no commit validator referenced')
     return violations
 
 
@@ -727,6 +743,17 @@ class AudioPublishMutex2163Tests(unittest.TestCase):
             'cancel_check=None)').replace(
                 'def replace():', 'def replace():\n                # ensure_audio_generation_commit_active')
         self.assertTrue(_native_replace_wiring_violations(inert))
+        # A named no-op with the validator's name in a comment is still a
+        # disconnected callback, not executable evidence of wiring (F12).
+        named_noop = source.replace(
+            'cancel_check=ensure_audio_generation_commit_active)',
+            'cancel_check=is_cancelled)').replace(
+                'def replace():',
+                'def is_cancelled():\n'
+                '                    # ensure_audio_generation_commit_active\n'
+                '                    return False\n'
+                '                def replace():')
+        self.assertTrue(_native_replace_wiring_violations(named_noop))
 
     def _run_speech_lock_child(self, *, inverted):
         import os
@@ -755,17 +782,24 @@ class AudioPublishMutex2163Tests(unittest.TestCase):
         self.assertEqual(0, completed.returncode,
                          'speech/Editor lock inversion gate failed:\n'
                          f'{completed.stdout}\n{completed.stderr}')
+        # Require the structured positive marker so an unrelated early exit
+        # (for example an unrelated storage 409) cannot satisfy the gate (F11).
+        self.assertIn('SPEECH_LOCK_ORACLE OK', completed.stdout)
 
     def test_speech_lock_oracle_detects_injected_inversion(self):
         # Bad-implementation control for the rewritten oracle: reintroduce the
         # r5-style inversion (speech holds the task mutex across its chunk
-        # read) and require the child to report the live lock cycle itself,
-        # not pass because the speech route exited early.
+        # read) and require the child to report a genuine live lock cycle with
+        # the cycle exit code, not pass because its own "no cycle" diagnostic
+        # contains the word "cycle" (F11).
         completed = self._run_speech_lock_child(inverted=True)
-        self.assertNotEqual(0, completed.returncode,
-                            'inverted schedule must fail the oracle:\n'
-                            f'{completed.stdout}\n{completed.stderr}')
-        self.assertIn('live lock cycle', completed.stdout + completed.stderr)
+        self.assertEqual(2, completed.returncode,
+                         'inverted schedule must report the cycle exit code:\n'
+                         f'{completed.stdout}\n{completed.stderr}')
+        combined = completed.stdout + completed.stderr
+        self.assertIn('SPEECH_LOCK_ORACLE CYCLE', combined)
+        self.assertIn('live lock cycle', combined)
+        self.assertNotIn('SPEECH_LOCK_ORACLE NO_CYCLE', combined)
 
     def test_mp3_merge_cancel_before_receipt_io_preserves_prior(self):
         import project_scope_exports
@@ -1212,6 +1246,153 @@ class AudioPublishMutex2163Tests(unittest.TestCase):
                 self.assertNotIn('ReplaceFileW', facts)
                 self.assertEqual(b'prior', target.read_bytes())
 
+    def test_journal_append_revalidates_after_descriptor_open(self):
+        # F01: a stop acknowledged after the real append descriptor is open
+        # but before the record is written must refuse the update. Calling the
+        # guard before open (the reviewed behaviour) misses this window.
+        import chunk_status_journal as journal_module
+        from audio_generation_owner import AudioGenerationCancelled
+        with self.fixture() as (root, manager, before, states):
+            journal = manager._get_status_journal_locked()
+            journal.ensure_writable()
+            path = journal.path
+            original_bytes = path.read_bytes()
+            opened = {'descriptor': False}
+            real_open = Path.open
+
+            def tracking_open(target, *args, **kwargs):
+                stream = real_open(target, *args, **kwargs)
+                if Path(target) == path and args and args[0] == 'ab':
+                    opened['descriptor'] = True
+                return stream
+
+            def guard():
+                self.assertTrue(opened['descriptor'],
+                                'guard ran before the real append descriptor existed')
+                raise AudioGenerationCancelled()
+
+            with patch.object(Path, 'open', tracking_open):
+                with self.assertRaises(AudioGenerationCancelled):
+                    journal.apply_update(before[0]['uid'], {'status': 'done'},
+                                         before_append=guard)
+            self.assertEqual(original_bytes, path.read_bytes())
+
+    def test_set_forward_move_revalidates_after_inner_preparation(self):
+        # F03: cancellation acknowledged after the inner source proof must
+        # still refuse the first exclusive move. Without the lowest-boundary
+        # validator the predecessor is moved and rolled back (ctime/ledger
+        # churn) even though the stop was acknowledged.
+        from contextlib import nullcontext
+        from functools import partial
+        from audio_generation_owner import (AudioGenerationOwner,
+                                            AudioGenerationCancelled,
+                                            ensure_audio_generation_owner)
+        import project_scope_exports as ex
+        with self.fixture() as (root, manager, _before, states):
+            member, report, target, source, backup = self._seed_set_member(root)
+            claims = {'audio': {'id': 'a' * 32, 'phase': 'started'}}
+            owner = AudioGenerationOwner(
+                'a' * 32, lambda **kwargs: nullcontext(),
+                validate=partial(core._audio_task_owner_validation, 'a' * 32))
+            real = ex._require_set_version
+
+            def inner(root_, name_, *args, **kwargs):
+                info = real(root_, name_, *args, **kwargs)
+                if sys._getframe(1).f_code is ex._move_guarded_set_file.__code__:
+                    states['audio']['cancel'] = True
+                return info
+
+            with patch.object(core, '_task_claims', claims), \
+                 patch.object(core, 'process_state', states), \
+                 patch.object(ex, '_require_set_version', inner), \
+                 ensure_audio_generation_owner(owner):
+                with self.assertRaises(AudioGenerationCancelled):
+                    ex.publish_export_set_member(root, member, report)
+            self.assertEqual(b'old', target.read_bytes())
+            self.assertEqual(b'new', source.read_bytes())
+
+    def test_event_set_during_owner_wait_refuses_publication(self):
+        # F05: an independent Event set while the writer waits on the real
+        # owner validator must refuse publication. Sampling the Event before
+        # that blocking wait (the reviewed order) loses the stop.
+        from audio_generation_owner import AudioGenerationOwner, ensure_audio_generation_owner
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            source, destination = tmp / 'source', tmp / 'destination'
+            source.write_bytes(b'new')
+            destination.write_bytes(b'prior')
+            event, entered, release = (threading.Event() for _ in range(3))
+
+            def validate():
+                entered.set()
+                self.assertTrue(release.wait(5))
+
+            owner = AudioGenerationOwner(
+                'a' * 32, lambda **kwargs: nullcontext(), validate=validate)
+
+            def stop():
+                self.assertTrue(entered.wait(5))
+                event.set()
+                release.set()
+
+            worker = threading.Thread(target=stop)
+            with ensure_audio_generation_owner(owner):
+                worker.start()
+                try:
+                    published = audio_validation.publish_audio_output(
+                        str(source), str(destination), cancelled=event)
+                finally:
+                    worker.join(5)
+            self.assertFalse(worker.is_alive())
+            self.assertFalse(published)
+            self.assertEqual(b'prior', destination.read_bytes())
+
+    def test_refused_audio_reservation_restores_prior_lifecycle(self):
+        # F07: a reservation that never starts worker-owned publication (a
+        # refused admission here) must restore the lifecycle it displaced, not
+        # leave status=running with no claim.
+        with self.fixture() as (root, manager, before, states):
+            states['audio'].update(running=False, status='done', error=None)
+            with patch.object(core, 'process_state', states), \
+                 patch.object(editor, 'process_state', states):
+                claim = core.reserve_background_task('audio')
+                self.assertEqual('running', states['audio']['status'])
+                core.release_gpu_task_claim('audio', claim, pending_only=True)
+            self.assertFalse(states['audio']['running'])
+            self.assertEqual('done', states['audio']['status'])
+            self.assertIsNone(states['audio'].get('error'))
+
+    def test_single_worker_completion_does_not_overwrite_successor(self):
+        # F08: an exact claim replacement is the explicit fault model. A
+        # superseded single-chunk worker must not publish a terminal status,
+        # clear the successor's cancel flag or touch its running bit.
+        with self.fixture() as (root, manager, before, states):
+            self.engine(manager)
+            real = audio_validation.replace_export_output
+
+            def hook(source, destination, **kwargs):
+                if '.slot-' in str(destination):
+                    with core._gpu_lock:
+                        core._task_claims['audio'] = {
+                            **core._task_claims['audio'], 'id': 'a' * 32}
+                        states['audio'].update(status='running', error=None,
+                                               cancel=True, running=True,
+                                               logs=['successor'])
+                return real(source, destination, **kwargs)
+
+            try:
+                with patch.object(audio_validation, 'replace_export_output', hook):
+                    self.run_publish()
+            except AudioGenerationCancelled:
+                pass
+            self.assertEqual('a' * 32, core._task_claims['audio']['id'])
+            self.assertEqual('running', states['audio']['status'])
+            self.assertTrue(states['audio']['running'])
+            self.assertTrue(states['audio']['cancel'])
+            self.assertEqual(['successor'], states['audio']['logs'])
+            self.assertEqual(before[0]['audio_revision'],
+                             manager.load_chunks()[0]['audio_revision'])
+
 
 def _run_speech_lock_schedule():
     """Drive both real routes and require the intended lock gates.
@@ -1260,6 +1441,9 @@ def _run_speech_lock_schedule():
 
         def load():
             if is_speech_worker():
+                # Record the executor thread that actually attempts the chunk
+                # lock, not the ASGI caller that awaits it (F11).
+                observed.setdefault('speech_thread', threading.get_ident())
                 # Record the first real chunk-read attempt, which the Editor
                 # gate is holding the chunk mutex across.
                 observed.setdefault('speech_read_chunks_locked',
@@ -1295,25 +1479,48 @@ def _run_speech_lock_schedule():
             frame = sys._current_frames().get(thread.ident)
             return '' if frame is None else ''.join(traceback.format_stack(frame))
 
+        def live_stacks():
+            # Both participants run in pool executor threads, not the caller
+            # threads and not the ASGI caller that awaits them. Locate the two
+            # waiting frames by their actual lock sites (F11).
+            found = []
+            for ident, frame in sys._current_frames().items():
+                text = ''.join(traceback.format_stack(frame))
+                if '_gpu_lock' in text and 'core.py' in text:
+                    found.append(('task-mutex waiter', ident, text))
+                elif '_chunks_lock' in text and 'project.py' in text:
+                    found.append(('chunk-mutex waiter', ident, text))
+            return found
+
         def report_cycle(writer, reader):
-            writer_stack, reader_stack = stack_text(writer), stack_text(reader)
-            if (('_gpu_lock' in writer_stack and 'core.py' in writer_stack)
-                    and ('_chunks_lock' in reader_stack
-                         and 'project.py' in reader_stack)):
+            stacks = live_stacks()
+            task_waiter = next((item for item in stacks if item[0] == 'task-mutex waiter'), None)
+            chunk_waiter = next((item for item in stacks if item[0] == 'chunk-mutex waiter'), None)
+            cycle = (task_waiter is not None and chunk_waiter is not None
+                     and task_waiter[1] != chunk_waiter[1])
+            # Use distinct structured markers and exit codes: the parent gates
+            # must accept a genuine cycle, reject an unrelated stall, and never
+            # pass merely because the word "cycle" appears in a diagnostic.
+            if cycle:
                 message = (
-                    'live lock cycle: Editor blocked on the task mutex while '
-                    'speech holds it waiting for the chunk mutex\n'
-                    f'--- Editor ---\n{writer_stack}\n--- speech ---\n{reader_stack}')
+                    'SPEECH_LOCK_ORACLE CYCLE\n'
+                    'live lock cycle: one participant blocks on the task mutex '
+                    'while the other blocks on the chunk mutex\n'
+                    f'--- task-mutex waiter ---\n{task_waiter[2]}\n'
+                    f'--- chunk-mutex waiter ---\n{chunk_waiter[2]}')
+                code = 2
             else:
                 message = (
+                    'SPEECH_LOCK_ORACLE NO_CYCLE\n'
                     'speech/Editor workers did not return and no live lock cycle '
-                    f'was observed\n--- Editor ---\n{writer_stack}\n'
-                    f'--- speech ---\n{reader_stack}')
+                    f'was observed\n--- Editor thread ---\n{stack_text(writer)}\n'
+                    f'--- speech thread ---\n{stack_text(reader)}')
+                code = 3
             # A real cycle leaves the task mutex held by a blocked thread, so
             # fixture cleanup (which takes it) would hang. Report and exit the
             # child directly; this oracle is always run out-of-process.
             print(message, flush=True)
-            os._exit(2)
+            os._exit(code)
 
         writer = threading.Thread(target=publish, daemon=True)
         reader = threading.Thread(target=recheck, daemon=True)
@@ -1343,10 +1550,14 @@ def _run_speech_lock_schedule():
         error = reader_errors[0]
         assert isinstance(error, HTTPException) and error.status_code == 409, (
             f'speech route returned an unexpected failure: {error!r}')
-        detail = str(error.detail).lower()
-        assert 'changed' in detail or 'refresh editor' in detail, (
-            f'speech route failed for an unrelated reason: {error.detail!r}')
+        # Accept only the exact changed-take conflicts the real race can
+        # produce, not any 409 that happens to contain "changed" (F11).
+        assert error.detail in (
+            'The selected audio take changed. Refresh Editor.',
+            'The selected line, input or take changed. Refresh Editor.',
+        ), f'speech route failed for an unrelated reason: {error.detail!r}'
         row = manager.load_chunks()[0]
         assert row['status'] == 'done', 'Editor publish did not commit'
         assert row['audio_revision'] != before[0]['audio_revision'], (
             'Editor publish did not install a new revision')
+        print('SPEECH_LOCK_ORACLE OK', flush=True)

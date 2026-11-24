@@ -1,6 +1,7 @@
 """Keep large older deliveries on disk while fencing unchanged pre-scope files."""
 from contextlib import contextmanager, nullcontext
 import base64
+import contextvars
 import hashlib
 import json
 import os
@@ -751,6 +752,27 @@ def _require_set_parents(root, member, names=None):
         raise ExportSetChanged('Export set parent changed during publication.')
 
 
+_FORWARD_MOVE_VALIDATOR = contextvars.ContextVar(
+    'export_forward_move_validator', default=None)
+
+
+@contextmanager
+def _forward_export_move():
+    """Authorize only forward publication moves for the enclosed call.
+
+    Recovery performs its own independently authorized moves and must not be
+    refused by a stop that only fences new publication. Keeping this as a
+    context value leaves ``_move_guarded_set_file``'s call signature stable
+    for existing callers and fixtures.
+    """
+    from audio_generation_owner import ensure_audio_generation_commit_active
+    token = _FORWARD_MOVE_VALIDATOR.set(ensure_audio_generation_commit_active)
+    try:
+        yield
+    finally:
+        _FORWARD_MOVE_VALIDATOR.reset(token)
+
+
 def _move_guarded_set_file(root, member, source, destination, proof):
     from book_state_transaction import _move
     linked = (_allows_linked_predecessor(member['target'])
@@ -763,7 +785,8 @@ def _move_guarded_set_file(root, member, source, destination, proof):
         _move(root / source, root / destination, exclusive=True, anchor=root,
               anchor_identity=tuple(parents[source][0]),
               source_parent_identity=parents[source], destination_parent_identity=parents[destination],
-              expected_source_identity=source_identity)
+              expected_source_identity=source_identity,
+              before_move=_FORWARD_MOVE_VALIDATOR.get())
     except (FileExistsError, ValueError) as error:
         raise ExportSetChanged('Export set member changed during its move.') from error
 
@@ -787,7 +810,10 @@ def publish_export_set_member(root, member, report):
         # failure branch below is recovery and must remain authorized (R13).
         from audio_generation_owner import ensure_audio_generation_commit_active
         ensure_audio_generation_commit_active()
-        _move_guarded_set_file(root, member, target, backup, before)
+        # The lowest exclusive move repeats this after its own blocking
+        # descriptor/parent/identity preparation (F03).
+        with _forward_export_move():
+            _move_guarded_set_file(root, member, target, backup, before)
         saved = {'file_version': list(_version((root / backup).lstat()))}
         if saved['file_version'][:4] != before['file_version'][:4]:
             # POSIX no-overwrite protects the destination, but cannot bind
@@ -797,7 +823,8 @@ def publish_export_set_member(root, member, report):
             raise ExportSetChanged('Export set predecessor changed during backup.')
     from audio_generation_owner import ensure_audio_generation_commit_active
     ensure_audio_generation_commit_active()
-    _move_guarded_set_file(root, member, source, target, report)
+    with _forward_export_move():
+        _move_guarded_set_file(root, member, source, target, report)
     version = list(_version((root / target).lstat()))
     if version[:4] != member['new']['file_version']:
         raise ExportSetChanged('Export set output changed during publication.')
@@ -1025,6 +1052,18 @@ def recover_failed_export_set(root, staging_path):
 
 def get_export_set_cleanup_pending_detail(staging_path):
     return f'Export committed; pending recovery. Recovery files kept at {staging_path}.'
+
+
+def get_export_set_rollback_pending_detail(staging_path):
+    """Phase-specific outcome when an interrupted undo did not finish.
+
+    The intent journal, backups and external bytes are preserved; the next
+    book admission attempts recovery. This is deliberately distinct from both
+    an ordinary cancellation (which finished its rollback) and a committed
+    export whose cleanup is pending.
+    """
+    return (f'Export rollback is pending recovery; the next book admission '
+            f'will attempt it. Recovery files kept at {staging_path}.')
 
 
 def _sync_export_target_parents(root, targets):
@@ -1438,15 +1477,26 @@ def publish_export_with_receipt(root, staged_path, destination, sha256, replace,
             if pending is not None:
                 notes.append('the intent journal remains')
                 try:
-                    current_records = read_publication_receipts(root)
-                    prior_records = _parse_publication_receipts(
-                        _get_prior_ledger_raw(pending.get('ledger') or {}))
+                    _records, current_raw = read_publication_receipts(root, include_bytes=True)
+                    ledger = pending.get('ledger') or {}
+                    prior_raw = _get_prior_ledger_raw(ledger)
+                    writes = ledger.get('writes') or []
+                    proposed_sha = ((writes[1] or {}).get('sha256')
+                                    if len(writes) == 2 else None)
+                    current_sha = (hashlib.sha256(current_raw).hexdigest()
+                                   if current_raw is not None else None)
                 except (OSError, ValueError, KeyError, TypeError):
                     pass
                 else:
-                    notes.append('the original receipt ledger is restored'
-                                 if current_records == prior_records
-                                 else 'a proposed receipt ledger remains')
+                    # Name original/proposed only when the bytes match the
+                    # journal's own authority. A valid but unrelated ledger is
+                    # neither, and saying otherwise hides a real conflict (F10).
+                    if current_raw == prior_raw:
+                        notes.append('the original receipt ledger is restored')
+                    elif proposed_sha is not None and current_sha == proposed_sha:
+                        notes.append('a proposed receipt ledger remains')
+                    else:
+                        notes.append('an unrelated or unverified receipt ledger remains')
                 backup_name = pending.get('backup')
                 if (isinstance(backup_name, str) and backup_name
                         and os.path.lexists(root / backup_name)):
@@ -1455,7 +1505,7 @@ def publish_export_with_receipt(root, staged_path, destination, sha256, replace,
                 notes.append('recovery state remains')
             raise ExportRecoveryPending(
                 'Export publication is pending recovery; the next book admission '
-                'will finish it' + (f" ({', '.join(notes)})." if notes else '.')) from error
+                'will attempt it' + (f" ({', '.join(notes)})." if notes else '.')) from error
         raise
     cleanup_ok = True
     if backup is not None:
@@ -1548,7 +1598,10 @@ def get_historical_export_reason(root, path, *, expected_sha256=None, expected_v
     set_journal = read_set_journal(root)
     if is_export_set_pending(set_journal):
         if any(member['target'] == relative for member in set_journal['members']):
-            return reason
+            # A fenced set (intent or committed-cleanup) is not merely a
+            # previous-book artifact: name its pending recovery so the reader
+            # reason matches the worker's outcome (F04).
+            return 'pending'
     if not path.is_file():
         return reason if expected_version is not None else None
     version = expected_version if expected_version is not None else list(_version(path.stat()))
@@ -1619,5 +1672,8 @@ def require_scope_export_current(root, path, *, expected_sha256=None, expected_v
         if reason == 'book':
             raise AppError(409, 'This export belongs to a previous book; rebuild it before downloading.',
                            key='safety.export.previous_book')
+        if reason == 'pending':
+            raise AppError(409, 'This export is pending recovery; retry after the next book admission finishes or attempts it.',
+                           key='safety.export.pending_recovery')
         raise AppError(409, 'This export predates the selected source scope. Rebuild it before downloading.',
                        key='safety.export.previous_scope')

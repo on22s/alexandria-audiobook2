@@ -1192,25 +1192,30 @@ async def generate_chunk_endpoint(index: int, background_tasks: BackgroundTasks,
             raise HTTPException(status_code=400, detail="Cannot generate audio for an empty line")
 
         def task():
-            state = process_state["audio"]
-            state["start_time"] = time.time()
-            state["logs"] = [f"Generating chunk {index}..."]
-            state["status"] = "running"
-            state["error"] = None
+            # Every public lifecycle write is bound to this worker's exact
+            # claim. A successor that installed its own claim (or acknowledged
+            # its own cancel) while this worker ran must not be overwritten
+            # during completion or in the finally block (F08).
+            _set_audio_task_state(start_time=time.time(),
+                                  logs=[f"Generating chunk {index}..."],
+                                  status="running", error=None)
+
+            def log(message):
+                _set_audio_task_state(logs_append=message)
+
             try:
                 success, message = project_manager.generate_chunk_audio(index, admitted_chunk=requested[index])
                 cancelled = not success and message == AUDIO_GENERATION_CANCELLED
-                state["status"] = "cancelled" if cancelled else ("done" if success else "failed")
-                state["error"] = None if success or cancelled else message
-                state["logs"].append(
-                    f"Generation {'complete' if success else 'failed'}: {message}")
+                _set_audio_task_state(
+                    status="cancelled" if cancelled else ("done" if success else "failed"),
+                    error=None if success or cancelled else message)
+                log(f"Generation {'complete' if success else 'failed'}: {message}")
             except Exception as exc:
                 logger.exception("Single-chunk generation error")
-                state["status"] = "failed"
-                state["error"] = str(exc)
-                state["logs"].append(f"Generation failed: {exc}")
+                _set_audio_task_state(status="failed", error=str(exc))
+                log(f"Generation failed: {exc}")
             finally:
-                state["running"] = False
+                _set_audio_task_state(running=False)
 
         # Same GPU resource as /api/generate_batch - must not race it. See F-032.
         register_claimed_background_task(background_tasks, "audio", claim_id, task)
@@ -1993,7 +1998,19 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
     state = process_state["chapter_export"]
 
     def task():
-        state["logs"] = ["Starting chapter export..."]
+        # A superseded chapter worker (replaced claim) must not overwrite a
+        # successor's result, logs, running bit or acknowledged cancel, in the
+        # body or in the finally block (F08). Direct/legacy callers with no
+        # bound claim keep the historical write.
+        def publish(**fields):
+            if update_claimed_task_state("chapter_export", **fields) is None:
+                state.update(fields)
+
+        def log(message):
+            if update_claimed_task_state("chapter_export", logs_append=message) is None:
+                state.setdefault("logs", []).append(message)
+
+        publish(logs=["Starting chapter export..."])
         quality_attempt = None
         try:
             quality_attempt = get_export_quality_attempt(request, state,
@@ -2009,19 +2026,18 @@ async def export_chapters(request: ChapterExportRequest, background_tasks: Backg
                 volume_number=request.volume_number, chapters=chapters,
                 changed_only=request.changed_only,
                 expected_editor_revision=expected_editor_revision,
-                progress_callback=lambda m: state["logs"].append(m),
+                progress_callback=log,
                 cancel_check=lambda: state["cancel"], **ensure_export_mastering_context(request, state),
                 **quality_attempt.kwargs)
             quality_attempt.finish(success, msg)
-            state["result"] = get_export_task_result(success, msg)
-            state["logs"].append(f"Export complete: {msg}" if success else f"Export failed: {msg}")
+            publish(result=get_export_task_result(success, msg))
+            log(f"Export complete: {msg}" if success else f"Export failed: {msg}")
         except Exception as e:
             record_export_quality_error(quality_attempt, e)
-            state["result"] = get_export_task_error(e)
-            state["logs"].append(f"Export error: {e}")
+            publish(result=get_export_task_error(e))
+            log(f"Export error: {e}")
         finally:
-            state["running"] = False
-            state["cancel"] = False
+            publish(running=False, cancel=False)
 
     await asyncio.to_thread(_reserve_export_task, background_tasks,
                             "chapter_export", admission, task)

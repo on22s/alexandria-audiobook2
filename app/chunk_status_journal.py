@@ -263,11 +263,13 @@ class ChunkStatusJournal:
         record = dict(record, sequence=self._sequence + 1)
         payload = _get_json_bytes(record) + b"\n"
         self._versions = None  # a failed append must force recovery on the next read
-        # Serialization performs no durable mutation, so the caller's guard
-        # runs immediately before the first observable append (R2/R5).
-        if before_append is not None:
-            before_append()
         with self.path.open("ab") as handle:
+            # Opening the append stream is the last potentially blocking
+            # preparation. Serialization performs no durable mutation, so the
+            # caller's guard runs here, after the descriptor exists and
+            # immediately before the first observable write (R2/R5/F01).
+            if before_append is not None:
+                before_append()
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())

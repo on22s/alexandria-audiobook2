@@ -100,14 +100,14 @@ def publish_audio_output(staging_path, output_path, cancelled=None, *, cancel_ch
     runs after blocking identity reads, not only on entry.
     """
     def is_cancelled():
-        if cancelled is not None and cancelled.is_set():
-            return True
-        if cancel_check is not None and cancel_check():
-            return True
-        # A bound task owner is an independent authority from the backend's
-        # request-local Event. Production writers that pass only an Event (and
-        # conversion paths that pass neither) must still refuse after an
-        # acknowledged audio-task cancellation (R8).
+        # Revalidate the bound owner first: it is the last potentially blocking
+        # acquisition, so an independent Event/caller/deadline stop arriving
+        # while the writer waits on it is observed by the checks below (F05).
+        # The reverse order lost such a stop because it was sampled before the
+        # wait. A bound task owner is an independent authority from the
+        # backend's request-local Event. Production writers that pass only an
+        # Event (and conversion paths that pass neither) must still refuse
+        # after an acknowledged audio-task cancellation (R8).
         from audio_generation_owner import (AudioGenerationCancelled,
                                             ensure_audio_generation_commit_active,
                                             get_audio_generation_owner)
@@ -116,6 +116,10 @@ def publish_audio_output(staging_path, output_path, cancelled=None, *, cancel_ch
                 ensure_audio_generation_commit_active()
             except AudioGenerationCancelled:
                 return True
+        if cancelled is not None and cancelled.is_set():
+            return True
+        if cancel_check is not None and cancel_check():
+            return True
         return False
 
     with ensure_audio_output(output_path):
