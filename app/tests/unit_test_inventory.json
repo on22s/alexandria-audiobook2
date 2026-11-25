@@ -2387,6 +2387,7 @@
     , "tests.test_book_state_transaction.BookStateTransactionTests.test_unchanged_partial_stream_is_cleaned_after_short_read"
     , "tests.test_book_state_transaction.InputSelectionDateOrderTests.test_changed_bytes_start_a_new_book_and_reset_the_order"
     , "tests.test_book_state_transaction.InputSelectionDateOrderTests.test_identical_bytes_under_another_path_keep_the_order"
+    , "tests.test_book_state_transaction.InputSelectionDateOrderTests.test_interrupted_selection_in_publishing_rolls_back_unchanged"
     , "tests.test_book_state_transaction.InputSelectionDateOrderTests.test_interrupted_selection_replays_the_same_state"
     , "tests.test_book_state_transaction.InputSelectionDateOrderTests.test_same_bytes_without_a_usable_published_script_start_a_new_book"
     , "tests.test_book_state_transaction.InputSelectionDateOrderTests.test_same_source_reselection_keeps_the_recorded_date_order"

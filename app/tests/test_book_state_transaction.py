@@ -1862,8 +1862,66 @@ class InputSelectionDateOrderTests(BookProtocolCases, unittest.TestCase):
             self.assertTrue(state['script_selection_pending'])
 
     def test_interrupted_selection_replays_the_same_state(self):
-        # Kill the publisher just after it puts the new state.json in place, so
-        # recovery replays a selection journal written by the fixed path.
+        # Kill the publisher inside the cleanup that runs only after the
+        # committed journal is durable. Recovery from `committed` must finish
+        # the selection forward, so this exercises a real replay (not the
+        # rollback that a `publishing` kill performs).
+        worker = '''
+import os,sys
+import book_state_transaction as books
+import source_upload_publication as publication
+root,protocol=sys.argv[1],sys.argv[2]
+if protocol=='v3':
+ publication.probe_exchange_support=lambda _fd:False
+books._finish_transaction=lambda *args,**kwargs: os._exit(77)
+books.apply_book_input_selection(root,root+'/uploads/source.txt','source')
+'''
+        with tempfile.TemporaryDirectory() as tmp, \
+                tempfile.TemporaryDirectory() as live_tmp:
+            root, _source = self.published_book(tmp)
+            before = self.selection_state(root)
+            result = subprocess.run(
+                [sys.executable, '-c', worker, str(root), self._book_protocol],
+                capture_output=True, text=True, timeout=15)
+            self.assertEqual(77, result.returncode, result.stderr)
+            self.assertTrue((root / books.JOURNAL).exists())
+            # Only a committed journal replays forward. Asserting the phase
+            # keeps this from silently degenerating into a rollback test again.
+            journal = json.loads((root / books.JOURNAL).read_bytes())
+            self.assertEqual('committed', journal['phase'])
+            with books.ensure_book_state(str(root)):
+                pass
+            self.assertFalse((root / books.JOURNAL).exists())
+            replayed = self.selection_state(root)
+            # A committed selection replays to its new generation, not the
+            # pre-selection one; the latter would prove recovery rolled back.
+            self.assertNotEqual(before['book_generation'],
+                                replayed['book_generation'])
+            live_root, _live_source = self.published_book(live_tmp)
+            books.apply_book_input_selection(
+                str(live_root), str(live_root / 'uploads' / 'source.txt'), 'source')
+            # Compare the WHOLE replayed state with the direct path, not just
+            # the date-order keys. Only two fields may legitimately differ
+            # between two separate runs: `book_generation` is a fresh uuid per
+            # selection, and `input_file_path` embeds the run's data-dir path.
+            direct = self.selection_state(live_root)
+            allowed = {'book_generation', 'input_file_path'}
+            self.assertEqual(set(direct), set(replayed),
+                             'replay wrote a different set of state keys')
+            self.assertEqual(allowed,
+                             {key for key in replayed if replayed[key] != direct[key]},
+                             'replay diverged beyond the per-run fields')
+            # Pin the date order absolutely as well. If the shared selection
+            # path regresses and pops the order, both sides lose it and the
+            # replay-vs-direct comparison above would still hold, so the
+            # absolute value is what catches a regression in the writer.
+            self.assertEqual('dmy', replayed['speech_date_order'])
+            self.assertNotIn('script_selection_pending', replayed)
+
+    def test_interrupted_selection_in_publishing_rolls_back_unchanged(self):
+        # Kill while the journal is still `publishing`, before the durable
+        # commit. Recovery must roll the selection back: the published state
+        # and its recorded date order are byte-for-byte unchanged.
         worker = '''
 import os,sys
 import book_state_transaction as books
@@ -1884,38 +1942,22 @@ else:
  books._exchange=stop
 books.apply_book_input_selection(root,root+'/uploads/source.txt','source')
 '''
-        with tempfile.TemporaryDirectory() as tmp, \
-                tempfile.TemporaryDirectory() as live_tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             root, _source = self.published_book(tmp)
+            before = (root / 'state.json').read_bytes()
             result = subprocess.run(
                 [sys.executable, '-c', worker, str(root), self._book_protocol],
                 capture_output=True, text=True, timeout=15)
             self.assertEqual(77, result.returncode, result.stderr)
-            self.assertTrue((root / books.JOURNAL).exists())
+            journal = json.loads((root / books.JOURNAL).read_bytes())
+            self.assertEqual('publishing', journal['phase'])
             with books.ensure_book_state(str(root)):
                 pass
             self.assertFalse((root / books.JOURNAL).exists())
-            live_root, _live_source = self.published_book(live_tmp)
-            books.apply_book_input_selection(
-                str(live_root), str(live_root / 'uploads' / 'source.txt'), 'source')
-            # Compare the WHOLE replayed state with the direct path, not just
-            # the date-order keys. Only two fields may legitimately differ
-            # between two separate runs: `book_generation` is a fresh uuid per
-            # selection, and `input_file_path` embeds the run's data-dir path.
-            replayed = self.selection_state(root)
-            direct = self.selection_state(live_root)
-            allowed = {'book_generation', 'input_file_path'}
-            self.assertEqual(set(direct), set(replayed),
-                             'replay wrote a different set of state keys')
-            self.assertEqual(allowed,
-                             {key for key in replayed if replayed[key] != direct[key]},
-                             'replay diverged beyond the per-run fields')
-            # Pin the date order absolutely as well. If the shared selection
-            # path regresses and pops the order, both sides lose it and the
-            # replay-vs-direct comparison above would still hold, so the
-            # absolute value is what catches a regression in the writer.
-            self.assertEqual('dmy', replayed['speech_date_order'])
-            self.assertNotIn('script_selection_pending', replayed)
+            self.assertEqual(before, (root / 'state.json').read_bytes())
+            state = self.selection_state(root)
+            self.assertEqual('dmy', state['speech_date_order'])
+            self.assertNotIn('script_selection_pending', state)
 
 
 class SavedBookTransactionHttpTests(unittest.TestCase):
