@@ -1402,6 +1402,34 @@ def _abs_book_check(token):
         check_chunk_identity(0, token)
 
 
+def _read_abs_key_presence(base_url):
+    """(present, reason): True/False when known, None when the store cannot answer.
+
+    A store failure is not the same as "no key stored". An insecure backend is
+    also not the same as an unavailable one: it has its own advice. Neither the
+    key nor the store error text ever leaves this process.
+    """
+    import audiobookshelf_delivery as delivery
+    if not base_url:
+        return False, None
+    try:
+        return bool(delivery.get_api_key(base_url)), None
+    except delivery.InsecureBackendError:
+        return None, 'credential-store-insecure'
+    except delivery.DeliveryError as error:
+        if error.status != 503:
+            raise
+        return None, 'credential-store-unavailable'
+
+
+def _abs_config_response(config, key_present, key_status=None):
+    response = {'base_url': config.get('base_url'), 'has_key': key_present,
+                'library_id': config.get('library_id'), 'folder_id': config.get('folder_id')}
+    if key_status:
+        response['key_status'] = key_status
+    return response
+
+
 @router.post('/api/abs/config')
 async def save_abs_config(request: AbsConfigRequest):
     return await asyncio.to_thread(_save_abs_config_sync, request)
@@ -1418,25 +1446,27 @@ def _save_abs_config_sync(request):
             stored = delivery.save_api_key(request.base_url, raw_key)
         config = delivery.save_server_config(DATA_DIR, request.base_url,
                                              request.library_id, request.folder_id)
-        key_present = bool(delivery.get_api_key(config['base_url']))
+        key_present, key_status = _read_abs_key_presence(config['base_url'])
     except delivery.DeliveryError as error:
         raise HTTPException(status_code=error.status, detail=str(error)) from error
-    return {'base_url': config['base_url'], 'has_key': key_present,
-            'key_store': stored, 'library_id': config.get('library_id'),
-            'folder_id': config.get('folder_id')}
+    response = _abs_config_response(config, key_present, key_status)
+    response['key_store'] = stored
+    return response
 
 
 @router.get('/api/abs/config')
 async def get_abs_config():
+    return await asyncio.to_thread(_get_abs_config_sync)
+
+
+def _get_abs_config_sync():
     import audiobookshelf_delivery as delivery
     config = delivery.get_server_config(DATA_DIR)
-    base_url = config.get('base_url')
     try:
-        key_present = bool(base_url and delivery.get_api_key(base_url))
+        key_present, key_status = _read_abs_key_presence(config.get('base_url'))
     except delivery.DeliveryError as error:
         raise HTTPException(status_code=error.status, detail=str(error)) from error
-    return {'base_url': base_url, 'has_key': key_present,
-            'library_id': config.get('library_id'), 'folder_id': config.get('folder_id')}
+    return _abs_config_response(config, key_present, key_status)
 
 
 @router.get('/api/abs/libraries')
