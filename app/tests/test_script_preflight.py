@@ -659,6 +659,50 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
 
         self.assertEqual(0, report["counts"]["blocking"])
 
+    def test_combining_marks_keep_a_faithful_fused_thai_split_unblocked(self):
+        # _WORD_RE cannot match a combining mark, so "\u0e41\u0e25\u0e49\u0e27"
+        # tokenized as "\u0e41\u0e25" + "\u0e27"; the fused source
+        # "\u0e41\u0e25\u0e49\u0e27\u0e40\u0e0a\u0e49\u0e32" then looked
+        # like one extra copy of a phrase the source carried once.
+        source = "\u0e41\u0e25\u0e49\u0e27 \u0e41\u0e25\u0e49\u0e27\u0e40\u0e0a\u0e49\u0e32"
+        entries = [_entry("\u0e41\u0e25\u0e49\u0e27", "MARTA"),
+                   _entry("\u0e41\u0e25\u0e49\u0e27", "PORTER"),
+                   _entry("\u0e40\u0e0a\u0e49\u0e32", "ANNA")]
+
+        blocking = [finding for finding in self._duplicate_findings(entries, source)
+                    if finding["severity"] == "blocking"]
+        self.assertEqual([], blocking)
+        self.assertEqual(0, audit_script(entries, source)["counts"]["blocking"])
+
+    def test_marked_thai_words_with_different_tones_stay_distinct(self):
+        # \u0e01\u0e48\u0e32 and \u0e01\u0e49\u0e32 differ only by a mark.
+        # Dropping marks would merge them, so a source carrying both would look
+        # like it carried two copies of whichever one the output repeated.
+        source = "\u0e01\u0e48\u0e32 \u0e01\u0e49\u0e32"
+        both_once = [_entry("\u0e01\u0e48\u0e32", "MARTA"),
+                     _entry("\u0e01\u0e49\u0e32", "PORTER")]
+        one_twice = [_entry("\u0e01\u0e48\u0e32", "MARTA"),
+                     _entry("\u0e01\u0e48\u0e32", "PORTER")]
+
+        self.assertEqual([], self._duplicate_findings(both_once, source))
+        findings = self._duplicate_findings(one_twice, source)
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+        self.assertEqual(1, findings[0]["details"]["source_occurrences"])
+        self.assertEqual(1, audit_script(one_twice, source)["counts"]["blocking"])
+
+    def test_casefold_produced_mark_agrees_with_the_decomposed_spelling(self):
+        # "\u0130".casefold() is "i\u0307". A source "\u0130stanbul" and an
+        # emitted "i\u0307stanbul" must be one word, so case folding happens
+        # before any mark handling.
+        entries = [_entry("i\u0307stanbul", "MARTA"),
+                   _entry("i\u0307stanbul", "PORTER")]
+
+        findings = self._duplicate_findings(entries, "\u0130stanbul")
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+        self.assertEqual(1, findings[0]["details"]["source_occurrences"])
+
     def test_unsegmented_reduplication_downgrades_to_manual_review(self):
         # The fused source token is split into adjacent entries, which is what
         # the run rule credits; the old fixture was non-adjacent because the

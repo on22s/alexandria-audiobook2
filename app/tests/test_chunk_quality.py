@@ -963,6 +963,35 @@ class ContainedSeparateDuplicateGateTests(unittest.TestCase):
         self.assertEqual([], report["findings"])
         self.assertTrue(report["passed"])
 
+    def test_combining_marks_do_not_block_a_faithful_fused_thai_split(self):
+        # The source fuses "\u0e41\u0e25\u0e49\u0e27" and
+        # "\u0e40\u0e0a\u0e49\u0e32" (\u0e41\u0e25\u0e49\u0e27\u0e40\u0e0a\u0e49\u0e32)
+        # beside the same marked word on its own; the split output reproduces
+        # each copy once. A mark used to end the token, so the source looked
+        # like it carried one copy and the faithful split blocked.
+        source = " ".join(_FILLER) + " \u0e41\u0e25\u0e49\u0e27 \u0e41\u0e25\u0e49\u0e27\u0e40\u0e0a\u0e49\u0e32"
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("\u0e41\u0e25\u0e49\u0e27", "MARTA"),
+                      _entry("\u0e41\u0e25\u0e49\u0e27", "PORTER"),
+                      _entry("\u0e40\u0e0a\u0e49\u0e32", "ANNA")])
+
+        report = validate_chunk_quality(source, entries)
+
+        self.assertEqual([], report["findings"])
+        self.assertTrue(report["passed"])
+
+    def test_combining_marks_do_not_excuse_a_true_thai_repeat(self):
+        source = " ".join(_FILLER) + " \u0e43\u0e0a\u0e48"
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("\u0e43\u0e0a\u0e48", "MARTA"),
+                      _entry("\u0e43\u0e0a\u0e48", "PORTER")])
+
+        report = validate_chunk_quality(source, entries)
+
+        self.assertEqual({"source_unsupported_contained_duplicate"},
+                         {finding["code"] for finding in report["findings"]})
+        self.assertFalse(report["passed"])
+
     def test_unsegmented_reduplication_does_not_fail_chunk_quality(self):
         source = " ".join(_FILLER) + " \u306f\u3044 \u306f\u3044\u306f\u3044"
         # A faithful split of the fused token is adjacent; the old fixture was

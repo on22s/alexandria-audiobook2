@@ -34,6 +34,46 @@ _NARRATION_RE = re.compile(
 _SCRIPT_PREFIXES = ("LATIN", "CYRILLIC", "HIRAGANA", "KATAKANA", "CJK",
                     "ARABIC", "HEBREW", "HANGUL", "GREEK", "THAI")
 
+_COMBINING_MARK_PATTERNS = None
+
+
+def ensure_combining_mark_patterns():
+    """Return regexes that treat combining marks as part of the word they follow.
+
+    _WORD_RE cannot match a mark, so Thai "แล้ว" splits into "แล" and "ว"; the
+    split then lands differently in source and output and a faithful re-split
+    fuses differently. Built once from the Unicode database, because a
+    per-character category lookup costs about 0.2 s per megabyte.
+    """
+    global _COMBINING_MARK_PATTERNS
+    if _COMBINING_MARK_PATTERNS is None:
+        ranges, start, previous = [], None, None
+        for code in range(0x110000):
+            if 0xD800 <= code <= 0xDFFF:
+                continue
+            if unicodedata.category(chr(code))[0] != "M":
+                if start is not None:
+                    ranges.append((start, previous))
+                    start = previous = None
+                continue
+            if start is None:
+                start = previous = code
+            elif code == previous + 1:
+                previous = code
+            else:
+                ranges.append((start, previous))
+                start = previous = code
+        if start is not None:
+            ranges.append((start, previous))
+        marks = "".join("\\U%08x" % first if first == last
+                        else "\\U%08x-\\U%08x" % (first, last)
+                        for first, last in ranges)
+        _COMBINING_MARK_PATTERNS = (
+            re.compile(r"[^\W_](?:[^\W_]|[%s])*" % marks, re.UNICODE),
+            re.compile(r"[%s]" % marks, re.UNICODE),
+        )
+    return _COMBINING_MARK_PATTERNS
+
 
 def _character_script(character):
     name = unicodedata.name(character, "")
@@ -259,8 +299,19 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         # NFC first: source and script may spell one word composed and
         # decomposed, and _WORD_RE drops a combining mark, so without this the
         # same word counts twice in a faithful script and once in the source.
-        return _normalize_words(re.sub(
-            r"(?<=\w)['’](?=\w)", "", unicodedata.normalize("NFC", str(text or ""))))
+        # Casefold BEFORE any mark handling: casefold itself can produce a mark
+        # ("İ".casefold() == "i\u0307") and can decompose (Greek iota
+        # subscript), and a mark is only comparable once both sides agree.
+        text = unicodedata.normalize("NFC", str(text or ""))
+        text = _normalize(unicodedata.normalize("NFC", _normalize(text)))
+        text = re.sub(r"(?<=\w)['’](?=\w)", "", text)
+        if text.isascii():
+            return _normalize_words(text)
+        word_pattern, _mark_pattern = ensure_combining_mark_patterns()
+        # A mark belongs to the word it follows, so a mark inside a word never
+        # moves a token boundary. Marks stay in the token, not dropped: Thai
+        # ก่า and ก้า are different words, as are pointed and unpointed Hebrew.
+        return " ".join(word_pattern.findall(text))
 
     source_text = str(source_text or "")
     if len(source_text) + sum(len(e.get("text", "")) for e in entries
@@ -284,8 +335,10 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     # Same canonical form on both paths. The audit word view was tokenized
     # without NFC, so trust it only when the source is already NFC (then the two
     # views are identical); otherwise rebuild from the source through canonical.
+    _word_pattern, mark_pattern = ensure_combining_mark_patterns()
     source = (canonical(source_normalized) if source_normalized is not None
               and unicodedata.is_normalized("NFC", source_text)
+              and not mark_pattern.search(source_text)
               and not re.search(r"(?<=\w)['’](?=\w)", source_text)
               else canonical(source_text))
     unspent_source = output_index = output_positions = None
