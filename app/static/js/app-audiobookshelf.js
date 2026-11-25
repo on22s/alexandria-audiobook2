@@ -11,8 +11,14 @@ let absSending = false;
 let absSendingPreviewId = null;
 let absProgressTimer = null;
 let absSavedSelection = null;
+let absListingBaseUrl = null;
 let absConfigRequest = null;
 let absServerTouched = false;
+
+function isAbsSameServerUrl(left, right) {
+    const strip = value => String(value || '').replace(/\/+$/, '');
+    return Boolean(left) && Boolean(right) && strip(left) === strip(right);
+}
 
 function getAbsBookToken() {
     return (typeof chunkSnapshotBookToken !== 'undefined' && chunkSnapshotBookToken)
@@ -130,12 +136,25 @@ async function saveAbsConfig() {
         absSetStatus(t('abs.error.url-required', 'Enter the server URL first.'));
         return;
     }
+    const savedMatch = absSavedSelection && isAbsSameServerUrl(absSavedSelection.base_url, url);
+    const listingMatch = isAbsSameServerUrl(absListingBaseUrl, url);
+    let libraryId = document.getElementById('abs-library').value || null;
+    let folderId = document.getElementById('abs-folder').value || null;
+    if (!listingMatch) {
+        if (savedMatch) {
+            libraryId = absSavedSelection.library_id || null;
+            folderId = absSavedSelection.folder_id || null;
+        } else if (absListingBaseUrl) {
+            libraryId = null;
+            folderId = null;
+        }
+    }
     try {
         const result = await API.post('/api/abs/config', {
             base_url: url,
             api_key: apiKey || null,
-            library_id: document.getElementById('abs-library').value || null,
-            folder_id: document.getElementById('abs-folder').value || null,
+            library_id: libraryId,
+            folder_id: folderId,
         });
         absSavedSelection = {
             base_url: result.base_url,
@@ -179,6 +198,7 @@ async function loadAbsLibraries() {
         const result = await API.get(`/api/abs/libraries?base_url=${encodeURIComponent(url)}`);
         if (epoch !== absEpoch) { return; }
         absLibraries = result.libraries || [];
+        absListingBaseUrl = result.base_url;
         const librarySelect = document.getElementById('abs-library');
         const folderSelect = document.getElementById('abs-folder');
         librarySelect.replaceChildren();

@@ -645,6 +645,247 @@ console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
 
+    def test_save_after_restore_keeps_the_saved_pair(self):
+        self._run(_HARNESS + r'''
+const base='http://abs.test:13378';
+const store={base_url:base,has_key:true,library_id:'lib_2',folder_id:'fol_3'};
+function fresh(){
+  const h=makeContext();
+  h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+    if(url==='/api/abs/config'){return Object.assign({},store);}
+    return {base_url:base,libraries:[{id:'lib_1',name:'Main',folders:[{id:'fol_1'}]},
+                                     {id:'lib_2',name:'Pods',folders:[{id:'fol_3'}]}]};};
+  h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
+    store.base_url=body.base_url;store.library_id=body.library_id;store.folder_id=body.folder_id;store.has_key=true;
+    return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
+  return h;
+}
+(async()=>{
+const first=fresh();
+await first.ctx.loadAbsSavedConfig();
+await first.ctx.saveAbsConfig();
+const posted=first.calls.find(call=>call[0]==='POST');
+assert.strictEqual(posted[2].library_id,'lib_2','Save before any Load keeps the restored library');
+assert.strictEqual(posted[2].folder_id,'fol_3','and the restored folder');
+assert.strictEqual(posted[2].api_key,null,'an empty key field still posts no key');
+await first.ctx.loadAbsLibraries();
+assert.strictEqual(first.el('abs-library').value,'lib_2','Load after that Save preselects the kept library');
+assert.strictEqual(first.el('abs-folder').value,'fol_3','and the kept folder');
+const second=fresh();
+await second.ctx.loadAbsSavedConfig();
+await second.ctx.loadAbsLibraries();
+assert.strictEqual(second.el('abs-library').value,'lib_2','a reopened panel still restores the library');
+assert.strictEqual(second.el('abs-folder').value,'fol_3','and the folder');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_of_a_new_key_after_restore_keeps_the_saved_pair(self):
+        self._run(_HARNESS + r'''
+const base='http://abs.test:13378';
+const store={base_url:base,has_key:false,library_id:'lib_2',folder_id:'fol_3'};
+function fresh(){
+  const h=makeContext();
+  h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+    if(url==='/api/abs/config'){return Object.assign({},store);}
+    return {base_url:base,libraries:[{id:'lib_1',name:'Main',folders:[{id:'fol_1'}]},
+                                     {id:'lib_2',name:'Pods',folders:[{id:'fol_3'}]}]};};
+  h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
+    store.base_url=body.base_url;store.library_id=body.library_id;store.folder_id=body.folder_id;store.has_key=true;
+    return {base_url:body.base_url,has_key:true,key_store:'OS credential store',library_id:body.library_id,folder_id:body.folder_id};};
+  return h;
+}
+(async()=>{
+const first=fresh();
+await first.ctx.loadAbsSavedConfig();
+first.el('abs-api-key').value='the-new-key';
+await first.ctx.saveAbsConfig();
+const posted=first.calls.find(call=>call[0]==='POST');
+assert.strictEqual(posted[2].api_key,'the-new-key','the new key is posted');
+assert.strictEqual(posted[2].library_id,'lib_2','storing a new key keeps the restored library');
+assert.strictEqual(posted[2].folder_id,'fol_3','and the restored folder');
+const second=fresh();
+await second.ctx.loadAbsSavedConfig();
+await second.ctx.loadAbsLibraries();
+assert.strictEqual(second.el('abs-library').value,'lib_2','after storing the key a reopened panel restores the library');
+assert.strictEqual(second.el('abs-folder').value,'fol_3','and the folder');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_after_restore_accepts_a_trailing_slash(self):
+        self._run(_HARNESS + r'''
+const base='http://abs.test:13378';
+const h=makeContext();
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  return {base_url:base,has_key:true,library_id:'lib_2',folder_id:'fol_3'};};
+h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
+  return {base_url:body.base_url.replace(/\/+$/,''),has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+h.el('abs-server-url').value=base+'/';
+await h.ctx.saveAbsConfig();
+const posted=h.calls.find(call=>call[0]==='POST');
+assert.strictEqual(posted[2].library_id,'lib_2','a trailing slash on the restored server still keeps the library');
+assert.strictEqual(posted[2].folder_id,'fol_3','and the folder');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_for_another_server_posts_nulls(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  return {base_url:'http://saved.test:13378',has_key:true,library_id:'lib_2',folder_id:'fol_1'};};
+h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
+  return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+h.el('abs-server-url').value='http://other.test:13378';
+await h.ctx.saveAbsConfig();
+const posted=h.calls.find(call=>call[0]==='POST');
+assert.strictEqual(posted[2].library_id,null,'a typed other server posts no library, as on main');
+assert.strictEqual(posted[2].folder_id,null,'and no folder, as on main');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_after_load_and_clear_posts_nulls(self):
+        self._run(_HARNESS + r'''
+const base='http://abs.test:13378';
+const h=makeContext();
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  if(url==='/api/abs/config'){return {base_url:base,has_key:true,library_id:'lib_2',folder_id:'fol_3'};}
+  return {base_url:base,libraries:[{id:'lib_1',name:'Main',folders:[{id:'fol_1'}]},
+                                   {id:'lib_2',name:'Pods',folders:[{id:'fol_3'}]}]};};
+h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
+  return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+await h.ctx.loadAbsLibraries();
+assert.strictEqual(h.el('abs-library').value,'lib_2');
+h.el('abs-library').value='';h.el('abs-folder').value='';
+await h.ctx.saveAbsConfig();
+const posted=h.calls.find(call=>call[0]==='POST');
+assert.strictEqual(posted[2].library_id,null,'a cleared select posts null, as on main');
+assert.strictEqual(posted[2].folder_id,null,'and its cleared folder');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_after_the_saved_ids_are_no_longer_listed_posts_nulls(self):
+        self._run(_HARNESS + r'''
+const base='http://abs.test:13378';
+const h=makeContext();
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  if(url==='/api/abs/config'){return {base_url:base,has_key:true,library_id:'lib_2',folder_id:'fol_3'};}
+  return {base_url:base,libraries:[{id:'lib_1',name:'Main',folders:[{id:'fol_1'}]}]};};
+h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
+  return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+await h.ctx.loadAbsLibraries();
+assert.strictEqual(h.el('abs-library').value,'','the vanished saved library is cleared');
+await h.ctx.saveAbsConfig();
+const posted=h.calls.find(call=>call[0]==='POST');
+assert.strictEqual(posted[2].library_id,null,'an unlisted saved library is not resurrected');
+assert.strictEqual(posted[2].folder_id,null,'nor its folder');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_without_saved_config_posts_main_body(self):
+        self._run(_HARNESS + r'''
+const base='http://abs.test:13378';
+function fresh(){
+  const h=makeContext();
+  h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+    if(url==='/api/abs/config'){return {};}
+    return {base_url:base,libraries:[{id:'lib_1',name:'Main',folders:[{id:'fol_1'}]},
+                                     {id:'lib_2',name:'Pods',folders:[{id:'fol_3'}]}]};};
+  h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
+    return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
+  return h;
+}
+(async()=>{
+const before=fresh();
+await before.ctx.loadAbsSavedConfig();
+before.el('abs-server-url').value=base;
+await before.ctx.saveAbsConfig();
+const early=before.calls.find(call=>call[0]==='POST');
+assert.deepStrictEqual({...early[2]},{base_url:base,api_key:null,library_id:null,folder_id:null},
+  'with no saved config Save posts exactly main\'s empty body');
+const listed=fresh();
+await listed.ctx.loadAbsSavedConfig();
+listed.el('abs-server-url').value=base;
+await listed.ctx.loadAbsLibraries();
+listed.el('abs-library').value='lib_2';listed.ctx.fillAbsFolders();listed.el('abs-folder').value='fol_3';
+await listed.ctx.saveAbsConfig();
+const chosen=listed.calls.find(call=>call[0]==='POST');
+assert.deepStrictEqual({...chosen[2]},{base_url:base,api_key:null,library_id:'lib_2',folder_id:'fol_3'},
+  'with no saved config Save posts exactly main\'s listed body');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_after_restore_without_a_library_posts_nulls(self):
+        self._run(_HARNESS + r'''
+const base='http://abs.test:13378';
+const h=makeContext();
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  return {base_url:base,has_key:true};};
+h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
+  return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+await h.ctx.saveAbsConfig();
+const posted=h.calls.find(call=>call[0]==='POST');
+assert.deepStrictEqual({...posted[2]},{base_url:base,api_key:null,library_id:null,folder_id:null},
+  'a saved config with no library posts nulls, as on main');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_with_a_failed_config_read_posts_nulls(self):
+        self._run(_HARNESS + r'''
+const base='http://abs.test:13378';
+const h=makeContext();
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);throw new Error('config unavailable');};
+h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
+  return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+h.el('abs-server-url').value=base;
+await h.ctx.saveAbsConfig();
+const posted=h.calls.find(call=>call[0]==='POST');
+assert.strictEqual(posted[2].library_id,null,'an unread config cannot resurrect a library');
+assert.strictEqual(posted[2].folder_id,null,'an unread config cannot resurrect a folder');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_during_the_config_read_posts_nulls(self):
+        self._run(_HARNESS + r'''
+const base='http://abs.test:13378';
+const h=makeContext();
+let resolveConfig=null,resolveSave=null;
+h.ctx.API.get=url=>{h.calls.push(['GET',url]);return new Promise(resolve=>{resolveConfig=resolve;});};
+h.ctx.API.post=(url,body)=>{h.calls.push(['POST',url,body]);return new Promise(resolve=>{resolveSave=resolve;});};
+(async()=>{
+const pendingConfig=h.ctx.loadAbsSavedConfig();
+h.type('abs-server-url',base);
+const pendingSave=h.ctx.saveAbsConfig();
+const posted=h.calls.find(call=>call[0]==='POST');
+assert.deepStrictEqual({...posted[2]},{base_url:base,api_key:null,library_id:null,folder_id:null},
+  'an unanswered config read posts main\'s empty body, so a same-URL Save in that race erases the saved ids');
+resolveConfig({base_url:base,has_key:true,library_id:'lib_2',folder_id:'fol_3'});
+await pendingConfig;
+resolveSave({base_url:base,has_key:true,key_store:null,library_id:null,folder_id:null});
+await pendingSave;
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
     def test_saved_config_without_a_library_keeps_main_first_pair(self):
         self._run(_HARNESS + r'''
 const h=makeContext();
@@ -958,16 +1199,16 @@ console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
 
-    def test_saving_another_server_remembers_its_own_selection(self):
+    def test_saving_another_server_after_a_listing_posts_nulls_and_load_starts_at_first_pair(self):
         self._run(_HARNESS + r'''
 const h=makeContext();
 const serverA='http://a.test:13378';
 const serverB='http://b.test:13378';
 h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
-  if(url==='/api/abs/config'){return {base_url:serverA,has_key:true,library_id:'lib_1',folder_id:'fol_1'};}
-  const target=decodeURIComponent(url.split('base_url=')[1]);
-  if(target===serverB){return {base_url:target,libraries:[{id:'lib_1',name:'B',folders:[{id:'fol_1'}]},
-                                         {id:'lib_2',name:'B2',folders:[{id:'fol_2'}]}]};}
+  if(url==='/api/abs/config'){return {base_url:serverA,has_key:true,library_id:'lib_2',folder_id:'fol_2'};}
+  const target=decodeURIComponent(url.split('base_url=')[1]).replace(/\/+$/,'');
+  if(target===serverB){return {base_url:target,libraries:[{id:'lib_9',name:'B9',folders:[{id:'fol_9'}]},
+                                         {id:'lib_2',name:'B2',folders:[{id:'fol_3'}]}]};}
   return {base_url:target,libraries:[{id:'lib_1',name:'A',folders:[{id:'fol_1'}]},
                      {id:'lib_2',name:'A2',folders:[{id:'fol_2'}]}]};};
 h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
@@ -975,19 +1216,16 @@ h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
 (async()=>{
 await h.ctx.loadAbsSavedConfig();
 await h.ctx.loadAbsLibraries();
-h.el('abs-library').value='lib_2';h.ctx.fillAbsFolders();
-h.el('abs-folder').value='fol_2';
+assert.strictEqual(h.el('abs-library').value,'lib_2');
 h.el('abs-server-url').value=serverB;
 await h.ctx.saveAbsConfig();
 const posted=h.calls.filter(call=>call[0]==='POST').pop();
 assert.strictEqual(posted[2].base_url,serverB);
-assert.strictEqual(posted[2].library_id,'lib_2');
-assert.strictEqual(posted[2].folder_id,'fol_2');
-h.el('abs-library').value='lib_1';h.el('abs-folder').value='fol_1';
+assert.strictEqual(posted[2].library_id,null,'a listing loaded from another server is not sent under this one');
+assert.strictEqual(posted[2].folder_id,null,'its folder is not sent either');
 await h.ctx.loadAbsLibraries();
-assert.strictEqual(h.el('abs-library').value,'lib_2','Load after saving another server uses its own saved library');
-assert.strictEqual(h.el('abs-folder').value,'fol_2','Load after saving another server uses its own saved folder');
-assert.notStrictEqual(h.el('abs-library').value,'lib_1','the earlier server saved library is not applied');
+assert.strictEqual(h.el('abs-library').value,'lib_9','Load after saving another server starts at its first library, as on main');
+assert.strictEqual(h.el('abs-folder').value,'fol_9','and its first folder, as on main');
 console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
