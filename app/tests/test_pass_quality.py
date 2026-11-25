@@ -406,7 +406,7 @@ class InchMarkTests(unittest.TestCase):
                   'Anna said. Ben passed it over. "Here you go," he replied.')
         analysis = analyze_outer_quote_regions(source)
         self.assertEqual(
-            [("NARRATOR", "The carpenter measured a board that was 6 wide."),
+            [("NARRATOR", 'The carpenter measured a board that was 6" wide.'),
              ("SPOKEN", "Hand me the saw,"),
              ("NARRATOR", "Anna said. Ben passed it over."),
              ("SPOKEN", "Here you go,"),
@@ -427,14 +427,84 @@ class InchMarkTests(unittest.TestCase):
         self.assertNotIn("mixed_quote_region",
                          {finding["code"] for finding in bad["findings"]})
 
+    def test_a_row_keeping_the_inch_mark_is_not_mixed_quote_region(self):
+        source = ('The carpenter measured a board that was 6" wide. "Hand me the saw," '
+                  'Anna said.')
+        entries = [_seg('The carpenter measured a board that was 6" wide.'),
+                   _seg('Hand me the saw,', 'SPOKEN'),
+                   _seg('Anna said.')]
+        report = validate_segment_quality(source, entries)
+        self.assertTrue(report["passed"], report["findings"])
+        self.assertNotIn("mixed_quote_region",
+                         {finding["code"] for finding in report["findings"]})
+        # The analyzer's row text and a row that omits the mark are both
+        # located, because the shared comparison normalizes punctuation.
+        without_mark = [dict(entry) for entry in entries]
+        without_mark[0]["text"] = "The carpenter measured a board that was 6 wide."
+        self.assertTrue(validate_segment_quality(source, without_mark)["passed"])
+
+    def test_a_real_delimiter_still_makes_an_inch_mark_row_mixed(self):
+        source = 'He said "the board was 6" wide."'
+        codes = {finding["code"] for finding in validate_segment_quality(
+            source, [_seg('He said "the board was 6" wide."')])["findings"]}
+        self.assertIn("mixed_quote_region", codes)
+
+    def test_an_inch_mark_inside_open_speech_is_kept_and_does_not_invert(self):
+        source = '"The board is 6" wide," he said. "Good," she said.'
+        self.assertEqual(
+            [("SPOKEN", 'The board is 6" wide,'),
+             ("NARRATOR", "he said."),
+             ("SPOKEN", "Good,"),
+             ("NARRATOR", "she said.")],
+            self._regions(source))
+        analysis = analyze_outer_quote_regions(source)
+        good = validate_segment_quality(source, analysis["regions"], quote_analysis=analysis)
+        self.assertTrue(good["passed"], good["findings"])
+        inverted = [dict(row, type="SPOKEN" if row["type"] == "NARRATOR" else "NARRATOR")
+                    for row in analysis["regions"]]
+        bad = validate_segment_quality(source, inverted, quote_analysis=analysis)
+        self.assertFalse(bad["passed"])
+
+    def test_two_inch_marks_and_feet_and_inches_inside_speech(self):
+        self.assertEqual(
+            [("SPOKEN", 'It is 6" by 4" wide,'), ("NARRATOR", "he said.")],
+            self._regions('"It is 6" by 4" wide," he said.'))
+        self.assertEqual(
+            [("SPOKEN", 'I am 5\'10",'), ("NARRATOR", "he said.")],
+            self._regions('"I am 5\'10"," he said.'))
+
+    def test_an_opener_shaped_or_absent_next_mark_still_closes(self):
+        self.assertEqual(["SPOKEN", "NARRATOR", "SPOKEN"],
+                         self._types('"I counted 5" he said. "Next."'))
+        self.assertEqual([("SPOKEN", "Only 5")], self._regions('"Only 5"'))
+        self.assertEqual([("SPOKEN", "I counted 5"), ("NARRATOR", "and left.")],
+                         self._regions('I counted 5" and left.', initial_depth=1))
+
+    def test_a_digit_mark_outside_speech_after_a_close_stays_an_inch_mark(self):
+        self.assertEqual(
+            [("NARRATOR", "He said"),
+             ("SPOKEN", "it was 6"),
+             ("NARRATOR", 'and left 5" of rope.'),
+             ("SPOKEN", "Ok.")],
+            self._regions('He said "it was 6" and left 5" of rope. "Ok."'))
+
+    def test_fullwidth_inch_mark_inside_speech(self):
+        source = '＂The board is 6＂ wide,＂ he said. ＂Good,＂ she said.'
+        self.assertEqual(
+            [("SPOKEN", 'The board is 6＂ wide,'),
+             ("NARRATOR", "he said."),
+             ("SPOKEN", "Good,"),
+             ("NARRATOR", "she said.")],
+            self._regions(source))
+
     def test_compound_and_two_measurements_stay_narration(self):
         cases = [
             ('The board was 6" wide and the beam was 12" long. "Measure twice," she said.',
-             [("NARRATOR", "The board was 6 wide and the beam was 12 long."),
+             [("NARRATOR", 'The board was 6" wide and the beam was 12" long.'),
               ("SPOKEN", "Measure twice,"),
               ("NARRATOR", "she said.")]),
             ('He stood 5\'10" tall. "Not bad," she said.',
-             [("NARRATOR", "He stood 5'10 tall."),
+             [("NARRATOR", 'He stood 5\'10" tall.'),
               ("SPOKEN", "Not bad,"),
               ("NARRATOR", "she said.")]),
         ]
@@ -448,7 +518,7 @@ class InchMarkTests(unittest.TestCase):
         self.assertEqual(["fine", "Good,"],
                          [text for kind, text in regions if kind == "SPOKEN"])
         self.assertTrue(any(kind == "NARRATOR"
-                            and text.startswith("The board was 6 long and he said")
+                            and text.startswith('The board was 6" long and he said')
                             for kind, text in regions), regions)
 
     def test_inch_mark_directly_before_a_new_straight_quote(self):
@@ -456,7 +526,7 @@ class InchMarkTests(unittest.TestCase):
                        'The gap was 12" "Move," he said. "Now."'):
             with self.subTest(source=source):
                 self.assertEqual(
-                    [("NARRATOR", "The gap was 12"),
+                    [("NARRATOR", 'The gap was 12"'),
                      ("SPOKEN", "Move,"),
                      ("NARRATOR", "he said."),
                      ("SPOKEN", "Now.")],
@@ -483,7 +553,7 @@ class InchMarkTests(unittest.TestCase):
             'done." The board was 6" wide. "Next," she said.', initial_depth=1)
         self.assertEqual(
             [("SPOKEN", "done."),
-             ("NARRATOR", "The board was 6 wide."),
+             ("NARRATOR", 'The board was 6" wide.'),
              ("SPOKEN", "Next,"),
              ("NARRATOR", "she said.")],
             [(row["type"], row["text"]) for row in analysis["regions"]])
@@ -495,7 +565,7 @@ class InchMarkTests(unittest.TestCase):
         self.assertEqual(
             [("SPOKEN", "First paragraph."),
              ("SPOKEN", "Second paragraph ends here."),
-             ("NARRATOR", "Then the board, 6 wide, fell.")],
+             ("NARRATOR", 'Then the board, 6" wide, fell.')],
             self._regions(source))
 
     def test_the_real_inch_sign_is_not_a_delimiter(self):
@@ -507,17 +577,38 @@ class InchMarkTests(unittest.TestCase):
 
     def test_a_single_quote_book_is_unchanged(self):
         source = "He said 'hello.' She left. It was 6\" wide."
-        self.assertEqual([("NARRATOR", "He said 'hello.' She left. It was 6 wide.")],
+        self.assertEqual([("NARRATOR", 'He said \'hello.\' She left. It was 6" wide.')],
                          self._regions(source))
 
     def test_narration_with_only_an_inch_mark_is_one_narrator_region(self):
         source = 'The board was 6" wide and nothing else happened.'
         analysis = analyze_outer_quote_regions(source)
-        self.assertEqual([("NARRATOR", "The board was 6 wide and nothing else happened.")],
+        self.assertEqual([("NARRATOR", 'The board was 6" wide and nothing else happened.')],
                          [(row["type"], row["text"]) for row in analysis["regions"]])
         self.assertEqual([], analysis["repairs"])
         self.assertTrue(validate_segment_quality(
             source, analysis["regions"], quote_analysis=analysis)["passed"])
+
+    def test_speech_regions_match_the_source_map_with_inch_marks(self):
+        from dialogue_spans import spoken_spans
+        for source in ('"The board is 6" wide," he said. "Good," she said.',
+                       '"It is 6" by 4" wide," he said.',
+                       '"I counted 5" he said. "Next."',
+                       'He said "it was 6" and left 5" of rope. "Ok."'):
+            with self.subTest(source=source):
+                regions = analyze_outer_quote_regions(source)["regions"]
+                self.assertEqual(
+                    [row["text"] for row in regions if row["type"] == "SPOKEN"],
+                    [source[start:end] for start, end in
+                     spoken_spans(source, "paired_quotes")])
+
+    def test_an_opener_glued_after_a_dash_keeps_todays_close(self):
+        self.assertEqual(
+            [("SPOKEN", "I counted 5"),
+             ("NARRATOR", "\u2014"),
+             ("SPOKEN", "Next,"),
+             ("NARRATOR", "she said.")],
+            self._regions('"I counted 5"\u2014"Next," she said.'))
 
     def test_the_analyzer_and_the_source_map_share_one_inch_mark_rule(self):
         import dialogue_spans

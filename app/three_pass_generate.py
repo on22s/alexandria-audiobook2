@@ -35,7 +35,7 @@ from generate_script import (call_llm_for_entries, split_into_chunks,
                              split_failed_chunk, is_trigram_only_near_miss,
                              ensure_run_request_params, validate_generation_output_path)
 from chunk_quality import is_segment_near_miss
-from dialogue_spans import apply_dialogue_map
+from dialogue_spans import apply_dialogue_map, is_inch_mark
 from script_preflight import (audit_unicode_text,
                               replacement_load_is_acceptable,
                               replacement_repair_hint)
@@ -1507,7 +1507,11 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
             if entry.get("type") != "SPOKEN" and params.quoted_must_be_spoken:
                 if any(char in text for char in ('"', '“', '”')):
                     parts, current, quoted = [], [], False
-                    for char in text:
+                    for char_index, char in enumerate(text):
+                        if char == '"' and is_inch_mark(text, char_index, char):
+                            # An inch mark is text, not a delimiter (#2314).
+                            current.append(char)
+                            continue
                         opens = char in ('"', '“') and not quoted
                         closes = char in ('"', '”') and quoted
                         if opens or closes:

@@ -78,7 +78,8 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     curly quote but shares the paragraph's only closing mark with the outer
     quote; in that case the inner mark is treated as decoration, not a new
     nesting level. Quote delimiters are intentionally omitted from speakable
-    text.
+    text; a straight mark after a number is an inch mark, not a delimiter, and
+    stays in the region.
     """
     regions, current, pending_source_label = [], [], None
     depth, saw_quote, repairs = initial_depth, bool(initial_depth), []
@@ -250,10 +251,12 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             saw_quote = True
             continue
         if char in _SELF_PAIRED:
-            # Outside speech a straight mark after a number is an inch mark
-            # (6" wide), not a delimiter. Inside speech it still closes: a
-            # reprise closer can follow a digit (#2314).
-            if depth == 0 and _is_inch_mark(text, index, char):
+            # A straight mark after a number can be an inch mark (6" wide),
+            # not a delimiter; the shared predicate also settles the
+            # inside-speech case. It is text, so it stays in the region
+            # (#2314).
+            if _is_inch_mark(text, index, char, bool(depth)):
+                current.append(char)
                 saw_quote = True
                 continue
             if depth == 0 and _is_metadata_paragraph(current):
@@ -375,6 +378,23 @@ def _split_quote_regions(source_text):
     return outside, inside
 
 
+def _has_quote_delimiter(text):
+    """True unless every quote character in `text` is an inch mark.
+
+    An inch mark after a number (`6" wide`) is speakable text, not a
+    delimiter, so a row carrying only those must not be refused as
+    mixed_quote_region (#2314). A real delimiter anywhere still makes the
+    row mixed.
+    """
+    for position, char in enumerate(text):
+        if char not in _QUOTE_CHARS:
+            continue
+        if char in _SELF_PAIRED and _is_inch_mark(text, position, char):
+            continue
+        return True
+    return False
+
+
 def _region_contains_entry(regions, entry_text):
     needle = normalize_text(entry_text).split()
     if not needle:
@@ -437,7 +457,7 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
         if not enforce_entry:
             continue
         text = str(entry.get("text") or "")
-        if any(char in text for char in _QUOTE_CHARS):
+        if _has_quote_delimiter(text):
             findings.append({"code": "mixed_quote_region", "entry_number": number,
                              "message": "An entry combines quote delimiters with narration or dialogue; split at the quote boundary."})
             continue

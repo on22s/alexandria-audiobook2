@@ -86,6 +86,31 @@ class SpanTest(unittest.TestCase):
         source = 'She said "I am 5" and he said "I am 6".'
         self.assertEqual(['I am 5', 'I am 6'], [source[a:b] for a, b in spoken_spans(source, 'paired_quotes')])
 
+    def test_an_inch_mark_inside_speech_does_not_split_the_span(self):
+        cases = [
+            ('"The board is 6" wide," he said. "Good," she said.',
+             ['The board is 6" wide,', 'Good,']),
+            ('"It is 6" by 4" wide," he said.',
+             ['It is 6" by 4" wide,']),
+            ('"I counted 5" he said. "Next."',
+             ['I counted 5', 'Next.']),
+            ('"I am 5\'10"," he said.', ['I am 5\'10",']),
+            ('He said "it was 6" and left 5" of rope. "Ok."',
+             ['it was 6', 'Ok.']),
+            ('"Only 5"', ['Only 5']),
+            ('＂The board is 6＂ wide,＂ he said. ＂Good,＂ she said.',
+             ['The board is 6＂ wide,', 'Good,']),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_adjacent_straight_marks_after_a_close_keep_todays_spans(self):
+        source = '"I counted 5""Next," she said.'
+        self.assertEqual(['I counted 5', 'Next,'], [source[a:b] for a, b in
+                                                    spoken_spans(source, "paired_quotes")])
+
     def test_an_unmatched_straight_quote_does_not_swallow_the_book(self):
         text = '"Only one mark here, and then a great deal of narration. ' + "x " * 500
         self.assertEqual([], spoken_spans(text, "paired_quotes"))
@@ -168,19 +193,25 @@ class SpanTest(unittest.TestCase):
         # One shared predicate: _paired_spans and pass_quality both ask this
         # exact question (#2314).
         cases = [
-            ('A 6" wide board', 3, True),
-            ('A 12" wide board', 4, True),
-            ('A 12""Next', 4, True),
-            ('A 12" "Next', 4, True),
-            ('A 12"\n"Next', 4, True),
-            ('A 12"\nnext', 4, False),
-            ('A 12"', 4, False),
-            ('A six" wide', 5, False),
-            ('"6 of us"', 0, False),
+            ('A 6" wide board', 3, False, True),
+            ('A 12" wide board', 4, False, True),
+            ('A 12""Next', 4, False, True),
+            ('A 12" "Next', 4, False, True),
+            ('A 12"\n"Next', 4, False, True),
+            ('A 12"\nnext', 4, False, False),
+            ('A 12"', 4, False, False),
+            ('A six" wide', 5, False, False),
+            ('"6 of us"', 0, False, False),
+            # Inside open speech: the next non-digit-preceded mark decides.
+            ('"A 6" wide," he said.', 4, True, True),
+            ('"I counted 5" he said. "Next."', 12, True, False),
+            ('"I counted 5" he said.', 12, True, False),
+            ('"It is 6" by 4" wide," he said.', 8, True, True),
         ]
-        for text, position, expected in cases:
-            with self.subTest(text=text):
-                self.assertEqual(expected, dialogue_spans.is_inch_mark(text, position, '"'))
+        for text, position, inside, expected in cases:
+            with self.subTest(text=text, inside=inside):
+                self.assertEqual(expected, dialogue_spans.is_inch_mark(
+                    text, position, '"', inside))
 
     def test_a_stray_closer_after_german_speech_keeps_narration_out(self):
         # A `”` after narration, with no later `“`, must not flip the real

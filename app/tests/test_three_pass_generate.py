@@ -381,6 +381,18 @@ class SegmentationModeTests(unittest.TestCase):
         regions, resolution = tp.quote_regions_decision("quotes", "still talking here.", analysis)
         self.assertEqual("SPOKEN", regions[0]["type"])
 
+    def test_inch_mark_presegmentation_keeps_the_mark_in_the_row(self):
+        # Regions become pass-1 rows directly here, so an inch mark kept by
+        # the analyzer must appear in the row and still pass the gate (#2314).
+        source = ('The carpenter measured a board that was 6" wide. '
+                  '"Hand me the saw," Anna said.')
+        regions, resolution = tp.quote_regions_decision(
+            "auto", source, tp.analyze_outer_quote_regions(source))
+        self.assertEqual('The carpenter measured a board that was 6" wide.',
+                         regions[0]["text"])
+        self.assertEqual("SPOKEN", regions[1]["type"])
+        self.assertTrue(resolution.startswith("quote_presegmented"))
+
     def test_lexical_mode_treats_a_quoted_term_as_narration(self):
         source = 'The effect was known as a "Mana Trail". Then she said, "Run!"'
         regions, resolution = tp.quote_regions_decision(
@@ -1166,6 +1178,42 @@ class SegmentRepairTypeSafetyTests(unittest.TestCase):
                                          merge_empty_into_pause=False)
         self.assertEqual(3, len(res["entries"]))
         self.assertNotIn("pause_after", res["entries"][0])
+
+    def test_segment_repair_keeps_an_inch_mark_as_text(self):
+        # The pre-gate repair must not split a NARRATOR row at an inch mark;
+        # otherwise the correct answer keeping the mark is destroyed before
+        # the gate can accept it (#2314).
+        params = LLMGenParams(max_tokens=4096, hard_max_tokens=16384, temperature=0,
+                              structured_output="off", segmentation="llm",
+                              segment_system_prompt="Segment.",
+                              segment_user_prompt_template="{chunk}")
+        cases = [
+            ('The carpenter measured a board that was 6" wide.',
+             [{"type": "NARRATOR",
+               "text": 'The carpenter measured a board that was 6" wide.'}]),
+            # A real delimiter still splits; the inch mark must survive in the
+            # spoken row instead of becoming a boundary.
+            ('He said "the board was 6" wide."',
+             [{"type": "NARRATOR", "text": "He said"},
+              {"type": "SPOKEN", "text": 'the board was 6" wide.'}]),
+        ]
+        with tempfile.TemporaryDirectory() as logs:
+            for source, expected in cases:
+                with self.subTest(source=source):
+                    def create(**_kwargs):
+                        return SimpleNamespace(choices=[SimpleNamespace(
+                            message=SimpleNamespace(
+                                content=json.dumps([{"type": "NARRATOR",
+                                                     "text": source}])),
+                            finish_reason="stop")], usage=None)
+                    client = SimpleNamespace(chat=SimpleNamespace(
+                        completions=SimpleNamespace(create=create)))
+                    with patch("generate_script.get_response_log_path",
+                               return_value=os.path.join(logs, "responses.log")):
+                        out = tp._call_segment(client, "fixture", source,
+                                               "Segment.", source, params,
+                                               "SEGMENT", 0, None)
+                    self.assertEqual(expected, out)
 
     def test_single_pass_default_still_merges_empty_into_pause(self):
         entries = [{"speaker": "NARRATOR", "text": "He spoke softly."},

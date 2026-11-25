@@ -303,24 +303,49 @@ def _is_opener_shaped(text, position):
     return before.isspace() and not after.isspace()
 
 
-def is_inch_mark(text, position, mark):
+def is_inch_mark(text, position, mark, inside_speech=False):
     """Is the self-paired `mark` at `position` a measurement, not a delimiter?
 
-    Only ask this OUTSIDE an open quoted span: inside speech a mark after a
-    digit still closes it. `5" wide` opens an inline expression, and a mark
-    followed by the same mark is an inch mark before new speech (`12" "Next`,
-    `12""Next`). A mark at the end of a line or paragraph is a reprise closer
-    (`ends 5"`), not an inch mark.
+    `5" wide` opens an inline expression, and a mark followed by the same mark
+    is an inch mark before new speech (`12" "Next`, `12""Next`). A mark at the
+    end of a line or paragraph is a reprise closer (`ends 5"`), not an inch
+    mark.
+
+    Outside speech that is the whole rule. Inside an open quoted span a digit
+    before the mark could also be the end of a number in a closer, so look at
+    the next same mark in this paragraph that is not digit-preceded: if that
+    one is closer-shaped (text before it and a word boundary after it), this
+    mark cannot close - the next would then have to open - so it is an inch
+    mark. If it is opener-shaped, or there is no such mark, this one closes as
+    it always has.
+    One predicate for `_paired_spans` and pass_quality's analyzer (#2314).
     """
     if not position or not text[position - 1].isdigit():
         return False
     after = position + 1
     while after < len(text) and text[after].isspace():
         after += 1
-    if after < len(text) and text[after] == mark:
+    if not inside_speech and after < len(text) and text[after] == mark:
         return True
-    return (position + 1 < len(text)
-            and text[position + 1] not in "\r\n")
+    if position + 1 >= len(text) or text[position + 1] in "\r\n":
+        return False
+    if not inside_speech:
+        return True
+    paragraph_break = BLANK_LINE.search(text, position + 1)
+    paragraph_end = paragraph_break.start() if paragraph_break else len(text)
+    next_position = text.find(mark, position + 1, paragraph_end)
+    while next_position != -1:
+        if not text[next_position - 1].isdigit():
+            # Closer-shaped means text before the mark and a word boundary
+            # after it. A mark glued after a dash but followed by a letter
+            # (`—"Next`) is an opener, so it decides nothing here and this
+            # mark closes as it always has.
+            following = next_position + 1
+            return (not text[next_position - 1].isspace()
+                    and (following >= len(text)
+                         or not text[following].isalnum()))
+        next_position = text.find(mark, next_position + 1, paragraph_end)
+    return False
 
 
 def _paired_spans(text):
@@ -377,10 +402,13 @@ def _paired_spans(text):
             positions = []
             for match in re.finditer(re.escape(opener), text):
                 position = match.start()
-                # Outside a quoted span, a mark immediately after a number is
-                # an inch mark (5" wide). A mark at the end of a line/paragraph
-                # still closes speech — a reprise closer can follow a digit.
-                if len(positions) % 2 == 0 and is_inch_mark(text, position, opener):
+                # A mark immediately after a number can be an inch mark (5"
+                # wide), outside a span or inside one; the predicate answers
+                # from the mark's own context. A mark at the end of a
+                # line/paragraph still closes speech — a reprise closer can
+                # follow a digit.
+                if is_inch_mark(text, position, opener,
+                                len(positions) % 2 == 1):
                     continue
                 positions.append(position)
             # A mark that begins a paragraph re-opens this quote, so it can
