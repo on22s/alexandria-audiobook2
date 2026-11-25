@@ -54,6 +54,12 @@ function makeContext(){
   }
   return {calls,el,ctx,type,change};
 }
+function startupReset(h){
+  // The app runs this at every page load (loadConfig -> applyCurrentBookFilename
+  // -> resetAbsPreview), so #abs-status is never empty when the panel opens.
+  h.ctx.resetAbsPreview();
+  return h.el('abs-status').textContent;
+}
 '''
 
 
@@ -454,6 +460,291 @@ await h.ctx.loadAbsSavedConfig();
 assert.strictEqual(h.el('abs-server-url').value,'http://abs.test:13378');
 assert.match(h.el('abs-status').textContent,/API key is not stored yet/,'has_key false says no key is stored');
 assert.ok(!/API key is stored/.test(h.el('abs-status').textContent),'never claims a key that is not stored');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_saved_config_with_an_unreadable_key_store_still_restores(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  if(url.startsWith('/api/abs/libraries')){return {base_url:'http://abs.test:13378',libraries:[
+    {id:'lib_2',name:'L2',folders:[{id:'fol_3',fullPath:'/f3'}]},
+    {id:'lib_1',name:'L1',folders:[{id:'fol_1',fullPath:'/f1'}]}]};}
+  return {base_url:'http://abs.test:13378',has_key:null,key_status:'credential-store-unavailable',library_id:'lib_2',folder_id:'fol_3'};};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.el('abs-server-url').value,'http://abs.test:13378','the saved server is restored even when the key store cannot be read');
+assert.match(h.el('abs-status').textContent,/credential store is unavailable/,'the panel says the credential store could not be read');
+assert.ok(!/API key is not stored/.test(h.el('abs-status').textContent),'an unknown key is never reported as not stored');
+assert.ok(!/API key is stored/.test(h.el('abs-status').textContent),'an unknown key is never reported as stored either');
+await h.ctx.loadAbsLibraries();
+assert.strictEqual(h.el('abs-library').value,'lib_2','the saved library is still preselected');
+assert.strictEqual(h.el('abs-folder').value,'fol_3','the saved folder is still preselected');
+assert.deepStrictEqual(h.calls,[['GET','/api/abs/config'],['GET','/api/abs/libraries?base_url=http%3A%2F%2Fabs.test%3A13378']]);
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_failed_config_read_is_reported_and_retried(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let attempt=0;
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  attempt+=1;
+  if(attempt===1){throw new Error('network unavailable');}
+  return {base_url:'http://abs.test:13378',has_key:true,library_id:'',folder_id:''};};
+(async()=>{
+const cleared=startupReset(h);
+assert.match(cleared,/Preview cleared/,'the app startup reset fills #abs-status before the panel opens');
+await h.ctx.loadAbsSavedConfig();
+assert.match(h.el('abs-config-status').textContent,/Could not read the saved server settings/,'a failed read is reported, not swallowed');
+assert.strictEqual(h.el('abs-status').textContent,cleared,'the read failure never overwrites the startup safety text');
+assert.strictEqual(h.el('abs-server-url').value,'','a failed read restores nothing');
+assert.strictEqual(h.calls.length,1);
+await h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.calls.length,2,'the next open still retries after a failed read');
+assert.strictEqual(h.el('abs-server-url').value,'http://abs.test:13378','the retry restores the saved server');
+assert.strictEqual(h.el('abs-config-status').textContent,'','a successful retry clears the read warning');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_with_an_unreadable_key_store_reports_unknown_not_missing(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+h.el('abs-server-url').value='http://abs.test:13378';
+h.ctx.API.post=async(url,body)=>({base_url:body.base_url,has_key:null,key_status:'credential-store-unavailable',key_store:null,library_id:body.library_id,folder_id:body.folder_id});
+(async()=>{
+await h.ctx.saveAbsConfig();
+assert.match(h.el('abs-status').textContent,/Server saved/,'the saved server is still reported');
+assert.match(h.el('abs-status').textContent,/credential store is unavailable/,'the panel says the credential store could not be read');
+assert.ok(!/API key is not stored/.test(h.el('abs-status').textContent),'an unknown key is never reported as not stored');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_insecure_key_store_keeps_its_own_advice(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+h.ctx.API.get=async()=>({base_url:'http://abs.test:13378',has_key:null,key_status:'credential-store-insecure',library_id:'',folder_id:''});
+h.ctx.API.post=async(url,body)=>({base_url:body.base_url,has_key:null,key_status:'credential-store-insecure',key_store:null,library_id:body.library_id,folder_id:body.folder_id});
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.el('abs-server-url').value,'http://abs.test:13378','an insecure backend still restores the settings');
+assert.match(h.el('abs-status').textContent,/backend is not secure/,'the refused backend is named');
+assert.match(h.el('abs-status').textContent,/configure a secure OS keyring backend/,'the actionable advice is kept');
+assert.ok(!/credential store is unavailable/.test(h.el('abs-status').textContent),'an insecure backend is not reported as an unavailable store');
+await h.ctx.saveAbsConfig();
+assert.match(h.el('abs-status').textContent,/Server saved/,'the save is still reported');
+assert.match(h.el('abs-status').textContent,/backend is not secure/,'the save keeps the insecure-backend advice');
+assert.ok(!/API key is not stored/.test(h.el('abs-status').textContent),'an unknown key is never reported as not stored');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_late_failed_config_read_does_not_overwrite_a_save_status(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let failConfig=null;
+h.ctx.API.get=()=>new Promise((resolve,reject)=>{failConfig=reject;});
+h.ctx.API.post=async(url,body)=>({base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id});
+(async()=>{
+const loading=h.ctx.loadAbsSavedConfig();
+h.type('abs-server-url','http://typed.test:1');
+await h.ctx.saveAbsConfig();
+assert.match(h.el('abs-status').textContent,/Server saved/,'the save status is on screen');
+failConfig(new Error('network unavailable'));
+await loading;
+assert.match(h.el('abs-status').textContent,/Server saved/,'a late read failure must not overwrite the save status');
+assert.strictEqual(h.el('abs-config-status').textContent,'','nor leave its warning on the config line');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_late_failed_config_read_keeps_safety_text(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let failConfig=null;
+h.ctx.API.get=()=>new Promise((resolve,reject)=>{failConfig=reject;});
+(async()=>{
+startupReset(h);
+const loading=h.ctx.loadAbsSavedConfig();
+assert.match(h.el('abs-status').textContent,/Preview cleared/,'the safety line is the startup text');
+failConfig(new Error('network unavailable'));
+await loading;
+assert.match(h.el('abs-status').textContent,/Preview cleared/,'the safety outcome text survives a late read failure');
+assert.match(h.el('abs-config-status').textContent,/Could not read the saved server settings/,'the failure is still reported on its own line');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_late_failed_config_read_stays_silent_after_typing(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let failConfig=null;
+h.ctx.API.get=()=>new Promise((resolve,reject)=>{failConfig=reject;});
+(async()=>{
+startupReset(h);
+const typing=h.ctx.loadAbsSavedConfig();
+h.type('abs-server-url','http://typed.test:1');
+failConfig(new Error('network unavailable'));
+await typing;
+assert.strictEqual(h.el('abs-config-status').textContent,'','a read failure stays silent once the user typed a server');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_late_failed_config_read_stays_silent_after_typing_then_clearing(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let failConfig=null;
+h.ctx.API.get=()=>new Promise((resolve,reject)=>{failConfig=reject;});
+(async()=>{
+startupReset(h);
+const typing=h.ctx.loadAbsSavedConfig();
+h.type('abs-server-url','http://typed.test:1');
+h.type('abs-server-url','');
+failConfig(new Error('network unavailable'));
+await typing;
+assert.strictEqual(h.el('abs-server-url').value,'','the field is empty again');
+assert.strictEqual(h.el('abs-config-status').textContent,'','a typed-then-cleared field means the panel is not pristine');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_late_failed_config_read_stays_silent_for_a_browser_restored_url(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let failConfig=null;
+h.ctx.API.get=()=>new Promise((resolve,reject)=>{failConfig=reject;});
+(async()=>{
+startupReset(h);
+h.el('abs-server-url').value='http://restored-by-bfcache.test:1';
+const loading=h.ctx.loadAbsSavedConfig();
+failConfig(new Error('network unavailable'));
+await loading;
+assert.strictEqual(h.el('abs-config-status').textContent,'','a URL already in the field means the panel is not pristine');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_permanent_config_error_is_not_told_to_reopen_the_panel(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+h.ctx.API.get=async()=>{const error=new Error('invalid saved config');error.status=400;throw error;};
+(async()=>{
+startupReset(h);
+await h.ctx.loadAbsSavedConfig();
+assert.match(h.el('abs-config-status').textContent,/saved server settings are invalid/,'a permanent config error is named');
+assert.ok(!/Reopen the panel/.test(h.el('abs-config-status').textContent),'a retry cannot fix a permanent error');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_config_read_warning_follows_the_latest_failure(self):
+        self._run(_HARNESS + r'''
+async function sequence(first,second){
+  const h=makeContext();
+  let attempt=0;
+  h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+    attempt+=1;
+    if(attempt===1){throw Object.assign(new Error('first'),first);}
+    throw Object.assign(new Error('second'),second);};
+  startupReset(h);
+  await h.ctx.loadAbsSavedConfig();
+  const firstText=h.el('abs-config-status').textContent;
+  await h.ctx.loadAbsSavedConfig();
+  return [firstText,h.el('abs-config-status').textContent];
+}
+(async()=>{
+let [first,second]=await sequence({}, {status:400});
+assert.match(first,/Could not read the saved server settings/,'a network failure offers the retry');
+assert.match(second,/saved server settings are invalid/,'a later 400 replaces the stale retry advice');
+assert.ok(!/Reopen the panel/.test(second),'the stale retry advice is gone');
+[first,second]=await sequence({status:400}, {});
+assert.match(first,/saved server settings are invalid/,'a 400 names the invalid settings');
+assert.match(second,/Could not read the saved server settings/,'a later network failure replaces the 400 advice');
+assert.ok(!/invalid/.test(second),'the stale invalid-settings advice is gone');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_empty_config_retry_clears_the_read_warning(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let attempt=0;
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  attempt+=1;
+  if(attempt===1){throw new Error('network unavailable');}
+  return {};};
+(async()=>{
+startupReset(h);
+await h.ctx.loadAbsSavedConfig();
+assert.match(h.el('abs-config-status').textContent,/Could not read the saved server settings/,'the first read failed');
+await h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.el('abs-config-status').textContent,'','an empty retry clears the warning; nothing is left to retry');
+assert.strictEqual(h.el('abs-server-url').value,'','no URL is invented');
+assert.strictEqual(h.calls.length,2);
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_typed_retry_that_succeeds_clears_the_read_warning(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let attempt=0;
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  attempt+=1;
+  if(attempt===1){throw new Error('network unavailable');}
+  return {base_url:'http://saved.test:1',has_key:true,library_id:'',folder_id:''};};
+(async()=>{
+startupReset(h);
+await h.ctx.loadAbsSavedConfig();
+assert.match(h.el('abs-config-status').textContent,/Could not read the saved server settings/,'the first read failed');
+h.type('abs-server-url','http://typed.test:2');
+await h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.el('abs-config-status').textContent,'','a successful retry clears the warning');
+assert.strictEqual(h.el('abs-server-url').value,'http://typed.test:2','the typed URL is kept');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_clears_the_read_warning(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+h.ctx.API.get=async()=>{throw new Error('network unavailable');};
+h.ctx.API.post=async(url,body)=>({base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id});
+(async()=>{
+startupReset(h);
+await h.ctx.loadAbsSavedConfig();
+assert.match(h.el('abs-config-status').textContent,/Could not read the saved server settings/,'the read failed');
+h.type('abs-server-url','http://abs.test:13378');
+await h.ctx.saveAbsConfig();
+assert.strictEqual(h.el('abs-config-status').textContent,'','a successful Save makes the read warning untrue');
+assert.match(h.el('abs-status').textContent,/Server saved/);
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_reports_a_key_that_could_not_be_read_back(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+h.el('abs-server-url').value='http://abs.test:13378';
+let reply={has_key:null,key_status:'credential-store-unavailable',key_store:'OS credential store'};
+h.ctx.API.post=async(url,body)=>({base_url:body.base_url,...reply,library_id:body.library_id,folder_id:body.folder_id});
+(async()=>{
+await h.ctx.saveAbsConfig();
+const text=h.el('abs-status').textContent;
+assert.match(text,/Server saved/,'the save is reported');
+assert.match(text,/was stored in the OS credential store, but could not be read back/,'the stored-then-unreadable key is described truthfully');
+assert.ok(!/credential store is unavailable/.test(text),'a store that just accepted the key is not called unavailable');
+assert.ok(!/could not be read.*in the OS credential store/.test(text),'the garbled double-store sentence is gone');
+reply={has_key:true,key_status:null,key_store:'OS credential store'};
+await h.ctx.saveAbsConfig();
+const stored=h.el('abs-status').textContent;
+assert.match(stored,/API key is stored in the OS credential store/,'a readable stored key keeps the plain stored wording');
+assert.ok(!/could not be read back/.test(stored),'a readable stored key is not reported as unreadable');
 console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
