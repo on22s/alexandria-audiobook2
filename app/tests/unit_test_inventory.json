@@ -14359,6 +14359,8 @@
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_one_source_word_still_counts_an_extra_copy_in_either_spelling"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_separate_character_duplicate_is_reported"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_short_line_repeated_as_often_as_the_source_is_not_reported"
+    , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_thai_joined_repetition_does_not_block_a_faithful_split"
+    , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_thai_mark_shifted_run_alone_abstains"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_two_source_occurrences_are_a_legitimate_repeat"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_unknown_number_rendering_downgrades_to_manual_review"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_unsegmented_phrase_inside_a_larger_entry_still_blocks"

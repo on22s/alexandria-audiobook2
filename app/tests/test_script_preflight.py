@@ -713,6 +713,21 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(1, len(findings))
         self.assertEqual("manual_review", findings[0]["severity"])
 
+    def test_thai_joined_repetition_does_not_block_a_faithful_split(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + " \u0e40\u0e02\u0e32\u0e1e\u0e39\u0e14\u0e43\u0e0a\u0e48"
+                  + " \u0e43\u0e0a\u0e48\u0e43\u0e0a\u0e48")
+        findings = self._duplicate_findings(self._entries("\u0e43\u0e0a\u0e48"), source)
+
+        self.assertFalse([finding for finding in findings
+                          if finding["severity"] == "blocking"])
+
+    def test_thai_mark_shifted_run_alone_abstains(self):
+        source = " ".join(_SEPARATE_DUPLICATE_FILLER) + " \u0e2e\u0e48\u0e32\u0e2e\u0e48\u0e32"
+        findings = self._duplicate_findings(self._entries("\u0e2e\u0e48\u0e32"), source)
+
+        self.assertEqual([], findings)
+
     def test_a_glued_repetition_covers_exactly_its_own_entries(self):
         source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
                   + " \u300c\u306f\u3044\u300d\u3068\u8a00\u3063\u305f\u3002 \u306f\u3044\u306f\u3044")
