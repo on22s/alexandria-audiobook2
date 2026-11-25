@@ -5,6 +5,7 @@ import re
 import shlex
 import sys
 import unicodedata
+from bisect import bisect_left
 from collections import Counter
 
 from speech_text import get_speech_normalization
@@ -85,6 +86,14 @@ def get_normalized_word_tokens(value):
 
 def _normalize_words(value):
     return " ".join(get_normalized_word_tokens(value))
+
+
+def _key_offsets(word, key):
+    """Yield every offset at which key occurs inside word."""
+    found = word.find(key)
+    while found != -1:
+        yield found
+        found = word.find(key, found + 1)
 
 
 def _finding(severity, code, message, entry_numbers=None, **details):
@@ -271,6 +280,7 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     needles = list(dict.fromkeys(texts[i] for i in sorted(character_rows) if texts[i]))
     if not needles:
         return []
+    needle_starts = {needle.split()[0] for needle in needles}
     # Same canonical form on both paths. The audit word view was tokenized
     # without NFC, so trust it only when the source is already NFC (then the two
     # views are identical); otherwise rebuild from the source through canonical.
@@ -278,49 +288,71 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
               and unicodedata.is_normalized("NFC", source_text)
               and not re.search(r"(?<=\w)['’](?=\w)", source_text)
               else canonical(source_text))
-    unspent_source = output_stream = None
+    unspent_source = output_index = output_positions = None
 
     def unspent_token_support(needle):
         """Copies of a needle that an unemitted source word explains.
 
         A needle fused into a longer source word is invisible to the word scan.
-        Only a word the output never emitted explains the split, and only where
-        the output lays that split out in order and adjacent ("somit" explains
-        "mit" only beside "so"); a word emitted elsewhere cannot. A word that is
-        only the needle repeated keeps the whole-count rule. Built once, lazily.
+        Only a word the output never emitted explains copies, and only where
+        consecutive output words concatenate to that word exactly ("somit"
+        explains "mit" beside "so" and nothing else); a word emitted elsewhere
+        cannot. Each run and each unemitted source copy is used once, so two
+        tokens cannot share output words. Built once, lazily.
         """
-        nonlocal unspent_source, output_stream
+        nonlocal unspent_source, output_index, output_positions
         if unspent_source is None:
-            emitted = Counter(word for text in texts for word in text.split())
-            unspent_source = Counter(source.split()) - emitted
-            output_stream = " ".join(texts)
+            words = " ".join(texts).split()
+            unspent_source = Counter(source.split()) - Counter(words)
+            offsets, total = [0], 0
+            output_positions = {}
+            for position, word in enumerate(words):
+                total += len(word)
+                offsets.append(total)
+                if word in needle_starts:
+                    output_positions.setdefault(word, []).append(position)
+            output_index = (words, "".join(words), offsets)
+        if not unspent_source:
+            return 0
+        words, concat, offsets = output_index
+        phrase = needle.split()
         # A fused copy removes the needle's own spaces ("ja ja" -> "jaja").
         key = needle.replace(" ", "")
-        tokens = sorted(((token.split(key), token.count(key), count)
-                         for token, count in unspent_source.items() if key in token),
-                        key=lambda item: -sum(map(len, item[0])))  # longest remainder first
-        if not tokens:
+        shapes = sorted({(found, len(token))
+                         for token in unspent_source
+                         for found in _key_offsets(token, key)})
+        if not shapes:
             return 0
-        words = output_stream.split()
-        if any(any(split) for split, _, _ in tokens):
-            # A word that is just the needle repeated is those copies fused.
-            words = [part for word in words for k in [len(word) // len(key)]
-                     for part in ([needle] * k if k > 1 and word == key * k else [word])]
-        # Two spaces between words lets str.count see adjacent matches: the
-        # shared gap splits into one trailing and one leading space.
-        vocabulary = set(words)
-        stream, support = " " + "  ".join(words) + " ", 0
-        for split, copies, count in tokens:
-            if not any(split):
-                support += count * copies
+        occurrences, runs, last = [], [], 0
+        for position in output_positions.get(phrase[0], ()):
+            candidates = []
+            if position >= last and words[position:position + len(phrase)] == phrase:
+                for offset, length in shapes:
+                    start = offsets[position] - offset
+                    end = start + length
+                    if start < 0 or end > len(concat):
+                        continue
+                    begin, stop = bisect_left(offsets, start), bisect_left(offsets, end)
+                    if offsets[begin] == start and offsets[stop] == end:
+                        token = concat[start:end]
+                        if token in unspent_source:
+                            candidates.append((begin, stop, token))
+                occurrences.append(position)
+                runs.append(candidates)
+                last = position + len(phrase)
+        support, used, next_word = 0, Counter(), 0
+        for position, candidates in zip(occurrences, runs):
+            # A longer run covers more; on a tie, the earlier one leaves room.
+            best = max((run for run in candidates if run[0] >= next_word
+                        and used[run[2]] < unspent_source[run[2]]),
+                       key=lambda run: (run[1] - run[0], -run[0]), default=None)
+            if best is None:
                 continue
-            if not all(piece in vocabulary for piece in split if piece):
-                continue
-            pattern = " " + "  ".join(f" {needle} ".join(split).split()) + " "
-            found = min(count, stream.count(pattern))
-            # A space join would make two words adjacent; \0 is in no word.
-            stream = stream.replace(pattern, " \0 ", found)
-            support += found * copies
+            begin, stop, token = best
+            used[token] += 1
+            left = bisect_left(occurrences, begin)
+            support += bisect_left(occurrences, stop, left) - left
+            next_word = stop
         return support
     transitions, failure, terminal, suffix = [{}], [0], [None], [0]
     lengths = []

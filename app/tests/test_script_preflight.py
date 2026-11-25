@@ -552,6 +552,11 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         return (before + [_entry(line or self.LINE, "MARTA")] + after
                 + [_entry(line or self.LINE, "PORTER")])
 
+    def _adjacent_entries(self, line, copies=2):
+        """A faithful split of one fused source token: the copies are adjacent."""
+        return ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                + [_entry(line, "C%d" % k) for k in range(copies)])
+
     def _source(self, occurrences=1, extra=""):
         quotes = " ".join('"%s" she asked.' % self.LINE for _ in range(occurrences))
         return " ".join(_SEPARATE_DUPLICATE_FILLER) + extra + " " + quotes
@@ -655,10 +660,13 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(0, report["counts"]["blocking"])
 
     def test_unsegmented_reduplication_downgrades_to_manual_review(self):
+        # The fused source token is split into adjacent entries, which is what
+        # the run rule credits; the old fixture was non-adjacent because the
+        # whole-count rule ignored adjacency.
         source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
                   + " \u300c\u306f\u3044\u300d\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002"
                   + " \u300c\u306f\u3044\u306f\u3044\u300d\u3068\u5f7c\u5973\u306f\u7b54\u3048\u305f\u3002")
-        findings = self._duplicate_findings(self._entries("\u306f\u3044"), source)
+        findings = self._duplicate_findings(self._adjacent_entries("\u306f\u3044"), source)
 
         self.assertEqual(1, len(findings))
         self.assertEqual("manual_review", findings[0]["severity"])
@@ -706,14 +714,14 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
     def test_halfwidth_glued_repetition_downgrades_to_manual_review(self):
         source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
                   + " \u300c\uff8a\uff72\u300d\u3068\u8a00\u3063\u305f\u3002 \uff8a\uff72\uff8a\uff72")
-        findings = self._duplicate_findings(self._entries("\uff8a\uff72"), source)
+        findings = self._duplicate_findings(self._adjacent_entries("\uff8a\uff72"), source)
 
         self.assertEqual(1, len(findings))
         self.assertEqual("manual_review", findings[0]["severity"])
 
     def test_latin_glued_repetition_downgrades_to_manual_review(self):
         source = " ".join(_SEPARATE_DUPLICATE_FILLER) + ' "ha" she said. haha'
-        findings = self._duplicate_findings(self._entries("ha"), source)
+        findings = self._duplicate_findings(self._adjacent_entries("ha"), source)
 
         self.assertEqual(1, len(findings))
         self.assertEqual("manual_review", findings[0]["severity"])
@@ -779,7 +787,7 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
     def test_a_decomposed_repetition_token_explains_the_split(self):
         source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
                   + ' "\u304c" she asked. ' + "\u304b\u3099" * 2)
-        findings = self._duplicate_findings(self._entries("\u304c"), source)
+        findings = self._duplicate_findings(self._adjacent_entries("\u304c"), source)
 
         self.assertEqual(1, len(findings))
         self.assertEqual("manual_review", findings[0]["severity"])
@@ -885,13 +893,85 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual("blocking", finding["severity"])
 
     def test_a_fused_needle_run_still_completes_a_remainder_split(self):
+        # The unspent "somit" is split as consecutive "so", "mit"; "mitmit" is
+        # emitted whole. The old fixture placed the split beside the fused run,
+        # which only the key*k expansion could credit.
         source = "mit somit mitmit"
-        entries = [_entry("mit", "MARTA"), _entry("mit", "PORTER"),
-                   _entry("so"), _entry("mitmit")]
+        entries = [_entry("mit", "MARTA"), _entry("so"), _entry("mit", "PORTER"),
+                   _entry("mitmit")]
         finding = self._duplicate_findings(entries, source)[0]
 
         self.assertEqual("manual_review", finding["severity"])
         self.assertEqual(1, finding["details"]["unemitted_source_split_support"])
+
+    def test_a_fused_word_split_at_a_different_offset_is_manual_review(self):
+        source = ('Am Bahnhof wartete Marta . "ja ja" sagte er . Achjajaso .')
+        entries = [_entry("Am Bahnhof wartete Marta ."), _entry("ja ja", "MARTA"),
+                   _entry("Ach"), _entry("ja ja", "PORTER"), _entry("so")]
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(1, finding["details"]["unemitted_source_split_support"])
+
+        extra = entries + [_entry("ja ja", "ANNA")]
+        self.assertEqual("blocking", self._duplicate_findings(extra, source)[0]["severity"])
+
+    def test_a_run_may_cross_an_entry_boundary(self):
+        source = "a ab"
+        entries = [_entry("a", "MARTA"), _entry("a", "PORTER"), _entry("b", "ANNA")]
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(1, finding["details"]["unemitted_source_split_support"])
+
+    def test_a_scattered_remainder_does_not_excuse_a_duplicate(self):
+        source = ('Am Bahnhof wartete Marta . "ja ja" sagte er . Achjajaso .')
+        entries = [_entry("Ach"), _entry("Am Bahnhof wartete Marta ."),
+                   _entry("ja ja", "MARTA"), _entry("so"), _entry("ja ja", "PORTER")]
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(0, finding["details"]["unemitted_source_split_support"])
+
+    def test_two_fused_words_split_in_either_source_order_are_both_credited(self):
+        for source in ("damit somit mit", "mit somit damit"):
+            with self.subTest(source=source):
+                entries = [_entry("da"), _entry("mit", "MARTA"),
+                           _entry("so"), _entry("mit", "PORTER")]
+                finding = self._duplicate_findings(entries, source)[0]
+
+                self.assertEqual("manual_review", finding["severity"])
+                self.assertEqual(2, finding["details"]["unemitted_source_split_support"])
+
+    def test_a_fused_only_source_with_no_whole_copy_reports_nothing(self):
+        # capacity is 0, and reporting the excess would need every sub-word
+        # needle to be scored, which adds review noise on faithful scripts.
+        source = "jaja"
+        entries = [_entry("ja", "C%d" % k) for k in range(5)]
+
+        self.assertEqual([], self._duplicate_findings(entries, source))
+
+    def test_a_run_must_end_on_a_word_boundary(self):
+        # "ab" is unspent, but the second "a" is followed by "bcd", so the run
+        # would stop inside that word; it must not be credited.
+        source = "a ab"
+        entries = [_entry("a", "MARTA"), _entry("a", "PORTER"), _entry("bcd", "ANNA")]
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(0, finding["details"]["unemitted_source_split_support"])
+
+    def test_competing_runs_are_chosen_to_avoid_a_false_block(self):
+        # "zq" covers the first "q" only, while "qq" can cover a later pair.
+        # Taking "qq" first exhausts it and leaves the last copy unexplained;
+        # preferring the run that starts earlier finds all three.
+        source = "q zq qq"
+        entries = [_entry("z"), _entry("q", "C1"), _entry("q", "C2"),
+                   _entry("q", "C3"), _entry("q", "C4")]
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(3, finding["details"]["unemitted_source_split_support"])
 
     def test_two_unspent_splits_do_not_credit_the_same_output_words(self):
         source = " ".join(_SEPARATE_DUPLICATE_FILLER) + " so sox xso"

@@ -965,10 +965,10 @@ class ContainedSeparateDuplicateGateTests(unittest.TestCase):
 
     def test_unsegmented_reduplication_does_not_fail_chunk_quality(self):
         source = " ".join(_FILLER) + " \u306f\u3044 \u306f\u3044\u306f\u3044"
-        entries = ([_entry(word) for word in _FILLER[:120]]
-                   + [_entry("\u306f\u3044", "MARTA")]
-                   + [_entry(word) for word in _FILLER[120:]]
-                   + [_entry("\u306f\u3044", "PORTER")])
+        # A faithful split of the fused token is adjacent; the old fixture was
+        # non-adjacent because the whole-count rule ignored adjacency.
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("\u306f\u3044", "MARTA"), _entry("\u306f\u3044", "PORTER")])
 
         report = validate_chunk_quality(source, entries)
 
