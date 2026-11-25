@@ -12,6 +12,7 @@
     },
     "reviewers": []
   },
+  "abs.config.restored": "Se restauró el servidor guardado ({url}). La clave de API {key}.",
   "abs.deliveries.accepted": "Carga aceptada; verifica la entrega",
   "abs.deliveries.none": "Aún no hay entregas registradas para este libro.",
   "abs.deliveries.row": "{file} → {title} — {status}. {bytes} bytes, SHA-256 {sha}.",

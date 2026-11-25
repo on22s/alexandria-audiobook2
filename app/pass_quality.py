@@ -16,6 +16,7 @@ from review_script import normalize_text
 # (e.g. the 0.84->0.82 near-miss floor history) instead of drifting.
 from chunk_quality import (MIN_SOURCE_TOKEN_RECALL, MIN_ORDERED_TRIGRAM_RECALL,
                            MIN_OUTPUT_SOURCE_RATIO, MAX_OUTPUT_SOURCE_RATIO,
+                           get_introduced_non_ascii_letters,
                            get_unsupported_cyrillic_characters, get_missing_source_runs)
 from script_preflight import find_adjacent_duplicate_blocks, find_seam_duplicate_narration
 
@@ -457,12 +458,7 @@ def _introduced_character_findings(source_text, output_text, entries, quote_anal
     if unsupported:
         findings.append({"code": "unsupported_cyrillic", "characters": unsupported,
                          "message": "Response introduced Cyrillic characters absent from the source."})
-    source_non_ascii = {char for char in unicodedata.normalize("NFC", source_text)
-                        if ord(char) > 127 and unicodedata.category(char).startswith("L")}
-    introduced = sorted({char for char in unicodedata.normalize("NFC", output_text)
-                         if ord(char) > 127 and unicodedata.category(char).startswith("L")
-                         and char not in source_non_ascii
-                         and not ("Ѐ" <= char <= "ӿ")})
+    introduced = get_introduced_non_ascii_letters(source_text, output_text)
     if introduced:
         findings.append({"code": "unsupported_unicode_character",
                          "characters": [{"character": char, "codepoint": f"U+{ord(char):04X}",
