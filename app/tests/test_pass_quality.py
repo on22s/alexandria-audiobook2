@@ -957,9 +957,15 @@ class AccentedCaseParityTests(unittest.TestCase):
         self.assertEqual(report["metrics"]["source_token_recall"], 1.0)
 
     def test_introduced_accented_letter_still_fails(self):
-        source = "A plain Latin source."
-        entries = [{"type": "NARRATOR", "text": "A plain Latin source. Ж"}]
-        self.assertFalse(validate_segment_quality(source, entries)["passed"])
+        source = ("A plain Latin source sentence with quite a few ordinary "
+                  "words in it.")
+        entries = [{"type": "NARRATOR", "text": source + " É"}]
+        report = validate_segment_quality(source, entries)
+        self.assertFalse(report["passed"])
+        introduced = [char["character"] for finding in report["findings"]
+                      if finding["code"] == "unsupported_unicode_character"
+                      for char in finding["characters"]]
+        self.assertEqual(["É"], introduced)
 
     def test_both_gates_report_the_same_introduced_letters(self):
         for source, output, expected in self.CASES:

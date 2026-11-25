@@ -53,7 +53,7 @@ def get_introduced_non_ascii_letters(source_text, output_text):
                    and char not in source_non_ascii
                    and not ("LATIN" in unicodedata.name(char, "")
                             and char.casefold() in source_latin_casefold)
-                   and not ("\u0400" <= char <= "\u04ff")})
+                   and not _CYRILLIC_RE.match(char)})
 
 
 def get_chunk_schema_findings(entries):
