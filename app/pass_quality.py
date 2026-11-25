@@ -25,7 +25,8 @@ _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 # source-map and the generator's segmenter cannot drift apart.
 from dialogue_spans import (PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
                             get_guillemet_direction as _get_guillemet_direction,
-                            is_inch_mark as _is_inch_mark)
+                            is_inch_mark as _is_inch_mark,
+                            is_number_char as _is_number_char)
 
 _QUOTE_CHARS = set(_DS_QUOTE_MARKS) | {'”'}
 # The marks analyze_outer_quote_regions opens a spoken region on; "does this
@@ -155,6 +156,8 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             if depth == 1:
                 flush()
             depth -= 1
+            if depth == 0:
+                outer_opener = None
             open_stack.pop()
             continue
         if char in openers or char in _SELF_PAIRED:
@@ -230,17 +233,23 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                 if depth == 1:
                     flush()
                 depth -= 1
+                if depth == 0:
+                    outer_opener = None
                 open_stack.pop()
                 continue
             if char == guillemet_close and open_stack and open_stack[-1] == guillemet_open:
                 if depth == 1:
                     flush()
                 depth -= 1
+                if depth == 0:
+                    outer_opener = None
                 open_stack.pop()
                 continue
             if depth == 1:
                 flush()
             depth -= 1
+            if depth == 0:
+                outer_opener = None
             continue
         if char == '”' and _is_inch_mark(text, index, char):
             # Outside speech a `”` after a number is an inch mark (`6” wide`);
@@ -287,9 +296,12 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             if depth == 0:
                 pending_source_label = _pop_source_label(current)
             flush()
-            if depth == 0:
+            if depth:
+                depth = 0
+                outer_opener = None
+            else:
+                depth = 1
                 outer_opener = char
-            depth = 0 if depth else 1
             saw_quote = True
             continue
         current.append(char)
@@ -298,6 +310,7 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
         repairs.append({"code": "inferred_missing_close_quote",
                         "offset": len(text)})
         depth = 0
+        outer_opener = None
     else:
         flush()
     complete = depth == 0 or allow_open_end
@@ -399,19 +412,30 @@ def _split_quote_regions(source_text):
     return outside, inside
 
 
-def _has_quote_delimiter(text):
-    """True unless every quote character in `text` is an inch mark.
+def _number_mark_token(text, position):
+    """-> the number and mark ending at `position`, e.g. `12"` or `8.5”`."""
+    start = position
+    while start > 0 and (_is_number_char(text[start - 1])
+                         or text[start - 1] in ".,"):
+        start -= 1
+    return text[start:position + 1]
 
-    An inch mark after a number (`6" wide`, `6” wide`) is speakable text, not
-    a delimiter, so a row carrying only those must not be refused as
-    mixed_quote_region (#2314). A real delimiter anywhere still makes the
-    row mixed. A row is one region, so at this call the speech is not open:
-    a digit-preceded mark here is the measurement reading.
+
+def _has_quote_delimiter(text, region_texts):
+    """True unless every quote character in `text` is a kept inch mark.
+
+    An inch mark after a number (`6" wide`, `6” wide`) is speakable text, so
+    a row carrying only those is not mixed (#2314). It counts as text only
+    when the same number+mark appears in the analyzed region, which keeps
+    measurements and drops delimiters: a row that kept a real closer after a
+    digit has no such counterpart and stays mixed, as it was before #2314.
     """
     for position, char in enumerate(text):
         if char not in _QUOTE_CHARS:
             continue
-        if _is_inch_mark(text, position, char):
+        token = _number_mark_token(text, position)
+        if (_is_inch_mark(text, position, char)
+                and any(token in region for region in region_texts)):
             continue
         return True
     return False
@@ -479,12 +503,12 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
         if not enforce_entry:
             continue
         text = str(entry.get("text") or "")
-        if _has_quote_delimiter(text):
+        expected = inside if entry.get("type") == "SPOKEN" else outside
+        other = outside if entry.get("type") == "SPOKEN" else inside
+        if _has_quote_delimiter(text, expected + other):
             findings.append({"code": "mixed_quote_region", "entry_number": number,
                              "message": "An entry combines quote delimiters with narration or dialogue; split at the quote boundary."})
             continue
-        expected = inside if entry.get("type") == "SPOKEN" else outside
-        other = outside if entry.get("type") == "SPOKEN" else inside
         in_expected = _region_contains_entry(expected, text)
         if not in_expected and _region_contains_entry(other, text):
             findings.append({"code": "quote_region_misclassified", "entry_number": number,

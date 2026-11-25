@@ -26,6 +26,7 @@ from bisect import bisect_left, bisect_right
 from collections import Counter, defaultdict, deque
 import logging
 import re
+import unicodedata
 
 PAIRED = [
     ('"', '"'),
@@ -303,9 +304,51 @@ def _is_opener_shaped(text, position):
     return before.isspace() and not after.isspace()
 
 
+_CLOSERS_BY_OPENER = {}
+for _pair_opener, _pair_closer in PAIRED:
+    _CLOSERS_BY_OPENER.setdefault(_pair_opener, set()).add(_pair_closer)
+
+
 def _closer_marks(opener):
     """-> the mark characters that can close a span this opener began."""
-    return {closer for pair_opener, closer in PAIRED if pair_opener == opener}
+    return _CLOSERS_BY_OPENER.get(opener, set())
+
+
+_NUMBER_CATEGORIES = frozenset(("Nd", "No"))
+# Words that join two measurements (`6" by 8"`) or name the unit after one.
+_MEASURE_LINKS = frozenset(("by", "x", "and", "to"))
+_MEASURE_UNITS = frozenset((
+    "wide", "long", "tall", "high", "deep", "thick", "thin", "broad",
+    "across", "square", "cubic", "diameter", "radius",
+    "inch", "inches", "foot", "feet", "ft", "cm", "mm", "meter", "meters",
+    "metre", "metres", "kilometer", "kilometre", "mile", "miles", "pound",
+    "pounds", "lb", "lbs", "oz", "kg", "gram", "grams", "g", "litre",
+    "liter", "litres", "liters", "gallon", "gallons"))
+
+
+def is_number_char(char):
+    """Is `char` a digit for spellings like `6"`, `3½"` and `8²"`?
+
+    Unicode `Nd` and `No` cover ASCII digits, `½`/`¼` and `²`; a CJK numeral
+    such as `三` is a letter (`Lo`) and is not one.
+    """
+    return unicodedata.category(char) in _NUMBER_CATEGORIES
+
+
+_blank_line_cache = (None, ())
+
+
+def _paragraph_end(text, position):
+    """-> offset of the blank line that ends the paragraph holding `position`."""
+    global _blank_line_cache
+    cached_text, offsets = _blank_line_cache
+    if cached_text is not text:
+        # One scan per text, then bisect. Searching from each digit mark was
+        # quadratic on a text with no blank line at all.
+        offsets = tuple(match.start() for match in BLANK_LINE.finditer(text))
+        _blank_line_cache = (text, offsets)
+    index = bisect_right(offsets, position)
+    return offsets[index] if index < len(offsets) else len(text)
 
 
 def _ends_paragraph(text, position):
@@ -333,97 +376,169 @@ def _paragraph_start(text, position):
 def _odd_earlier_marks(text, position, mark):
     """Does this paragraph hold an unmatched earlier `mark` before `position`?
 
-    Counted over marks that are not digit-preceded, since a digit-preceded
+    Counted over marks that are not number-preceded, since a number-preceded
     mark is never an opener and may itself be an inch mark.
     """
     start = _paragraph_start(text, position)
     count = 0
     found = text.find(mark, start, position)
     while found != -1:
-        if found == 0 or not text[found - 1].isdigit():
+        if found == 0 or not is_number_char(text[found - 1]):
             count += 1
         found = text.find(mark, found + 1, position)
     return count % 2 == 1
 
 
-def is_inch_mark(text, position, mark, inside_speech=False, opener=None,
-                 parity_only=False):
-    """Is the digit-preceded `mark` at `position` a measurement, not a delimiter?
+_mark_index_cache = (None, {})
 
-    `5" wide` opens an inline expression, and a mark followed by the same mark
-    is an inch mark before new speech (`12" "Next`, `12""Next`). Outside
-    speech, that is the whole rule and a mark at a line/paragraph end is a
-    measurement too (`The board was 6"`); only `_paired_spans`, which has
-    parity rather than the real depth, may have to read a paragraph-final
-    mark as a reprise closer.
 
-    Inside open speech a digit before the mark could be the tail of a number
-    in a real closer, so the context decides:
+def _mark_index(text, mark):
+    """-> (all offsets, offsets not number-preceded) of `mark`, cached per text.
 
-      - `opener` is the mark that opened this span. When it is the same mark
-        (a self-paired `"`), look at the next same mark in this paragraph that
-        is not digit-preceded: if that one is closer-shaped (text before it
-        and a word boundary after it), this mark cannot close - the next would
-        then have to open - so it is an inch mark. If it is opener-shaped, or
-        there is no such mark, this one closes as it always has.
-      - When the opener is a different mark (`“`, `„`, `«`, `「`, ...), this
-        mark cannot be that opener's closer. It is an inch mark when the
-        opener's own closer comes later in this paragraph than any new opener
-        of it (`“6" wide,”`, `„6" breit“,`); otherwise it closes as before
-        (`„5" sagte er. „Gut."`).
-      - A different-mark closer (`”` for `“`) is an inch mark when the next
-        quote mark in this paragraph is another `”` (`“6” wide,”`,
-        `“6” wide. “Good,”`); when it is a `“`, this mark is the real closer
-        (`“I am 12” he said. “Good.”`).
+    Indexed once per text and tested by bisect. Searching forward from every
+    digit mark was quadratic on a text whose paragraph holds no plain closer.
+    """
+    global _mark_index_cache
+    cached_text, index = _mark_index_cache
+    if cached_text is not text:
+        index = {}
+        _mark_index_cache = (text, index)
+    entry = index.get(mark)
+    if entry is None:
+        every, plain = [], []
+        found = text.find(mark)
+        while found != -1:
+            every.append(found)
+            if found == 0 or not is_number_char(text[found - 1]):
+                plain.append(found)
+            found = text.find(mark, found + 1)
+        entry = (tuple(every), tuple(plain))
+        index[mark] = entry
+    return entry
 
-    One predicate for `_paired_spans`, pass_quality's analyzer, its
+
+def _next_mark(text, mark, start, end, plain_only=False):
+    """-> first `mark` offset in [start, end), optionally not number-preceded."""
+    every, plain = _mark_index(text, mark)
+    offsets = plain if plain_only else every
+    index = bisect_left(offsets, start)
+    return offsets[index] if index < len(offsets) and offsets[index] < end else -1
+
+
+def _next_plain_mark(text, marks, start, end):
+    """-> first occurrence of any of `marks` in [start, end) not number-preceded."""
+    best = -1
+    for mark in marks:
+        found = _next_mark(text, mark, start, end, plain_only=True)
+        if found != -1 and (best == -1 or found < best):
+            best = found
+    return best
+
+
+def is_measurement_continuation(text, position):
+    """Does the text after this number-preceded mark still read as a measurement?
+
+    Consulted only when every later closer in the paragraph is itself
+    number-preceded, so no real closer is left to settle the question.
+    Unambiguous evidence: another number linked by `by`/`x`/`×`/`and`/`,`/`to`
+    (`6" by 8"`), or a unit word (`6" wide`). Anything else closes the speech
+    (`12" she said`).
+    """
+    index = position + 1
+    while index < len(text) and text[index] in " \t":
+        index += 1
+    if index >= len(text):
+        return False
+    if text[index] in ",×":
+        index += 1
+        while index < len(text) and text[index] in " \t":
+            index += 1
+        return index < len(text) and is_number_char(text[index])
+    end = index
+    while end < len(text) and text[end].isalpha():
+        end += 1
+    word = text[index:end].casefold()
+    if word in _MEASURE_LINKS:
+        while end < len(text) and text[end] in " \t":
+            end += 1
+        return end < len(text) and is_number_char(text[end])
+    return word in _MEASURE_UNITS
+
+
+def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
+    """Is the number-preceded `mark` at `position` a measurement, not a delimiter?
+
+    Outside speech a measurement is a measurement anywhere, including at the
+    end of a line (`The board was 6"`). A paragraph-final mark is a reprise
+    closer instead when the paragraph holds an odd number of earlier plain
+    marks (`"Part two ends 5"`), which is how a continued speech prints.
+
+    Inside open speech the number may instead be the end of the sentence, so
+    the next mark decides:
+
+      - the same mark (a self-paired `"`): an inch mark unless the next
+        non-number-preceded same mark is closer-shaped (text before it, word
+        boundary after it), because that one would then have to open;
+      - a different opener (`“`, `„`, `«`, `「`, ...): an inch mark unless
+        that opener's own non-number-preceded closer comes before any new
+        opener of it.
+
+    When every later closer is number-preceded, none of them can close the
+    speech, and `is_measurement_continuation` decides from the text after the
+    mark; otherwise this mark closes.
+
+    One predicate for `_paired_spans`, pass_quality's analyzer and
     `_has_quote_delimiter`, and the three-pass repair (#2314).
     """
-    if position <= 0 or not text[position - 1].isdigit():
+    if position <= 0 or not is_number_char(text[position - 1]):
         return False
     after = position + 1
     while after < len(text) and text[after].isspace():
         after += 1
     if not inside_speech and after < len(text) and text[after] == mark:
+        # `12" "Next` and `12""Next`: the mark before the new quote is an
+        # inch mark, not that quote's delimiter.
         return True
     if inside_speech and opener is not None and opener != mark:
-        end = BLANK_LINE.search(text, position + 1)
-        end = end.start() if end else len(text)
-        next_opener = text.find(opener, position + 1, end)
-        next_closer = min((found for found in
-                           (text.find(closer, position + 1, end)
-                            for closer in _closer_marks(opener))
-                           if found != -1), default=-1)
+        paragraph_end = _paragraph_end(text, position)
+        next_opener = _next_mark(text, opener, position + 1, paragraph_end)
+        next_closer = _next_plain_mark(
+            text, _closer_marks(opener), position + 1, paragraph_end)
         if next_closer == -1:
+            # Every later closer is number-preceded, so none of them can
+            # close this speech: the text after the mark decides
+            # (`6” wide and 8”` keeps it, `12” she said` closes).
+            return is_measurement_continuation(text, position)
+        if next_closer == position + 1 and text[next_closer] == mark:
+            # `“12””`: the second same mark is the real closer and this one is
+            # its decoration, as main reads it.
             return False
+        # A real closer after the next opener belongs to that speech.
         return next_opener == -1 or next_closer < next_opener
     if position + 1 >= len(text) or text[position + 1] in "\r\n":
         if inside_speech:
             return False
-        if (parity_only and _ends_paragraph(text, position)
+        if (_ends_paragraph(text, position)
                 and _odd_earlier_marks(text, position, mark)):
-            # Parity cannot see the real depth: a paragraph that re-opened the
-            # quote has no closer but this one, so it still closes
-            # (`"Part two ends 5"`). With balanced earlier marks it cannot.
+            # A paragraph that re-opened the quote has no closer but this one,
+            # so it still closes. With balanced earlier marks it cannot. The
+            # parity caller cannot see depth at all; the analyzer reaches this
+            # only outside speech, where the same imbalance is the only clue
+            # that a CRLF paragraph re-opened its quote (#2314).
             return False
         return True
     if not inside_speech:
         return True
-    paragraph_break = BLANK_LINE.search(text, position + 1)
-    paragraph_end = paragraph_break.start() if paragraph_break else len(text)
-    next_position = text.find(mark, position + 1, paragraph_end)
-    while next_position != -1:
-        if not text[next_position - 1].isdigit():
-            # Closer-shaped means text before the mark and a word boundary
-            # after it. A mark glued after a dash but followed by a letter
-            # (`—"Next`) is an opener, so it decides nothing here and this
-            # mark closes as it always has.
-            following = next_position + 1
-            return (not text[next_position - 1].isspace()
-                    and (following >= len(text)
-                         or not text[following].isalnum()))
-        next_position = text.find(mark, next_position + 1, paragraph_end)
-    return False
+    paragraph_end = _paragraph_end(text, position)
+    next_position = _next_plain_mark(text, (mark,), position + 1, paragraph_end)
+    if next_position == -1:
+        return is_measurement_continuation(text, position)
+    # Closer-shaped means text before the mark and a word boundary after it.
+    # A mark glued after a dash but followed by a letter (`—"Next`) is an
+    # opener, so it decides nothing here and this mark closes as always.
+    following = next_position + 1
+    return (not text[next_position - 1].isspace()
+            and (following >= len(text) or not text[following].isalnum()))
 
 
 def _paired_spans(text):
@@ -486,7 +601,7 @@ def _paired_spans(text):
                 # has, so a paragraph-final mark stays a reprise closer while
                 # the paragraph holds an unmatched earlier mark.
                 if is_inch_mark(text, position, opener,
-                                len(positions) % 2 == 1, parity_only=True):
+                                len(positions) % 2 == 1):
                     continue
                 positions.append(position)
             # A mark that begins a paragraph re-opens this quote, so it can
