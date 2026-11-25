@@ -331,7 +331,12 @@ class TakePublicationTests(unittest.TestCase):
 
     def test_valid_output_outside_snapshot_limits_still_publishes_without_proof(self):
         with self.fixture(prior=False) as (root,manager,_,_), self.owner():
-            engine=self.engine();chunk=manager.load_chunks()[0]
+            engine=self.engine()
+            engine._synthesis_windows=get_synthesis_window_settings({'enabled':True,
+                'budgets':{'local.custom':{'max_chars':180}}})
+            text='The quiet narrator reads every word of this synthetic passage. '*40
+            manager._update_chunk_fields_by_uid('line',text=text)
+            chunk=manager.load_chunks()[0]
             parent,admitted=self.admission(manager,engine,chunk)
             pcm,_,synthesis,observed=self.render(root,engine,parent,chunk,seconds=660)
             self.assertEqual(sf.info(pcm).frames,24000*660)

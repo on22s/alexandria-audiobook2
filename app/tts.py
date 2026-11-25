@@ -3269,11 +3269,17 @@ class TTSEngine:
         idx = chunk["index"]
         output_path = get_synthesis_batch_output_path(output_dir, idx)
         resolved = get_seeded_batch_voice_config(voice_config, batch_seed)
-        with (ensure_synthesis_recovery_batch_parent(chunk.get("uid")),
-              ensure_synthesis_receipts() as receipts):
-            success = self._dispatch_prepared_voice(
-                chunk["text"], chunk.get("instruct", ""), chunk.get("speaker"), resolved, output_path)
-        return success, receipts[-1] if success and receipts else None
+        failures = []
+        token = _TTS_FAILURES.set(failures)
+        try:
+            with (ensure_synthesis_recovery_batch_parent(chunk.get("uid")),
+                  ensure_synthesis_receipts() as receipts):
+                success = self._dispatch_prepared_voice(
+                    chunk["text"], chunk.get("instruct", ""), chunk.get("speaker"), resolved, output_path)
+        finally:
+            _TTS_FAILURES.reset(token)
+        return (success, receipts[-1] if success and receipts else None,
+                failures[0] if failures else None)
 
     # ── Batch generation ─────────────────────────────────────────
 
@@ -3340,7 +3346,7 @@ class TTSEngine:
                 return results
             idx = chunk["index"]
             try:
-                success, receipt = self._generate_prepared_batch_parent(chunk, row_voices[idx], output_dir, batch_seed)
+                success, receipt, _ = self._generate_prepared_batch_parent(chunk, row_voices[idx], output_dir, batch_seed)
                 if success:
                     results["completed"].append(idx)
                     if receipt is not None:
@@ -3373,13 +3379,14 @@ class TTSEngine:
                     if plan is None:
                         native_chunks.append(chunk)
                         continue
-                    success, receipt = self._generate_prepared_batch_parent(chunk, effective, output_dir, batch_seed)
+                    success, receipt, failure = self._generate_prepared_batch_parent(chunk, effective, output_dir, batch_seed)
                     if success:
                         results["completed"].append(idx)
                         if receipt is not None:
                             results.setdefault("synthesis_receipts", {})[idx] = receipt
                     else:
-                        results["failed"].append((idx, "Internal synthesis window generation failed"))
+                        results["failed"].append((idx, failure.detail if failure
+                                                  else "Internal synthesis window generation failed"))
                 except Exception as error:
                     results["failed"].append((idx, str(error)))
             chunks = native_chunks
@@ -4287,7 +4294,7 @@ class TTSEngine:
         for chunk in chunks:
             idx = chunk["index"]
             try:
-                success, _ = self._generate_prepared_batch_parent(
+                success, _, _ = self._generate_prepared_batch_parent(
                     chunk, row_voices[idx], output_dir, batch_seed)
                 if success:
                     results["completed"].append(idx)
