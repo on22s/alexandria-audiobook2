@@ -6627,6 +6627,8 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
                 state.pop('script_selection_pending', None)
             else:
                 state['script_selection_pending'] = True
+                from speech_numbers import STATE_KEY as date_order_key
+                state.pop(date_order_key, None)        # a new book starts on auto (#1546)
             from project_scope_exports import (PUBLICATIONS_FILE,
                 get_compacted_publication_receipts, get_scope_export_inventory,
                 read_publication_receipts, serialize_publication_receipts)
@@ -6650,8 +6652,6 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
                 state['_source_scope_exports'] = get_scope_export_inventory(data_dir)
                 if ledger_raw is not None:
                     receipt_bytes = get_compacted_publication_receipts(records, new_token, None)
-            from speech_numbers import STATE_KEY as date_order_key
-            state.pop(date_order_key, None)        # a new book starts on auto (#1546)
             # An explicit input selection starts a new book context. Validate
             # optional old metadata before clearing it in the same transaction;
             # malformed/recoverable files must not disappear on a failed switch.

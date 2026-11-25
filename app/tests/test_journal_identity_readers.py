@@ -24,7 +24,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import project_scope_files
 from project import ProjectManager
-from routers import editor, script, scripts_library
+from routers import editor, pronunciation_panel, script, scripts_library
 from script_selection_binding import (BINDING_NAME, capture_generation_selection,
     publish_generated_script)
 
@@ -181,6 +181,32 @@ class SelectionJournalIdentityTests(JournalIdentityCases):
             self.assertEqual(200, listed.status_code, listed.text)
             self.assertEqual(("line-0", "done"),
                 (listed.json()[0]["uid"], listed.json()[0]["status"]))
+
+    def test_reselecting_the_active_upload_keeps_the_date_order_through_the_routes(self):
+        # #2297 real user path: set the order, then select the same upload.
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _source, _rows, _identity = self.make_published_book(tmp)
+            select_client = self.http_client(root)
+            order_app = FastAPI()
+            order_app.include_router(pronunciation_panel.router)
+            with patch.object(pronunciation_panel, "SCRIPT_PATH",
+                              str(root / "annotated_script.json")), \
+                    patch.object(pronunciation_panel, "process_state", {}):
+                order_client = TestClient(order_app)
+                view = order_client.get("/api/pronunciation/date_order").json()
+                saved = order_client.post("/api/pronunciation/date_order", json={
+                    "choice": "dmy", "expected_book_token": view["book_token"]})
+                self.assertEqual(200, saved.status_code, saved.text)
+                self.assertEqual("dmy", saved.json()["choice"])
+                selected = self.select(select_client)
+                self.assertEqual(200, selected.status_code, selected.text)
+                after = order_client.get("/api/pronunciation/date_order").json()
+                self.assertEqual("dmy", after["choice"])
+                self.assertEqual("dmy", self.state(root)["speech_date_order"])
+                self.assertNotIn("script_selection_pending", self.state(root))
+                self.assertEqual([("line-0", "line-0.wav", "done")],
+                    [(row["uid"], row["audio_path"], row["status"])
+                     for row in json.loads((root / "chunks.json").read_text())])
 
     def test_changed_bytes_under_same_filename_never_reuse_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
