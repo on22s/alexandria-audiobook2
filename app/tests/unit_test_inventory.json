@@ -627,6 +627,10 @@
     , "tests.test_attribution_accuracy.GoldFixtureIntegrityTest.test_ids_are_unique_in_every_fixture"
     , "tests.test_attribution_accuracy.GoldSetTest.test_disputed_entries_are_withheld_by_default"
     , "tests.test_attribution_accuracy.GoldSetTest.test_gold_set_loads_and_is_well_formed"
+    , "tests.test_attribution_accuracy.MalformedGoldRowTests.test_a_scored_disputed_row_is_still_validated_and_scores"
+    , "tests.test_attribution_accuracy.MalformedGoldRowTests.test_a_skipped_disputed_row_is_not_validated"
+    , "tests.test_attribution_accuracy.MalformedGoldRowTests.test_a_valid_row_still_scores"
+    , "tests.test_attribution_accuracy.MalformedGoldRowTests.test_malformed_rows_fail_loudly_and_name_the_row"
     , "tests.test_attribution_accuracy.RestrictedCandidates.test_a_character_absent_from_the_window_is_dropped"
     , "tests.test_attribution_accuracy.RestrictedCandidates.test_a_character_named_in_the_window_is_kept"
     , "tests.test_attribution_accuracy.RestrictedCandidates.test_a_substring_does_not_keep_a_character"
@@ -808,6 +812,8 @@
     "tests.test_audio_channels.AudioChannelTests.test_actual_preview_import_and_asr_stream_select_same_channel"
     , "tests.test_audio_channels.AudioChannelTests.test_batch_http_consumes_previews_once_and_dispatches_selected_channel"
     , "tests.test_audio_channels.AudioChannelTests.test_cancelled_preview_stops_owned_child_before_returning"
+    , "tests.test_audio_channels.AudioChannelTests.test_malformed_ffprobe_output_preserves_the_parse_cause"
+    , "tests.test_audio_channels.AudioChannelTests.test_malformed_ffprobe_output_raises_the_documented_value_error"
     , "tests.test_audio_channels.AudioChannelTests.test_metadata_wait_does_not_block_async_request_loop"
     , "tests.test_audio_channels.AudioChannelTests.test_mono_default_parity_missing_right_and_unknown_selection"
     , "tests.test_audio_channels.AudioChannelTests.test_move_is_single_use_and_failed_copy_does_not_delete_source"
@@ -818,6 +824,7 @@
     , "tests.test_audio_channels.AudioChannelTests.test_single_http_retries_same_audio_after_preview_source_has_moved"
     , "tests.test_audio_channels.AudioChannelTests.test_stage_preview_and_clone_import_use_same_bytes_and_keep_provenance"
     , "tests.test_audio_channels.AudioChannelTests.test_staging_reuses_original_expires_and_refuses_foreign_handles"
+    , "tests.test_audio_channels.AudioChannelTests.test_valid_ffprobe_streams_are_counted_and_empty_streams_are_refused"
   ]
   , "test_audio_channels_js": [
     "tests.test_audio_channels_js.AudioChannelsJsTests.test_closed_or_changed_picker_discards_late_audio_and_cleans_late_upload"
@@ -1427,6 +1434,12 @@
     , "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_preparation_and_dispatch_scan_once_without_mutating_input"
     , "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_refusal_matches_uncached_after_settings_change"
     , "tests.test_batch_script_sizing_reuse.BatchScriptSizingReuseTests.test_source_settings_windows_and_prompts_invalidate"
+  ]
+  , "test_batch_script_worker_failure": [
+    "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_all_success_still_reports_finished"
+    , "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_cancel_with_a_real_exception_logs_it_and_agrees_with_history"
+    , "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_cleanup_failure_after_publish_keeps_the_done_row_and_reports_it"
+    , "tests.test_batch_script_worker_failure.BatchScriptWorkerFailureTests.test_raising_worker_fails_its_book_and_every_failure_is_logged"
   ]
   , "test_batch_style_timeline": [
     "tests.test_batch_style_timeline.BatchStyleTimelineTests.test_design_dynamic_narrator_and_ensemble_receive_actual_resolved_style_prompts"
@@ -4198,6 +4211,10 @@
     "tests.test_corpus_prefix.CorpusPrefixTests.test_real_shell_dispatch_bounds_each_asr_request"
     , "tests.test_corpus_prefix.CorpusPrefixTests.test_receipt_refuses_short_samples_and_unbounded_identity"
   ]
+  , "test_corpus_prescan_malformed_pairs": [
+    "tests.test_corpus_prescan_malformed_pairs.CorpusAlignmentPrescanMalformedPairTests.test_each_malformed_pair_is_a_failed_row_and_other_pairs_still_run"
+    , "tests.test_corpus_prescan_malformed_pairs.CorpusAlignmentPrescanMalformedPairTests.test_report_markdown_survives_a_failed_row_without_paths"
+  ]
   , "test_corpus_read_efficiency": [
     "tests.test_corpus_read_efficiency.CorpusReadEfficiencyTests.test_casefold_ties_have_identical_order_and_selection"
     , "tests.test_corpus_read_efficiency.CorpusReadEfficiencyTests.test_txt_manifest_uses_one_disk_read_and_preserves_decoding_and_hash"
@@ -4216,6 +4233,10 @@
     "tests.test_corpus_review_regressions.CorpusReviewRegressions.test_actual_corpus_dispatch_completes_and_rechecks_every_volume"
     , "tests.test_corpus_review_regressions.CorpusReviewRegressions.test_actual_ctc_tail_owns_each_overlap_word_once"
     , "tests.test_corpus_review_regressions.CorpusReviewRegressions.test_native_multivolume_exports_are_owned_and_all_revalidated"
+  ]
+  , "test_corpus_run_report_malformed_pairs": [
+    "tests.test_corpus_run_report_malformed_pairs.CorpusRunReportMalformedPairTests.test_report_reader_records_a_failed_row_without_an_audio_path"
+    , "tests.test_corpus_run_report_malformed_pairs.CorpusRunReportMalformedPairTests.test_run_corpus_indexes_each_malformed_pair_and_publishes_the_report"
   ]
   , "test_cors_auth_order": [
     "tests.test_cors_auth_order.CorsAuthOrderTests.test_native_allowed_denied_origins_and_optional_auth"
@@ -4318,6 +4339,10 @@
     , "tests.test_dataset_builder_benchmark_lifetime.BuilderBenchmarkLifetimeTests.test_native_two_clip_result_reports_aggregate_throughput_without_per_sample_batch_times"
     , "tests.test_dataset_builder_benchmark_lifetime.BuilderBenchmarkLifetimeTests.test_real_completed_worker_does_not_need_done_log_and_reports_one_batch_throughput"
     , "tests.test_dataset_builder_benchmark_lifetime.BuilderBenchmarkLifetimeTests.test_timeout_keeps_globals_and_temp_project_until_worker_has_stopped"
+  ]
+  , "test_dataset_builder_cancel_claim": [
+    "tests.test_dataset_builder_cancel_claim.DatasetBuilderCancelClaimTests.test_cancel_right_after_start_stops_the_batch"
+    , "tests.test_dataset_builder_cancel_claim.DatasetBuilderCancelClaimTests.test_stale_cancel_does_not_stop_a_new_batch"
   ]
   , "test_dataset_builder_foreign_ownership": [
     "tests.test_dataset_builder_foreign_ownership.DatasetBuilderForeignOwnershipTests.test_mutations_refuse_foreign_generation_and_preserve_project_bytes"
@@ -4601,10 +4626,18 @@
     , "tests.test_deepseek_script_recovery.ScriptRecoveryTests.test_reasoning_sampling_in_serialized_sdk_body"
   ]
   , "test_deepseek_text_helpers": [
-    "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_filesystem_root_contains_child_and_sibling_prefix_stays_outside"
+    "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_brace_storms_are_refused_within_the_work_budget"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_deeply_nested_json_shapes_are_refused_not_partially_parsed"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_faster_scan_matches_the_reference_on_randomized_text"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_filesystem_root_contains_child_and_sibling_prefix_stays_outside"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_latin_accent_case_is_source_backed_but_new_letters_fail"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_recursion_error_from_the_whole_text_parse_refuses_without_scanning"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_recursion_error_in_a_candidate_span_refuses_the_whole_reply"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_unclosed_brace_run_does_not_scan_the_tail_even_once"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_unmatched_prose_brace_does_not_hide_later_object"
     , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_uppercase_suffixes_preserve_case_and_damage_gate"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_valid_object_after_more_than_64_stray_open_braces_is_found"
+    , "tests.test_deepseek_text_helpers.DeepSeekTextHelperTests.test_valid_object_after_strays_in_a_large_reply_matches_the_reference"
   ]
   , "test_deepseek_ui_state": [
     "tests.test_deepseek_ui_state.UiStateTests.test_connection_results_are_bound_to_current_profile_and_request"
@@ -7579,6 +7612,7 @@
     , "tests.test_incremental_cast.IncrementalCastTests.test_interrupted_finish_reasons_preserve_previous_complete_cast"
     , "tests.test_incremental_cast.IncrementalCastTests.test_invalid_reply_shapes_are_rejected"
     , "tests.test_incremental_cast.IncrementalCastTests.test_merge_preserves_prior_aliases_and_is_idempotent"
+    , "tests.test_incremental_cast.IncrementalCastTests.test_no_choices_reply_is_refused_without_publishing"
     , "tests.test_incremental_cast.IncrementalCastTests.test_opt_in_removes_whole_book_limit_and_records_complete_coverage"
     , "tests.test_incremental_cast.IncrementalCastTests.test_real_manual_and_http_wrappers_receive_identical_validated_windows"
     , "tests.test_incremental_cast.IncrementalCastTests.test_saved_configuration_drives_cli_defaults_and_explicit_off_wins"
@@ -10400,6 +10434,16 @@
     , "tests.test_preparer_admission_cancel.PreparerAdmissionCancelTests.test_cancel_rejects_idle_and_signals_only_active_disposable_child"
     , "tests.test_preparer_admission_cancel.PreparerAdmissionCancelTests.test_upload_failure_or_request_cancel_releases_pending_owner_and_partial_stages"
   ]
+  , "test_preparer_annotate_confidence": [
+    "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_average_confidence_matches_numpy_mean_exactly"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_boolean_confidence_is_rejected_as_non_numeric"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_eight_words_at_the_threshold_are_kept"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_float32_words_at_the_threshold_are_kept"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_invalid_confidence_drops_the_chunk_instead_of_crashing"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_invalid_confidence_is_counted_like_a_low_confidence_drop"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_numeric_confidence_still_passes_the_quality_filter"
+    , "tests.test_preparer_annotate_confidence.AnnotateConfidenceTests.test_resume_does_not_redo_or_duplicate_the_rejected_chunk"
+  ]
   , "test_preparer_asr_limits": [
     "tests.test_preparer_asr_limits.PreparerAsrLimitTests.test_actual_asr_phase_bounds_detection_diarization_and_fallback_but_keeps_full_scratch"
     , "tests.test_preparer_asr_limits.PreparerAsrLimitTests.test_limits_use_existing_window_overlap_and_reject_invalid_values_before_loading"
@@ -10409,6 +10453,8 @@
     "tests.test_preparer_asr_validation.WhisperCppTests.test_adapter_parses_json_written_by_cli"
     , "tests.test_preparer_asr_validation.WhisperCppTests.test_adapter_reports_cli_failure"
     , "tests.test_preparer_asr_validation.WhisperCppTests.test_english_only_model_rejects_other_languages"
+    , "tests.test_preparer_asr_validation.WhisperCppTests.test_huge_int_offsets_survive_conversion_and_are_rejected_as_non_finite"
+    , "tests.test_preparer_asr_validation.WhisperCppTests.test_validator_rejects_huge_int_timestamps_without_overflow"
     , "tests.test_preparer_asr_validation.WhisperCppTests.test_zero_duration_words_are_coalesced_without_losing_text"
     , "tests.test_preparer_asr_validation.WordSegmentValidationTests.test_backward_timeline_is_rejected"
     , "tests.test_preparer_asr_validation.WordSegmentValidationTests.test_clean_segments_are_copied_without_mutating_input"
@@ -16997,6 +17043,11 @@
     , "tests.test_three_pass_cast.CastTests.test_roster_leads_with_the_cast_and_shows_its_aliases"
     , "tests.test_three_pass_cast.CastTests.test_tool_reply_parsing"
     , "tests.test_three_pass_cast.RequestCastTests.test_a_bad_reply_that_finished_normally_raises_at_once_without_retrying"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_choice_without_a_message_raises_a_handled_error_not_attribute_error"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_reply_with_no_choices_raises_a_handled_error_not_index_error"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_reply_with_no_content_is_refused_not_crashed"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_truncated_reply_with_no_message_on_every_attempt_names_the_cap_cause"
+    , "tests.test_three_pass_cast.RequestCastTests.test_a_truncated_reply_with_no_message_still_discards_and_retries"
     , "tests.test_three_pass_cast.RequestCastTests.test_every_attempt_truncated_raises_naming_the_cause_not_a_json_error"
     , "tests.test_three_pass_cast.RequestCastTests.test_the_old_path_could_not_tell_a_loop_from_an_answer"
     , "tests.test_three_pass_cast.RequestCastTests.test_truncated_reply_is_discarded_and_the_retry_is_used"
@@ -18615,9 +18666,15 @@
     "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_actual_phases_write_linear_embedding_bytes_and_preserve_full_pickle"
     , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_clock_rollback_cannot_reverse_checkpoint_updates"
     , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_compaction_interruption_replays_latest_updates_without_mutating_inputs"
+    , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_compaction_keeps_a_malformed_shard_whose_quarantine_rename_fails"
+    , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_compaction_keeps_a_shard_that_lands_after_the_merge"
+    , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_compaction_preserves_a_malformed_shard_and_publishes_the_readable_progress"
     , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_downstream_readers_see_journal_only_data_and_missing_cache_still_fails"
     , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_failed_shard_publication_preserves_prior_progress_and_corrupt_shard_is_quarantined"
+    , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_foreign_shard_name_does_not_break_sequence_numbering"
     , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_interrupted_group_checkpoint_resumes_without_base_or_reextracting_prior_groups"
+    , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_malformed_shard_record_is_quarantined_and_valid_shards_still_merge"
+    , "tests.test_voice_analysis_checkpoint_shards.VoiceCheckpointShardTests.test_quarantine_does_not_overwrite_an_existing_corrupt_copy"
   ]
   , "test_voice_analysis_identity": [
     "tests.test_voice_analysis_identity.CollectedModelArtifactTests.test_active_local_and_collected_paths_match_pretrainer_contract"
@@ -19510,6 +19567,7 @@
     , "tests.test_word_timing.WordTimingTests.test_cache_is_bound_to_audio_text_and_model_and_never_rewrites_them"
     , "tests.test_word_timing.WordTimingTests.test_cancel_before_start_does_not_launch_a_child"
     , "tests.test_word_timing.WordTimingTests.test_foreign_audio_and_stale_revision_refused_before_asr"
+    , "tests.test_word_timing.WordTimingTests.test_huge_int_offsets_from_the_shared_converter_raise_value_error"
     , "tests.test_word_timing.WordTimingTests.test_invalid_overlap_saturation_and_nonfinite_timestamps_are_rejected"
     , "tests.test_word_timing.WordTimingTests.test_known_answer_words_and_contractions_keep_real_bounds"
     , "tests.test_word_timing.WordTimingTests.test_mutation_during_asr_is_refused_without_publishing_or_overwriting_cache"
