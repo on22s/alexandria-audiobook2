@@ -24,7 +24,8 @@ _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 # Derive every quote-mark set from dialogue_spans' single PAIRED table so the
 # source-map and the generator's segmenter cannot drift apart.
 from dialogue_spans import (PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
-                            get_guillemet_direction as _get_guillemet_direction)
+                            get_guillemet_direction as _get_guillemet_direction,
+                            is_inch_mark as _is_inch_mark)
 
 _QUOTE_CHARS = set(_DS_QUOTE_MARKS) | {'”'}
 # The marks analyze_outer_quote_regions opens a spoken region on; "does this
@@ -249,6 +250,12 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             saw_quote = True
             continue
         if char in _SELF_PAIRED:
+            # Outside speech a straight mark after a number is an inch mark
+            # (6" wide), not a delimiter. Inside speech it still closes: a
+            # reprise closer can follow a digit (#2314).
+            if depth == 0 and _is_inch_mark(text, index, char):
+                saw_quote = True
+                continue
             if depth == 0 and _is_metadata_paragraph(current):
                 saw_quote = True
                 continue

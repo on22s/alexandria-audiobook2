@@ -303,6 +303,26 @@ def _is_opener_shaped(text, position):
     return before.isspace() and not after.isspace()
 
 
+def is_inch_mark(text, position, mark):
+    """Is the self-paired `mark` at `position` a measurement, not a delimiter?
+
+    Only ask this OUTSIDE an open quoted span: inside speech a mark after a
+    digit still closes it. `5" wide` opens an inline expression, and a mark
+    followed by the same mark is an inch mark before new speech (`12" "Next`,
+    `12""Next`). A mark at the end of a line or paragraph is a reprise closer
+    (`ends 5"`), not an inch mark.
+    """
+    if not position or not text[position - 1].isdigit():
+        return False
+    after = position + 1
+    while after < len(text) and text[after].isspace():
+        after += 1
+    if after < len(text) and text[after] == mark:
+        return True
+    return (position + 1 < len(text)
+            and text[position + 1] not in "\r\n")
+
+
 def _paired_spans(text):
     spans = []
     german_ranges = []
@@ -360,18 +380,8 @@ def _paired_spans(text):
                 # Outside a quoted span, a mark immediately after a number is
                 # an inch mark (5" wide). A mark at the end of a line/paragraph
                 # still closes speech — a reprise closer can follow a digit.
-                if len(positions) % 2 == 0 and position and text[position - 1].isdigit():
-                    after = position + 1
-                    while after < len(text) and text[after].isspace():
-                        after += 1
-                    # `5" wide` and `12"` followed by a new quote are inch
-                    # marks; `ends 5"` at the close of a paragraph is a real
-                    # closer and must not be skipped.
-                    if after < len(text) and text[after] == opener:
-                        continue
-                    if (position + 1 < len(text)
-                            and text[position + 1] not in "\r\n"):
-                        continue
+                if len(positions) % 2 == 0 and is_inch_mark(text, position, opener):
+                    continue
                 positions.append(position)
             # A mark that begins a paragraph re-opens this quote, so it can
             # never be a closer. Precompute the next non-reopening mark once;

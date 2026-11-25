@@ -389,6 +389,142 @@ class SegmentQualityTests(unittest.TestCase):
         self.assertTrue(report["passed"], report["findings"])
 
 
+class InchMarkTests(unittest.TestCase):
+    # #2314: a straight mark after a number is an inch mark, not a delimiter,
+    # so it must not invert every later quote. Inside open speech a mark after
+    # a digit still closes, which is the case that cannot be told apart.
+
+    def _regions(self, text, **kwargs):
+        return [(row["type"], row["text"])
+                for row in analyze_outer_quote_regions(text, **kwargs)["regions"]]
+
+    def _types(self, text, **kwargs):
+        return [row["type"] for row in analyze_outer_quote_regions(text, **kwargs)["regions"]]
+
+    def test_inch_mark_does_not_invert_later_quotes(self):
+        source = ('The carpenter measured a board that was 6" wide. "Hand me the saw," '
+                  'Anna said. Ben passed it over. "Here you go," he replied.')
+        analysis = analyze_outer_quote_regions(source)
+        self.assertEqual(
+            [("NARRATOR", "The carpenter measured a board that was 6 wide."),
+             ("SPOKEN", "Hand me the saw,"),
+             ("NARRATOR", "Anna said. Ben passed it over."),
+             ("SPOKEN", "Here you go,"),
+             ("NARRATOR", "he replied.")],
+            [(row["type"], row["text"]) for row in analysis["regions"]])
+        self.assertEqual([], analysis["repairs"])
+        self.assertEqual(0, analysis["final_depth"])
+        correct = analysis["regions"]
+        inverted = [dict(row, type="SPOKEN" if row["type"] == "NARRATOR" else "NARRATOR")
+                    for row in correct]
+        good = validate_segment_quality(source, correct, quote_analysis=analysis)
+        self.assertTrue(good["passed"], good["findings"])
+        self.assertEqual("ran", good["quote_gate"])
+        bad = validate_segment_quality(source, inverted, quote_analysis=analysis)
+        self.assertFalse(bad["passed"])
+        self.assertIn("quote_region_misclassified",
+                      {finding["code"] for finding in bad["findings"]})
+        self.assertNotIn("mixed_quote_region",
+                         {finding["code"] for finding in bad["findings"]})
+
+    def test_compound_and_two_measurements_stay_narration(self):
+        cases = [
+            ('The board was 6" wide and the beam was 12" long. "Measure twice," she said.',
+             [("NARRATOR", "The board was 6 wide and the beam was 12 long."),
+              ("SPOKEN", "Measure twice,"),
+              ("NARRATOR", "she said.")]),
+            ('He stood 5\'10" tall. "Not bad," she said.',
+             [("NARRATOR", "He stood 5'10 tall."),
+              ("SPOKEN", "Not bad,"),
+              ("NARRATOR", "she said.")]),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, self._regions(source))
+
+    def test_inch_mark_before_curly_speech_leaves_the_measurement_narration(self):
+        source = 'The board was 6" long and he said “fine”. “Good,” she answered.'
+        regions = self._regions(source)
+        self.assertEqual(["fine", "Good,"],
+                         [text for kind, text in regions if kind == "SPOKEN"])
+        self.assertTrue(any(kind == "NARRATOR"
+                            and text.startswith("The board was 6 long and he said")
+                            for kind, text in regions), regions)
+
+    def test_inch_mark_directly_before_a_new_straight_quote(self):
+        for source in ('The gap was 12""Move," he said. "Now."',
+                       'The gap was 12" "Move," he said. "Now."'):
+            with self.subTest(source=source):
+                self.assertEqual(
+                    [("NARRATOR", "The gap was 12"),
+                     ("SPOKEN", "Move,"),
+                     ("NARRATOR", "he said."),
+                     ("SPOKEN", "Now.")],
+                    self._regions(source))
+
+    def test_a_real_closer_after_a_digit_inside_speech_still_closes(self):
+        self.assertEqual(["SPOKEN", "NARRATOR", "SPOKEN"],
+                         self._types('"I counted 5," he said. "Only 5"'))
+        reprise = analyze_outer_quote_regions('"Part one.\n\n"Part two ends 5"')
+        self.assertEqual(["SPOKEN", "SPOKEN"],
+                         [row["type"] for row in reprise["regions"]])
+        self.assertEqual(0, reprise["final_depth"])
+        self.assertEqual(["SPOKEN", "NARRATOR"],
+                         self._types('"6 of us," he said. The elevator closed.'))
+
+    def test_an_inch_mark_inside_an_open_quote_keeps_todays_closing_behaviour(self):
+        # Ambiguous: at depth one this mark could be a closer after a digit or
+        # an inch mark. Today it closes, and that is what stays true.
+        self.assertEqual([("SPOKEN", "I counted 5"), ("NARRATOR", "and left.")],
+                         self._regions('I counted 5" and left.', initial_depth=1))
+
+    def test_inch_mark_after_a_continued_speech_closes_at_zero_depth(self):
+        analysis = analyze_outer_quote_regions(
+            'done." The board was 6" wide. "Next," she said.', initial_depth=1)
+        self.assertEqual(
+            [("SPOKEN", "done."),
+             ("NARRATOR", "The board was 6 wide."),
+             ("SPOKEN", "Next,"),
+             ("NARRATOR", "she said.")],
+            [(row["type"], row["text"]) for row in analysis["regions"]])
+        self.assertEqual(0, analysis["final_depth"])
+
+    def test_inch_mark_in_narration_after_reopened_speech(self):
+        source = ('"First paragraph.\n\n"Second paragraph ends here." '
+                  'Then the board, 6" wide, fell.')
+        self.assertEqual(
+            [("SPOKEN", "First paragraph."),
+             ("SPOKEN", "Second paragraph ends here."),
+             ("NARRATOR", "Then the board, 6 wide, fell.")],
+            self._regions(source))
+
+    def test_the_real_inch_sign_is_not_a_delimiter(self):
+        self.assertEqual(
+            [("NARRATOR", "The board was 6\u2033 wide."),
+             ("SPOKEN", "Hand me the saw,"),
+             ("NARRATOR", "Anna said.")],
+            self._regions('The board was 6\u2033 wide. "Hand me the saw," Anna said.'))
+
+    def test_a_single_quote_book_is_unchanged(self):
+        source = "He said 'hello.' She left. It was 6\" wide."
+        self.assertEqual([("NARRATOR", "He said 'hello.' She left. It was 6 wide.")],
+                         self._regions(source))
+
+    def test_narration_with_only_an_inch_mark_is_one_narrator_region(self):
+        source = 'The board was 6" wide and nothing else happened.'
+        analysis = analyze_outer_quote_regions(source)
+        self.assertEqual([("NARRATOR", "The board was 6 wide and nothing else happened.")],
+                         [(row["type"], row["text"]) for row in analysis["regions"]])
+        self.assertEqual([], analysis["repairs"])
+        self.assertTrue(validate_segment_quality(
+            source, analysis["regions"], quote_analysis=analysis)["passed"])
+
+    def test_the_analyzer_and_the_source_map_share_one_inch_mark_rule(self):
+        import dialogue_spans
+        import pass_quality
+        self.assertIs(pass_quality._is_inch_mark, dialogue_spans.is_inch_mark)
+
+
 class AttributionTests(unittest.TestCase):
     def test_attribution_passes_when_all_spoken_named(self):
         frozen = [{"type": "NARRATOR", "text": "The room was cold."},

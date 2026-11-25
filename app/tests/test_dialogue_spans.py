@@ -164,6 +164,24 @@ class SpanTest(unittest.TestCase):
         self.assertEqual(['Part one.\n\n"Part two ends 5'],
             [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
 
+    def test_the_inch_mark_predicate_matches_the_pairing_rule(self):
+        # One shared predicate: _paired_spans and pass_quality both ask this
+        # exact question (#2314).
+        cases = [
+            ('A 6" wide board', 3, True),
+            ('A 12" wide board', 4, True),
+            ('A 12""Next', 4, True),
+            ('A 12" "Next', 4, True),
+            ('A 12"\n"Next', 4, True),
+            ('A 12"\nnext', 4, False),
+            ('A 12"', 4, False),
+            ('A six" wide', 5, False),
+            ('"6 of us"', 0, False),
+        ]
+        for text, position, expected in cases:
+            with self.subTest(text=text):
+                self.assertEqual(expected, dialogue_spans.is_inch_mark(text, position, '"'))
+
     def test_a_stray_closer_after_german_speech_keeps_narration_out(self):
         # A `”` after narration, with no later `“`, must not flip the real
         # German closer into an English opener — otherwise the speech is lost
