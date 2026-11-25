@@ -153,6 +153,92 @@ class GeneratedSpeechPublicationTests(unittest.TestCase):
                     sf.write(path, tone(2), 24000)
                     self.assertEqual(path, validate_generated_audio(path, expected_text=text))
 
+    def test_external_tts_runaway_is_refused_after_the_provider_file_is_saved(self):
+        text = 'The WWE.'
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manager, prior = self.manager(root, text, tone(.1))
+            previous = prior.read_bytes()
+            provider = root / 'provider.wav'
+            sf.write(provider, tone(131.9), 24000)
+
+            def external(text, instruct, speaker, voices, output):
+                return TTSEngine._save_external_audio(str(provider), output)
+
+            manager.engine = SimpleNamespace(generate_voice=external)
+            with contextlib.redirect_stdout(io.StringIO()):
+                result = manager.generate_chunk_audio(0)
+            self.assertFalse(result[0])
+            row = manager.load_chunks()[0]
+            self.assertEqual('error', row['status'])
+            self.assertIn('too long for the requested text', row['error'])
+            self.assertIn('131.900s', row['error'])
+            self.assertEqual('voicelines/prior.wav', row['audio_path'])
+            self.assertEqual(previous, prior.read_bytes())
+            self.assertEqual([], list(root.glob('chunk_*.wav')))
+
+    def test_admission_accepts_measured_slow_and_long_clean_takes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'speech.wav'
+            for units, seconds in ((59, 13.2), (349, 60.16)):
+                with self.subTest(units=units, seconds=seconds):
+                    sf.write(path, tone(seconds), 24000)
+                    self.assertEqual(path, validate_generated_audio(
+                        path, expected_text='a' * units))
+
+    def test_project_ignores_a_synthesis_receipt_for_other_text(self):
+        from project import get_synthesis_added_silence_seconds
+        text = 'One. Two. Three. Four. Five. Six. Seven. Eight.'
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plan = plan_synthesis_windows(text, max_chars=7)
+            results = []
+            for index in range(len(plan.windows)):
+                path = root / f'window-{index}.wav'
+                sf.write(path, tone(.1), 24000)
+                results.append((index, path))
+            joined = root / 'joined.wav'
+            receipt = assemble_synthesis_windows(
+                plan, results, joined, policy=SynthesisJoinPolicy(sentence_gap_ms=5000))
+            matching = {**receipt, 'prepared_text_sha256': plan.text_sha256}
+            self.assertGreater(get_synthesis_added_silence_seconds(
+                {'_synthesis_receipt': matching}, plan.text_sha256), 30)
+            other = {**receipt, 'prepared_text_sha256': 'not-this-text'}
+            self.assertEqual(0.0, get_synthesis_added_silence_seconds(
+                {'_synthesis_receipt': other}, plan.text_sha256))
+
+    def test_windowed_runaway_keeps_prior_and_reports_length_in_single_and_batch(self):
+        from tests.test_synthesis_window_dispatch import SynthesisWindowDispatchTests
+        fixture = SynthesisWindowDispatchTests()
+        text = 'One. Two.'
+        for mode in ('single', 'batch'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                manager, prior = self.manager(root, text, tone(.1))
+                previous = prior.read_bytes()
+
+                def provider(**kwargs):
+                    values = kwargs['text'] if isinstance(kwargs['text'], list) else [kwargs['text']]
+                    return [tone(120) if 'Two.' in value else tone(.1) for value in values], 24000
+
+                with fixture.fixture(root, chars=5) as (engine, voices, seen, model):
+                    model.generate_custom_voice = provider
+                    manager.engine = engine
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        if mode == 'single':
+                            result = manager.generate_chunk_audio(0)
+                        else:
+                            result = manager.generate_chunks_batch([0], batch_size=1)
+                self.assertFalse(result[0] if mode == 'single' else result['completed'])
+                row = manager.load_chunks()[0]
+                self.assertEqual('error', row['status'])
+                self.assertIn('too long for the requested text', row['error'])
+                self.assertIn('maximum', row['error'])
+                self.assertEqual('voicelines/prior.wav', row['audio_path'])
+                self.assertEqual(previous, prior.read_bytes())
+                self.assertEqual([], list(root.glob('temp_batch_*.wav')))
+                self.assertEqual([], list(root.glob('chunk_*.wav')))
+
     def test_project_admits_a_window_join_with_its_configured_gap_silence(self):
         text = 'One. Two. Three. Four. Five. Six. Seven. Eight.'
         with tempfile.TemporaryDirectory() as tmp:
@@ -174,16 +260,20 @@ class GeneratedSpeechPublicationTests(unittest.TestCase):
                 audio_path = manager._publish_generated_chunk_audio(chunk, str(joined), 'NARRATOR')
             self.assertTrue(audio_path)
 
-    def test_runaway_take_keeps_prior_in_single_and_batch_paths(self):
+    def test_runaway_take_keeps_prior_in_single_parallel_and_batch_paths(self):
         text = 'The WWE.'
-        for mode in ('single', 'batch'):
+        for mode in ('single', 'parallel', 'batch'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 manager, prior = self.manager(root, text, tone(131.9))
                 previous = prior.read_bytes()
                 with contextlib.redirect_stdout(io.StringIO()):
-                    result = (manager.generate_chunk_audio(0) if mode == 'single'
-                              else manager.generate_chunks_batch([0], batch_size=1))
+                    if mode == 'single':
+                        result = manager.generate_chunk_audio(0)
+                    elif mode == 'parallel':
+                        result = manager.generate_chunks_parallel([0], max_workers=1)
+                    else:
+                        result = manager.generate_chunks_batch([0], batch_size=1)
                 self.assertFalse(result[0] if mode == 'single' else result['completed'])
                 row = manager.load_chunks()[0]
                 self.assertEqual('error', row['status'])

@@ -85,6 +85,18 @@ def get_synthesis_pcm_shapes(metadata, policy):
     return layout, shapes
 
 
+def get_added_silence_seconds(receipt):
+    """Exact seconds the assembler inserted as seam silence, from a receipt."""
+    if not isinstance(receipt, dict):
+        return 0.0
+    rate, seams = receipt.get('sample_rate'), receipt.get('seams')
+    if type(rate) is not int or rate <= 0 or not isinstance(seams, list):
+        return 0.0
+    return max(0.0, sum(seam['added_silence_frames'] for seam in seams
+                        if isinstance(seam, dict)
+                        and type(seam.get('added_silence_frames')) is int) / rate)
+
+
 def validate_synthesis_audio(path, context, expected_text, cancel_check=None, extra_audio_seconds=0):
     from audio_validation import GeneratedAudioCancelled, validate_generated_audio
     from tts import ExportCancelled
@@ -280,10 +292,13 @@ def assemble_synthesis_windows(plan, results, output_path, *, policy=None, cance
                 raise ValueError('Internal assembled PCM disagrees with its exact frame accounting')
             with staged.open('wb') as stream:
                 write_producer_wav(stream, producer, (layout, expected_frames), cancel_check)
+        receipt = dict(prepared_text_sha256=plan.text_sha256, window_count=len(sources),
+                       channels=layout[0], sample_rate=layout[1], sample_width=layout[2],
+                       input_promoted_frames=sum(frames), output_frames=expected_frames,
+                       seams=seams, outer_edges_preserved=True)
         check()
-        validate_synthesis_audio(
-            staged, 'Complete internal synthesis', text, cancel_check,
-            extra_audio_seconds=sum(seam['added_silence_frames'] for seam in seams) / layout[1])
+        validate_synthesis_audio(staged, 'Complete internal synthesis', text, cancel_check,
+                                 extra_audio_seconds=get_added_silence_seconds(receipt))
         check()
         from audio_generation_owner import (AudioGenerationCancelled, ensure_audio_generation_commit_active,
                                             ensure_audio_generation_publication)
@@ -312,10 +327,7 @@ def assemble_synthesis_windows(plan, results, output_path, *, policy=None, cance
                     raise ExportCancelled('Internal synthesis publication cancelled')
         except AudioGenerationCancelled as error:
             raise ExportCancelled('Internal synthesis publication cancelled') from error
-    return dict(prepared_text_sha256=plan.text_sha256, window_count=len(sources),
-                channels=layout[0], sample_rate=layout[1], sample_width=layout[2],
-                input_promoted_frames=sum(frames), output_frames=expected_frames,
-                seams=seams, outer_edges_preserved=True)
+    return receipt
 
 
 from loaded_module_code import get_current_loaded_module_code_sha256 as _get_loaded_recovery_code

@@ -188,10 +188,13 @@ def get_maximum_speech_duration(text, extra_seconds=0):
 
     A fixed allowance covers short lines, opening/closing silence and text
     whose spoken form is longer than its characters (digits, symbols, acronyms).
-    The per-unit rate is about eight times the steepest measured seconds-per-
-    unit slope. Seam silence that an internal window join has already added to
+    The per-unit rate is about three times the steepest measured clean seconds-
+    per-unit slope, leaving every verified real take under the limit with room
+    to spare. Seam silence that an internal window join has already added to
     the audio is passed as ``extra_seconds`` by those callers; nothing else may
-    widen it.
+    widen it. With windows off, a runaway that reaches the model's generation
+    cap is caught only up to 256 units at the default cap; longer capped takes
+    remain #1520.
     """
     return (MAXIMUM_SPEECH_ALLOWANCE_SECONDS
             + MAXIMUM_SECONDS_PER_SPEECH_UNIT * _count_speech_units(text)
