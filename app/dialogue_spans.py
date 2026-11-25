@@ -27,6 +27,9 @@ from collections import Counter, defaultdict, deque
 import logging
 import re
 
+from silent_word_characters import (SILENT_WORD_CHARACTERS,
+                                    remove_silent_word_characters)
+
 PAIRED = [
     ('"', '"'),
     ("“", "”"),      # curly “ ” (English, Dutch, Turkish, ...)
@@ -597,7 +600,8 @@ def get_interior_dash_ambiguities(text, convention):
 
 
 def _normalize(value):
-    return re.sub(r"\s+", " ", _QUOTE_MARKS_RE.sub("", value or "")).strip()
+    return re.sub(r"\s+", " ", _QUOTE_MARKS_RE.sub(
+        "", remove_silent_word_characters(value or ""))).strip()
 
 
 def _normalize_with_offsets(value):
@@ -605,7 +609,7 @@ def _normalize_with_offsets(value):
     characters, offsets = [], []
     pending_space = None
     for index, character in enumerate(value or ""):
-        if character in QUOTE_MARKS:
+        if character in QUOTE_MARKS or character in SILENT_WORD_CHARACTERS:
             continue
         if character.isspace():
             if characters and pending_space is None:

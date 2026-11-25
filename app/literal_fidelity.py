@@ -3,6 +3,9 @@ import re
 import unicodedata
 from itertools import chain, zip_longest
 
+from silent_word_characters import (SILENT_WORD_CHARACTERS,
+                                    remove_silent_word_characters)
+
 # Keep case and lexical apostrophes; punctuation/emphasis delimiters are not
 # words. NFC and typographic apostrophes are the only character equivalences.
 _WORD = re.compile(r"[^\W_]+(?:['’][^\W_]+)*", re.UNICODE)
@@ -46,9 +49,11 @@ def _normalized_with_offsets(text):
         raw_start = min(item[1] for item in sequence)
         raw_end = max(item[2] for item in sequence)
         for output in composed.replace('’', "'"):
-            pieces.append((output, raw_start, raw_end))
+            if output not in SILENT_WORD_CHARACTERS:
+                pieces.append((output, raw_start, raw_end))
     normalized = ''.join(piece[0] for piece in pieces)
-    baseline = unicodedata.normalize('NFC', text).replace('’', "'")
+    baseline = remove_silent_word_characters(
+        unicodedata.normalize('NFC', text)).replace('’', "'")
     if normalized != baseline:
         raise ValueError('Literal NFC offset alignment differs from whole-string NFC')
     return normalized, [(piece[1], piece[2]) for piece in pieces]
@@ -100,7 +105,8 @@ def iter_literal_words(text):
 
 def _words(text):
     """Word-only path: whole-string NFC, no per-character offset vector."""
-    value = unicodedata.normalize('NFC', text).replace('’', "'")
+    value = remove_silent_word_characters(
+        unicodedata.normalize('NFC', text)).replace('’', "'")
     for word, _, _ in _word_spans(value):
         yield word
 

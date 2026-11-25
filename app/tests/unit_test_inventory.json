@@ -14997,6 +14997,28 @@
     , "tests.test_shipping_readiness_cohort.ShippingCohortTests.test_incomplete_duplicate_or_unmatched_rows_refuse_without_overwriting_output"
     , "tests.test_shipping_readiness_cohort.ShippingCohortTests.test_one_complete_run_remains_usable_without_selector"
   ]
+  , "test_silent_word_characters": [
+    "tests.test_silent_word_characters.GateTokenizerTests.test_literal_mode_accepts_the_clean_spelling"
+    , "tests.test_silent_word_characters.GateTokenizerTests.test_literal_word_spans_still_point_into_the_raw_text"
+    , "tests.test_silent_word_characters.GateTokenizerTests.test_pass1_gate_accepts_the_clean_spelling"
+    , "tests.test_silent_word_characters.GateTokenizerTests.test_preflight_word_tokens_join_the_word"
+    , "tests.test_silent_word_characters.GateTokenizerTests.test_recall_tokens_join_the_word"
+    , "tests.test_silent_word_characters.GateTokenizerTests.test_single_pass_gate_accepts_the_clean_spelling"
+    , "tests.test_silent_word_characters.GateTokenizerTests.test_source_spans_are_found_through_the_character"
+    , "tests.test_silent_word_characters.GateTokenizerTests.test_speaker_names_fold_to_the_same_identity"
+    , "tests.test_silent_word_characters.ImportBoundaryTests.test_epub_import_keeps_the_source_bytes_and_speech_cleans_them"
+    , "tests.test_silent_word_characters.ImportBoundaryTests.test_txt_import_is_byte_identical"
+    , "tests.test_silent_word_characters.SavedBookReloadTests.test_a_saved_book_containing_the_characters_reloads_unchanged"
+    , "tests.test_silent_word_characters.SilentWordCharacterRuleTests.test_a_soft_hyphen_at_a_hard_line_end_leaves_the_line_break"
+    , "tests.test_silent_word_characters.SilentWordCharacterRuleTests.test_characters_with_meaning_are_not_touched"
+    , "tests.test_silent_word_characters.SilentWordCharacterRuleTests.test_the_two_characters_are_deleted_not_replaced_by_a_space"
+    , "tests.test_silent_word_characters.SilentWordCharacterRuleTests.test_unicode_normalization_forms_are_preserved"
+    , "tests.test_silent_word_characters.SpeechPreparationTests.test_a_pronunciation_key_clean_matches_text_that_had_the_character"
+    , "tests.test_silent_word_characters.SpeechPreparationTests.test_chapter_headings_are_spoken_without_the_characters"
+    , "tests.test_silent_word_characters.SpeechPreparationTests.test_removal_is_recorded"
+    , "tests.test_silent_word_characters.SpeechPreparationTests.test_speech_text_never_contains_the_characters"
+    , "tests.test_silent_word_characters.SpeechPreparationTests.test_text_without_the_characters_is_unchanged"
+  ]
   , "test_simd_benchmark": [
     "tests.test_simd_benchmark.SimdBenchmarkTests.test_scalar_and_numpy_audio_metrics_match"
     , "tests.test_simd_benchmark.SimdBenchmarkTests.test_summary_rejects_fake_baseline"

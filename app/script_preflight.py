@@ -7,6 +7,7 @@ import sys
 import unicodedata
 from collections import Counter
 
+from silent_word_characters import remove_silent_word_characters
 from speech_text import get_speech_normalization
 from utils import get_unsafe_text_controls
 
@@ -80,7 +81,8 @@ def _normalize(value):
 
 def get_normalized_word_tokens(value):
     """Read immutable word tokens using the existing preflight normalization."""
-    return tuple(_WORD_RE.findall(_normalize(value)))
+    return tuple(_WORD_RE.findall(
+        _normalize(remove_silent_word_characters(value))))
 
 
 def _normalize_words(value):
@@ -782,7 +784,9 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
     if source_text:
         source_words = Counter(source_tokens)
         del source_tokens
-        script_words = Counter(word for text in texts for word in _WORD_RE.findall(text))
+        script_words = Counter(
+            word for text in texts
+            for word in _WORD_RE.findall(remove_silent_word_characters(text)))
         source_total = sum(source_words.values())
         matched = sum(min(count, script_words.get(word, 0)) for word, count in source_words.items())
         coverage = matched / source_total if source_total else 1.0
