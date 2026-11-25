@@ -950,6 +950,19 @@ def _export_audio_segment(segment, path, format_name, cancel_check=None, workspa
         segment.export(target, format=format_name, **kwargs)
 
 
+def get_synthesis_added_silence_seconds(chunk):
+    """Exact silence an internal window join already added, from its receipt."""
+    receipt = chunk.get("_synthesis_receipt") if isinstance(chunk, dict) else None
+    if not isinstance(receipt, dict):
+        return 0.0
+    rate, seams = receipt.get("sample_rate"), receipt.get("seams")
+    if type(rate) is not int or rate <= 0 or not isinstance(seams, list):
+        return 0.0
+    return max(0.0, sum(seam["added_silence_frames"] for seam in seams
+                        if isinstance(seam, dict)
+                        and type(seam.get("added_silence_frames")) is int) / rate)
+
+
 def _can_register_chunk_encoding(manager, *, exporter=None):
     from audio_export import export_audio_segment, _RAW_EXPORT_AUDIO_SEGMENT
     from audio_validation import publish_audio_output as current_publisher, _RAW_PUBLISH_AUDIO_OUTPUT
@@ -1989,7 +2002,8 @@ class ProjectManager:
         with ensure_occurrence_pronunciation_context(chunk, chunk.get("_pronunciation_context")):
             preparation = get_speech_normalization(chunk.get("text", ""))
             validator = _RAW_CHUNK_VALIDATE if workspace is not None else validate_generated_audio
-            validator(temp_path, "generated speech", expected_text=preparation["text"])
+            validator(temp_path, "generated speech", expected_text=preparation["text"],
+                      extra_audio_seconds=get_synthesis_added_silence_seconds(chunk))
         revision = uuid.uuid4().hex
         evidence = {}
         if preparation.get("pronunciation_decisions"):

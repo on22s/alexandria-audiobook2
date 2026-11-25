@@ -190,7 +190,8 @@ class SpeechVerificationPublicationTests(unittest.TestCase):
                 stream.seek(4);stream.write(struct.pack('<I',36+MAX_AUDIO_BYTES))
                 stream.seek(40);stream.write(struct.pack('<I',MAX_AUDIO_BYTES))
                 stream.truncate(44+MAX_AUDIO_BYTES)
-            validate_generated_audio(path,expected_text=TEXT)
+            long_text=(TEXT+' ')*30
+            validate_generated_audio(path,expected_text=long_text)
             chunk={**before,'_speech_verification_admission':manager._capture_speech_verification_admission(manager.engine)}
             with patch('speech_verification.verify_finished_speech',side_effect=AssertionError('oversized ASR ran')), \
                     patch('speech_verification_runtime.get_verifier_file_identity',side_effect=AssertionError('oversized hashing')):

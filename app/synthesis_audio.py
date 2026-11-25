@@ -85,11 +85,12 @@ def get_synthesis_pcm_shapes(metadata, policy):
     return layout, shapes
 
 
-def validate_synthesis_audio(path, context, expected_text, cancel_check=None):
+def validate_synthesis_audio(path, context, expected_text, cancel_check=None, extra_audio_seconds=0):
     from audio_validation import GeneratedAudioCancelled, validate_generated_audio
     from tts import ExportCancelled
     try:
-        return validate_generated_audio(path, context, expected_text=expected_text, cancel_check=cancel_check)
+        return validate_generated_audio(path, context, expected_text=expected_text, cancel_check=cancel_check,
+                                        extra_audio_seconds=extra_audio_seconds)
     except GeneratedAudioCancelled as error:
         raise ExportCancelled(str(error)) from error
 
@@ -280,7 +281,9 @@ def assemble_synthesis_windows(plan, results, output_path, *, policy=None, cance
             with staged.open('wb') as stream:
                 write_producer_wav(stream, producer, (layout, expected_frames), cancel_check)
         check()
-        validate_synthesis_audio(staged, 'Complete internal synthesis', text, cancel_check)
+        validate_synthesis_audio(
+            staged, 'Complete internal synthesis', text, cancel_check,
+            extra_audio_seconds=sum(seam['added_silence_frames'] for seam in seams) / layout[1])
         check()
         from audio_generation_owner import (AudioGenerationCancelled, ensure_audio_generation_commit_active,
                                             ensure_audio_generation_publication)

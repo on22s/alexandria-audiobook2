@@ -13,7 +13,10 @@ import numpy as np
 import soundfile as sf
 from project import ProjectManager
 from tts import TTSEngine
-from audio_validation import GeneratedAudioError, validate_generated_audio
+from audio_validation import (GeneratedAudioError, get_maximum_speech_duration,
+                              validate_generated_audio)
+from synthesis_audio import SynthesisJoinPolicy, assemble_synthesis_windows
+from synthesis_windows import plan_synthesis_windows
 
 
 def tone(seconds=1, rate=24000, hz=220):
@@ -66,6 +69,55 @@ class GeneratedSpeechPublicationTests(unittest.TestCase):
                     self.assertEqual([], list(root.glob('chunk_*.wav')))
                     self.assertEqual([], list((root / 'voicelines').glob('.render-*')))
 
+    def test_runaway_take_is_refused_with_actual_and_maximum_seconds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'speech.wav'
+            for text in ('The WWE.', 'Hi.'):
+                with self.subTest(text=text):
+                    maximum = get_maximum_speech_duration(text)
+                    self.assertLess(maximum, 20)
+                    sf.write(path, tone(131.9), 24000)
+                    with self.assertRaisesRegex(GeneratedAudioError,
+                            'too long for the requested text \\(131\\.900s; maximum '):
+                        validate_generated_audio(path, expected_text=text)
+
+    def test_maximum_is_a_boundary_and_extra_join_silence_widens_it_exactly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'speech.wav'
+            text = 'The WWE.'
+            maximum = get_maximum_speech_duration(text)
+            sf.write(path, tone(maximum - 0.05), 24000)
+            self.assertEqual(path, validate_generated_audio(path, expected_text=text))
+            sf.write(path, tone(maximum + 0.05), 24000)
+            with self.assertRaisesRegex(GeneratedAudioError, 'too long'):
+                validate_generated_audio(path, expected_text=text)
+            sf.write(path, tone(50), 24000)
+            with self.assertRaisesRegex(GeneratedAudioError, 'too long'):
+                validate_generated_audio(path, expected_text='One. Two.')
+            self.assertEqual(path, validate_generated_audio(
+                path, expected_text='One. Two.', extra_audio_seconds=40))
+
+    def test_maximum_allows_zero_unit_text_and_counts_compact_or_expanded_forms(self):
+        self.assertEqual(10.0, get_maximum_speech_duration(''))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'speech.wav'
+            sf.write(path, tone(9), 24000)
+            self.assertEqual(path, validate_generated_audio(path, expected_text=''))
+            sf.write(path, tone(11), 24000)
+            with self.assertRaisesRegex(GeneratedAudioError, 'too long'):
+                validate_generated_audio(path, expected_text='')
+            # Spoken digits and CJK are limited by the same shared unit count.
+            self.assertEqual(250.0, get_maximum_speech_duration('1' * 400))
+            sf.write(path, tone(200), 24000)
+            self.assertEqual(path, validate_generated_audio(path, expected_text='1' * 400))
+            self.assertEqual(get_maximum_speech_duration('\ud55c' * 40),
+                             get_maximum_speech_duration(unicodedata.normalize('NFD', '\ud55c' * 40)))
+            sf.write(path, tone(2), 24000)
+            self.assertEqual(path, validate_generated_audio(
+                path, expected_text='\uc2a4\ub798\uc2dc \ud14c\uc2a4\ud2b8'))
+            self.assertEqual(path, validate_generated_audio(
+                path, expected_text='\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e04\u0e23\u0e31\u0e1a'))
+
     def test_short_utterances_and_long_multilingual_controls_remain_valid(self):
         cases = [('Ah!', .05), ('はい', .05), ('Привет!', .05),
                  ('The narrator speaks these words clearly. ' * 10, 8),
@@ -100,6 +152,47 @@ class GeneratedSpeechPublicationTests(unittest.TestCase):
                         validate_generated_audio(path, expected_text=text)
                     sf.write(path, tone(2), 24000)
                     self.assertEqual(path, validate_generated_audio(path, expected_text=text))
+
+    def test_project_admits_a_window_join_with_its_configured_gap_silence(self):
+        text = 'One. Two. Three. Four. Five. Six. Seven. Eight.'
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manager, _ = self.manager(root, text, tone(.1))
+            plan = plan_synthesis_windows(text, max_chars=7)
+            self.assertEqual(8, len(plan.windows))
+            results = []
+            for index in range(len(plan.windows)):
+                path = root / f'window-{index}.wav'
+                sf.write(path, tone(.1), 24000)
+                results.append((index, path))
+            joined = root / 'joined.wav'
+            receipt = assemble_synthesis_windows(
+                plan, results, joined, policy=SynthesisJoinPolicy(sentence_gap_ms=5000))
+            self.assertGreater(sum(seam['added_silence_frames'] for seam in receipt['seams']) / 24000, 30)
+            chunk = {**manager.load_chunks()[0], '_synthesis_receipt': receipt}
+            with contextlib.redirect_stdout(io.StringIO()):
+                audio_path = manager._publish_generated_chunk_audio(chunk, str(joined), 'NARRATOR')
+            self.assertTrue(audio_path)
+
+    def test_runaway_take_keeps_prior_in_single_and_batch_paths(self):
+        text = 'The WWE.'
+        for mode in ('single', 'batch'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                manager, prior = self.manager(root, text, tone(131.9))
+                previous = prior.read_bytes()
+                with contextlib.redirect_stdout(io.StringIO()):
+                    result = (manager.generate_chunk_audio(0) if mode == 'single'
+                              else manager.generate_chunks_batch([0], batch_size=1))
+                self.assertFalse(result[0] if mode == 'single' else result['completed'])
+                row = manager.load_chunks()[0]
+                self.assertEqual('error', row['status'])
+                self.assertIn('too long for the requested text', row['error'])
+                self.assertIn('131.900s', row['error'])
+                self.assertEqual('voicelines/prior.wav', row['audio_path'])
+                self.assertEqual(previous, prior.read_bytes())
+                self.assertEqual([], list(root.glob('temp_batch_*.wav')))
+                self.assertEqual([], list(root.glob('chunk_*.wav')))
 
     def test_publication_measures_respelling_instead_of_raw_source_length(self):
         import pronunciation

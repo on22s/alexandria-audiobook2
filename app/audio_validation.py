@@ -152,12 +152,12 @@ def publish_audio_output(staging_path, output_path, cancelled=None, *, cancel_ch
 _RAW_PUBLISH_AUDIO_OUTPUT = publish_audio_output
 
 
-def get_minimum_speech_duration(text):
-    """Reject only gross duration failures, leaving short utterances unrestricted.
+def _count_speech_units(text):
+    """Count spoken letters/digits for both duration bounds.
 
-    Eighty letters/digits per second is a deliberately generous ceiling, not a
-    speaking-rate quality score. Count Han, kana and Hangul as four units so
-    compact scripts do not inherit an English character-rate assumption.
+    Han, kana and Hangul count as four units so compact scripts do not inherit
+    an English character-rate assumption. Shared deliberately: the minimum and
+    maximum must weigh the same text identically.
     """
     units = 0
     for char in unicodedata.normalize("NFC", text):
@@ -165,7 +165,37 @@ def get_minimum_speech_duration(text):
             continue
         name = unicodedata.name(char, "")
         units += 4 if name.startswith(("CJK", "HIRAGANA", "KATAKANA", "HANGUL")) else 1
+    return units
+
+
+def get_minimum_speech_duration(text):
+    """Reject only gross duration failures, leaving short utterances unrestricted.
+
+    Eighty letters/digits per second is a deliberately generous ceiling, not a
+    speaking-rate quality score. Count Han, kana and Hangul as four units so
+    compact scripts do not inherit an English character-rate assumption.
+    """
+    units = _count_speech_units(text)
     return units / 80 if units >= 80 else 0
+
+
+MAXIMUM_SPEECH_ALLOWANCE_SECONDS = 10.0
+MAXIMUM_SECONDS_PER_SPEECH_UNIT = 0.6
+
+
+def get_maximum_speech_duration(text, extra_seconds=0):
+    """Reject only gross duration failures, leaving long real takes unrestricted.
+
+    A fixed allowance covers short lines, opening/closing silence and text
+    whose spoken form is longer than its characters (digits, symbols, acronyms).
+    The per-unit rate is about eight times the steepest measured seconds-per-
+    unit slope. Seam silence that an internal window join has already added to
+    the audio is passed as ``extra_seconds`` by those callers; nothing else may
+    widen it.
+    """
+    return (MAXIMUM_SPEECH_ALLOWANCE_SECONDS
+            + MAXIMUM_SECONDS_PER_SPEECH_UNIT * _count_speech_units(text)
+            + extra_seconds)
 
 
 def validate_wav_container(stream, context="audio generation", *, cancel_check=None):
@@ -222,7 +252,8 @@ def validate_wav_container(stream, context="audio generation", *, cancel_check=N
         stream.seek(position)
 
 
-def validate_generated_audio(path, context="audio generation", *, expected_text=None, cancel_check=None):
+def validate_generated_audio(path, context="audio generation", *, expected_text=None, cancel_check=None,
+                            extra_audio_seconds=0):
     """Validate all frames, optionally polling a cancellation predicate per block."""
     def check():
         if cancel_check is not None and cancel_check():
@@ -281,6 +312,11 @@ def validate_generated_audio(path, context="audio generation", *, expected_text=
             raise GeneratedAudioError(
                 f"{context} returned speech too short for the requested text "
                 f"({frames / rate:.3f}s; minimum {minimum:.3f}s)")
+        maximum = get_maximum_speech_duration(expected_text, extra_audio_seconds)
+        if frames / rate > maximum:
+            raise GeneratedAudioError(
+                f"{context} returned speech too long for the requested text "
+                f"({frames / rate:.3f}s; maximum {maximum:.3f}s)")
 
     with open(path, "rb") as handle:
         validate_wav_container(handle, context, cancel_check=cancel_check)
