@@ -32,9 +32,6 @@ _NARRATION_RE = re.compile(
 )
 _SCRIPT_PREFIXES = ("LATIN", "CYRILLIC", "HIRAGANA", "KATAKANA", "CJK",
                     "ARABIC", "HEBREW", "HANGUL", "GREEK", "THAI")
-# Scripts whose words are written without spaces, so one source token can hold
-# several repeated words that a faithful script may split into entries.
-_SCRIPTS_WITHOUT_SPACING = frozenset({"CJK", "HIRAGANA", "KATAKANA", "HANGUL", "THAI"})
 
 
 def _character_script(character):
@@ -88,13 +85,6 @@ def get_normalized_word_tokens(value):
 
 def _normalize_words(value):
     return " ".join(get_normalized_word_tokens(value))
-
-
-def get_unsegmented_characters(text):
-    """Read text as letters only, for scripts that do not separate words."""
-    normalized = unicodedata.normalize("NFC", str(text or "")).casefold()
-    return "".join(char for char in normalized
-                   if not char.isspace() and not unicodedata.category(char).startswith("P"))
 
 
 def _finding(severity, code, message, entry_numbers=None, **details):
@@ -288,6 +278,23 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
               and unicodedata.is_normalized("NFC", source_text)
               and not re.search(r"(?<=\w)['’](?=\w)", source_text)
               else canonical(source_text))
+    source_tokens = None
+
+    def repeated_token_support(needle):
+        """Copies of a one-word needle that one glued source token explains.
+
+        The scan matches whole words, so a token equal to the needle repeated
+        k >= 2 times is absent from source_counts and supports k copies, not
+        k - 1. A needle spanning several words can never equal one token.
+        Built once, and only when a separate-entry finding needs it.
+        """
+        nonlocal source_tokens
+        if source_tokens is None:
+            counts = Counter(source.split())
+            source_tokens = counts, max(map(len, counts), default=0)
+        counts, longest = source_tokens
+        return sum(count * k for k in range(2, longest // len(needle) + 1)
+                   if (count := counts.get(needle * k)))
     transitions, failure, terminal, suffix = [{}], [0], [None], [0]
     lengths = []
     for ident, needle in enumerate(needles):
@@ -385,7 +392,6 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                              or re.search(r"\bchapter\s+(?!i\b)[ivxlcdm]+\b", source_text, re.I)
                              or re.search(r"[\[<]", source_text))
     findings = []
-    compact_source = None
     for ident, needle in enumerate(needles):
         if not needle:
             continue
@@ -400,14 +406,15 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             continue
         proven_emitted = quote_counts[ident] + len(separate[ident])
         ambiguous = unknown_rendering or proven_emitted <= capacity + added_capacity
-        # A script with no word spaces can render one source token as several
-        # entries; count characters there, and only for the separate-entry shape
-        # this change added.
-        if not carriers[ident] and get_unicode_scripts(needle) & _SCRIPTS_WITHOUT_SPACING:
-            if compact_source is None:
-                compact_source = get_unsegmented_characters(source_text)
-            ambiguous = ambiguous or compact_source.count(
-                get_unsegmented_characters(needle)) >= all_emitted
+        # A source word written without spaces can squeeze a repetition into one
+        # token ("はいはい", "haha") that a faithful script splits into separate
+        # entries. Only the separate-entry shape this change added can be
+        # explained that way, and only by a token that is the needle repeated
+        # exactly; the same characters inside another word prove nothing.
+        if (not ambiguous and not carriers[ident]
+                and all_emitted <= capacity + added_capacity
+                + repeated_token_support(needle)):
+            ambiguous = True
         findings.append(_finding(
             "manual_review" if ambiguous else "blocking", "contained_source_duplicate",
             "Contained phrase repetition needs review of its rendering/source provenance."

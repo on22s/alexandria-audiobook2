@@ -975,6 +975,22 @@ class ContainedSeparateDuplicateGateTests(unittest.TestCase):
         self.assertNotIn("source_unsupported_contained_duplicate",
                          {finding["code"] for finding in report["findings"]})
 
+    def test_final_generation_gate_blocks_a_duplicate_hidden_by_a_longer_word(self):
+        source = (" ".join(_FILLER)
+                  + " \u300c\u306f\u3044\u300d\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002 \u306f\u3044\u3051\u3044")
+        entries = ([_entry(word) for word in _FILLER[:120]]
+                   + [_entry("\u306f\u3044", "MARTA")]
+                   + [_entry(word) for word in _FILLER[120:]]
+                   + [_entry("\u306f\u3044", "PORTER")])
+
+        chunk = validate_chunk_quality(source, entries)
+        audit = generate_script.audit_script(entries, source)
+
+        self.assertIn("source_unsupported_contained_duplicate",
+                      {finding["code"] for finding in chunk["findings"]})
+        self.assertEqual(1, audit["counts"]["blocking"])
+        self.assertFalse(generate_script.passes_final_generation_gate(chunk, audit))
+
 
 if __name__ == "__main__":
     unittest.main()

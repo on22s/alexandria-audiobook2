@@ -680,6 +680,100 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(1, len(findings))
         self.assertEqual("blocking", findings[0]["severity"])
 
+    def test_a_longer_word_that_is_not_an_exact_repetition_still_blocks(self):
+        cases = (
+            ("\u306f\u3044", "\u306f\u3044\u3051\u3044"),
+            ("\u306f\u3044", "\u306f\u3044\u306f\u3044\u3051\u3044"),
+            ("\u30cf\u30a4", "\u30cf\u30a4\u30ad\u30f3\u30b0"),
+            ("\u6771\u4eac", "\u6771\u4eac\u90fd"),
+            ("\u3042\u308a\u304c\u3068\u3046", "\u3042\u308a\u304c\u3068\u3046\u3054\u3056\u3044\u307e\u3059"),
+            ("\ub124", "\ub124\uac00"),
+        )
+        for needle, word in cases:
+            with self.subTest(needle=needle, word=word):
+                source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                          + ' "%s" she asked. %s' % (needle, word))
+                findings = self._duplicate_findings(self._entries(needle), source)
+
+                self.assertEqual(1, len(findings))
+                self.assertEqual("blocking", findings[0]["severity"])
+
+    def test_halfwidth_glued_repetition_downgrades_to_manual_review(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + " \u300c\uff8a\uff72\u300d\u3068\u8a00\u3063\u305f\u3002 \uff8a\uff72\uff8a\uff72")
+        findings = self._duplicate_findings(self._entries("\uff8a\uff72"), source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+
+    def test_latin_glued_repetition_downgrades_to_manual_review(self):
+        source = " ".join(_SEPARATE_DUPLICATE_FILLER) + ' "ha" she said. haha'
+        findings = self._duplicate_findings(self._entries("ha"), source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+
+    def test_a_glued_repetition_covers_exactly_its_own_entries(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + " \u300c\u306f\u3044\u300d\u3068\u8a00\u3063\u305f\u3002 \u306f\u3044\u306f\u3044")
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("\u306f\u3044", speaker)
+                      for speaker in ("MARTA", "PORTER", "ANNA")])
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+
+    def test_each_glued_repetition_covers_its_own_entries(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + " \u300c\u306f\u3044\u300d\u3068\u8a00\u3063\u305f\u3002"
+                  + " \u306f\u3044\u306f\u3044 \u306f\u3044\u306f\u3044")
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("\u306f\u3044", "C%d" % k) for k in range(5)])
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+
+    def test_a_three_copy_run_covers_the_extra_entries(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + " \u300c\u306f\u3044\u300d\u3068\u8a00\u3063\u305f\u3002"
+                  + " \u306f\u3044\u306f\u3044\u306f\u3044")
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("\u306f\u3044", "C%d" % k) for k in range(4)])
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+
+    def test_a_glued_repetition_and_an_extra_copy_still_block(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + " \u300c\u306f\u3044\u300d\u3068\u8a00\u3063\u305f\u3002 \u306f\u3044\u306f\u3044")
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("\u306f\u3044", "C%d" % k) for k in range(4)])
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+
+    def test_a_decomposed_repetition_token_explains_the_split(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + ' "\u304c" she asked. ' + "\u304b\u3099" * 2)
+        findings = self._duplicate_findings(self._entries("\u304c"), source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+
+    def test_a_known_expansion_and_a_glued_repetition_both_cover_entries(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + ' "and" she asked. & andand')
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("and", "C%d" % k) for k in range(4)])
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+
     def test_audit_script_surfaces_the_separate_duplicate_as_blocking(self):
         report = audit_script(self._entries(), self._source())
 
