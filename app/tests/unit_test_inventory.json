@@ -10036,7 +10036,10 @@
     , "tests.test_pass_prompt_payload_js.PassPromptPayloadTests.test_default_edits_become_presets_custom_edits_preserve_metadata_and_reload"
   ]
   , "test_pass_quality": [
-    "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_a_real_name_still_passes"
+    "tests.test_pass_quality.AccentedCaseParityTests.test_accented_case_change_passes_the_segment_gate"
+    , "tests.test_pass_quality.AccentedCaseParityTests.test_both_gates_report_the_same_introduced_letters"
+    , "tests.test_pass_quality.AccentedCaseParityTests.test_introduced_accented_letter_still_fails"
+    , "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_a_real_name_still_passes"
     , "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_literal_type_name_is_rejected"
     , "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_narrative_metadata_is_rejected_even_without_source_or_with_a_roster"
     , "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_rejection_is_case_insensitive"
