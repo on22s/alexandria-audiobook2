@@ -406,11 +406,10 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             continue
         proven_emitted = quote_counts[ident] + len(separate[ident])
         ambiguous = unknown_rendering or proven_emitted <= capacity + added_capacity
-        # A source word written without spaces can squeeze a repetition into one
-        # token ("はいはい", "haha") that a faithful script splits into separate
-        # entries. Only the separate-entry shape this change added can be
-        # explained that way, and only by a token that is the needle repeated
-        # exactly; the same characters inside another word prove nothing.
+        # A source word can squeeze a repetition into one token ("はいはい",
+        # "haha") that a faithful script splits into separate entries; only that
+        # shape can be explained this way, and only by a token that is the needle
+        # repeated exactly. The same characters inside a longer word prove nothing.
         if (not ambiguous and not carriers[ident]
                 and all_emitted <= capacity + added_capacity
                 + repeated_token_support(needle)):
