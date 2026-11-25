@@ -27,12 +27,15 @@ from script_selection_binding import (BINDING_NAME, capture_generation_selection
                                       make_script_selection_binding,
                                       publish_generated_script)
 import sound_design_current as current
-from sound_design_context import (capture_sound_design_context,
+from sound_design_context import (capture_sound_design_anchor, capture_sound_design_context,
                                   require_sound_design_context_files_current)
-from sound_design_registry import ACTIVE_CUES, get_sound_design_registry_bytes
+from sound_design_cues import get_sound_design_cue_plan, get_sound_design_cue_version
+from sound_design_registry import (ACTIVE_CUES, get_selected_sound_design_versions,
+                                   get_sound_design_registry_bytes)
 from sound_design_render import save_sound_design_candidate
 from sound_design_renditions import ACTIVE_RENDITIONS, get_sound_rendition_ledger_bytes
 from tests import test_sound_design_capture as capture_fixtures
+from tests.test_sound_design_cues import pcm_plan, recipe
 from tests.test_sound_design_registry import registry
 from tests.test_support import BookProtocolCases
 
@@ -43,8 +46,24 @@ CHUNKS = [{'id': 0, 'uid': 'line-0', 'text': 'She wrote on 1/2/1900.',
            'speaker': 'N', 'status': 'done', 'audio_path': 'line-0.wav'}]
 
 
-def published_book(root, *, cue_book_id='source'):
-    """A verified published book whose companions belong to ``cue_book_id``."""
+def capture_book(root):
+    """Capture the real current book and its dialogue selection."""
+    with patch.object(core, 'DATA_DIR', str(root)), \
+            patch.object(core, 'process_state', {}), \
+            ensure_scope_admission(root):
+        context = capture_sound_design_context(str(root))
+        anchor = capture_sound_design_anchor(str(root), context, 'line-0')
+    return context, anchor
+
+
+def cue_projection(context, anchor):
+    versions = get_selected_sound_design_versions(context['registry'])
+    return get_sound_design_cue_plan(versions, context['book'],
+                                     [anchor['selection']], pcm_plan())
+
+
+def published_book(root):
+    """A verified published book with a real cue for its own dialogue row."""
     root = Path(root)
     uploads = root / 'uploads'; uploads.mkdir()
     source = uploads / 'source.txt'; source.write_bytes(SOURCE)
@@ -61,9 +80,17 @@ def published_book(root, *, cue_book_id='source'):
     publish_generated_script(str(root), selected['book_token'], str(source),
                              selected['source_sha256'], SCRIPT, expected_run_id='f' * 32)
     (root / 'chunks.json').write_text(json.dumps(CHUNKS, indent=2))
-    cues = get_sound_design_registry_bytes(registry(cue_book_id))
+    (root / 'line-0.wav').write_bytes(b'RIFF' + b'\0' * 64)
+    context, anchor = capture_book(root)
+    authored = recipe()
+    authored['book'] = dict(context['book'])
+    authored['selection'] = dict(anchor['selection'])
+    version = get_sound_design_cue_version('cue-a', authored)
+    cues = get_sound_design_registry_bytes(dict(
+        schema=1, book=dict(context['book']), versions=[version],
+        selected={'cue-a': version['version']}))
     ledger = get_sound_rendition_ledger_bytes(dict(
-        schema=1, book_id=cue_book_id, records=[], keep=[]))
+        schema=1, book_id=context['book']['book_id'], records=[], keep=[]))
     (root / ACTIVE_CUES).write_bytes(cues)
     (root / ACTIVE_RENDITIONS).write_bytes(ledger)
     return root, source, cues, ledger
@@ -80,20 +107,19 @@ class CompanionSelectionTests(BookProtocolCases, unittest.TestCase):
     def test_reselecting_the_active_upload_keeps_valid_companions(self):
         with tempfile.TemporaryDirectory() as tmp:
             root, source, cues, ledger = published_book(tmp)
+            before = cue_projection(*capture_book(root))
+            self.assertTrue(before['can_project'])
+            self.assertEqual(['current'], [cue['status'] for cue in before['cues']])
             books.apply_book_input_selection(str(root), str(source), 'source')
             self.assertEqual(cues, (root / ACTIVE_CUES).read_bytes())
             self.assertEqual(ledger, (root / ACTIVE_RENDITIONS).read_bytes())
             self.assertNotIn('script_selection_pending',
                              json.loads((root / 'state.json').read_text()))
-            # The kept files must be usable, not merely present: the real
-            # context capture still resolves the registry and ledger.
-            with patch.object(core, 'DATA_DIR', str(root)), \
-                    patch.object(core, 'process_state', {}), \
-                    ensure_scope_admission(root):
-                context = capture_sound_design_context(str(root))
-            self.assertEqual('source', context['book']['book_id'])
-            self.assertEqual(hashlib.sha256(cues).hexdigest(), context['registry_revision'])
-            self.assertEqual(hashlib.sha256(ledger).hexdigest(), context['ledger_revision'])
+            # The kept cue must still project through the real current path,
+            # not merely stay parseable.
+            after = cue_projection(*capture_book(root))
+            self.assertTrue(after['can_project'])
+            self.assertEqual(before['cues'], after['cues'])
 
     def test_identical_bytes_under_another_filename_clear_the_companions(self):
         with tempfile.TemporaryDirectory() as tmp:
