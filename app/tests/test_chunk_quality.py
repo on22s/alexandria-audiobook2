@@ -949,6 +949,32 @@ class ContainedSeparateDuplicateGateTests(unittest.TestCase):
             validate_chunk_quality(self._source(occurrences=2), entries),
             generate_script.audit_script(entries, self._source(occurrences=2))))
 
+    def test_mixed_unicode_normalisation_of_a_faithful_line_passes(self):
+        composed, decomposed = "caf\u00e9", "cafe\u0301"
+        source = (" ".join(_FILLER)
+                  + ' "%s" she asked. "%s" he said.' % (composed, decomposed))
+        entries = ([_entry(word) for word in _FILLER[:120]]
+                   + [_entry(composed, "MARTA")]
+                   + [_entry(word) for word in _FILLER[120:]]
+                   + [_entry(composed, "PORTER")])
+
+        report = validate_chunk_quality(source, entries)
+
+        self.assertEqual([], report["findings"])
+        self.assertTrue(report["passed"])
+
+    def test_unsegmented_reduplication_does_not_fail_chunk_quality(self):
+        source = " ".join(_FILLER) + " \u306f\u3044 \u306f\u3044\u306f\u3044"
+        entries = ([_entry(word) for word in _FILLER[:120]]
+                   + [_entry("\u306f\u3044", "MARTA")]
+                   + [_entry(word) for word in _FILLER[120:]]
+                   + [_entry("\u306f\u3044", "PORTER")])
+
+        report = validate_chunk_quality(source, entries)
+
+        self.assertNotIn("source_unsupported_contained_duplicate",
+                         {finding["code"] for finding in report["findings"]})
+
 
 if __name__ == "__main__":
     unittest.main()

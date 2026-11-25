@@ -623,6 +623,63 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertNotIn("contained_source_duplicate",
                          {finding["code"] for finding in audit_script(entries)["findings"]})
 
+    def test_mixed_unicode_normalisation_of_one_word_is_not_a_duplicate(self):
+        composed, decomposed = "caf\u00e9", "cafe\u0301"
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + ' "%s" she said. "%s" he said.' % (composed, decomposed))
+
+        self.assertEqual([], self._duplicate_findings(self._entries(composed), source))
+        self.assertEqual([], self._duplicate_findings(self._entries(decomposed), source))
+
+    def test_one_source_word_still_counts_an_extra_copy_in_either_spelling(self):
+        composed, decomposed = "caf\u00e9", "cafe\u0301"
+        for source_word, emitted in ((decomposed, composed), (composed, decomposed)):
+            with self.subTest(source_word=source_word):
+                source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                          + ' "%s" she said.' % source_word)
+                findings = self._duplicate_findings(self._entries(emitted), source)
+
+                self.assertEqual(1, len(findings))
+                self.assertEqual("blocking", findings[0]["severity"])
+                self.assertEqual(1, findings[0]["details"]["source_occurrences"])
+
+    def test_audit_script_does_not_block_a_mixed_normalisation_copy(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + ' "caf\u00e9" she said. "cafe\u0301" he said.')
+        report = audit_script(self._entries("caf\u00e9"), source)
+
+        self.assertEqual(0, report["counts"]["blocking"])
+
+    def test_unsegmented_reduplication_downgrades_to_manual_review(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + " \u300c\u306f\u3044\u300d\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002"
+                  + " \u300c\u306f\u3044\u306f\u3044\u300d\u3068\u5f7c\u5973\u306f\u7b54\u3048\u305f\u3002")
+        findings = self._duplicate_findings(self._entries("\u306f\u3044"), source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+        self.assertTrue(findings[0]["details"]["rendering_capacity_unknown"])
+
+    def test_unsegmented_phrase_inside_a_larger_entry_still_blocks(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + " \u300c\u306f\u3044\u300d\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002"
+                  + " \u306f\u3044\u306f\u3044")
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER[:60]]
+                   + [_entry("\u306f\u3044\u3001\u305d\u3046\u3067\u3059", "MARTA")]
+                   + [_entry(word) for word in _SEPARATE_DUPLICATE_FILLER[60:]]
+                   + [_entry("\u306f\u3044", "PORTER"), _entry("\u306f\u3044", "ANNA")])
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+
+    def test_latin_phrase_is_not_counted_inside_longer_words(self):
+        source = " ".join(_SEPARATE_DUPLICATE_FILLER) + ' "no" she said. I know.'
+        findings = self._duplicate_findings(self._entries("no"), source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+
     def test_audit_script_surfaces_the_separate_duplicate_as_blocking(self):
         report = audit_script(self._entries(), self._source())
 

@@ -32,6 +32,9 @@ _NARRATION_RE = re.compile(
 )
 _SCRIPT_PREFIXES = ("LATIN", "CYRILLIC", "HIRAGANA", "KATAKANA", "CJK",
                     "ARABIC", "HEBREW", "HANGUL", "GREEK", "THAI")
+# Scripts whose words are written without spaces, so one source token can hold
+# several repeated words that a faithful script may split into entries.
+_SCRIPTS_WITHOUT_SPACING = frozenset({"CJK", "HIRAGANA", "KATAKANA", "HANGUL", "THAI"})
 
 
 def _character_script(character):
@@ -85,6 +88,13 @@ def get_normalized_word_tokens(value):
 
 def _normalize_words(value):
     return " ".join(get_normalized_word_tokens(value))
+
+
+def get_unsegmented_characters(text):
+    """Read text as letters only, for scripts that do not separate words."""
+    normalized = unicodedata.normalize("NFC", str(text or "")).casefold()
+    return "".join(char for char in normalized
+                   if not char.isspace() and not unicodedata.category(char).startswith("P"))
 
 
 def _finding(severity, code, message, entry_numbers=None, **details):
@@ -247,7 +257,11 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     from dialogue_spans import spoken_spans
 
     def canonical(text):
-        return _normalize_words(re.sub(r"(?<=\w)['’](?=\w)", "", str(text or "")))
+        # NFC first: source and script may spell one word composed and
+        # decomposed, and _WORD_RE drops a combining mark, so without this the
+        # same word counts twice in a faithful script and once in the source.
+        return _normalize_words(re.sub(
+            r"(?<=\w)['’](?=\w)", "", unicodedata.normalize("NFC", str(text or ""))))
 
     source_text = str(source_text or "")
     if len(source_text) + sum(len(e.get("text", "")) for e in entries
@@ -267,8 +281,11 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     needles = list(dict.fromkeys(texts[i] for i in sorted(character_rows) if texts[i]))
     if not needles:
         return []
-    # Reuse the audit word view unless apostrophe joining needs a different view.
-    source = (source_normalized if source_normalized is not None
+    # Same canonical form on both paths. The audit word view was tokenized
+    # without NFC, so trust it only when the source is already NFC (then the two
+    # views are identical); otherwise rebuild from the source through canonical.
+    source = (canonical(source_normalized) if source_normalized is not None
+              and unicodedata.is_normalized("NFC", source_text)
               and not re.search(r"(?<=\w)['’](?=\w)", source_text)
               else canonical(source_text))
     transitions, failure, terminal, suffix = [{}], [0], [None], [0]
@@ -368,6 +385,7 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                              or re.search(r"\bchapter\s+(?!i\b)[ivxlcdm]+\b", source_text, re.I)
                              or re.search(r"[\[<]", source_text))
     findings = []
+    compact_source = None
     for ident, needle in enumerate(needles):
         if not needle:
             continue
@@ -382,6 +400,14 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             continue
         proven_emitted = quote_counts[ident] + len(separate[ident])
         ambiguous = unknown_rendering or proven_emitted <= capacity + added_capacity
+        # A script with no word spaces can render one source token as several
+        # entries; count characters there, and only for the separate-entry shape
+        # this change added.
+        if not carriers[ident] and get_unicode_scripts(needle) & _SCRIPTS_WITHOUT_SPACING:
+            if compact_source is None:
+                compact_source = get_unsegmented_characters(source_text)
+            ambiguous = ambiguous or compact_source.count(
+                get_unsegmented_characters(needle)) >= all_emitted
         findings.append(_finding(
             "manual_review" if ambiguous else "blocking", "contained_source_duplicate",
             "Contained phrase repetition needs review of its rendering/source provenance."
