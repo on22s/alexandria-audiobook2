@@ -1,6 +1,6 @@
 /* Manual, explicit delivery of a completed export to Audiobookshelf (#1727).
-   Nothing here contacts the Audiobookshelf server until the user clicks a button;
-   opening the panel only reads the saved local config. The preview
+   Nothing here contacts the Audiobookshelf server until the user clicks a
+   button; opening the panel only reads the saved local config. The preview
    checks the destination on the server and the send button stays disabled until a fresh preview and
    the right-to-share confirmation are both present. Any book, server,
    library, folder, format, or metadata change invalidates the preview. */
@@ -10,11 +10,9 @@ let absLibraries = [];
 let absSending = false;
 let absSendingPreviewId = null;
 let absProgressTimer = null;
-let absConfigLoaded = false;
-let absConfigLoading = null;
-let absConfigEpoch = null;
 let absSavedSelection = null;
-let absSelectionServer = null;
+let absConfigRequest = null;
+let absServerTouched = false;
 
 function getAbsBookToken() {
     return (typeof chunkSnapshotBookToken !== 'undefined' && chunkSnapshotBookToken)
@@ -25,38 +23,40 @@ function absSetStatus(text) {
     document.getElementById('abs-status').textContent = text;
 }
 
+function markAbsServerTouched() {
+    absServerTouched = true;
+}
+
 async function loadAbsSavedConfig() {
-    if (absConfigLoaded) { return; }
-    if (absConfigLoading) { return absConfigLoading; }
-    if (absConfigEpoch === null) { absConfigEpoch = absEpoch; }
-    absConfigLoading = (async () => {
+    if (absSavedSelection || absConfigRequest) { return absConfigRequest; }
+    absConfigRequest = (async () => {
         let config;
         try {
             config = await API.get('/api/abs/config');
         } catch (error) {
+            absConfigRequest = null;
             return;
         }
-        absConfigLoaded = true;
-        if (absConfigEpoch !== absEpoch) { return; }
         if (!config || typeof config !== 'object' || typeof config.base_url !== 'string' || !config.base_url.trim()) {
             return;
         }
-        absSavedSelection = {
-            base_url: config.base_url,
-            library_id: config.library_id || '',
-            folder_id: config.folder_id || '',
-        };
-        document.getElementById('abs-server-url').value = config.base_url;
-        absSetStatus(t('abs.config.restored', 'Restored saved server ({url}). API key {key}.', {
-            url: config.base_url,
-            key: config.has_key ? t('abs.server.key-stored', 'is stored') : t('abs.server.key-missing', 'is not stored yet'),
-        }));
+        if (!absSavedSelection) {
+            absSavedSelection = {
+                base_url: config.base_url,
+                library_id: config.library_id || '',
+                folder_id: config.folder_id || '',
+            };
+        }
+        const urlInput = document.getElementById('abs-server-url');
+        if (!absServerTouched && !urlInput.value.trim()) {
+            urlInput.value = config.base_url;
+            absSetStatus(t('abs.config.restored', 'Restored saved server ({url}). API key {key}.', {
+                url: config.base_url,
+                key: config.has_key ? t('abs.server.key-stored', 'is stored') : t('abs.server.key-missing', 'is not stored yet'),
+            }));
+        }
     })();
-    try {
-        await absConfigLoading;
-    } finally {
-        absConfigLoading = null;
-    }
+    return absConfigRequest;
 }
 
 function absDeliveryStatusLabel(status) {
@@ -137,15 +137,14 @@ async function saveAbsConfig() {
             library_id: document.getElementById('abs-library').value || null,
             folder_id: document.getElementById('abs-folder').value || null,
         });
-        if (epoch !== absEpoch) { return; }
-        document.getElementById('abs-api-key').value = '';
-        absEpoch++;
         absSavedSelection = {
             base_url: result.base_url,
             saved_url: url,
             library_id: result.library_id || '',
             folder_id: result.folder_id || '',
         };
+        if (epoch !== absEpoch) { return; }
+        document.getElementById('abs-api-key').value = '';
         absSetStatus(t('abs.server.saved', 'Server saved ({url}). API key {key}{store}.', {url: result.base_url, key: result.has_key ? t('abs.server.key-stored', 'is stored') : t('abs.server.key-missing', 'is not stored yet'), store: result.key_store ? ' ' + t('abs.server.key-store-name', 'in the {store}', {store: result.key_store}) : ''}));
     } catch (error) {
         if (epoch === absEpoch) {
@@ -183,9 +182,6 @@ async function loadAbsLibraries() {
         absLibraries = result.libraries || [];
         const librarySelect = document.getElementById('abs-library');
         const folderSelect = document.getElementById('abs-folder');
-        const previous = absSelectionServer === url && librarySelect.value
-            ? { library_id: librarySelect.value, folder_id: folderSelect.value }
-            : null;
         librarySelect.replaceChildren();
         for (const library of absLibraries) {
             const option = document.createElement('option');
@@ -196,24 +192,13 @@ async function loadAbsLibraries() {
         const savedSelection = absSavedSelection;
         const sameServer = Boolean(savedSelection)
             && (savedSelection.base_url === url || savedSelection.saved_url === url);
-        const libraryListed = id => Boolean(id) && absLibraries.some(library => library.id === id);
-        if (previous) {
-            librarySelect.value = libraryListed(previous.library_id) ? previous.library_id : '';
-        } else if (sameServer && savedSelection.library_id) {
-            librarySelect.value = libraryListed(savedSelection.library_id) ? savedSelection.library_id : '';
+        if (sameServer && savedSelection.library_id) {
+            librarySelect.value = savedSelection.library_id;
         }
         fillAbsFolders();
-        const library = absLibraries.find(item => item.id === librarySelect.value);
-        const folders = (library && library.folders) || [];
-        const folderListed = id => Boolean(id) && folders.some(folder => folder.id === id);
-        if (!library) {
-            folderSelect.value = '';
-        } else if (previous && previous.library_id === library.id) {
-            folderSelect.value = folderListed(previous.folder_id) ? previous.folder_id : '';
-        } else if (sameServer && savedSelection.library_id === library.id && savedSelection.folder_id) {
-            folderSelect.value = folderListed(savedSelection.folder_id) ? savedSelection.folder_id : '';
+        if (sameServer && savedSelection.library_id && librarySelect.value === savedSelection.library_id) {
+            folderSelect.value = savedSelection.folder_id;
         }
-        absSelectionServer = url;
         absSetStatus(absLibraries.length === 1 ? t('abs.libraries.loaded.one', 'Loaded {count} library. Choose a library and folder, then preview.', {count: absLibraries.length}) : t('abs.libraries.loaded.many', 'Loaded {count} libraries. Choose a library and folder, then preview.', {count: absLibraries.length}));
     } catch (error) {
         if (epoch === absEpoch) {

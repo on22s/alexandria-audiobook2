@@ -4,7 +4,9 @@ import subprocess
 import unittest
 
 # A fresh panel context per case: the module's saved-config state is per page,
-# so every restoring test needs its own copy of the real script.
+# so every restoring test needs its own copy of the real script. The <select>
+# model matches Chrome: replaceChildren clears the value and the first appended
+# option is selected, and assigning an id that is not listed deselects.
 _HARNESS = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const source=fs.readFileSync(process.argv[1],'utf8');
@@ -45,7 +47,12 @@ function makeContext(){
     const handler=inlineHandler(id,'oninput');
     if(handler){vm.runInContext(handler,ctx);}
   }
-  return {calls,el,ctx,type};
+  function change(id,next){
+    el(id).value=next;
+    const handler=inlineHandler(id,'onchange');
+    if(handler){vm.runInContext(handler,ctx);}
+  }
+  return {calls,el,ctx,type,change};
 }
 '''
 
@@ -387,26 +394,104 @@ console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
 
-    def test_failed_empty_or_partial_config_leaves_the_panel_blank(self):
+    def test_invalid_or_empty_config_shows_nothing_and_is_not_refetched(self):
         self._run(_HARNESS + r'''
 async function check(reply){
   const h=makeContext();
-  h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
-    if(reply==='reject'){throw new Error('config unavailable');}
-    return reply;};
+  h.ctx.API.get=async url=>{h.calls.push(['GET',url]);return reply;};
   await h.ctx.loadAbsSavedConfig();
   assert.strictEqual(h.el('abs-server-url').value,'','no URL is invented');
   assert.strictEqual(h.el('abs-status').textContent,'','no misleading status is shown');
   assert.deepStrictEqual(h.calls,[['GET','/api/abs/config']]);
+  await h.ctx.loadAbsSavedConfig();
+  assert.strictEqual(h.calls.length,1,'an empty successful reply is cached, not refetched on every open');
 }
 (async()=>{
-await check('reject');
 await check(null);
 await check({});
 await check({has_key:true});
 await check({base_url:''});
+await check({base_url:42});
 console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_failed_config_read_is_retried_on_the_next_open(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let attempt=0;
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  attempt+=1;
+  if(attempt===1){throw new Error('keyring unavailable');}
+  return {base_url:'http://abs.test:13378',has_key:true,library_id:'lib_1',folder_id:'fol_1'};};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.el('abs-server-url').value,'','a failed read restores nothing');
+assert.strictEqual(h.calls.length,1);
+await h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.calls.length,2,'the next open retries after a failed read');
+assert.strictEqual(h.el('abs-server-url').value,'http://abs.test:13378','the retry restores the saved server');
+assert.match(h.el('abs-status').textContent,/Restored saved server/);
+await h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.calls.length,2,'a successful read is cached for the page');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_failed_config_read_retry_does_not_overwrite_typed_values(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let attempt=0;
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  attempt+=1;
+  if(attempt===1){throw new Error('keyring unavailable');}
+  return {base_url:'http://saved.test:1',has_key:true,library_id:'lib_1',folder_id:'fol_1'};};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+h.type('abs-server-url','http://typed.test:2');
+h.el('abs-status').textContent='typed';
+await h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.calls.length,2,'the retry is a real second request');
+assert.strictEqual(h.el('abs-server-url').value,'http://typed.test:2','the retry leaves a typed URL alone');
+assert.strictEqual(h.el('abs-status').textContent,'typed','the retry does not overwrite the status line');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_concurrent_panel_opens_issue_one_config_request(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let resolveConfig=null;
+h.ctx.API.get=url=>{h.calls.push(['GET',url]);return new Promise(resolve=>{resolveConfig=resolve;});};
+(async()=>{
+const first=h.ctx.loadAbsSavedConfig();
+const second=h.ctx.loadAbsSavedConfig();
+const third=h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.calls.length,1,'opening before the first reply issues exactly one request');
+resolveConfig({base_url:'http://abs.test:13378',has_key:true,library_id:'',folder_id:''});
+await Promise.all([first,second,third]);
+assert.deepStrictEqual(h.calls,[['GET','/api/abs/config']],'still one config read after all opens settle');
+assert.strictEqual(h.el('abs-server-url').value,'http://abs.test:13378','the shared reply still restores the server');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_panel_open_hook_loads_on_open_not_close(self):
+        self._run(r'''
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const html=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'..','index.html'),'utf8');
+const tail=html.slice(html.indexOf('id="abs-delivery-options"'));
+const tag=tail.slice(0,tail.indexOf('>'));
+const handler=tag.split('ontoggle="')[1].split('"')[0];
+let calls=0;
+const fn=vm.runInNewContext('(function(){'+handler+'})',{loadAbsSavedConfig:()=>{calls+=1;}});
+fn.call({open:false});
+assert.strictEqual(calls,0,'a close before the first open does not restore');
+fn.call({open:true});
+assert.strictEqual(calls,1,'opening the disclosure restores the saved config');
+fn.call({open:false});
+assert.strictEqual(calls,1,'closing after the first open does not restore again');
+console.log('ok');
 ''')
 
     def test_saved_library_and_folder_are_preselected_only_after_load(self):
@@ -449,11 +534,17 @@ assert.strictEqual(gone.el('abs-library').value,'','a vanished saved library is 
 assert.strictEqual(gone.el('abs-folder').value,'','its folder is cleared too');
 assert.strictEqual(gone.ctx.getAbsDestination().library_id,'','cleared library cannot be sent');
 assert.strictEqual(gone.ctx.getAbsDestination().folder_id,'','cleared folder cannot be sent');
+await gone.ctx.previewAbsSend();
+assert.match(gone.el('abs-status').textContent,/Choose a library and folder first/,'preview refuses without a cleared library');
+assert.ok(gone.calls.every(call=>call[0]==='GET'),'preview refused before any network call');
 const folderGone=await run({base_url:'http://abs.test:13378',has_key:true,library_id:'lib_1',folder_id:'fol_gone'},
   [{id:'lib_1',name:'Main',folders:[{id:'fol_1',fullPath:'/books'}]}]);
 assert.strictEqual(folderGone.el('abs-library').value,'lib_1');
 assert.strictEqual(folderGone.el('abs-folder').value,'','a vanished saved folder is cleared');
 assert.strictEqual(folderGone.ctx.getAbsDestination().folder_id,'','cleared folder cannot be sent');
+await folderGone.ctx.previewAbsSend();
+assert.match(folderGone.el('abs-status').textContent,/Choose a library and folder first/,'preview refuses without a cleared folder');
+assert.ok(folderGone.calls.every(call=>call[0]==='GET'),'preview refused before any network call');
 console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
@@ -496,6 +587,97 @@ console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
 
+    def test_second_load_without_saved_config_matches_main(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+h.el('abs-server-url').value='http://abs.test:13378';
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);return {libraries:[
+  {id:'lib_1',name:'Main',folders:[{id:'fol_1'},{id:'fol_2'}]},
+  {id:'lib_2',name:'Pods',folders:[{id:'fol_3'}]}]};};
+(async()=>{
+await h.ctx.loadAbsLibraries();
+assert.strictEqual(h.el('abs-library').value,'lib_1');
+h.el('abs-library').value='lib_2';h.ctx.fillAbsFolders();h.el('abs-folder').value='fol_3';
+await h.ctx.loadAbsLibraries();
+assert.strictEqual(h.el('abs-library').value,'lib_1','without a saved selection a second Load starts at the first library, as on main');
+assert.strictEqual(h.el('abs-folder').value,'fol_1','and the first folder, as on main');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_typing_during_save_load_preview_send_behaves_like_main(self):
+        self._run(_HARNESS + r'''
+async function typingDuringSave(){
+  const h=makeContext();
+  h.el('abs-server-url').value='http://abs.test:13378';
+  h.el('abs-api-key').value='the-secret-key';
+  let resolveSave=null;
+  h.ctx.API.post=(url,body)=>{h.calls.push(['POST',url,body]);return new Promise(resolve=>{resolveSave=resolve;});};
+  const pending=h.ctx.saveAbsConfig();
+  h.type('abs-server-url','http://typed-while-saving.test:1');
+  resolveSave({base_url:'http://abs.test:13378',has_key:true,key_store:'OS credential store',library_id:null,folder_id:null});
+  await pending;
+  assert.strictEqual(h.el('abs-api-key').value,'','typing during Save still clears the key field');
+  assert.match(h.el('abs-status').textContent,/Server saved/,'typing during Save still shows the save outcome');
+  assert.strictEqual(h.el('abs-server-url').value,'http://typed-while-saving.test:1','typing during Save keeps the typed value');
+}
+async function typingDuringLoad(){
+  const h=makeContext();
+  h.el('abs-server-url').value='http://abs.test:13378';
+  let resolveLoad=null;
+  h.ctx.API.get=url=>{h.calls.push(['GET',url]);return new Promise(resolve=>{resolveLoad=resolve;});};
+  const pending=h.ctx.loadAbsLibraries();
+  h.type('abs-server-url','http://typed-while-loading.test:2');
+  resolveLoad({libraries:[{id:'lib_1',name:'Main',folders:[{id:'fol_1'}]},{id:'lib_2',name:'Pods',folders:[{id:'fol_2'}]}]});
+  await pending;
+  assert.strictEqual(h.el('abs-library').children.length,2,'typing during Load still applies the listing');
+  assert.strictEqual(h.el('abs-library').value,'lib_1','the first listed library is selected as on main');
+  assert.match(h.el('abs-status').textContent,/Loaded 2 libraries/,'typing during Load still shows the listing status');
+}
+async function typingDuringPreview(){
+  const h=makeContext();
+  h.el('abs-server-url').value='http://abs.test:13378';
+  h.el('abs-library').appendChild({value:'lib_1'});h.el('abs-folder').appendChild({value:'fol_1'});h.el('abs-title').value='Test Book';
+  let resolvePreview=null;
+  h.ctx.API.post=(url,body)=>{h.calls.push(['POST',url,body]);return new Promise(resolve=>{resolvePreview=resolve;});};
+  const pending=h.ctx.previewAbsSend();
+  h.type('abs-server-url','http://typed-while-previewing.test:3');
+  resolvePreview({preview_id:'p1',output_bytes:42,base_url:'http://abs.test:13378',library_id:'lib_1',folder_id:'fol_1',export_file:'cloned_audiobook.mp3',sha256:'s',input_revision:'r',title:'Test Book',author:'',series:''});
+  await pending;
+  assert.match(h.el('abs-preview-out').textContent,/Server: http:\/\/abs.test/,'typing during Preview still renders it');
+  assert.match(h.el('abs-status').textContent,/Preview ready/,'typing during Preview keeps the outcome');
+}
+async function typingDuringSend(){
+  const h=makeContext();
+  h.el('abs-server-url').value='http://abs.test:13378';
+  h.el('abs-library').appendChild({value:'lib_1'});h.el('abs-folder').appendChild({value:'fol_1'});h.el('abs-title').value='Test Book';
+  h.el('abs-export-format').value='cloned_audiobook.mp3';
+  let resolveSend=null;
+  h.ctx.API.get=async url=>{
+    if(url.startsWith('/api/abs/deliveries')){return {deliveries:[]};}
+    throw new Error('unexpected GET '+url);};
+  h.ctx.API.post=(url,body)=>{h.calls.push(['POST',url,body]);
+    if(url==='/api/abs/preview'){return Promise.resolve({preview_id:'p1',output_bytes:100,base_url:'http://abs.test:13378',library_id:'lib_1',folder_id:'fol_1',export_file:'cloned_audiobook.mp3',sha256:'abc',input_revision:'r',title:'Test Book',author:'',series:''});}
+    if(url==='/api/abs/send'){return new Promise(resolve=>{resolveSend=resolve;});}
+    throw new Error('unexpected POST '+url);};
+  await h.ctx.previewAbsSend();
+  h.el('abs-right-to-share').checked=true;h.ctx.updateAbsSendEnabled();
+  const pending=h.ctx.sendAbsExport();
+  h.type('abs-server-url','http://typed-while-sending.test:4');
+  resolveSend({status:'sent',output_bytes:100,sha256:'abc',export_file:'cloned_audiobook.mp3',title:'Test Book'});
+  await pending;
+  assert.match(h.el('abs-status').textContent,/Delivered/,'typing during Send still shows the outcome');
+  assert.ok(!/Sending/.test(h.el('abs-status').textContent),'the status is not left on Sending');
+}
+(async()=>{
+await typingDuringSave();
+await typingDuringLoad();
+await typingDuringPreview();
+await typingDuringSend();
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
     def test_late_config_reply_never_overwrites_typed_or_saved_values(self):
         self._run(_HARNESS + r'''
 async function typedThenReply(){
@@ -514,11 +696,7 @@ async function typedThenReply(){
 async function typedThenCleared(){
   const h=makeContext();
   let resolveConfig=null;
-  let configCalls=0;
-  h.ctx.API.get=url=>{h.calls.push(['GET',url]);
-    configCalls+=1;
-    if(configCalls===1){return new Promise(resolve=>{resolveConfig=resolve;});}
-    return Promise.resolve({base_url:'http://saved.test:1',has_key:true,library_id:'lib_1',folder_id:'fol_1'});};
+  h.ctx.API.get=url=>{h.calls.push(['GET',url]);return new Promise(resolve=>{resolveConfig=resolve;});};
   const pending=h.ctx.loadAbsSavedConfig();
   h.type('abs-server-url','http://typed.test:1');
   h.type('abs-server-url','');
@@ -534,18 +712,28 @@ async function typedThenCleared(){
 }
 async function savedThenReply(){
   const h=makeContext();
+  const serverB='http://new.test:2';
   let resolveConfig=null;
-  h.ctx.API.get=url=>{h.calls.push(['GET',url]);return new Promise(resolve=>{resolveConfig=resolve;});};
+  h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+    if(url==='/api/abs/config'){return new Promise(resolve=>{resolveConfig=resolve;});}
+    return {libraries:[{id:'lib_1',name:'One',folders:[{id:'fol_1'}]},{id:'lib_2',name:'Two',folders:[{id:'fol_2'}]}]};};
+  h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
+    return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
   const pending=h.ctx.loadAbsSavedConfig();
-  h.type('abs-server-url','http://new.test:2');
-  h.ctx.API.post=async(url)=>{h.calls.push(['POST',url]);
-    return {base_url:'http://new.test:2',has_key:true,key_store:'OS credential store'};};
+  h.type('abs-server-url',serverB);
+  await h.ctx.loadAbsLibraries();
+  h.el('abs-library').value='lib_2';h.ctx.fillAbsFolders();h.el('abs-folder').value='fol_2';
   await h.ctx.saveAbsConfig();
   resolveConfig({base_url:'http://old.test:1',has_key:false,library_id:'lib_1',folder_id:'fol_1'});
   await pending;
-  assert.strictEqual(h.el('abs-server-url').value,'http://new.test:2','a reply from before Save server cannot revert it');
+  assert.strictEqual(h.el('abs-server-url').value,serverB,'a config reply from before Save cannot revert it');
   assert.match(h.el('abs-status').textContent,/Server saved/,'the save result stays on screen');
-  assert.ok(!/Restored saved server/.test(h.el('abs-status').textContent));
+  assert.ok(!/Restored saved server/.test(h.el('abs-status').textContent),'the pre-Save reply restores nothing');
+  h.el('abs-library').value='';h.el('abs-folder').value='';
+  await h.ctx.loadAbsLibraries();
+  assert.strictEqual(h.el('abs-library').value,'lib_2','the older reply cannot replace the just-saved library');
+  assert.strictEqual(h.el('abs-folder').value,'fol_2','the older reply cannot replace the just-saved folder');
+  assert.strictEqual(h.calls.filter(call=>call[0]==='GET'&&call[1]==='/api/abs/config').length,1,'a dropped reply is not refetched later');
 }
 (async()=>{
 await typedThenReply();
@@ -555,140 +743,17 @@ console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
 
-    def test_concurrent_panel_opens_issue_one_config_request(self):
+    def test_browser_restored_url_is_not_replaced_by_the_first_restore(self):
         self._run(_HARNESS + r'''
 const h=makeContext();
-let resolveConfig=null;
-h.ctx.API.get=url=>{h.calls.push(['GET',url]);return new Promise(resolve=>{resolveConfig=resolve;});};
-(async()=>{
-const first=h.ctx.loadAbsSavedConfig();
-const second=h.ctx.loadAbsSavedConfig();
-const third=h.ctx.loadAbsSavedConfig();
-assert.strictEqual(h.calls.length,1,'opening before the first reply issues exactly one request');
-resolveConfig({base_url:'http://abs.test:13378',has_key:true,library_id:'',folder_id:''});
-await Promise.all([first,second,third]);
-assert.deepStrictEqual(h.calls,[['GET','/api/abs/config']],'still one config read after all opens settle');
-assert.strictEqual(h.el('abs-server-url').value,'http://abs.test:13378','the shared reply still restores the server');
-console.log('ok');
-})().catch(error=>{console.error(error);process.exit(1);});
-''')
-
-    def test_failed_config_read_is_retried_on_the_next_open(self):
-        self._run(_HARNESS + r'''
-const h=makeContext();
-let attempt=0;
-h.ctx.API.get=url=>{h.calls.push(['GET',url]);
-  attempt+=1;
-  if(attempt===1){return Promise.reject(new Error('keyring unavailable'));}
-  return Promise.resolve({base_url:'http://abs.test:13378',has_key:true,library_id:'lib_1',folder_id:'fol_1'});};
-(async()=>{
-await h.ctx.loadAbsSavedConfig();
-assert.strictEqual(h.el('abs-server-url').value,'','a failed read restores nothing');
-assert.strictEqual(h.calls.length,1);
-await h.ctx.loadAbsSavedConfig();
-assert.strictEqual(h.calls.length,2,'the next open retries after a failed read');
-assert.strictEqual(h.el('abs-server-url').value,'http://abs.test:13378','the retry restores the saved server');
-assert.match(h.el('abs-status').textContent,/Restored saved server/);
-await h.ctx.loadAbsSavedConfig();
-assert.strictEqual(h.calls.length,2,'a successful read is cached for the page');
-console.log('ok');
-})().catch(error=>{console.error(error);process.exit(1);});
-''')
-
-    def test_failed_config_read_retry_does_not_overwrite_typed_values(self):
-        self._run(_HARNESS + r'''
-const h=makeContext();
-let attempt=0;
-h.ctx.API.get=url=>{h.calls.push(['GET',url]);
-  attempt+=1;
-  if(attempt===1){return Promise.reject(new Error('keyring unavailable'));}
-  return Promise.resolve({base_url:'http://saved.test:1',has_key:true,library_id:'lib_1',folder_id:'fol_1'});};
-(async()=>{
-await h.ctx.loadAbsSavedConfig();
-h.type('abs-server-url','http://typed.test:2');
-h.el('abs-status').textContent='typed';
-await h.ctx.loadAbsSavedConfig();
-assert.strictEqual(h.calls.length,2,'the retry is a real second request');
-assert.strictEqual(h.el('abs-server-url').value,'http://typed.test:2','the retry leaves a typed URL alone');
-assert.strictEqual(h.el('abs-status').textContent,'typed','the retry does not overwrite the status line');
-console.log('ok');
-})().catch(error=>{console.error(error);process.exit(1);});
-''')
-
-    def test_saved_selection_survives_save_then_reload(self):
-        self._run(_HARNESS + r'''
-const h=makeContext();
-const base='http://abs.test:13378';
+h.el('abs-server-url').value='http://typed-bfcache.test:1';
 h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
-  if(url==='/api/abs/config'){return {base_url:base,has_key:true,library_id:'lib_1',folder_id:'fol_1'};}
-  return {libraries:[{id:'lib_1',name:'Main',folders:[{id:'fol_1',fullPath:'/books'}]},
-                     {id:'lib_2',name:'Pods',folders:[{id:'fol_3',fullPath:'/pods'}]}]};};
-h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
-  return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
+  return {base_url:'http://saved.test:13378',has_key:true,library_id:'lib_1',folder_id:'fol_1'};};
 (async()=>{
 await h.ctx.loadAbsSavedConfig();
-await h.ctx.loadAbsLibraries();
-assert.strictEqual(h.el('abs-library').value,'lib_1');
-h.el('abs-library').value='lib_2';h.ctx.fillAbsFolders();
-h.el('abs-folder').value='fol_3';
-await h.ctx.saveAbsConfig();
-await h.ctx.loadAbsLibraries();
-assert.strictEqual(h.el('abs-library').value,'lib_2','after Save server, Load keeps the just-saved library');
-assert.strictEqual(h.el('abs-folder').value,'fol_3','after Save server, Load keeps the just-saved folder');
-assert.strictEqual(h.ctx.getAbsDestination().folder_id,'fol_3','the kept selection is what would be sent');
-console.log('ok');
-})().catch(error=>{console.error(error);process.exit(1);});
-''')
-
-    def test_manual_selection_survives_another_library_load(self):
-        self._run(_HARNESS + r'''
-const h=makeContext();
-h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
-  if(url==='/api/abs/config'){return {base_url:'http://abs.test:13378',has_key:true,library_id:'lib_1',folder_id:'fol_1'};}
-  return {libraries:[{id:'lib_1',name:'Main',folders:[{id:'fol_1',fullPath:'/books'}]},
-                     {id:'lib_2',name:'Pods',folders:[{id:'fol_3',fullPath:'/pods'}]}]};};
-(async()=>{
-await h.ctx.loadAbsSavedConfig();
-await h.ctx.loadAbsLibraries();
-h.el('abs-library').value='lib_2';h.ctx.fillAbsFolders();
-h.el('abs-folder').value='fol_3';
-await h.ctx.loadAbsLibraries();
-assert.strictEqual(h.el('abs-library').value,'lib_2','a still-listed manual library is kept on reload');
-assert.strictEqual(h.el('abs-folder').value,'fol_3','a still-listed manual folder is kept on reload');
-console.log('ok');
-})().catch(error=>{console.error(error);process.exit(1);});
-''')
-
-    def test_saving_another_server_remembers_its_own_selection(self):
-        self._run(_HARNESS + r'''
-const h=makeContext();
-const serverA='http://a.test:13378';
-const serverB='http://b.test:13378';
-h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
-  if(url==='/api/abs/config'){return {base_url:serverA,has_key:true,library_id:'lib_1',folder_id:'fol_1'};}
-  const target=decodeURIComponent(url.split('base_url=')[1]);
-  if(target===serverB){return {libraries:[{id:'lib_1',name:'B',folders:[{id:'fol_1'}]},
-                                         {id:'lib_2',name:'B2',folders:[{id:'fol_2'}]}]};}
-  return {libraries:[{id:'lib_1',name:'A',folders:[{id:'fol_1'}]},
-                     {id:'lib_2',name:'A2',folders:[{id:'fol_2'}]}]};};
-h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
-  return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
-(async()=>{
-await h.ctx.loadAbsSavedConfig();
-await h.ctx.loadAbsLibraries();
-h.el('abs-library').value='lib_2';h.ctx.fillAbsFolders();
-h.el('abs-folder').value='fol_2';
-h.el('abs-server-url').value=serverB;
-await h.ctx.saveAbsConfig();
-const posted=h.calls.filter(call=>call[0]==='POST').pop();
-assert.strictEqual(posted[2].base_url,serverB);
-assert.strictEqual(posted[2].library_id,'lib_2');
-assert.strictEqual(posted[2].folder_id,'fol_2');
-h.el('abs-library').value='lib_1';h.el('abs-folder').value='fol_1';
-await h.ctx.loadAbsLibraries();
-assert.strictEqual(h.el('abs-library').value,'lib_2','Load after saving another server uses its own saved library');
-assert.strictEqual(h.el('abs-folder').value,'fol_2','Load after saving another server uses its own saved folder');
-assert.notStrictEqual(h.el('abs-library').value,'lib_1','the earlier server saved library is not applied');
+assert.strictEqual(h.el('abs-server-url').value,'http://typed-bfcache.test:1','a browser-restored URL is left alone');
+assert.strictEqual(h.el('abs-status').textContent,'','no restore status is shown over restored text');
+assert.deepStrictEqual(h.calls,[['GET','/api/abs/config']]);
 console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
@@ -732,111 +797,63 @@ console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
 
-    def test_late_config_reply_is_ignored_after_a_save(self):
+    def test_saved_selection_survives_save_then_reload(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+const base='http://abs.test:13378';
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  if(url==='/api/abs/config'){return {base_url:base,has_key:true,library_id:'lib_1',folder_id:'fol_1'};}
+  return {libraries:[{id:'lib_1',name:'Main',folders:[{id:'fol_1',fullPath:'/books'}]},
+                     {id:'lib_2',name:'Pods',folders:[{id:'fol_3',fullPath:'/pods'}]}]};};
+h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
+  return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+await h.ctx.loadAbsLibraries();
+assert.strictEqual(h.el('abs-library').value,'lib_1');
+h.el('abs-library').value='lib_2';h.ctx.fillAbsFolders();
+h.el('abs-folder').value='fol_3';
+await h.ctx.saveAbsConfig();
+await h.ctx.loadAbsLibraries();
+assert.strictEqual(h.el('abs-library').value,'lib_2','after Save server, Load preselects the just-saved library');
+assert.strictEqual(h.el('abs-folder').value,'fol_3','after Save server, Load preselects the just-saved folder');
+assert.strictEqual(h.ctx.getAbsDestination().folder_id,'fol_3','the kept selection is what would be sent');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_saving_another_server_remembers_its_own_selection(self):
         self._run(_HARNESS + r'''
 const h=makeContext();
 const serverA='http://a.test:13378';
 const serverB='http://b.test:13378';
-let resolveConfig=null;
 h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
-  if(url==='/api/abs/config'){return new Promise(resolve=>{resolveConfig=resolve;});}
-  return {libraries:[{id:'lib_1',name:'One',folders:[{id:'fol_1'}]},
-                     {id:'lib_2',name:'Two',folders:[{id:'fol_2'}]}]};};
+  if(url==='/api/abs/config'){return {base_url:serverA,has_key:true,library_id:'lib_1',folder_id:'fol_1'};}
+  const target=decodeURIComponent(url.split('base_url=')[1]);
+  if(target===serverB){return {libraries:[{id:'lib_1',name:'B',folders:[{id:'fol_1'}]},
+                                         {id:'lib_2',name:'B2',folders:[{id:'fol_2'}]}]};}
+  return {libraries:[{id:'lib_1',name:'A',folders:[{id:'fol_1'}]},
+                     {id:'lib_2',name:'A2',folders:[{id:'fol_2'}]}]};};
 h.ctx.API.post=async(url,body)=>{h.calls.push(['POST',url,body]);
   return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
-async function saveWithoutTyping(){
-  const other=makeContext();
-  let resolveOtherConfig=null;
-  other.ctx.API.get=url=>{other.calls.push(['GET',url]);return new Promise(resolve=>{resolveOtherConfig=resolve;});};
-  other.ctx.API.post=async(url,body)=>{other.calls.push(['POST',url,body]);
-    return {base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id};};
-  const pending=other.ctx.loadAbsSavedConfig();
-  other.el('abs-server-url').value=serverB;
-  await other.ctx.saveAbsConfig();
-  resolveOtherConfig({base_url:serverA,has_key:true,library_id:'lib_1',folder_id:'fol_1'});
-  await pending;
-  assert.strictEqual(other.el('abs-server-url').value,serverB,'a config reply cannot revert a just-saved server');
-  assert.match(other.el('abs-status').textContent,/Server saved/,'the save result stays on screen');
-  assert.ok(!/Restored saved server/.test(other.el('abs-status').textContent));
-}
-(async()=>{
-const pending=h.ctx.loadAbsSavedConfig();
-h.type('abs-server-url',serverB);
-await h.ctx.loadAbsLibraries();
-h.el('abs-library').value='lib_2';h.ctx.fillAbsFolders();h.el('abs-folder').value='fol_2';
-await h.ctx.saveAbsConfig();
-resolveConfig({base_url:serverA,has_key:true,library_id:'lib_1',folder_id:'fol_1'});
-await pending;
-assert.match(h.el('abs-status').textContent,/Server saved/,'the save result stays on screen');
-assert.ok(!/Restored saved server/.test(h.el('abs-status').textContent),'the pre-Save reply restores nothing');
-h.el('abs-library').value='';h.el('abs-folder').value='';
-await h.ctx.loadAbsLibraries();
-assert.strictEqual(h.el('abs-library').value,'lib_2','the older config reply cannot replace the just-saved library');
-assert.strictEqual(h.el('abs-folder').value,'fol_2','the older config reply cannot replace the just-saved folder');
-assert.strictEqual(h.calls.filter(call=>call[0]==='GET'&&call[1]==='/api/abs/config').length,1,
-  'a dropped reply is not refetched later in the session');
-await saveWithoutTyping();
-console.log('ok');
-})().catch(error=>{console.error(error);process.exit(1);});
-''')
-
-    def test_vanished_manual_library_is_not_reselected_on_reload(self):
-        self._run(_HARNESS + r'''
-const h=makeContext();
-const base='http://abs.test:13378';
-let libraries=[{id:'lib_1',name:'Main',folders:[{id:'fol_1'}]},
-               {id:'lib_2',name:'Pods',folders:[{id:'fol_3'}]}];
-h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
-  if(url==='/api/abs/config'){return {base_url:base,has_key:true,library_id:'',folder_id:''};}
-  return {libraries};};
 (async()=>{
 await h.ctx.loadAbsSavedConfig();
 await h.ctx.loadAbsLibraries();
-h.el('abs-library').value='lib_2';h.ctx.fillAbsFolders();h.el('abs-folder').value='fol_3';
-libraries=[{id:'lib_1',name:'Main',folders:[{id:'fol_1'}]}];
-await h.ctx.loadAbsLibraries();
-assert.strictEqual(h.el('abs-library').value,'','a vanished manual library is cleared, not the first listing');
-assert.strictEqual(h.el('abs-folder').value,'','its folder cannot be sent');
-console.log('ok');
-})().catch(error=>{console.error(error);process.exit(1);});
-''')
-
-    def test_vanished_manual_folder_is_not_reselected_on_reload(self):
-        self._run(_HARNESS + r'''
-const h=makeContext();
-const base='http://abs.test:13378';
-let libraries=[{id:'lib_1',name:'Main',folders:[{id:'fol_1'},{id:'fol_2'}]}];
-h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
-  if(url==='/api/abs/config'){return {base_url:base,has_key:true,library_id:'',folder_id:''};}
-  return {libraries};};
-(async()=>{
-await h.ctx.loadAbsSavedConfig();
-await h.ctx.loadAbsLibraries();
+h.el('abs-library').value='lib_2';h.ctx.fillAbsFolders();
 h.el('abs-folder').value='fol_2';
-libraries=[{id:'lib_1',name:'Main',folders:[{id:'fol_1'}]}];
+h.el('abs-server-url').value=serverB;
+await h.ctx.saveAbsConfig();
+const posted=h.calls.filter(call=>call[0]==='POST').pop();
+assert.strictEqual(posted[2].base_url,serverB);
+assert.strictEqual(posted[2].library_id,'lib_2');
+assert.strictEqual(posted[2].folder_id,'fol_2');
+h.el('abs-library').value='lib_1';h.el('abs-folder').value='fol_1';
 await h.ctx.loadAbsLibraries();
-assert.strictEqual(h.el('abs-library').value,'lib_1','the still-listed library is kept');
-assert.strictEqual(h.el('abs-folder').value,'','a vanished manual folder is cleared, not the first listing');
+assert.strictEqual(h.el('abs-library').value,'lib_2','Load after saving another server uses its own saved library');
+assert.strictEqual(h.el('abs-folder').value,'fol_2','Load after saving another server uses its own saved folder');
+assert.notStrictEqual(h.el('abs-library').value,'lib_1','the earlier server saved library is not applied');
 console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
-''')
-
-    def test_panel_open_hook_loads_on_open_not_close(self):
-        self._run(r'''
-const fs=require('fs'),vm=require('vm'),assert=require('assert');
-const html=fs.readFileSync(require('path').join(require('path').dirname(process.argv[1]),'..','index.html'),'utf8');
-const tail=html.slice(html.indexOf('id="abs-delivery-options"'));
-const tag=tail.slice(0,tail.indexOf('>'));
-const handler=tag.split('ontoggle="')[1].split('"')[0];
-let calls=0;
-const fn=vm.runInNewContext('(function(){'+handler+'})',{loadAbsSavedConfig:()=>{calls+=1;}});
-fn.call({open:false});
-assert.strictEqual(calls,0,'a close before the first open does not restore');
-fn.call({open:true});
-assert.strictEqual(calls,1,'opening the disclosure restores the saved config');
-fn.call({open:false});
-assert.strictEqual(calls,1,'closing after the first open does not restore again');
-console.log('ok');
 ''')
 
 
