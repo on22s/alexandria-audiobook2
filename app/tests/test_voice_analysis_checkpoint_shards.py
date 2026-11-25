@@ -15,7 +15,8 @@ import numpy as np
 from tests import test_voice_dedup_source_cache as dedup_fixture
 from tests.test_voice_analysis_cache import StopAfterSimilarity, SOURCE
 from voice_analysis_cache import (load_voice_analysis_pickle,
-    save_voice_analysis_checkpoint, compact_voice_analysis_checkpoints)
+    save_voice_analysis_checkpoint, save_voice_analysis_pickle,
+    compact_voice_analysis_checkpoints)
 
 
 class VoiceCheckpointShardTests(unittest.TestCase):
@@ -141,3 +142,107 @@ class VoiceCheckpointShardTests(unittest.TestCase):
                 save_voice_analysis_checkpoint({'voice': 'first'}, path)
                 save_voice_analysis_checkpoint({'voice': 'second'}, path)
             self.assertEqual('second', load_voice_analysis_pickle(path, {})['voice'])
+
+    def test_malformed_shard_record_is_quarantined_and_valid_shards_still_merge(self):
+        long_sequence = '99999999999999999990'
+        malformed_records = [
+            {'nested': False},
+            {'nested': False, 'updates': None},
+            {'nested': True, 'updates': {'embeddings': [1, 2]}},
+            ['not', 'a', 'record'],
+            None,
+        ]
+        for record in malformed_records:
+            with self.subTest(record=record), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / 'cache.pkl'
+                save_voice_analysis_checkpoint({'first': [1]}, path)
+                directory = path.with_suffix('.pkl.parts')
+                shard = directory / f'{long_sequence}-malformed.pkl'
+                with shard.open('wb') as handle:
+                    pickle.dump(record, handle)
+                with redirect_stdout(io.StringIO()) as output:
+                    progress = load_voice_analysis_pickle(path, {})
+                self.assertEqual({'first': [1]}, progress)
+                self.assertIn('invalid cache shard', output.getvalue())
+                self.assertTrue(shard.with_suffix('.pkl.corrupt').exists())
+                self.assertFalse(shard.exists())
+
+    def test_compaction_preserves_a_malformed_shard_and_publishes_the_readable_progress(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'cache.pkl'
+            save_voice_analysis_checkpoint({'first': [1]}, path)
+            directory = path.with_suffix('.pkl.parts')
+            shard = directory / '99999999999999999990-malformed.pkl'
+            with shard.open('wb') as handle:
+                pickle.dump({'not': 'a checkpoint record'}, handle)
+            with redirect_stdout(io.StringIO()):
+                compact_voice_analysis_checkpoints(path)
+            self.assertEqual({'first': [1]}, load_voice_analysis_pickle(path, {}))
+            self.assertTrue(shard.with_suffix('.pkl.corrupt').exists())
+            self.assertFalse(shard.exists())
+
+    def test_compaction_keeps_a_malformed_shard_whose_quarantine_rename_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'cache.pkl'
+            save_voice_analysis_checkpoint({'first': [1]}, path)
+            directory = path.with_suffix('.pkl.parts')
+            shard = directory / '99999999999999999990-malformed.pkl'
+            with shard.open('wb') as handle:
+                pickle.dump({'not': 'a checkpoint record'}, handle)
+            original_replace = os.replace
+            def fail_quarantine(source, destination):
+                if str(destination).endswith('.corrupt'):
+                    raise OSError('read-only parts directory')
+                return original_replace(source, destination)
+            with patch('os.replace', side_effect=fail_quarantine), redirect_stdout(io.StringIO()):
+                compact_voice_analysis_checkpoints(path)
+            self.assertTrue(shard.exists())
+            self.assertFalse(list(directory.glob('*.corrupt')))
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual({'first': [1]}, load_voice_analysis_pickle(path, {}))
+
+    def test_compaction_keeps_a_shard_that_lands_after_the_merge(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'cache.pkl'
+            save_voice_analysis_checkpoint({'first': [1]}, path)
+            directory = path.with_suffix('.pkl.parts')
+            late = directory / '99999999999999999991-late.pkl'
+            original_save = save_voice_analysis_pickle
+            def save_then_land(value, target):
+                original_save(value, target)
+                with late.open('wb') as handle:
+                    pickle.dump({'nested': False, 'updates': {'late': [9]}}, handle)
+            with patch('voice_analysis_cache.save_voice_analysis_pickle',
+                       side_effect=save_then_land), redirect_stdout(io.StringIO()):
+                compact_voice_analysis_checkpoints(path)
+            self.assertTrue(late.exists())
+            self.assertEqual({'first': [1], 'late': [9]},
+                             load_voice_analysis_pickle(path, {}))
+
+    def test_quarantine_does_not_overwrite_an_existing_corrupt_copy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'cache.pkl'
+            save_voice_analysis_checkpoint({'first': [1]}, path)
+            directory = path.with_suffix('.pkl.parts')
+            shard = directory / '99999999999999999990-malformed.pkl'
+            preserved = shard.with_suffix('.pkl.corrupt')
+            preserved.write_bytes(b'earlier evidence')
+            with shard.open('wb') as handle:
+                pickle.dump({'not': 'a checkpoint record'}, handle)
+            with redirect_stdout(io.StringIO()):
+                progress = load_voice_analysis_pickle(path, {})
+            self.assertEqual({'first': [1]}, progress)
+            self.assertEqual(b'earlier evidence', preserved.read_bytes())
+            self.assertFalse(shard.exists())
+            self.assertTrue(list(directory.glob('*.1.corrupt')))
+
+    def test_foreign_shard_name_does_not_break_sequence_numbering(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'cache.pkl'
+            save_voice_analysis_checkpoint({'first': [1]}, path)
+            directory = path.with_suffix('.pkl.parts')
+            (directory / '²-foreign.pkl').write_bytes(b'foreign')
+            save_voice_analysis_checkpoint({'second': [2]}, path)
+            with redirect_stdout(io.StringIO()):
+                progress = load_voice_analysis_pickle(path, {})
+            self.assertEqual({'first': [1], 'second': [2]}, progress)

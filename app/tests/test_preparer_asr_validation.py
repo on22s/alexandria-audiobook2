@@ -157,6 +157,18 @@ class WhisperCppTests(unittest.TestCase):
             preparer.transcribe_with_whisper_cpp(
                 np.zeros(16000, dtype=np.float32), "fr")
 
+    def test_huge_int_offsets_survive_conversion_and_are_rejected_as_non_finite(self):
+        with self.assertRaisesRegex(ValueError, "non-finite"):
+            converted = preparer.get_coalesced_whisper_cpp_segments([
+                {"text": "huge",
+                 "offsets": {"from": 10**400, "to": 10**400 + 1}}])
+            preparer.get_validated_word_segments(converted, 1.0)
+
+    def test_validator_rejects_huge_int_timestamps_without_overflow(self):
+        with self.assertRaisesRegex(ValueError, "non-finite"):
+            preparer.get_validated_word_segments(
+                [{"word": "bad", "start": 10**400, "end": 10**400 + 1}], 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()
