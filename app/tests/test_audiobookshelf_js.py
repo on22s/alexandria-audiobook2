@@ -358,6 +358,70 @@ console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
 
+    def test_discard_button_only_on_unknown_and_declined_confirm_sends_nothing(self):
+        self._run(r'''
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const source=fs.readFileSync(process.argv[1],'utf8');
+const elements={};
+const mk=()=>({style:{},textContent:'',value:'',checked:false,disabled:false,className:'',children:[],
+  replaceChildren(){this.children=[];},appendChild(child){this.children.push(child);}});
+const el=id=>elements[id]||(elements[id]=mk());
+const entries=[
+  {id:'d1',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'unknown',output_bytes:100,sha256:'s'},
+  {id:'d2',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'sent',output_bytes:100,sha256:'s'},
+  {id:'d3',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'failed',output_bytes:100,sha256:'s'},
+  {id:'d4',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'in_flight',output_bytes:100,sha256:'s'},
+  {id:'d5',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'failed',output_bytes:100,sha256:'s',
+   discarded_at:1,discarded_note:'Abandoned by the user after an unknown outcome.',
+   verification_note:'Upload accepted by the server (HTTP 200); resend stays blocked.',
+   reconciliation:'The status REMAINS unknown and resend stays blocked.'}];
+let confirmAnswer=false;
+const confirms=[];
+const posts=[];
+const ctx={document:{getElementById:el,createElement:()=>mk()},
+  console:{error(){}},chunkSnapshotBookToken:'a'.repeat(64),showActionError(){},
+  setInterval:()=>0,clearInterval:()=>{},
+  showConfirm:async (message,options)=>{confirms.push({message,options});return confirmAnswer;},
+  API:{get:async url=>{
+    if(url.startsWith('/api/abs/deliveries')){return{deliveries:entries};}
+    throw new Error('unexpected GET '+url);},
+    post:async (url,body)=>{posts.push({url,body});
+      if(url==='/api/abs/discard'){return{status:'failed',discarded_at:1};}
+      throw new Error('unexpected POST '+url);}}};
+vm.createContext(ctx);
+Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:()=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m);},getIntlUiLocale:()=> 'en'});
+vm.runInContext(source,ctx);
+(async()=>{
+await ctx.loadAbsDeliveries();
+const rows=el('abs-deliveries').children;
+const unknownRow=rows[0];
+for(const index of [1,2,3]){
+  assert.ok(!rows[index].children.some(child=>child.textContent==='Abandon this send'),'only unknown rows offer abandon');
+  assert.ok(!rows[index].children.some(child=>child.textContent==='Verify delivery'),'only unknown rows offer verify');
+}
+assert.ok(unknownRow.children.some(child=>child.textContent==='Abandon this send'),'unknown offers abandon');
+assert.ok(unknownRow.children.some(child=>child.textContent==='Verify delivery'),'unknown still offers verify');
+const discardedRow=rows[4];
+assert.ok(discardedRow.children.some(child=>child.textContent==='Abandoned by the user after an unknown outcome.'),'discarded row shows its note');
+assert.ok(!discardedRow.children.some(child=>/resend stays blocked/.test(child.textContent)),'discarded row hides the stale verification note');
+
+confirmAnswer=false;
+await ctx.discardAbsDelivery('d1');
+assert.strictEqual(posts.length,0,'declined confirmation sends no POST');
+assert.strictEqual(confirms.length,1,'one confirmation was shown');
+assert.match(confirms[0].message,/duplicate/,'confirm warns about a duplicate item');
+assert.match(confirms[0].message,/local export is unchanged/,'confirm says the local export is unchanged');
+assert.strictEqual(confirms[0].options.danger,true,'discard confirmation is destructive');
+
+confirmAnswer=true;
+await ctx.discardAbsDelivery('d1');
+assert.strictEqual(posts.length,1,'confirmed discard sends exactly one POST');
+assert.strictEqual(posts[0].url,'/api/abs/discard');
+assert.strictEqual(JSON.stringify(posts[0].body),JSON.stringify({delivery_id:'d1',confirm:true}));
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
     def test_saved_config_restores_server_url_without_contacting_the_server(self):
         self._run(_HARNESS + r'''
 const h=makeContext();

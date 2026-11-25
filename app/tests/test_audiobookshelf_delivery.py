@@ -661,6 +661,339 @@ class DeliveryTests(unittest.TestCase):
             self._send(self._preview(), acknowledge_unknown=True)
         self.assertIn('unknown', str(caught.exception))
 
+    def _seed_ledger_entry(self, entry_id, status, **fields):
+        # Run one-time recovery before seeding so a later get_ledger cannot
+        # demote a deliberately seeded in_flight/legacy-sent fixture.
+        delivery.get_ledger(self.data_dir)
+        entry = {'id': entry_id, 'status': status, 'created_at': 1,
+                 'book_token': self.book_token, 'sha256': self.sha256,
+                 'library_id': 'lib_1', 'folder_id': 'fol_1',
+                 'output_bytes': len(self.payload)}
+        entry.update(fields)
+        delivery.save_ledger_entry(self.data_dir, entry)
+        return entry
+
+    def test_cancelled_unknown_can_be_abandoned_and_resent(self):
+        # Issue #2298: a cancel that stored nothing leaves an unknown record
+        # that reconcile can never promote, so every later send was refused.
+        self.server.mode = 'ok'
+        real_post = delivery._post_snapshot
+
+        def cancelled_post(base_url, token, preview, snapshot_path,
+                           cancel_event=None, progress=None, **kwargs):
+            fired = threading.Event()
+            fired.set()
+            return real_post(base_url, token, preview, snapshot_path,
+                             cancel_event=fired, progress=progress, **kwargs)
+
+        with patch.object(delivery, '_post_snapshot', side_effect=cancelled_post):
+            entry = self._send(self._preview())
+        self.assertEqual('unknown', entry['status'])
+        self.assertEqual([], self.server.items)
+        reconciled = delivery.reconcile_delivery(self.data_dir, entry['id'], self.base, 'fake-token')
+        self.assertEqual('unknown', reconciled['status'])
+
+        discarded = delivery.discard_unknown_delivery(self.data_dir, entry['id'], True)
+        self.assertEqual('failed', discarded['status'])
+        self.assertNotIn('discarded_from_status', discarded)
+        self.assertIn('discarded_at', discarded)
+        self.assertIn('duplicate', discarded['discarded_note'])
+        self.assertEqual(entry['error'], discarded['error'])
+        ledger = delivery.get_ledger(self.data_dir)
+        self.assertEqual(1, len(ledger))
+        self.assertEqual('failed', ledger[0]['status'])
+        self.assertIn('discarded_at', ledger[0])
+
+        # The abandoned record no longer blocks a fresh preview+send. The new
+        # entry becomes the newest, and the normal duplicate rule applies to it.
+        resent = self._send(self._preview())
+        self.assertEqual('unknown', resent['status'])
+        self.assertNotEqual(entry['id'], resent['id'])
+        self.assertEqual(2, len(delivery.get_ledger(self.data_dir)))
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            self._send(self._preview())
+        self.assertEqual(409, caught.exception.status)
+        self.assertIn('not yet verified', str(caught.exception))
+
+    def test_failed_newer_row_does_not_unblock_an_already_delivered_export(self):
+        # A failed resend after a byte-proven delivery must not become the
+        # gate: the exact bytes are still on the server.
+        self._seed_ledger_entry('older-sent', 'sent', reconciled_sha256=self.sha256,
+                                reconciled_bytes=len(self.payload),
+                                reconciled_item_id='li_1', reconciled_file_id='ino_1',
+                                reconciled_verified_at=1)
+        self._seed_ledger_entry('newer-failed', 'failed', error='HTTP 401')
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            self._send(self._preview())
+        self.assertEqual(409, caught.exception.status)
+        self.assertIn('already delivered', str(caught.exception))
+
+    def test_abandon_during_verify_cannot_allow_a_third_send(self):
+        # Issue #2298 second review: a discarded send that Verify later proves
+        # must keep blocking even after a newer failed resend.
+        self.server.mode = 'server-error'
+        first = self._send(self._preview())
+        self.assertEqual('unknown', first['status'])
+        self.server.mode = 'ok'
+        self._serve_verified_item()
+        real_digest = delivery._download_candidate_digest
+        reached, release = threading.Event(), threading.Event()
+
+        def gated(*args, **kwargs):
+            reached.set()
+            self.assertTrue(release.wait(timeout=10))
+            return real_digest(*args, **kwargs)
+
+        outcome = {}
+
+        def worker():
+            outcome['entry'] = delivery.reconcile_delivery(
+                self.data_dir, first['id'], self.base, 'fake-token')
+
+        with patch.object(delivery, '_download_candidate_digest', side_effect=gated):
+            thread = threading.Thread(target=worker)
+            thread.start()
+            self.assertTrue(reached.wait(timeout=10))
+            discarded = delivery.discard_unknown_delivery(self.data_dir, first['id'], True)
+            self.assertEqual('failed', discarded['status'])
+            self.server.mode = 'auth-fail'
+            second = self._send(self._preview())
+            self.assertEqual('failed', second['status'])
+            release.set()
+            thread.join(timeout=10)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual('sent', outcome['entry']['status'])
+        # Same book, export, library, folder and server: a third send is refused.
+        uploads_before = len(self.server.received_uploads)
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            self._send(self._preview())
+        self.assertEqual(409, caught.exception.status)
+        self.assertIn('already delivered', str(caught.exception))
+        self.assertEqual(uploads_before, len(self.server.received_uploads))
+
+    def test_discard_older_unknown_leaves_the_newest_unknown_blocking(self):
+        self._seed_ledger_entry('older', 'unknown')
+        self._seed_ledger_entry('newer', 'unknown')
+        delivery.discard_unknown_delivery(self.data_dir, 'older', True)
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            self._send(self._preview())
+        self.assertEqual(409, caught.exception.status)
+        self.assertIn('unknown', str(caught.exception))
+        delivery.discard_unknown_delivery(self.data_dir, 'newer', True)
+        sent = self._send(self._preview())
+        self.assertEqual('unknown', sent['status'])
+
+    def test_discard_refuses_missing_and_non_unknown_records(self):
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            delivery.discard_unknown_delivery(self.data_dir, 'no-such-entry', True)
+        self.assertEqual(404, caught.exception.status)
+
+        for status in ('sent', 'failed', 'in_flight'):
+            entry_id = f'entry-{status}'
+            self._seed_ledger_entry(entry_id, status)
+            with self.assertRaises(delivery.DeliveryError) as caught:
+                delivery.discard_unknown_delivery(self.data_dir, entry_id, True)
+            self.assertEqual(409, caught.exception.status)
+            persisted = {item['id']: item for item in delivery.get_ledger(self.data_dir)}
+            self.assertEqual(status, persisted[entry_id]['status'])
+            self.assertNotIn('discarded_at', persisted[entry_id])
+
+        active = self._seed_ledger_entry('entry-active', 'unknown')
+        delivery._active_deliveries.add(active['id'])
+        self.addCleanup(delivery._active_deliveries.discard, active['id'])
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            delivery.discard_unknown_delivery(self.data_dir, active['id'], True)
+        self.assertEqual(409, caught.exception.status)
+        self.assertEqual('unknown', {item['id']: item for item in delivery.get_ledger(self.data_dir)}[active['id']]['status'])
+
+        # A record with no server binding cannot be reconciled at all, and a
+        # discard makes no network call, so it must still be abandonable.
+        no_server = self._seed_ledger_entry('entry-no-server', 'unknown')
+        discarded = delivery.discard_unknown_delivery(self.data_dir, no_server['id'], True)
+        self.assertEqual('failed', discarded['status'])
+
+    def test_discard_loses_to_a_concurrent_reconcile_promotion(self):
+        entry = self._seed_ledger_entry('entry-race', 'unknown')
+        outcome = {}
+
+        def worker():
+            try:
+                outcome['entry'] = delivery.discard_unknown_delivery(self.data_dir, entry['id'], True)
+            except delivery.DeliveryError as error:
+                outcome['error'] = error
+
+        # Hold the ledger lock so the worker's in-lock read happens only after
+        # a reconcile write has promoted the record to sent.
+        with delivery._ledger_lock:
+            thread = threading.Thread(target=worker)
+            thread.start()
+            time.sleep(0.05)
+            delivery.update_ledger_entry(self.data_dir, dict(entry, status='sent'))
+        thread.join(timeout=5)
+        self.assertFalse(thread.is_alive())
+        self.assertIn('error', outcome)
+        self.assertEqual(409, outcome['error'].status)
+        persisted = {item['id']: item for item in delivery.get_ledger(self.data_dir)}
+        self.assertEqual('sent', persisted['entry-race']['status'])
+        self.assertNotIn('discarded_at', persisted['entry-race'])
+
+    def _verified_sent(self, entry, **fields):
+        verified = dict(entry, status='sent', verification_pending=False,
+                        reconciled_sha256=self.sha256,
+                        reconciled_bytes=len(self.payload),
+                        reconciled_item_id='li_1', reconciled_file_id='ino_1',
+                        reconciled_verified_at=time.time(),
+                        reconciliation='verified by raw bytes')
+        for key in ('discarded_at', 'discarded_note'):
+            verified.pop(key, None)
+        verified.update(fields)
+        return verified
+
+    def _serve_verified_item(self):
+        self.server.items = [{'id': 'li_1', 'libraryId': 'lib_1', 'folderId': 'fol_1',
+                              'media': {'size': len(self.payload),
+                                        'metadata': {'title': 'Test Book'}}}]
+        self.server.item_details = {'li_1': {
+            'id': 'li_1', 'libraryId': 'lib_1', 'folderId': 'fol_1',
+            'mediaType': 'book',
+            'media': {'metadata': {'title': 'Test Book'},
+                      'audioFiles': [{'ino': 'ino_1',
+                                      'metadata': {'size': len(self.payload)}}]},
+            'libraryFiles': [{'ino': 'ino_1',
+                              'metadata': {'filename': 'cloned_audiobook.mp3',
+                                           'size': len(self.payload)}}]}}
+        self.server.file_blobs = {('li_1', 'ino_1'): self.payload}
+
+    def test_verified_sent_survives_a_discard_during_the_network_phase(self):
+        # Issue #2298 review: Verify and Abandon can both be clicked on an
+        # unknown row. If Verify proves the bytes are stored, discarding
+        # meanwhile must not throw the proof away.
+        self.server.mode = 'server-error'
+        entry = self._send(self._preview())
+        self.assertEqual('unknown', entry['status'])
+        self.server.mode = 'ok'
+        self._serve_verified_item()
+        real_digest = delivery._download_candidate_digest
+        reached, release = threading.Event(), threading.Event()
+
+        def gated(*args, **kwargs):
+            reached.set()
+            self.assertTrue(release.wait(timeout=10))
+            return real_digest(*args, **kwargs)
+
+        outcome = {}
+
+        def worker():
+            try:
+                outcome['entry'] = delivery.reconcile_delivery(
+                    self.data_dir, entry['id'], self.base, 'fake-token')
+            except Exception as error:  # pragma: no cover - reported below
+                outcome['error'] = error
+
+        with patch.object(delivery, '_download_candidate_digest', side_effect=gated):
+            thread = threading.Thread(target=worker)
+            thread.start()
+            self.assertTrue(reached.wait(timeout=10))
+            discarded = delivery.discard_unknown_delivery(self.data_dir, entry['id'], True)
+            self.assertEqual('failed', discarded['status'])
+            newer = self._seed_ledger_entry('newer-unknown', 'unknown')
+            release.set()
+            thread.join(timeout=10)
+        self.assertFalse(thread.is_alive())
+        self.assertNotIn('error', outcome)
+        self.assertEqual('sent', outcome['entry']['status'])
+        persisted = {item['id']: item for item in delivery.get_ledger(self.data_dir)}
+        self.assertEqual('sent', persisted[entry['id']]['status'])
+        self.assertEqual(self.sha256, persisted[entry['id']]['reconciled_sha256'])
+        self.assertNotIn('discarded_at', persisted[entry['id']])
+        self.assertNotIn('discarded_note', persisted[entry['id']])
+        # The verified older row keeps blocking even though a newer row exists.
+        self.assertEqual(newer['id'], delivery.get_latest_delivery(
+            self.data_dir, self.book_token, self.sha256, 'lib_1', 'fol_1')['id'])
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            self._send(self._preview())
+        self.assertEqual(409, caught.exception.status)
+        self.assertIn('already delivered', str(caught.exception))
+
+    def test_late_unknown_does_not_reblock_a_discarded_row(self):
+        entry = self._seed_ledger_entry('late-unknown', 'unknown', title='Test Book',
+                                        server=self.base, base_url=self.base)
+        reached, release = threading.Event(), threading.Event()
+
+        def gated(*args, **kwargs):
+            reached.set()
+            self.assertTrue(release.wait(timeout=10))
+            return [], 1
+
+        outcome = {}
+
+        def worker():
+            outcome['entry'] = delivery.reconcile_delivery(
+                self.data_dir, entry['id'], self.base, 'fake-token')
+
+        with patch.object(delivery, 'get_library_items', side_effect=gated):
+            thread = threading.Thread(target=worker)
+            thread.start()
+            self.assertTrue(reached.wait(timeout=10))
+            discarded = delivery.discard_unknown_delivery(self.data_dir, entry['id'], True)
+            self.assertEqual('failed', discarded['status'])
+            release.set()
+            thread.join(timeout=10)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual('failed', outcome['entry']['status'])
+        persisted = {item['id']: item for item in delivery.get_ledger(self.data_dir)}
+        self.assertEqual('failed', persisted[entry['id']]['status'])
+        self.assertIn('discarded_at', persisted[entry['id']])
+
+    def test_only_a_byte_verified_sent_replaces_a_discarded_row(self):
+        discarded = self._seed_ledger_entry('discard-proof', 'unknown')
+        delivery.discard_unknown_delivery(self.data_dir, discarded['id'], True)
+        current = {item['id']: item for item in delivery.get_ledger(self.data_dir)}[discarded['id']]
+        # An unverified sent (no matching proof) and a plain failed row both stay.
+        unverified = dict(current, status='sent')
+        returned = delivery._update_reconciled_entry(self.data_dir, unverified)
+        self.assertEqual('failed', returned['status'])
+        self.assertEqual('failed', delivery._update_reconciled_entry(
+            self.data_dir, dict(current, status='unknown'))['status'])
+        plain = self._seed_ledger_entry('plain-failed', 'failed')
+        self.assertEqual('failed', delivery._update_reconciled_entry(
+            self.data_dir, self._verified_sent(plain))['status'])
+        self.assertNotIn('reconciled_sha256',
+                         {item['id']: item for item in delivery.get_ledger(self.data_dir)}['plain-failed'])
+        # A second reconcile cannot demote or rewrite the verified row.
+        verified = self._verified_sent(current)
+        delivery._update_reconciled_entry(self.data_dir, verified)
+        second = self._verified_sent(current, reconciliation='second reconcile')
+        returned = delivery._update_reconciled_entry(self.data_dir, second)
+        self.assertEqual('verified by raw bytes', returned['reconciliation'])
+
+    def test_verified_sent_is_readded_when_a_concurrent_trim_removed_the_row(self):
+        delivery.get_ledger(self.data_dir)
+        delivery.save_ledger(self.data_dir, [])
+        ghost = {'id': 'trimmed-row', 'status': 'unknown', 'created_at': 1,
+                 'book_token': self.book_token, 'sha256': self.sha256,
+                 'library_id': 'lib_1', 'folder_id': 'fol_1',
+                 'output_bytes': len(self.payload)}
+        delivery._update_reconciled_entry(self.data_dir, dict(ghost, status='unknown'))
+        self.assertEqual([], delivery.get_ledger(self.data_dir))
+        delivery._update_reconciled_entry(self.data_dir, self._verified_sent(ghost))
+        persisted = {item['id']: item for item in delivery.get_ledger(self.data_dir)}
+        self.assertEqual('sent', persisted['trimmed-row']['status'])
+
+    def test_discard_demotes_a_dead_process_in_flight_row_before_the_lock(self):
+        # A restart leaves in_flight on disk. The sibling reconcile demotes it
+        # via get_ledger; discard must do the same before it takes the lock.
+        entry = {'id': 'dead-flight', 'status': 'in_flight', 'created_at': 1,
+                 'book_token': self.book_token, 'sha256': self.sha256,
+                 'library_id': 'lib_1', 'folder_id': 'fol_1',
+                 'output_bytes': len(self.payload)}
+        delivery.save_ledger_entry(self.data_dir, entry)
+        with patch.object(delivery, '_recovered', False):
+            discarded = delivery.discard_unknown_delivery(self.data_dir, entry['id'], True)
+        self.assertEqual('failed', discarded['status'])
+        self.assertIn('discarded_at', discarded)
+        self.assertIn('Interrupted by restart', discarded['error'])
+
     def test_http200_without_persisted_file_never_becomes_sent(self):
         # N6 discriminating case: the fake server receives the full valid
         # multipart, replies 200, but persists nothing (file.mv() failure).
