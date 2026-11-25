@@ -139,7 +139,6 @@ async function saveAbsConfig() {
         });
         absSavedSelection = {
             base_url: result.base_url,
-            saved_url: url,
             library_id: result.library_id || '',
             folder_id: result.folder_id || '',
         };
@@ -190,13 +189,14 @@ async function loadAbsLibraries() {
             librarySelect.appendChild(option);
         }
         const savedSelection = absSavedSelection;
-        const sameServer = Boolean(savedSelection)
-            && (savedSelection.base_url === url || savedSelection.saved_url === url);
-        if (sameServer && savedSelection.library_id) {
+        const restoreSaved = Boolean(savedSelection)
+            && savedSelection.base_url === result.base_url
+            && Boolean(savedSelection.library_id);
+        if (restoreSaved) {
             librarySelect.value = savedSelection.library_id;
         }
         fillAbsFolders();
-        if (sameServer && savedSelection.library_id && librarySelect.value === savedSelection.library_id) {
+        if (restoreSaved) {
             folderSelect.value = savedSelection.folder_id;
         }
         absSetStatus(absLibraries.length === 1 ? t('abs.libraries.loaded.one', 'Loaded {count} library. Choose a library and folder, then preview.', {count: absLibraries.length}) : t('abs.libraries.loaded.many', 'Loaded {count} libraries. Choose a library and folder, then preview.', {count: absLibraries.length}));
