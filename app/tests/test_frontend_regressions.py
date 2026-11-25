@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import unittest
 from unittest.mock import patch
+from urllib.parse import unquote
 
 import config_settings
 import three_pass_generate as tp
@@ -290,6 +291,19 @@ class FrontendTests(unittest.TestCase):
             for linked_repository in github_link.findall(template.read_text(encoding="utf-8")):
                 self.assertEqual(repository, linked_repository,
                                  f"{template.name} links to {linked_repository}")
+
+    def test_readme_docs_wiki_links_point_at_existing_files(self):
+        root = Path(__file__).resolve().parent.parent.parent
+        wiki_link = re.compile(r"\]\((docs/wiki/[^)\s]+)\)")
+        checked = 0
+        for name in ("README.md", "README_ES.md", "README_CN.md", "README_JA.md"):
+            readme = (root / name).read_text(encoding="utf-8")
+            for target in wiki_link.findall(readme):
+                path = unquote(target.split("#", 1)[0])
+                self.assertTrue((root / path).is_file(),
+                                f"{name} links to missing {path}")
+                checked += 1
+        self.assertTrue(checked)
 
     def test_readme_api_examples_do_not_reference_removed_routes(self):
         readme = (Path(__file__).resolve().parent.parent.parent / "README.md").read_text(encoding="utf-8")

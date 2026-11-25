@@ -79,8 +79,8 @@ números, los fallos y las recetas están todos en este repositorio.
 | **Apple Silicon** | macOS | solo CPU | El dispositivo TTS `auto` usa CPU. MPS se puede seleccionar explícitamente, pero en un M4 fue más lento y menos preciso (#1650); whisper.cpp se compila con Metal |
 | **Intel** | macOS | solo CPU | |
 
-> **Más documentación:** la wiki del proyecto explica los [tipos de voz](https://github.com/on22s/alexandria-audiobook2/wiki/Voice-Types-ES),
-> el [entrenamiento LoRA](https://github.com/on22s/alexandria-audiobook2/wiki/Training-Guide-ES) y la [generación por lotes](https://github.com/on22s/alexandria-audiobook2/wiki/Batch-Generation-ES).
+> **Más documentación:** la documentación del proyecto explica los [tipos de voz](docs/wiki/Voice-Types-ES.md),
+> el [entrenamiento LoRA](docs/wiki/Training-Guide-ES.md) y la [generación por lotes](docs/wiki/Batch-Generation-ES.md).
 > Donde este fork se comporta de forma distinta al proyecto upstream, este README y `RECIPES.md` son los correctos.
 
 ## Instalación
