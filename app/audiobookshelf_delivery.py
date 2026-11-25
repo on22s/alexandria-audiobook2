@@ -94,6 +94,10 @@ class DeliveryError(ValueError):
         self.status = status
 
 
+class InsecureBackendError(DeliveryError):
+    """The OS keyring backend is plaintext/fail and must never hold the key."""
+
+
 # --- Credential store -------------------------------------------------------
 
 def _is_secure_backend(backend):
@@ -134,7 +138,7 @@ def _check_secure_backend(keyring):
         raise DeliveryError(
             'The OS credential store is unavailable. The API key was not stored anywhere.', 503) from error
     if not _is_secure_backend(backend):
-        raise DeliveryError(
+        raise InsecureBackendError(
             'The OS credential store backend is not secure, so the API key was refused. '
             'Configure a secure OS keyring backend, then retry.', 503)
 
