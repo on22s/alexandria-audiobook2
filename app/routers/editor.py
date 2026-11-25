@@ -1550,6 +1550,10 @@ def _list_abs_deliveries_sync(token):
     return {'book_token': token, 'deliveries': entries}
 
 
+def _raise_abs_delivery_error(error):
+    raise HTTPException(status_code=error.status, detail=str(error)) from error
+
+
 @router.post('/api/abs/reconcile')
 async def reconcile_abs_delivery(request: AbsReconcileRequest):
     return await asyncio.to_thread(_reconcile_abs_delivery_sync, request)
@@ -1576,25 +1580,22 @@ def _reconcile_abs_delivery_sync(request):
     try:
         updated = delivery.reconcile_delivery(DATA_DIR, request.delivery_id, server, token)
     except delivery.DeliveryError as error:
-        raise HTTPException(status_code=error.status, detail=str(error)) from error
+        _raise_abs_delivery_error(error)
     return updated
 
 
 @router.post('/api/abs/discard')
 async def discard_abs_delivery(request: AbsDiscardRequest):
-    if not request.confirm:
-        raise HTTPException(status_code=400, detail='Confirm you want to discard this delivery record.')
     return await asyncio.to_thread(_discard_abs_delivery_sync, request)
 
 
 def _discard_abs_delivery_sync(request):
     import audiobookshelf_delivery as delivery
-    # Sibling of reconcile: a ledger action keyed only by delivery_id. It makes
-    # no network call and does not require the entry's server to be reachable.
     try:
-        return delivery.discard_unknown_delivery(DATA_DIR, request.delivery_id)
+        return delivery.discard_unknown_delivery(DATA_DIR, request.delivery_id,
+                                                 request.confirm)
     except delivery.DeliveryError as error:
-        raise HTTPException(status_code=error.status, detail=str(error)) from error
+        _raise_abs_delivery_error(error)
 
 
 @router.get('/api/abs/progress')

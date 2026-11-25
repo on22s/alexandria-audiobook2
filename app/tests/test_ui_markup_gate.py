@@ -106,8 +106,10 @@ KEEP_ENGLISH = frozenset({
     'Error', 'TypeError', 'RangeError', 'SyntaxError', 'AbortError',
     'NetworkError', 'SecurityError', 'QuotaExceededError', 'InvalidStateError', 'UnknownError',
     'POST', 'same-origin', 'Content-Type', 'application/json',
-    # Bootstrap class lists on the connection-test result: styling, not copy.
+    # Bootstrap class lists on the connection-test result and the AB discard
+    # button: styling, not copy.
     'ms-2 small text-danger', 'ms-2 small d-inline-flex flex-wrap align-items-center gap-2',
+    'btn btn-outline-danger btn-sm ms-2',
     # #2042 textured progress bars: the component's CSS class set and the
     # element ids its renderer looks up are wiring, never display copy.
     'tp tp-dither tp-sm tp-indeterminate', 'tp-indeterminate',

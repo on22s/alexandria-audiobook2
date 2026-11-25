@@ -246,7 +246,7 @@ class AbsRouteTests(unittest.TestCase):
             self.assertEqual(200, discarded.status_code, discarded.text)
             updated = discarded.json()
             self.assertEqual('failed', updated['status'])
-            self.assertEqual('unknown', updated['discarded_from_status'])
+            self.assertNotIn('discarded_from_status', updated)
             self.assertIn('discarded_at', updated)
             deliveries = client.get('/api/abs/deliveries',
                                     params={'expected_book_token': self.book_token})

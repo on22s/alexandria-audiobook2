@@ -315,7 +315,12 @@ const mk=()=>({style:{},textContent:'',value:'',checked:false,disabled:false,cla
 const el=id=>elements[id]||(elements[id]=mk());
 const entries=[
   {id:'d1',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'unknown',output_bytes:100,sha256:'s'},
-  {id:'d2',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'sent',output_bytes:100,sha256:'s'}];
+  {id:'d2',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'sent',output_bytes:100,sha256:'s'},
+  {id:'d3',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'failed',output_bytes:100,sha256:'s'},
+  {id:'d4',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'in_flight',output_bytes:100,sha256:'s'},
+  {id:'d5',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'failed',output_bytes:100,sha256:'s',
+   discarded_at:1,discarded_note:'Abandoned by the user after an unknown outcome.',
+   verification_note:'Upload accepted by the server (HTTP 200); resend stays blocked.'}];
 let confirmAnswer=false;
 const confirms=[];
 const posts=[];
@@ -334,12 +339,17 @@ Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.pr
 vm.runInContext(source,ctx);
 (async()=>{
 await ctx.loadAbsDeliveries();
-const unknownRow=el('abs-deliveries').children[0];
-const sentRow=el('abs-deliveries').children[1];
-assert.ok(unknownRow.children.some(child=>child.textContent==='Discard outcome'),'unknown offers discard');
-assert.ok(!sentRow.children.some(child=>child.textContent==='Discard outcome'),'sent offers no discard');
+const rows=el('abs-deliveries').children;
+const unknownRow=rows[0];
+for(const index of [1,2,3]){
+  assert.ok(!rows[index].children.some(child=>child.textContent==='Abandon this send'),'only unknown rows offer abandon');
+  assert.ok(!rows[index].children.some(child=>child.textContent==='Verify delivery'),'only unknown rows offer verify');
+}
+assert.ok(unknownRow.children.some(child=>child.textContent==='Abandon this send'),'unknown offers abandon');
 assert.ok(unknownRow.children.some(child=>child.textContent==='Verify delivery'),'unknown still offers verify');
-assert.ok(!sentRow.children.some(child=>child.textContent==='Verify delivery'),'sent offers no verify');
+const discardedRow=rows[4];
+assert.ok(discardedRow.children.some(child=>child.textContent==='Abandoned by the user after an unknown outcome.'),'discarded row shows its note');
+assert.ok(!discardedRow.children.some(child=>/resend stays blocked/.test(child.textContent)),'discarded row hides the stale verification note');
 
 confirmAnswer=false;
 await ctx.discardAbsDelivery('d1');
