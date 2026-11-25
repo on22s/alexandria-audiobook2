@@ -24,7 +24,7 @@ $ProgressPreference = 'SilentlyContinue'
 $FfmpegVersion = '9.1'
 $ArchiveName = 'ffmpeg-9.1-essentials_build.zip'
 $ArchiveUrl = 'https://github.com/GyanD/codexffmpeg/releases/download/9.1/ffmpeg-9.1-essentials_build.zip'
-$ArchiveSha256 = 'b9bbbb3acece000cbeec994f856649354e52c773807841e78908374b24d658fd'
+$ArchiveSha256 = '0000000000000000000000000000000000000000000000000000000000000000'
 
 function Test-FfmpegTools {
     $ffmpeg = Get-Command ffmpeg -CommandType Application -ErrorAction SilentlyContinue
