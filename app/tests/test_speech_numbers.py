@@ -62,6 +62,49 @@ class ConvertedTests(unittest.TestCase):
                 self.assertTrue(speech_numbers._has_range_context(match))
             self.assertLessEqual(CountedText.read, 2 * len(text), repeats)
 
+    def test_prefixed_currency_money_is_verbalized(self):
+        cases = {
+            "It cost US$1,234.56 today.": "It cost 1,234 US dollars and 56 cents today.",
+            "It cost CAD$12.50.": "It cost 12 CAD dollars and 50 cents.",
+            "It cost A$12.50.": "It cost 12 A dollars and 50 cents.",
+            "It cost HK$12.50.": "It cost 12 HK dollars and 50 cents.",
+            "It cost C$12.50.": "It cost 12 C dollars and 50 cents.",
+            "It cost NZ$12.50.": "It cost 12 NZ dollars and 50 cents.",
+            "It cost S$12.50.": "It cost 12 S dollars and 50 cents.",
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(expected, spoken(source))
+        self.assertEqual("It cost 1 US dollar.", spoken("It cost US$1.00."))
+        self.assertEqual("It cost 1 US dollar and 1 cent.", spoken("It cost US$1.01."))
+        # Whole dollars at zero keep the existing "$" rule, which names the cents only.
+        self.assertEqual("It cost 75 cents.", spoken("It cost US$0.75."))
+
+    def test_prefixed_money_change_is_recorded(self):
+        _text, changes = verbalize_numbers("It cost US$1,234.56 today.")
+        self.assertEqual([{"type": "verbalized_numbers", "changes": [
+            {"kind": "money", "source": "US$1,234.56",
+             "spoken": "1,234 US dollars and 56 cents"}]}], changes)
+
+    def test_season_year_range_is_verbalized(self):
+        cases = {
+            "The 2000-2001 season was long.": "The 2000 to 2001 season was long.",
+            "The 2000-2001 seasons were long.": "The 2000 to 2001 seasons were long.",
+            "The 1999-2000 season was long.": "The 1999 to 2000 season was long.",
+            "The 2000-2001 season, then.": "The 2000 to 2001 season, then.",
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(expected, spoken(source))
+
+    def test_every_converted_line_is_stable_when_read_again(self):
+        for source in ("It cost US$1,234.56 today.", "It cost CAD$12.50.",
+                       "The 2000-2001 season was long.", "It cost $4.50 today.",
+                       "Read pages 3-5 tonight.", "On 3/14/1879 he was born."):
+            with self.subTest(source=source):
+                once = spoken(source)
+                self.assertEqual(once, spoken(once))
+
     def test_an_ambiguous_date_follows_the_book_order(self):
         self.assertEqual("dated the 4th of July, 1776.", spoken("dated 7/4/1776.", "mdy"))
         self.assertEqual("dated the 7th of April, 1776.", spoken("dated 7/4/1776.", "dmy"))
@@ -86,6 +129,28 @@ class LeftAloneTests(unittest.TestCase):
                      "Subtract 3-5."):
             with self.subTest(text=text):
                 self.assertEqual((text, []), verbalize_numbers(text))
+
+    def test_prefixed_currency_neighbours_are_not_currency_codes(self):
+        for text in ("It cost BUS$5.00.", "It cost SAUS$5.00.", "It cost R$5.00.",
+                     "It cost us$5.00.", "It cost US$-5.00.", "It cost US$5-10.",
+                     "It cost US$5.00-10.00.", "It cost US$5 million.",
+                     "It cost US$1.234.", "It cost US$1.5."):
+            with self.subTest(text=text):
+                self.assertEqual((text, []), verbalize_numbers(text))
+
+    def test_season_range_needs_four_digit_years_on_both_sides(self):
+        for text in ("The 737-800 season was long.", "The 2000-01 season was long.",
+                     "The 2000 - 2001 season was long.", "The 2000-1999 season was long.",
+                     "The 2000-20-01 season.", "ISBN 2000-2001-X season.",
+                     "The 2000-2001-season.", "The 9999-10000 season was long."):
+            with self.subTest(text=text):
+                self.assertEqual((text, []), verbalize_numbers(text))
+        # An en dash keeps its existing unconditional behaviour, and the words
+        # that already followed a range still do.
+        self.assertEqual("The 2000 to 2001 season was long.",
+                         spoken("The 2000\u20132001 season was long."))
+        self.assertEqual("The 2000 to 2001 points were many.",
+                         spoken("The 2000-2001 points were many."))
 
     def test_an_ambiguous_date_with_no_order_is_left_and_recorded(self):
         text, changes = verbalize_numbers("She wrote on 1/2/1900.")

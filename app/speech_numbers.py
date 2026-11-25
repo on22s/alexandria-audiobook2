@@ -36,7 +36,14 @@ STATE_KEY = "speech_date_order"
 # ends a sentence, "1.2-3.4" does not.
 _BEFORE = r"(?<![\w./\-–])"
 _AFTER = r"(?![\w/\-–]|[.,]\d)"
+# Currency codes that books put directly before "$". An explicit table, not
+# "[A-Z]{2,3}$", because a word ending in those letters (BUS$5.00) would
+# otherwise be read as a code. Only dollar codes: R$ is a real, not a dollar.
+_CURRENCY_PREFIXES = ("US", "CAD", "CA", "C", "A", "AU", "HK", "NZ", "S", "SG", "NT", "MX")
 _MONEY_RE = re.compile(r"(?<![\w$])\$(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})" + _AFTER)
+_PREFIXED_MONEY_RE = re.compile(
+    r"(?<![\w$])(" + "|".join(sorted(_CURRENCY_PREFIXES, key=len, reverse=True)) + r")\$"
+    r"(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})" + _AFTER)
 _RANGE_RE = re.compile(_BEFORE + r"(\d+)[-–](\d+)" + _AFTER)
 _DATE_RE = re.compile(_BEFORE + r"(\d{1,2})/(\d{1,2})/(\d{4})" + _AFTER)
 
@@ -77,13 +84,14 @@ def get_date_reading(first, second, year, date_order):
     return None
 
 
-def _spoken_money(dollars, cents):
+def _spoken_money(dollars, cents, currency=""):
     whole = int(dollars.replace(",", ""))
     cents = int(cents)
     cent_words = f"{cents} cent" + ("" if cents == 1 else "s")
     if whole == 0:
         return cent_words
-    dollar_words = f"{dollars} dollar" + ("" if whole == 1 else "s")
+    prefix = f"{currency} " if currency else ""
+    dollar_words = f"{dollars} {prefix}dollar" + ("" if whole == 1 else "s")
     return dollar_words if cents == 0 else f"{dollar_words} and {cent_words}"
 
 
@@ -100,7 +108,10 @@ _RANGE_WORDS_AFTER = {
     "am", "pm", "a.m.", "p.m.", "o'clock", "seconds", "minutes", "hours", "days",
     "weeks", "months", "years", "miles", "feet", "inches", "yards", "metres",
     "meters", "kilometres", "kilometers", "pounds", "kilos", "percent", "%",
-    "people", "men", "women", "times", "players", "points"}
+    "people", "men", "women", "times", "players", "points", "season", "seasons"}
+# A season year range is only a range with four-digit years on both sides;
+# "the 737-800 season" is a model, not a range.
+_SEASON_RANGE_WORDS = frozenset({"season", "seasons"})
 _WORD_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.'")
 _WORD_AFTER_RE = re.compile(r"\s*(%|[A-Za-z.']+)")
 
@@ -124,10 +135,19 @@ def _has_range_context(match):
     if "–" in match.group(0):
         return True
     before = _get_word_before(match.string, match.start())
+    if before and before.lower().strip(".") in _RANGE_WORDS_BEFORE:
+        return True
     after = _WORD_AFTER_RE.match(match.string, match.end())
-    return bool(before and before.lower().strip(".") in _RANGE_WORDS_BEFORE
-                or after and (after.group(1).lower() in _RANGE_WORDS_AFTER
-                              or after.group(1).lower().rstrip(".,;:") in _RANGE_WORDS_AFTER))
+    if not after:
+        return False
+    word = after.group(1).lower()
+    if word not in _RANGE_WORDS_AFTER:
+        word = word.rstrip(".,;:")
+        if word not in _RANGE_WORDS_AFTER:
+            return False
+    if word in _SEASON_RANGE_WORDS:
+        return all(len(value) == 4 for value in match.groups())
+    return True
 
 
 def _is_range(first, second):
@@ -144,6 +164,11 @@ def verbalize_numbers(text, date_order=None):
 
     def money(match):
         spoken = _spoken_money(match.group(1), match.group(2))
+        changes.append({"kind": "money", "source": match.group(0), "spoken": spoken})
+        return spoken
+
+    def prefixed_money(match):
+        spoken = _spoken_money(match.group(2), match.group(3), match.group(1))
         changes.append({"kind": "money", "source": match.group(0), "spoken": spoken})
         return spoken
 
@@ -168,7 +193,8 @@ def verbalize_numbers(text, date_order=None):
         changes.append({"kind": "range", "source": match.group(0), "spoken": spoken})
         return spoken
 
-    value = _MONEY_RE.sub(money, text)
+    value = _PREFIXED_MONEY_RE.sub(prefixed_money, text)
+    value = _MONEY_RE.sub(money, value)
     value = _DATE_RE.sub(date, value)
     value = _RANGE_RE.sub(number_range, value)
     transformations = []
