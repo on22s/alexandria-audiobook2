@@ -50,41 +50,43 @@ _SPOKEN_CURRENCIES = {
 # A magnitude word after the amount ("US$5.50 million", "$1.25 million") is not
 # a cents figure; leave the amount as written rather than speak "... and 50 cents
 # million". One definition, used by both the prefixed and the plain "$" rule.
-_MAGNITUDES = r"(?!\s*(?i:million|billion|trillion|thousand|hundred|bn|m|k)s?\b)"
-# A "$" that follows a digit and a dash is the tail of a money range, never a
-# standalone amount: "$1.50-$2.00" must not leave "2 dollars" behind. A minus
-# sign ("-$1.50") has no digit before the dash and still converts. An amount
-# followed by a dash and another amount is the head of a range too, so only the
-# range rule may speak it: "$1.50 - $2.00 million" is left whole, not half.
-# _AFTER cannot carry the em dash, or a prose range ("pages 3-5—the good ones")
-# would stop converting.
-_MONEY_AFTER = _AFTER + r"(?!\s*[-–—]\s*\$?\d)"
-# A prefixed head is the same range head only when the tail is its own "$"
-# amount: "US$5.00 - 10.00" keeps converting the prefix as main did, while
-# "US$1.50 - $2.00 million" is left whole instead of half converted.
-_PREFIXED_MONEY_AFTER = _AFTER + r"(?!\s*[-–—]\s*\$\d)"
-_MONEY_RE = re.compile(r"(?<![\w$])(?<!\d[-–—])\$(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})"
-                       + _MONEY_AFTER + _MAGNITUDES)
+_MAGNITUDE_WORD = r"(?i:million|billion|trillion|thousand|hundred|bn|m|k)s?\b"
+_MAGNITUDES = r"(?!\s*" + _MAGNITUDE_WORD + r")"
+_MONEY_AMOUNT = r"(?:\d{1,3}(?:,\d{3})+|\d+)"
+# An amount joined by "to", "or" (or "and" after "between") to a cents amount
+# that a magnitude word leaves written ("from $1.50 to $2.00 million") is half a
+# pair if spoken alone. The amount before the join stays written too. The dash
+# form is included so "$1.50 - $2.00 million" is left whole rather than half.
+_JOIN_TO_MAGNITUDE_RE = re.compile(
+    r"\s*(?:[-–—]\s*|(to|or)\s+|(and)\s+)"
+    r"(?:(?:" + "|".join(sorted(_SPOKEN_CURRENCIES, key=len, reverse=True)) + r")\$|\$)"
+    + _MONEY_AMOUNT + r"\.\d{2}\s*" + _MAGNITUDE_WORD)
+# A "$" that follows a digit and a TIGHT dash is the tail of a money range, never
+# a standalone amount: "$1.50-$2.00" must not leave "2 dollars" behind. A minus
+# sign ("-$1.50") has no digit before the dash and still converts. Em dash and
+# spaced dashes are not ranges, so they keep main's treatment (an em dash still
+# converts an amount on either side).
+_MONEY_RE = re.compile(r"(?<![\w$])(?<!\d[-–])\$(" + _MONEY_AMOUNT + r")\.(\d{2})"
+                       + _AFTER + _MAGNITUDES)
 # Digits are bounded well under Python's int-string limit so an absurd amount is
 # left as written instead of raising inside _spoken_money.
 _PREFIXED_MONEY_RE = re.compile(
     r"(?<![" + _TOUCHING + r"$])("
     + "|".join(sorted(_SPOKEN_CURRENCIES, key=len, reverse=True)) + r")\$"
-    r"(\d{1,3}(?:,\d{3}){1,5}|\d{1,18})\.(\d{2})" + _PREFIXED_MONEY_AFTER + _MAGNITUDES)
-# One dash-separated chain of amounts is a money range only when every end is
-# money: "$1.50-$2.00", "$1.50-2.00", "$1-$2.50". _AFTER and the shared
-# _MAGNITUDES guard keep "from $1.50-$2.00/hour" and "$1.50-$2.00 million" as
-# written. A prefixed first amount speaks both ends only when a tail carries its
-# own "$" ("US$1.50-$2.00"); the prefix-omitted form ("US$5.00-10.00") is left
-# exactly as main leaves it. Spaced prefixed-prefixed ranges never match the tail
-# (it has no code), so they still convert each end separately as before.
-_MONEY_AMOUNT = r"(?:\d{1,3}(?:,\d{3})+|\d+)"
+    r"(\d{1,3}(?:,\d{3}){1,5}|\d{1,18})\.(\d{2})" + _AFTER + _MAGNITUDES)
+# One dash-separated chain of amounts is a money range only when the dash is
+# tight and "-" or "–", at least one end carries cents, and every later end
+# either carries its own "$" or has exactly two decimals: "$1.50-$2.00",
+# "$1.50-2.00", "$1.50-$2", "$1-$2.50". Everything else keeps main's reading:
+# em dash, any spaced dash, a bare whole number after the dash, and whole-dollar
+# ranges. _AFTER and _MAGNITUDES keep "$1.50-$2.00/hour" and "$1.50-$2.00
+# million" as written.
 _MONEY_RANGE_RE = re.compile(
     r"(?:(?<![" + _TOUCHING + r"$])("
     + "|".join(sorted(_SPOKEN_CURRENCIES, key=len, reverse=True)) + r")\$"
     r"|(?<![\w$])\$)"
     r"(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{2}))?"
-    r"((?:\s*[-–—]\s*\$?" + _MONEY_AMOUNT + r"(?:\.\d{2})?)+)"
+    r"((?:[-–]\$?" + _MONEY_AMOUNT + r"(?:\.\d{2})?)+)"
     + _AFTER + _MAGNITUDES)
 _MONEY_ENDPOINT_RE = re.compile(r"\$?(" + _MONEY_AMOUNT + r")(?:\.(\d{2}))?")
 _RANGE_RE = re.compile(_BEFORE + r"(\d+)[-–](\d+)" + _AFTER)
@@ -201,28 +203,56 @@ def _is_range(first, second):
     return not (len(first) == 3 and len(second) == 4)        # 555-1234
 
 
+def _is_joined_to_left_magnitude(text, start, end):
+    """True when the amount at [start, end) is joined to a magnitude amount that stays written.
+
+    Main spoke the left amount alone in "from $1.50 to $2.00 million", which is
+    not the pair's value; leave it written too. "and" only joins when the phrase
+    started with "between"; "I gave $1.50 and $2.00 million came later" still
+    converts the first amount.
+    """
+    match = _JOIN_TO_MAGNITUDE_RE.match(text, end)
+    if not match:
+        return False
+    if match.group(2) is not None:                     # "and"
+        before = _get_word_before(text, start)
+        return bool(before) and before.lower() == "between"
+    return True
+
+
 def verbalize_numbers(text, date_order=None):
     """-> (text, transformations). Only the three conventions; everything else unchanged."""
     changes, ambiguous = [], 0
 
     def money(match):
+        if _is_joined_to_left_magnitude(match.string, match.start(), match.end()):
+            return match.group(0)
         spoken = _spoken_money(match.group(1), match.group(2))
         changes.append({"kind": "money", "source": match.group(0), "spoken": spoken})
         return spoken
 
     def prefixed_money(match):
+        if _is_joined_to_left_magnitude(match.string, match.start(), match.end()):
+            return match.group(0)
         spoken = _spoken_money(match.group(2), match.group(3),
                                _SPOKEN_CURRENCIES[match.group(1)])
         changes.append({"kind": "money", "source": match.group(0), "spoken": spoken})
         return spoken
 
     def money_range(match):
-        prefix, tail = match.group(1), match.group(4)
-        if prefix and "$" not in tail:
+        prefix, dollars, first_cents, tail = match.groups()
+        endpoints = list(_MONEY_ENDPOINT_RE.finditer(tail))
+        if any(not endpoint.group(0).startswith("$") and endpoint.group(2) is None
+               for endpoint in endpoints):
             return match.group(0)
-        parts = [_spoken_money(match.group(2), match.group(3) or "00",
+        has_cents = ((first_cents is not None and int(first_cents) != 0)
+                     or any(endpoint.group(2) is not None and int(endpoint.group(2)) != 0
+                            for endpoint in endpoints))
+        if not has_cents:
+            return match.group(0)
+        parts = [_spoken_money(dollars, first_cents or "00",
                                _SPOKEN_CURRENCIES[prefix] if prefix else "")]
-        for endpoint in _MONEY_ENDPOINT_RE.finditer(tail):
+        for endpoint in endpoints:
             parts.append(_spoken_money(endpoint.group(1), endpoint.group(2) or "00"))
         spoken = " to ".join(parts)
         changes.append({"kind": "money", "source": match.group(0), "spoken": spoken})

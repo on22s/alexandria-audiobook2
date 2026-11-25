@@ -201,25 +201,24 @@ class PlainMoneyMagnitudeTests(unittest.TestCase):
 
 
 class MoneyRangeTests(unittest.TestCase):
-    """#2315: a money range is spoken at both ends or left at both ends."""
+    """#2315: only a tight cents range is spoken, and both ends are spoken."""
 
-    def test_every_money_range_form_speaks_both_ends(self):
+    def test_a_tight_cents_range_speaks_both_ends(self):
         cases = {
             "It cost $1.50-$2.00.": "It cost 1 dollar and 50 cents to 2 dollars.",
             "It cost $1.50\u2013$2.00.": "It cost 1 dollar and 50 cents to 2 dollars.",
-            "It cost $1.50\u2014$2.00.": "It cost 1 dollar and 50 cents to 2 dollars.",
-            "It cost $1.50 - $2.00.": "It cost 1 dollar and 50 cents to 2 dollars.",
             "It cost $1.50-2.00.": "It cost 1 dollar and 50 cents to 2 dollars.",
             "It cost $1.50-$2.": "It cost 1 dollar and 50 cents to 2 dollars.",
             "It cost $1-$2.50.": "It cost 1 dollar to 2 dollars and 50 cents.",
+            "It cost $0.50-$0.75.": "It cost 50 cents to 75 cents.",
+            "It cost $1,200.50-$1,500.00.":
+                "It cost 1,200 dollars and 50 cents to 1,500 dollars.",
             "It cost $1.50-$2.00-$3.00.":
                 "It cost 1 dollar and 50 cents to 2 dollars to 3 dollars.",
-            "It cost $1.50 to $2.00.": "It cost 1 dollar and 50 cents to 2 dollars.",
-            "It cost -$1.50.": "It cost -1 dollar and 50 cents.",
-            # A prefixed first amount is spoken at both ends only when the tail
-            # carries its own "$"; this was half converted before.
+            # A prefixed first amount gets the same rule as a plain one.
             "It cost US$1.50-$2.00.": "It cost 1 US dollar and 50 cents to 2 dollars.",
             "It cost CA$1.50-$2.00.": "It cost 1 Canadian dollar and 50 cents to 2 dollars.",
+            "It cost US$1.50-2.00.": "It cost 1 US dollar and 50 cents to 2 dollars.",
         }
         for source, expected in cases.items():
             with self.subTest(source=source):
@@ -231,15 +230,63 @@ class MoneyRangeTests(unittest.TestCase):
             {"kind": "money", "source": "$1.50-$2.00",
              "spoken": "1 dollar and 50 cents to 2 dollars"}]}], changes)
 
-    def test_ranges_that_are_not_amounts_or_cannot_be_read_stay_put(self):
-        # Magnitude ranges and slashed rates are left whole, at both ends, for
-        # every dash so no half-converted range survives.
+    def test_other_dashes_keep_mains_reading(self):
+        # Em dash is not a range: both cents amounts convert on their own, as
+        # main did. A spaced dash is not a range either; so are the numbers in
+        # prose after an amount.
+        cases = {
+            "It cost $1.50\u2014$2.00 if you count tax.":
+                "It cost 1 dollar and 50 cents\u20142 dollars if you count tax.",
+            "It cost $1.50 - $2.00.": "It cost 1 dollar and 50 cents - 2 dollars.",
+            "It cost $1.50 \u2013 $2.00.": "It cost 1 dollar and 50 cents \u2013 2 dollars.",
+            "He owed $5.00\u201410 days late.": "He owed 5 dollars\u201410 days late.",
+            "It cost $4.99 \u2014 12 of us paid.":
+                "It cost 4 dollars and 99 cents \u2014 12 of us paid.",
+            "He owed $5.00 - 3 of them.": "He owed 5 dollars - 3 of them.",
+            "It cost $4.99\u20144 times what I paid.":
+                "It cost 4 dollars and 99 cents\u20144 times what I paid.",
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(expected, normalized(source))
+        # A dash that is not a range still converts the amount before it.
+        self.assertEqual("It cost 1 dollar and 50 cents - that was all.",
+                         normalized("It cost $1.50 - that was all."))
+        self.assertEqual("It cost -1 dollar and 50 cents.",
+                         normalized("It cost -$1.50."))
+
+    def test_a_tight_bare_or_whole_dollar_range_stays_put(self):
+        for text in ("It cost $1.50-2.",
+                     "It cost $1.50-10 people came.",
+                     "It cost $3.50-5 a pound.",
+                     "It cost $19.99-2024 edition.",
+                     "Score $1.00\u20130.",
+                     "It cost $20.00-1.",
+                     "It cost $1.50-2.000.",
+                     "It cost $1.50-$2.00s.",
+                     # No cents anywhere, so this is not a money range.
+                     "It cost $5-$10.",
+                     "It cost $1-$2.",
+                     "It cost $5.00-$10.00.",
+                     "It cost $1.00-$2.00.",
+                     "It cost $1.00-$1.00.",
+                     "It cost $5-10 million.",
+                     "It cost $5-$10 million.",
+                     # A slash or hyphen rate is a single amount, not a range.
+                     "It cost $3.50/hour.",
+                     "It cost $3.50-a-night."):
+            with self.subTest(text=text):
+                self.assertEqual(text, normalized(text))
+
+    def test_ranges_a_reader_cannot_say_stay_whole(self):
+        # Magnitude ranges, slashed rates and hyphenated rates are left whole at
+        # both ends, so no half-converted range survives.
         for text in ("It cost $1.50-$2.00 million.",
                      "It cost $1.50 - $2.00 million.",
                      "It cost $1.50 \u2013 $2.00 million.",
                      "It cost $1.50 \u2014 $2.00 million.",
                      "from $1.50-$2.00/hour.",
-                     "It cost $1.50-a-night.",
+                     "It cost $1.50-$2.00-a-night.",
                      "It cost $-1.50.",
                      "It cost US$1.50-US$2.00.",
                      "It cost US$5.00-10.00.",
@@ -247,17 +294,42 @@ class MoneyRangeTests(unittest.TestCase):
                      "It cost US$1.50-$2.00 million."):
             with self.subTest(text=text):
                 self.assertEqual(text, normalized(text))
-        # A dash that is not a range still converts the amount before it.
-        self.assertEqual("It cost 1 dollar and 50 cents - that was all.",
-                         normalized("It cost $1.50 - that was all."))
-        self.assertEqual("It cost 1 dollar and 50 cents to 2 dollars if you asked him nicely.",
-                         normalized("It cost $1.50\u2014$2.00 if you asked him nicely."))
         # Spaced prefixed-prefixed ranges keep main's behaviour: both ends spoken.
         self.assertEqual("It cost 1 US dollar and 50 cents - 2 US dollars.",
                          normalized("It cost US$1.50 - US$2.00."))
         # A prefixed head with a bare tail keeps main's conversion of the head.
         self.assertEqual("It cost 5 US dollars - 10.00.",
                          normalized("It cost US$5.00 - 10.00."))
+
+
+class MoneyPairMagnitudeTests(unittest.TestCase):
+    """#2315: a partner left because of a magnitude must not leave half a pair."""
+
+    def test_the_first_amount_stays_written_when_its_partner_has_a_magnitude(self):
+        for text in ("from $1.50 to $2.00 million.",
+                     "between $1.25 and $2.50 billion.",
+                     "It cost $1.50 or $2.00 million.",
+                     "from US$1.50 to US$2.00 million.",
+                     "between US$1.25 and $2.50 billion.",
+                     "It cost US$1.50 or $2.00 million."):
+            with self.subTest(text=text):
+                self.assertEqual(text, normalized(text))
+
+    def test_and_without_between_still_converts_the_first_amount(self):
+        self.assertEqual(
+            "I gave 1 dollar and 50 cents and $2.00 million came later.",
+            normalized("I gave $1.50 and $2.00 million came later."))
+        self.assertEqual(
+            "I gave 1 US dollar and 50 cents and US$2.00 million came later.",
+            normalized("I gave US$1.50 and US$2.00 million came later."))
+
+    def test_to_without_a_magnitude_still_speaks_both_ends(self):
+        self.assertEqual("It cost 1 dollar and 50 cents to 2 dollars.",
+                         normalized("It cost $1.50 to $2.00."))
+        # A partner with no cents is not left because of a magnitude, so the
+        # first amount is spoken, exactly as main did.
+        self.assertEqual("It cost 1 dollar and 50 cents to $2 million.",
+                         normalized("It cost $1.50 to $2 million."))
 
 
 class LeftAloneTests(unittest.TestCase):
