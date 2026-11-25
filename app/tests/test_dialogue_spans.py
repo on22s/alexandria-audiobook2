@@ -178,6 +178,76 @@ class SpanTest(unittest.TestCase):
                 self.assertEqual(expected, [source[a:b] for a, b in
                                             spoken_spans(source, "paired_quotes")])
 
+    def test_a_digit_final_speech_closes_when_no_later_mark_can_close_it(self):
+        # A mark with no later closer in the paragraph is the only thing that
+        # can close this speech, so the word after it cannot make it an inch
+        # mark. Main already answered this way; the inch fix must not undo it.
+        cases = [
+            ('“It was 1945” long ago.', ['It was 1945']),
+            ('"It was 1945" long ago.', ['It was 1945']),
+            ('“We counted 20” high up on the wall.', ['We counted 20']),
+            ('"We counted 20" high up on the wall.', ['We counted 20']),
+            ('“Chapter 7” to 9 were missing.', ['Chapter 7']),
+            ('“He is 12” and 13 is old.', ['He is 12']),
+            ('“Agent 47” across the hall waved.', ['Agent 47']),
+            ('He wrote “1984” long before.', ['1984']),
+            ('He wrote "1984" long before.', ['1984']),
+            ('“Room 12” deep in the cellar was cold.', ['Room 12']),
+            ('She said “10” and 12 people laughed.', ['10']),
+            ('She said "10" and 12 people laughed.', ['10']),
+            ('“It was 1945” long ago, she wrote.', ['It was 1945']),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_a_later_number_mark_behind_a_new_opener_cannot_close(self):
+        # Only the second speech's closer is number-preceded, and it belongs
+        # to that speech, so the first speech still closes at its own mark.
+        for source, expected in [
+                ('“Catch 22” high and low, she searched. “Area 51” too.',
+                 ['Catch 22', 'Area 51']),
+                ('"Catch 22" high and low, she searched. "Area 51" too.',
+                 ['Catch 22', 'Area 51']),
+                ('“We counted 20” high up on the wall. “Good,” she said.',
+                 ['We counted 20', 'Good,'])]:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_a_continued_speech_is_the_only_reason_to_keep_the_mark(self):
+        # The next paragraph re-opens the speech and the word after the digit
+        # is a unit, so the mark is a measurement and the speech continues.
+        for opener, closer in (('“', '”'), ('"', '"')):
+            source = (opener + 'The board is 6' + closer + ' wide and\n\n'
+                      + opener + 'it is heavy,' + closer + ' he said.')
+            with self.subTest(source=source):
+                self.assertEqual(
+                    [(1, source.index(closer + ' he said'))],
+                    spoken_spans(source, "paired_quotes"))
+        # The same break with no measurement word after the digit closes.
+        for opener, closer in (('“', '”'), ('"', '"')):
+            source = (opener + 'I am 12' + closer + ' she said\n\n'
+                      + opener + 'Good,' + closer + ' he said.')
+            with self.subTest(source=source):
+                start = source.index('Good,')
+                self.assertEqual(
+                    [(1, 1 + len('I am 12')), (start, start + len('Good,'))],
+                    spoken_spans(source, "paired_quotes"))
+        # A paragraph beginning with something else is not a continuation,
+        # even when the word after the digit is a unit.
+        for source in ('“It was 1945” long ago.\n\nHe left.',
+                       '"It was 1945" long ago.\n\nHe left.'):
+            with self.subTest(source=source):
+                self.assertEqual(['It was 1945'],
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+        source = '“It was 1945” long ago.\n\n"Good," he said.'
+        self.assertEqual(['It was 1945', 'Good,'],
+                         [source[a:b] for a, b in
+                          spoken_spans(source, "paired_quotes")])
+
     def test_measurement_continuation_forms_keep_the_mark(self):
         cases = [
             ('“It is 6” by 8”', 'It is 6” by 8'),

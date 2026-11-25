@@ -491,6 +491,66 @@ class InchMarkTests(unittest.TestCase):
             [("SPOKEN", 'It is 6” wide and 8')],
             self._regions('“It is 6” wide and 8”'))
 
+    def test_a_digit_final_speech_closes_unless_something_can_still_close_it(self):
+        # A closer-shaped mark after a bare digit is an inch mark only while a
+        # later mark can still close the same speech. With none (`1945” long`)
+        # or only the second speech's own number mark (`“Area 51”`), it closes.
+        cases = [
+            ('“It was 1945” long ago.',
+             [("SPOKEN", "It was 1945"), ("NARRATOR", "long ago.")]),
+            ('"We counted 20" high up on the wall.',
+             [("SPOKEN", "We counted 20"), ("NARRATOR", "high up on the wall.")]),
+            ('“Chapter 7” to 9 were missing.',
+             [("SPOKEN", "Chapter 7"), ("NARRATOR", "to 9 were missing.")]),
+            ('“He is 12” and 13 is old.',
+             [("SPOKEN", "He is 12"), ("NARRATOR", "and 13 is old.")]),
+            ('“Catch 22” high and low, she searched. “Area 51” too.',
+             [("SPOKEN", "Catch 22"), ("NARRATOR", "high and low, she searched."),
+              ("SPOKEN", "Area 51"), ("NARRATOR", "too.")]),
+            ('"Catch 22" high and low, she searched. "Area 51" too.',
+             [("SPOKEN", "Catch 22"), ("NARRATOR", "high and low, she searched."),
+              ("SPOKEN", "Area 51"), ("NARRATOR", "too.")]),
+            ('“It was 1945” long ago, she wrote.',
+             [("SPOKEN", "It was 1945"), ("NARRATOR", "long ago, she wrote.")]),
+            # A self-paired opener (＂…＂) has no separate opener mark to bound
+            # the search, so its later number mark is still a closer.
+            ('＂It is 6" wide and 8＂', [("SPOKEN", 'It is 6" wide and 8')]),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, self._regions(source))
+                self.assertEqual(0, analyze_outer_quote_regions(source)["final_depth"])
+
+    def test_a_continued_speech_is_the_only_reason_to_keep_the_mark(self):
+        # The paragraph break is followed by the same opener and the word
+        # after the digit is a unit, so the speech really continues.
+        for opener, closer in (('“', '”'), ('"', '"')):
+            source = (opener + 'The board is 6' + closer + ' wide and\n\n'
+                      + opener + 'it is heavy,' + closer + ' he said.')
+            with self.subTest(source=source):
+                self.assertEqual(
+                    [("SPOKEN", 'The board is 6' + closer + ' wide and'),
+                     ("SPOKEN", "it is heavy,"),
+                     ("NARRATOR", "he said.")],
+                    self._regions(source))
+        # Without the measurement word the same break is two speeches.
+        for opener, closer in (('“', '”'), ('"', '"')):
+            source = (opener + 'I am 12' + closer + ' she said\n\n'
+                      + opener + 'Good,' + closer + ' he said.')
+            with self.subTest(source=source):
+                self.assertEqual(
+                    [("SPOKEN", "I am 12"), ("NARRATOR", "she said"),
+                     ("SPOKEN", "Good,"), ("NARRATOR", "he said.")],
+                    self._regions(source))
+        # A paragraph that begins with something else never continues it.
+        for source in ('“It was 1945” long ago.\n\nHe left.',
+                       '"It was 1945" long ago.\n\nHe left.'):
+            with self.subTest(source=source):
+                self.assertEqual(
+                    [("SPOKEN", "It was 1945"),
+                     ("NARRATOR", "long ago.\n\nHe left.")],
+                    self._regions(source))
+
     def test_initial_depth_keeps_an_inch_mark_when_a_later_closer_follows(self):
         # A chunk continuation has no opener to consult, but a later real
         # closer in the paragraph still proves this mark is a measurement.
