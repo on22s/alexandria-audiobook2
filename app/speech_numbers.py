@@ -47,17 +47,46 @@ _SPOKEN_CURRENCIES = {
     "NZ": "New Zealand", "S": "Singapore", "SG": "Singapore",
     "NT": "New Taiwan",
 }
-# A magnitude word after the amount ("US$5.50 million") is not a cents figure;
-# leave the prefixed form as written rather than speak "... and 50 cents million".
+# A magnitude word after the amount ("US$5.50 million", "$1.25 million") is not
+# a cents figure; leave the amount as written rather than speak "... and 50 cents
+# million". One definition, used by both the prefixed and the plain "$" rule.
 _MAGNITUDES = r"(?!\s*(?i:million|billion|trillion|thousand|hundred|bn|m|k)s?\b)"
-_MONEY_RE = re.compile(r"(?<![\w$])\$(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})" + _AFTER)
+# A "$" that follows a digit and a dash is the tail of a money range, never a
+# standalone amount: "$1.50-$2.00" must not leave "2 dollars" behind. A minus
+# sign ("-$1.50") has no digit before the dash and still converts. An amount
+# followed by a dash and another amount is the head of a range too, so only the
+# range rule may speak it: "$1.50 - $2.00 million" is left whole, not half.
+# _AFTER cannot carry the em dash, or a prose range ("pages 3-5—the good ones")
+# would stop converting.
+_MONEY_AFTER = _AFTER + r"(?!\s*[-–—]\s*\$?\d)"
+# A prefixed head is the same range head only when the tail is its own "$"
+# amount: "US$5.00 - 10.00" keeps converting the prefix as main did, while
+# "US$1.50 - $2.00 million" is left whole instead of half converted.
+_PREFIXED_MONEY_AFTER = _AFTER + r"(?!\s*[-–—]\s*\$\d)"
+_MONEY_RE = re.compile(r"(?<![\w$])(?<!\d[-–—])\$(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})"
+                       + _MONEY_AFTER + _MAGNITUDES)
 # Digits are bounded well under Python's int-string limit so an absurd amount is
-# left as written instead of raising inside _spoken_money. The plain "$" rule is
-# unchanged (its guard is older than this rule and not part of the issue).
+# left as written instead of raising inside _spoken_money.
 _PREFIXED_MONEY_RE = re.compile(
     r"(?<![" + _TOUCHING + r"$])("
     + "|".join(sorted(_SPOKEN_CURRENCIES, key=len, reverse=True)) + r")\$"
-    r"(\d{1,3}(?:,\d{3}){1,5}|\d{1,18})\.(\d{2})" + _AFTER + _MAGNITUDES)
+    r"(\d{1,3}(?:,\d{3}){1,5}|\d{1,18})\.(\d{2})" + _PREFIXED_MONEY_AFTER + _MAGNITUDES)
+# One dash-separated chain of amounts is a money range only when every end is
+# money: "$1.50-$2.00", "$1.50-2.00", "$1-$2.50". _AFTER and the shared
+# _MAGNITUDES guard keep "from $1.50-$2.00/hour" and "$1.50-$2.00 million" as
+# written. A prefixed first amount speaks both ends only when a tail carries its
+# own "$" ("US$1.50-$2.00"); the prefix-omitted form ("US$5.00-10.00") is left
+# exactly as main leaves it. Spaced prefixed-prefixed ranges never match the tail
+# (it has no code), so they still convert each end separately as before.
+_MONEY_AMOUNT = r"(?:\d{1,3}(?:,\d{3})+|\d+)"
+_MONEY_RANGE_RE = re.compile(
+    r"(?:(?<![" + _TOUCHING + r"$])("
+    + "|".join(sorted(_SPOKEN_CURRENCIES, key=len, reverse=True)) + r")\$"
+    r"|(?<![\w$])\$)"
+    r"(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{2}))?"
+    r"((?:\s*[-–—]\s*\$?" + _MONEY_AMOUNT + r"(?:\.\d{2})?)+)"
+    + _AFTER + _MAGNITUDES)
+_MONEY_ENDPOINT_RE = re.compile(r"\$?(" + _MONEY_AMOUNT + r")(?:\.(\d{2}))?")
 _RANGE_RE = re.compile(_BEFORE + r"(\d+)[-–](\d+)" + _AFTER)
 _DATE_RE = re.compile(_BEFORE + r"(\d{1,2})/(\d{1,2})/(\d{4})" + _AFTER)
 
@@ -187,6 +216,18 @@ def verbalize_numbers(text, date_order=None):
         changes.append({"kind": "money", "source": match.group(0), "spoken": spoken})
         return spoken
 
+    def money_range(match):
+        prefix, tail = match.group(1), match.group(4)
+        if prefix and "$" not in tail:
+            return match.group(0)
+        parts = [_spoken_money(match.group(2), match.group(3) or "00",
+                               _SPOKEN_CURRENCIES[prefix] if prefix else "")]
+        for endpoint in _MONEY_ENDPOINT_RE.finditer(tail):
+            parts.append(_spoken_money(endpoint.group(1), endpoint.group(2) or "00"))
+        spoken = " to ".join(parts)
+        changes.append({"kind": "money", "source": match.group(0), "spoken": spoken})
+        return spoken
+
     def date(match):
         nonlocal ambiguous
         first, second, year = (int(value) for value in match.groups())
@@ -208,7 +249,8 @@ def verbalize_numbers(text, date_order=None):
         changes.append({"kind": "range", "source": match.group(0), "spoken": spoken})
         return spoken
 
-    value = _PREFIXED_MONEY_RE.sub(prefixed_money, text)
+    value = _MONEY_RANGE_RE.sub(money_range, text)
+    value = _PREFIXED_MONEY_RE.sub(prefixed_money, value)
     value = _MONEY_RE.sub(money, value)
     value = _DATE_RE.sub(date, value)
     value = _RANGE_RE.sub(number_range, value)
