@@ -1,5 +1,6 @@
 /* Manual, explicit delivery of a completed export to Audiobookshelf (#1727).
-   Nothing here touches the network until the user clicks a button; the preview
+   Nothing here contacts the Audiobookshelf server until the user clicks a
+   button; opening the panel only reads the saved local config. The preview
    checks the destination on the server and the send button stays disabled until a fresh preview and
    the right-to-share confirmation are both present. Any book, server,
    library, folder, format, or metadata change invalidates the preview. */
@@ -9,6 +10,15 @@ let absLibraries = [];
 let absSending = false;
 let absSendingPreviewId = null;
 let absProgressTimer = null;
+let absSavedSelection = null;
+let absListingBaseUrl = null;
+let absConfigRequest = null;
+let absServerTouched = false;
+
+function isAbsSameServerUrl(left, right) {
+    const strip = value => String(value || '').replace(/\/+$/, '');
+    return Boolean(left) && Boolean(right) && strip(left) === strip(right);
+}
 
 function getAbsBookToken() {
     return (typeof chunkSnapshotBookToken !== 'undefined' && chunkSnapshotBookToken)
@@ -17,6 +27,42 @@ function getAbsBookToken() {
 
 function absSetStatus(text) {
     document.getElementById('abs-status').textContent = text;
+}
+
+function markAbsServerTouched() {
+    absServerTouched = true;
+}
+
+async function loadAbsSavedConfig() {
+    if (absSavedSelection || absConfigRequest) { return absConfigRequest; }
+    absConfigRequest = (async () => {
+        let config;
+        try {
+            config = await API.get('/api/abs/config');
+        } catch (error) {
+            absConfigRequest = null;
+            return;
+        }
+        if (!config || typeof config !== 'object' || typeof config.base_url !== 'string' || !config.base_url.trim()) {
+            return;
+        }
+        if (!absSavedSelection) {
+            absSavedSelection = {
+                base_url: config.base_url,
+                library_id: config.library_id || '',
+                folder_id: config.folder_id || '',
+            };
+        }
+        const urlInput = document.getElementById('abs-server-url');
+        if (!absServerTouched && !urlInput.value.trim()) {
+            urlInput.value = config.base_url;
+            absSetStatus(t('abs.config.restored', 'Restored saved server ({url}). API key {key}.', {
+                url: config.base_url,
+                key: config.has_key ? t('abs.server.key-stored', 'is stored') : t('abs.server.key-missing', 'is not stored yet'),
+            }));
+        }
+    })();
+    return absConfigRequest;
 }
 
 function absDeliveryStatusLabel(status) {
@@ -90,13 +136,31 @@ async function saveAbsConfig() {
         absSetStatus(t('abs.error.url-required', 'Enter the server URL first.'));
         return;
     }
+    const savedMatch = absSavedSelection && isAbsSameServerUrl(absSavedSelection.base_url, url);
+    const listingMatch = isAbsSameServerUrl(absListingBaseUrl, url);
+    let libraryId = document.getElementById('abs-library').value || null;
+    let folderId = document.getElementById('abs-folder').value || null;
+    if (!listingMatch) {
+        if (savedMatch) {
+            libraryId = absSavedSelection.library_id || null;
+            folderId = absSavedSelection.folder_id || null;
+        } else if (absListingBaseUrl) {
+            libraryId = null;
+            folderId = null;
+        }
+    }
     try {
         const result = await API.post('/api/abs/config', {
             base_url: url,
             api_key: apiKey || null,
-            library_id: document.getElementById('abs-library').value || null,
-            folder_id: document.getElementById('abs-folder').value || null,
+            library_id: libraryId,
+            folder_id: folderId,
         });
+        absSavedSelection = {
+            base_url: result.base_url,
+            library_id: result.library_id || '',
+            folder_id: result.folder_id || '',
+        };
         if (epoch !== absEpoch) { return; }
         document.getElementById('abs-api-key').value = '';
         absSetStatus(t('abs.server.saved', 'Server saved ({url}). API key {key}{store}.', {url: result.base_url, key: result.has_key ? t('abs.server.key-stored', 'is stored') : t('abs.server.key-missing', 'is not stored yet'), store: result.key_store ? ' ' + t('abs.server.key-store-name', 'in the {store}', {store: result.key_store}) : ''}));
@@ -134,7 +198,9 @@ async function loadAbsLibraries() {
         const result = await API.get(`/api/abs/libraries?base_url=${encodeURIComponent(url)}`);
         if (epoch !== absEpoch) { return; }
         absLibraries = result.libraries || [];
+        absListingBaseUrl = result.base_url;
         const librarySelect = document.getElementById('abs-library');
+        const folderSelect = document.getElementById('abs-folder');
         librarySelect.replaceChildren();
         for (const library of absLibraries) {
             const option = document.createElement('option');
@@ -142,7 +208,17 @@ async function loadAbsLibraries() {
             option.textContent = library.name || library.id;
             librarySelect.appendChild(option);
         }
+        const savedSelection = absSavedSelection;
+        const restoreSaved = Boolean(savedSelection)
+            && savedSelection.base_url === result.base_url
+            && Boolean(savedSelection.library_id);
+        if (restoreSaved) {
+            librarySelect.value = savedSelection.library_id;
+        }
         fillAbsFolders();
+        if (restoreSaved) {
+            folderSelect.value = savedSelection.folder_id;
+        }
         absSetStatus(absLibraries.length === 1 ? t('abs.libraries.loaded.one', 'Loaded {count} library. Choose a library and folder, then preview.', {count: absLibraries.length}) : t('abs.libraries.loaded.many', 'Loaded {count} libraries. Choose a library and folder, then preview.', {count: absLibraries.length}));
     } catch (error) {
         if (epoch === absEpoch) {
