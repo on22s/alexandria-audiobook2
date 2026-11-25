@@ -514,6 +514,87 @@ console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
 
+    def test_insecure_key_store_keeps_its_own_advice(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+h.ctx.API.get=async()=>({base_url:'http://abs.test:13378',has_key:null,key_status:'credential-store-insecure',library_id:'',folder_id:''});
+h.ctx.API.post=async(url,body)=>({base_url:body.base_url,has_key:null,key_status:'credential-store-insecure',key_store:null,library_id:body.library_id,folder_id:body.folder_id});
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.el('abs-server-url').value,'http://abs.test:13378','an insecure backend still restores the settings');
+assert.match(h.el('abs-status').textContent,/backend is not secure/,'the refused backend is named');
+assert.match(h.el('abs-status').textContent,/configure a secure OS keyring backend/,'the actionable advice is kept');
+assert.ok(!/credential store is unavailable/.test(h.el('abs-status').textContent),'an insecure backend is not reported as an unavailable store');
+await h.ctx.saveAbsConfig();
+assert.match(h.el('abs-status').textContent,/Server saved/,'the save is still reported');
+assert.match(h.el('abs-status').textContent,/backend is not secure/,'the save keeps the insecure-backend advice');
+assert.ok(!/API key is not stored/.test(h.el('abs-status').textContent),'an unknown key is never reported as not stored');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_late_failed_config_read_does_not_overwrite_a_save_status(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let failConfig=null;
+h.ctx.API.get=()=>new Promise((resolve,reject)=>{failConfig=reject;});
+h.ctx.API.post=async(url,body)=>({base_url:body.base_url,has_key:true,key_store:null,library_id:body.library_id,folder_id:body.folder_id});
+(async()=>{
+const loading=h.ctx.loadAbsSavedConfig();
+h.type('abs-server-url','http://typed.test:1');
+await h.ctx.saveAbsConfig();
+assert.match(h.el('abs-status').textContent,/Server saved/,'the save status is on screen');
+failConfig(new Error('network unavailable'));
+await loading;
+assert.match(h.el('abs-status').textContent,/Server saved/,'a late read failure must not overwrite the save status');
+assert.ok(!/Could not read the saved server settings/.test(h.el('abs-status').textContent));
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_late_failed_config_read_keeps_safety_text(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let failConfig=null;
+h.ctx.API.get=()=>new Promise((resolve,reject)=>{failConfig=reject;});
+(async()=>{
+const loading=h.ctx.loadAbsSavedConfig();
+h.el('abs-status').textContent='Outcome unknown — verify before retrying.';
+failConfig(new Error('network unavailable'));
+await loading;
+assert.match(h.el('abs-status').textContent,/Outcome unknown/,'the safety outcome text survives a late read failure');
+assert.ok(!/Could not read the saved server settings/.test(h.el('abs-status').textContent));
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_late_failed_config_read_stays_silent_after_typing(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let failConfig=null;
+h.ctx.API.get=()=>new Promise((resolve,reject)=>{failConfig=reject;});
+(async()=>{
+const loading=h.ctx.loadAbsSavedConfig();
+h.type('abs-server-url','http://typed.test:1');
+failConfig(new Error('network unavailable'));
+await loading;
+assert.strictEqual(h.el('abs-status').textContent,'','a read failure stays silent once the user typed a server');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_permanent_config_error_is_not_told_to_reopen_the_panel(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+h.ctx.API.get=async()=>{const error=new Error('invalid saved config');error.status=400;throw error;};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+assert.match(h.el('abs-status').textContent,/saved server settings are invalid/,'a permanent config error is named');
+assert.ok(!/Reopen the panel/.test(h.el('abs-status').textContent),'a retry cannot fix a permanent error');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
     def test_invalid_or_empty_config_shows_nothing_and_is_not_refetched(self):
         self._run(_HARNESS + r'''
 async function check(reply){

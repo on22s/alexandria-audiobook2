@@ -35,6 +35,16 @@ class UnwritableKeyring(UnreadableKeyring):
         raise RuntimeError('locked: route-secret would leak here')
 
 
+class PlaintextKeyringBackend:
+    """A non-secure backend shape; delivery refuses to use it."""
+
+
+class InsecureKeyring(FakeKeyring):
+    def __init__(self):
+        super().__init__()
+        self.get_keyring = lambda: PlaintextKeyringBackend()
+
+
 class AbsRouteTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -115,6 +125,48 @@ class AbsRouteTests(unittest.TestCase):
             self.assertEqual('credential-store-unavailable', body['key_status'])
             self.assertNotIn('route-secret', response.text)
             self.assertNotIn('locked:', response.text, 'keyring exception text must never be returned')
+
+    def test_config_read_names_an_insecure_key_store_and_keeps_settings(self):
+        delivery.save_server_config(self.data_dir, self.base, 'lib_1', 'fol_1')
+        client, patch_dir, _ = self._client()
+        with patch_dir, patch.object(delivery, '_get_keyring', return_value=InsecureKeyring()), client:
+            response = client.get('/api/abs/config')
+            self.assertEqual(200, response.status_code, response.text)
+            body = response.json()
+            self.assertEqual(self.base, body['base_url'])
+            self.assertEqual('lib_1', body['library_id'])
+            self.assertEqual('fol_1', body['folder_id'])
+            self.assertIsNone(body['has_key'])
+            self.assertEqual('credential-store-insecure', body['key_status'],
+                             'a refused plaintext backend is not an unavailable store')
+            self.assertNotIn('route-secret', response.text)
+
+    def test_save_config_names_an_insecure_key_store_and_keeps_the_saved_settings(self):
+        client, patch_dir, _ = self._client()
+        with patch_dir, patch.object(delivery, '_get_keyring', return_value=InsecureKeyring()), client:
+            response = client.post('/api/abs/config', json={
+                'base_url': self.base, 'library_id': 'lib_1', 'folder_id': 'fol_1'})
+            self.assertEqual(200, response.status_code, response.text)
+            body = response.json()
+            self.assertEqual(self.base, body['base_url'])
+            self.assertEqual('lib_1', body['library_id'])
+            self.assertEqual('fol_1', body['folder_id'])
+            self.assertEqual('credential-store-insecure', body['key_status'])
+            self.assertIsNone(body['has_key'])
+        saved = delivery.get_server_config(self.data_dir)
+        self.assertEqual(self.base, saved['base_url'], 'the settings were saved before the key check')
+
+    def test_save_config_with_a_key_still_refuses_an_insecure_key_store(self):
+        client, patch_dir, _ = self._client()
+        with patch_dir, patch.object(delivery, '_get_keyring', return_value=InsecureKeyring()), client:
+            response = client.post('/api/abs/config',
+                                   json={'base_url': self.base, 'api_key': 'route-secret'})
+            self.assertEqual(503, response.status_code, response.text)
+            self.assertIn('secure OS keyring backend', response.text,
+                          'the actionable refusal is still returned when a key is offered')
+            self.assertNotIn('route-secret', response.text)
+        self.assertFalse(Path(self.data_dir, delivery.CONFIG_NAME).exists(),
+                         'a refused key must not save the settings either')
 
     def test_config_read_still_refuses_a_corrupt_saved_url(self):
         Path(self.data_dir, delivery.CONFIG_NAME).write_text(
@@ -553,7 +605,10 @@ class AbsConfigAsyncRouteTests(unittest.IsolatedAsyncioTestCase):
             with patch.object(delivery, 'get_api_key', side_effect=read):
                 self.assertTrue(await asyncio.to_thread(entered.wait, 2),
                                 'the credential-store read never started')
-                response = await asyncio.wait_for(self.client.get('/fixture-ping'), .5)
+                # A generous ceiling: the release timer (5 s) still fires long
+                # before it, so an inline read fails the done() assertion below
+                # rather than this timeout on a loaded runner.
+                response = await asyncio.wait_for(self.client.get('/fixture-ping'), 10)
                 self.assertEqual({'ready': True}, response.json())
                 self.assertFalse(request.done(),
                                  'the credential-store read blocked other requests until it finished')

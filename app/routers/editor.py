@@ -1403,29 +1403,30 @@ def _abs_book_check(token):
 
 
 def _read_abs_key_presence(base_url):
-    """True/False when known, None when the credential store cannot be read.
+    """(present, reason): True/False when known, None when the store cannot answer.
 
-    A store failure is not the same as "no key stored": the caller reports it
-    as unknown so the saved, non-secret settings are still returned.
+    A store failure is not the same as "no key stored". An insecure backend is
+    also not the same as an unavailable one: it has its own advice. Neither the
+    key nor the store error text ever leaves this process.
     """
     import audiobookshelf_delivery as delivery
     if not base_url:
-        return False
+        return False, None
     try:
-        return bool(delivery.get_api_key(base_url))
+        return bool(delivery.get_api_key(base_url)), None
+    except delivery.InsecureBackendError:
+        return None, 'credential-store-insecure'
     except delivery.DeliveryError as error:
         if error.status != 503:
             raise
-        return None
+        return None, 'credential-store-unavailable'
 
 
-def _abs_config_response(config, key_present):
+def _abs_config_response(config, key_present, key_status=None):
     response = {'base_url': config.get('base_url'), 'has_key': key_present,
                 'library_id': config.get('library_id'), 'folder_id': config.get('folder_id')}
-    if key_present is None:
-        # Fixed, secret-free reason; neither the key nor the store error text
-        # ever leaves this process.
-        response['key_status'] = 'credential-store-unavailable'
+    if key_status:
+        response['key_status'] = key_status
     return response
 
 
@@ -1445,13 +1446,10 @@ def _save_abs_config_sync(request):
             stored = delivery.save_api_key(request.base_url, raw_key)
         config = delivery.save_server_config(DATA_DIR, request.base_url,
                                              request.library_id, request.folder_id)
+        key_present, key_status = _read_abs_key_presence(config['base_url'])
     except delivery.DeliveryError as error:
         raise HTTPException(status_code=error.status, detail=str(error)) from error
-    try:
-        key_present = _read_abs_key_presence(config['base_url'])
-    except delivery.DeliveryError as error:
-        raise HTTPException(status_code=error.status, detail=str(error)) from error
-    response = _abs_config_response(config, key_present)
+    response = _abs_config_response(config, key_present, key_status)
     response['key_store'] = stored
     return response
 
@@ -1465,10 +1463,10 @@ def _get_abs_config_sync():
     import audiobookshelf_delivery as delivery
     config = delivery.get_server_config(DATA_DIR)
     try:
-        key_present = _read_abs_key_presence(config.get('base_url'))
+        key_present, key_status = _read_abs_key_presence(config.get('base_url'))
     except delivery.DeliveryError as error:
         raise HTTPException(status_code=error.status, detail=str(error)) from error
-    return _abs_config_response(config, key_present)
+    return _abs_config_response(config, key_present, key_status)
 
 
 @router.get('/api/abs/libraries')

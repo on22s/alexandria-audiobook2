@@ -25,11 +25,16 @@ function getAbsBookToken() {
         || (typeof currentBookToken !== 'undefined' && currentBookToken) || '';
 }
 
-function absSetStatus(text) {
-    document.getElementById('abs-status').textContent = text;
+function absSetStatus(text, onlyIfEmpty = false) {
+    const target = document.getElementById('abs-status');
+    if (onlyIfEmpty && target.textContent.trim()) { return; }
+    target.textContent = text;
 }
 
-function getAbsKeyStatusText(hasKey) {
+function getAbsKeyStatusText(hasKey, keyStatus) {
+    if (keyStatus === 'credential-store-insecure') {
+        return t('abs.server.key-insecure', 'could not be read (the OS credential store backend is not secure; configure a secure OS keyring backend, then retry)');
+    }
     if (hasKey === null) {
         return t('abs.server.key-unreadable', 'could not be read (the OS credential store is unavailable)');
     }
@@ -48,7 +53,15 @@ async function loadAbsSavedConfig() {
             config = await API.get('/api/abs/config');
         } catch (error) {
             absConfigRequest = null;
-            absSetStatus(t('abs.error.load-config', 'Could not read the saved server settings. Reopen the panel to retry.'));
+            const urlInput = document.getElementById('abs-server-url');
+            // Only a pristine panel may receive this late failure: a typed URL,
+            // a send, or any status line already shown wins.
+            if (!absServerTouched && !urlInput.value.trim()) {
+                const permanent = typeof error?.status === 'number' && error.status >= 400 && error.status < 500;
+                absSetStatus(permanent
+                    ? t('abs.error.load-config-invalid', 'The saved server settings are invalid. Enter the server URL and save it to replace them.')
+                    : t('abs.error.load-config', 'Could not read the saved server settings. Reopen the panel to retry.'), true);
+            }
             return;
         }
         if (!config || typeof config !== 'object' || typeof config.base_url !== 'string' || !config.base_url.trim()) {
@@ -66,7 +79,7 @@ async function loadAbsSavedConfig() {
             urlInput.value = config.base_url;
             absSetStatus(t('abs.config.restored', 'Restored saved server ({url}). API key {key}.', {
                 url: config.base_url,
-                key: getAbsKeyStatusText(config.has_key),
+                key: getAbsKeyStatusText(config.has_key, config.key_status),
             }));
         }
     })();
@@ -171,7 +184,7 @@ async function saveAbsConfig() {
         };
         if (epoch !== absEpoch) { return; }
         document.getElementById('abs-api-key').value = '';
-        absSetStatus(t('abs.server.saved', 'Server saved ({url}). API key {key}{store}.', {url: result.base_url, key: getAbsKeyStatusText(result.has_key), store: result.key_store ? ' ' + t('abs.server.key-store-name', 'in the {store}', {store: result.key_store}) : ''}));
+        absSetStatus(t('abs.server.saved', 'Server saved ({url}). API key {key}{store}.', {url: result.base_url, key: getAbsKeyStatusText(result.has_key, result.key_status), store: result.key_store ? ' ' + t('abs.server.key-store-name', 'in the {store}', {store: result.key_store}) : ''}));
     } catch (error) {
         if (epoch === absEpoch) {
             absSetStatus(t('abs.error.save-server', 'Could not save the server. The API key was not stored anywhere new.'));

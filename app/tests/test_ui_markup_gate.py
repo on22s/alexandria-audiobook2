@@ -70,6 +70,9 @@ KEEP_ENGLISH = frozenset({
     'Space', 'ArrowDown', 'ArrowUp', 'KeyR', 'KeyE', 'editor-tab',
     # A server message key compared in app-project-scope.js (#1919), not copy.
     'safety.book.switch_unconfirmed',
+    # #2313 credential-store refusal reason compared in app-audiobookshelf.js;
+    # status vocabulary, not copy (the sentence shown to the user is keyed).
+    'credential-store-insecure',
     # Element-id prefix (app-editor-repair.js generate-by-chapter panel), an identifier.
     'editor-chapter-',
     # CSS selector naming the controls that own their keys (app-editor-review.js
