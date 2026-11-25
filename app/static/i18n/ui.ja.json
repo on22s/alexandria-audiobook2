@@ -12,6 +12,7 @@
     },
     "reviewers": []
   },
+  "abs.config.restored": "保存されたサーバーを復元しました（{url}）。API キーは{key}。",
   "abs.deliveries.accepted": "アップロードは受理されました。配信を検証してください",
   "abs.deliveries.discard": "この送信を放棄",
   "abs.deliveries.none": "この本の配信記録はまだありません。",

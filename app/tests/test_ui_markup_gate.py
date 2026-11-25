@@ -40,6 +40,8 @@ KEEP_ENGLISH = frozenset({
     '(prefers-reduced-motion: reduce)',
     # #1938 DOM IDs, tag/selector names and slider ARIA wiring, never copy.
     'render-pending-label', 'DETAILS', 'button, input, select, textarea, a, summary, [tabindex]',
+    # #2299 Audiobookshelf panel element ids its restore path looks up; wiring, not copy.
+    'abs-server-url', 'abs-folder',
     'llm-test-help', 'script-ingest-${id}-state', 'script-ingest-metadata', 'script-ingest-feedback',
     'script-ingest-source-state', 'script-ingest-cast-state', 'script-ingest-script-state',
     'aria-valuemax', 'aria-valuenow', 'aria-disabled',
@@ -215,7 +217,7 @@ JS_BASELINE = {
     'app-advanced-intros.js': 0, 'app-casting-labels.js': 0,
     'app-phone-layout.js': 0,
     'app-ui-followups.js': 0,
-    'app-audio-channels.js': 14, 'app-audiobookshelf.js': 40, 'app-calibre.js': 86,
+    'app-audio-channels.js': 14, 'app-audiobookshelf.js': 34, 'app-calibre.js': 86,
     'app-casting-research.js': 217, 'app-casting.js': 142, 'app-character-roster.js': 30,
     'app-core.js': 1793, 'app-editor-repair.js': 16, 'app-editor-review.js': 98,
     'app-export-quality.js': 12, 'app-guides.js': 48, 'app-help.js': 75,

@@ -12,6 +12,7 @@
     },
     "reviewers": []
   },
+  "abs.config.restored": "已恢复保存的服务器（{url}）。API 密钥{key}。",
   "abs.deliveries.accepted": "上传已接受；请验证投递",
   "abs.deliveries.discard": "放弃此次发送",
   "abs.deliveries.none": "这本书还没有投递记录。",
