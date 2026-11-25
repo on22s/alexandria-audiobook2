@@ -24,7 +24,7 @@ $ProgressPreference = 'SilentlyContinue'
 $FfmpegVersion = '9.1'
 $ArchiveName = 'ffmpeg-9.1-essentials_build.zip'
 $ArchiveUrl = 'https://github.com/GyanD/codexffmpeg/releases/download/9.1/ffmpeg-9.1-essentials_build.zip'
-$ArchiveSha256 = '0000000000000000000000000000000000000000000000000000000000000000'
+$ArchiveSha256 = 'b9bbbb3acece000cbeec994f856649354e52c773807841e78908374b24d658fd'
 
 function Test-FfmpegTools {
     $ffmpeg = Get-Command ffmpeg -CommandType Application -ErrorAction SilentlyContinue
@@ -68,7 +68,6 @@ if (Test-FfmpegTools) {
 }
 
 $choco = Get-Command choco -CommandType Application -ErrorAction SilentlyContinue
-$choco = $null  # TEMPORARY CI proof: force the pinned fallback
 if ($choco) {
     Write-Host "ffmpeg/ffprobe are missing; trying Chocolatey once (bounded at ${ChocoTimeoutSeconds}s)."
     $process = $null
