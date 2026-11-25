@@ -6909,6 +6909,7 @@
     , "tests.test_frontend_regressions.FrontendTests.test_frontend_config_controls_match_backend_schema"
     , "tests.test_frontend_regressions.FrontendTests.test_frontend_renders_config_warnings_as_text_and_refreshes_after_save"
     , "tests.test_frontend_regressions.FrontendTests.test_frontend_wires_preparer_duration_and_lora_cancel"
+    , "tests.test_frontend_regressions.FrontendTests.test_issue_templates_link_only_to_this_repository"
     , "tests.test_frontend_regressions.FrontendTests.test_keep_whole_batch_switch_is_off_by_default_and_saved"
     , "tests.test_frontend_regressions.FrontendTests.test_launcher_contracts_cover_dynamic_ports_failures_and_rocm_constraints"
     , "tests.test_frontend_regressions.FrontendTests.test_lora_candidate_comparison_is_advisory_and_separate_from_promotion"

@@ -280,6 +280,17 @@ class FrontendTests(unittest.TestCase):
                            "Get Help", "navbar build label"):
             self.assertIn(diagnostic, readme)
 
+    def test_issue_templates_link_only_to_this_repository(self):
+        root = Path(__file__).resolve().parent.parent.parent
+        repository = "on22s/alexandria-audiobook2"
+        github_link = re.compile(r"https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
+        templates = sorted((root / ".github" / "ISSUE_TEMPLATE").glob("*.yml"))
+        self.assertTrue(templates)
+        for template in templates:
+            for linked_repository in github_link.findall(template.read_text(encoding="utf-8")):
+                self.assertEqual(repository, linked_repository,
+                                 f"{template.name} links to {linked_repository}")
+
     def test_readme_api_examples_do_not_reference_removed_routes(self):
         readme = (Path(__file__).resolve().parent.parent.parent / "README.md").read_text(encoding="utf-8")
         for removed in ("/api/parse_voices", "/api/lora/generate_dataset",
