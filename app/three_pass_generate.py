@@ -3766,6 +3766,7 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             emit_manifest("failed", failed_pass=failed_pass)
             raise RuntimeError(
                 f"{failed_pass} LLM unavailable; refusing to publish fallback-only output")
+    map_error = None
     try:
         dialogue = apply_dialogue_map(annotated, source_text)
         annotated = dialogue["entries"]
@@ -3784,10 +3785,19 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
             print("Dialogue map: convention could not be determined; entries "
                   "carry no `spoken` key rather than a guessed one")
     except Exception as exc:                                   # noqa: BLE001
-        print(f"Dialogue map FAILED ({exc}); entries carry no `spoken` key")
+        map_error = exc
+    # The map re-runs unconditionally on every attempt, so its previous verdict
+    # must be replaced by this attempt's once the map has returned: a success
+    # retires the recorded failure (#2295) and a repeated failure replaces it
+    # instead of stacking a duplicate. Only the save() below persists this, so
+    # a run that dies mid-map keeps the old failure on disk.
+    diagnostic_failures = [failure for failure in diagnostic_failures
+                           if failure.get("pass") != "dialogue_map"]
+    if map_error is not None:
+        print(f"Dialogue map FAILED ({map_error}); entries carry no `spoken` key")
         diagnostic_failures.append({
-            "pass": "dialogue_map", "reason": type(exc).__name__,
-            "error": str(exc)[:500]})
+            "pass": "dialogue_map", "reason": type(map_error).__name__,
+            "error": str(map_error)[:500]})
     if getattr(params, "literal_source_preserving", False) and not diagnostic_failures:
         from literal_policy import bind_literal_policy
         annotated = bind_literal_policy(
