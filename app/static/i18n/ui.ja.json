@@ -64,6 +64,7 @@
   "abs.progress.total": "{sent} / {total} バイトをアップロードしています（{pct}%）。",
   "abs.server.key-insecure": "読み取れませんでした（OS の資格情報ストアのバックエンドが安全ではありません。安全な OS キーリングバックエンドを設定してから再試行してください）",
   "abs.server.key-missing": "まだ保存されていません",
+  "abs.server.key-read-back-failed": "{store}に保存されましたが、読み戻せませんでした",
   "abs.server.key-store-name": "{store}に保存されています",
   "abs.server.key-stored": "保存済み",
   "abs.server.key-unreadable": "読み取れませんでした（OS の資格情報ストアを利用できません）",

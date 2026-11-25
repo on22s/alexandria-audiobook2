@@ -55,6 +55,7 @@
   "abs.progress.total": "Uploading {sent} / {total} bytes ({pct}%).",
   "abs.server.key-insecure": "could not be read (the OS credential store backend is not secure; configure a secure OS keyring backend, then retry)",
   "abs.server.key-missing": "is not stored yet",
+  "abs.server.key-read-back-failed": "was stored in the {store}, but could not be read back",
   "abs.server.key-store-name": "in the {store}",
   "abs.server.key-stored": "is stored",
   "abs.server.key-unreadable": "could not be read (the OS credential store is unavailable)",

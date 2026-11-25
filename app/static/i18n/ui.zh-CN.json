@@ -64,6 +64,7 @@
   "abs.progress.total": "正在上传 {sent} / {total} 字节（{pct}%）。",
   "abs.server.key-insecure": "无法读取（操作系统凭据存储后端不安全；请配置安全的操作系统钥匙串后端后重试）",
   "abs.server.key-missing": "尚未保存",
+  "abs.server.key-read-back-failed": "已保存到{store}，但无法读回",
   "abs.server.key-store-name": "保存在{store}中",
   "abs.server.key-stored": "已保存",
   "abs.server.key-unreadable": "无法读取（操作系统凭据存储不可用）",

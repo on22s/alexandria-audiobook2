@@ -64,6 +64,7 @@
   "abs.progress.total": "Subiendo {sent} / {total} bytes ({pct}%).",
   "abs.server.key-insecure": "no se pudo leer (el backend del almacén de credenciales del sistema operativo no es seguro; configura un backend de llavero seguro del sistema operativo y vuelve a intentarlo)",
   "abs.server.key-missing": "aún no se guardó",
+  "abs.server.key-read-back-failed": "se guardó en {store}, pero no se pudo volver a leer",
   "abs.server.key-store-name": "en {store}",
   "abs.server.key-stored": "está guardada",
   "abs.server.key-unreadable": "no se pudo leer (el almacén de credenciales del sistema operativo no está disponible)",

@@ -42,6 +42,8 @@ KEEP_ENGLISH = frozenset({
     'render-pending-label', 'DETAILS', 'button, input, select, textarea, a, summary, [tabindex]',
     # #2299 Audiobookshelf panel element ids its restore path looks up; wiring, not copy.
     'abs-server-url', 'abs-folder',
+    # #2313 the saved-config read's own status line id; wiring, not copy.
+    'abs-config-status',
     'llm-test-help', 'script-ingest-${id}-state', 'script-ingest-metadata', 'script-ingest-feedback',
     'script-ingest-source-state', 'script-ingest-cast-state', 'script-ingest-script-state',
     'aria-valuemax', 'aria-valuenow', 'aria-disabled',

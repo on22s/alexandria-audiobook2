@@ -25,10 +25,14 @@ function getAbsBookToken() {
         || (typeof currentBookToken !== 'undefined' && currentBookToken) || '';
 }
 
-function absSetStatus(text, onlyIfEmpty = false) {
-    const target = document.getElementById('abs-status');
-    if (onlyIfEmpty && target.textContent.trim()) { return; }
-    target.textContent = text;
+function absSetStatus(text) {
+    document.getElementById('abs-status').textContent = text;
+}
+
+// The saved-config read has its own line so its failure can never write over
+// the safety text in #abs-status, which the app fills at every page load.
+function absSetConfigStatus(text) {
+    document.getElementById('abs-config-status').textContent = text;
 }
 
 function getAbsKeyStatusText(hasKey, keyStatus) {
@@ -48,19 +52,20 @@ function markAbsServerTouched() {
 async function loadAbsSavedConfig() {
     if (absSavedSelection || absConfigRequest) { return absConfigRequest; }
     absConfigRequest = (async () => {
+        absSetConfigStatus('');
         let config;
         try {
             config = await API.get('/api/abs/config');
         } catch (error) {
             absConfigRequest = null;
             const urlInput = document.getElementById('abs-server-url');
-            // Only a pristine panel may receive this late failure: a typed URL,
-            // a send, or any status line already shown wins.
+            // Only a pristine panel may receive this late failure: a typed URL
+            // or a send wins. It goes on the config line, never on #abs-status.
             if (!absServerTouched && !urlInput.value.trim()) {
                 const permanent = typeof error?.status === 'number' && error.status >= 400 && error.status < 500;
-                absSetStatus(permanent
+                absSetConfigStatus(permanent
                     ? t('abs.error.load-config-invalid', 'The saved server settings are invalid. Enter the server URL and save it to replace them.')
-                    : t('abs.error.load-config', 'Could not read the saved server settings. Reopen the panel to retry.'), true);
+                    : t('abs.error.load-config', 'Could not read the saved server settings. Reopen the panel to retry.'));
             }
             return;
         }
@@ -183,8 +188,15 @@ async function saveAbsConfig() {
             folder_id: result.folder_id || '',
         };
         if (epoch !== absEpoch) { return; }
+        absSetConfigStatus('');
         document.getElementById('abs-api-key').value = '';
-        absSetStatus(t('abs.server.saved', 'Server saved ({url}). API key {key}{store}.', {url: result.base_url, key: getAbsKeyStatusText(result.has_key, result.key_status), store: result.key_store ? ' ' + t('abs.server.key-store-name', 'in the {store}', {store: result.key_store}) : ''}));
+        // A stored key that cannot be read back is not an unavailable store:
+        // name what happened without claiming the store is gone.
+        const readBackFailed = Boolean(result.key_store) && result.has_key === null;
+        const keyText = readBackFailed
+            ? t('abs.server.key-read-back-failed', 'was stored in the {store}, but could not be read back', {store: result.key_store})
+            : getAbsKeyStatusText(result.has_key, result.key_status);
+        absSetStatus(t('abs.server.saved', 'Server saved ({url}). API key {key}{store}.', {url: result.base_url, key: keyText, store: result.key_store && !readBackFailed ? ' ' + t('abs.server.key-store-name', 'in the {store}', {store: result.key_store}) : ''}));
     } catch (error) {
         if (epoch === absEpoch) {
             absSetStatus(t('abs.error.save-server', 'Could not save the server. The API key was not stored anywhere new.'));
