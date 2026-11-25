@@ -201,7 +201,7 @@ class PlainMoneyMagnitudeTests(unittest.TestCase):
 
 
 class MoneyRangeTests(unittest.TestCase):
-    """#2315: only a tight cents range is spoken, and both ends are spoken."""
+    """#2315: a tight range with written decimals is spoken, and both ends are."""
 
     def test_a_tight_cents_range_speaks_both_ends(self):
         cases = {
@@ -215,10 +215,18 @@ class MoneyRangeTests(unittest.TestCase):
                 "It cost 1,200 dollars and 50 cents to 1,500 dollars.",
             "It cost $1.50-$2.00-$3.00.":
                 "It cost 1 dollar and 50 cents to 2 dollars to 3 dollars.",
+            # Two written decimals count even when they are zeros.
+            "It cost $5.00-$10.00.": "It cost 5 dollars to 10 dollars.",
+            "It cost $1.00-$2.00.": "It cost 1 dollar to 2 dollars.",
+            "It cost $1.00-$1.00.": "It cost 1 dollar to 1 dollar.",
+            "It cost $3-$5.00.": "It cost 3 dollars to 5 dollars.",
+            "It cost $1-$2.00.": "It cost 1 dollar to 2 dollars.",
+            "It cost $5.00-$10.": "It cost 5 dollars to 10 dollars.",
             # A prefixed first amount gets the same rule as a plain one.
             "It cost US$1.50-$2.00.": "It cost 1 US dollar and 50 cents to 2 dollars.",
             "It cost CA$1.50-$2.00.": "It cost 1 Canadian dollar and 50 cents to 2 dollars.",
             "It cost US$1.50-2.00.": "It cost 1 US dollar and 50 cents to 2 dollars.",
+            "It cost US$5.00-10.00.": "It cost 5 US dollars to 10 dollars.",
         }
         for source, expected in cases.items():
             with self.subTest(source=source):
@@ -229,6 +237,38 @@ class MoneyRangeTests(unittest.TestCase):
         self.assertEqual([{"type": "verbalized_numbers", "changes": [
             {"kind": "money", "source": "$1.50-$2.00",
              "spoken": "1 dollar and 50 cents to 2 dollars"}]}], changes)
+
+    def test_prose_dash_before_a_dollar_amount_keeps_mains_reading(self):
+        # Only a "$" amount before the tight dash is a range tail. A prose dash
+        # (a count or code) keeps main's conversion of the amount after it, and
+        # a foreign-currency prefix is left whole instead of half spoken.
+        cases = {
+            "It cost 3-$5.00.": "It cost 3-5 dollars.",
+            "It cost 2-$1.50.": "It cost 2-1 dollar and 50 cents.",
+            "It cost item 7-$19.99.": "It cost item 7-19 dollars and 99 cents.",
+            "Telephone 555-$1.50.": "Telephone 555-1 dollar and 50 cents.",
+            # A "$" earlier in the line is not a range head for this tail.
+            "It cost $5 and 3-$2.00.": "It cost $5 and 3-2 dollars.",
+            "It cost $1.50-$2.00s.": "It cost $1.50-$2.00s.",
+            # R$ is a real, not a dollar code: leaving it whole is less wrong
+            # than main's "R$1.50-2 dollars".
+            "It cost R$1.50-$2.00.": "It cost R$1.50-$2.00.",
+        }
+        for source, expected in cases.items():
+            with self.subTest(source=source):
+                self.assertEqual(expected, normalized(source))
+
+    def test_absurd_range_amounts_are_left_as_written(self):
+        # The range rule is bounded like the prefixed rule, so an amount past
+        # the bound is left as written instead of raising inside int().
+        for text in ("$" + "1" * 4301 + ".50-$2.00",
+                     "$1.50-$" + "1" * 4301 + ".00",
+                     "$1" + ",234" * 7 + ".50-$2.00",
+                     "$1.50-$1" + ",234" * 7 + ".00",
+                     "$" + "1" * 19 + ".50-$2.00",
+                     "$1.50-$" + "1" * 19 + ".00"):
+            with self.subTest(length=len(text)):
+                self.assertEqual((text, []), verbalize_numbers(text))
 
     def test_other_dashes_keep_mains_reading(self):
         # Em dash is not a range: both cents amounts convert on their own, as
@@ -264,12 +304,12 @@ class MoneyRangeTests(unittest.TestCase):
                      "It cost $20.00-1.",
                      "It cost $1.50-2.000.",
                      "It cost $1.50-$2.00s.",
-                     # No cents anywhere, so this is not a money range.
+                     # No written decimals anywhere, so this is not a money range.
                      "It cost $5-$10.",
                      "It cost $1-$2.",
-                     "It cost $5.00-$10.00.",
-                     "It cost $1.00-$2.00.",
-                     "It cost $1.00-$1.00.",
+                     # A bare whole-number tail is not a money range.
+                     "It cost $5.00-10.",
+                     "It cost $1.00-2.",
                      "It cost $5-10 million.",
                      "It cost $5-$10 million.",
                      # A slash or hyphen rate is a single amount, not a range.
@@ -289,7 +329,6 @@ class MoneyRangeTests(unittest.TestCase):
                      "It cost $1.50-$2.00-a-night.",
                      "It cost $-1.50.",
                      "It cost US$1.50-US$2.00.",
-                     "It cost US$5.00-10.00.",
                      "It cost US$1.50 - $2.00 million.",
                      "It cost US$1.50-$2.00 million."):
             with self.subTest(text=text):
@@ -349,7 +388,6 @@ class LeftAloneTests(unittest.TestCase):
     def test_prefixed_currency_neighbours_are_not_currency_codes(self):
         for text in ("It cost BUS$5.00.", "It cost SAUS$5.00.", "It cost R$5.00.",
                      "It cost us$5.00.", "It cost US$-5.00.", "It cost US$5-10.",
-                     "It cost US$5.00-10.00.",
                      "It cost US$1.234.", "It cost US$1.5.",
                      # Same token boundary as the range/date rules, plus "$":
                      # a preceding letter, digit, period, slash, dash or en dash
@@ -359,7 +397,7 @@ class LeftAloneTests(unittest.TestCase):
                      "U.S$5.00", "J.C$5.00", "M.A$5.00", "SKU-US$5.00",
                      "https://x/US$5.00", "-US$5.00",
                      # Not a currency code, so only the plain "$" tail could
-                     # convert: the digit-dash guard keeps it whole.
+                     # convert: the range-tail check keeps it whole.
                      "It cost BUS$5.00-$6.00."):
             with self.subTest(text=text):
                 self.assertEqual((text, []), verbalize_numbers(text))
