@@ -1330,7 +1330,7 @@ def send_preview(data_dir, states, base_url, token, preview_id, confirm, *,
                        and item.get('folder_id') == stored['folder_id']
                        and _may_match_delivery_server(item, validated_base)]
             prior = matches[-1] if matches else None
-            if prior is not None and prior.get('status') == 'sent':
+            if any(item.get('status') == 'sent' for item in matches):
                 raise DeliveryError(
                     'This exact export was already delivered to this destination. '
                     'Preview a different export or title.', 409)

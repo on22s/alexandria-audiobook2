@@ -1024,7 +1024,8 @@
     , "tests.test_audio_take_history.AudioTakeHistoryTests.test_truncated_wav_header_is_not_reinterpreted_as_a_valid_short_take"
   ]
   , "test_audiobookshelf_delivery": [
-    "tests.test_audiobookshelf_delivery.DeliveryTests.test_accepted_blocks_duplicate_until_verified"
+    "tests.test_audiobookshelf_delivery.DeliveryTests.test_abandon_during_verify_cannot_allow_a_third_send"
+    , "tests.test_audiobookshelf_delivery.DeliveryTests.test_accepted_blocks_duplicate_until_verified"
     , "tests.test_audiobookshelf_delivery.DeliveryTests.test_auth_failure_is_failed_not_unknown"
     , "tests.test_audiobookshelf_delivery.DeliveryTests.test_backend_error_is_sanitized"
     , "tests.test_audiobookshelf_delivery.DeliveryTests.test_base_url_rejects_embedded_credentials"
@@ -1041,6 +1042,7 @@
     , "tests.test_audiobookshelf_delivery.DeliveryTests.test_env_fallback_bound_to_one_server"
     , "tests.test_audiobookshelf_delivery.DeliveryTests.test_env_fallback_is_explicit_only"
     , "tests.test_audiobookshelf_delivery.DeliveryTests.test_fail_closed_without_keyring_or_env"
+    , "tests.test_audiobookshelf_delivery.DeliveryTests.test_failed_newer_row_does_not_unblock_an_already_delivered_export"
     , "tests.test_audiobookshelf_delivery.DeliveryTests.test_forbidden_and_wrong_library_are_failed"
     , "tests.test_audiobookshelf_delivery.DeliveryTests.test_http200_then_verify_with_exact_bytes_becomes_sent"
     , "tests.test_audiobookshelf_delivery.DeliveryTests.test_http200_without_persisted_file_never_becomes_sent"
@@ -10062,7 +10064,10 @@
     , "tests.test_pass_prompt_payload_js.PassPromptPayloadTests.test_default_edits_become_presets_custom_edits_preserve_metadata_and_reload"
   ]
   , "test_pass_quality": [
-    "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_a_real_name_still_passes"
+    "tests.test_pass_quality.AccentedCaseParityTests.test_accented_case_change_passes_the_segment_gate"
+    , "tests.test_pass_quality.AccentedCaseParityTests.test_both_gates_report_the_same_introduced_letters"
+    , "tests.test_pass_quality.AccentedCaseParityTests.test_introduced_accented_letter_still_fails"
+    , "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_a_real_name_still_passes"
     , "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_literal_type_name_is_rejected"
     , "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_narrative_metadata_is_rejected_even_without_source_or_with_a_roster"
     , "tests.test_pass_quality.AttributionRejectsTypeAsSpeakerTest.test_rejection_is_case_insensitive"

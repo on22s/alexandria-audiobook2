@@ -715,6 +715,62 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(409, caught.exception.status)
         self.assertIn('not yet verified', str(caught.exception))
 
+    def test_failed_newer_row_does_not_unblock_an_already_delivered_export(self):
+        # A failed resend after a byte-proven delivery must not become the
+        # gate: the exact bytes are still on the server.
+        self._seed_ledger_entry('older-sent', 'sent', reconciled_sha256=self.sha256,
+                                reconciled_bytes=len(self.payload),
+                                reconciled_item_id='li_1', reconciled_file_id='ino_1',
+                                reconciled_verified_at=1)
+        self._seed_ledger_entry('newer-failed', 'failed', error='HTTP 401')
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            self._send(self._preview())
+        self.assertEqual(409, caught.exception.status)
+        self.assertIn('already delivered', str(caught.exception))
+
+    def test_abandon_during_verify_cannot_allow_a_third_send(self):
+        # Issue #2298 second review: a discarded send that Verify later proves
+        # must keep blocking even after a newer failed resend.
+        self.server.mode = 'server-error'
+        first = self._send(self._preview())
+        self.assertEqual('unknown', first['status'])
+        self.server.mode = 'ok'
+        self._serve_verified_item()
+        real_digest = delivery._download_candidate_digest
+        reached, release = threading.Event(), threading.Event()
+
+        def gated(*args, **kwargs):
+            reached.set()
+            self.assertTrue(release.wait(timeout=10))
+            return real_digest(*args, **kwargs)
+
+        outcome = {}
+
+        def worker():
+            outcome['entry'] = delivery.reconcile_delivery(
+                self.data_dir, first['id'], self.base, 'fake-token')
+
+        with patch.object(delivery, '_download_candidate_digest', side_effect=gated):
+            thread = threading.Thread(target=worker)
+            thread.start()
+            self.assertTrue(reached.wait(timeout=10))
+            discarded = delivery.discard_unknown_delivery(self.data_dir, first['id'], True)
+            self.assertEqual('failed', discarded['status'])
+            self.server.mode = 'auth-fail'
+            second = self._send(self._preview())
+            self.assertEqual('failed', second['status'])
+            release.set()
+            thread.join(timeout=10)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual('sent', outcome['entry']['status'])
+        # Same book, export, library, folder and server: a third send is refused.
+        uploads_before = len(self.server.received_uploads)
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            self._send(self._preview())
+        self.assertEqual(409, caught.exception.status)
+        self.assertIn('already delivered', str(caught.exception))
+        self.assertEqual(uploads_before, len(self.server.received_uploads))
+
     def test_discard_older_unknown_leaves_the_newest_unknown_blocking(self):
         self._seed_ledger_entry('older', 'unknown')
         self._seed_ledger_entry('newer', 'unknown')
@@ -840,7 +896,6 @@ class DeliveryTests(unittest.TestCase):
             self.assertTrue(reached.wait(timeout=10))
             discarded = delivery.discard_unknown_delivery(self.data_dir, entry['id'], True)
             self.assertEqual('failed', discarded['status'])
-            # A newer unknown send of the same export is the duplicate gate now.
             newer = self._seed_ledger_entry('newer-unknown', 'unknown')
             release.set()
             thread.join(timeout=10)
@@ -852,13 +907,13 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(self.sha256, persisted[entry['id']]['reconciled_sha256'])
         self.assertNotIn('discarded_at', persisted[entry['id']])
         self.assertNotIn('discarded_note', persisted[entry['id']])
-        # The older row is still older: the newer unknown keeps blocking.
+        # The verified older row keeps blocking even though a newer row exists.
         self.assertEqual(newer['id'], delivery.get_latest_delivery(
             self.data_dir, self.book_token, self.sha256, 'lib_1', 'fol_1')['id'])
         with self.assertRaises(delivery.DeliveryError) as caught:
             self._send(self._preview())
         self.assertEqual(409, caught.exception.status)
-        self.assertIn('unknown outcome', str(caught.exception))
+        self.assertIn('already delivered', str(caught.exception))
 
     def test_late_unknown_does_not_reblock_a_discarded_row(self):
         entry = self._seed_ledger_entry('late-unknown', 'unknown', title='Test Book',
