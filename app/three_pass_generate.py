@@ -1506,9 +1506,10 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
             text = str(entry.get("text") or "").strip()
             if entry.get("type") != "SPOKEN" and params.quoted_must_be_spoken:
                 if any(char in text for char in ('"', '“', '”')):
-                    parts, current, quoted = [], [], False
+                    parts, current, quoted, opener = [], [], False, None
                     for char_index, char in enumerate(text):
-                        if char == '"' and is_inch_mark(text, char_index, char):
+                        if is_inch_mark(text, char_index, char, quoted,
+                                        opener=opener):
                             # An inch mark is text, not a delimiter (#2314).
                             current.append(char)
                             continue
@@ -1521,6 +1522,7 @@ def _call_segment(client, model_name, chunk, sys_prompt, user_prompt, params,
                                               else "NARRATOR", "text": part})
                             current = []
                             quoted = not quoted
+                            opener = char if quoted else None
                         else:
                             current.append(char)
                     part = "".join(current).strip()

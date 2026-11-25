@@ -1196,6 +1196,20 @@ class SegmentRepairTypeSafetyTests(unittest.TestCase):
             ('He said "the board was 6" wide."',
              [{"type": "NARRATOR", "text": "He said"},
               {"type": "SPOKEN", "text": 'the board was 6" wide.'}]),
+            # Curly marks: `”` after a digit is an inch mark while the speech
+            # is open, but the real closer still splits.
+            ('\u201cThe board is 6\u201d wide,\u201d he said.',
+             [{"type": "SPOKEN", "text": 'The board is 6\u201d wide,'},
+              {"type": "NARRATOR", "text": "he said."}]),
+            ('\u201cI am 12\u201d he said. \u201cGood.\u201d',
+             [{"type": "SPOKEN", "text": "I am 12"},
+              {"type": "NARRATOR", "text": "he said."},
+              {"type": "SPOKEN", "text": "Good."}]),
+            # Outside speech a paragraph-final inch mark is text, not a closer.
+            ('The board was 6"',
+             [{"type": "NARRATOR", "text": 'The board was 6"'}]),
+            ('The board was 6\u201d wide.',
+             [{"type": "NARRATOR", "text": 'The board was 6\u201d wide.'}]),
         ]
         with tempfile.TemporaryDirectory() as logs:
             for source, expected in cases:

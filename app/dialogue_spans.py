@@ -303,32 +303,110 @@ def _is_opener_shaped(text, position):
     return before.isspace() and not after.isspace()
 
 
-def is_inch_mark(text, position, mark, inside_speech=False):
-    """Is the self-paired `mark` at `position` a measurement, not a delimiter?
+def _closer_marks(opener):
+    """-> the mark characters that can close a span this opener began."""
+    return {closer for pair_opener, closer in PAIRED if pair_opener == opener}
+
+
+def _ends_paragraph(text, position):
+    """Does the paragraph holding `position` end at or after it?"""
+    tail = text[position + 1:]
+    return not tail.strip() or bool(BLANK_LINE.match(tail))
+
+
+def _paragraph_start(text, position):
+    """-> offset where the paragraph holding `position` begins."""
+    index = position
+    while index > 0:
+        found = text.rfind("\n", 0, index)
+        if found == -1:
+            return 0
+        probe = found + 1
+        while probe < position and text[probe] in " \t":
+            probe += 1
+        if probe < position and text[probe] in "\r\n":
+            return probe + 1
+        index = found
+    return 0
+
+
+def _odd_earlier_marks(text, position, mark):
+    """Does this paragraph hold an unmatched earlier `mark` before `position`?
+
+    Counted over marks that are not digit-preceded, since a digit-preceded
+    mark is never an opener and may itself be an inch mark.
+    """
+    start = _paragraph_start(text, position)
+    count = 0
+    found = text.find(mark, start, position)
+    while found != -1:
+        if found == 0 or not text[found - 1].isdigit():
+            count += 1
+        found = text.find(mark, found + 1, position)
+    return count % 2 == 1
+
+
+def is_inch_mark(text, position, mark, inside_speech=False, opener=None,
+                 parity_only=False):
+    """Is the digit-preceded `mark` at `position` a measurement, not a delimiter?
 
     `5" wide` opens an inline expression, and a mark followed by the same mark
-    is an inch mark before new speech (`12" "Next`, `12""Next`). A mark at the
-    end of a line or paragraph is a reprise closer (`ends 5"`), not an inch
-    mark.
+    is an inch mark before new speech (`12" "Next`, `12""Next`). Outside
+    speech, that is the whole rule and a mark at a line/paragraph end is a
+    measurement too (`The board was 6"`); only `_paired_spans`, which has
+    parity rather than the real depth, may have to read a paragraph-final
+    mark as a reprise closer.
 
-    Outside speech that is the whole rule. Inside an open quoted span a digit
-    before the mark could also be the end of a number in a closer, so look at
-    the next same mark in this paragraph that is not digit-preceded: if that
-    one is closer-shaped (text before it and a word boundary after it), this
-    mark cannot close - the next would then have to open - so it is an inch
-    mark. If it is opener-shaped, or there is no such mark, this one closes as
-    it always has.
-    One predicate for `_paired_spans` and pass_quality's analyzer (#2314).
+    Inside open speech a digit before the mark could be the tail of a number
+    in a real closer, so the context decides:
+
+      - `opener` is the mark that opened this span. When it is the same mark
+        (a self-paired `"`), look at the next same mark in this paragraph that
+        is not digit-preceded: if that one is closer-shaped (text before it
+        and a word boundary after it), this mark cannot close - the next would
+        then have to open - so it is an inch mark. If it is opener-shaped, or
+        there is no such mark, this one closes as it always has.
+      - When the opener is a different mark (`“`, `„`, `«`, `「`, ...), this
+        mark cannot be that opener's closer. It is an inch mark when the
+        opener's own closer comes later in this paragraph than any new opener
+        of it (`“6" wide,”`, `„6" breit“,`); otherwise it closes as before
+        (`„5" sagte er. „Gut."`).
+      - A different-mark closer (`”` for `“`) is an inch mark when the next
+        quote mark in this paragraph is another `”` (`“6” wide,”`,
+        `“6” wide. “Good,”`); when it is a `“`, this mark is the real closer
+        (`“I am 12” he said. “Good.”`).
+
+    One predicate for `_paired_spans`, pass_quality's analyzer, its
+    `_has_quote_delimiter`, and the three-pass repair (#2314).
     """
-    if not position or not text[position - 1].isdigit():
+    if position <= 0 or not text[position - 1].isdigit():
         return False
     after = position + 1
     while after < len(text) and text[after].isspace():
         after += 1
     if not inside_speech and after < len(text) and text[after] == mark:
         return True
+    if inside_speech and opener is not None and opener != mark:
+        end = BLANK_LINE.search(text, position + 1)
+        end = end.start() if end else len(text)
+        next_opener = text.find(opener, position + 1, end)
+        next_closer = min((found for found in
+                           (text.find(closer, position + 1, end)
+                            for closer in _closer_marks(opener))
+                           if found != -1), default=-1)
+        if next_closer == -1:
+            return False
+        return next_opener == -1 or next_closer < next_opener
     if position + 1 >= len(text) or text[position + 1] in "\r\n":
-        return False
+        if inside_speech:
+            return False
+        if (parity_only and _ends_paragraph(text, position)
+                and _odd_earlier_marks(text, position, mark)):
+            # Parity cannot see the real depth: a paragraph that re-opened the
+            # quote has no closer but this one, so it still closes
+            # (`"Part two ends 5"`). With balanced earlier marks it cannot.
+            return False
+        return True
     if not inside_speech:
         return True
     paragraph_break = BLANK_LINE.search(text, position + 1)
@@ -404,11 +482,11 @@ def _paired_spans(text):
                 position = match.start()
                 # A mark immediately after a number can be an inch mark (5"
                 # wide), outside a span or inside one; the predicate answers
-                # from the mark's own context. A mark at the end of a
-                # line/paragraph still closes speech — a reprise closer can
-                # follow a digit.
+                # from the mark's own context. Parity is all this pairing
+                # has, so a paragraph-final mark stays a reprise closer while
+                # the paragraph holds an unmatched earlier mark.
                 if is_inch_mark(text, position, opener,
-                                len(positions) % 2 == 1):
+                                len(positions) % 2 == 1, parity_only=True):
                     continue
                 positions.append(position)
             # A mark that begins a paragraph re-opens this quote, so it can
@@ -466,7 +544,10 @@ def _paired_spans(text):
 
             def next_closer(search_from):
                 candidate = text.find(closer, search_from)
-                while candidate != -1 and candidate in opens:
+                while candidate != -1 and (
+                        candidate in opens
+                        or is_inch_mark(text, candidate, closer, True,
+                                        opener=opener)):
                     candidate = text.find(closer, candidate + 1)
                 return candidate
 
