@@ -1,5 +1,6 @@
 from pass_quality import MIN_ORDERED_TRIGRAM_RECALL
 import unittest
+from chunk_quality import validate_chunk_quality
 from pass_quality import (classify_lexical_quote_regions, analyze_outer_quote_regions,
                           split_outer_quote_regions, validate_attribution,
                           validate_segment_quality)
@@ -886,6 +887,86 @@ class PassOneSeamDuplicateTests(unittest.TestCase):
         entries = [_seg("The bell rang."), _seg("The bell rang again.")]
         report = self._report(source, entries)
         self.assertTrue(report["passed"], report["findings"])
+
+
+class AccentedCaseParityTests(unittest.TestCase):
+    """Both gates must answer "which non-ASCII letters did this introduce?"
+    from one shared rule; #2291 was pass 1 rejecting a case-only change on an
+    accented Latin letter that the single-pass gate has allowed since #938."""
+
+    # (source, output, introduced letters both gates must report)
+    CASES = (
+        ("We met at the café near the river. émile waved.",
+         "We met at the CAFÉ near the river. Émile waved.", []),
+        ("Café is open.", "CAFÉ IS OPEN.", []),
+        ("CAFÉ IS OPEN.", "Café is open.", []),
+        ("Cafe\u0301 is open.", "CAFÉ IS OPEN.", []),
+        ("Café is open.", "CAFE\u0301 IS OPEN.", []),
+        ("café", "cafe\u0300", ["è"]),
+        ("café", "cafè", ["è"]),
+        ("Café is open.", "CAFË IS OPEN.", ["Ë"]),
+        ("cafe", "café", ["é"]),
+        ("This is my resume.", "This is my résumé.", ["é"]),
+        ("café", "CAFÊ", ["Ê"]),
+        ("The straße", "The STRAẞE", []),
+        ("The STRAẞE", "The straße", []),
+        ("Die Straße ist lang.", "DIE STRASSE IST LANG.", []),
+        ("ﬁne", "ﬁne", []),
+        ("fine", "ﬁne", ["ﬁ"]),
+        ("Džungla", "DŽUNGLA", []),
+        ("DŽUNGLA", "Džungla", []),
+        ("İstanbul", "istanbul", []),
+        ("istanbul", "İstanbul", ["İ"]),
+        ("ı", "I", []),
+        ("I", "ı", ["ı"]),
+        ("a", "ᴀ", ["ᴀ"]),
+        ("a", "Ａ", ["Ａ"]),
+        ("ａ", "Ａ", []),
+        ("ΣΟΦΟΣ", "σοφος", ["ο", "ς", "σ", "φ"]),
+        ("ΑΒΓ", "αβγ", ["α", "β", "γ"]),
+        ("σοφος", "ΣΟΦΟΣ", ["Ο", "Σ", "Φ"]),
+        ("日本", "日本語", ["語"]),
+        ("михаил", "Михаил", []),
+        ("михаил", "Михаъил", []),
+        ("s", "ſ", ["ſ"]),
+        ("ſ", "ſ", []),
+        ("n", "ŉ", ["ŉ"]),
+        ("ↄ", "Ↄ", ["Ↄ"]),
+        ("Ↄ", "ↄ", ["ↄ"]),
+        ("abc def", "abc deg", []),
+        ("a b", "a — b", []),
+    )
+
+    def _introduced(self, report):
+        return [char["character"] for finding in report["findings"]
+                if finding["code"] == "unsupported_unicode_character"
+                for char in finding["characters"]]
+
+    def _reports(self, source, output):
+        chunk = validate_chunk_quality(
+            source, [{"speaker": "NARRATOR", "text": output, "instruct": "Read."}])
+        segment = validate_segment_quality(
+            source, [{"type": "NARRATOR", "text": output}])
+        return chunk, segment
+
+    def test_accented_case_change_passes_the_segment_gate(self):
+        source = "We met at the café near the river. émile waved."
+        entries = [{"type": "NARRATOR", "text": "We met at the CAFÉ near the river. Émile waved."}]
+        report = validate_segment_quality(source, entries)
+        self.assertTrue(report["passed"], report["findings"])
+        self.assertEqual(report["metrics"]["source_token_recall"], 1.0)
+
+    def test_introduced_accented_letter_still_fails(self):
+        source = "A plain Latin source."
+        entries = [{"type": "NARRATOR", "text": "A plain Latin source. Ж"}]
+        self.assertFalse(validate_segment_quality(source, entries)["passed"])
+
+    def test_both_gates_report_the_same_introduced_letters(self):
+        for source, output, expected in self.CASES:
+            with self.subTest(source=source, output=output):
+                chunk, segment = self._reports(source, output)
+                self.assertEqual(expected, self._introduced(chunk))
+                self.assertEqual(expected, self._introduced(segment))
 
 
 class ValidationExpectedValueTests(unittest.TestCase):
