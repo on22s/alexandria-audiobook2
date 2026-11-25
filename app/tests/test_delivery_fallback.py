@@ -439,6 +439,133 @@ class DeliveryRetryDirectionTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
                     get_delivery_retry_chunks(unpaused, after, None)
 
+    def test_an_off_retry_accepts_an_unmaterialised_unflagged_gap_pause(self):
+        from delivery_review import get_delivery_retry_chunks
+        rows = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain."},
+                {"speaker": "BOB", "text": "Two.", "instruct": "Natural.",
+                 "instruct_unchecked": True, "direction": {"gap": "beat"}}]
+        after = self.retry("off", "beat", rows=rows)
+        # Off mode never runs apply_gap_pauses, so the derived pause is absent
+        # even though a following unflagged gap would derive one.
+        self.assertNotIn("pause_after", after[0])
+        self.assertIsNone(get_delivery_retry_chunks(rows, after, None))
+        # The same retry with a pause the gap does not derive is refused.
+        wrong = [dict(after[0], pause_after=60), after[1]]
+        with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+            get_delivery_retry_chunks(rows, wrong, None)
+        # And materialising the pause apply_gap_pauses does derive is allowed.
+        materialised = [dict(after[0], pause_after=900), after[1]]
+        self.assertIsNone(get_delivery_retry_chunks(rows, materialised, None))
+
+    def test_a_pause_derived_from_an_unflagged_following_gap_is_allowed(self):
+        from delivery_review import get_delivery_retry_chunks
+        rows = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain.",
+                 "instruct_unchecked": True},
+                {"speaker": "BOB", "text": "Two.", "instruct": "Plain.",
+                 "direction": {"gap": "beat"}}]
+        after = self.retry("directed", "normal", rows=rows)
+        self.assertEqual(900, after[0]["pause_after"])
+        self.assertIsNone(get_delivery_retry_chunks(rows, after, None))
+        wrong = [dict(after[0], pause_after=60), after[1]]
+        with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+            get_delivery_retry_chunks(rows, wrong, None)
+
+    def test_malformed_direction_or_pause_is_refused_cleanly(self):
+        from delivery_review import get_delivery_retry_chunks
+        rows = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain."},
+                {"speaker": "BOB", "text": "Two.", "instruct": "Plain.",
+                 "instruct_unchecked": True}]
+        malformed_directions = (["beat"], "beat", 5, {"gap": ["beat"]},
+                                {"gap": {"ms": 900}})
+        for value in malformed_directions:
+            cases = [
+                [dict(rows[0], direction=value), rows[1]],
+                [rows[0], dict(rows[1], direction=value)],
+                [rows[0], rows[1]],
+            ]
+            for before, after in (
+                    (cases[0], cases[0]),
+                    (cases[1], cases[1]),
+                    (cases[2], cases[1]),
+                    (cases[2], [dict(rows[0], direction=value), rows[1]])):
+                with self.subTest(direction=value, flagged=after[1].get("instruct_unchecked")):
+                    with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+                        get_delivery_retry_chunks(before, after, None)
+        malformed_pauses = ("abc", [1], {"ms": 1})
+        for value in malformed_pauses:
+            for before, after in (
+                    ([dict(rows[0], pause_after=value), rows[1]],
+                     [dict(rows[0], pause_after=value), rows[1]]),
+                    ([rows[0], dict(rows[1], pause_after=value)],
+                     [rows[0], dict(rows[1], pause_after=value)]),
+                    ([rows[0], rows[1]],
+                     [dict(rows[0], pause_after=value), rows[1]])):
+                with self.subTest(pause=value):
+                    with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+                        get_delivery_retry_chunks(before, after, None)
+
+    def test_row_comparison_is_type_exact_not_dict_equality(self):
+        from delivery_review import get_delivery_retry_chunks
+        rows = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain."},
+                {"speaker": "BOB", "text": "Two.", "instruct": "Plain."}]
+        for before, after in (
+                # True == 1 under dict equality; a pause must not change type.
+                ([dict(rows[0], pause_after=1), rows[1]],
+                 [dict(rows[0], pause_after=True), rows[1]]),
+                # A missing key is not the same as an explicit None.
+                ([rows[0], rows[1]],
+                 [dict(rows[0], pause_after=None), rows[1]]),
+                # An int marker is not the True marker that makes a row retryable.
+                ([dict(rows[0], instruct_unchecked=1), rows[1]],
+                 [dict(rows[0], instruct_unchecked=True), rows[1]])):
+            with self.subTest(before=before[0], after=after[0]):
+                with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+                    get_delivery_retry_chunks(before, after, None)
+
+    def test_an_editor_chunk_pause_is_never_lost_or_changed(self):
+        from delivery_review import get_delivery_retry_chunks
+        from project import group_into_chunks
+        rows = [{"speaker": "ALICE", "text": "Hello.", "instruct": "Calm.",
+                 "pause_after": 500},
+                {"speaker": "BOB", "text": "Come in.", "instruct": "Natural.",
+                 "instruct_unchecked": True}]
+        after = self.retry("directed", "beat", rows=rows)
+        self.assertEqual(500, after[0]["pause_after"])
+        stored = [dict(group, id=index, uid=f"uid-{index}", status="done",
+                       audio_path=f"audio-{index}.wav")
+                  for index, group in enumerate(group_into_chunks(rows))]
+        out = get_delivery_retry_chunks(rows, after, stored)
+        self.assertEqual(500, out[0]["pause_after"])
+        self.assertEqual(("uid-0", "done", "audio-0.wav"),
+                         (out[0]["uid"], out[0]["status"], out[0]["audio_path"]))
+        # A chunk-only pause edit is not silently overwritten: the snapshot no
+        # longer matches the script, so the retry refuses rather than drop it.
+        unpaused = [copy.deepcopy(rows[0]), copy.deepcopy(rows[1])]
+        unpaused[0].pop("pause_after", None)
+        after_unpaused = self.retry("directed", "beat", rows=unpaused)
+        edited = copy.deepcopy(stored)
+        edited[0]["pause_after"] = 500
+        with self.assertRaisesRegex(ValueError, "Editor text or delivery changed"):
+            get_delivery_retry_chunks(unpaused, after_unpaused, edited)
+
+    def test_a_pause_that_breaks_a_combined_take_never_reuses_it(self):
+        from delivery_review import get_delivery_retry_chunks
+        from project import group_into_chunks
+        rows = [{"speaker": "NARRATOR", "text": "One.", "instruct": "Plain."},
+                {"speaker": "NARRATOR", "text": "Two.", "instruct": "Plain.",
+                 "instruct_unchecked": True}]
+        stored = [dict(group, id=0, uid="combined", status="done",
+                       audio_path="combined.wav")
+                  for group in group_into_chunks(rows)]
+        self.assertEqual(1, len(stored))
+        after = self.retry("directed", "beat", rows=rows)
+        self.assertEqual(900, after[0]["pause_after"])
+        out = get_delivery_retry_chunks(rows, after, stored)
+        self.assertEqual(["One.", "Two."], [row["text"] for row in out])
+        self.assertEqual([("pending", None), ("pending", None)],
+                         [(row["status"], row["audio_path"]) for row in out])
+        self.assertNotIn("combined", {row["uid"] for row in out})
+
 
 class DeliveryReviewApiTests(unittest.TestCase):
     def test_actual_get_and_owned_post_retry_clear_only_delivery_marker(self):

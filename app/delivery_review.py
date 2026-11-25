@@ -25,44 +25,70 @@ def is_stored_grouping(groups, chunks):
         for group, chunk in zip(groups, chunks) for field in BASIC_FIELDS)
 
 
-def get_derived_gap_pause_ms(entry):
-    """The pause apply_gap_pauses writes after a row with this gap, if any."""
-    from three_pass_generate import GAP_PAUSE_MS
-    if not isinstance(entry, dict):
-        return None
-    return GAP_PAUSE_MS.get((entry.get("direction") or {}).get("gap"))
+DELIVERY_RETRY_REFUSAL = "Delivery retry changed frozen or unaffected entries."
 
 
-def is_allowed_pause_change(old, new, following):
-    """A missing pause may only gain the value the following row's gap derives."""
-    if "pause_after" in old:
-        return "pause_after" in new and old["pause_after"] == new["pause_after"]
-    if "pause_after" not in new:
-        return True
-    derived = get_derived_gap_pause_ms(following)
-    return derived is not None and new["pause_after"] == derived
+def validate_delivery_row(row):
+    """Refuse malformed direction/pause values before any gap rule reads them."""
+    if not isinstance(row, dict):
+        return
+    direction = row.get("direction")
+    if direction is not None and not isinstance(direction, dict):
+        raise ValueError(DELIVERY_RETRY_REFUSAL)
+    gap = direction.get("gap") if isinstance(direction, dict) else None
+    try:
+        if gap is not None:
+            hash(gap)
+        if row.get("pause_after") is not None:
+            int(row["pause_after"])
+    except (TypeError, ValueError) as exc:
+        raise ValueError(DELIVERY_RETRY_REFUSAL) from exc
+
+
+def _exactly_equal(left, right):
+    """Type-exact equality: True is not 1, a missing key is not None."""
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            _exactly_equal(left[key], right[key]) for key in left)
+    if isinstance(left, (list, tuple)):
+        return len(left) == len(right) and all(
+            _exactly_equal(a, b) for a, b in zip(left, right))
+    return left == right
 
 
 def get_delivery_retry_chunks(before, after, chunks):
     """Preserve unchanged native groups; detach audio only for regrouped rows.
 
     Refuse an edited/reordered editor snapshot rather than replacing its work.
-    A pass-3 fallback row may gain its instruct and direction; every other row
-    may only gain the pause its following row's gap derives.
+    A pass-3 fallback row may gain its instruct and direction. Every other
+    field is frozen. The only other permitted change is the pause that
+    apply_gap_pauses itself derives, so the gap rule has one home and the
+    off mode (which never runs it) is accepted without gaining a pause.
     Caller owns snapshot validation and atomic multi-file publication.
     """
+    from three_pass_generate import apply_gap_pauses
     if len(before) != len(after):
-        raise ValueError("Delivery retry changed frozen or unaffected entries.")
-    for index, (old, new) in enumerate(zip(before, after)):
-        replaceable = (("instruct", "instruct_unchecked", "direction")
-                       if old.get("instruct_unchecked") is True else ())
-        following = after[index + 1] if index + 1 < len(after) else None
-        if ({key: value for key, value in old.items()
-             if key not in (*replaceable, "pause_after")} !=
-                {key: value for key, value in new.items()
-                 if key not in (*replaceable, "pause_after")}
-                or not is_allowed_pause_change(old, new, following)):
-            raise ValueError("Delivery retry changed frozen or unaffected entries.")
+        raise ValueError(DELIVERY_RETRY_REFUSAL)
+    expected = []
+    for old, new in zip(before, after):
+        validate_delivery_row(old)
+        validate_delivery_row(new)
+        row = copy.deepcopy(old)
+        if old.get("instruct_unchecked") is True:
+            for field in ("instruct", "instruct_unchecked", "direction"):
+                if field in new:
+                    row[field] = copy.deepcopy(new[field])
+                else:
+                    row.pop(field, None)
+        expected.append(row)
+    try:
+        materialized = apply_gap_pauses(expected)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ValueError(DELIVERY_RETRY_REFUSAL) from exc
+    if not (_exactly_equal(after, materialized) or _exactly_equal(after, expected)):
+        raise ValueError(DELIVERY_RETRY_REFUSAL)
     if chunks is None:
         return None
     # Recognise stored canonical layouts before the CJK limits or narration
