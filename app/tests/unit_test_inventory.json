@@ -7772,6 +7772,15 @@
     , "tests.test_inline_string_arguments_js.InlineStringArgumentsJsTests.test_real_style_remove_handler_uses_exact_character_name_in_api_route"
     , "tests.test_inline_string_arguments_js.InlineStringArgumentsJsTests.test_unrepresentable_style_indices_have_no_delete_handler_or_request"
   ]
+  , "test_input_selection_sound_design_companions": [
+    "tests.test_input_selection_sound_design_companions.CompanionSelectionRouteTests.test_select_route_keeps_the_active_uploads_companions"
+    , "tests.test_input_selection_sound_design_companions.CompanionSelectionTests.test_changed_bytes_clear_the_companions_for_the_new_book"
+    , "tests.test_input_selection_sound_design_companions.CompanionSelectionTests.test_identical_bytes_under_another_filename_clear_the_companions"
+    , "tests.test_input_selection_sound_design_companions.CompanionSelectionTests.test_interrupted_reselection_replays_with_companions_kept"
+    , "tests.test_input_selection_sound_design_companions.CompanionSelectionTests.test_malformed_or_foreign_companions_refuse_both_branches_unchanged"
+    , "tests.test_input_selection_sound_design_companions.CompanionSelectionTests.test_reselecting_the_active_upload_keeps_valid_companions"
+    , "tests.test_input_selection_sound_design_companions.GenerationBoundCandidateTests.test_reselection_keeps_companions_and_refuses_the_old_candidate"
+  ]
   , "test_instruct_audit": [
     "tests.test_instruct_audit.KnownLimitationsOnEnglish.test_no_delivery_misses_common_english_delivery_words"
     , "tests.test_instruct_audit.KnownLimitationsOnEnglish.test_punctuation_fires_on_an_apostrophe"
