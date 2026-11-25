@@ -11,7 +11,9 @@ let absSending = false;
 let absSendingPreviewId = null;
 let absProgressTimer = null;
 let absConfigLoaded = false;
+let absConfigLoading = null;
 let absSavedSelection = null;
+let absSelectionServer = null;
 
 function getAbsBookToken() {
     return (typeof chunkSnapshotBookToken !== 'undefined' && chunkSnapshotBookToken)
@@ -24,28 +26,36 @@ function absSetStatus(text) {
 
 async function loadAbsSavedConfig() {
     if (absConfigLoaded) { return; }
-    absConfigLoaded = true;
-    let config;
+    if (absConfigLoading) { return absConfigLoading; }
+    absConfigLoading = (async () => {
+        let config;
+        try {
+            config = await API.get('/api/abs/config');
+        } catch (error) {
+            return;
+        }
+        absConfigLoaded = true;
+        if (!config || typeof config !== 'object' || typeof config.base_url !== 'string' || !config.base_url.trim()) {
+            return;
+        }
+        absSavedSelection = {
+            base_url: config.base_url,
+            library_id: config.library_id || '',
+            folder_id: config.folder_id || '',
+        };
+        const urlInput = document.getElementById('abs-server-url');
+        if (urlInput.value.trim()) { return; }
+        urlInput.value = config.base_url;
+        absSetStatus(t('abs.config.restored', 'Restored saved server ({url}). API key {key}.', {
+            url: config.base_url,
+            key: config.has_key ? t('abs.server.key-stored', 'is stored') : t('abs.server.key-missing', 'is not stored yet'),
+        }));
+    })();
     try {
-        config = await API.get('/api/abs/config');
-    } catch (error) {
-        return;
+        await absConfigLoading;
+    } finally {
+        absConfigLoading = null;
     }
-    if (!config || typeof config !== 'object' || typeof config.base_url !== 'string' || !config.base_url.trim()) {
-        return;
-    }
-    absSavedSelection = {
-        base_url: config.base_url,
-        library_id: config.library_id || '',
-        folder_id: config.folder_id || '',
-    };
-    const urlInput = document.getElementById('abs-server-url');
-    if (urlInput.value.trim()) { return; }
-    urlInput.value = config.base_url;
-    absSetStatus(t('abs.config.restored', 'Restored saved server ({url}). API key {key}.', {
-        url: config.base_url,
-        key: config.has_key ? t('abs.server.key-stored', 'is stored') : t('abs.server.key-missing', 'is not stored yet'),
-    }));
 }
 
 function absDeliveryStatusLabel(status) {
@@ -128,6 +138,12 @@ async function saveAbsConfig() {
         });
         if (epoch !== absEpoch) { return; }
         document.getElementById('abs-api-key').value = '';
+        document.getElementById('abs-server-url').value = result.base_url;
+        absSavedSelection = {
+            base_url: result.base_url,
+            library_id: result.library_id || '',
+            folder_id: result.folder_id || '',
+        };
         absSetStatus(t('abs.server.saved', 'Server saved ({url}). API key {key}{store}.', {url: result.base_url, key: result.has_key ? t('abs.server.key-stored', 'is stored') : t('abs.server.key-missing', 'is not stored yet'), store: result.key_store ? ' ' + t('abs.server.key-store-name', 'in the {store}', {store: result.key_store}) : ''}));
     } catch (error) {
         if (epoch === absEpoch) {
@@ -164,6 +180,10 @@ async function loadAbsLibraries() {
         if (epoch !== absEpoch) { return; }
         absLibraries = result.libraries || [];
         const librarySelect = document.getElementById('abs-library');
+        const folderSelect = document.getElementById('abs-folder');
+        const previous = absSelectionServer === url && librarySelect.value
+            ? { library_id: librarySelect.value, folder_id: folderSelect.value }
+            : null;
         librarySelect.replaceChildren();
         for (const library of absLibraries) {
             const option = document.createElement('option');
@@ -173,16 +193,24 @@ async function loadAbsLibraries() {
         }
         const savedSelection = absSavedSelection;
         const sameServer = savedSelection && savedSelection.base_url === url;
-        if (sameServer && savedSelection.library_id) {
-            librarySelect.value = absLibraries.some(library => library.id === savedSelection.library_id) ? savedSelection.library_id : '';
+        const libraryListed = id => Boolean(id) && absLibraries.some(library => library.id === id);
+        if (previous) {
+            librarySelect.value = libraryListed(previous.library_id) ? previous.library_id : '';
+        } else if (sameServer && savedSelection.library_id) {
+            librarySelect.value = libraryListed(savedSelection.library_id) ? savedSelection.library_id : '';
         }
         fillAbsFolders();
-        if (sameServer && savedSelection.library_id && savedSelection.folder_id) {
-            const folderSelect = document.getElementById('abs-folder');
-            const library = absLibraries.find(item => item.id === librarySelect.value);
-            const folderListed = library && (library.folders || []).some(folder => folder.id === savedSelection.folder_id);
-            folderSelect.value = folderListed ? savedSelection.folder_id : '';
+        const library = absLibraries.find(item => item.id === librarySelect.value);
+        const folders = (library && library.folders) || [];
+        const folderListed = id => Boolean(id) && folders.some(folder => folder.id === id);
+        if (!library) {
+            folderSelect.value = '';
+        } else if (previous && previous.library_id === library.id) {
+            folderSelect.value = folderListed(previous.folder_id) ? previous.folder_id : '';
+        } else if (sameServer && savedSelection.library_id === library.id && savedSelection.folder_id) {
+            folderSelect.value = folderListed(savedSelection.folder_id) ? savedSelection.folder_id : '';
         }
+        absSelectionServer = url;
         absSetStatus(absLibraries.length === 1 ? t('abs.libraries.loaded.one', 'Loaded {count} library. Choose a library and folder, then preview.', {count: absLibraries.length}) : t('abs.libraries.loaded.many', 'Loaded {count} libraries. Choose a library and folder, then preview.', {count: absLibraries.length}));
     } catch (error) {
         if (epoch === absEpoch) {
