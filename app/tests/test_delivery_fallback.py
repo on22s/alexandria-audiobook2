@@ -470,39 +470,52 @@ class DeliveryRetryDirectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
             get_delivery_retry_chunks(rows, wrong, None)
 
-    def test_malformed_direction_or_pause_is_refused_cleanly(self):
+    def test_malformed_values_the_gap_rule_reads_are_refused_cleanly(self):
+        """A value apply_gap_pauses cannot read is a ValueError, never a crash."""
         from delivery_review import get_delivery_retry_chunks
         rows = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain."},
                 {"speaker": "BOB", "text": "Two.", "instruct": "Plain.",
                  "instruct_unchecked": True}]
-        malformed_directions = (["beat"], "beat", 5, {"gap": ["beat"]},
-                                {"gap": {"ms": 900}})
-        for value in malformed_directions:
-            cases = [
-                [dict(rows[0], direction=value), rows[1]],
-                [rows[0], dict(rows[1], direction=value)],
-                [rows[0], rows[1]],
-            ]
+        # The second row's direction is read as its pair's "current" row,
+        # whether it is unchanged or newly written by the retry.
+        for value in (["beat"], "beat", 5, {"gap": ["beat"]}, {"gap": {"ms": 900}}):
             for before, after in (
-                    (cases[0], cases[0]),
-                    (cases[1], cases[1]),
-                    (cases[2], cases[1]),
-                    (cases[2], [dict(rows[0], direction=value), rows[1]])):
-                with self.subTest(direction=value, flagged=after[1].get("instruct_unchecked")):
-                    with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
-                        get_delivery_retry_chunks(before, after, None)
-        malformed_pauses = ("abc", [1], {"ms": 1})
-        for value in malformed_pauses:
-            for before, after in (
-                    ([dict(rows[0], pause_after=value), rows[1]],
-                     [dict(rows[0], pause_after=value), rows[1]]),
-                    ([rows[0], dict(rows[1], pause_after=value)],
-                     [rows[0], dict(rows[1], pause_after=value)]),
+                    ([rows[0], dict(rows[1], direction=value)],
+                     [rows[0], dict(rows[1], direction=value)]),
                     ([rows[0], rows[1]],
-                     [dict(rows[0], pause_after=value), rows[1]])):
-                with self.subTest(pause=value):
+                     [rows[0], dict(rows[1], direction=value)])):
+                with self.subTest(direction=value):
                     with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
                         get_delivery_retry_chunks(before, after, None)
+        # A pause is read only when the following row's gap derives one.
+        for value in ("abc", [1], {"ms": 1}):
+            rows_with_pause = [dict(rows[0], pause_after=value),
+                               dict(rows[1], direction={"gap": "beat"})]
+            with self.subTest(pause=value):
+                with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+                    get_delivery_retry_chunks(rows_with_pause, rows_with_pause, None)
+
+    def test_malformed_values_no_rule_reads_are_left_as_on_main(self):
+        from delivery_review import get_delivery_retry_chunks
+        rows = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain."},
+                {"speaker": "BOB", "text": "Two.", "instruct": "Plain.",
+                 "instruct_unchecked": True}]
+        # The first row is never a pair's "current" row and the last row is
+        # never its "previous" row, so these values are never read.
+        for value in (["beat"], "beat", 5, {"gap": ["beat"]}, {"gap": {"ms": 900}}):
+            unchanged = [dict(rows[0], direction=value), rows[1]]
+            with self.subTest(direction=value):
+                self.assertIsNone(get_delivery_retry_chunks(unchanged, unchanged, None))
+        for value in ("abc", [1], {"ms": 1}):
+            unchanged = [rows[0], dict(rows[1], pause_after=value)]
+            with self.subTest(pause=value):
+                self.assertIsNone(get_delivery_retry_chunks(unchanged, unchanged, None))
+        # A changed or newly written value is still refused by the comparison,
+        # even in a position the gap rule never reads.
+        with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+            get_delivery_retry_chunks(rows, [dict(rows[0], pause_after="abc"), rows[1]], None)
+        with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+            get_delivery_retry_chunks(rows, [dict(rows[0], direction=["beat"]), rows[1]], None)
 
     def test_row_comparison_is_type_exact_not_dict_equality(self):
         from delivery_review import get_delivery_retry_chunks
@@ -521,6 +534,16 @@ class DeliveryRetryDirectionTests(unittest.TestCase):
             with self.subTest(before=before[0], after=after[0]):
                 with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
                     get_delivery_retry_chunks(before, after, None)
+
+    def test_row_comparison_is_canonical_json_not_insertion_order(self):
+        from delivery_review import get_delivery_retry_chunks
+        before = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain."},
+                  {"speaker": "BOB", "text": "Two.", "instruct": "Plain.",
+                   "instruct_unchecked": True}]
+        after = [{"instruct": "Plain.", "text": "One.", "speaker": "ALICE"},
+                 {"instruct": "Plain.", "instruct_unchecked": True,
+                  "text": "Two.", "speaker": "BOB"}]
+        self.assertIsNone(get_delivery_retry_chunks(before, after, None))
 
     def test_an_editor_chunk_pause_is_never_lost_or_changed(self):
         from delivery_review import get_delivery_retry_chunks

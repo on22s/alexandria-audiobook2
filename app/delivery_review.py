@@ -28,36 +28,6 @@ def is_stored_grouping(groups, chunks):
 DELIVERY_RETRY_REFUSAL = "Delivery retry changed frozen or unaffected entries."
 
 
-def validate_delivery_row(row):
-    """Refuse malformed direction/pause values before any gap rule reads them."""
-    if not isinstance(row, dict):
-        return
-    direction = row.get("direction")
-    if direction is not None and not isinstance(direction, dict):
-        raise ValueError(DELIVERY_RETRY_REFUSAL)
-    gap = direction.get("gap") if isinstance(direction, dict) else None
-    try:
-        if gap is not None:
-            hash(gap)
-        if row.get("pause_after") is not None:
-            int(row["pause_after"])
-    except (TypeError, ValueError) as exc:
-        raise ValueError(DELIVERY_RETRY_REFUSAL) from exc
-
-
-def _exactly_equal(left, right):
-    """Type-exact equality: True is not 1, a missing key is not None."""
-    if type(left) is not type(right):
-        return False
-    if isinstance(left, dict):
-        return left.keys() == right.keys() and all(
-            _exactly_equal(left[key], right[key]) for key in left)
-    if isinstance(left, (list, tuple)):
-        return len(left) == len(right) and all(
-            _exactly_equal(a, b) for a, b in zip(left, right))
-    return left == right
-
-
 def get_delivery_retry_chunks(before, after, chunks):
     """Preserve unchanged native groups; detach audio only for regrouped rows.
 
@@ -73,8 +43,6 @@ def get_delivery_retry_chunks(before, after, chunks):
         raise ValueError(DELIVERY_RETRY_REFUSAL)
     expected = []
     for old, new in zip(before, after):
-        validate_delivery_row(old)
-        validate_delivery_row(new)
         row = copy.deepcopy(old)
         if old.get("instruct_unchecked") is True:
             for field in ("instruct", "instruct_unchecked", "direction"):
@@ -87,7 +55,8 @@ def get_delivery_retry_chunks(before, after, chunks):
         materialized = apply_gap_pauses(expected)
     except (AttributeError, TypeError, ValueError) as exc:
         raise ValueError(DELIVERY_RETRY_REFUSAL) from exc
-    if not (_exactly_equal(after, materialized) or _exactly_equal(after, expected)):
+    if json.dumps(after, sort_keys=True) not in [
+            json.dumps(materialized, sort_keys=True), json.dumps(expected, sort_keys=True)]:
         raise ValueError(DELIVERY_RETRY_REFUSAL)
     if chunks is None:
         return None
