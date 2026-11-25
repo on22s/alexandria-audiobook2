@@ -421,6 +421,7 @@ class DeliveryRetryDirectionTests(unittest.TestCase):
             [dict(before[0], pause_after=250), dict(before[1], text="Rewritten.")],
             [before[0], dict(before[1], pause_after=900)],
         ]
+        refused.append(before + [dict(self.ROWS[1])])
         for after in refused:
             with self.subTest(after=after[1]):
                 with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
