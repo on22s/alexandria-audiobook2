@@ -385,7 +385,7 @@ async function loadAbsDeliveries() {
                 note.textContent = noteText;
                 row.appendChild(note);
             }
-            if (entry.reconciliation) {
+            if (entry.reconciliation && !entry.discarded_at) {
                 const note = document.createElement('p');
                 note.className = 'mb-1';
                 note.textContent = entry.reconciliation;

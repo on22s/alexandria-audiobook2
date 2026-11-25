@@ -373,7 +373,8 @@ const entries=[
   {id:'d4',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'in_flight',output_bytes:100,sha256:'s'},
   {id:'d5',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'failed',output_bytes:100,sha256:'s',
    discarded_at:1,discarded_note:'Abandoned by the user after an unknown outcome.',
-   verification_note:'Upload accepted by the server (HTTP 200); resend stays blocked.'}];
+   verification_note:'Upload accepted by the server (HTTP 200); resend stays blocked.',
+   reconciliation:'The status REMAINS unknown and resend stays blocked.'}];
 let confirmAnswer=false;
 const confirms=[];
 const posts=[];
