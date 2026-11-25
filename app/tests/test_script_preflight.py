@@ -8,6 +8,8 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 
+from chunk_quality import validate_chunk_quality
+import generate_script
 from routers import scripts_library
 from script_preflight import (audit_script, audit_unicode_text,
                               find_contained_source_duplicates)
@@ -921,6 +923,62 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(1, len(findings))
         self.assertEqual("blocking", findings[0]["severity"])
         self.assertLess(len(lines), 50000)
+
+    def test_a_multi_word_needle_fused_in_the_source_is_not_blocked(self):
+        de_fill = ("Der Morgen war kalt und der Bahnsteig leer . Marta wartete neben der "
+                   "alten Uhr und beobachtete die Gleise . Der Traeger ging langsam und "
+                   "hielt eine Lampe . ")
+        ja_fill = ("\u671d\u306f\u5bd2\u304f\u3066\u30db\u30fc\u30e0\u306f\u7a7a\u3063\u307d\u3060\u3063\u305f\u3002"
+                   "\u30de\u30eb\u30bf\u306f\u53e4\u3044\u6642\u8a08\u306e\u305d\u3070\u3067\u5f85\u3063\u3066\u3044\u305f\u3002"
+                   "\u8a70\u3081\u6240\u306f\u30e9\u30f3\u30d7\u3092\u6301\u3063\u3066\u8fd1\u3065\u3044\u3066\u304d\u305f\u3002")
+        cases = (
+            (de_fill + '\u201eja ja\u201c sagte er . Und dann sagte sie nur: jaja .',
+             [_entry(de_fill), _entry("ja ja", "MARTA"),
+              _entry("sagte er . Und dann sagte sie nur:"), _entry("ja ja", "PORTER")],
+             "ja ja"),
+            (ja_fill + "\u300c\u306f\u3044\u3001\u305d\u3046\u3067\u3059\u300d\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002"
+             "\u300c\u306f\u3044\u305d\u3046\u3067\u3059\u300d\u3068\u5f7c\u5973\u306f\u8a00\u3063\u305f\u3002",
+             [_entry(ja_fill), _entry("\u306f\u3044\u3001\u305d\u3046\u3067\u3059", "MARTA"),
+              _entry("\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002"),
+              _entry("\u306f\u3044\u3001\u305d\u3046\u3067\u3059", "PORTER"),
+              _entry("\u3068\u5f7c\u5973\u306f\u8a00\u3063\u305f\u3002")],
+             "\u306f\u3044\u3001\u305d\u3046\u3067\u3059"),
+        )
+        for source, entries, line in cases:
+            with self.subTest(line=line):
+                report = audit_script(entries, source)
+                duplicate = next(finding for finding in report["findings"]
+                                 if finding["code"] == "contained_source_duplicate")
+                self.assertEqual("manual_review", duplicate["severity"])
+                self.assertEqual(1, duplicate["details"]["unemitted_source_split_support"])
+                self.assertEqual(0, report["counts"]["blocking"])
+                self.assertTrue(generate_script.passes_final_generation_gate(
+                    validate_chunk_quality(source, entries), report))
+
+                extra = entries + [_entry(line, "ANNA")]
+                blocked = audit_script(extra, source)
+                self.assertEqual(1, blocked["counts"]["blocking"])
+                self.assertFalse(generate_script.passes_final_generation_gate(
+                    validate_chunk_quality(source, extra), blocked))
+
+    def test_an_unadjacent_split_is_not_credited_in_either_source_order(self):
+        for source in ("somit damit mit", "damit somit mit"):
+            with self.subTest(source=source):
+                entries = [_entry("da so"), _entry("mit", "MARTA"),
+                           _entry("mit", "PORTER"), _entry("mit", "ANNA")]
+                finding = self._duplicate_findings(entries, source)[0]
+
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["unemitted_source_split_support"])
+
+    def test_adjacent_repeated_splits_are_both_credited(self):
+        source = "somit somit mit"
+        entries = [_entry("so"), _entry("mit", "MARTA"),
+                   _entry("so"), _entry("mit", "PORTER")]
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(2, finding["details"]["unemitted_source_split_support"])
 
     def test_audit_script_surfaces_the_separate_duplicate_as_blocking(self):
         report = audit_script(self._entries(), self._source())

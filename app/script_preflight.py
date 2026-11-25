@@ -281,7 +281,7 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     unspent_source = output_stream = None
 
     def unspent_token_support(needle):
-        """Copies of a one-word needle that an unemitted source word explains.
+        """Copies of a needle that an unemitted source word explains.
 
         A needle fused into a longer source word is invisible to the word scan.
         Only a word the output never emitted explains the split, and only where
@@ -293,28 +293,34 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         if unspent_source is None:
             emitted = Counter(word for text in texts for word in text.split())
             unspent_source = Counter(source.split()) - emitted
-            output_stream = " " + " ".join(texts) + " "
-        tokens = sorted(((token.split(needle), token.count(needle), count)
-                         for token, count in unspent_source.items() if needle in token),
-                        key=lambda item: -sum(map(len, item[0])))
+            output_stream = " ".join(texts)
+        # A fused copy removes the needle's own spaces ("ja ja" -> "jaja").
+        key = needle.replace(" ", "")
+        tokens = sorted(((token.split(key), token.count(key), count)
+                         for token, count in unspent_source.items() if key in token),
+                        key=lambda item: -sum(map(len, item[0])))  # longest remainder first
+        if not tokens:
+            return 0
         words = output_stream.split()
         if any(any(split) for split, _, _ in tokens):
             # A word that is just the needle repeated is those copies fused.
-            words = [part for word in words for k in [len(word) // len(needle)]
-                     for part in ([needle] * k if k > 1 and word == needle * k else [word])]
-        vocabulary, stream, support = set(words), " " + " ".join(words) + " ", 0
+            words = [part for word in words for k in [len(word) // len(key)]
+                     for part in ([needle] * k if k > 1 and word == key * k else [word])]
+        # Two spaces between words lets str.count see adjacent matches: the
+        # shared gap splits into one trailing and one leading space.
+        vocabulary = set(words)
+        stream, support = " " + "  ".join(words) + " ", 0
         for split, copies, count in tokens:
             if not any(split):
                 support += count * copies
                 continue
             if not all(piece in vocabulary for piece in split if piece):
                 continue
-            pattern = " " + " ".join(f" {needle} ".join(split).split()) + " "
-            for _ in range(count):
-                if pattern not in stream:
-                    break
-                stream = stream.replace(pattern, " ", 1)
-                support += copies
+            pattern = " " + "  ".join(f" {needle} ".join(split).split()) + " "
+            found = min(count, stream.count(pattern))
+            # A space join would make two words adjacent; \0 is in no word.
+            stream = stream.replace(pattern, " \0 ", found)
+            support += found * copies
         return support
     transitions, failure, terminal, suffix = [{}], [0], [None], [0]
     lengths = []
