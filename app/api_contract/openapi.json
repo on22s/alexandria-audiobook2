@@ -64,6 +64,26 @@
         "title": "AbsConfigRequest",
         "type": "object"
       },
+      "AbsDiscardRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "confirm": {
+            "default": false,
+            "title": "Confirm",
+            "type": "boolean"
+          },
+          "delivery_id": {
+            "maxLength": 64,
+            "title": "Delivery Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "delivery_id"
+        ],
+        "title": "AbsDiscardRequest",
+        "type": "object"
+      },
       "AbsPreviewRequest": {
         "additionalProperties": false,
         "properties": {
@@ -7412,6 +7432,42 @@
           }
         },
         "summary": "List Abs Deliveries"
+      }
+    },
+    "/api/abs/discard": {
+      "post": {
+        "operationId": "discard_abs_delivery_api_abs_discard_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbsDiscardRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discard Abs Delivery"
       }
     },
     "/api/abs/libraries": {

@@ -661,6 +661,126 @@ class DeliveryTests(unittest.TestCase):
             self._send(self._preview(), acknowledge_unknown=True)
         self.assertIn('unknown', str(caught.exception))
 
+    def _seed_ledger_entry(self, entry_id, status, **fields):
+        # Run one-time recovery before seeding so a later get_ledger cannot
+        # demote a deliberately seeded in_flight/legacy-sent fixture.
+        delivery.get_ledger(self.data_dir)
+        entry = {'id': entry_id, 'status': status, 'created_at': 1,
+                 'book_token': self.book_token, 'sha256': self.sha256,
+                 'library_id': 'lib_1', 'folder_id': 'fol_1',
+                 'output_bytes': len(self.payload)}
+        entry.update(fields)
+        delivery.save_ledger_entry(self.data_dir, entry)
+        return entry
+
+    def test_cancelled_unknown_can_be_abandoned_and_resent(self):
+        # Issue #2298: a cancel that stored nothing leaves an unknown record
+        # that reconcile can never promote, so every later send was refused.
+        self.server.mode = 'ok'
+        real_post = delivery._post_snapshot
+
+        def cancelled_post(base_url, token, preview, snapshot_path,
+                           cancel_event=None, progress=None, **kwargs):
+            fired = threading.Event()
+            fired.set()
+            return real_post(base_url, token, preview, snapshot_path,
+                             cancel_event=fired, progress=progress, **kwargs)
+
+        with patch.object(delivery, '_post_snapshot', side_effect=cancelled_post):
+            entry = self._send(self._preview())
+        self.assertEqual('unknown', entry['status'])
+        self.assertEqual([], self.server.items)
+        reconciled = delivery.reconcile_delivery(self.data_dir, entry['id'], self.base, 'fake-token')
+        self.assertEqual('unknown', reconciled['status'])
+
+        discarded = delivery.discard_unknown_delivery(self.data_dir, entry['id'])
+        self.assertEqual('failed', discarded['status'])
+        self.assertEqual('unknown', discarded['discarded_from_status'])
+        self.assertIn('discarded_at', discarded)
+        self.assertIn('duplicate', discarded['discarded_note'])
+        self.assertEqual(entry['error'], discarded['error'])
+        ledger = delivery.get_ledger(self.data_dir)
+        self.assertEqual(1, len(ledger))
+        self.assertEqual('failed', ledger[0]['status'])
+        self.assertIn('discarded_at', ledger[0])
+
+        # The abandoned record no longer blocks a fresh preview+send. The new
+        # entry becomes the newest, and the normal duplicate rule applies to it.
+        resent = self._send(self._preview())
+        self.assertEqual('unknown', resent['status'])
+        self.assertNotEqual(entry['id'], resent['id'])
+        self.assertEqual(2, len(delivery.get_ledger(self.data_dir)))
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            self._send(self._preview())
+        self.assertEqual(409, caught.exception.status)
+        self.assertIn('not yet verified', str(caught.exception))
+
+    def test_discard_older_unknown_leaves_the_newest_unknown_blocking(self):
+        self._seed_ledger_entry('older', 'unknown')
+        self._seed_ledger_entry('newer', 'unknown')
+        delivery.discard_unknown_delivery(self.data_dir, 'older')
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            self._send(self._preview())
+        self.assertEqual(409, caught.exception.status)
+        self.assertIn('unknown', str(caught.exception))
+        delivery.discard_unknown_delivery(self.data_dir, 'newer')
+        sent = self._send(self._preview())
+        self.assertEqual('unknown', sent['status'])
+
+    def test_discard_refuses_missing_and_non_unknown_records(self):
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            delivery.discard_unknown_delivery(self.data_dir, 'no-such-entry')
+        self.assertEqual(404, caught.exception.status)
+
+        for status in ('sent', 'failed', 'in_flight'):
+            entry_id = f'entry-{status}'
+            self._seed_ledger_entry(entry_id, status)
+            with self.assertRaises(delivery.DeliveryError) as caught:
+                delivery.discard_unknown_delivery(self.data_dir, entry_id)
+            self.assertEqual(409, caught.exception.status)
+            persisted = {item['id']: item for item in delivery.get_ledger(self.data_dir)}
+            self.assertEqual(status, persisted[entry_id]['status'])
+            self.assertNotIn('discarded_at', persisted[entry_id])
+
+        active = self._seed_ledger_entry('entry-active', 'unknown')
+        delivery._active_deliveries.add(active['id'])
+        self.addCleanup(delivery._active_deliveries.discard, active['id'])
+        with self.assertRaises(delivery.DeliveryError) as caught:
+            delivery.discard_unknown_delivery(self.data_dir, active['id'])
+        self.assertEqual(409, caught.exception.status)
+        self.assertEqual('unknown', {item['id']: item for item in delivery.get_ledger(self.data_dir)}[active['id']]['status'])
+
+        # A record with no server binding cannot be reconciled at all, and a
+        # discard makes no network call, so it must still be abandonable.
+        no_server = self._seed_ledger_entry('entry-no-server', 'unknown')
+        discarded = delivery.discard_unknown_delivery(self.data_dir, no_server['id'])
+        self.assertEqual('failed', discarded['status'])
+
+    def test_discard_loses_to_a_concurrent_reconcile_promotion(self):
+        entry = self._seed_ledger_entry('entry-race', 'unknown')
+        outcome = {}
+
+        def worker():
+            try:
+                outcome['entry'] = delivery.discard_unknown_delivery(self.data_dir, entry['id'])
+            except delivery.DeliveryError as error:
+                outcome['error'] = error
+
+        # Hold the ledger lock so the worker's in-lock read happens only after
+        # a reconcile write has promoted the record to sent.
+        with delivery._ledger_lock:
+            thread = threading.Thread(target=worker)
+            thread.start()
+            time.sleep(0.05)
+            delivery.update_ledger_entry(self.data_dir, dict(entry, status='sent'))
+        thread.join(timeout=5)
+        self.assertFalse(thread.is_alive())
+        self.assertIn('error', outcome)
+        self.assertEqual(409, outcome['error'].status)
+        persisted = {item['id']: item for item in delivery.get_ledger(self.data_dir)}
+        self.assertEqual('sent', persisted['entry-race']['status'])
+        self.assertNotIn('discarded_at', persisted['entry-race'])
+
     def test_http200_without_persisted_file_never_becomes_sent(self):
         # N6 discriminating case: the fake server receives the full valid
         # multipart, replies 200, but persists nothing (file.mv() failure).

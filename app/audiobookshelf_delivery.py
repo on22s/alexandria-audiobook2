@@ -20,7 +20,8 @@ replacement during the transfer can never cause unconfirmed bytes to leave.
 Delivery status lives in a small durable ledger (``audiobookshelf_ledger.json``)
 persisted *before* the network call, separate from synthesis/export status.
 Ambiguous outcomes (timeout, dropped connection, 5xx, cancel) stay
-``unknown`` and block re-send until the user reconciles. Duplicate protection
+``unknown`` and block re-send until the user reconciles or explicitly discards
+the record as failed. Duplicate protection
 is scoped to a known server URL identity as well as book/export/destination;
 missing, unusable or conflicting legacy server bindings remain fail-closed.
 So does HTTP 200
@@ -1237,6 +1238,41 @@ def reconcile_delivery(data_dir, delivery_id, base_url, token, *, timeout=30):
     entry['reconciliation_candidates'] = candidates
     entry['reconciliation_pages'] = pages_checked
     return _update_reconciled_entry(data_dir, entry)
+
+
+def discard_unknown_delivery(data_dir, delivery_id):
+    """Explicitly abandon one ``unknown`` delivery so a new send is allowed.
+
+    This is a local ledger action and makes no network call, so it does not
+    require a reachable server: an entry with no server binding cannot be
+    reconciled at all, and a user whose server is gone must still be able to
+    abandon the record. The entry stays in the ledger as ``failed`` with
+    ``discarded_at``, the prior status and a note; the prior error/verification
+    text is kept for audit. The status is read under the same lock+file lock as
+    the write, so a concurrent reconcile that promoted the entry to ``sent``
+    wins and the discard is refused.
+    """
+    from utils import file_lock
+    with _ledger_lock, file_lock(_ledger_path(data_dir), timeout=30):
+        ledger = _read_ledger_raw(data_dir)
+        entry = next((item for item in ledger if item.get('id') == delivery_id), None)
+        if entry is None:
+            raise DeliveryError('No such delivery record.', 404)
+        if entry.get('status') != 'unknown':
+            raise DeliveryError(
+                'Only a delivery whose outcome is unknown can be discarded.', 409)
+        if entry.get('id') in _active_deliveries:
+            raise DeliveryError(
+                'The upload is still active; wait for it to finish before discarding.', 409)
+        entry['discarded_at'] = time.time()
+        entry['discarded_from_status'] = entry['status']
+        entry['discarded_note'] = (
+            'Discarded by the user after an unknown outcome. The server may or '
+            'may not have stored the file; check the server first because a '
+            'second send can create a duplicate item.')
+        entry['status'] = 'failed'
+        _write_ledger(data_dir, _trim_ledger(ledger))
+        return entry
 
 
 def send_preview(data_dir, states, base_url, token, preview_id, confirm, *,

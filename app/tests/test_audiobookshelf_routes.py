@@ -216,6 +216,70 @@ class AbsRouteTests(unittest.TestCase):
             self.assertEqual('unknown', updated['status'])
             self.assertIn('REMAINS unknown', updated['reconciliation'])
 
+    def test_discard_requires_confirmation_and_releases_unknown(self):
+        self.server.mode = 'server-error'
+        client, patch_dir, patch_keyring = self._client()
+        patches = self._flow_patches()
+        for item in patches:
+            item.start()
+            self.addCleanup(item.stop)
+        with patch_dir, patch_keyring, client:
+            client.post('/api/abs/config', json={'base_url': self.base, 'api_key': 'route-secret'})
+            preview = client.post('/api/abs/preview', json=self._preview_body())
+            body = dict(self._preview_body())
+            body.update({'preview_id': preview.json()['preview_id'], 'right_to_share': True})
+            sent = client.post('/api/abs/send', json=body)
+            self.assertEqual(200, sent.status_code, sent.text)
+            entry = sent.json()
+            self.assertEqual('unknown', entry['status'])
+
+            for refusal in ({'delivery_id': entry['id']},
+                            {'delivery_id': entry['id'], 'confirm': False}):
+                response = client.post('/api/abs/discard', json=refusal)
+                self.assertEqual(400, response.status_code, response.text)
+            deliveries = client.get('/api/abs/deliveries',
+                                    params={'expected_book_token': self.book_token})
+            self.assertEqual('unknown', deliveries.json()['deliveries'][0]['status'])
+
+            discarded = client.post('/api/abs/discard',
+                                    json={'delivery_id': entry['id'], 'confirm': True})
+            self.assertEqual(200, discarded.status_code, discarded.text)
+            updated = discarded.json()
+            self.assertEqual('failed', updated['status'])
+            self.assertEqual('unknown', updated['discarded_from_status'])
+            self.assertIn('discarded_at', updated)
+            deliveries = client.get('/api/abs/deliveries',
+                                    params={'expected_book_token': self.book_token})
+            self.assertEqual('failed', deliveries.json()['deliveries'][0]['status'])
+
+            # A new preview+send is allowed after the discard.
+            self.server.mode = 'ok'
+            fresh = client.post('/api/abs/preview', json=self._preview_body())
+            self.assertEqual(200, fresh.status_code, fresh.text)
+            body = dict(self._preview_body())
+            body.update({'preview_id': fresh.json()['preview_id'], 'right_to_share': True})
+            resent = client.post('/api/abs/send', json=body)
+            self.assertEqual(200, resent.status_code, resent.text)
+            self.assertNotEqual(entry['id'], resent.json()['id'])
+
+    def test_discard_refuses_missing_and_non_unknown_records(self):
+        client, patch_dir, patch_keyring = self._client()
+        with patch_dir, patch_keyring, client:
+            missing = client.post('/api/abs/discard',
+                                  json={'delivery_id': 'no-such-entry', 'confirm': True})
+            self.assertEqual(404, missing.status_code, missing.text)
+            delivery.get_ledger(self.data_dir)
+            delivery.save_ledger_entry(self.data_dir, {
+                'id': 'sent-entry', 'status': 'sent', 'created_at': 1,
+                'book_token': self.book_token, 'sha256': self.sha256,
+                'library_id': 'lib_1', 'folder_id': 'fol_1',
+                'output_bytes': len(self.payload)})
+            refused = client.post('/api/abs/discard',
+                                  json={'delivery_id': 'sent-entry', 'confirm': True})
+            self.assertEqual(409, refused.status_code, refused.text)
+            persisted = {item['id']: item for item in delivery.get_ledger(self.data_dir)}
+            self.assertEqual('sent', persisted['sent-entry']['status'])
+
     def test_cancel_without_active_upload_is_safe(self):
         client, patch_dir, patch_keyring = self._client()
         patches = self._flow_patches()

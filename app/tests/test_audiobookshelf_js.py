@@ -305,6 +305,59 @@ console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
 
+    def test_discard_button_only_on_unknown_and_declined_confirm_sends_nothing(self):
+        self._run(r'''
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const source=fs.readFileSync(process.argv[1],'utf8');
+const elements={};
+const mk=()=>({style:{},textContent:'',value:'',checked:false,disabled:false,className:'',children:[],
+  replaceChildren(){this.children=[];},appendChild(child){this.children.push(child);}});
+const el=id=>elements[id]||(elements[id]=mk());
+const entries=[
+  {id:'d1',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'unknown',output_bytes:100,sha256:'s'},
+  {id:'d2',export_file:'cloned_audiobook.mp3',title:'Test Book',status:'sent',output_bytes:100,sha256:'s'}];
+let confirmAnswer=false;
+const confirms=[];
+const posts=[];
+const ctx={document:{getElementById:el,createElement:()=>mk()},
+  console:{error(){}},chunkSnapshotBookToken:'a'.repeat(64),showActionError(){},
+  setInterval:()=>0,clearInterval:()=>{},
+  showConfirm:async (message,options)=>{confirms.push({message,options});return confirmAnswer;},
+  API:{get:async url=>{
+    if(url.startsWith('/api/abs/deliveries')){return{deliveries:entries};}
+    throw new Error('unexpected GET '+url);},
+    post:async (url,body)=>{posts.push({url,body});
+      if(url==='/api/abs/discard'){return{status:'failed',discarded_at:1};}
+      throw new Error('unexpected POST '+url);}}};
+vm.createContext(ctx);
+Object.assign(ctx,{t:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),formatUiSafetyText:(k,e,v={})=>String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m),tSafety:()=>({primary:'',secondary:null}),renderUiSafety:(target,k,e,v={})=>{target.textContent=String(e).replace(/\{(\w+)\}/g,(m,n)=>Object.prototype.hasOwnProperty.call(v,n)?String(v[n]):m);},getIntlUiLocale:()=> 'en'});
+vm.runInContext(source,ctx);
+(async()=>{
+await ctx.loadAbsDeliveries();
+const unknownRow=el('abs-deliveries').children[0];
+const sentRow=el('abs-deliveries').children[1];
+assert.ok(unknownRow.children.some(child=>child.textContent==='Discard outcome'),'unknown offers discard');
+assert.ok(!sentRow.children.some(child=>child.textContent==='Discard outcome'),'sent offers no discard');
+assert.ok(unknownRow.children.some(child=>child.textContent==='Verify delivery'),'unknown still offers verify');
+assert.ok(!sentRow.children.some(child=>child.textContent==='Verify delivery'),'sent offers no verify');
+
+confirmAnswer=false;
+await ctx.discardAbsDelivery('d1');
+assert.strictEqual(posts.length,0,'declined confirmation sends no POST');
+assert.strictEqual(confirms.length,1,'one confirmation was shown');
+assert.match(confirms[0].message,/duplicate/,'confirm warns about a duplicate item');
+assert.match(confirms[0].message,/local export is unchanged/,'confirm says the local export is unchanged');
+assert.strictEqual(confirms[0].options.danger,true,'discard confirmation is destructive');
+
+confirmAnswer=true;
+await ctx.discardAbsDelivery('d1');
+assert.strictEqual(posts.length,1,'confirmed discard sends exactly one POST');
+assert.strictEqual(posts[0].url,'/api/abs/discard');
+assert.strictEqual(JSON.stringify(posts[0].body),JSON.stringify({delivery_id:'d1',confirm:true}));
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
 
 if __name__ == '__main__':
     unittest.main()

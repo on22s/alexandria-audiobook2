@@ -1386,6 +1386,12 @@ class AbsReconcileRequest(BaseModel):
     delivery_id: str = Field(max_length=64)
 
 
+class AbsDiscardRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    delivery_id: str = Field(max_length=64)
+    confirm: StrictBool = False
+
+
 class AbsCancelRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     preview_id: str = Field(max_length=64)
@@ -1572,6 +1578,23 @@ def _reconcile_abs_delivery_sync(request):
     except delivery.DeliveryError as error:
         raise HTTPException(status_code=error.status, detail=str(error)) from error
     return updated
+
+
+@router.post('/api/abs/discard')
+async def discard_abs_delivery(request: AbsDiscardRequest):
+    if not request.confirm:
+        raise HTTPException(status_code=400, detail='Confirm you want to discard this delivery record.')
+    return await asyncio.to_thread(_discard_abs_delivery_sync, request)
+
+
+def _discard_abs_delivery_sync(request):
+    import audiobookshelf_delivery as delivery
+    # Sibling of reconcile: a ledger action keyed only by delivery_id. It makes
+    # no network call and does not require the entry's server to be reachable.
+    try:
+        return delivery.discard_unknown_delivery(DATA_DIR, request.delivery_id)
+    except delivery.DeliveryError as error:
+        raise HTTPException(status_code=error.status, detail=str(error)) from error
 
 
 @router.get('/api/abs/progress')

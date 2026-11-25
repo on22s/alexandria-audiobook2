@@ -321,6 +321,12 @@ async function loadAbsDeliveries() {
                 button.textContent = t('abs.deliveries.verify', 'Verify delivery');
                 button.onclick = () => reconcileAbsDelivery(entry.id);
                 row.appendChild(button);
+                const discard = document.createElement('button');
+                discard.type = 'button';
+                discard.className = 'btn btn-outline-danger btn-sm ms-2';
+                discard.textContent = t('abs.deliveries.discard', 'Discard outcome');
+                discard.onclick = () => discardAbsDelivery(entry.id);
+                row.appendChild(discard);
             }
             container.appendChild(row);
         }
@@ -349,5 +355,19 @@ async function reconcileAbsDelivery(deliveryId) {
         loadAbsDeliveries();
     } catch (error) {
         showActionError(t('abs.error.reconcile', 'Reconciliation failed'), error, t('abs.error.reconcile-recovery', 'Check the server is reachable, then retry.'), 'error');
+    }
+}
+
+async function discardAbsDelivery(deliveryId) {
+    const confirmed = await showConfirm(
+        formatUiSafetyText('safety.abs.discard', 'Discard this unknown delivery record? Check the server first. If the file did arrive, or arrives late, sending again can create a duplicate library item. The local export is unchanged; only this delivery record is marked failed so a new send is allowed.'),
+        {title: t('abs.discard.title', 'Discard delivery record?'), actionLabel: t('abs.discard.action', 'Discard record'), danger: true});
+    if (!confirmed) { return; }
+    try {
+        await API.post('/api/abs/discard', {delivery_id: deliveryId, confirm: true});
+        renderUiSafety(document.getElementById('abs-status'), 'safety.abs.discard.done', 'Delivery record discarded. Preview and send again if you need to retry; a send that is unknown or already delivered is still blocked by the normal duplicate check.');
+        loadAbsDeliveries();
+    } catch (error) {
+        showActionError(t('abs.error.discard', 'Could not discard the delivery record'), error, t('abs.error.discard-recovery', 'Refresh Editor and retry.'), 'error');
     }
 }

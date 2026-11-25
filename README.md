@@ -1241,7 +1241,7 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 <!-- api-reference-start -->
 ### Routes
 
-353 API operations across 19 router modules. Generated from `app/api_contract/routes.json` and the route docstrings in `app/routers/` by `app/update_readme_api_reference.py`; regenerate after changing a route. Framework routes (`/openapi.json`, `/docs`, `/redoc`) and static mounts are in the contract but are not application endpoints.
+354 API operations across 19 router modules. Generated from `app/api_contract/routes.json` and the route docstrings in `app/routers/` by `app/update_readme_api_reference.py`; regenerate after changing a route. Framework routes (`/openapi.json`, `/docs`, `/redoc`) and static mounts are in the contract but are not application endpoints.
 
 #### System, config and status (`app/routers/system.py`)
 
@@ -1446,6 +1446,7 @@ Request bodies are Pydantic models in `app/routers/*.py` — `GenerateScriptRequ
 | `POST` | `/api/abs/send` | send abs export |
 | `GET` | `/api/abs/deliveries` | list abs deliveries |
 | `POST` | `/api/abs/reconcile` | reconcile abs delivery |
+| `POST` | `/api/abs/discard` | discard abs delivery |
 | `GET` | `/api/abs/progress` | get abs progress |
 | `POST` | `/api/abs/cancel` | cancel abs send |
 | `POST` | `/api/merge` | merge audio endpoint |
