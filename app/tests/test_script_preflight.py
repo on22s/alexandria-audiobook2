@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -788,6 +789,85 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
 
         self.assertEqual(1, len(findings))
         self.assertEqual("manual_review", findings[0]["severity"])
+
+    def test_a_fused_source_word_split_faithfully_is_manual_review(self):
+        source = "\u5f7c\u306f\u306f\u3044\u3001\u306f\u3044\u3002"
+        entries = [_entry("\u5f7c\u306f"), _entry("\u306f\u3044", "MARTA"),
+                   _entry("\u306f\u3044", "PORTER"), _entry("\u3002")]
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+        self.assertTrue(findings[0]["details"]["rendering_capacity_unknown"])
+
+    def test_a_fused_thai_source_word_split_faithfully_is_manual_review(self):
+        source = "\u0e40\u0e02\u0e32\u0e1e\u0e39\u0e14\u0e27\u0e48\u0e32\u0e43\u0e0a\u0e48 \u0e43\u0e0a\u0e48"
+        entries = [_entry("\u0e40\u0e02\u0e32\u0e1e\u0e39\u0e14\u0e27\u0e48\u0e32"),
+                   _entry("\u0e43\u0e0a\u0e48", "MARTA"),
+                   _entry("\u0e43\u0e0a\u0e48", "PORTER")]
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+
+    def test_a_fused_thai_word_with_a_dropped_remainder_still_blocks(self):
+        source = "\u0e01\u0e32\u0e02\u0e32\u0e27 \u0e01\u0e32"
+        entries = [_entry("\u0e01\u0e32", "MARTA"),
+                   _entry("\u0e01\u0e32", "PORTER")]
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+
+    def test_a_run_emitted_whole_does_not_excuse_an_extra_copy(self):
+        source = "\u306f\u3044 \u306f\u3044\u306f\u3044"
+        entries = [_entry("\u306f\u3044", "MARTA"), _entry("\u306f\u3044", "PORTER"),
+                   _entry("\u306f\u3044\u306f\u3044", "ANNA")]
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+
+    def test_a_latin_run_emitted_whole_does_not_excuse_an_extra_copy(self):
+        source = "ha haha"
+        entries = [_entry("ha", "MARTA"), _entry("ha", "PORTER"),
+                   _entry("haha", "ANNA")]
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+
+    def test_a_dropped_word_explains_a_split_only_when_its_remainder_was_emitted(self):
+        source = "\u6771\u4eac \u6771\u4eac\u90fd"
+        split = [_entry("\u6771\u4eac", "MARTA"), _entry("\u6771\u4eac", "PORTER"),
+                 _entry("\u90fd", "ANNA")]
+        dropped = [_entry("\u6771\u4eac", "MARTA"), _entry("\u6771\u4eac", "PORTER")]
+
+        findings = self._duplicate_findings(split, source)
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+        self.assertEqual("blocking", self._duplicate_findings(dropped, source)[0]["severity"])
+
+    def test_a_long_unspent_token_does_not_repeat_work_per_candidate_copy(self):
+        source = "a " + "b" * 300000
+        entries = [_entry("a", "MARTA"), _entry("a", "PORTER")]
+        lines = []
+
+        def trace(frame, event, arg):
+            if event == "line" and frame.f_code.co_filename.endswith("script_preflight.py"):
+                lines.append(frame.f_lineno)
+            return trace
+
+        previous = sys.gettrace()
+        sys.settrace(trace)
+        try:
+            findings = self._duplicate_findings(entries, source)
+        finally:
+            sys.settrace(previous)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+        self.assertLess(len(lines), 50000)
 
     def test_audit_script_surfaces_the_separate_duplicate_as_blocking(self):
         report = audit_script(self._entries(), self._source())

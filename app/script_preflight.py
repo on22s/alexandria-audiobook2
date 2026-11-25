@@ -278,23 +278,25 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
               and unicodedata.is_normalized("NFC", source_text)
               and not re.search(r"(?<=\w)['’](?=\w)", source_text)
               else canonical(source_text))
-    source_tokens = None
+    unspent_source = output_tokens = None
 
-    def repeated_token_support(needle):
-        """Copies of a one-word needle that one glued source token explains.
+    def unspent_token_support(needle):
+        """Copies of a one-word needle that an unemitted source word explains.
 
-        The scan matches whole words, so a token equal to the needle repeated
-        k >= 2 times is absent from source_counts and supports k copies, not
-        k - 1. A needle spanning several words can never equal one token.
-        Built once, and only when a separate-entry finding needs it.
+        A needle fused into a longer source word is invisible to the word scan.
+        Only a word the output never emitted explains the split, and only when
+        every non-needle piece was emitted too; an unrelated omitted word cannot.
+        Built once per call, lazily.
         """
-        nonlocal source_tokens
-        if source_tokens is None:
-            counts = Counter(source.split())
-            source_tokens = counts, max(map(len, counts), default=0)
-        counts, longest = source_tokens
-        return sum(count * k for k in range(2, longest // len(needle) + 1)
-                   if (count := counts.get(needle * k)))
+        nonlocal unspent_source, output_tokens
+        if unspent_source is None:
+            emitted = Counter(word for text in texts for word in text.split())
+            unspent_source = Counter(source.split()) - emitted
+            output_tokens = set(emitted)
+        return sum(count * token.count(needle) for token, count in unspent_source.items()
+                   if needle in token
+                   and all(piece in output_tokens
+                           for piece in token.split(needle) if piece))
     transitions, failure, terminal, suffix = [{}], [0], [None], [0]
     lengths = []
     for ident, needle in enumerate(needles):
@@ -406,13 +408,13 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             continue
         proven_emitted = quote_counts[ident] + len(separate[ident])
         ambiguous = unknown_rendering or proven_emitted <= capacity + added_capacity
-        # A source word can squeeze a repetition into one token ("はいはい",
-        # "haha") that a faithful script splits into separate entries; only that
-        # shape can be explained this way, and only by a token that is the needle
-        # repeated exactly. The same characters inside a longer word prove nothing.
+        # A source word the output never emitted as a word can squeeze a
+        # repetition into one token ("はいはい") that a faithful script splits
+        # into separate entries. Only a separate-entry finding is explained this
+        # way; a dropped word plus a duplicate is review, an extra copy blocks.
         if (not ambiguous and not carriers[ident]
                 and all_emitted <= capacity + added_capacity
-                + repeated_token_support(needle)):
+                + unspent_token_support(needle)):
             ambiguous = True
         findings.append(_finding(
             "manual_review" if ambiguous else "blocking", "contained_source_duplicate",

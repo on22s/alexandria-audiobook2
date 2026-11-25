@@ -991,6 +991,34 @@ class ContainedSeparateDuplicateGateTests(unittest.TestCase):
         self.assertEqual(1, audit["counts"]["blocking"])
         self.assertFalse(generate_script.passes_final_generation_gate(chunk, audit))
 
+    def test_final_generation_gate_passes_a_faithful_fused_source_word(self):
+        source = " ".join(_FILLER) + " \u5f7c\u306f\u306f\u3044\u3001\u306f\u3044\u3002"
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("\u5f7c\u306f"), _entry("\u306f\u3044", "MARTA"),
+                      _entry("\u306f\u3044", "PORTER"), _entry("\u3002")])
+
+        chunk = validate_chunk_quality(source, entries)
+        audit = generate_script.audit_script(entries, source)
+
+        self.assertNotIn("source_unsupported_contained_duplicate",
+                         {finding["code"] for finding in chunk["findings"]})
+        self.assertEqual(0, audit["counts"]["blocking"])
+        self.assertTrue(generate_script.passes_final_generation_gate(chunk, audit))
+
+    def test_final_generation_gate_blocks_a_run_emitted_whole_plus_split(self):
+        source = " ".join(_FILLER) + " \u306f\u3044 \u306f\u3044\u306f\u3044"
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("\u306f\u3044", "MARTA"), _entry("\u306f\u3044", "PORTER"),
+                      _entry("\u306f\u3044\u306f\u3044", "ANNA")])
+
+        chunk = validate_chunk_quality(source, entries)
+        audit = generate_script.audit_script(entries, source)
+
+        self.assertIn("source_unsupported_contained_duplicate",
+                      {finding["code"] for finding in chunk["findings"]})
+        self.assertEqual(1, audit["counts"]["blocking"])
+        self.assertFalse(generate_script.passes_final_generation_gate(chunk, audit))
+
 
 if __name__ == "__main__":
     unittest.main()
