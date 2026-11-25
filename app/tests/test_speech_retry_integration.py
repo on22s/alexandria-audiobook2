@@ -5,9 +5,11 @@ import unittest
 from contextlib import contextmanager
 from unittest.mock import patch
 
+import numpy as np
 from book_state_transaction import get_book_operation_token
 from tests import test_speech_verification_publication as publication_fixture
 from tests.test_speech_verification_receipt import get_report
+from tts import TTSGenerationResult, TTSEngine
 
 
 class SpeechRetryIntegrationTests(unittest.TestCase):
@@ -96,6 +98,23 @@ class SpeechRetryIntegrationTests(unittest.TestCase):
                 self.assertEqual('corroborated_content_difference', attempts[0]['receipt']['status'])
                 self.assertEqual('no_content_candidate', attempts[1]['receipt']['status'])
                 self.assertEqual([], list((root / 'voicelines').glob('.render-*')))
+
+    def test_runaway_take_fails_once_with_length_reason_without_retry(self):
+        with self.retry_fixture() as (root, manager, before, prior, flags):
+            calls = []
+            def runaway(text, instruct, speaker, voices, output, **kwargs):
+                calls.append(text)
+                samples = (.2 * np.sin(2 * np.pi * 220 * np.arange(round(131.9 * 24000)) / 24000)).astype('float32')
+                TTSEngine._save_wav(samples, 24000, output)
+                return TTSGenerationResult(True)
+            with patch.object(manager.engine, 'generate_voice_result', side_effect=runaway):
+                self.assertFalse(self.generate(manager, 'single'))
+            self.assertEqual(1, len(calls))
+            row = self.assert_prior(root, manager, before, prior)
+            self.assertEqual('error', row['status'])
+            self.assertIn('too long for the requested text', row['error'])
+            self.assertIn('131.900s', row['error'])
+            self.assertEqual(1, len(self.history(row)))
 
     def test_repeated_mismatch_and_non_retryable_verifier_outcomes_keep_prior(self):
         scenarios = [
