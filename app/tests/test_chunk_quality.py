@@ -1019,6 +1019,36 @@ class ContainedSeparateDuplicateGateTests(unittest.TestCase):
         self.assertEqual(1, audit["counts"]["blocking"])
         self.assertFalse(generate_script.passes_final_generation_gate(chunk, audit))
 
+    def test_final_generation_gate_blocks_a_dropped_word_hiding_a_duplicate(self):
+        source = (" ".join(_FILLER)
+                  + " he found nothing there and the thing was gone . No .")
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("he found there and the thing was gone"),
+                      _entry("No.", "MARTA"), _entry("No.", "PORTER")])
+
+        chunk = validate_chunk_quality(source, entries)
+        audit = generate_script.audit_script(entries, source)
+
+        self.assertIn("source_unsupported_contained_duplicate",
+                      {finding["code"] for finding in chunk["findings"]})
+        self.assertEqual(1, audit["counts"]["blocking"])
+        self.assertFalse(generate_script.passes_final_generation_gate(chunk, audit))
+
+    def test_final_generation_gate_blocks_a_remainder_emitted_elsewhere(self):
+        source = (" ".join(_FILLER)
+                  + " he went somit home with mit the dog . So .")
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("he went home with mit the dog"),
+                      _entry("So.", "MARTA"), _entry("So.", "PORTER")])
+
+        chunk = validate_chunk_quality(source, entries)
+        audit = generate_script.audit_script(entries, source)
+
+        self.assertIn("source_unsupported_contained_duplicate",
+                      {finding["code"] for finding in chunk["findings"]})
+        self.assertEqual(1, audit["counts"]["blocking"])
+        self.assertFalse(generate_script.passes_final_generation_gate(chunk, audit))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -616,6 +616,7 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(1, len(findings))
         self.assertEqual("manual_review", findings[0]["severity"])
         self.assertTrue(findings[0]["details"]["rendering_capacity_unknown"])
+        self.assertEqual(0, findings[0]["details"]["unemitted_source_split_support"])
 
     def test_missing_source_abstains(self):
         entries = self._entries()
@@ -659,7 +660,8 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
 
         self.assertEqual(1, len(findings))
         self.assertEqual("manual_review", findings[0]["severity"])
-        self.assertTrue(findings[0]["details"]["rendering_capacity_unknown"])
+        self.assertFalse(findings[0]["details"]["rendering_capacity_unknown"])
+        self.assertEqual(2, findings[0]["details"]["unemitted_source_split_support"])
 
     def test_unsegmented_phrase_inside_a_larger_entry_still_blocks(self):
         source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
@@ -798,7 +800,8 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
 
         self.assertEqual(1, len(findings))
         self.assertEqual("manual_review", findings[0]["severity"])
-        self.assertTrue(findings[0]["details"]["rendering_capacity_unknown"])
+        self.assertFalse(findings[0]["details"]["rendering_capacity_unknown"])
+        self.assertEqual(1, findings[0]["details"]["unemitted_source_split_support"])
 
     def test_a_fused_thai_source_word_split_faithfully_is_manual_review(self):
         source = "\u0e40\u0e02\u0e32\u0e1e\u0e39\u0e14\u0e27\u0e48\u0e32\u0e43\u0e0a\u0e48 \u0e43\u0e0a\u0e48"
@@ -847,6 +850,56 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(1, len(findings))
         self.assertEqual("manual_review", findings[0]["severity"])
         self.assertEqual("blocking", self._duplicate_findings(dropped, source)[0]["severity"])
+
+    def test_a_dropped_word_elsewhere_does_not_excuse_a_real_duplicate(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + " he found nothing there and the thing was gone . No .")
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("he found there and the thing was gone"),
+                      _entry("No.", "MARTA"), _entry("No.", "PORTER")])
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(0, finding["details"]["unemitted_source_split_support"])
+
+    def test_a_remainder_emitted_elsewhere_does_not_excuse_a_real_duplicate(self):
+        source = (" ".join(_SEPARATE_DUPLICATE_FILLER)
+                  + " he went somit home with mit the dog . So .")
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("he went home with mit the dog"),
+                      _entry("So.", "MARTA"), _entry("So.", "PORTER")])
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(0, finding["details"]["unemitted_source_split_support"])
+
+    def test_a_remainder_inside_a_longer_output_word_does_not_count(self):
+        source = " ".join(_SEPARATE_DUPLICATE_FILLER) + " nothing . No ."
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("something"), _entry("No.", "MARTA"),
+                      _entry("No.", "PORTER")])
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("blocking", finding["severity"])
+
+    def test_a_fused_needle_run_still_completes_a_remainder_split(self):
+        source = "mit somit mitmit"
+        entries = [_entry("mit", "MARTA"), _entry("mit", "PORTER"),
+                   _entry("so"), _entry("mitmit")]
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(1, finding["details"]["unemitted_source_split_support"])
+
+    def test_two_unspent_splits_do_not_credit_the_same_output_words(self):
+        source = " ".join(_SEPARATE_DUPLICATE_FILLER) + " so sox xso"
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("so", "MARTA"), _entry("x"), _entry("so", "PORTER"),
+                      _entry("so", "ANNA")])
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["unemitted_source_split_support"])
 
     def test_a_long_unspent_token_does_not_repeat_work_per_candidate_copy(self):
         source = "a " + "b" * 300000

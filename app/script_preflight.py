@@ -278,25 +278,44 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
               and unicodedata.is_normalized("NFC", source_text)
               and not re.search(r"(?<=\w)['’](?=\w)", source_text)
               else canonical(source_text))
-    unspent_source = output_tokens = None
+    unspent_source = output_stream = None
 
     def unspent_token_support(needle):
         """Copies of a one-word needle that an unemitted source word explains.
 
         A needle fused into a longer source word is invisible to the word scan.
-        Only a word the output never emitted explains the split, and only when
-        every non-needle piece was emitted too; an unrelated omitted word cannot.
-        Built once per call, lazily.
+        Only a word the output never emitted explains the split, and only where
+        the output lays that split out in order and adjacent ("somit" explains
+        "mit" only beside "so"); a word emitted elsewhere cannot. A word that is
+        only the needle repeated keeps the whole-count rule. Built once, lazily.
         """
-        nonlocal unspent_source, output_tokens
+        nonlocal unspent_source, output_stream
         if unspent_source is None:
             emitted = Counter(word for text in texts for word in text.split())
             unspent_source = Counter(source.split()) - emitted
-            output_tokens = set(emitted)
-        return sum(count * token.count(needle) for token, count in unspent_source.items()
-                   if needle in token
-                   and all(piece in output_tokens
-                           for piece in token.split(needle) if piece))
+            output_stream = " " + " ".join(texts) + " "
+        tokens = sorted(((token.split(needle), token.count(needle), count)
+                         for token, count in unspent_source.items() if needle in token),
+                        key=lambda item: -sum(map(len, item[0])))
+        words = output_stream.split()
+        if any(any(split) for split, _, _ in tokens):
+            # A word that is just the needle repeated is those copies fused.
+            words = [part for word in words for k in [len(word) // len(needle)]
+                     for part in ([needle] * k if k > 1 and word == needle * k else [word])]
+        vocabulary, stream, support = set(words), " " + " ".join(words) + " ", 0
+        for split, copies, count in tokens:
+            if not any(split):
+                support += count * copies
+                continue
+            if not all(piece in vocabulary for piece in split if piece):
+                continue
+            pattern = " " + " ".join(f" {needle} ".join(split).split()) + " "
+            for _ in range(count):
+                if pattern not in stream:
+                    break
+                stream = stream.replace(pattern, " ", 1)
+                support += copies
+        return support
     transitions, failure, terminal, suffix = [{}], [0], [None], [0]
     lengths = []
     for ident, needle in enumerate(needles):
@@ -408,14 +427,15 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             continue
         proven_emitted = quote_counts[ident] + len(separate[ident])
         ambiguous = unknown_rendering or proven_emitted <= capacity + added_capacity
-        # A source word the output never emitted as a word can squeeze a
-        # repetition into one token ("はいはい") that a faithful script splits
-        # into separate entries. Only a separate-entry finding is explained this
-        # way; a dropped word plus a duplicate is review, an extra copy blocks.
-        if (not ambiguous and not carriers[ident]
-                and all_emitted <= capacity + added_capacity
-                + unspent_token_support(needle)):
-            ambiguous = True
+        unknown_capacity = ambiguous
+        support = 0
+        # A source word the output never emitted can squeeze a repetition into
+        # one token ("はいはい") that a faithful script splits into separate
+        # entries. Only a separate-entry finding is explained this way; the split
+        # must appear adjacent in the output, and an extra copy still blocks.
+        if not ambiguous and not carriers[ident]:
+            support = unspent_token_support(needle)
+            ambiguous = all_emitted <= capacity + added_capacity + support
         findings.append(_finding(
             "manual_review" if ambiguous else "blocking", "contained_source_duplicate",
             "Contained phrase repetition needs review of its rendering/source provenance."
@@ -425,7 +445,8 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             sorted(i + 1 for i in carriers[ident].union(separate[ident])), phrase=needle,
             source_occurrences=capacity, possible_expansion_occurrences=added_capacity,
             output_quotation_occurrences=proven_emitted, all_text_occurrences=all_emitted,
-            rendering_capacity_unknown=ambiguous,
+            rendering_capacity_unknown=unknown_capacity,
+            unemitted_source_split_support=support,
             source_word_normalized_spans=source_spans[ident],
             source_spans_truncated=capacity > len(source_spans[ident]),
         ))
