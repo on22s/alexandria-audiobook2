@@ -20,7 +20,9 @@ validated bytes using the existing native book identity. Checkpoint-prefix
 snapshots also retain exact history; old script/take bindings stay stale until
 explicitly reviewed, rather than being rebound to the partial script. Load restores its own
 companion in the existing book transaction. A legacy snapshot without a companion
-clears active cues. Explicit source selection also clears valid active cues.
+clears active cues. Explicit source selection clears valid active cues, except
+re-selecting the active source when the published script is rebound for the same
+book; that selection keeps the cue registry and rendition ledger.
 Malformed or unsafe metadata refuses the operation and remains available for
 inspection; named snapshots preserve cue history across script repairs, where
 old source/take bindings become stale rather than being silently rewritten.
