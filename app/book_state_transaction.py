@@ -6652,11 +6652,16 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
                 state['_source_scope_exports'] = get_scope_export_inventory(data_dir)
                 if ledger_raw is not None:
                     receipt_bytes = get_compacted_publication_receipts(records, new_token, None)
-            # An explicit input selection starts a new book context. Validate
-            # optional old metadata before clearing it in the same transaction;
-            # malformed/recoverable files must not disappear on a failed switch.
+            # An explicit input selection starts a new book context, except a
+            # same-book rebind of the published script, which keeps the book's
+            # companions. Validate optional old metadata before clearing it in
+            # the same transaction; malformed/recoverable files must not
+            # disappear on a failed switch. Identical bytes under another name
+            # change the book id, so its companions still belong to the old one.
             companions = [name for name in (ACTIVE_CUES, ACTIVE_RENDITIONS)
                           if os.path.lexists(Path(data_dir) / name)]
+            keep_companions = (rebound_binding is not None
+                               and book_id == previous_book_id)
             if companions:
                 capture_sound_design_companions(data_dir, ACTIVE_CUES, ACTIVE_RENDITIONS,
                                                 expected_book_id=previous_book_id)
@@ -6670,7 +6675,7 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
                     replacements[BINDING_NAME] = rebound_binding
                 if receipt_bytes is not None:
                     replacements[PUBLICATIONS_FILE] = receipt_bytes
-                removals = list(companions) + list(chunk_removals)
+                removals = ([] if keep_companions else list(companions)) + list(chunk_removals)
                 if before_publication is not None:
                     before_publication()
                 if replacements or removals:
