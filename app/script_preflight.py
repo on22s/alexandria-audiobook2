@@ -5,8 +5,9 @@ import re
 import shlex
 import sys
 import unicodedata
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right, insort
 from collections import Counter
+from heapq import heappop, heappush
 
 from speech_text import get_speech_normalization
 from utils import get_unsafe_text_controls
@@ -34,19 +35,19 @@ _NARRATION_RE = re.compile(
 _SCRIPT_PREFIXES = ("LATIN", "CYRILLIC", "HIRAGANA", "KATAKANA", "CJK",
                     "ARABIC", "HEBREW", "HANGUL", "GREEK", "THAI")
 
-_COMBINING_MARK_PATTERNS = None
+_COMBINING_MARK_WORD_PATTERN = None
 
 
-def ensure_combining_mark_patterns():
-    """Return regexes that treat combining marks as part of the word they follow.
+def ensure_combining_mark_word_pattern():
+    """Return a regex that treats a combining mark as part of the word it follows.
 
     _WORD_RE cannot match a mark, so Thai "แล้ว" splits into "แล" and "ว"; the
     split then lands differently in source and output and a faithful re-split
     fuses differently. Built once from the Unicode database, because a
     per-character category lookup costs about 0.2 s per megabyte.
     """
-    global _COMBINING_MARK_PATTERNS
-    if _COMBINING_MARK_PATTERNS is None:
+    global _COMBINING_MARK_WORD_PATTERN
+    if _COMBINING_MARK_WORD_PATTERN is None:
         ranges, start, previous = [], None, None
         for code in range(0x110000):
             if 0xD800 <= code <= 0xDFFF:
@@ -68,11 +69,9 @@ def ensure_combining_mark_patterns():
         marks = "".join("\\U%08x" % first if first == last
                         else "\\U%08x-\\U%08x" % (first, last)
                         for first, last in ranges)
-        _COMBINING_MARK_PATTERNS = (
-            re.compile(r"[^\W_](?:[^\W_]|[%s])*" % marks, re.UNICODE),
-            re.compile(r"[%s]" % marks, re.UNICODE),
-        )
-    return _COMBINING_MARK_PATTERNS
+        _COMBINING_MARK_WORD_PATTERN = re.compile(
+            r"[^\W_](?:[^\W_]|[%s])*" % marks, re.UNICODE)
+    return _COMBINING_MARK_WORD_PATTERN
 
 
 def _character_script(character):
@@ -126,14 +125,6 @@ def get_normalized_word_tokens(value):
 
 def _normalize_words(value):
     return " ".join(get_normalized_word_tokens(value))
-
-
-def _key_offsets(word, key):
-    """Yield every offset at which key occurs inside word."""
-    found = word.find(key)
-    while found != -1:
-        yield found
-        found = word.find(key, found + 1)
 
 
 def _finding(severity, code, message, entry_numbers=None, **details):
@@ -296,22 +287,18 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     from dialogue_spans import spoken_spans
 
     def canonical(text):
-        # NFC first: source and script may spell one word composed and
-        # decomposed, and _WORD_RE drops a combining mark, so without this the
-        # same word counts twice in a faithful script and once in the source.
         # Casefold BEFORE any mark handling: casefold itself can produce a mark
         # ("İ".casefold() == "i\u0307") and can decompose (Greek iota
-        # subscript), and a mark is only comparable once both sides agree.
-        text = unicodedata.normalize("NFC", str(text or ""))
+        # subscript), so NFC after folding is what makes one word spelled two
+        # ways comparable. _WORD_RE cannot match a mark, so ASCII keeps it.
         text = _normalize(unicodedata.normalize("NFC", _normalize(text)))
         text = re.sub(r"(?<=\w)['’](?=\w)", "", text)
         if text.isascii():
             return _normalize_words(text)
-        word_pattern, _mark_pattern = ensure_combining_mark_patterns()
         # A mark belongs to the word it follows, so a mark inside a word never
         # moves a token boundary. Marks stay in the token, not dropped: Thai
         # ก่า and ก้า are different words, as are pointed and unpointed Hebrew.
-        return " ".join(word_pattern.findall(text))
+        return " ".join(ensure_combining_mark_word_pattern().findall(text))
 
     source_text = str(source_text or "")
     if len(source_text) + sum(len(e.get("text", "")) for e in entries
@@ -332,81 +319,233 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     if not needles:
         return []
     needle_starts = {needle.split()[0] for needle in needles}
-    # Same canonical form on both paths. The audit word view was tokenized
-    # without NFC, so trust it only when the source is already NFC (then the two
-    # views are identical); otherwise rebuild from the source through canonical.
-    _word_pattern, mark_pattern = ensure_combining_mark_patterns()
-    source = (canonical(source_normalized) if source_normalized is not None
-              and unicodedata.is_normalized("NFC", source_text)
-              and not mark_pattern.search(source_text)
+    # The audit word view was tokenized with the mark-dropping _WORD_RE, so it
+    # is only trustworthy for an ASCII source: casefold cannot add a mark there,
+    # and the apostrophe guard covers the one other difference. Any other source
+    # is rebuilt through canonical so a mark casefold produced ("İ" ->
+    # "i\u0307") is not dropped from the source while the needle keeps it.
+    source = (source_normalized if source_normalized is not None
+              and source_text.isascii()
               and not re.search(r"(?<=\w)['’](?=\w)", source_text)
               else canonical(source_text))
-    unspent_source = output_index = output_positions = None
+    unspent_counts = output_words = output_positions = run_groups = total_runs = None
+    run_begins = max_run_words = output_word_counts = digits_unrendered = None
+
+    def ensure_unspent():
+        """Tokenize the output once and index every unemitted-source-word run.
+
+        A run is a span of consecutive output words whose concatenation equals
+        an unemitted source word exactly. Runs are found once per call and are
+        independent of any needle: each output position extends word by word
+        while its concatenation is still a prefix of an unemitted source word
+        (one bisect in the sorted token list), and is recorded when it becomes
+        one. A span shorter than two words explains nothing, because a one-word
+        output equal to the token was already counted as emitted.
+        """
+        nonlocal unspent_counts, output_words, output_positions, run_groups, total_runs
+        nonlocal run_begins, max_run_words, output_word_counts
+        if unspent_counts is not None:
+            return
+        output_words = " ".join(texts).split()
+        output_word_counts = Counter(output_words)
+        unspent_counts = Counter(source.split()) - output_word_counts
+        output_positions = {}
+        for position, word in enumerate(output_words):
+            if word in needle_starts:
+                output_positions.setdefault(word, []).append(position)
+        tokens = sorted(unspent_counts)
+        run_groups, total_runs, max_run_words = [], 0, 0
+        if not tokens:
+            return
+        longest = max(len(token) for token in tokens)
+        # A run can only start on an output word that is itself a prefix of an
+        # unemitted token. Most words are not, so this one lookup saves a
+        # bisect at every position of a large book.
+        startable = {}
+        for word in set(output_words):
+            index = bisect_left(tokens, word)
+            startable[word] = index < len(tokens) and tokens[index].startswith(word)
+        for begin in range(len(output_words)):
+            if not startable[output_words[begin]]:
+                continue
+            prefix, low, high = "", 0, len(tokens)
+            row = None
+            for stop in range(begin + 1, len(output_words) + 1):
+                prefix += output_words[stop - 1]
+                if len(prefix) > longest:
+                    break
+                low = bisect_left(tokens, prefix, low, high)
+                if low >= high or not tokens[low].startswith(prefix):
+                    break
+                if stop - begin >= 2 and tokens[low] == prefix:
+                    if row is None:
+                        row = []
+                    row.append((stop, tokens[low]))
+            if row:
+                run_groups.append((begin, row))
+                total_runs += len(row)
+                max_run_words = max(max_run_words, row[-1][0] - begin)
+        run_begins = [begin for begin, _row in run_groups]
 
     def unspent_token_support(needle):
         """Copies of a needle that an unemitted source word explains.
 
         A needle fused into a longer source word is invisible to the word scan.
-        Only a word the output never emitted explains copies, and only where
-        consecutive output words concatenate to that word exactly ("somit"
-        explains "mit" beside "so" and nothing else); a word emitted elsewhere
-        cannot. Each run and each unemitted source copy is used once, so two
-        tokens cannot share output words. Built once, lazily.
+        An unemitted source word explains the needle only where consecutive
+        output words concatenate to it exactly ("somit" explains "mit" beside
+        "so" and nothing else); a word emitted elsewhere cannot. Runs are chosen
+        to cover as many whole-word occurrences as possible, may not overlap,
+        and each unemitted source copy is used once, so reuse cannot hide a
+        genuine repeat.
         """
-        nonlocal unspent_source, output_index, output_positions
-        if unspent_source is None:
-            words = " ".join(texts).split()
-            unspent_source = Counter(source.split()) - Counter(words)
-            offsets, total = [0], 0
-            output_positions = {}
-            for position, word in enumerate(words):
-                total += len(word)
-                offsets.append(total)
-                if word in needle_starts:
-                    output_positions.setdefault(word, []).append(position)
-            output_index = (words, "".join(words), offsets)
-        if not unspent_source:
+        ensure_unspent()
+        if not unspent_counts or not run_groups:
             return 0
-        words, concat, offsets = output_index
+        words = output_words
         phrase = needle.split()
-        # A fused copy removes the needle's own spaces ("ja ja" -> "jaja").
-        key = needle.replace(" ", "")
-        shapes = sorted({(found, len(token))
-                         for token in unspent_source
-                         for found in _key_offsets(token, key)})
-        if not shapes:
-            return 0
-        occurrences, runs, last = [], [], 0
+        length = len(phrase)
+        occurrences, last = [], 0
         for position in output_positions.get(phrase[0], ()):
-            candidates = []
-            if position >= last and words[position:position + len(phrase)] == phrase:
-                for offset, length in shapes:
-                    start = offsets[position] - offset
-                    end = start + length
-                    if start < 0 or end > len(concat):
-                        continue
-                    begin, stop = bisect_left(offsets, start), bisect_left(offsets, end)
-                    if offsets[begin] == start and offsets[stop] == end:
-                        token = concat[start:end]
-                        if token in unspent_source:
-                            candidates.append((begin, stop, token))
+            if position >= last and words[position:position + length] == phrase:
                 occurrences.append(position)
-                runs.append(candidates)
-                last = position + len(phrase)
-        support, used, next_word = 0, Counter(), 0
-        for position, candidates in zip(occurrences, runs):
-            # A longer run covers more; on a tie, the earlier one leaves room.
-            best = max((run for run in candidates if run[0] >= next_word
-                        and used[run[2]] < unspent_source[run[2]]),
-                       key=lambda run: (run[1] - run[0], -run[0]), default=None)
-            if best is None:
+                last = position + length
+        if not occurrences:
+            return 0
+        ends = [position + length for position in occurrences]
+        # Each run is worth the occurrences fully inside it. A dense occurrence
+        # array costs two lookups per run; when occurrences are sparse, two
+        # bisects are cheaper than building one. Choose per needle.
+        if total_runs * 4 > len(words):
+            ends_at = [0] * (len(words) + 2)
+            for end in ends:
+                ends_at[end] += 1
+            for position in range(1, len(ends_at)):
+                ends_at[position] += ends_at[position - 1]
+
+            def value_of(begin, stop):
+                return ends_at[stop] - ends_at[begin + length - 1]
+        else:
+            def value_of(begin, stop):
+                return (bisect_right(ends, stop)
+                        - bisect_right(ends, begin + length - 1))
+        candidates, groups = [], []
+        # Only a run whose span covers an occurrence can be worth anything. A
+        # run is at most max_run_words long, so its begin lies in this window;
+        # bisecting the sorted begins keeps a many-needle book linear in the
+        # runs near each needle, not in the whole book.
+        lo = bisect_left(run_begins, occurrences[0] - max_run_words)
+        hi = bisect_right(run_begins, occurrences[-1])
+        for index in range(lo, hi):
+            begin, row = run_groups[index]
+            start = len(candidates)
+            for stop, token in row:
+                value = value_of(begin, stop)
+                if value:
+                    candidates.append((begin, stop, token, value))
+            if len(candidates) > start:
+                groups.append((begin, range(start, len(candidates))))
+        if not candidates:
+            return 0
+
+        def solve(excluded_indices=frozenset(), excluded_tokens=frozenset()):
+            """Best coverage ignoring token counts, and the runs that give it.
+
+            Runs arrive in position order, so pushing each to its stop and
+            draining a stop-ordered heap answers "best coverage ending at or
+            before this word" without sorting every run.
+            """
+            heap, best_before, pick_before = [], 0, -1
+            predecessor = {}
+            for begin, group in groups:
+                while heap and heap[0][0] <= begin:
+                    _stop, covered, index = heappop(heap)
+                    if covered > best_before:
+                        best_before, pick_before = covered, index
+                for index in group:
+                    if index in excluded_indices or candidates[index][2] in excluded_tokens:
+                        continue
+                    predecessor[index] = pick_before
+                    heappush(heap, (candidates[index][1],
+                                    best_before + candidates[index][3], index))
+            best, pick = 0, -1
+            while heap:
+                _stop, covered, index = heappop(heap)
+                if covered > best:
+                    best, pick = covered, index
+            chain = []
+            while pick != -1:
+                chain.append(pick)
+                pick = predecessor[pick]
+            return best, chain
+
+        def over_used(chain):
+            usage = Counter(candidates[index][2] for index in chain)
+            return {token for token, count in usage.items()
+                    if count > unspent_counts[token]}
+
+        total, chain = solve()
+        excess = over_used(chain)
+        if not excess:
+            return total
+        best_valid = 0
+        # Dropping copies from the DP selection leaves a valid, disjoint set.
+        kept, remaining = [], Counter()
+        for index in sorted(chain, key=lambda index: -candidates[index][3]):
+            token = candidates[index][2]
+            if remaining[token] < unspent_counts[token]:
+                remaining[token] += 1
+                kept.append(index)
+        best_valid = sum(candidates[index][3] for index in kept)
+        # A greedy in position order: longest run first at each free position.
+        next_free, usage, covered = 0, Counter(), 0
+        for begin, group in groups:
+            if begin < next_free:
                 continue
-            begin, stop, token = best
-            used[token] += 1
-            left = bisect_left(occurrences, begin)
-            support += bisect_left(occurrences, stop, left) - left
-            next_word = stop
-        return support
+            chosen = None
+            for index in group:
+                if usage[candidates[index][2]] < unspent_counts[candidates[index][2]]:
+                    chosen = index
+            if chosen is None:
+                continue
+            usage[candidates[chosen][2]] += 1
+            covered += candidates[chosen][3]
+            next_free = candidates[chosen][1]
+        best_valid = max(best_valid, covered)
+        if len(candidates) <= 200000:
+            # A greedy by descending coverage, latest position first.
+            buckets = {}
+            for index, (_begin, _stop, _token, value) in enumerate(candidates):
+                buckets.setdefault(value, []).append(index)
+            chosen_stops, usage, covered = [], Counter(), 0
+            for value in sorted(buckets, reverse=True):
+                for index in reversed(buckets[value]):
+                    begin, stop, token, _value = candidates[index]
+                    if usage[token] >= unspent_counts[token]:
+                        continue
+                    slot = bisect_left(chosen_stops, (begin, -1))
+                    if (slot and chosen_stops[slot - 1][1] > begin) or (
+                            slot < len(chosen_stops) and chosen_stops[slot][0] < stop):
+                        continue
+                    usage[token] += 1
+                    insort(chosen_stops, (begin, stop))
+                    covered += value
+            best_valid = max(best_valid, covered)
+            # Retry the DP without one over-used run, then without every run of
+            # every over-used token; either can recover a shorter correct
+            # assignment that the unconstrained DP's first answer hid.
+            tried = 0
+            for index in chain:
+                if tried >= 4:
+                    break
+                if candidates[index][2] in excess:
+                    tried += 1
+                    recovered, recovered_chain = solve(frozenset((index,)))
+                    if not over_used(recovered_chain):
+                        best_valid = max(best_valid, recovered)
+            recovered, recovered_chain = solve(excluded_tokens=frozenset(excess))
+            if not over_used(recovered_chain):
+                best_valid = max(best_valid, recovered)
+        return best_valid
     transitions, failure, terminal, suffix = [{}], [0], [None], [0]
     lengths = []
     for ident, needle in enumerate(needles):
@@ -503,6 +642,50 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     unknown_rendering = bool(re.search(r"\d+", re.sub(r"\b3rd\b", "", source_text, flags=re.I))
                              or re.search(r"\bchapter\s+(?!i\b)[ivxlcdm]+\b", source_text, re.I)
                              or re.search(r"[\[<]", source_text))
+
+    def number_rendering_unknown():
+        """True when this source's numbers may have been spelled out as words.
+
+        A digit can only have become words where its own source word was not
+        emitted as written, so an emitted digit word proves the renderer kept
+        the digits and the number cannot account for extra words in this scope.
+        Brackets have no such proof and keep the whole-source rule; a known
+        expansion ("3rd" -> "third") is not a digit word at all.
+        """
+        nonlocal digits_unrendered
+        if digits_unrendered is not None:
+            return digits_unrendered
+        if re.search(r"[\[<]", source_text):
+            digits_unrendered = True
+            return True
+        ensure_unspent()
+        # Find digits first, then widen to the whole source word: scanning
+        # every word for a digit costs more than the rest of this call on a
+        # large book, and a word without a digit can never be one of these.
+        spans = set()
+        for match in re.finditer(r"\d", source):
+            start, end = match.start(), match.end()
+            while start and not source[start - 1].isspace():
+                start -= 1
+            while end < len(source) and not source[end].isspace():
+                end += 1
+            spans.add((start, end))
+        digit_words = Counter(source[start:end] for start, end in spans)
+        digit_words.pop("3rd", None)
+        unknown = any(output_word_counts[word] < count
+                      for word, count in digit_words.items())
+        if not unknown:
+            source_words = " ".join(source.split())
+            output_text = " ".join(output_words)
+            for numeral in set(re.findall(
+                    r"\bchapter\s+((?!i\b)[ivxlcdm]+)\b", source_text, re.I)):
+                phrase = "chapter " + numeral.casefold()
+                if get_source_phrase_occurrences(output_text, phrase) < get_source_phrase_occurrences(source_words, phrase):
+                    unknown = True
+                    break
+        digits_unrendered = unknown
+        return unknown
+
     findings = []
     for ident, needle in enumerate(needles):
         if not needle:
@@ -517,7 +700,14 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         if not carriers[ident] and not separate[ident]:
             continue
         proven_emitted = quote_counts[ident] + len(separate[ident])
-        ambiguous = unknown_rendering or proven_emitted <= capacity + added_capacity
+        # Carrier findings keep the whole-source rendering rule exactly as it
+        # was. A separate-entry finding gets the narrower digit proof, except
+        # when the needle itself carries a digit: its spoken form may already
+        # sit in the source as another copy ("three" beside "3"), so the digit
+        # count cannot be trusted to prove an extra copy.
+        rendering_unknown = (unknown_rendering if carriers[ident] or re.search(r"\d", needle)
+                             else number_rendering_unknown())
+        ambiguous = rendering_unknown or proven_emitted <= capacity + added_capacity
         unknown_capacity = ambiguous
         support = 0
         # A source word the output never emitted can squeeze a repetition into

@@ -1104,6 +1104,120 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual("manual_review", finding["severity"])
         self.assertEqual(2, finding["details"]["unemitted_source_split_support"])
 
+    def test_a_fused_pair_split_around_a_standalone_copy_is_not_blocked(self):
+        # Source: one standalone needle, a fused "needle+word" and a fused
+        # "needle needle". A faithful script emits the standalone copy and
+        # splits both fused tokens, so four needle rows are all explained.
+        # A greedy choice that spends the "needle needle" token on the
+        # standalone copy credits only two and blocks this faithful script.
+        source = " ".join(_SEPARATE_DUPLICATE_FILLER) + " \u306f\u3044 \u306f\u3044\u305d\u3046 \u306f\u3044\u306f\u3044"
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER]
+                   + [_entry("\u306f\u3044", "C1"), _entry("\u306f\u3044", "C2"),
+                      _entry("\u305d\u3046"),
+                      _entry("\u306f\u3044", "C3"), _entry("\u306f\u3044", "C4")])
+
+        report = audit_script(entries, source)
+
+        self.assertEqual(0, report["counts"]["blocking"])
+        finding = self._duplicate_findings(entries, source)[0]
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(3, finding["details"]["unemitted_source_split_support"])
+
+    def test_audit_script_reports_a_casefold_mark_repeat(self):
+        # "İ".casefold() is "i\u0307". The audit passes a word view tokenized
+        # with the mark-dropping _WORD_RE, which would leave the source with
+        # zero capacity while the direct check blocks. Both paths must agree.
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER[:60]]
+                   + [_entry("\u0130stanbul", "MARTA")]
+                   + [_entry(word) for word in _SEPARATE_DUPLICATE_FILLER[60:]]
+                   + [_entry("\u0130stanbul", "PORTER")])
+        source = " ".join(_SEPARATE_DUPLICATE_FILLER) + ' "\u0130stanbul" dedi.'
+
+        report = audit_script(entries, source)
+
+        self.assertEqual(1, report["counts"]["blocking"])
+        self.assertEqual(1, self._duplicate_findings(entries, source)[0]
+                         ["details"]["source_occurrences"])
+
+    def test_audit_script_keeps_an_ascii_apostrophe_word_count(self):
+        # The audit word view splits "can't" into "can" and "t"; canonical
+        # keeps one token by dropping the apostrophe. Trusting the split view
+        # for an ASCII source would give the source zero capacity and abstain.
+        entries = ([_entry(word) for word in _SEPARATE_DUPLICATE_FILLER[:60]]
+                   + [_entry("can't", "MARTA")]
+                   + [_entry(word) for word in _SEPARATE_DUPLICATE_FILLER[60:]]
+                   + [_entry("can't", "PORTER")])
+        source = " ".join(_SEPARATE_DUPLICATE_FILLER) + ' "can\'t" she said.'
+
+        report = audit_script(entries, source)
+
+        self.assertEqual(1, report["counts"]["blocking"])
+
+    def test_support_counts_only_non_overlapping_needle_occurrences(self):
+        # Words "a", "a a", "a a" make overlapping "a a" matches at 0 and 1.
+        # Only the non-overlapping matches (0 and 2) may be credited.
+        source = '"a a" aaa'
+        entries = [_entry("a", "MARTA"), _entry("a a", "PORTER"),
+                   _entry("a a", "ANNA")]
+        finding = next(finding for finding in self._duplicate_findings(entries, source)
+                       if finding["details"]["phrase"] == "a a")
+
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(1, finding["details"]["unemitted_source_split_support"])
+
+    def test_an_emitted_digit_does_not_downgrade_a_separate_duplicate(self):
+        # The digit word reaches the output as written, so it cannot have been
+        # spelled out as the extra words of this repeat.
+        findings = self._duplicate_findings(
+            self._entries() + [_entry("3\u4eba")], self._source(extra=" 3\u4eba"))
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+        self.assertFalse(findings[0]["details"]["rendering_capacity_unknown"])
+
+    def test_a_number_rendered_as_words_downgrades_a_separate_duplicate(self):
+        findings = self._duplicate_findings(
+            self._entries() + [_entry("twelve")], self._source(extra=" 12"))
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+        self.assertTrue(findings[0]["details"]["rendering_capacity_unknown"])
+
+    def test_a_digit_emitted_once_of_twice_downgrades_a_separate_duplicate(self):
+        findings = self._duplicate_findings(
+            self._entries() + [_entry("12"), _entry("twelve")],
+            self._source(extra=" 12 12"))
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+
+    def test_a_chapter_numeral_rendered_as_words_downgrades_a_duplicate(self):
+        findings = self._duplicate_findings(
+            self._entries() + [_entry("Chapter"), _entry("Four")],
+            self._source(extra=" Chapter IV"))
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+
+    def test_a_digit_bearing_needle_keeps_the_whole_source_rule(self):
+        # The source carries two spellings of one line, "three" and "3".
+        # Emitting "3." twice is those two copies, not a repeat, so a digit in
+        # the needle must keep the conservative rendering rule.
+        source = ' "three," she said. "3," he said.'
+        entries = [_entry("3.", "C1"), _entry("3.", "C2")]
+
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+
+    def test_a_bracket_keeps_the_whole_source_rule(self):
+        findings = self._duplicate_findings(self._entries(), self._source(extra=" [note]"))
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("manual_review", findings[0]["severity"])
+        self.assertTrue(findings[0]["details"]["rendering_capacity_unknown"])
+
     def test_audit_script_surfaces_the_separate_duplicate_as_blocking(self):
         report = audit_script(self._entries(), self._source())
 
