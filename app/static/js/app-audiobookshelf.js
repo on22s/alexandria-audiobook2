@@ -29,6 +29,13 @@ function absSetStatus(text) {
     document.getElementById('abs-status').textContent = text;
 }
 
+function getAbsKeyStatusText(hasKey) {
+    if (hasKey === null) {
+        return t('abs.server.key-unreadable', 'could not be read (the OS credential store is unavailable)');
+    }
+    return hasKey ? t('abs.server.key-stored', 'is stored') : t('abs.server.key-missing', 'is not stored yet');
+}
+
 function markAbsServerTouched() {
     absServerTouched = true;
 }
@@ -41,6 +48,7 @@ async function loadAbsSavedConfig() {
             config = await API.get('/api/abs/config');
         } catch (error) {
             absConfigRequest = null;
+            absSetStatus(t('abs.error.load-config', 'Could not read the saved server settings. Reopen the panel to retry.'));
             return;
         }
         if (!config || typeof config !== 'object' || typeof config.base_url !== 'string' || !config.base_url.trim()) {
@@ -58,7 +66,7 @@ async function loadAbsSavedConfig() {
             urlInput.value = config.base_url;
             absSetStatus(t('abs.config.restored', 'Restored saved server ({url}). API key {key}.', {
                 url: config.base_url,
-                key: config.has_key ? t('abs.server.key-stored', 'is stored') : t('abs.server.key-missing', 'is not stored yet'),
+                key: getAbsKeyStatusText(config.has_key),
             }));
         }
     })();
@@ -163,7 +171,7 @@ async function saveAbsConfig() {
         };
         if (epoch !== absEpoch) { return; }
         document.getElementById('abs-api-key').value = '';
-        absSetStatus(t('abs.server.saved', 'Server saved ({url}). API key {key}{store}.', {url: result.base_url, key: result.has_key ? t('abs.server.key-stored', 'is stored') : t('abs.server.key-missing', 'is not stored yet'), store: result.key_store ? ' ' + t('abs.server.key-store-name', 'in the {store}', {store: result.key_store}) : ''}));
+        absSetStatus(t('abs.server.saved', 'Server saved ({url}). API key {key}{store}.', {url: result.base_url, key: getAbsKeyStatusText(result.has_key), store: result.key_store ? ' ' + t('abs.server.key-store-name', 'in the {store}', {store: result.key_store}) : ''}));
     } catch (error) {
         if (epoch === absEpoch) {
             absSetStatus(t('abs.error.save-server', 'Could not save the server. The API key was not stored anywhere new.'));

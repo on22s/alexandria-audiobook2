@@ -458,6 +458,62 @@ console.log('ok');
 })().catch(error=>{console.error(error);process.exit(1);});
 ''')
 
+    def test_saved_config_with_an_unreadable_key_store_still_restores(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  if(url.startsWith('/api/abs/libraries')){return {base_url:'http://abs.test:13378',libraries:[
+    {id:'lib_2',name:'L2',folders:[{id:'fol_3',fullPath:'/f3'}]},
+    {id:'lib_1',name:'L1',folders:[{id:'fol_1',fullPath:'/f1'}]}]};}
+  return {base_url:'http://abs.test:13378',has_key:null,key_status:'credential-store-unavailable',library_id:'lib_2',folder_id:'fol_3'};};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.el('abs-server-url').value,'http://abs.test:13378','the saved server is restored even when the key store cannot be read');
+assert.match(h.el('abs-status').textContent,/credential store is unavailable/,'the panel says the credential store could not be read');
+assert.ok(!/API key is not stored/.test(h.el('abs-status').textContent),'an unknown key is never reported as not stored');
+assert.ok(!/API key is stored/.test(h.el('abs-status').textContent),'an unknown key is never reported as stored either');
+await h.ctx.loadAbsLibraries();
+assert.strictEqual(h.el('abs-library').value,'lib_2','the saved library is still preselected');
+assert.strictEqual(h.el('abs-folder').value,'fol_3','the saved folder is still preselected');
+assert.deepStrictEqual(h.calls,[['GET','/api/abs/config'],['GET','/api/abs/libraries?base_url=http%3A%2F%2Fabs.test%3A13378']]);
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_failed_config_read_is_reported_and_retried(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+let attempt=0;
+h.ctx.API.get=async url=>{h.calls.push(['GET',url]);
+  attempt+=1;
+  if(attempt===1){throw new Error('network unavailable');}
+  return {base_url:'http://abs.test:13378',has_key:true,library_id:'',folder_id:''};};
+(async()=>{
+await h.ctx.loadAbsSavedConfig();
+assert.match(h.el('abs-status').textContent,/Could not read the saved server settings/,'a failed read is reported, not swallowed');
+assert.strictEqual(h.el('abs-server-url').value,'','a failed read restores nothing');
+assert.strictEqual(h.calls.length,1);
+await h.ctx.loadAbsSavedConfig();
+assert.strictEqual(h.calls.length,2,'the next open still retries after a failed read');
+assert.strictEqual(h.el('abs-server-url').value,'http://abs.test:13378','the retry restores the saved server');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
+    def test_save_with_an_unreadable_key_store_reports_unknown_not_missing(self):
+        self._run(_HARNESS + r'''
+const h=makeContext();
+h.el('abs-server-url').value='http://abs.test:13378';
+h.ctx.API.post=async(url,body)=>({base_url:body.base_url,has_key:null,key_status:'credential-store-unavailable',key_store:null,library_id:body.library_id,folder_id:body.folder_id});
+(async()=>{
+await h.ctx.saveAbsConfig();
+assert.match(h.el('abs-status').textContent,/Server saved/,'the saved server is still reported');
+assert.match(h.el('abs-status').textContent,/credential store is unavailable/,'the panel says the credential store could not be read');
+assert.ok(!/API key is not stored/.test(h.el('abs-status').textContent),'an unknown key is never reported as not stored');
+console.log('ok');
+})().catch(error=>{console.error(error);process.exit(1);});
+''')
+
     def test_invalid_or_empty_config_shows_nothing_and_is_not_refetched(self):
         self._run(_HARNESS + r'''
 async function check(reply){

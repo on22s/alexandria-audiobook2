@@ -1,11 +1,15 @@
 """Audiobookshelf routes: secret storage, server-bound preview/send, and status (#1727)."""
+import asyncio
 import hashlib
+import json
 import os
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import httpx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -13,6 +17,22 @@ from export_quality import get_export_file_version
 from routers import editor
 from tests.test_audiobookshelf_delivery import FakeKeyring, RawAbsServer
 import audiobookshelf_delivery as delivery
+
+
+class UnreadableKeyring(FakeKeyring):
+    """A secure-looking backend whose read fails, like a locked store."""
+
+    def __init__(self):
+        super().__init__()
+        self.get_keyring = lambda: object()
+
+    def get_password(self, service, account):
+        raise RuntimeError('locked: route-secret would leak here')
+
+
+class UnwritableKeyring(UnreadableKeyring):
+    def set_password(self, service, account, value):
+        raise RuntimeError('locked: route-secret would leak here')
 
 
 class AbsRouteTests(unittest.TestCase):
@@ -79,6 +99,58 @@ class AbsRouteTests(unittest.TestCase):
             fetched = client.get('/api/abs/config')
             self.assertTrue(fetched.json()['has_key'])
             self.assertNotIn('route-secret', fetched.text)
+
+    def test_config_read_reports_an_unknown_key_without_hiding_settings(self):
+        delivery.save_server_config(self.data_dir, self.base, 'lib_1', 'fol_1')
+        keyring = UnreadableKeyring()
+        client, patch_dir, _ = self._client()
+        with patch_dir, patch.object(delivery, '_get_keyring', return_value=keyring), client:
+            response = client.get('/api/abs/config')
+            self.assertEqual(200, response.status_code, response.text)
+            body = response.json()
+            self.assertEqual(self.base, body['base_url'], 'a key-store failure must not hide the saved server')
+            self.assertEqual('lib_1', body['library_id'])
+            self.assertEqual('fol_1', body['folder_id'])
+            self.assertIsNone(body['has_key'], 'an unreadable store must not report the key as missing')
+            self.assertEqual('credential-store-unavailable', body['key_status'])
+            self.assertNotIn('route-secret', response.text)
+            self.assertNotIn('locked:', response.text, 'keyring exception text must never be returned')
+
+    def test_config_read_still_refuses_a_corrupt_saved_url(self):
+        Path(self.data_dir, delivery.CONFIG_NAME).write_text(
+            json.dumps({'base_url': 'not-a-url'}), encoding='utf-8')
+        client, patch_dir, patch_keyring = self._client()
+        with patch_dir, patch_keyring, client:
+            response = client.get('/api/abs/config')
+            self.assertEqual(400, response.status_code, response.text)
+
+    def test_save_config_keeps_the_saved_settings_when_the_key_store_cannot_be_read(self):
+        keyring = UnreadableKeyring()
+        client, patch_dir, _ = self._client()
+        with patch_dir, patch.object(delivery, '_get_keyring', return_value=keyring), client:
+            response = client.post('/api/abs/config', json={
+                'base_url': self.base, 'library_id': 'lib_1', 'folder_id': 'fol_1'})
+            self.assertEqual(200, response.status_code, response.text)
+            body = response.json()
+            self.assertEqual(self.base, body['base_url'])
+            self.assertEqual('lib_1', body['library_id'])
+            self.assertEqual('fol_1', body['folder_id'])
+            self.assertIsNone(body['has_key'])
+            self.assertEqual('credential-store-unavailable', body['key_status'])
+            self.assertNotIn('locked:', response.text)
+        saved = delivery.get_server_config(self.data_dir)
+        self.assertEqual(self.base, saved['base_url'], 'the settings were saved before the key check failed')
+
+    def test_save_config_with_a_key_still_refuses_when_the_key_store_fails(self):
+        client, patch_dir, _ = self._client()
+        with patch_dir, patch.object(delivery, '_get_keyring', return_value=UnwritableKeyring()), client:
+            response = client.post('/api/abs/config',
+                                   json={'base_url': self.base, 'api_key': 'route-secret'})
+            self.assertEqual(503, response.status_code, response.text)
+            self.assertNotIn('route-secret', response.text)
+            self.assertNotIn('locked:', response.text)
+        self.assertFalse(Path(self.data_dir, delivery.CONFIG_NAME).exists(),
+                         'a refused key must not save the settings either')
 
     def test_config_refuses_credential_in_url(self):
         client, patch_dir, patch_keyring = self._client()
@@ -440,6 +512,63 @@ class AbsRouteTests(unittest.TestCase):
             deliveries = client.get('/api/abs/deliveries',
                                     params={'expected_book_token': self.book_token})
             self.assertEqual('sent', deliveries.json()['deliveries'][0]['status'])
+
+
+class AbsConfigAsyncRouteTests(unittest.IsolatedAsyncioTestCase):
+    """The credential-store read must not run on the event loop (#2313)."""
+
+    async def asyncSetUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.data_dir = self.directory.name
+        self.base = 'http://127.0.0.1:13378'
+        delivery.save_server_config(self.data_dir, self.base, 'lib_1', 'fol_1')
+        data_patch = patch.object(editor, 'DATA_DIR', self.data_dir)
+        data_patch.start()
+        self.addCleanup(data_patch.stop)
+        application = FastAPI()
+        application.include_router(editor.router)
+
+        @application.get('/fixture-ping')
+        async def ping():
+            return {'ready': True}
+
+        self.client = httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=application), base_url='http://fixture')
+        self.addAsyncCleanup(self.client.aclose)
+
+    async def test_config_read_answers_other_requests_while_the_store_is_blocked(self):
+        entered, release, threads = threading.Event(), threading.Event(), []
+        timer = threading.Timer(5, release.set)
+        timer.start()
+
+        def read(server_url):
+            threads.append(threading.get_ident())
+            entered.set()
+            release.wait(10)
+            return 'synthetic-key'
+
+        request = asyncio.create_task(self.client.get('/api/abs/config'))
+        try:
+            with patch.object(delivery, 'get_api_key', side_effect=read):
+                self.assertTrue(await asyncio.to_thread(entered.wait, 2),
+                                'the credential-store read never started')
+                response = await asyncio.wait_for(self.client.get('/fixture-ping'), .5)
+                self.assertEqual({'ready': True}, response.json())
+                self.assertFalse(request.done(),
+                                 'the credential-store read blocked other requests until it finished')
+                self.assertTrue(threads)
+                self.assertNotEqual(threading.get_ident(), threads[0],
+                                    'the credential-store read ran on the event-loop thread')
+        finally:
+            release.set()
+            timer.cancel()
+            timer.join()
+            result = await asyncio.wait_for(request, 3)
+        self.assertEqual(200, result.status_code, result.text)
+        body = result.json()
+        self.assertEqual(self.base, body['base_url'])
+        self.assertTrue(body['has_key'])
 
 
 if __name__ == '__main__':
