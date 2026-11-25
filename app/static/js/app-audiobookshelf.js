@@ -378,13 +378,14 @@ async function loadAbsDeliveries() {
                 note.textContent = entry.error;
                 row.appendChild(note);
             }
-            if (entry.verification_note) {
+            const noteText = entry.discarded_at ? entry.discarded_note : entry.verification_note;
+            if (noteText) {
                 const note = document.createElement('p');
                 note.className = 'mb-1';
-                note.textContent = entry.verification_note;
+                note.textContent = noteText;
                 row.appendChild(note);
             }
-            if (entry.reconciliation) {
+            if (entry.reconciliation && !entry.discarded_at) {
                 const note = document.createElement('p');
                 note.className = 'mb-1';
                 note.textContent = entry.reconciliation;
@@ -397,6 +398,12 @@ async function loadAbsDeliveries() {
                 button.textContent = t('abs.deliveries.verify', 'Verify delivery');
                 button.onclick = () => reconcileAbsDelivery(entry.id);
                 row.appendChild(button);
+                const discard = document.createElement('button');
+                discard.type = 'button';
+                discard.className = 'btn btn-outline-danger btn-sm ms-2';
+                discard.textContent = t('abs.deliveries.discard', 'Abandon this send');
+                discard.onclick = () => discardAbsDelivery(entry.id);
+                row.appendChild(discard);
             }
             container.appendChild(row);
         }
@@ -425,5 +432,19 @@ async function reconcileAbsDelivery(deliveryId) {
         loadAbsDeliveries();
     } catch (error) {
         showActionError(t('abs.error.reconcile', 'Reconciliation failed'), error, t('abs.error.reconcile-recovery', 'Check the server is reachable, then retry.'), 'error');
+    }
+}
+
+async function discardAbsDelivery(deliveryId) {
+    const confirmed = await showConfirm(
+        formatUiSafetyText('safety.abs.discard', 'Abandon this send? Check the server first. If the file did arrive, or arrives late, sending again can create a duplicate library item. The local export is unchanged; only this delivery record is marked failed so a new send is allowed.'),
+        {title: t('abs.discard.title', 'Abandon this send?'), actionLabel: t('abs.discard.action', 'Abandon this send'), danger: true});
+    if (!confirmed) { return; }
+    try {
+        await API.post('/api/abs/discard', {delivery_id: deliveryId, confirm: true});
+        absSetStatus(t('safety.abs.discard.done', 'Send abandoned. Preview and send again if you need to retry; a send that is unknown or already delivered is still blocked by the normal duplicate check.'));
+        loadAbsDeliveries();
+    } catch (error) {
+        showActionError(t('abs.error.discard', 'Could not abandon the send'), error, t('abs.error.discard-recovery', 'Refresh the delivery status, then check the current state.'), 'error');
     }
 }

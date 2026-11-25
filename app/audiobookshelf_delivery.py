@@ -20,7 +20,8 @@ replacement during the transfer can never cause unconfirmed bytes to leave.
 Delivery status lives in a small durable ledger (``audiobookshelf_ledger.json``)
 persisted *before* the network call, separate from synthesis/export status.
 Ambiguous outcomes (timeout, dropped connection, 5xx, cancel) stay
-``unknown`` and block re-send until the user reconciles. Duplicate protection
+``unknown`` and block re-send until the user reconciles or explicitly discards
+the record as failed. Duplicate protection
 is scoped to a known server URL identity as well as book/export/destination;
 missing, unusable or conflicting legacy server bindings remain fail-closed.
 So does HTTP 200
@@ -355,6 +356,15 @@ def save_ledger(data_dir, ledger):
         _write_ledger(data_dir, _trim_ledger([entry for entry in ledger if _validate_ledger_entry(entry) is not None] if isinstance(ledger, list) else []))
 
 
+def _has_byte_proof(entry):
+    """True only for a sent entry whose recorded proof matches the ledger."""
+    return bool(entry.get('reconciled_sha256') == entry.get('sha256')
+                and entry.get('reconciled_bytes') == entry.get('output_bytes')
+                and entry.get('reconciled_item_id')
+                and entry.get('reconciled_file_id')
+                and entry.get('reconciled_verified_at'))
+
+
 def demote_interrupted_deliveries(data_dir):
     """Recover interrupted sends and legacy success records without byte proof.
 
@@ -370,12 +380,7 @@ def demote_interrupted_deliveries(data_dir):
         ledger = _read_ledger_raw(data_dir)
         changed = False
         for entry in ledger:
-            if entry.get('status') == 'sent' and not (
-                    entry.get('reconciled_sha256') == entry.get('sha256')
-                    and entry.get('reconciled_bytes') == entry.get('output_bytes')
-                    and entry.get('reconciled_item_id')
-                    and entry.get('reconciled_file_id')
-                    and entry.get('reconciled_verified_at')):
+            if entry.get('status') == 'sent' and not _has_byte_proof(entry):
                 entry['status'] = 'unknown'
                 entry['verification_pending'] = True
                 entry['verification_note'] = (
@@ -954,19 +959,26 @@ def _update_reconciled_entry(data_dir, updated_entry):
     """Compare-and-swap a reconcile write; never demote a live or sent entry.
 
     Runs the read-modify-write under one lock+file lock with no network held,
-    so a concurrent send/reconcile cannot lose ledger state.
+    so a concurrent send/reconcile cannot lose ledger state. A byte-verified
+    ``sent`` may replace a discarded row (the discard raced the verification)
+    and is re-added if a concurrent trim removed it; nothing else may.
     """
     from utils import file_lock
+    verified_sent = updated_entry.get('status') == 'sent' and _has_byte_proof(updated_entry)
     with _ledger_lock, file_lock(_ledger_path(data_dir), timeout=30):
         ledger = _read_ledger_raw(data_dir)
         for index, existing in enumerate(ledger):
             if existing.get('id') == updated_entry.get('id'):
-                if existing.get('status') != 'unknown':
+                if existing.get('status') != 'unknown' and not (
+                        existing.get('discarded_at') and verified_sent):
                     return existing
+                # updated_entry predates the discard, so its discarded_* fields go.
                 ledger[index] = updated_entry
                 break
         else:
-            return updated_entry
+            if not verified_sent:
+                return updated_entry
+            ledger.append(updated_entry)
         _write_ledger(data_dir, _trim_ledger(ledger))
         return updated_entry
 
@@ -1239,6 +1251,42 @@ def reconcile_delivery(data_dir, delivery_id, base_url, token, *, timeout=30):
     return _update_reconciled_entry(data_dir, entry)
 
 
+def discard_unknown_delivery(data_dir, delivery_id, confirm):
+    """Explicitly abandon one ``unknown`` delivery so a new send is allowed.
+
+    This is a local ledger action and makes no network call, so it does not
+    require a reachable server: an entry with no server binding cannot be
+    reconciled at all, and a user whose server is gone must still be able to
+    abandon the record. The entry stays in the ledger as ``failed`` with
+    ``discarded_at`` and a note; the prior error/verification text is kept for
+    audit. The status is read under the same lock+file lock as the write, so a
+    concurrent reconcile that promoted the entry to ``sent`` wins.
+    """
+    if not confirm:
+        raise DeliveryError('Confirm you want to abandon this send.', 400)
+    demote_interrupted_deliveries(data_dir)
+    from utils import file_lock
+    with _ledger_lock, file_lock(_ledger_path(data_dir), timeout=30):
+        ledger = _read_ledger_raw(data_dir)
+        entry = next((item for item in ledger if item.get('id') == delivery_id), None)
+        if entry is None:
+            raise DeliveryError('No such delivery record.', 404)
+        if entry.get('status') != 'unknown':
+            raise DeliveryError(
+                'Only a delivery whose outcome is unknown can be discarded.', 409)
+        if entry.get('id') in _active_deliveries:
+            raise DeliveryError(
+                'The upload is still active; wait for it to finish before discarding.', 409)
+        entry['discarded_at'] = time.time()
+        entry['discarded_note'] = (
+            'Abandoned by the user after an unknown outcome. The server may or '
+            'may not have stored the file; check the server first because a '
+            'second send can create a duplicate item.')
+        entry['status'] = 'failed'
+        _write_ledger(data_dir, _trim_ledger(ledger))
+        return entry
+
+
 def send_preview(data_dir, states, base_url, token, preview_id, confirm, *,
                  acknowledge_unknown=False, progress=None):
     """Revalidate one preview and deliver it; returns the final ledger entry.
@@ -1282,7 +1330,7 @@ def send_preview(data_dir, states, base_url, token, preview_id, confirm, *,
                        and item.get('folder_id') == stored['folder_id']
                        and _may_match_delivery_server(item, validated_base)]
             prior = matches[-1] if matches else None
-            if prior is not None and prior.get('status') == 'sent':
+            if any(item.get('status') == 'sent' for item in matches):
                 raise DeliveryError(
                     'This exact export was already delivered to this destination. '
                     'Preview a different export or title.', 409)
