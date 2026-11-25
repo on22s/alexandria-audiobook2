@@ -3,6 +3,7 @@
     "locale": "en",
     "source": "harvested"
   },
+  "abs.config.restored": "Restored saved server ({url}). API key {key}.",
   "abs.deliveries.accepted": "Upload accepted; verify delivery",
   "abs.deliveries.none": "No deliveries recorded for this book yet.",
   "abs.deliveries.row": "{file} → {title}: {status}. {bytes} bytes, SHA-256 {sha}.",
