@@ -42,6 +42,8 @@ KEEP_ENGLISH = frozenset({
     'render-pending-label', 'DETAILS', 'button, input, select, textarea, a, summary, [tabindex]',
     # #2299 Audiobookshelf panel element ids its restore path looks up; wiring, not copy.
     'abs-server-url', 'abs-folder',
+    # #2313 the saved-config read's own status line id; wiring, not copy.
+    'abs-config-status',
     'llm-test-help', 'script-ingest-${id}-state', 'script-ingest-metadata', 'script-ingest-feedback',
     'script-ingest-source-state', 'script-ingest-cast-state', 'script-ingest-script-state',
     'aria-valuemax', 'aria-valuenow', 'aria-disabled',
@@ -70,6 +72,9 @@ KEEP_ENGLISH = frozenset({
     'Space', 'ArrowDown', 'ArrowUp', 'KeyR', 'KeyE', 'editor-tab',
     # A server message key compared in app-project-scope.js (#1919), not copy.
     'safety.book.switch_unconfirmed',
+    # #2313 credential-store refusal reason compared in app-audiobookshelf.js;
+    # status vocabulary, not copy (the sentence shown to the user is keyed).
+    'credential-store-insecure',
     # Element-id prefix (app-editor-repair.js generate-by-chapter panel), an identifier.
     'editor-chapter-',
     # CSS selector naming the controls that own their keys (app-editor-review.js
