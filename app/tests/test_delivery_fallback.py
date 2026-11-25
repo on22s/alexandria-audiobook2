@@ -311,6 +311,286 @@ class DeliveryFallbackTests(unittest.TestCase):
                 self.assertEqual(before, {p.name: p.read_bytes() for p in root.glob("*.json")})
 
 
+class DeliveryRetryDirectionTests(unittest.TestCase):
+    """A pass-3 fallback row retried in a Step-3 direction mode (#2294)."""
+
+    ROWS = [{"speaker": "ALICE", "text": "Hello there.", "instruct": "Calm."},
+            {"speaker": "BOB", "text": "Come in.",
+             "instruct": "Natural, in-character delivery.", "instruct_unchecked": True}]
+
+    def retry(self, mode, gap, rows=None, replies=None):
+        rows = self.ROWS if rows is None else rows
+        params = LLMGenParams(system_prompt="s", user_prompt_template="{batch}",
+                              max_tokens=800, temperature=0.0, structured_output="off",
+                              delivery_direction=mode)
+        reply = self.reply(mode, gap)
+        payloads = replies if replies is not None else [[reply]]
+        return tp.retry_delivery_instructions(
+            _client_returning(payloads), "m", rows, params)
+
+    @staticmethod
+    def reply(mode, gap, n=0, head="Come in."):
+        if mode == "off":
+            return {"n": n, "head": head, "instruct": "Soft."}
+        if mode == "gaps":
+            return {"n": n, "head": head, "instruct": "Soft.", "gap": gap}
+        return {"n": n, "head": head, "answers": None, "action": "invite",
+                "delivery": "soft", "gap": gap}
+
+    def test_every_mode_and_gap_publishes_its_retried_fallback_row(self):
+        from delivery_review import get_delivery_retry_chunks
+        expected_instruct = {"off": "Soft.", "gaps": "Soft.",
+                             "directed": "Invite: soft.", "action_only": "Invite."}
+        for mode in ("off", "gaps", "directed", "action_only"):
+            for gap in ("normal", "beat", "cut_off", "trailing"):
+                with self.subTest(mode=mode, gap=gap):
+                    after = self.retry(mode, gap)
+                    self.assertEqual(0, tp.get_delivery_review_info(after)["count"])
+                    self.assertEqual(expected_instruct[mode], after[1]["instruct"])
+                    self.assertNotIn("instruct_unchecked", after[1])
+                    self.assertEqual(("BOB", "Come in."),
+                                     (after[1]["speaker"], after[1]["text"]))
+                    self.assertEqual((tp.GAP_PAUSE_MS.get(gap) if mode != "off" else None),
+                                     after[0].get("pause_after"))
+                    self.assertIsNone(get_delivery_retry_chunks(self.ROWS, after, None))
+
+    def test_adjacent_first_and_last_fallback_rows_get_only_their_derived_pauses(self):
+        from delivery_review import get_delivery_retry_chunks
+        rows = [{"speaker": "A", "text": "One.", "instruct": "Plain.",
+                 "instruct_unchecked": True},
+                {"speaker": "A", "text": "Two.", "instruct": "Plain.",
+                 "instruct_unchecked": True},
+                {"speaker": "B", "text": "Three.", "instruct": "Plain."},
+                {"speaker": "B", "text": "Four.", "instruct": "Plain.",
+                 "instruct_unchecked": True}]
+        original = copy.deepcopy(rows)
+        replies = [[self.reply("directed", "normal", n=0, head="One."),
+                    self.reply("directed", "beat", n=1, head="Two."),
+                    self.reply("directed", "cut_off", n=2, head="Four.")]]
+        after = self.retry("directed", "normal", rows=rows, replies=replies)
+        self.assertEqual(original, rows)
+        self.assertEqual(0, tp.get_delivery_review_info(after)["count"])
+        self.assertEqual(900, after[0]["pause_after"])
+        self.assertEqual(60, after[2]["pause_after"])
+        self.assertNotIn("pause_after", after[1])
+        self.assertNotIn("pause_after", after[3])
+        self.assertEqual({key: value for key, value in original[2].items() if key != "pause_after"},
+                         {key: value for key, value in after[2].items() if key != "pause_after"})
+        self.assertIsNone(get_delivery_retry_chunks(rows, after, None))
+
+    def test_a_retry_that_still_exhausts_one_row_publishes_the_others(self):
+        from delivery_review import get_delivery_retry_chunks
+        rows = [{"speaker": "A", "text": "Same.", "instruct": "Plain.",
+                 "instruct_unchecked": True},
+                {"speaker": "A", "text": "Same.", "instruct": "Plain.",
+                 "instruct_unchecked": True}]
+        bad = [{"n": 0, "head": "Same.", "instruct": ""}]
+        replies = [[self.reply("gaps", "normal", head="Same.")]] + [bad] * 5
+        after = self.retry("gaps", "normal", rows=rows, replies=replies)
+        self.assertEqual({"count": 1, "entries": [2]}, tp.get_delivery_review_info(after))
+        self.assertEqual({"gap": "normal"}, after[0]["direction"])
+        self.assertIs(True, after[1].get("instruct_unchecked"))
+        self.assertIsNone(get_delivery_retry_chunks(rows, after, None))
+
+    def test_a_derived_pause_keeps_the_neighbours_finished_audio(self):
+        from delivery_review import get_delivery_retry_chunks
+        from project import group_into_chunks
+        after = self.retry("directed", "beat")
+        stored = [dict(row, id=index, uid=f"uid-{index}", status="done",
+                       audio_path=f"audio-{index}.wav")
+                  for index, row in enumerate(group_into_chunks(self.ROWS))]
+        original = copy.deepcopy(stored)
+        out = get_delivery_retry_chunks(self.ROWS, after, stored)
+        self.assertEqual(900, out[0]["pause_after"])
+        self.assertEqual(("uid-0", "done", "audio-0.wav"),
+                         (out[0]["uid"], out[0]["status"], out[0]["audio_path"]))
+        self.assertEqual(("pending", None), (out[1]["status"], out[1]["audio_path"]))
+        self.assertNotEqual("uid-1", out[1]["uid"])
+        self.assertEqual(original, stored)
+
+    def test_unaffected_and_frozen_rows_are_still_refused(self):
+        from delivery_review import get_delivery_retry_chunks
+        before = [dict(self.ROWS[0], pause_after=250),
+                  dict(self.ROWS[1], uid="uid-1", source_span=[0, 1], spoken=False)]
+        refused = [
+            [dict(before[0], pause_after=900), before[1]],
+            [{key: value for key, value in before[0].items() if key != "pause_after"}, before[1]],
+            [dict(before[0], pause_after=250), dict(before[1], uid="uid-2")],
+            [dict(before[0], pause_after=250), dict(before[1], source_span=[0, 2])],
+            [dict(before[0], pause_after=250), dict(before[1], spoken=True)],
+            [dict(before[0], pause_after=250), dict(before[1], text="Rewritten.")],
+            [before[0], dict(before[1], pause_after=900)],
+        ]
+        refused.append(before + [dict(self.ROWS[1])])
+        for after in refused:
+            with self.subTest(after=after[1]):
+                with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+                    get_delivery_retry_chunks(before, after, None)
+        # A pause only the following retried row's gap derives is allowed.
+        unpaused = [self.ROWS[0], dict(self.ROWS[1], direction={"gap": "beat"})]
+        allowed = [dict(unpaused[0], pause_after=900), unpaused[1]]
+        self.assertIsNone(get_delivery_retry_chunks(unpaused, allowed, None))
+        # The same value is refused when the following gap does not derive it.
+        for after in ([dict(unpaused[0], pause_after=900),
+                       dict(unpaused[1], direction={"gap": "normal"})],
+                      [dict(unpaused[0], pause_after=60), unpaused[1]],
+                      [dict(unpaused[0], pause_after=900),
+                       dict(unpaused[1], direction={"gap": "beat"}, text="Rewritten.")]):
+            with self.subTest(refused=after[0]):
+                with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+                    get_delivery_retry_chunks(unpaused, after, None)
+
+    def test_an_off_retry_accepts_an_unmaterialised_unflagged_gap_pause(self):
+        from delivery_review import get_delivery_retry_chunks
+        rows = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain."},
+                {"speaker": "BOB", "text": "Two.", "instruct": "Natural.",
+                 "instruct_unchecked": True, "direction": {"gap": "beat"}}]
+        after = self.retry("off", "beat", rows=rows)
+        # Off mode never runs apply_gap_pauses, so the derived pause is absent
+        # even though a following unflagged gap would derive one.
+        self.assertNotIn("pause_after", after[0])
+        self.assertIsNone(get_delivery_retry_chunks(rows, after, None))
+        # The same retry with a pause the gap does not derive is refused.
+        wrong = [dict(after[0], pause_after=60), after[1]]
+        with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+            get_delivery_retry_chunks(rows, wrong, None)
+        # And materialising the pause apply_gap_pauses does derive is allowed.
+        materialised = [dict(after[0], pause_after=900), after[1]]
+        self.assertIsNone(get_delivery_retry_chunks(rows, materialised, None))
+
+    def test_a_pause_derived_from_an_unflagged_following_gap_is_allowed(self):
+        from delivery_review import get_delivery_retry_chunks
+        rows = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain.",
+                 "instruct_unchecked": True},
+                {"speaker": "BOB", "text": "Two.", "instruct": "Plain.",
+                 "direction": {"gap": "beat"}}]
+        after = self.retry("directed", "normal", rows=rows)
+        self.assertEqual(900, after[0]["pause_after"])
+        self.assertIsNone(get_delivery_retry_chunks(rows, after, None))
+        wrong = [dict(after[0], pause_after=60), after[1]]
+        with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+            get_delivery_retry_chunks(rows, wrong, None)
+
+    def test_malformed_values_the_gap_rule_reads_are_refused_cleanly(self):
+        """A value apply_gap_pauses cannot read is a ValueError, never a crash."""
+        from delivery_review import get_delivery_retry_chunks
+        rows = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain."},
+                {"speaker": "BOB", "text": "Two.", "instruct": "Plain.",
+                 "instruct_unchecked": True}]
+        # The second row's direction is read as its pair's "current" row,
+        # whether it is unchanged or newly written by the retry.
+        for value in (["beat"], "beat", 5, {"gap": ["beat"]}, {"gap": {"ms": 900}}):
+            for before, after in (
+                    ([rows[0], dict(rows[1], direction=value)],
+                     [rows[0], dict(rows[1], direction=value)]),
+                    ([rows[0], rows[1]],
+                     [rows[0], dict(rows[1], direction=value)])):
+                with self.subTest(direction=value):
+                    with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+                        get_delivery_retry_chunks(before, after, None)
+        # A pause is read only when the following row's gap derives one.
+        for value in ("abc", [1], {"ms": 1}):
+            rows_with_pause = [dict(rows[0], pause_after=value),
+                               dict(rows[1], direction={"gap": "beat"})]
+            with self.subTest(pause=value):
+                with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+                    get_delivery_retry_chunks(rows_with_pause, rows_with_pause, None)
+
+    def test_malformed_values_no_rule_reads_are_left_as_on_main(self):
+        from delivery_review import get_delivery_retry_chunks
+        rows = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain."},
+                {"speaker": "BOB", "text": "Two.", "instruct": "Plain.",
+                 "instruct_unchecked": True}]
+        # The first row is never a pair's "current" row and the last row is
+        # never its "previous" row, so these values are never read.
+        for value in (["beat"], "beat", 5, {"gap": ["beat"]}, {"gap": {"ms": 900}}):
+            unchanged = [dict(rows[0], direction=value), rows[1]]
+            with self.subTest(direction=value):
+                self.assertIsNone(get_delivery_retry_chunks(unchanged, unchanged, None))
+        for value in ("abc", [1], {"ms": 1}):
+            unchanged = [rows[0], dict(rows[1], pause_after=value)]
+            with self.subTest(pause=value):
+                self.assertIsNone(get_delivery_retry_chunks(unchanged, unchanged, None))
+        # A changed or newly written value is still refused by the comparison,
+        # even in a position the gap rule never reads.
+        with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+            get_delivery_retry_chunks(rows, [dict(rows[0], pause_after="abc"), rows[1]], None)
+        with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+            get_delivery_retry_chunks(rows, [dict(rows[0], direction=["beat"]), rows[1]], None)
+
+    def test_row_comparison_is_type_exact_not_dict_equality(self):
+        from delivery_review import get_delivery_retry_chunks
+        rows = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain."},
+                {"speaker": "BOB", "text": "Two.", "instruct": "Plain."}]
+        for before, after in (
+                # True == 1 under dict equality; a pause must not change type.
+                ([dict(rows[0], pause_after=1), rows[1]],
+                 [dict(rows[0], pause_after=True), rows[1]]),
+                # A missing key is not the same as an explicit None.
+                ([rows[0], rows[1]],
+                 [dict(rows[0], pause_after=None), rows[1]]),
+                # An int marker is not the True marker that makes a row retryable.
+                ([dict(rows[0], instruct_unchecked=1), rows[1]],
+                 [dict(rows[0], instruct_unchecked=True), rows[1]])):
+            with self.subTest(before=before[0], after=after[0]):
+                with self.assertRaisesRegex(ValueError, "frozen or unaffected"):
+                    get_delivery_retry_chunks(before, after, None)
+
+    def test_row_comparison_is_canonical_json_not_insertion_order(self):
+        from delivery_review import get_delivery_retry_chunks
+        before = [{"speaker": "ALICE", "text": "One.", "instruct": "Plain."},
+                  {"speaker": "BOB", "text": "Two.", "instruct": "Plain.",
+                   "instruct_unchecked": True}]
+        after = [{"instruct": "Plain.", "text": "One.", "speaker": "ALICE"},
+                 {"instruct": "Plain.", "instruct_unchecked": True,
+                  "text": "Two.", "speaker": "BOB"}]
+        self.assertIsNone(get_delivery_retry_chunks(before, after, None))
+
+    def test_an_editor_chunk_pause_is_never_lost_or_changed(self):
+        from delivery_review import get_delivery_retry_chunks
+        from project import group_into_chunks
+        rows = [{"speaker": "ALICE", "text": "Hello.", "instruct": "Calm.",
+                 "pause_after": 500},
+                {"speaker": "BOB", "text": "Come in.", "instruct": "Natural.",
+                 "instruct_unchecked": True}]
+        after = self.retry("directed", "beat", rows=rows)
+        self.assertEqual(500, after[0]["pause_after"])
+        stored = [dict(group, id=index, uid=f"uid-{index}", status="done",
+                       audio_path=f"audio-{index}.wav")
+                  for index, group in enumerate(group_into_chunks(rows))]
+        out = get_delivery_retry_chunks(rows, after, stored)
+        self.assertEqual(500, out[0]["pause_after"])
+        self.assertEqual(("uid-0", "done", "audio-0.wav"),
+                         (out[0]["uid"], out[0]["status"], out[0]["audio_path"]))
+        # A chunk-only pause edit is not silently overwritten: the snapshot no
+        # longer matches the script, so the retry refuses rather than drop it.
+        unpaused = [copy.deepcopy(rows[0]), copy.deepcopy(rows[1])]
+        unpaused[0].pop("pause_after", None)
+        after_unpaused = self.retry("directed", "beat", rows=unpaused)
+        edited = copy.deepcopy(stored)
+        edited[0]["pause_after"] = 500
+        with self.assertRaisesRegex(ValueError, "Editor text or delivery changed"):
+            get_delivery_retry_chunks(unpaused, after_unpaused, edited)
+
+    def test_a_pause_that_breaks_a_combined_take_never_reuses_it(self):
+        from delivery_review import get_delivery_retry_chunks
+        from project import group_into_chunks
+        rows = [{"speaker": "NARRATOR", "text": "One.", "instruct": "Plain."},
+                {"speaker": "NARRATOR", "text": "Two.", "instruct": "Plain.",
+                 "instruct_unchecked": True}]
+        stored = [dict(group, id=0, uid="combined", status="done",
+                       audio_path="combined.wav")
+                  for group in group_into_chunks(rows)]
+        self.assertEqual(1, len(stored))
+        after = self.retry("directed", "beat", rows=rows)
+        self.assertEqual(900, after[0]["pause_after"])
+        out = get_delivery_retry_chunks(rows, after, stored)
+        self.assertEqual(["One.", "Two."], [row["text"] for row in out])
+        self.assertEqual([("pending", None), ("pending", None)],
+                         [(row["status"], row["audio_path"]) for row in out])
+        self.assertNotIn("combined", {row["uid"] for row in out})
+
+
 class DeliveryReviewApiTests(unittest.TestCase):
     def test_actual_get_and_owned_post_retry_clear_only_delivery_marker(self):
         import core
@@ -374,6 +654,73 @@ class DeliveryReviewApiTests(unittest.TestCase):
                     self.assertEqual(409, stale.status_code)
                     self.assertEqual(409, http.post("/api/annotated_script/delivery_review/cancel",
                          json={"claim_id": response.json()["claim_id"]}).status_code)
+
+    def test_directed_retry_route_publishes_and_keeps_the_neighbour_audio(self):
+        import core
+        from routers import script
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from project import ProjectManager, group_into_chunks
+        rows = [{"speaker": "ALICE", "text": "Hello there.", "instruct": "Calm."},
+                {"speaker": "BOB", "text": "Come in.",
+                 "instruct": "Natural, in-character delivery.", "instruct_unchecked": True}]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "annotated_script.json").write_text(json.dumps(rows))
+            (root / "config.json").write_text(json.dumps({
+                "llm": {"model_name": "m"}, "generation": {
+                    "max_tokens": 500, "three_pass_delivery_direction": "directed"}}))
+            stored = [dict(row, id=index, uid=f"uid-{index}", status="done",
+                           audio_path="prior.wav")
+                      for index, row in enumerate(group_into_chunks(rows))]
+            ProjectManager(tmp).save_chunks(stored)
+            state = copy.deepcopy(core.process_state)
+            for entry in state.values():
+                entry["running"] = False
+            client = _client_returning([[
+                {"n": 0, "head": rows[1]["text"], "answers": None, "action": "invite",
+                 "delivery": "soft", "gap": "beat"}]])
+            with patch.object(core, "process_state", state), patch.object(script, "process_state", state), \
+                    patch.object(core, "_task_claims", {}), patch.object(core, "_gpu_leases", {}), \
+                    patch.object(core, "acquire_gpu_lock", return_value=None), \
+                    patch.object(core, "llm_is_on_this_gpu", return_value=True), \
+                    patch.object(core, "RUN_HISTORY_DIR", str(root / "runs")), \
+                    patch.object(core, "DATA_DIR", tmp), patch.object(script, "DATA_DIR", tmp), \
+                    patch.object(script, "CONFIG_PATH", str(root / "config.json")), \
+                    patch.object(script, "ensure_ideal_settings", return_value=(None, {"context_length": 32768}, "CPU fixture")), \
+                    patch("llm_provider.make_run_client", return_value=client), \
+                    patch.object(tp, "segment_chunk_adaptively", side_effect=AssertionError("pass1 called")), \
+                    patch.object(tp, "attribute_batch", side_effect=AssertionError("pass2 called")):
+                app = FastAPI()
+                app.add_middleware(core.TaskClaimMiddleware)
+                app.include_router(script.router)
+                with TestClient(app) as http:
+                    review = http.get("/api/annotated_script/delivery_review")
+                    self.assertEqual(200, review.status_code)
+                    info = review.json()
+                    self.assertEqual([2], info["entries"])
+                    self.assertTrue(info["retry_available"])
+                    response = http.post("/api/annotated_script/delivery_review/retry",
+                                         json={"snapshot": info["snapshot"]})
+                    self.assertEqual(200, response.status_code, response.text)
+                    self.assertFalse(state["script"]["running"])
+                    self.assertNotIn("Error:", "\n".join(state["script"]["logs"]))
+                    saved = json.loads((root / "annotated_script.json").read_text())
+                    self.assertEqual(900, saved[0]["pause_after"])
+                    self.assertEqual({"answers": None, "action": "invite", "delivery": "soft",
+                                      "gap": "beat"}, saved[1]["direction"])
+                    self.assertEqual("Invite: soft.", saved[1]["instruct"])
+                    self.assertNotIn("instruct_unchecked", saved[1])
+                    chunks = ProjectManager(tmp).load_chunks()
+                    self.assertEqual(("uid-0", "done", "prior.wav", 900),
+                                     (chunks[0]["uid"], chunks[0]["status"],
+                                      chunks[0]["audio_path"], chunks[0]["pause_after"]))
+                    self.assertEqual(("pending", None),
+                                     (chunks[1]["status"], chunks[1]["audio_path"]))
+                    receipt = json.loads(Path(tp.three_pass_manifest_path(
+                        str(root / "annotated_script.json"))).read_text())
+                    self.assertEqual({"count": 0, "entries": []},
+                                     receipt["delivery_retries"][-1]["remaining"])
 
     def test_cancelled_blocked_provider_retains_real_claim_until_worker_exits(self):
         import asyncio

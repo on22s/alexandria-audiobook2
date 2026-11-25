@@ -25,20 +25,39 @@ def is_stored_grouping(groups, chunks):
         for group, chunk in zip(groups, chunks) for field in BASIC_FIELDS)
 
 
+DELIVERY_RETRY_REFUSAL = "Delivery retry changed frozen or unaffected entries."
+
+
 def get_delivery_retry_chunks(before, after, chunks):
     """Preserve unchanged native groups; detach audio only for regrouped rows.
 
     Refuse an edited/reordered editor snapshot rather than replacing its work.
+    A pass-3 fallback row may gain its instruct and direction. Every other
+    field is frozen. The only other permitted change is the pause that
+    apply_gap_pauses itself derives, so the gap rule has one home and the
+    off mode (which never runs it) is accepted without gaining a pause.
     Caller owns snapshot validation and atomic multi-file publication.
     """
-    if (len(before) != len(after) or any(
-            ({key: value for key, value in old.items()
-              if key not in ("instruct", "instruct_unchecked")} !=
-             {key: value for key, value in new.items()
-              if key not in ("instruct", "instruct_unchecked")})
-            or (old.get("instruct_unchecked") is not True and old != new)
-            for old, new in zip(before, after))):
-        raise ValueError("Delivery retry changed frozen or unaffected entries.")
+    from three_pass_generate import apply_gap_pauses
+    if len(before) != len(after):
+        raise ValueError(DELIVERY_RETRY_REFUSAL)
+    expected = []
+    for old, new in zip(before, after):
+        row = copy.deepcopy(old)
+        if old.get("instruct_unchecked") is True:
+            for field in ("instruct", "instruct_unchecked", "direction"):
+                if field in new:
+                    row[field] = copy.deepcopy(new[field])
+                else:
+                    row.pop(field, None)
+        expected.append(row)
+    try:
+        materialized = apply_gap_pauses(expected)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ValueError(DELIVERY_RETRY_REFUSAL) from exc
+    if json.dumps(after, sort_keys=True) not in [
+            json.dumps(materialized, sort_keys=True), json.dumps(expected, sort_keys=True)]:
+        raise ValueError(DELIVERY_RETRY_REFUSAL)
     if chunks is None:
         return None
     # Recognise stored canonical layouts before the CJK limits or narration
@@ -64,8 +83,11 @@ def get_delivery_retry_chunks(before, after, chunks):
         raise ValueError("Editor voice/style overrides need manual delivery review; retry would replace them.")
 
     def key(group):
+        # A pause does not enter the rendered take, so it must not detach the
+        # audio: the new value is written onto the reused chunk just below.
         return json.dumps({field: group.get(field) for field in
-                           (*BASIC_FIELDS, "source_entry_indices")}, sort_keys=True)
+                           ("speaker", "text", "instruct", "source_entry_indices")},
+                          sort_keys=True)
 
     reusable = defaultdict(deque)
     for group, chunk in zip(old_groups, chunks):
@@ -75,6 +97,10 @@ def get_delivery_retry_chunks(before, after, chunks):
         candidates = reusable[key(group)]
         if candidates:
             row = copy.deepcopy(candidates.popleft())
+            if "pause_after" in group:
+                row["pause_after"] = copy.deepcopy(group["pause_after"])
+            else:
+                row.pop("pause_after", None)
         else:
             row = {field: copy.deepcopy(value) for field, value in group.items()
                    if field != "source_entry_indices"}
