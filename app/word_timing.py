@@ -20,6 +20,15 @@ MAX_RESULT_BYTES = 1024**2
 WORDS = re.compile(r"\w+(?:['’]\w+)*", re.UNICODE)
 
 
+def _is_finite_number(value):
+    """math.isfinite that reports an int too large for float() as non-finite
+    instead of raising OverflowError."""
+    try:
+        return math.isfinite(value)
+    except (OverflowError, ValueError):
+        return False
+
+
 def get_word_tokens(text):
     return [(m.group().casefold().replace('’', "'"), m.start(), m.end()) for m in WORDS.finditer(text)]
 
@@ -30,7 +39,7 @@ def get_timing_fingerprint(binding):
 
 def get_validated_word_spans(text, segments, duration):
     if (not isinstance(segments, list) or len(segments) > 4096
-            or not isinstance(duration, (int, float)) or not math.isfinite(duration)
+            or not isinstance(duration, (int, float)) or not _is_finite_number(duration)
             or not 0 < duration <= MAX_SECONDS):
         raise ValueError('Invalid timing result or audio duration.')
     parsed = []
@@ -39,7 +48,7 @@ def get_validated_word_spans(text, segments, duration):
         if not isinstance(segment, dict) or not isinstance(segment.get('word'), str):
             raise ValueError('Malformed ASR word.')
         start, end = segment.get('start'), segment.get('end')
-        if (any(type(v) not in (int, float) or not math.isfinite(v) for v in (start, end))
+        if (any(type(v) not in (int, float) or not _is_finite_number(v) for v in (start, end))
                 or not 0 <= start < end <= duration or start < previous):
             raise ValueError('Invalid, overlapping or saturated ASR timestamps.')
         previous = end

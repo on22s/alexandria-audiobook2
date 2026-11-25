@@ -52,18 +52,21 @@ def get_coalesced_whisper_cpp_segments(transcription):
             isinstance(start_ms, Real) and not isinstance(start_ms, bool)
             and isinstance(end_ms, Real) and not isinstance(end_ms, bool)
         )
-        finite = (
-            numeric and math.isfinite(float(start_ms))
-            and math.isfinite(float(end_ms))
-        )
+        try:
+            finite = (
+                numeric and math.isfinite(float(start_ms))
+                and math.isfinite(float(end_ms))
+            )
+        except (OverflowError, ValueError):
+            finite = False
         if finite and float(end_ms) == float(start_ms):
             pending.append(text)
             continue
 
         converted.append({
             "word": " ".join(pending + [text]),
-            "start": float(start_ms) / 1000.0 if numeric else start_ms,
-            "end": float(end_ms) / 1000.0 if numeric else end_ms,
+            "start": float(start_ms) / 1000.0 if numeric and finite else start_ms,
+            "end": float(end_ms) / 1000.0 if numeric and finite else end_ms,
         })
         pending = []
 

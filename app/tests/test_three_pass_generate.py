@@ -2,6 +2,7 @@ import re
 import unittest
 import os
 import tempfile
+from contextlib import nullcontext
 import three_pass_generate as tp
 import json
 from types import SimpleNamespace
@@ -500,6 +501,62 @@ def _client_returning(payloads):
             message=SimpleNamespace(content=json.dumps(next(responses))),
             finish_reason="stop")], usage=None)
 
+    return SimpleNamespace(chat=SimpleNamespace(
+        completions=SimpleNamespace(create=create)))
+
+
+DIALOGUE_BASE = 'Mr. Hall said, "Come in." He waited by the door.'
+DIALOGUE_SOURCE = " ".join([DIALOGUE_BASE] * 5)
+
+
+def _iter_schema_nodes(node):
+    if isinstance(node, dict):
+        yield node
+        for value in node.values():
+            yield from _iter_schema_nodes(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _iter_schema_nodes(value)
+
+
+def _answering_client(*, instruct_exhausts=False):
+    """Stub LM Studio: answer each batch from its request's own index schema."""
+    def create(**kwargs):
+        response_format = kwargs.get("response_format")
+        if response_format is None:
+            content = kwargs["messages"][-1]["content"]
+            batch = json.loads(content[content.index("["):])
+            payload = ([] if instruct_exhausts else
+                       [{"n": entry["n"], "instruct": "Neutral."}
+                        for entry in batch])
+        else:
+            answer = {}
+            for node in _iter_schema_nodes(
+                    response_format["json_schema"]["schema"]):
+                properties = node.get("properties") if isinstance(node, dict) else None
+                if not properties or "n" not in properties:
+                    continue
+                speaker = properties.get("speaker")
+                instruct = properties.get("instruct")
+                for index in properties["n"].get("enum") or []:
+                    if speaker is not None:
+                        answer[index] = {
+                            "n": index,
+                            "speaker": speaker.get("const") or "MR. HALL"}
+                    elif instruct is not None:
+                        answer[index] = {"n": index, "instruct": "Neutral."}
+            payload = [answer[index] for index in sorted(answer)]
+        return SimpleNamespace(choices=[SimpleNamespace(
+            message=SimpleNamespace(content=json.dumps(payload)),
+            finish_reason="stop")], usage=None)
+
+    return SimpleNamespace(chat=SimpleNamespace(
+        completions=SimpleNamespace(create=create)))
+
+
+def _refusing_client():
+    def create(**_kwargs):
+        raise AssertionError("a resumed run should not call the model")
     return SimpleNamespace(chat=SimpleNamespace(
         completions=SimpleNamespace(create=create)))
 
@@ -1331,6 +1388,116 @@ class ManifestTests(unittest.TestCase):
         out = tp.segment_chunk_adaptively(client, "m", source, params, resolution_sink=sink)
         self.assertTrue(out)
         self.assertEqual(["near_miss"], sink)
+
+
+class DialogueMapFailureRetirementTests(unittest.TestCase):
+    """A recorded dialogue_map failure must be retired by a later success (#2295)."""
+
+    def setUp(self):
+        self.params = LLMGenParams(max_tokens=500, temperature=0.1,
+                                   segmentation="auto")
+        self.cast = _load_orchestration_fixture_cast(("MR. HALL",))
+
+    def _run(self, out, *, map_fails=False, instruct_exhausts=False,
+             collect_all_failures=False, client=None):
+        failure = (patch.object(tp, "apply_dialogue_map",
+                                side_effect=RuntimeError("map blew up"))
+                   if map_fails else nullcontext())
+        with failure:
+            return tp.run_three_pass(
+                client or _answering_client(instruct_exhausts=instruct_exhausts),
+                "m", DIALOGUE_SOURCE, self.params, chunk_size=6000,
+                output_path=out, cast=self.cast,
+                collect_all_failures=collect_all_failures)
+
+    def _manifest(self, out):
+        with open(tp.three_pass_manifest_path(out), encoding="utf-8") as handle:
+            return json.load(handle)
+
+    def _checkpoint(self, out):
+        return tp.load_generation_delta_checkpoint(tp.three_pass_checkpoint_path(out))
+
+    def test_a_later_successful_map_publishes_like_a_run_that_never_failed(self):
+        with tempfile.TemporaryDirectory() as root:
+            out = os.path.join(root, "book.json")
+            self._run(out, map_fails=True)
+            first = self._manifest(out)
+            entries = self._run(out, client=_refusing_client())
+            manifest = self._manifest(out)
+            checkpoint = self._checkpoint(out)
+            clean_out = os.path.join(root, "clean.json")
+            clean_entries = self._run(clean_out)
+            clean_manifest = self._manifest(clean_out)
+        self.assertEqual("incomplete", first["status"])
+        self.assertTrue(all("spoken" in entry for entry in entries))
+        self.assertEqual([], manifest["diagnostic_failures"])
+        self.assertEqual("complete", manifest["status"])
+        self.assertIsNone(tp.get_three_pass_publication_blocker(manifest))
+        self.assertEqual([], checkpoint["diagnostic_failures"])
+        self.assertEqual([], clean_manifest["diagnostic_failures"])
+        self.assertEqual(json.dumps(clean_entries, sort_keys=True),
+                         json.dumps(entries, sort_keys=True))
+
+    def test_a_repeated_failure_replaces_its_record_instead_of_stacking(self):
+        with tempfile.TemporaryDirectory() as root:
+            out = os.path.join(root, "book.json")
+            self._run(out, map_fails=True)
+            self._run(out, map_fails=True, client=_refusing_client())
+            manifest = self._manifest(out)
+            checkpoint = self._checkpoint(out)
+        recorded = [failure for failure in manifest["diagnostic_failures"]
+                    if failure.get("pass") == "dialogue_map"]
+        self.assertEqual(1, len(recorded))
+        self.assertEqual(1, len([failure for failure in checkpoint["diagnostic_failures"]
+                                 if failure.get("pass") == "dialogue_map"]))
+        self.assertEqual("incomplete", manifest["status"])
+        self.assertIsNotNone(tp.get_three_pass_publication_blocker(manifest))
+
+    def test_a_failed_map_makes_a_completed_book_incomplete_again(self):
+        with tempfile.TemporaryDirectory() as root:
+            out = os.path.join(root, "book.json")
+            self._run(out)
+            self.assertEqual("complete", self._manifest(out)["status"])
+            self._run(out, map_fails=True, client=_refusing_client())
+            manifest = self._manifest(out)
+        self.assertEqual(["dialogue_map"],
+                         [failure["pass"] for failure in manifest["diagnostic_failures"]])
+        self.assertEqual("incomplete", manifest["status"])
+        self.assertIsNotNone(tp.get_three_pass_publication_blocker(manifest))
+
+    def test_a_successful_map_leaves_another_passes_failure_blocking(self):
+        with tempfile.TemporaryDirectory() as root:
+            out = os.path.join(root, "book.json")
+            self._run(out, map_fails=True, instruct_exhausts=True,
+                      collect_all_failures=True)
+            first = self._manifest(out)
+            self._run(out, instruct_exhausts=True, collect_all_failures=True)
+            manifest = self._manifest(out)
+        first_passes = {failure["pass"] for failure in first["diagnostic_failures"]}
+        self.assertIn("dialogue_map", first_passes)
+        self.assertIn("instruct", first_passes)
+        passes = {failure["pass"] for failure in manifest["diagnostic_failures"]}
+        self.assertNotIn("dialogue_map", passes)
+        self.assertIn("instruct", passes)
+        self.assertEqual("incomplete", manifest["status"])
+        self.assertIsNotNone(tp.get_three_pass_publication_blocker(manifest))
+
+    def test_a_crash_before_the_cleared_state_is_saved_keeps_the_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            out = os.path.join(root, "book.json")
+            self._run(out, map_fails=True)
+            with patch.object(tp, "_save_three_pass_checkpoint",
+                              side_effect=RuntimeError("crash before save")):
+                with self.assertRaisesRegex(RuntimeError, "crash before save"):
+                    self._run(out, client=_refusing_client())
+            stale = self._manifest(out)
+            entries = self._run(out, client=_refusing_client())
+            recovered = self._manifest(out)
+        self.assertEqual(["dialogue_map"],
+                         [failure["pass"] for failure in stale["diagnostic_failures"]])
+        self.assertTrue(all("spoken" in entry for entry in entries))
+        self.assertEqual([], recovered["diagnostic_failures"])
+        self.assertEqual("complete", recovered["status"])
 
 
 class RecombinationAcceptanceTests(unittest.TestCase):
