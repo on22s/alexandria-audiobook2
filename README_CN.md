@@ -37,7 +37,7 @@
 | **Apple Silicon** | macOS | 仅 CPU | `auto` 设备使用 CPU；可以手动选择 MPS，但在 M4 上更慢、更不准（#1650）；whisper.cpp 以 Metal 编译 |
 | **Intel** | macOS | 仅 CPU | |
 
-> **文档：**上游的 [Wiki](https://github.com/Finrandojin/alexandria-audiobook/wiki) 对声音类型、LoRA 训练、批量生成的说明仍然适用；本分支不同之处以本 README 和 `RECIPES.md` 为准。
+> **文档：**本项目的文档说明了[声音类型](docs/wiki/Voice-Types-CN.md)、[LoRA 训练](docs/wiki/Training-Guide-CN.md)和[批量生成](docs/wiki/Batch-Generation-CN.md)；本分支与上游不同之处以本 README 和 `RECIPES.md` 为准。
 
 ## 安装
 
