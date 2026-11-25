@@ -35,6 +35,27 @@ def get_unsupported_cyrillic_characters(source_text, output_text):
                   if char.casefold() not in source_folded)
 
 
+def get_introduced_non_ascii_letters(source_text, output_text):
+    """Return non-ASCII letters the response introduces which the source does
+    not support. Cyrillic is excluded here and reported by
+    get_unsupported_cyrillic_characters instead.
+
+    An accented Latin letter whose casefold matches a Latin letter already in
+    the source is a case change, not an introduction (the single-pass allowance
+    since #938). Both gates use this one definition."""
+    source_non_ascii = {char for char in unicodedata.normalize("NFC", source_text)
+                        if ord(char) > 127 and unicodedata.category(char).startswith("L")}
+    source_latin_casefold = {char.casefold() for char in source_non_ascii
+                             if "LATIN" in unicodedata.name(char, "")}
+    return sorted({char for char in unicodedata.normalize("NFC", output_text)
+                   if ord(char) > 127
+                   and unicodedata.category(char).startswith("L")
+                   and char not in source_non_ascii
+                   and not ("LATIN" in unicodedata.name(char, "")
+                            and char.casefold() in source_latin_casefold)
+                   and not _CYRILLIC_RE.match(char)})
+
+
 def get_chunk_schema_findings(entries):
     """Check the entry contract for both fresh responses and stored checkpoints."""
     findings = []
@@ -109,17 +130,7 @@ def validate_chunk_quality(source_text, entries, *, literal_source_preserving=Fa
     if unsupported:
         findings.append({"code": "unsupported_cyrillic", "characters": unsupported,
                          "message": "Response introduced Cyrillic characters absent from the source."})
-    source_non_ascii = {char for char in unicodedata.normalize("NFC", source_text)
-                        if ord(char) > 127 and unicodedata.category(char).startswith("L")}
-    source_latin_casefold = {char.casefold() for char in source_non_ascii
-                            if "LATIN" in unicodedata.name(char, "")}
-    introduced_non_ascii = sorted({char for char in unicodedata.normalize("NFC", output_text)
-                                   if ord(char) > 127
-                                   and unicodedata.category(char).startswith("L")
-                                   and char not in source_non_ascii
-                                   and not ("LATIN" in unicodedata.name(char, "")
-                                            and char.casefold() in source_latin_casefold)
-                                   and not ("\u0400" <= char <= "\u04ff")})
+    introduced_non_ascii = get_introduced_non_ascii_letters(source_text, output_text)
     if introduced_non_ascii:
         findings.append({
             "code": "unsupported_unicode_character",
