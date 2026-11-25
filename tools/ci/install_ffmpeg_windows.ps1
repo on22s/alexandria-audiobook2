@@ -68,6 +68,7 @@ if (Test-FfmpegTools) {
 }
 
 $choco = Get-Command choco -CommandType Application -ErrorAction SilentlyContinue
+$choco = $null  # TEMPORARY CI proof: force the pinned fallback
 if ($choco) {
     Write-Host "ffmpeg/ffprobe are missing; trying Chocolatey once (bounded at ${ChocoTimeoutSeconds}s)."
     $process = $null
