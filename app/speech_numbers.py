@@ -34,16 +34,30 @@ STATE_KEY = "speech_date_order"
 # A neighbour that would make the match part of a code, chain or decimal. A
 # following period or comma only counts when a digit follows it: "1890-1902."
 # ends a sentence, "1.2-3.4" does not.
-_BEFORE = r"(?<![\w./\-–])"
+_TOUCHING = r"\w./\-–"
+_BEFORE = r"(?<![" + _TOUCHING + r"])"
 _AFTER = r"(?![\w/\-–]|[.,]\d)"
-# Currency codes that books put directly before "$". An explicit table, not
-# "[A-Z]{2,3}$", because a word ending in those letters (BUS$5.00) would
-# otherwise be read as a code. Only dollar codes: R$ is a real, not a dollar.
-_CURRENCY_PREFIXES = ("US", "CAD", "CA", "C", "A", "AU", "HK", "NZ", "S", "SG", "NT", "MX")
+# Currency codes that books put directly before "$", and the words a listener
+# should hear instead. An explicit table, not "[A-Z]{2,3}$", because a word
+# ending in those letters (BUS$5.00) would otherwise be read as a code. Only
+# dollar codes: R$ is a real and MX$ is pesos, so neither may speak "dollars".
+_SPOKEN_CURRENCIES = {
+    "US": "US", "CAD": "Canadian", "CA": "Canadian", "C": "Canadian",
+    "A": "Australian", "AU": "Australian", "HK": "Hong Kong",
+    "NZ": "New Zealand", "S": "Singapore", "SG": "Singapore",
+    "NT": "New Taiwan",
+}
+# A magnitude word after the amount ("US$5.50 million") is not a cents figure;
+# leave the prefixed form as written rather than speak "... and 50 cents million".
+_MAGNITUDES = r"(?!\s*(?i:million|billion|trillion|thousand|hundred|bn|m|k)s?\b)"
 _MONEY_RE = re.compile(r"(?<![\w$])\$(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})" + _AFTER)
+# Digits are bounded well under Python's int-string limit so an absurd amount is
+# left as written instead of raising inside _spoken_money. The plain "$" rule is
+# unchanged (its guard is older than this rule and not part of the issue).
 _PREFIXED_MONEY_RE = re.compile(
-    r"(?<![\w$])(" + "|".join(sorted(_CURRENCY_PREFIXES, key=len, reverse=True)) + r")\$"
-    r"(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})" + _AFTER)
+    r"(?<![" + _TOUCHING + r"$])("
+    + "|".join(sorted(_SPOKEN_CURRENCIES, key=len, reverse=True)) + r")\$"
+    r"(\d{1,3}(?:,\d{3}){1,5}|\d{1,18})\.(\d{2})" + _AFTER + _MAGNITUDES)
 _RANGE_RE = re.compile(_BEFORE + r"(\d+)[-–](\d+)" + _AFTER)
 _DATE_RE = re.compile(_BEFORE + r"(\d{1,2})/(\d{1,2})/(\d{4})" + _AFTER)
 
@@ -168,7 +182,8 @@ def verbalize_numbers(text, date_order=None):
         return spoken
 
     def prefixed_money(match):
-        spoken = _spoken_money(match.group(2), match.group(3), match.group(1))
+        spoken = _spoken_money(match.group(2), match.group(3),
+                               _SPOKEN_CURRENCIES[match.group(1)])
         changes.append({"kind": "money", "source": match.group(0), "spoken": spoken})
         return spoken
 

@@ -62,23 +62,56 @@ class ConvertedTests(unittest.TestCase):
                 self.assertTrue(speech_numbers._has_range_context(match))
             self.assertLessEqual(CountedText.read, 2 * len(text), repeats)
 
-    def test_prefixed_currency_money_is_verbalized(self):
+    def test_every_currency_prefix_is_verbalized_with_its_spoken_name(self):
+        # Every code in the table, with the word a listener should hear. The
+        # issue's own example (US$) keeps the literal "US" wording.
         cases = {
-            "It cost US$1,234.56 today.": "It cost 1,234 US dollars and 56 cents today.",
-            "It cost CAD$12.50.": "It cost 12 CAD dollars and 50 cents.",
-            "It cost A$12.50.": "It cost 12 A dollars and 50 cents.",
-            "It cost HK$12.50.": "It cost 12 HK dollars and 50 cents.",
-            "It cost C$12.50.": "It cost 12 C dollars and 50 cents.",
-            "It cost NZ$12.50.": "It cost 12 NZ dollars and 50 cents.",
-            "It cost S$12.50.": "It cost 12 S dollars and 50 cents.",
+            "US": "US", "CAD": "Canadian", "CA": "Canadian", "C": "Canadian",
+            "A": "Australian", "AU": "Australian", "HK": "Hong Kong",
+            "NZ": "New Zealand", "S": "Singapore", "SG": "Singapore",
+            "NT": "New Taiwan",
         }
-        for source, expected in cases.items():
-            with self.subTest(source=source):
-                self.assertEqual(expected, spoken(source))
+        self.assertEqual(cases, speech_numbers._SPOKEN_CURRENCIES)
+        for code, currency in cases.items():
+            with self.subTest(code=code):
+                self.assertEqual(f"It cost 12 {currency} dollars and 50 cents.",
+                                 spoken(f"It cost {code}$12.50."))
+        self.assertEqual("It cost 1,234 US dollars and 56 cents today.",
+                         spoken("It cost US$1,234.56 today."))
         self.assertEqual("It cost 1 US dollar.", spoken("It cost US$1.00."))
         self.assertEqual("It cost 1 US dollar and 1 cent.", spoken("It cost US$1.01."))
         # Whole dollars at zero keep the existing "$" rule, which names the cents only.
         self.assertEqual("It cost 75 cents.", spoken("It cost US$0.75."))
+
+    def test_prefixed_amount_followed_by_a_magnitude_word_is_left_as_written(self):
+        # "US$5.50 million" is five and a half million, not fifty cents; main
+        # leaves the whole prefixed form raw, so this rule must not turn it into
+        # "...and 50 cents million". With or without a space.
+        for text in ("It cost US$5.50 million.", "It cost US$5.50million.",
+                     "It cost US$5.50 millions.", "It cost US$5.50 billion.",
+                     "It cost US$5.50 trillion.", "It cost US$5.50 thousand.",
+                     "It cost US$5.50 hundred.", "It cost US$5.50 bn.",
+                     "It cost US$5.50 m.", "It cost US$5.50 k.",
+                     "It cost CAD$12.50 million."):
+            with self.subTest(text=text):
+                self.assertEqual((text, []), verbalize_numbers(text))
+        # A word that is not a magnitude still converts.
+        self.assertEqual("It cost 5 US dollars and 50 cents in cash.",
+                         spoken("It cost US$5.50 in cash."))
+        # The plain "$" rule is untouched, so its wording stays exactly as main had it.
+        self.assertEqual("It cost 5 dollars and 50 cents million.",
+                         spoken("It cost $5.50 million."))
+
+    def test_a_prefixed_amount_too_long_to_read_is_left_as_written(self):
+        # Digits on the prefixed rule are bounded so an absurd amount is left
+        # alone instead of raising inside int(); main left every prefixed form
+        # untouched too. The plain "$" rule keeps its existing unbounded form.
+        for text in ("It cost US$" + "1" * 5000 + ".00.",
+                     "It cost US$" + ",".join(["123"] * 10) + ".00."):
+            with self.subTest(length=len(text)):
+                self.assertEqual((text, []), verbalize_numbers(text))
+        self.assertEqual("It cost 123,123,123,123,123,123 US dollars.",
+                         spoken("It cost US$123,123,123,123,123,123.00."))
 
     def test_prefixed_money_change_is_recorded(self):
         _text, changes = verbalize_numbers("It cost US$1,234.56 today.")
@@ -133,8 +166,15 @@ class LeftAloneTests(unittest.TestCase):
     def test_prefixed_currency_neighbours_are_not_currency_codes(self):
         for text in ("It cost BUS$5.00.", "It cost SAUS$5.00.", "It cost R$5.00.",
                      "It cost us$5.00.", "It cost US$-5.00.", "It cost US$5-10.",
-                     "It cost US$5.00-10.00.", "It cost US$5 million.",
-                     "It cost US$1.234.", "It cost US$1.5."):
+                     "It cost US$5.00-10.00.",
+                     "It cost US$1.234.", "It cost US$1.5.",
+                     # Same token boundary as the range/date rules, plus "$":
+                     # a preceding letter, digit, period, slash, dash or en dash
+                     # keeps the form as written, so dotted initials and paths
+                     # never become "US dollars". "-US$5.00" stays raw as main
+                     # left it, though main does convert "-$5.00".
+                     "U.S$5.00", "J.C$5.00", "M.A$5.00", "SKU-US$5.00",
+                     "https://x/US$5.00", "-US$5.00"):
             with self.subTest(text=text):
                 self.assertEqual((text, []), verbalize_numbers(text))
 
