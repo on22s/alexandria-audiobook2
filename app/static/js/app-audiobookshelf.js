@@ -12,6 +12,7 @@ let absSendingPreviewId = null;
 let absProgressTimer = null;
 let absConfigLoaded = false;
 let absConfigLoading = null;
+let absConfigEpoch = null;
 let absSavedSelection = null;
 let absSelectionServer = null;
 
@@ -27,6 +28,7 @@ function absSetStatus(text) {
 async function loadAbsSavedConfig() {
     if (absConfigLoaded) { return; }
     if (absConfigLoading) { return absConfigLoading; }
+    if (absConfigEpoch === null) { absConfigEpoch = absEpoch; }
     absConfigLoading = (async () => {
         let config;
         try {
@@ -35,6 +37,7 @@ async function loadAbsSavedConfig() {
             return;
         }
         absConfigLoaded = true;
+        if (absConfigEpoch !== absEpoch) { return; }
         if (!config || typeof config !== 'object' || typeof config.base_url !== 'string' || !config.base_url.trim()) {
             return;
         }
@@ -43,9 +46,7 @@ async function loadAbsSavedConfig() {
             library_id: config.library_id || '',
             folder_id: config.folder_id || '',
         };
-        const urlInput = document.getElementById('abs-server-url');
-        if (urlInput.value.trim()) { return; }
-        urlInput.value = config.base_url;
+        document.getElementById('abs-server-url').value = config.base_url;
         absSetStatus(t('abs.config.restored', 'Restored saved server ({url}). API key {key}.', {
             url: config.base_url,
             key: config.has_key ? t('abs.server.key-stored', 'is stored') : t('abs.server.key-missing', 'is not stored yet'),
@@ -138,9 +139,10 @@ async function saveAbsConfig() {
         });
         if (epoch !== absEpoch) { return; }
         document.getElementById('abs-api-key').value = '';
-        document.getElementById('abs-server-url').value = result.base_url;
+        absEpoch++;
         absSavedSelection = {
             base_url: result.base_url,
+            saved_url: url,
             library_id: result.library_id || '',
             folder_id: result.folder_id || '',
         };
@@ -192,7 +194,8 @@ async function loadAbsLibraries() {
             librarySelect.appendChild(option);
         }
         const savedSelection = absSavedSelection;
-        const sameServer = savedSelection && savedSelection.base_url === url;
+        const sameServer = Boolean(savedSelection)
+            && (savedSelection.base_url === url || savedSelection.saved_url === url);
         const libraryListed = id => Boolean(id) && absLibraries.some(library => library.id === id);
         if (previous) {
             librarySelect.value = libraryListed(previous.library_id) ? previous.library_id : '';
