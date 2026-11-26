@@ -90,7 +90,7 @@ def download_model():
 
         # Stream the weight file to disk without constructing a model object.
         print("Downloading model and processor files...")
-        snapshot_download(
+        snapshot_download(  # nosec B615 - offline dev downloader; staged, size-checked, no request input
             repo_id="openai/whisper-base", local_dir=staged_path,
             allow_patterns=["*.json", "*.txt", "model.safetensors"],
         )
@@ -102,7 +102,8 @@ def download_model():
 
         # Validate/save only the small processor, strictly from the staged files.
         print("Validating processor...")
-        processor = AutoProcessor.from_pretrained(staged_path, local_files_only=True)
+        processor = AutoProcessor.from_pretrained(  # nosec B615 - local staged path, local_files_only=True
+            staged_path, local_files_only=True)
         processor.save_pretrained(staged_path)
         print("✓ Processor saved")
 

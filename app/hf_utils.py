@@ -99,7 +99,7 @@ def fetch_builtin_manifest(builtin_dir, hf_repo=BUILTIN_LORA_HF_REPO):
     # Try remote
     try:
         from huggingface_hub import hf_hub_download
-        cached_path = hf_hub_download(repo_id=hf_repo, filename="manifest.json")
+        cached_path = hf_hub_download(repo_id=hf_repo, filename="manifest.json")  # nosec B615 - app-owned catalog repo; a pin would freeze updates
         with open(cached_path, "r", encoding="utf-8") as f:
             entries = json.load(f)
         entries = _normalize_manifest_entries(entries)
@@ -165,7 +165,7 @@ def download_builtin_adapter(adapter_id, builtin_dir, hf_repo=BUILTIN_LORA_HF_RE
                 continue
             staged_path = None
             try:
-                cached = hf_hub_download(
+                cached = hf_hub_download(  # nosec B615 - app-owned catalog repo; a pin would freeze updates
                     repo_id=hf_repo, filename=f"{hf_name}/{filename}")
                 descriptor, staged_path = tempfile.mkstemp(
                     prefix=f".{filename}.", suffix=".tmp", dir=adapter_dir)

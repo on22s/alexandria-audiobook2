@@ -9,7 +9,7 @@ permissions:
 jobs:
   bandit:
     name: bandit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:
@@ -23,12 +23,11 @@ jobs:
           cache-dependency-path: app/requirements-security.txt
       - name: Install pinned Bandit
         run: python -m pip install -r requirements-security.txt
-      - name: Fail on new medium-or-higher findings
-        # Reviewed findings already on main are in bandit-baseline.json; this
-        # exits 1 only for a finding that is not in that baseline.
-        run: >-
-          bandit --ini bandit.ini -r -f json -o bandit-report.json
-          -b bandit-baseline.json --severity-level medium
+      - name: Fail on findings or unscannable files
+        # Scans all of app/ plus the repo-root scripts, with no baseline file,
+        # and fails on any medium-or-higher finding or any file bandit could
+        # not parse or read. LOW findings are reported, not gated.
+        run: python bandit_gate.py
       - name: Upload Bandit report
         if: always()
         uses: actions/upload-artifact@v6

@@ -148,7 +148,7 @@ def _load_voice_analysis_pickle_file(path, default):
         return default
     try:
         with path.open("rb") as handle:
-            return pickle.load(handle)
+            return pickle.load(handle)  # nosec B301 - app-owned cache file, never request bytes
     except (EOFError, pickle.UnpicklingError, OSError, ValueError) as exc:
         print(f"Warning: unreadable cache {path}: {exc}; rebuilding")
         try:
