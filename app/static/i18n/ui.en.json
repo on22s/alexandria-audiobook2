@@ -1725,6 +1725,7 @@
   "error.task.gpu_busy": "Cannot start {task}: {running} is currently running. Please wait for it to finish or cancel it to free up GPU VRAM.",
   "error.upload.docx_text_too_large": "Extracted DOCX text exceeds source upload limits.",
   "error.upload.epub_empty": "No readable text content found in EPUB.",
+  "error.upload.epub_navigation_only": "The only text document in this EPUB is the navigation document (contents page), which was skipped because a table of contents is not story text.",
   "error.upload.epub_text_too_large": "Extracted EPUB text exceeds source upload storage limits.",
   "error.upload.no_input_active": "No input file selected for the active book.",
   "error.upload.source_empty": "Active source is empty; import a non-empty book first.",

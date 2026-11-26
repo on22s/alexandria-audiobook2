@@ -1335,6 +1335,7 @@
   "error.task.gpu_busy": "{task} を開始できません: {running} が現在実行中です。完了を待つか、キャンセルして GPU の VRAM を解放してください。",
   "error.upload.docx_text_too_large": "抽出した DOCX テキストがソースのアップロード上限を超えています。",
   "error.upload.epub_empty": "EPUB に読み取り可能なテキスト内容が見つかりませんでした。",
+  "error.upload.epub_navigation_only": "この EPUB の唯一のテキスト文書はナビゲーション文書（目次ページ）であり、目次は本文ではないためスキップされました。",
   "error.upload.epub_text_too_large": "抽出した EPUB テキストがソースのアップロード保存容量上限を超えています。",
   "error.upload.no_input_active": "現在の本には入力ファイルが選択されていません。",
   "error.upload.source_empty": "現在のソースが空です。先に空でない本をインポートしてください。",

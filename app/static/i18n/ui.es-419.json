@@ -1335,6 +1335,7 @@
   "error.task.gpu_busy": "No se puede iniciar {task}: {running} se está ejecutando. Espera a que termine o cancélalo para liberar la VRAM de la GPU.",
   "error.upload.docx_text_too_large": "El texto extraído del DOCX supera los límites de subida.",
   "error.upload.epub_empty": "No se encontró contenido de texto legible en el EPUB.",
+  "error.upload.epub_navigation_only": "El único documento de texto de este EPUB es el documento de navegación (página de contenido), que se omitió porque una tabla de contenido no es texto narrativo.",
   "error.upload.epub_text_too_large": "El texto extraído del EPUB supera el límite de almacenamiento de subidas.",
   "error.upload.no_input_active": "No se ha seleccionado ningún archivo de entrada para el libro activo.",
   "error.upload.source_empty": "El texto fuente activo está vacío; primero importa un libro con contenido.",
