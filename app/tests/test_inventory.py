@@ -108,22 +108,50 @@ def _module_level_functions(body):
 def _uncollected_test_classes(module):
     """Classes defined here whose tests unittest will never collect.
 
-    unittest only collects ``TestCase`` subclasses, so a pytest-style plain
-    class imports and discovers cleanly while none of its ``test*`` methods
-    run. Membership in ``TestCase`` is asked of ``unittest`` itself
-    (``issubclass``), which also handles the mixin bases used throughout this
-    suite. Imported classes are skipped: their defining module owns them.
+    unittest only collects ``TestCase`` subclasses, so a class that follows the
+    pytest naming convention (``Test*`` with ``test*`` methods) imports and
+    discovers cleanly while none of its tests run. A class is flagged only when
+    every one of these holds:
+
+    * it is defined in this module - an imported class belongs to its own
+      module, and there it may be a legitimate helper;
+    * it is not a ``unittest.TestCase``;
+    * it does not appear in the ``__mro__`` of any ``TestCase`` defined here -
+      that is what a mixin providing shared checks looks like;
+    * its name starts with ``Test``, which is the convention that makes a plain
+      class look like a test class in the first place; and
+    * it defines its own ``test*`` *functions*.
+
+    ``vars(cls)`` is used rather than ``dir(cls)`` so an inherited ``test*``
+    name or ``testing`` switch cannot attribute the base class's members to the
+    child. ``inspect.isfunction``/``inspect.iscoroutinefunction`` excludes a
+    non-method attribute that merely shares the prefix (``test_data = [1]``, a
+    dataclass field, an Enum member, a ``Mock``). Membership in ``TestCase`` is
+    asked of ``unittest`` itself (``issubclass``), which also handles the mixin
+    bases used throughout this suite.
+
+    A plain class that holds ``test*`` helpers without being named ``Test*`` is
+    not flagged: neither runner would collect it, and fakes/stubs legitimately
+    use such names (``test_connection``) without being tests. A plain class
+    nested inside a ``TestCase`` is out of scope too: this guard reads module
+    members only, and ``unittest`` neither sees nor claims nested classes.
     """
-    names = []
-    for _, value in inspect.getmembers(module, inspect.isclass):
-        if value.__module__ != module.__name__:
-            continue
+    classes = [value for _, value in inspect.getmembers(module, inspect.isclass)
+               if value.__module__ == module.__name__]
+    exempt = set()
+    for value in classes:
         if issubclass(value, unittest.TestCase):
+            exempt.update(value.__mro__)
+    names = []
+    for value in classes:
+        if value in exempt or not value.__name__.startswith("Test"):
             continue
-        methods = sorted(name for name in dir(value) if name.startswith("test"))
-        if value.__name__.startswith("Test") or methods:
-            detail = f" ({', '.join(methods)})" if methods else ""
-            names.append(value.__name__ + detail)
+        methods = sorted(
+            name for name, member in vars(value).items()
+            if name.startswith("test")
+            and (inspect.isfunction(member) or inspect.iscoroutinefunction(member)))
+        if methods:
+            names.append(value.__name__ + " (" + ", ".join(methods) + ")")
     return names
 
 
@@ -163,8 +191,9 @@ def _discovery_failures(path, collected, module):
     plain_classes = _uncollected_test_classes(module)
     if plain_classes:
         problems.append(
-            "these classes look like tests but do not subclass unittest.TestCase, "
-            "so unittest never collects them: " + ", ".join(plain_classes))
+            "these classes follow the test naming convention but do not subclass "
+            "unittest.TestCase, so unittest never collects them; make each one a "
+            "unittest.TestCase subclass or rename it: " + ", ".join(plain_classes))
     unawaited = [f"{type(test).__name__}.{getattr(test, '_testMethodName', '')}"
                  for test in collected
                  if isinstance(test, unittest.TestCase)
@@ -818,17 +847,26 @@ class UncollectedTestGuardTests(unittest.TestCase):
     class hides them, a bare function whose name merely matches a collected
     method, a bare function inside an ``if``/``try``/``with``/loop arm or a
     ``match`` case, a bare function a ``load_tests`` wrapper forgot, a
-    pytest-style plain class beside a TestCase, a test defined under
-    ``if __name__ == "__main__":``, an ``async`` test method on a plain
-    TestCase whose coroutine is never awaited, and two such problems in one
-    module both being reported.
+    ``Test*``-named plain class with its own test methods beside a TestCase, a
+    test defined under ``if __name__ == "__main__":``, an ``async`` test method
+    on a plain TestCase whose coroutine is never awaited, and two such problems
+    in one module both being reported.
+
+    The other side of the guard is pinned too, because a false positive blocks
+    every checkout: a ``Test*``-named mixin used as a base, an imported test
+    class, a class whose test-named members are inherited rather than its own,
+    and non-test classes with ``test*`` attributes (stubs, fakes, dataclasses,
+    enums, named tuples, exceptions) are all accepted.
     """
 
-    def run_discovery(self, name, source):
+    def run_discovery(self, name, source, extra_modules=None):
         import tests
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / f"{name}.py").write_text(source, encoding="utf-8")
+            extras = dict(extra_modules or {})
+            for filename, body in extras.items():
+                (root / filename).write_text(body, encoding="utf-8")
             original = tests.__path__
             tests.__path__ = [str(root)]
             try:
@@ -838,6 +876,8 @@ class UncollectedTestGuardTests(unittest.TestCase):
             finally:
                 tests.__path__ = original
                 sys.modules.pop(f"tests.{name}", None)
+                for filename in extras:
+                    sys.modules.pop(f"tests.{Path(filename).stem}", None)
 
     def failure_reason(self, module_name, result):
         self.assertIsInstance(result, InventoryUnavailable,
@@ -980,31 +1020,159 @@ class UncollectedTestGuardTests(unittest.TestCase):
         self.assertIn("subclass unittest.TestCase", reason)
         self.assertIn("TestPy", reason)
         self.assertIn("test_hidden", reason)
+        self.assertIn("rename", reason)
         self.assertNotIn("test_ok", reason)
 
-    def test_pytest_style_class_not_named_test_is_rejected(self):
+    def test_plain_class_not_named_test_is_not_flagged(self):
+        # A class with test* helpers is not collectable by unittest or pytest
+        # unless it is named Test*, so it is not a silently skipped test class.
+        # Fakes and stubs legitimately name a helper ``test_connection``.
         result = self.run_discovery(
-            "test_zz_guard_pytest_named_other",
+            "test_zz_guard_plain_helper",
             "import unittest\n\n\n"
+            "class FakeServer:\n"
+            "    def test_connection(self):\n        return True\n\n\n"
             "class HiddenCases:\n"
             "    def test_hidden(self):\n        assert False\n\n\n"
             "class Real(unittest.TestCase):\n"
             "    def test_ok(self):\n        pass\n")
-        reason = self.failure_reason("test_zz_guard_pytest_named_other", result)
-        self.assertIn("HiddenCases", reason)
-        self.assertIn("test_hidden", reason)
-        self.assertNotIn("test_ok", reason)
+        self.assertEqual(
+            {"test_zz_guard_plain_helper": ["tests.test_zz_guard_plain_helper.Real.test_ok"]},
+            result)
 
-    def test_plain_class_named_test_without_test_methods_is_rejected(self):
+    def test_shared_checks_mixin_used_by_a_test_case_is_not_flagged(self):
+        # A Test*-named mixin supplying test methods is exempt because it is a
+        # base of a collected TestCase in this module.
+        result = self.run_discovery(
+            "test_zz_guard_mixin",
+            "import unittest\n\n\n"
+            "class TestSharedChecks:\n"
+            "    def test_round_trip(self):\n        self.assertTrue(True)\n\n\n"
+            "class Real(TestSharedChecks, unittest.TestCase):\n"
+            "    pass\n")
+        self.assertEqual(
+            {"test_zz_guard_mixin": ["tests.test_zz_guard_mixin.Real.test_round_trip"]},
+            result)
+
+    def test_correct_non_test_classes_are_not_flagged(self):
+        # Every shape the guard once rejected but that is correct code: mixins,
+        # stubs carrying a switch or a mock, dataclasses, enums, named tuples,
+        # exceptions, and prefixes inherited from a base.
+        result = self.run_discovery(
+            "test_zz_guard_correct_classes",
+            "import dataclasses\n"
+            "import enum\n"
+            "import typing\n"
+            "import unittest\n"
+            "from unittest.mock import Mock\n\n\n"
+            "class SharedChecks:\n"
+            "    def test_round_trip(self):\n        pass\n\n\n"
+            "class _Shared:\n"
+            "    def test_rt(self):\n        pass\n\n\n"
+            "class FakeClient:\n"
+            "    testing = True\n\n\n"
+            "class FakeServer:\n"
+            "    test_connection = Mock(return_value=True)\n\n\n"
+            "class Fake:\n"
+            "    test_data = [1]\n\n\n"
+            "@dataclasses.dataclass\n"
+            "class TestCaseSpec:\n"
+            "    name: str\n\n\n"
+            "class TestFailure(Exception):\n"
+            "    pass\n\n\n"
+            "class TestKind(enum.Enum):\n"
+            "    A = 1\n\n\n"
+            "class Mode(enum.Enum):\n"
+            "    TESTING = 1\n"
+            "    test_mode = 2\n\n\n"
+            "class Row(typing.NamedTuple):\n"
+            "    test_id: str\n\n\n"
+            "class Base:\n"
+            "    testing = 1\n\n\n"
+            "class Child(Base):\n"
+            "    pass\n\n\n"
+            "class A(SharedChecks, _Shared, unittest.TestCase):\n"
+            "    def test_a(self):\n        pass\n")
+        self.assertEqual(
+            {"test_zz_guard_correct_classes": [
+                "tests.test_zz_guard_correct_classes.A.test_a",
+                "tests.test_zz_guard_correct_classes.A.test_round_trip",
+                "tests.test_zz_guard_correct_classes.A.test_rt"]},
+            result)
+
+    def test_test_named_class_without_test_functions_is_not_flagged(self):
         result = self.run_discovery(
             "test_zz_guard_test_named_class",
             "import unittest\n\n\n"
             "class TestHelper:\n    VALUE = 1\n\n\n"
             "class Real(unittest.TestCase):\n"
             "    def test_ok(self):\n        pass\n")
-        reason = self.failure_reason("test_zz_guard_test_named_class", result)
-        self.assertIn("TestHelper", reason)
-        self.assertNotIn("test_ok", reason)
+        self.assertEqual(
+            {"test_zz_guard_test_named_class": ["tests.test_zz_guard_test_named_class.Real.test_ok"]},
+            result)
+
+    def test_test_named_enum_member_is_not_a_test_function(self):
+        # An Enum member sharing the prefix is an attribute, not a method.
+        result = self.run_discovery(
+            "test_zz_guard_enum_member",
+            "import enum\n"
+            "import unittest\n\n\n"
+            "class TestMode(enum.Enum):\n"
+            "    A = 1\n"
+            "    test_mode = 2\n\n\n"
+            "class Real(unittest.TestCase):\n"
+            "    def test_ok(self):\n        pass\n")
+        self.assertEqual(
+            {"test_zz_guard_enum_member": ["tests.test_zz_guard_enum_member.Real.test_ok"]},
+            result)
+
+    def test_imported_test_class_belongs_to_its_own_module(self):
+        # The defining module owns the class; importing it here must not blame
+        # this module, which may legitimately reuse it as a fixture.
+        result = self.run_discovery(
+            "test_zz_guard_imported",
+            "import unittest\n"
+            "from tests.zz_guard_helper import TestImported\n\n\n"
+            "class Real(unittest.TestCase):\n"
+            "    def test_ok(self):\n        pass\n",
+            extra_modules={"zz_guard_helper.py":
+                           "class TestImported:\n"
+                           "    def test_from_elsewhere(self):\n        pass\n"})
+        self.assertEqual(
+            {"test_zz_guard_imported": ["tests.test_zz_guard_imported.Real.test_ok"]},
+            result)
+
+    def test_inherited_test_methods_are_not_attributed_to_the_child(self):
+        # ``dir`` sees inherited names; ``vars`` does not. A subclass that
+        # merely inherits a test-named helper is not a test class.
+        result = self.run_discovery(
+            "test_zz_guard_inherited",
+            "import unittest\n"
+            "from tests.zz_guard_helper import TestHelperBase\n\n\n"
+            "class TestChild(TestHelperBase):\n    pass\n\n\n"
+            "class Real(unittest.TestCase):\n"
+            "    def test_ok(self):\n        pass\n",
+            extra_modules={"zz_guard_helper.py":
+                           "class TestHelperBase:\n"
+                           "    def test_inherited(self):\n        pass\n"})
+        self.assertEqual(
+            {"test_zz_guard_inherited": ["tests.test_zz_guard_inherited.Real.test_ok"]},
+            result)
+
+    def test_plain_class_nested_inside_a_test_case_is_out_of_scope(self):
+        # Pinned behaviour: this guard reads module members only, so a class
+        # nested in a TestCase is neither seen nor claimed by unittest. Covering
+        # it would need an AST walk with no evidence such a class exists.
+        result = self.run_discovery(
+            "test_zz_guard_nested",
+            "import unittest\n\n\n"
+            "class A(unittest.TestCase):\n"
+            "    class Helper:\n"
+            "        def test_x(self):\n            pass\n\n"
+            "    def test_a(self):\n        pass\n")
+        self.assertEqual(
+            {"test_zz_guard_nested": ["tests.test_zz_guard_nested.A.test_a"]},
+            result)
 
     def test_two_problems_in_one_module_are_both_reported(self):
         result = self.run_discovery(
