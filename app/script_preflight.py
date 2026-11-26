@@ -92,11 +92,12 @@ def ensure_format_translations():
 
 
 def remove_format_characters(text, *, word_boundaries="fused"):
-    """Delete Cf characters from a comparison key.
+    """Delete the Cf characters that vanish from a comparison key.
 
     ``word_boundaries="space"`` keeps a boundary character as a word break;
-    "fused" deletes it so the two words it separated compare as one. Comparison
-    only; stored text, reported offsets and hashes are untouched.
+    "fused" deletes it so the two words it separated compare as one. ZWNJ is
+    lexical and kept in both views. Comparison only; stored text, reported
+    offsets and hashes are untouched.
     """
     spaced, fused = ensure_format_translations()
     return text.translate(spaced if word_boundaries == "space" else fused)
@@ -1100,15 +1101,19 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         if not needle:
             continue
         capacity = source_counts[ident]
-        # ONE RULE: capacity is the number of non-overlapping source copies
-        # that spell this line when a space and a U+200B are both optional
-        # separators, so every output spelling of one line gets one capacity.
-        if count_boundary_copies is not None:
+        added_capacity = sum(count for word, count in expansion_sites if word in needle.split())
+        all_emitted = output_counts[ident]
+        # Only an excess count needs the extra scan: the spelling-independent
+        # count can raise capacity to the true number of source copies, never
+        # above it, so a needle already within its per-view capacity cannot
+        # become a finding because of it.
+        if count_boundary_copies is not None and all_emitted > capacity + added_capacity:
+            # ONE RULE: capacity is the number of non-overlapping source copies
+            # that spell this line when a space and a U+200B are both optional
+            # separators, so every output spelling of one line gets one capacity.
             capacity = max(capacity, count_boundary_copies(needle))
         if not capacity:
             continue
-        added_capacity = sum(count for word, count in expansion_sites if word in needle.split())
-        all_emitted = output_counts[ident]
         if all_emitted <= capacity + added_capacity:
             continue
         if not carriers[ident] and not separate[ident]:
