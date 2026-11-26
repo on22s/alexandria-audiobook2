@@ -3633,6 +3633,12 @@
     , "tests.test_chunk_text_normalisation.DeliveryRetryCompatibilityTest.test_a_real_editor_text_change_is_still_refused"
     , "tests.test_chunk_text_normalisation.DeliveryRetryCompatibilityTest.test_chunks_saved_before_the_change_still_match"
   ]
+  , "test_ci_ffmpeg_fallback": [
+    "tests.test_ci_ffmpeg_fallback.WindowsFfmpegInstallTests.test_every_windows_install_step_uses_the_shared_script"
+    , "tests.test_ci_ffmpeg_fallback.WindowsFfmpegInstallTests.test_installer_pins_url_and_sha256_and_verifies_before_extracting"
+    , "tests.test_ci_ffmpeg_fallback.WindowsFfmpegInstallTests.test_no_workflow_installs_ffmpeg_with_chocolatey_directly"
+    , "tests.test_ci_ffmpeg_fallback.WindowsFfmpegInstallTests.test_path_filters_trigger_on_the_shared_script"
+  ]
   , "test_ci_import_policy": [
     "tests.test_ci_import_policy.CIImportPolicyTests.test_changed_policy_replaces_old_roots_and_preserves_foreign_finders"
     , "tests.test_ci_import_policy.CIImportPolicyTests.test_generator_policy_purges_submodules_and_disables_cleanly"
@@ -14479,6 +14485,7 @@
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_a_multi_word_needle_fused_in_the_source_is_not_blocked"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_a_number_does_not_downgrade_an_unrelated_line"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_a_number_rendered_as_words_downgrades_that_number"
+    , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_a_real_duplicate_differing_only_in_typography_still_blocks"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_a_remainder_emitted_elsewhere_does_not_excuse_a_real_duplicate"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_a_remainder_inside_a_longer_output_word_does_not_count"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_a_run_emitted_whole_does_not_excuse_an_extra_copy"
@@ -14491,6 +14498,7 @@
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_an_emitted_digit_does_not_downgrade_a_separate_duplicate"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_an_unadjacent_split_is_not_credited_in_either_source_order"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_audit_script_does_not_block_a_mixed_normalisation_copy"
+    , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_audit_script_folds_an_apostrophe_variant_word_count"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_audit_script_keeps_an_ascii_apostrophe_word_count"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_audit_script_reports_a_casefold_mark_repeat"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_audit_script_surfaces_the_separate_duplicate_as_blocking"
@@ -14509,11 +14517,14 @@
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_mixed_unicode_normalisation_of_one_word_is_not_a_duplicate"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_one_fused_token_can_explain_a_copy_on_each_side"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_one_source_word_still_counts_an_extra_copy_in_either_spelling"
+    , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_output_typography_variants_are_not_an_extra_copy"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_separate_character_duplicate_is_reported"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_short_line_repeated_as_often_as_the_source_is_not_reported"
+    , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_source_typography_variants_are_not_an_extra_copy"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_support_counts_only_non_overlapping_needle_occurrences"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_thai_joined_repetition_does_not_block_a_faithful_split"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_thai_mark_shifted_run_alone_abstains"
+    , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_the_above_threshold_fallback_keeps_a_faithful_split_unblocked"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_two_fused_words_split_in_either_source_order_are_both_credited"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_two_source_occurrences_are_a_legitimate_repeat"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_two_unspent_splits_do_not_credit_the_same_output_words"

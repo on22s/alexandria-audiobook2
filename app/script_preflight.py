@@ -37,6 +37,26 @@ _SCRIPT_PREFIXES = ("LATIN", "CYRILLIC", "HIRAGANA", "KATAKANA", "CJK",
                     "ARABIC", "HEBREW", "HANGUL", "GREEK", "THAI")
 
 _COMBINING_MARK_WORD_PATTERN = None
+# Apostrophe-like characters that are the same typography to a reader: ASCII
+# apostrophe, curly single quotes, grave/acute accents and a modifier letter.
+_APOSTROPHE_VARIANTS = "'\u2018\u2019\u0060\u00b4\u02bc"
+_APOSTROPHE_FOLD = str.maketrans({character: "'" for character in _APOSTROPHE_VARIANTS})
+_FORMAT_CHARACTER_TRANSLATION = None
+
+
+def remove_format_characters(text):
+    """Delete Unicode format characters (category Cf) from a comparison key.
+
+    A soft hyphen is an optional break point inside a word, a word joiner the
+    opposite, and a BOM or bidi control says nothing a reader hears. Comparison
+    only; #2316 will share one definition of the silent ones.
+    """
+    global _FORMAT_CHARACTER_TRANSLATION
+    if _FORMAT_CHARACTER_TRANSLATION is None:
+        _FORMAT_CHARACTER_TRANSLATION = str.maketrans({
+            chr(code): None for code in range(0x110000)
+            if unicodedata.category(chr(code)) == "Cf"})
+    return text.translate(_FORMAT_CHARACTER_TRANSLATION)
 
 
 def ensure_combining_mark_word_pattern():
@@ -288,12 +308,20 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     from dialogue_spans import spoken_spans
 
     def canonical(text):
-        # Casefold BEFORE any mark handling: casefold itself can produce a mark
+        # One comparison key for every side of this gate. NFKC folds
+        # compatibility typography ("ＯＫ" -> "OK"); category Cf characters
+        # (soft hyphen, ZWJ/ZWNJ, word joiner, BOM) are invisible and dropped;
+        # every apostrophe variant folds to ASCII before the intraword rule.
+        # Comparison only: stored text, reported offsets and hashes are
+        # untouched. (#2316 will share one definition of the silent ones.)
+        text = remove_format_characters(
+            unicodedata.normalize("NFKC", str(text or "").translate(_APOSTROPHE_FOLD)))
+        # Casefold AFTER compat folding: casefold itself can produce a mark
         # ("İ".casefold() == "i\u0307") and can decompose (Greek iota
         # subscript), so NFC after folding is what makes one word spelled two
         # ways comparable. _WORD_RE cannot match a mark, so ASCII keeps it.
         text = _normalize(unicodedata.normalize("NFC", _normalize(text)))
-        text = re.sub(r"(?<=\w)['’](?=\w)", "", text)
+        text = re.sub(r"(?<=\w)'(?=\w)", "", text)
         if text.isascii():
             return _normalize_words(text)
         # A mark belongs to the word it follows, so a mark inside a word never
@@ -321,13 +349,15 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         return []
     needle_starts = {needle.split()[0] for needle in needles}
     # The audit word view was tokenized with the mark-dropping _WORD_RE, so it
-    # is only trustworthy for an ASCII source: casefold cannot add a mark there,
-    # and the apostrophe guard covers the one other difference. Any other source
-    # is rebuilt through canonical so a mark casefold produced ("İ" ->
-    # "i\u0307") is not dropped from the source while the needle keeps it.
+    # is only trustworthy for an ASCII source with no apostrophe variant: there
+    # casefold cannot add a mark, NFKC cannot change an ASCII character, and the
+    # apostrophe guard covers the one other difference. Any other source is
+    # rebuilt through canonical so a mark casefold produced ("İ" -> "i\u0307")
+    # or typography is not dropped from the source while the needle keeps it.
     source = (source_normalized if source_normalized is not None
               and source_text.isascii()
-              and not re.search(r"(?<=\w)['’](?=\w)", source_text)
+              and not re.search(rf"(?<=\w)[{re.escape(_APOSTROPHE_VARIANTS)}](?=\w)",
+                                source_text)
               else canonical(source_text))
     unspent_counts = output_words = output_positions = run_groups = total_runs = None
     run_begins = max_run_words = output_word_counts = None

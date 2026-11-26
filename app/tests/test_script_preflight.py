@@ -540,6 +540,16 @@ _SEPARATE_DUPLICATE_FILLER = (
     "meadow nectar orchard pebble quartz river saddle timber umber valley willow xenon "
     "yellow zephyr").split() * 5
 
+# (as written with a typography variant, the same words plainly)
+_TYPOGRAPHY_VARIANTS = (
+    ("Wel\u00adcome", "Welcome"),   # soft hyphen
+    ("Can\u0060t", "Can't"),        # grave accent
+    ("Can\u00b4t", "Can't"),        # acute accent
+    ("Can\u2018t", "Can't"),        # left single quotation mark
+    ("Can\u02bct", "Can't"),        # modifier letter apostrophe
+    ("\uff2f\uff2b", "OK"),         # full-width Latin letters
+)
+
 
 class ContainedSeparateDuplicateTests(unittest.TestCase):
     """A line repeated as separate character entries is still source-counted."""
@@ -704,6 +714,41 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(1, len(findings))
         self.assertEqual("blocking", findings[0]["severity"])
         self.assertEqual(1, findings[0]["details"]["source_occurrences"])
+
+    def test_source_typography_variants_are_not_an_extra_copy(self):
+        # The source carries the line twice, once in a typography variant. The
+        # model wrote both copies plainly, which is the same line twice.
+        for variant, plain in _TYPOGRAPHY_VARIANTS:
+            with self.subTest(variant=variant):
+                source = f'"{variant}." He left. "{plain}," she said.'
+                entries = [_entry(f"{plain}.", "MARTA"), _entry("He left."),
+                           _entry(f"{plain}.", "PORTER"), _entry("she said.")]
+
+                self.assertEqual([], self._duplicate_findings(entries, source))
+
+    def test_output_typography_variants_are_not_an_extra_copy(self):
+        # The reverse: plain in the source twice, one emitted copy in a variant.
+        for variant, plain in _TYPOGRAPHY_VARIANTS:
+            with self.subTest(variant=variant):
+                source = f'"{plain}." He left. "{plain}," she said.'
+                entries = [_entry(f"{plain}.", "MARTA"), _entry("He left."),
+                           _entry(f"{variant}.", "PORTER"), _entry("she said.")]
+
+                self.assertEqual([], self._duplicate_findings(entries, source))
+
+    def test_a_real_duplicate_differing_only_in_typography_still_blocks(self):
+        # The source carries the line once; the two emitted copies differ only
+        # by typography, which is not two different lines.
+        for variant, plain in _TYPOGRAPHY_VARIANTS:
+            with self.subTest(variant=variant):
+                source = f'"{plain}," she said.'
+                entries = [_entry(f"{variant}.", "MARTA"), _entry("she said."),
+                           _entry(f"{plain}.", "PORTER")]
+
+                finding = self._duplicate_findings(entries, source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["source_occurrences"])
+                self.assertEqual(2, finding["details"]["all_text_occurrences"])
 
     def test_unsegmented_reduplication_downgrades_to_manual_review(self):
         # The fused source token is split into adjacent entries, which is what
@@ -1156,6 +1201,33 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(3, finding["details"]["unemitted_source_split_support"])
         self.assertEqual(0, audit_script(entries, source)["counts"]["blocking"])
 
+    def test_the_above_threshold_fallback_keeps_a_faithful_split_unblocked(self):
+        # Both fixtures yield more window/run candidates (23 and 35) than the
+        # exhaustive threshold, so the DP plus its greedy and retry fallbacks
+        # decide. Their exact optima are 4 and 7. Returning the unconstrained
+        # DP answer over-credits the first (8, hiding the duplicate); dropping
+        # the coverage-descending greedy undershoots (3, blocking a faithful
+        # split); dropping the DP retry undershoots the second (6).
+        cases = (
+            ("babaab b a bab aba",
+             "a b a b a ba ab ab ab a b a b a b a b a b a b b a b", "b a", 4),
+            ("aa aa aaaa aa aa aa aa a a aay aa ab aay aa ab aaa aay",
+             "a a y ab y a a a a b a a a a a a a a a", "a a", 7),
+        )
+        for source, output, phrase, support in cases:
+            with self.subTest(phrase=phrase):
+                words = output.split()
+                entries = [_entry(" ".join(words[index:index + 2]), "C%d" % index)
+                           for index in range(0, len(words), 2)]
+                findings = [finding for finding in self._duplicate_findings(entries, source)
+                            if finding["details"]["phrase"] == phrase]
+
+                self.assertEqual(1, len(findings))
+                self.assertEqual("manual_review", findings[0]["severity"])
+                self.assertEqual(support,
+                                 findings[0]["details"]["unemitted_source_split_support"])
+                self.assertEqual(0, audit_script(entries, source)["counts"]["blocking"])
+
     def test_a_left_expansion_must_match_its_source_token(self):
         # The word before the fused run has the source token's length but not
         # its characters, so it cannot complete a faithful window.
@@ -1262,6 +1334,22 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         report = audit_script(entries, source)
 
         self.assertEqual(1, report["counts"]["blocking"])
+
+    def test_audit_script_folds_an_apostrophe_variant_word_count(self):
+        # The source carries two copies of a word spelled with a grave accent,
+        # an apostrophe variant and no ASCII "'; canonical folds it, while the
+        # audit word view splits it and gives the source zero capacity. A guard
+        # that only covers ASCII " would abstain and miss the third copy.
+        source = '"Can`t." He left. "Can`t," she said.'
+        entries = [_entry("Can't.", "MARTA"), _entry("He left."),
+                   _entry("Can't.", "PORTER"), _entry("she said."),
+                   _entry("Can't.", "ANNA")]
+
+        report = audit_script(entries, source)
+
+        self.assertEqual(1, report["counts"]["blocking"])
+        self.assertEqual(2, self._duplicate_findings(entries, source)[0]
+                         ["details"]["source_occurrences"])
 
     def test_support_counts_only_non_overlapping_needle_occurrences(self):
         # Words "a", "a a", "a a" make overlapping "a a" matches at 0 and 1.
