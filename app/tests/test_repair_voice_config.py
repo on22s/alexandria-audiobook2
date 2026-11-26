@@ -159,6 +159,16 @@ class TestFindSplits(unittest.TestCase):
         config = {"राम": dict(LORA), "रमा": dict(CUSTOM)}
         self.assertEqual([], find_splits(config, {}, {"राम": 10, "रमा": 4}))
 
+    def test_nukta_and_nasal_spellings_are_one_voice_not_a_split(self):
+        # These are optional marks a writer adds or omits for one name, so a
+        # config that assigns them two voices is one split, not two people.
+        for spelled, plain in (("ज़ोया", "जोया"), ("चाँद", "चांद")):
+            with self.subTest(name=spelled):
+                config = {spelled: dict(LORA), plain: dict(CUSTOM)}
+                splits = find_splits(config, {}, {spelled: 5, plain: 12})
+                self.assertEqual(1, len(splits))
+                self.assertEqual({spelled, plain}, set(splits[0]["keys"]))
+
     def test_casefold_spellings_of_one_name_still_report_a_split(self):
         # `İBRAHİM` and `Ibrahim` are one character: casefold adds a dot to
         # the first, and that dot is an optional mark, not a second name.

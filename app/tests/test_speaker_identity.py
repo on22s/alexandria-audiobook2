@@ -135,6 +135,7 @@ class CombiningMarkIdentityTests(unittest.TestCase):
         pairs = [
             ("Bengali", "রাম", "রমা"),           # Mc vowel sign
             ("Tamil", "ராமா", "ரமா"),             # Mc vowel sign
+            ("Tamil", "ராம்", "ராம"),             # Mn vowel sign/virama
             ("Thai", "กิ", "ก"),                  # Mn vowel sign
             ("Khmer", "កិ", "ក"),                  # Mn vowel sign
             ("Tibetan", "ཀི", "ཀ"),                # Mn vowel sign
@@ -143,11 +144,79 @@ class CombiningMarkIdentityTests(unittest.TestCase):
             with self.subTest(script=script):
                 self.assertNotEqual(_identity_key(first), _identity_key(second))
 
-    def test_precomposed_indic_letter_keeps_its_nukta(self):
-        # NFC decomposes U+0958 to क + nukta; the two spellings are one letter
-        # and both differ from plain क.
+    def test_nukta_folds_for_the_same_name(self):
+        """A nukta is added or omitted by writers, so it does not split a name.
+
+        It changes a consonant's value, but `ज़ोया`/`जोया` and
+        `फ़ातिमा`/`फातिमा` are the same character, and main folded the nukta
+        with every other mark. Keeping it split one person into two voices.
+        """
+        self.assertEqual(_identity_key("जोया"), _identity_key("ज़ोया"))
+        self.assertEqual(_identity_key("फातिमा"), _identity_key("फ़ातिमा"))
+        self.assertEqual("ज़ोया", resolve_speaker_label("जोया", ["ज़ोया"]))
+        self.assertEqual("जोया", resolve_speaker_label("ज़ोया", ["जोया"]))
+        result = stabilize_speaker_identities(
+            [_entry("जोया"), _entry("ज़ोया")], ["जोया"])
+        self.assertEqual(["जोया", "जोया"],
+                         [entry["speaker"] for entry in result["entries"]])
+
+    def test_precomposed_nukta_letter_matches_its_base(self):
+        # NFC leaves the nukta letters decomposed (U+0958 -> क + nukta), so
+        # the precomposed letter, the decomposed spelling and plain क are one
+        # name once the nukta folds.
         self.assertEqual(_identity_key("\u0958"), _identity_key("क\u093c"))
-        self.assertNotEqual(_identity_key("\u0958"), _identity_key("क"))
+        self.assertEqual(_identity_key("\u0958"), _identity_key("क"))
+
+    def test_candrabindu_folds_with_anusvara(self):
+        """Both are nasal ornaments a writer may add or omit for one name."""
+        self.assertEqual(_identity_key("चाँद"), _identity_key("चांद"))
+        self.assertEqual("चाँद", resolve_speaker_label("चांद", ["चाँद"]))
+        result = stabilize_speaker_identities(
+            [_entry("चाँद"), _entry("चांद")], ["चाँद"])
+        self.assertEqual(["चाँद", "चाँद"],
+                         [entry["speaker"] for entry in result["entries"]])
+
+    def test_stress_cantillation_and_decoration_marks_fold(self):
+        """Optional marks fold even inside a kept abugida script."""
+        pairs = [
+            ("राम", "रा\u0951म"),           # U+0951 Devanagari stress udatta
+            ("राम", "रा\u0952म"),           # U+0952 Devanagari stress anudatta
+            ("राम", "रा\u0953म"),           # U+0953 Devanagari grave accent
+            ("राम", "रा\u0954म"),           # U+0954 Devanagari acute accent
+            ("ཀ", "ཀ\u0f35"),               # TIBETAN MARK NGAS BZUNG NYI ZLA
+            ("ཀ", "ཀ\u0f37"),               # TIBETAN MARK NGAS BZUNG SGOR RTAGS
+            ("ཀ", "ཀ\u0f86"),               # TIBETAN SIGN LCI RTAGS
+            ("ཀ", "ཀ\u0f87"),               # TIBETAN SIGN YANG RTAGS
+            ("ক", "ক\u09fe"),                # BENGALI SANDHI MARK
+            ("क", "क\U0001145e"),              # NEWA SANDHI MARK
+            ("क", "क\U000111c9"),              # SHARADA SANDHI MARK
+            ("\u1b13", "\u1b13\u1b6b"),      # BALINESE MUSICAL SYMBOL COMBINING
+            ("\u1b13", "\u1b13\u1b73"),      # ... and the last of the run
+            ("ਕ", "ਕ\u0a51"),                # GURMUKHI SIGN UDAAT (stress)
+            ("ਕ", "ਕ\u0a75"),                # GURMUKHI SIGN YAKASH (stress)
+        ]
+        for first, second in pairs:
+            with self.subTest(first=first, second=second):
+                self.assertEqual(_identity_key(first), _identity_key(second))
+
+    def test_required_marks_in_late_scripts_keep_names_distinct(self):
+        """Scripts whose required marks were still folded must split."""
+        pairs = [
+            ("Thaana vowels", "ހަސަން", "ހުސެން"),
+            ("Kayah Li tone", "\ua90a", "\ua90a\ua92b"),
+            ("Miao vowel", "\U00016f00", "\U00016f00\U00016f54"),
+            ("Miao tone", "\U00016f00", "\U00016f00\U00016f8f"),
+            ("Wancho tone", "\U0001e2c0", "\U0001e2c0\U0001e2ec"),
+            ("Nyiakeng tone", "\U0001e100", "\U0001e100\U0001e130"),
+        ]
+        for script, first, second in pairs:
+            with self.subTest(script=script):
+                self.assertNotEqual(_identity_key(first), _identity_key(second))
+
+    def test_mahajani_nukta_folds_like_every_nukta(self):
+        # Mahajani's only mark is the nukta, so it makes no new name.
+        self.assertEqual(_identity_key("\U00011150"),
+                         _identity_key("\U00011150\U00011173"))
 
     def test_optional_diacritics_fold_exactly_as_before(self):
         """The pairs main already merged must stay merged.

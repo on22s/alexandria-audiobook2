@@ -198,7 +198,7 @@ def build_speaker_consistency_report(entries, identity_review=None):
 
 
 _IDENTITY_MARK_SCRIPTS = (
-    # Brahmic abugidas: the vowel signs, viramas and nuktas are part of a name.
+    # Brahmic abugidas: the vowel signs and viramas are part of a name.
     "DEVANAGARI", "BENGALI", "GURMUKHI", "GUJARATI", "ORIYA", "TAMIL",
     "TELUGU", "KANNADA", "MALAYALAM", "SINHALA", "BRAHMI", "KAITHI",
     "KHOJKI", "KHUDAWADI", "MULTANI", "SHARADA", "SIDDHAM", "TIRHUTA",
@@ -207,10 +207,29 @@ _IDENTITY_MARK_SCRIPTS = (
     "DIVES AKURU", "CHAKMA", "MODI", "TAKRI", "AHOM", "DOGRA",
     "SAURASHTRA", "SYLOTI NAGRI", "MEETEI MAYEK", "KHAROSHTHI", "LEPCHA",
     "LIMBU", "BUGINESE", "REJANG", "MAKASAR",
+    # Scripts whose vowel or tone marks are required, added after the first
+    # pass left them folded: Thaana vowels (ހަސަން/ހުސެން), Kayah Li tones,
+    # Miao vowels and tones, Wancho and Nyiakeng Puachue Hmong tones. Mahajani
+    # is not here: its only mark is the nukta, which folds like every nukta.
+    "THAANA", "KAYAH LI", "MIAO", "WANCHO", "NYIAKENG PUACHUE HMONG",
     # Southeast-Asian abugidas.
     "THAI", "LAO", "TIBETAN", "MYANMAR", "KHMER", "BALINESE", "JAVANESE",
     "SUNDANESE", "BATAK", "CHAM", "TAGALOG", "HANUNOO", "BUHID", "TAGBANWA",
     "TAI THAM", "TAI VIET", "NEW TAI LUE",
+)
+
+# Marks that name a decoration or a sound a writer may add or omit for the
+# same name. They fold exactly as main folded every mark, so `ज़ोया`/`जोया`
+# (nukta), `चाँद`/`चांद` (candrabindu/anusvara), the Vedic stress accents and
+# the Tibetan tone/decoration marks do not split one character into two.
+_OPTIONAL_IDENTITY_MARKS = (
+    "NUKTA", "PALUTA",
+    "ANUSVARA", "CANDRABINDU", "ARDHACANDRA",
+    "STRESS", "GRAVE ACCENT", "ACUTE ACCENT",
+    "SANDHI", "MUSICAL", "ORNAMENT",
+    "RTAGS", "NGAS BZUNG", "MARK NGO", "ASTROLOGICAL", "TSA -PHRU",
+    "UDAAT", "YAKASH", "SYMBOL", "CRYPTOGRAMMIC",
+    "CANCELLATION", "YAMAKKAN", "OVERLINE",
 )
 
 
@@ -219,15 +238,20 @@ def _is_identity_mark(char):
 
     `\\w` does not match combining marks, so the old fold dropped them
     everywhere and different Devanagari names shared a key (`राम`/`रमा`). The
-    marks that must survive are the vowel signs, viramas and nuktas of the
-    Brahmic and Southeast-Asian abugidas. Elsewhere a mark is an optional
-    diacritic - Latin/Greek/Cyrillic accents (including the ones casefold
-    introduces, such as İ's dot), Arabic harakat, Hebrew niqqud - and it folds
-    away exactly as it did before.
+    marks that must survive are the vowel signs and viramas of the Brahmic and
+    Southeast-Asian abugidas. Within those scripts, a mark whose function is
+    optional - the nukta, the nasal signs, the Vedic stress accents, sandhi,
+    musical, ornament and the Tibetan tone/decoration marks - folds away
+    exactly as it did before, because a writer may add or omit it for the same
+    name. Everywhere else a mark is an optional diacritic too: Latin/Greek/
+    Cyrillic accents (including the ones casefold introduces, such as İ's dot),
+    Arabic harakat, Hebrew niqqud.
     """
     if unicodedata.category(char) not in ("Mn", "Mc"):
         return False
     name = unicodedata.name(char, "")
+    if any(word in name for word in _OPTIONAL_IDENTITY_MARKS):
+        return False
     return any(name.startswith(script + " ") for script in _IDENTITY_MARK_SCRIPTS)
 
 
