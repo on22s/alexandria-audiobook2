@@ -307,6 +307,40 @@ def _is_opener_shaped(text, position):
     return before.isspace() and not after.isspace()
 
 
+def _is_glued_opener_shaped(text, position):
+    """Is the mark at `position` glued to the reply it starts, not a closer?
+
+    A mark is closer-shaped when text precedes it and a word boundary
+    follows. A speech that follows narration can start the same way, because
+    the narration ends in punctuation instead of a space: after a dash,
+    colon, bracket, slash, semicolon, ellipsis, symbol or a full stop without
+    a space (`he said—"...no`, `:"…fine"`, `("...ok"`, `he said."...No."`).
+
+    Shape, not a separator list: the mark opens when it is glued to what
+    follows and that is a reply - a word, or an ellipsis, full stop or
+    apostrophe run. A word after it needs no letter or digit before the mark
+    (`he said"s` is narration, not a close); a punctuation-led reply may
+    follow a letter too (`he said"...no`), because a closer glued straight to
+    a word is not a word boundary and so was never closer-shaped anyway.
+    """
+    if position <= 0 or position + 1 >= len(text):
+        return False
+    before = text[position - 1]
+    after = text[position + 1]
+    if after.isspace():
+        return False
+    if after.isalpha():
+        return not before.isalnum()
+    return after in ".…'"
+
+
+def _skip_spaces(text, index):
+    """-> offset of the first non-space at or after `index`."""
+    while index < len(text) and text[index] in " \t":
+        index += 1
+    return index
+
+
 _CLOSERS_BY_OPENER = {}
 for _pair_opener, _pair_closer in PAIRED:
     _CLOSERS_BY_OPENER.setdefault(_pair_opener, set()).add(_pair_closer)
@@ -478,40 +512,71 @@ def _number_ends_at(text, index):
     return end if end > index else -1
 
 
+def _number_ends_at_a_mark(text, index):
+    """Does a number starting at `index` end at a quote mark (`8"`)?
+
+    The second half of a measurement: a linked number (`6" by 8"`, `6" and
+    8”`) or one that follows a unit word (`6" wide, 8"`). Without the mark
+    the number is narration (`5" and 3 of them nodded`).
+    """
+    number_end = _number_ends_at(text, index)
+    return (number_end != -1 and number_end < len(text)
+            and text[number_end] in _PAIRED_MARKS)
+
+
+def _unit_word_ends_measurement(text, index):
+    """Does the unit word at `index` finish the measurement inside its clause?
+
+    The same requirement the link branch has: what follows must confirm the
+    reading. Confirmed by the end of the text, a quote mark, or a comma, `×`
+    or link word whose number a quote mark follows (`6" wide and 8"`). Any
+    other word, or a sentence end with text after it, starts narration
+    (`Room 12" deep in the cellar`, `Room 12" deep. The shelf was 8" deep.`),
+    so the `12"` mark must close the speech (#2318).
+    """
+    index = _skip_spaces(text, index)
+    if index >= len(text):
+        return True
+    if text[index] in _PAIRED_MARKS:
+        return True
+    if text[index] in ",×":
+        return _number_ends_at_a_mark(text, _skip_spaces(text, index + 1))
+    end = index
+    while end < len(text) and text[end].isalpha():
+        end += 1
+    if text[index:end].casefold() in _MEASURE_LINKS:
+        return _number_ends_at_a_mark(text, _skip_spaces(text, end))
+    return False
+
+
 def is_measurement_continuation(text, position):
     """Does the text after this number-preceded mark still read as a measurement?
 
     Consulted when no plain closer is left in the paragraph (every later one
-    is number-preceded). Unambiguous evidence: a unit word (`6" wide`), or a
-    second number linked by `by`/`x`/`×`/`and`/`,`/`to` that is itself
-    followed by a quote mark (`6" by 8"`, and the mixed `6" and 8”`). A link
-    word and a number in narration (`5" and 3 of them nodded`) are not
-    evidence, because no quote mark follows the second number; that closes the
-    speech (#2318). Anything else closes the speech (`12" she said`).
+    is number-preceded). Unambiguous evidence: a unit word that finishes the
+    measurement in its own clause (`6" wide`, `6" wide and 8"`), or a second
+    number linked by `by`/`x`/`×`/`and`/`,`/`to` that is itself followed by a
+    quote mark (`6" by 8"`, and the mixed `6" and 8”`). A link word and a
+    number in narration (`5" and 3 of them nodded`) are not evidence, because
+    no quote mark follows the second number; that closes the speech (#2318).
+    A unit word followed by narration (`Room 12" deep in the cellar`, `Room
+    12" deep. The shelf was 8" deep.`) is not evidence either, and closes the
+    speech. Anything else closes it (`12" she said`).
     """
-    index = position + 1
-    while index < len(text) and text[index] in " \t":
-        index += 1
+    index = _skip_spaces(text, position + 1)
     if index >= len(text):
         return False
     if text[index] in ",×":
-        index += 1
-        while index < len(text) and text[index] in " \t":
-            index += 1
-        number_end = _number_ends_at(text, index)
-        return (number_end != -1 and number_end < len(text)
-                and text[number_end] in _PAIRED_MARKS)
+        return _number_ends_at_a_mark(text, _skip_spaces(text, index + 1))
     end = index
     while end < len(text) and text[end].isalpha():
         end += 1
     word = text[index:end].casefold()
     if word in _MEASURE_LINKS:
-        while end < len(text) and text[end] in " \t":
-            end += 1
-        number_end = _number_ends_at(text, end)
-        return (number_end != -1 and number_end < len(text)
-                and text[number_end] in _PAIRED_MARKS)
-    return word in _MEASURE_UNITS
+        return _number_ends_at_a_mark(text, _skip_spaces(text, end))
+    if word in _MEASURE_UNITS:
+        return _unit_word_ends_measurement(text, end)
+    return False
 
 
 def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
@@ -569,6 +634,12 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
             bound = paragraph_end if next_opener == -1 else next_opener
         next_closer = _next_plain_mark(
             text, closers, position + 1, bound)
+        if next_closer != -1 and _is_glued_opener_shaped(text, next_closer):
+            # A mark that opens the next speech cannot close this one, and
+            # neither can anything after it. The German low-high speech
+            # `„Zimmer 5“ sagte er. (“nein”).` closes at `5“` instead of
+            # reaching for the mark that opens `nein` (#2318).
+            next_closer = -1
         if next_closer == -1:
             later = _next_any_mark(text, closers, position + 1, bound)
             if later == -1:
@@ -607,10 +678,11 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
             return False
         return is_measurement_continuation(text, position)
     # Closer-shaped means text before the mark and a word boundary after it.
-    # A mark right after a dash, colon or opening bracket is an opener,
-    # whatever follows it (`—"...no`, `:"…fine"`, `("...ok" )`), so it
-    # decides nothing here and this mark closes as always.
-    if text[next_position - 1] in "—:(":
+    # A mark glued to a reply that follows a dash, colon, bracket, slash,
+    # semicolon, ellipsis, symbol or no-space full stop is an opener whatever
+    # follows it (`—"...no`, `:"…fine"`, `("...ok"`, `he said."...No."`), so
+    # it decides nothing here and this mark closes as always.
+    if _is_glued_opener_shaped(text, next_position):
         return False
     following = next_position + 1
     return (not text[next_position - 1].isspace()

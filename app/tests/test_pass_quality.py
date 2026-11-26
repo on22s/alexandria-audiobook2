@@ -659,6 +659,91 @@ class InchMarkTests(unittest.TestCase):
         self.assertEqual([("SPOKEN", 'It is 6" by 8')],
                          self._regions('«It is 6" by 8»'))
 
+    def test_any_narration_punctuation_before_a_reply_mark_opens_a_speech(self):
+        # The opener test knew `—`, `:` and `(` only. Every dash, bracket,
+        # other punctuation or symbol, spaced or glued, and a full stop with
+        # no space, leaves the reply's mark opener-shaped, so the digit mark
+        # closes and the reply is its own region (#2318).
+        cases = [
+            ('"Room 5" he said–"...no, wait."',
+             [("SPOKEN", "Room 5"), ("NARRATOR", "he said–"),
+              ("SPOKEN", "...no, wait.")]),
+            ('"Room 5" he said;"…no, wait."',
+             [("SPOKEN", "Room 5"), ("NARRATOR", "he said;"),
+              ("SPOKEN", "…no, wait.")]),
+            ('"Room 5" he said/"...no, wait."',
+             [("SPOKEN", "Room 5"), ("NARRATOR", "he said/"),
+              ("SPOKEN", "...no, wait.")]),
+            ('"Room 5" he said…"…no, wait."',
+             [("SPOKEN", "Room 5"), ("NARRATOR", "he said…"),
+              ("SPOKEN", "…no, wait.")]),
+            ('"Room 5" he said*"...no, wait."',
+             [("SPOKEN", "Room 5"), ("NARRATOR", "he said*"),
+              ("SPOKEN", "...no, wait.")]),
+            ('"Room 5" he said."...No."',
+             [("SPOKEN", "Room 5"), ("NARRATOR", "he said."),
+              ("SPOKEN", "...No.")]),
+            ('"Room 5"he said"…no, wait."',
+             [("SPOKEN", "Room 5"), ("NARRATOR", "he said"),
+              ("SPOKEN", "…no, wait.")]),
+            ('＂Room 5＂ he said：＂…no, wait.＂',
+             [("SPOKEN", "Room 5"), ("NARRATOR", "he said："),
+              ("SPOKEN", "…no, wait.")]),
+            ('＂Room 5＂ he said（＂…no＂）.',
+             [("SPOKEN", "Room 5"), ("NARRATOR", "he said（"),
+              ("SPOKEN", "…no"), ("NARRATOR", "）.")]),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, self._regions(source))
+                self.assertEqual(0, analyze_outer_quote_regions(source)["final_depth"])
+
+    def test_a_unit_word_does_not_keep_the_close_when_narration_follows(self):
+        # A unit word kept the digit mark as an inch mark even when the next
+        # word began narration, so a later real inch mark in the paragraph
+        # became the closer and the narration stayed SPOKEN. The unit branch
+        # needs the confirmation the link branch has (#2318).
+        cases = [
+            ('"Room 12" deep in the cellar, it was cold. The shelf was 8" deep.',
+             [("SPOKEN", "Room 12"),
+              ("NARRATOR", 'deep in the cellar, it was cold. The shelf was 8" deep.')]),
+            ('“Platform 9” long after midnight, the train left. The gap was 3” wide.',
+             [("SPOKEN", "Platform 9"),
+              ("NARRATOR", "long after midnight, the train left. The gap was 3” wide.")]),
+            ('"Room 12" wide open and the shelf was 8" deep.',
+             [("SPOKEN", "Room 12"),
+              ("NARRATOR", 'wide open and the shelf was 8" deep.')]),
+            ('"Room 12" deep. The shelf was 8" deep.',
+             [("SPOKEN", "Room 12"),
+              ("NARRATOR", 'deep. The shelf was 8" deep.')]),
+            ('「Room 12」 across the yard, a dog barked. The board was 3」 deep.',
+             [("SPOKEN", "Room 12"),
+              ("NARRATOR", "across the yard, a dog barked. The board was 3」 deep.")]),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, self._regions(source))
+                self.assertEqual(0, analyze_outer_quote_regions(source)["final_depth"])
+        # True measurements are still one spoken region.
+        self.assertEqual([("SPOKEN", 'It is 6" wide and 8')],
+                         self._regions('"It is 6" wide and 8"'))
+        self.assertEqual([("SPOKEN", 'It is 6” by 8')],
+                         self._regions('“It is 6” by 8”'))
+        # The English reply inside brackets does not hold the German speech
+        # open, so the source map and the analyzer agree on it.
+        german = ('„Hallo.“ sagte er.\n\n„Guten Tag.“ sagte sie.\n\n'
+                  '„Wie geht es?“ fragte er.\n\n„Gut.“ sagte sie.\n\n')
+        self.assertEqual([("SPOKEN", "Zimmer 5"), ("NARRATOR", "sagte er. ("),
+                          ("SPOKEN", "nein"), ("NARRATOR", ").")],
+                         self._regions(german + '„Zimmer 5“ sagte er. (“nein”).')[-4:])
+        self.assertEqual([("SPOKEN", "Hallo."), ("NARRATOR", "sagte er."),
+                          ("SPOKEN", "Guten Tag."), ("NARRATOR", "sagte sie."),
+                          ("SPOKEN", "Wie geht es?"), ("NARRATOR", "fragte er."),
+                          ("SPOKEN", "Gut."), ("NARRATOR", "sagte sie."),
+                          ("SPOKEN", "Zimmer 5"), ("NARRATOR", "sagte er. ("),
+                          ("SPOKEN", "nein"), ("NARRATOR", ").")],
+                         self._regions(german + '„Zimmer 5“ sagte er. (“nein”).'))
+
     def test_initial_depth_keeps_an_inch_mark_when_a_later_closer_follows(self):
         # A chunk continuation has no opener to consult, but a later real
         # closer in the paragraph still proves this mark is a measurement.
