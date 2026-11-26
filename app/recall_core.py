@@ -7,12 +7,15 @@ import re
 import unicodedata
 from collections import Counter
 
+from silent_word_characters import remove_silent_word_characters
+
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 _CHARACTER_TOKEN_SCRIPTS = ("CJK", "HIRAGANA", "KATAKANA", "HANGUL", "THAI")
 
 
 def tokens(text):
-    normalized = unicodedata.normalize("NFC", str(text or "")).casefold()
+    normalized = unicodedata.normalize(
+        "NFC", remove_silent_word_characters(text)).casefold()
     out = []
     for word in _TOKEN_RE.findall(normalized):
         if any(unicodedata.name(char, "").startswith(_CHARACTER_TOKEN_SCRIPTS)

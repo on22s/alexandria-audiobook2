@@ -7,6 +7,7 @@ unless an experiment row explicitly declares its instruction generated.
 """
 import re
 
+from silent_word_characters import remove_silent_word_characters
 from synthesis_recovery_identity import get_recovery_digest
 
 MAX_CONTINUITY_ROWS = 512
@@ -65,7 +66,10 @@ def _get_ending(text):
 def _is_attached_tag(text, speaker):
     # Require the exact named speaker beside a reporting verb. Pronouns, aliases
     # and indirect speech remain unproven; no speaker assignment is invented.
-    name = re.escape(speaker)
+    # Compare folded text: U+00AD/U+2060 inside the printed name are invisible
+    # (#2316), and the roster label they are matched against is already clean.
+    text = remove_silent_word_characters(text)
+    name = re.escape(remove_silent_word_characters(speaker))
     return re.match(rf'^(?:{name}\s+{_VERBS}|{_VERBS}\s+{name})'
                     r'(?:\s+[a-z]{2,20}ly)?(?=[,.;:!?…]|$)',
                     text.strip().lstrip('\"\'“‘'), re.IGNORECASE) is not None

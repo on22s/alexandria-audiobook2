@@ -12,6 +12,7 @@ import time
 import wave
 
 from subprocess_ownership import start_owned_subprocess, stop_owned_subprocess
+from silent_word_characters import remove_silent_word_characters_with_offsets
 from whisper_cpp_runtime import get_coalesced_whisper_cpp_segments
 
 MAX_AUDIO_BYTES = 64 * 1024**2
@@ -30,7 +31,14 @@ def _is_finite_number(value):
 
 
 def get_word_tokens(text):
-    return [(m.group().casefold().replace('’', "'"), m.start(), m.end()) for m in WORDS.finditer(text)]
+    # A soft hyphen or word joiner must not split one spoken word into two
+    # (#2316): the transcript is compared against already-prepared text, but a
+    # saved take can still carry the character. Offsets stay in the raw text so
+    # callers that slice it or insert marks keep pointing at the right place.
+    folded, offsets = remove_silent_word_characters_with_offsets(text)
+    return [(match.group().casefold().replace('’', "'"),
+             offsets[match.start()], offsets[match.end() - 1] + 1)
+            for match in WORDS.finditer(folded)]
 
 
 def get_timing_fingerprint(binding):
