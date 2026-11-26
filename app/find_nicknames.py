@@ -25,6 +25,7 @@ from generate_script import LLMGenParams, call_llm_for_object, ensure_run_reques
 from utils import safe_load_json, file_lock, atomic_json_write, extract_json_object, warn_unparseable_llm_json, get_runtime_data_dir, get_app_config_path
 from llm_bench import ensure_cached_or_benchmarked_concurrency
 from lmstudio_settings import ensure_ideal_settings, get_active_llm_config, TokenBudgetError
+from silent_word_characters import remove_silent_word_characters
 
 # Reuse the group/narrator guards so we never propose collapsing two characters.
 from speaker_identity import (is_speaker_merge_allowed, get_validated_alias_graph,
@@ -77,7 +78,8 @@ def _entry_text(e):
 def _name_tokens(name):
     """Lowercased word tokens of a name, ignoring parenthetical qualifiers and short stopwords."""
     base = re.sub(r"\(.*?\)", " ", name)  # drop "(INTERNAL)" etc.
-    toks = re.findall(r"[^\W\d_]+(?:'[^\W\d_]*)*", base.lower())
+    toks = re.findall(r"[^\W\d_]+(?:'[^\W\d_]*)*",
+                      remove_silent_word_characters(base).lower())
     return [t for t in toks if (len(t) >= 3 or not t.isascii())
             and t not in {"the", "and", "voice", "echo"}]
 
@@ -123,7 +125,7 @@ def collect_context(entries, max_per_speaker=6, max_cooccur=300):
         txt = _entry_text(e)
         if not txt or len(txt) > 600:
             continue
-        low = txt.lower()
+        low = remove_silent_word_characters(txt).lower()
         hits = set()
         for start in word_starts.finditer(low):
             node = token_tree

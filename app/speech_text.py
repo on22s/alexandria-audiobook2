@@ -4,6 +4,8 @@ import re
 import logging
 
 
+from silent_word_characters import (SILENT_WORD_CHARACTERS,
+                                    remove_silent_word_characters)
 from speech_numbers import get_book_date_order, verbalize_numbers
 from speech_policy import (SPEECH_BREAKS, SPEECH_WORDS, VERBALIZED_SYMBOLS,
                            SPOKEN_SYMBOLS, get_spoken_symbol, get_spoken_word_text,
@@ -120,8 +122,17 @@ def get_prelexicon_speech_normalization(text):
         return {"text": text, "changed": False, "transformations": [],
                 "risk_categories": get_speech_risks(text)}
     original = str(text)
-    normalized, hints = extract_delivery_cues(original)
+    normalized = remove_silent_word_characters(original)
     transformations = []
+    removed = len(original) - len(normalized)
+    if removed:
+        transformations.append({
+            "type": "removed_silent_word_characters",
+            "symbols": sorted({char for char in original
+                               if char in SILENT_WORD_CHARACTERS}),
+            "count": removed,
+        })
+    normalized, hints = extract_delivery_cues(normalized)
     if hints:
         transformations.append({"type": "delivery_cues", "hints": hints})
     scene_text = get_scene_break_text(normalized)
