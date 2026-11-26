@@ -152,6 +152,13 @@ class TestFindSplits(unittest.TestCase):
         splits = find_splits(config, {}, {})
         self.assertEqual([s["canonical"] for s in splits], ["ANASTASIA"])
 
+    def test_distinct_indic_names_are_not_a_split(self):
+        # `राम` and `रमा` differ only in a vowel sign. The old identity key
+        # dropped it and grouped the two characters, reporting a voice split
+        # that belonged to two different people.
+        config = {"राम": dict(LORA), "रमा": dict(CUSTOM)}
+        self.assertEqual([], find_splits(config, {}, {"राम": 10, "रमा": 4}))
+
 
 class TestAdapterIdIsPartOfIdentity(unittest.TestCase):
     """The field is adapter_id, not adapter. Getting it wrong hid the worst

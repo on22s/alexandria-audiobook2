@@ -193,8 +193,18 @@ def build_speaker_consistency_report(entries, identity_review=None):
 
 
 def _identity_key(value):
-    normalized = unicodedata.normalize("NFC", str(value or ""))
-    return re.sub(r"[^\w]+", "", normalized.casefold(), flags=re.UNICODE)
+    """Fold a speaker name to a comparable identity key.
+
+    Combining marks (Mn/Mc) are part of the identity. They are not `\\w`, so
+    dropping them made Devanagari vowel signs vanish and different names share
+    a key: `राम`/`रमा` both folded to `रम`, and `सीता`/`सता` to `सत`. Spacing
+    and punctuation still fold. Latin accents keep matching across composed and
+    decomposed forms because NFC runs before casefold.
+    """
+    normalized = unicodedata.normalize("NFC", str(value or "")).casefold()
+    return "".join(char for char in normalized
+                   if char == "_" or char.isalnum()
+                   or unicodedata.category(char) in ("Mn", "Mc"))
 
 
 def get_speaker_label_index(labels):

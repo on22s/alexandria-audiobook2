@@ -1,9 +1,11 @@
 import copy
+import json
 import unittest
 
 from speaker_identity import (build_speaker_consistency_report,
+                              get_speaker_label_index, get_validated_alias_map,
                               resolve_speaker_label,
-                              stabilize_speaker_identities)
+                              stabilize_speaker_identities, _identity_key)
 
 
 def _entry(speaker):
@@ -106,6 +108,111 @@ class SpeakerIdentityTests(unittest.TestCase):
         self.assertEqual("MR. SMITH", resolve_speaker_label("mr smith", list(reversed(labels))))
 
 
+
+
+class CombiningMarkIdentityTests(unittest.TestCase):
+    """Names that differ only in combining marks are different characters.
+
+    THE BUG. `_identity_key` removed everything that is not `\\w`, and `\\w`
+    does not match combining marks (Mn/Mc). Devanagari vowel signs are Mc, so
+    `राम` and `रमा` both folded to `रम`, and `सीता`/`सता` to `सत`; the
+    stabilizer then rewrote the second character's label to the first and two
+    characters shared one voice.
+    """
+
+    def test_devanagari_vowel_signs_are_kept_in_the_key(self):
+        self.assertEqual("राम", _identity_key("राम"))
+        self.assertNotEqual(_identity_key("राम"), _identity_key("रमा"))
+        self.assertNotEqual(_identity_key("सीता"), _identity_key("सता"))
+
+    def test_other_combining_mark_scripts_keep_names_distinct(self):
+        pairs = [
+            ("Bengali", "রাম", "রমা"),          # Mc vowel sign
+            ("Tamil", "ராமா", "ரமா"),            # Mc vowel sign
+            ("Arabic vowelled", "رَام", "رام"),  # Mn harakat
+            ("Hebrew niqqud", "שָׁלוֹם", "שלום"),  # Mn points
+        ]
+        for script, first, second in pairs:
+            with self.subTest(script=script):
+                self.assertNotEqual(_identity_key(first), _identity_key(second))
+
+    def test_vowelled_and_unvowelled_arabic_stay_distinct(self):
+        """Deliberate: optional diacritics are not merged.
+
+        Keeping two names apart cannot cost a voice; merging names that are
+        merely written differently can, so the smaller change keeps them
+        distinct. A book that spells one name both ways still resolves each
+        spelling on its own.
+        """
+        self.assertNotEqual(_identity_key("رَام"), _identity_key("رام"))
+
+    def test_controls_and_latin_keys_are_unchanged(self):
+        """Byte-identical keys for the English/Latin books already on disk."""
+        expected = {
+            "Ram": "ram", "Rama": "rama",
+            "MR SMITH": "mrsmith", "MRS SMITH": "mrssmith",
+            "김민수": "김민수", "김민소": "김민소",
+            "สมชาย": "สมชาย", "สมชย": "สมชย",
+            "R UDEUS": "rudeus", "RuDeUs": "rudeus",
+            "SUBARU'S": "subarus", "MR. SMITH": "mrsmith",
+            "Má": "má", "Ma": "ma",
+        }
+        for name, key in expected.items():
+            with self.subTest(name=name):
+                self.assertEqual(key, _identity_key(name))
+
+    def test_latin_accents_match_across_composed_and_decomposed_forms(self):
+        decomposed = "JOSE\u0301"
+        self.assertEqual(_identity_key("JOSÉ"), _identity_key(decomposed))
+        self.assertEqual(_identity_key("Nguyễn"), _identity_key("Nguye\u0302\u0303n"))
+        self.assertNotEqual(_identity_key("JOSÉ"), _identity_key("JOSE"))
+        # Casefold decomposes this letter; the key must still match its
+        # uppercase-plus-caron spelling rather than keep a stray mark.
+        self.assertEqual(_identity_key("ǰ"), _identity_key("J\u030C"))
+
+    def test_two_devanagari_names_are_not_relabelled_by_stabilization(self):
+        entries = [_entry("राम"), _entry("रमा")]
+        result = stabilize_speaker_identities(entries, ["राम", "रमा"])
+        self.assertEqual(["राम", "रमा"],
+                         [entry["speaker"] for entry in result["entries"]])
+        self.assertEqual([], result["changes"])
+        self.assertEqual({"राम", "रमा"}, set(result["speakers"]))
+
+    def test_the_order_of_arrival_does_not_change_the_outcome(self):
+        result = stabilize_speaker_identities(
+            [_entry("सता"), _entry("सीता")], ["सीता", "सता"])
+        self.assertEqual(["सता", "सीता"],
+                         [entry["speaker"] for entry in result["entries"]])
+        self.assertEqual([], result["changes"])
+
+    def test_a_saved_script_reloaded_from_disk_keeps_both_speakers(self):
+        """Saved books store the labels, not the key, so reload re-derives it."""
+        entries = json.loads(json.dumps([_entry("राम"), _entry("रमा")]))
+        result = stabilize_speaker_identities(entries, ["राम", "रमा"])
+        self.assertEqual(["राम", "रमा"],
+                         [entry["speaker"] for entry in result["entries"]])
+
+    def test_punctuation_and_spacing_still_fold_one_devanagari_name(self):
+        result = stabilize_speaker_identities([_entry(" राम "), _entry("राम।")],
+                                              ["राम"])
+        self.assertEqual(["राम", "राम"],
+                         [entry["speaker"] for entry in result["entries"]])
+
+    def test_label_lookup_keeps_combining_mark_names_apart(self):
+        labels = ["सीता", "सता"]
+        self.assertEqual("सीता", resolve_speaker_label("सीता ", labels))
+        self.assertIsNone(resolve_speaker_label("सता", ["सीता"]))
+        self.assertEqual({"सीता", "सता"}, set(get_speaker_label_index(labels)))
+
+    def test_alias_registry_does_not_report_a_false_target_conflict(self):
+        """Two distinct names may each have their own canonical.
+
+        Under the old key both variants folded to `रम`, so the second target
+        looked like a conflicting normalization and the whole registry was
+        refused. They are different characters, so both edges are valid.
+        """
+        registry = get_validated_alias_map({"राम": "रामजी", "रमा": "रमेश"})
+        self.assertEqual({"राम": "रामजी", "रमा": "रमेश"}, registry)
 
 
 class SplitNameSpellingTest(unittest.TestCase):
