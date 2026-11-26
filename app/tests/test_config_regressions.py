@@ -2,6 +2,7 @@ import asyncio
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 import sys
 from unittest.mock import patch
@@ -11,6 +12,9 @@ from fastapi.testclient import TestClient
 import app as app_module
 import config_settings
 import project as project_module
+import review_script
+from completed_review_receipt import get_review_entries_fingerprint
+from generate_script import LLMGenParams
 from routers import system as system_module
 
 
@@ -587,3 +591,101 @@ class StoredFailoverValidationTests(unittest.TestCase):
                     self.assertEqual(bool(expected), bool(get_failover_llm_config(result.data)))
                     self.assertEqual({'keep': 9}, result.data['custom'])
                     self.assertEqual(document, path.read_text(encoding='utf-8'))
+
+
+class ReviewBatchSizeSaveTests(unittest.TestCase):
+    """#2335: a Settings save must keep the review batching it did not edit."""
+
+    PROFILE = {"base_url": "http://127.0.0.1:1234/v1", "api_key": "local",
+               "model_name": "fixture"}
+
+    def _save(self, path):
+        existing = config_settings.load_app_config_result(str(path))
+        loaded = config_settings.load_app_config(str(path))
+        proposal = system_module.get_config_to_save(
+            config_settings.AppConfig.model_validate(loaded), loaded)
+        with patch.object(system_module, "CONFIG_PATH", str(path)):
+            system_module.apply_config_save(existing, proposal)
+
+    def _document(self, generation):
+        return {"llm": dict(self.PROFILE), "llm_local": dict(self.PROFILE),
+                "llm_mode": "local", "tts": {}, "generation": generation}
+
+    def test_settings_save_keeps_review_batch_size(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text(json.dumps(self._document(
+                {"chunk_size": 2500, "review_batch_size": 10})), encoding="utf-8")
+            self.assertEqual(10, config_settings.load_app_config(
+                str(path))["generation"]["review_batch_size"])
+
+            self._save(path)
+
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(10, saved["generation"]["review_batch_size"])
+            self.assertEqual(2500, saved["generation"]["chunk_size"])
+            self.assertEqual((10, 0), review_script.get_review_batching(
+                saved["generation"]))
+
+    def test_invalid_stored_review_batch_size_is_ignored_with_a_warning(self):
+        # Before the fix an undeclared invalid value survived loading and made
+        # every review run raise; a declared field is sanitized like its peers.
+        for bad in (0, -3, True, False, None, "10", 10.5):
+            with self.subTest(value=bad), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "config.json"
+                path.write_text(json.dumps(self._document(
+                    {"review_batch_size": bad})), encoding="utf-8")
+                result = config_settings.load_app_config_result(str(path))
+                self.assertNotIn("review_batch_size", result.data["generation"])
+                self.assertIn("generation.review_batch_size",
+                              {warning.field for warning in result.warnings})
+                self.assertEqual((25, 0), review_script.get_review_batching(
+                    result.data["generation"]))
+
+    def test_interrupted_checkpoint_survives_a_save_that_does_not_touch_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text(json.dumps(self._document({"chunk_size": 2500})),
+                            encoding="utf-8")
+            # A save normalizes the profile so the later save changes only the
+            # batching key under test (as a config the app itself wrote).
+            self._save(path)
+            document = json.loads(path.read_text(encoding="utf-8"))
+            document["generation"]["review_batch_size"] = 10
+            path.write_text(json.dumps(document), encoding="utf-8")
+
+            entries = [{"speaker": "ANN", "text": f"Synthetic line {index}.",
+                        "instruct": ""} for index in range(25)]
+            output = Path(tmp) / "book.json"
+            output.write_text(json.dumps(entries), encoding="utf-8")
+            args = SimpleNamespace(context_window=0, dedupe_speakers=False,
+                                   alias_registry=None, remap_voice_config=None)
+            params = LLMGenParams(system_prompt="system",
+                                  user_prompt_template="{batch}")
+
+            def fingerprint(config):
+                return review_script.get_completed_review_fingerprint(
+                    config, config["llm"], params, args, object(), "fixture")
+
+            config = config_settings.load_app_config(str(path))
+            batch_size, _ = review_script.get_review_batching(config["generation"])
+            self.assertEqual(10, batch_size)
+            review_script.save_checkpoint(
+                str(output), 1, 3, batch_size, 0, entries[:10],
+                {"batches_skipped_vram": 0, "entries_changed": 0,
+                 "annotations_changed": 0, "batches_failed": 0},
+                None, [10], [], get_review_entries_fingerprint(entries),
+                execution_sha256=fingerprint(config))
+
+            self._save(path)
+
+            resumed = config_settings.load_app_config(str(path))
+            self.assertEqual(10, resumed["generation"]["review_batch_size"])
+            resumed_size, _ = review_script.get_review_batching(
+                resumed["generation"])
+            checkpoint = review_script.load_checkpoint(
+                str(output), 3, resumed_size, 0, entries,
+                execution_sha256=fingerprint(resumed))
+            self.assertIsNotNone(
+                checkpoint, "a save that did not touch batching discarded the checkpoint")
+            self.assertEqual(1, checkpoint["completed_batches"])
