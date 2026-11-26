@@ -12,8 +12,8 @@ from datetime import datetime, timezone
 from typing import Annotated, Dict, List, Literal, Optional, Union, get_args, get_origin
 from types import UnionType
 
-from pydantic import (AfterValidator, BaseModel, Field, JsonValue, TypeAdapter, ValidationError,
-                      field_validator, model_validator)
+from pydantic import (AfterValidator, BaseModel, BeforeValidator, Field, JsonValue, TypeAdapter,
+                      ValidationError, field_validator, model_validator)
 from export_limits import MAX_PAUSE_MS
 from lora_evidence import TTS_MODEL_DEFAULTS
 from synthesis_settings import get_synthesis_window_settings, get_synthesis_recovery_settings
@@ -149,6 +149,19 @@ class ThreePassModelProfile(BaseModel):
     pass1_format: Optional[Pass1Format] = None
 
 
+def validate_review_batch_size(value):
+    """The one review-batching rule, shared by the config model and review.
+
+    Review reads `generation.review_batch_size` from the saved section, so the
+    model must accept exactly what review accepts and refuse exactly what it
+    refuses. Keeping the rule here means a stored value review would reject can
+    never be written by a Settings save, and a save cannot drop the key (#2335).
+    """
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError("generation.review_batch_size must be a positive integer")
+    return value
+
+
 class GenerationConfig(BaseModel):
     chunk_size: int = Field(default=3000, ge=500)
     max_tokens: int = Field(default=4096, ge=256)
@@ -182,6 +195,12 @@ class GenerationConfig(BaseModel):
     # review_batch_size entry-count batching; a positive value packs whole
     # entries up to this many characters of entry text (context excluded).
     review_target_chars: int = Field(default=0, ge=0, le=1000000)
+    # #2335: entries per review request. Declared so a Settings save keeps it;
+    # absent still means 25, exactly as get_review_batching reads it. `ge=1` is
+    # for the published schema (peers carry `minimum`); the BeforeValidator runs
+    # first and refuses booleans, which `ge=1` alone would coerce to 1.
+    review_batch_size: Annotated[int, BeforeValidator(validate_review_batch_size)] = Field(
+        default=25, ge=1)
     # Which way the attribution question is asked (attribution_prompt_variants;
     # measured results per variant in RECIPES.md). michel2_full since
     # 2026-09-19, when Muse's cell (90.5 vs michel2 86.6) made it the winner
