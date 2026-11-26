@@ -28,6 +28,7 @@ import os
 import random
 import re
 from generation_checkpoint_deltas import load_generation_delta_checkpoint
+from silent_word_characters import remove_silent_word_characters
 from utils import atomic_json_write
 
 INSTRUCTIONS = (
@@ -207,16 +208,21 @@ def support_for(answer, row, source_text=None):
     answerable lines AMBIGUOUS, which would have rewarded abstention on lines
     whose speaker is recoverable - silently changing the task being measured.
     """
+    # Both sides of the search are folded (#2316): a model answer carrying
+    # U+00AD/U+2060 is the same name as the clean spelling in the passage.
+    answer = remove_silent_word_characters(answer)
     if answer in ("NARRATOR", "AMBIGUOUS", "UNKNOWN"):
         return "not_a_name"
     parts = answer.split()
     if not parts:
         return "absent"
     name_pattern = r"(?<!\w)" + r"\s+".join(re.escape(part) for part in parts) + r"(?!\w)"
-    window = " ".join((row["passage_before"], row["line"], row["passage_after"]))
+    window = remove_silent_word_characters(
+        " ".join((row["passage_before"], row["line"], row["passage_after"])))
     if re.search(name_pattern, window, re.IGNORECASE):
         return "window"
-    if source_text and re.search(name_pattern, source_text, re.IGNORECASE):
+    if source_text and re.search(
+            name_pattern, remove_silent_word_characters(source_text), re.IGNORECASE):
         return "book"
     return "absent"
 

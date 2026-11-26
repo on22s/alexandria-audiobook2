@@ -6,16 +6,24 @@ and neither is pronounceable, so both are deleted rather than replaced by a
 space: a word containing U+00AD stays one word and ``a`` + U+2060 + ``b``
 stays one token.
 
-Deliberately not removed here: ZWNJ (U+200C) and ZWJ (U+200D) are lexical in
-Persian, Indic scripts and emoji sequences; bidi controls (U+200E/F,
+U+200B ZERO WIDTH SPACE is the opposite case: it *is* a word boundary. It is
+not deleted, because that would fuse the two words it separates. It is mapped
+to an ordinary space for tokenisation instead (``WORD_BOUNDARIES``).
+
+Deliberately in neither set: ZWNJ (U+200C) and ZWJ (U+200D) are lexical in
+Persian, Indic scripts and emoji sequences; a byte-order mark (U+FEFF) is
+dropped at import rather than inside a word; bidi controls (U+200E/F,
 U+202A-E, U+2066-9) carry direction; variation selectors change the glyph.
 """
 
 SOFT_HYPHEN = "\u00ad"
 WORD_JOINER = "\u2060"
+ZERO_WIDTH_SPACE = "\u200b"
 SILENT_WORD_CHARACTERS = (SOFT_HYPHEN, WORD_JOINER)
+WORD_BOUNDARIES = (ZERO_WIDTH_SPACE,)
 
 _SILENT_WORD_TRANSLATION = str.maketrans({char: None for char in SILENT_WORD_CHARACTERS})
+_BOUNDARY_TRANSLATION = str.maketrans({char: " " for char in WORD_BOUNDARIES})
 
 
 def remove_silent_word_characters(text):
@@ -23,6 +31,13 @@ def remove_silent_word_characters(text):
     if type(text) is not str:
         text = str(text or "")
     return text.translate(_SILENT_WORD_TRANSLATION)
+
+
+def map_word_boundaries_to_spaces(text):
+    """Replace U+200B with a space so it separates words instead of fusing them."""
+    if type(text) is not str:
+        text = str(text or "")
+    return text.translate(_BOUNDARY_TRANSLATION)
 
 
 def remove_silent_word_characters_with_offsets(text):

@@ -916,8 +916,12 @@ def is_keepable_exhaustion(frozen_batch, last_entries, last_report):
 def get_cast_speaker(speaker, cast=None):
     """Fold an accepted speaker label through the supplied cast."""
     if isinstance(speaker, str):
-        speaker = remove_silent_word_characters(speaker.strip().upper())
-        return ((cast or {}).get("alias_to_name") or {}).get(speaker, speaker)
+        # Only the lookup key is upper-cased (#2316). Without a cast hit the
+        # caller keeps its own spelling, minus the invisible characters, so a
+        # book without them is byte-identical to before this fix.
+        key = remove_silent_word_characters(speaker.strip().upper())
+        return ((cast or {}).get("alias_to_name") or {}).get(
+            key, remove_silent_word_characters(speaker))
     return speaker
 
 

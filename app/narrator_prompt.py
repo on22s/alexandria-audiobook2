@@ -5,7 +5,10 @@ from silent_word_characters import remove_silent_word_characters
 
 
 def normalize_narrator_name(name):
-    return " ".join((name or "").upper().split())
+    # The one canonical spelling (#2316): a soft hyphen or word joiner cannot
+    # make the roster hold both SON<SHY>YA and SONYA for the same person.
+    return " ".join(
+        remove_silent_word_characters((name or "").upper()).split())
 
 
 def get_valid_narrator_name(name):
@@ -22,7 +25,7 @@ def get_valid_narrator_name(name):
 
 def is_narrator_attested(name, source_text, minimum=3):
     """Require the complete exact name to occur before seeding the roster."""
-    narrator = remove_silent_word_characters(normalize_narrator_name(name))
+    narrator = normalize_narrator_name(name)
     if len(narrator) < 2:
         return False
     source = remove_silent_word_characters(source_text or "").upper()

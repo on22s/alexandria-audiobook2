@@ -25,6 +25,8 @@ def _normalized_with_offsets(text):
     """
     decomposed = []
     for index, char in enumerate(text):
+        if char in SILENT_WORD_CHARACTERS:
+            continue
         for piece in unicodedata.normalize('NFD', char):
             decomposed.append((piece, index, index + 1))
     sequences, sequence, built = [], [], ''
@@ -52,8 +54,10 @@ def _normalized_with_offsets(text):
             if output not in SILENT_WORD_CHARACTERS:
                 pieces.append((output, raw_start, raw_end))
     normalized = ''.join(piece[0] for piece in pieces)
-    baseline = remove_silent_word_characters(
-        unicodedata.normalize('NFC', text)).replace('’', "'")
+    # Delete the silent characters BEFORE NFC so a base letter and its combining
+    # mark on either side of one can still compose (#2316).
+    baseline = unicodedata.normalize(
+        'NFC', remove_silent_word_characters(text)).replace('’', "'")
     if normalized != baseline:
         raise ValueError('Literal NFC offset alignment differs from whole-string NFC')
     return normalized, [(piece[1], piece[2]) for piece in pieces]
@@ -105,8 +109,8 @@ def iter_literal_words(text):
 
 def _words(text):
     """Word-only path: whole-string NFC, no per-character offset vector."""
-    value = remove_silent_word_characters(
-        unicodedata.normalize('NFC', text)).replace('’', "'")
+    value = unicodedata.normalize(
+        'NFC', remove_silent_word_characters(text)).replace('’', "'")
     for word, _, _ in _word_spans(value):
         yield word
 

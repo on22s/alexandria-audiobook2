@@ -862,7 +862,9 @@ def apply_source_narration(entries):
 # needs no model call at all.
 _SILENT_IN_WORD = "".join(SILENT_WORD_CHARACTERS)
 LABEL_BEFORE_QUOTE = re.compile(
-    r'(?:^|\n)[ \t]*([^\W\d_][\w.\'’'
+    # A label may begin with an invisible character (#2316); allow those before
+    # the name and fold the captured name below.
+    r'(?:^|\n)[ \t' + _SILENT_IN_WORD + r']*([^\W\d_][\w.\'’'
     + _SILENT_IN_WORD +
     r'-]{1,20}(?:[ \t]+[^\W\d_][\w.\'’'
     + _SILENT_IN_WORD +

@@ -76,8 +76,10 @@ def is_possible_misattributed_narration(text, speaker):
 
 
 def _normalize(value):
-    return " ".join(
-        remove_silent_word_characters(value).split()).casefold()
+    # One order everywhere (#2316): delete the silent characters first, then
+    # NFC, so a base letter and a combining mark on either side of one compose.
+    return " ".join(unicodedata.normalize(
+        "NFC", remove_silent_word_characters(value)).split()).casefold()
 
 
 def get_normalized_word_tokens(value):

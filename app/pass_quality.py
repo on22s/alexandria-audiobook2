@@ -801,7 +801,10 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
     name = remove_silent_word_characters(name)
     source_text = remove_silent_word_characters(source_text)
     if not name:
-        return True
+        # A non-empty name made only of invisible characters cannot be attested
+        # (#2316). Without this it skipped every check and could be stored as a
+        # SPOKEN speaker that folded to "". An actually empty name stays a no-op.
+        return False
     # Reporting verbs after a pronoun ("He said") are not personal-name
     # evidence. Explicit cast names are handled by the caller before this gate.
     if name.casefold().strip(".?!…") in _NON_PERSON_NAME_WORDS:

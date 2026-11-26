@@ -22,10 +22,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi.testclient import TestClient
 
 from routers import scripts_library
-from silent_word_characters import remove_silent_word_characters
+from silent_word_characters import (SILENT_WORD_CHARACTERS, WORD_BOUNDARIES,
+                                    ZERO_WIDTH_SPACE,
+                                    remove_silent_word_characters,
+                                    map_word_boundaries_to_spaces)
 from recall_core import tokens
 from chunk_quality import validate_chunk_quality
 from pass_quality import (validate_segment_quality, is_attested_name,
+                          validate_attribution,
                           get_attribution_tag_evidence, get_attribution_tag_proofs,
                           get_exact_attribution_shift_repair,
                           get_attribution_snapshot_digest)
@@ -34,13 +38,22 @@ from script_preflight import get_normalized_word_tokens, find_adjacent_duplicate
 from dialogue_spans import mark_entries, speaker_labels, uses_speaker_labels
 from speech_text import get_speech_normalization, normalize_for_speech
 from generate_personas import _resolve_to_canonical, normalize_speaker_name
-from pronunciation import apply_pronunciation, get_pronunciation_result
+from pronunciation import (OccurrenceAnchorConflict, apply_pronunciation,
+                           get_occurrence_pronunciation_resolution,
+                           get_pronunciation_result,
+                           get_pronunciation_text_digest,
+                           validate_occurrence_pronunciation_rules)
 from generate_script import _get_boundary_overlap
 from text_diff import get_comparison_words, word_diff
 from speaker_identity import (stabilize_speaker_identities,
                               _is_extended_person_name,
                               is_speaker_merge_allowed)
-from narrator_prompt import is_narrator_attested
+from narrator_prompt import (get_valid_narrator_name, is_narrator_attested,
+                             normalize_narrator_name)
+from dialogue_continuity import _is_attached_tag
+from gold_set_builder import support_for
+import candidates
+import script_repair
 from find_nicknames import _name_tokens, collect_context
 from word_timing import get_word_tokens
 from speech_verification_compare import get_comparison_tokens
@@ -103,6 +116,20 @@ class SilentWordCharacterRuleTests(unittest.TestCase):
         self.assertEqual("e\u0301", remove_silent_word_characters("e" + SOFT + "\u0301"))
         self.assertEqual("\u00e9", remove_silent_word_characters("\u00e9" + JOINER))
 
+    def test_zero_width_space_is_a_boundary_not_a_silent_character(self):
+        # U+200B separates words, so deleting it would fuse them (#2316).
+        text = "alpha" + ZERO_WIDTH_SPACE + "beta"
+        self.assertEqual(text, remove_silent_word_characters(text))
+        self.assertEqual("alpha beta", map_word_boundaries_to_spaces(text))
+        self.assertIn(ZERO_WIDTH_SPACE, WORD_BOUNDARIES)
+        self.assertNotIn(ZERO_WIDTH_SPACE, SILENT_WORD_CHARACTERS)
+        # Characters with a lexical or directional meaning stay out of both
+        # definitions: ZWNJ/ZWJ, BOM, bidi marks and isolates.
+        for char in ("\u200c", "\u200d", "\ufeff", "\u200e", "\u202a", "\u2066"):
+            with self.subTest(char=repr(char)):
+                self.assertNotIn(char, SILENT_WORD_CHARACTERS)
+                self.assertNotIn(char, WORD_BOUNDARIES)
+
     def test_a_soft_hyphen_at_a_hard_line_end_leaves_the_line_break(self):
         # A real newline is line structure, not an invisible character. Only the
         # SHY is deleted; the word the line break already split stays split.
@@ -115,6 +142,19 @@ class GateTokenizerTests(unittest.TestCase):
         self.assertEqual(["sonya"], tokens("Son" + SOFT + "ya"))
         self.assertEqual(["ab"], tokens("a" + JOINER + "b"))
         self.assertEqual(["wonderful"], tokens("won" + SOFT + "derful"))
+
+    def test_the_fold_happens_before_nfc_so_a_combining_mark_still_composes(self):
+        # NFC("e" + SHY + U+0301) leaves the mark loose because SHY sits
+        # between; deleting first and normalizing after gives the composed
+        # character every comparison expects (#2316).
+        written = "e" + SOFT + "\u0301"
+        self.assertEqual(["é"], tokens(written))
+        self.assertEqual(("é",), get_normalized_word_tokens(written))
+        self.assertEqual([("é", 0, 3)], list(iter_literal_words(written)))
+        self.assertEqual(["é"], [word for word, _start, _end in
+                                 iter_literal_words(written)])
+        self.assertTrue(audit_literal_words(
+            written, [{"text": "\u00e9"}])["passed"])
 
     def test_pass1_gate_accepts_the_clean_spelling(self):
         report = validate_segment_quality(
@@ -376,6 +416,56 @@ class SpeakerIdentityConsumerTests(unittest.TestCase):
             three_pass_generate.get_cast_from_data(
                 [{"name": "  " + SOFT + JOINER, "aliases": []}])
 
+    def test_a_cast_lookup_without_a_hit_keeps_the_callers_spelling(self):
+        # Only the lookup key is canonicalised (#2316): returning the upper
+        # folded label here renamed "Narrator" to "NARRATOR" in books without
+        # the characters and stored "SONYA" where the model wrote "Sonya".
+        cast = three_pass_generate.get_cast_from_data(
+            [{"name": "Sonya", "aliases": ["Miss" + SOFT + " Bell"]}])
+        for speaker, expected in (
+                ("Sonya", "Sonya"),
+                ("Narrator", "Narrator"),
+                ("So" + JOINER + "nya", "Sonya"),
+                (("Son" + SOFT + "ya").lower(), "sonya"),
+                ("Miss" + SOFT + " Bell", "SONYA"),
+                ("m" + JOINER + "iss bell", "SONYA")):
+            with self.subTest(speaker=repr(speaker)):
+                self.assertEqual(expected,
+                                 three_pass_generate.get_cast_speaker(speaker, cast))
+        self.assertEqual("Sonya", three_pass_generate.get_cast_speaker(
+            "Son" + SOFT + "ya", {"alias_to_name": {}}))
+
+    def test_an_invisible_only_speaker_cannot_be_stored(self):
+        # The gate, the cast fold and the stored label are one chain: the fold
+        # alone would store "" (#2316), so the gate must refuse the name.
+        source = "Someone read the letter. Nobody named here."
+        frozen = [{"type": "SPOKEN", "text": "Someone read the letter."}]
+        for name in (SOFT, JOINER, SOFT + JOINER):
+            with self.subTest(name=repr(name)):
+                self.assertFalse(is_attested_name(name, source))
+        # An actually empty name keeps its old no-op meaning.
+        self.assertTrue(is_attested_name("", source))
+        report = validate_attribution(
+            frozen, [{"n": 0, "speaker": SOFT}], source)
+        self.assertFalse(report["passed"])
+        self.assertEqual(["speaker_not_in_source"],
+                         [finding["code"] for finding in report["findings"]])
+        self.assertEqual("", three_pass_generate.get_cast_speaker(SOFT, {}))
+
+    def test_the_narrator_canonicaliser_folds_into_one_roster_name(self):
+        dirty = "Son" + SOFT + "ya"
+        self.assertEqual("SONYA", normalize_narrator_name(dirty))
+        self.assertEqual("SONYA", get_valid_narrator_name(" " + dirty + " "))
+        self.assertIsNone(get_valid_narrator_name(" " + SOFT + " "))
+        source = "Sonya left. Sonya sat. Sonya read. " * 3
+        roster = three_pass_generate.build_roster(
+            [{"speaker": dirty.upper(), "type": "SPOKEN", "text": "Sonya left."}],
+            source)
+        self.assertEqual(["SONYA"], roster)
+        # get_attribution_roster inserts the narrator only if it is missing, so
+        # the folded canonicaliser keeps it at one row.
+        self.assertIn(normalize_narrator_name(dirty), roster)
+
 
 class SourceComparisonConsumerTests(unittest.TestCase):
     def test_nickname_words_join_the_word(self):
@@ -453,6 +543,93 @@ class SourceComparisonConsumerTests(unittest.TestCase):
         self.assertEqual(qwen_align.get_token_key("Sonya"),
                          qwen_align.get_token_key("Son" + SOFT + "ya"))
 
+    def test_an_attached_dialogue_tag_folds_the_printed_name(self):
+        # dialogue_continuity compares the printed narration against a roster
+        # label that is already clean (#2316).
+        self.assertTrue(_is_attached_tag("Sonya said, quietly.", "SONYA"))
+        self.assertTrue(_is_attached_tag("Son" + SOFT + "ya said, quietly.",
+                                         "SONYA"))
+        self.assertTrue(_is_attached_tag("Sonya said, quietly.",
+                                         "Son" + JOINER + "ya"))
+        self.assertFalse(_is_attached_tag("Son" + SOFT + "ya said, quietly.",
+                                          "BRENDA"))
+
+    def test_the_aligner_unit_count_does_not_split_the_word(self):
+        # count_units plans a window from spoken words; an invisible character
+        # is not spoken and must not add a unit (#2316).
+        self.assertEqual(2, qwen_align.count_units("won" + SOFT + "derful day"))
+        self.assertEqual(qwen_align.count_units("wonderful day"),
+                         qwen_align.count_units(
+                             "won" + SOFT + "der" + SOFT + "ful day"))
+
+    def test_a_gold_answer_folds_against_the_passage_and_the_book(self):
+        row = {"passage_before": "Then", "line": "Son" + SOFT + "ya spoke.",
+               "passage_after": "and left."}
+        self.assertEqual("window", support_for("Sonya", row))
+        self.assertEqual("window", support_for("Son" + SOFT + "ya", row))
+        self.assertEqual("book", support_for("Brenda", row, "Brenda waved."))
+        self.assertEqual("book", support_for("Bren" + JOINER + "da", row,
+                                             "Brenda waved."))
+        self.assertEqual("not_a_name", support_for("NARR" + SOFT + "ATOR", row))
+
+    def test_a_candidate_name_folds_the_text_and_the_roster(self):
+        self.assertEqual(["SONYA"],
+                         candidates._names_in("Son" + SOFT + "ya spoke.", ["SONYA"]))
+        self.assertEqual(["SONYA"],
+                         candidates._names_in(
+                             "Sonya spoke.", [("Son" + SOFT + "ya").upper()]))
+        segmented = [{"type": "NARRATOR",
+                      "text": "Son" + SOFT + "ya said, quietly."},
+                     {"type": "SPOKEN", "text": "Hi."},
+                     {"type": "NARRATOR", "text": "Silence."}]
+        self.assertEqual(["SONYA"],
+                         candidates.tag_candidates(segmented, 1, ["SONYA"]))
+
+    def test_a_cyrillic_source_word_split_by_the_character_stays_faithful(self):
+        # script_repair compares entry words against _normalize(source_text),
+        # which now folds (#2316); a faithful mixed-script word must not be
+        # reported as unsupported corruption.
+        source = "He said \u0441" + SOFT + "\u043e. Then he left."
+        result = script_repair.build_deterministic_repair(
+            [{"type": "NARRATOR", "text": "He said \u0441\u043e."}], source)
+        self.assertEqual([], result["changes"])
+        self.assertEqual([], result["unresolved"])
+
+    def test_a_printed_label_may_start_with_an_invisible_character(self):
+        lines = ["One.", "Two.", "Three.", "Four.", "Five."]
+        labelled = "\n\n".join(SOFT + "Son" + SOFT + "ya \u201c" + line + "\u201d"
+                               for line in lines) + "\n"
+        labels = speaker_labels(labelled, minimum_repeats=3,
+                                speaker_names=["SONYA"])
+        self.assertEqual(["Sonya"] * len(lines), [name for _pos, name in labels])
+
+    def test_an_approved_occurrence_rule_goes_stale_loudly(self):
+        # Preparation now deletes the characters, so a rule approved against the
+        # older prepared string is reported stale (never re-anchored by search):
+        # the render keeps the ordinary pronunciation and records the decision.
+        original = "Son" + SOFT + "ya"
+        prepared_before = original + " spoke here."
+        prepared_now = "Sonya spoke here."
+        text = "Sonya spoke here."
+        rule = {"id": "rule-1", "state": "approved",
+                "coordinate_space": "pre_lexicon_v1",
+                "offset_unit": "unicode_codepoint", "uid": "chunk-1",
+                "text_sha256": get_pronunciation_text_digest(text),
+                "prepared_sha256": get_pronunciation_text_digest(prepared_before),
+                "start": 0, "end": len(original), "original": original,
+                "replacement": "Sone-ya", "phonetic_hint": None,
+                "fallback": None, "restrictions": {}}
+        with self.assertRaises(OccurrenceAnchorConflict) as caught:
+            validate_occurrence_pronunciation_rules(
+                [rule], "chunk-1", text, prepared_now)
+        self.assertIn("stale_preparation", str(caught.exception))
+        result = get_occurrence_pronunciation_resolution(
+            prepared_now, {}, rules=[rule], uid="chunk-1",
+            text_digest=get_pronunciation_text_digest(text))
+        self.assertEqual([{"id": "rule-1", "applied": False,
+                           "reason": "stale_preparation"}], result["decisions"])
+        self.assertEqual(prepared_now, result["text"])
+
 
 class BooksWithoutTheCharactersTests(unittest.TestCase):
     """Every changed function keeps its pre-fix result on text without them."""
@@ -505,6 +682,35 @@ class BooksWithoutTheCharactersTests(unittest.TestCase):
         self.assertEqual("Sonya", three_pass_generate.get_named_from_answer(
             [{"type": "SPOKEN", "text": "Sonya left."}],
             [{"speaker": "SONYA", "text": "Sonya left."}])[0]["speaker"].title())
+        # Repair 2 additions: the spelling-preserving cast fold, the narrator
+        # canonicaliser, the fold-before-NFC tokenizers, the dialogue tag, the
+        # aligner unit count and the three gold/candidate comparisons.
+        self.assertEqual("Sonya", three_pass_generate.get_cast_speaker(
+            "Sonya", {"alias_to_name": {}}))
+        self.assertEqual("Narrator", three_pass_generate.get_cast_speaker(
+            "Narrator", None))
+        self.assertEqual("SONYA", normalize_narrator_name("Sonya"))
+        self.assertEqual("SONYA", get_valid_narrator_name("  Sonya "))
+        self.assertEqual(["sonya"], tokens("Sonya"))
+        # script_preflight now NFC-normalizes, so its identity case is text
+        # that is already NFC (every fixture string is); decomposed text is
+        # covered by the combining-mark test above.
+        self.assertEqual(("sonya", "and", "rem"),
+                         get_normalized_word_tokens("Sonya and Rem"))
+        self.assertEqual([("é", 0, 1)], list(iter_literal_words("\u00e9")))
+        self.assertTrue(_is_attached_tag("Sonya said, quietly.", "SONYA"))
+        self.assertEqual(2, qwen_align.count_units("wonderful day"))
+        self.assertEqual("window", support_for(
+            "Sonya", {"passage_before": "Then", "line": "Sonya spoke.",
+                      "passage_after": "and left."}))
+        self.assertEqual(["SONYA"], candidates._names_in("Sonya spoke.", ["SONYA"]))
+        self.assertEqual(["SONYA"], candidates.tag_candidates(
+            [{"type": "NARRATOR", "text": "Sonya said, quietly."},
+             {"type": "SPOKEN", "text": "Hi."},
+             {"type": "NARRATOR", "text": "Silence."}], 1, ["SONYA"]))
+        self.assertEqual([], script_repair.build_deterministic_repair(
+            [{"type": "NARRATOR", "text": "He said so."}],
+            "He said so. Then he left.")["unresolved"])
 
 
 if __name__ == "__main__":
