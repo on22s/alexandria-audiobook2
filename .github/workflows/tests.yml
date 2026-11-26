@@ -367,7 +367,7 @@ jobs:
           PYTHONIOENCODING: utf-8
         run: python tests/native_windows_dialogue_cleanup_checks.py
       - name: Install FFmpeg for native Windows transaction checks
-        run: choco install ffmpeg --no-progress -y
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File "${{ github.workspace }}/tools/ci/install_ffmpeg_windows.ps1"
       - name: Verify native Windows transaction codec executables
         run: python -c "import subprocess; subprocess.run(['ffmpeg', '-version'], check=True); subprocess.run(['ffprobe', '-version'], check=True)"
       - name: Install pinned encoding dependencies for native Windows sound delivery

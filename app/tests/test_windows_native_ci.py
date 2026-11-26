@@ -2253,7 +2253,9 @@ def _assert_transaction_contract(case):
     case.assertNotIn('skipUnless', source)
     workflow = (ROOT / '.github/workflows/tests.yml').read_text().split('  windows-owner:', 1)[1]
     case.assertIn('run: python tests/native_windows_transaction_checks.py', workflow)
-    install = workflow.index('run: choco install ffmpeg --no-progress -y')
+    install = workflow.index(
+        'run: pwsh -NoProfile -ExecutionPolicy Bypass -File '
+        '"${{ github.workspace }}/tools/ci/install_ffmpeg_windows.ps1"')
     verify = workflow.index('name: Verify native Windows transaction codec executables')
     transaction = workflow.index('run: python tests/native_windows_transaction_checks.py')
     case.assertLess(workflow.index('windows_import_checks.py'), install)
