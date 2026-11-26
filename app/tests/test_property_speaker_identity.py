@@ -12,9 +12,9 @@ Deterministic and bounded for CI: ``tests/hypothesis_profile.py`` (30 examples,
 derandomized, no database, no deadline).
 
 Deliberately out of scope: the nasal-sign table (anusvara, candrabindu and the
-spellings mapped onto them) is being changed by #2358. These properties use
-vowel signs, viramas and the Thai tone marks that the key keeps with their
-base, so they hold both before and after that table changes.
+spellings mapped onto them) is covered separately by #2358 (now merged). These
+properties use vowel signs, viramas and the Thai tone marks that the key keeps
+with their base, so they stay independent of the nasal-sign table.
 
 The generated text is synthetic; no book or person data is used.
 """
@@ -114,7 +114,12 @@ class RequiredMarkTests(unittest.TestCase):
 class ProfileTests(unittest.TestCase):
     def test_this_modules_property_tests_use_the_bounded_profile(self):
         configured = hypothesis_profile.given_test_settings(sys.modules[__name__])
-        self.assertTrue(configured)
+        expected = {
+            "CanonicalEquivalenceTests.test_canonical_re_encodings_share_one_key",
+            "CanonicalEquivalenceTests.test_case_variants_share_one_key",
+            "RequiredMarkTests.test_removing_a_required_mark_changes_the_key",
+        }
+        self.assertEqual(expected, set(configured))
         for name, active in configured.items():
             self.assertIs(hypothesis_profile.ACTIVE_SETTINGS, active, name)
 

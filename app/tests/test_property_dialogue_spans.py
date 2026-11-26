@@ -160,6 +160,32 @@ def hard_wrapped(value, raw_index):
     return value[:at] + "\n" + value[at:]
 
 
+def _well_formed_convention_property(convention):
+    @given(well_formed_dialogue(convention=convention))
+    def property_(test_case, case):
+        test_case.assert_well_formed_yields(case)
+    return property_
+
+
+def _inch_mark_convention_property(convention):
+    @given(inch_mark_dialogue(convention))
+    def property_(test_case, case):
+        test_case.assert_well_formed_yields(case)
+    return property_
+
+
+# Built at module scope so ``given_test_settings`` inspects every per-convention
+# ``@given`` property (a stray ``@settings`` on either factory fails ProfileTests).
+_WELL_FORMED_CONVENTION_PROPERTIES = {
+    convention: _well_formed_convention_property(convention)
+    for convention in PAIRED
+}
+_INCH_MARK_CONVENTION_PROPERTIES = {
+    convention: _inch_mark_convention_property(convention)
+    for convention in PAIRED
+}
+
+
 class WellFormedDialogueTests(unittest.TestCase):
     def assert_well_formed_yields(self, case):
         """``<open>speech<close> narration.`` -> exactly the speeches."""
@@ -174,24 +200,18 @@ class WellFormedDialogueTests(unittest.TestCase):
         # be covered. German low-high needs MIN_CONVENTION_PAIRS speeches
         # before the module keeps it as the book's convention. subTest names a
         # failing convention and lets the other eight still run.
-        for opener, closer in PAIRED:
-            with self.subTest(convention=(opener, closer)):
-                @given(well_formed_dialogue(convention=(opener, closer)))
-                def property_(case):
-                    self.assert_well_formed_yields(case)
-                property_()
+        for convention, property_ in _WELL_FORMED_CONVENTION_PROPERTIES.items():
+            with self.subTest(convention=convention):
+                property_(self)
 
     def test_inch_marks_are_text_in_speech_and_narration(self):
         # #2318: a digit next to a straight quote is a measurement, not a
         # delimiter. Both readers are asserted against the known speeches, so
         # losing the inch-mark decision in either one fails here even when the
         # two still agree with each other.
-        for convention in PAIRED:
+        for convention, property_ in _INCH_MARK_CONVENTION_PROPERTIES.items():
             with self.subTest(convention=convention):
-                @given(inch_mark_dialogue(convention))
-                def property_(case):
-                    self.assert_well_formed_yields(case)
-                property_()
+                property_(self)
 
     @given(well_formed_dialogue())
     def test_the_two_functions_agree_which_text_is_spoken(self, case):
@@ -293,7 +313,16 @@ class InvariantTests(unittest.TestCase):
 class ProfileTests(unittest.TestCase):
     def test_this_modules_property_tests_use_the_bounded_profile(self):
         configured = hypothesis_profile.given_test_settings(sys.modules[__name__])
-        self.assertTrue(configured)
+        expected = {
+            "InvariantTests.test_spans_stay_inside_the_source_in_order_and_disjoint",
+            "InvariantTests.test_analyzer_regions_and_repairs_stay_inside_the_source",
+            "WellFormedDialogueTests.test_the_two_functions_agree_which_text_is_spoken",
+            "WellFormedDialogueTests.test_a_single_newline_is_a_soft_wrap",
+        }
+        for convention in PAIRED:
+            expected.add(f"_WELL_FORMED_CONVENTION_PROPERTIES[{convention!r}]")
+            expected.add(f"_INCH_MARK_CONVENTION_PROPERTIES[{convention!r}]")
+        self.assertEqual(expected, set(configured))
         for name, active in configured.items():
             self.assertIs(hypothesis_profile.ACTIVE_SETTINGS, active, name)
 

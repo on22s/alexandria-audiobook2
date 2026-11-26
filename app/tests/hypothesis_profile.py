@@ -10,8 +10,12 @@ must cost a few seconds at most and must never flake. These settings buy that:
 * ``database=None`` means no example database: one shard cannot feed examples
   to another, and a clean run stays clean. On its own it is NOT enough to keep
   ``.hypothesis/`` out of the checkout - Hypothesis also writes ``constants/``
-  and ``unicode_data/`` there - so ``HYPOTHESIS_STORAGE_DIRECTORY`` is pointed
-  at a per-process temp directory below before Hypothesis is imported.
+  and ``unicode_data/`` there - so storage is pointed at either a user-supplied
+  ``HYPOTHESIS_STORAGE_DIRECTORY`` or a per-process temp directory (removed at
+  exit via ``atexit``). Setting ``HYPOTHESIS_STORAGE_DIRECTORY`` works before
+  the first storage access, and ``hypothesis.configuration.set_hypothesis_home_dir``
+  also redirects storage if something already resolved it before this module
+  imported.
 * ``deadline=None``: a wall-clock deadline turns a paused CI runner into a
   failure that has nothing to do with the code under test.
 * ``max_examples`` is the cost knob (``DEFAULT_MAX_EXAMPLES`` for CI, roughly a
@@ -31,35 +35,51 @@ The local-constant scan is guarded here too. Hypothesis (6.168.5, and 6.170.17)
 computes "local constants" by walking ``sys.modules`` and reading
 ``module.__file__`` with no exception guard. speechbrain installs lazy redirect
 modules whose ``__getattr__`` raises ``ImportError`` for an optional dependency,
-so in a process where speechbrain has been imported - CI shard 2 runs
-``test_ecapa_portable_cache`` before this module's tests - every ``@given``
-draw eventually raises ``ImportError``. There is no public opt-out
+so in a process where speechbrain has been imported - e.g. a shard running
+``test_ecapa_portable_cache`` before a property test - every ``@given`` draw
+eventually raises ``ImportError``. There is no public opt-out
 (HypothesisWorks/hypothesis#4627 was closed without one), and the scan is
 incremental (once per input, only modules new since the previous input), so a
 one-time ``sys.modules`` sweep at import cannot hold: a module imported after
 the profile is imported would still break the next draw. The wrapper below runs
-on every scan and hides only the entries whose ``__file__`` access raises,
-restoring them immediately. If Hypothesis removes or renames
-``_get_local_constants``, the import raises here and ``test_hypothesis_profile``
-asserts the wrapper is the function in force, so a version bump fails loudly
-instead of silently losing the guard.
+on every scan: if the scan raises, it rolls back Hypothesis's ``_seen_modules``
+set so readable modules scanned before the failing one are not skipped on retry,
+marks only the unreadable module objects in ``_seen_modules``, and retries.
+``sys.modules`` is never mutated, so there is no pop-window race with other
+threads and an interrupt leaves ``sys.modules`` identical. If Hypothesis removes
+or renames ``_get_local_constants``, ``_seen_modules``, or ``_sys_modules_len``,
+the import raises here and ``test_hypothesis_profile`` asserts the wrapper is
+the function in force, so a version bump fails loudly instead of silently losing
+the guard.
 
-This module is not named ``test_*.py`` on purpose: it is imported only by the
-property-test modules, so adding Hypothesis never makes it a dependency of the
-rest of the suite.
+This module is not named ``test_*.py`` on purpose: it is shared test support,
+not a test module of its own. Note that ``unittest discover`` still imports the
+``test_property_*.py`` and ``test_hypothesis_profile.py`` modules in every
+shard during discovery, so every shard imports Hypothesis once (~0.07 s).
 """
+import atexit
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
 
-# Documented Hypothesis setting. Read at the first storage access, which happens
-# after this import (no database is configured), so the checkout stays clean.
-STORAGE_DIRECTORY = Path(tempfile.mkdtemp(prefix="aa2-hypothesis-"))
-os.environ.setdefault("HYPOTHESIS_STORAGE_DIRECTORY", str(STORAGE_DIRECTORY))
+from hypothesis import HealthCheck, configuration, settings
+from hypothesis.internal.conjecture import providers as _providers
 
-from hypothesis import HealthCheck, settings  # noqa: E402
-from hypothesis.internal.conjecture import providers as _providers  # noqa: E402
+# Respect an explicit user preset without creating an unused temp directory.
+# Otherwise create a per-process temp directory and remove it on normal exit.
+# set_hypothesis_home_dir is Hypothesis's documented API and works even if
+# storage was already resolved before this module imported; setting the env var
+# as well keeps any child Python processes out of the checkout.
+_preset_storage = os.environ.get("HYPOTHESIS_STORAGE_DIRECTORY")
+if _preset_storage:
+    STORAGE_DIRECTORY = Path(_preset_storage)
+else:
+    STORAGE_DIRECTORY = Path(tempfile.mkdtemp(prefix="aa2-hypothesis-"))
+    os.environ["HYPOTHESIS_STORAGE_DIRECTORY"] = str(STORAGE_DIRECTORY)
+    atexit.register(shutil.rmtree, str(STORAGE_DIRECTORY), True)
+configuration.set_hypothesis_home_dir(STORAGE_DIRECTORY)
 
 DEFAULT_MAX_EXAMPLES = 30
 THOROUGH_MAX_EXAMPLES = 500
@@ -83,66 +103,95 @@ PROFILE_NAME = os.environ.get("HYPOTHESIS_PROFILE", "ci")
 settings.load_profile(PROFILE_NAME)
 ACTIVE_SETTINGS = settings.get_profile(PROFILE_NAME)
 
+# Process-control BaseExceptions must never be swallowed by the guard.
+_UNRECOVERABLE_BASE_EXCEPTIONS = (KeyboardInterrupt, SystemExit, GeneratorExit)
 
-def unreadable_module_names():
-    """-> names in ``sys.modules`` whose ``__file__`` access raises.
+
+def _unreadable_modules(skip_ids=()):
+    """-> [(name, module), ...] in ``sys.modules`` whose ``__file__`` raises.
 
     speechbrain's ``LazyModule``/``DeprecatedModuleRedirect`` entries raise
     ``ImportError`` (not ``AttributeError``) when the optional target is
-    missing, so ``getattr(module, "__file__", None)`` propagates it.
+    missing, so ``getattr(module, "__file__", None)`` propagates it. Custom
+    ``BaseException`` subclasses from ``__getattr__`` are treated the same way,
+    while ``KeyboardInterrupt``, ``SystemExit``, and ``GeneratorExit`` always
+    propagate.
     """
-    names = []
+    bad = []
     for name, module in list(sys.modules.items()):
+        if id(module) in skip_ids:
+            continue
         try:
             getattr(module, "__file__", None)
-        except Exception:
-            names.append(name)
-    return names
+        except _UNRECOVERABLE_BASE_EXCEPTIONS:
+            raise
+        except BaseException:
+            bad.append((name, module))
+    return bad
+
+
+def unreadable_module_names():
+    """-> names in ``sys.modules`` whose ``__file__`` access raises."""
+    return [name for name, _module in _unreadable_modules()]
 
 
 try:
     _original_get_local_constants = _providers._get_local_constants
+    _providers._seen_modules
+    _providers._sys_modules_len
 except AttributeError as error:  # pragma: no cover - version guard
     raise RuntimeError(
         "tests.hypothesis_profile guards Hypothesis's local-constant scan; "
-        "hypothesis.internal.conjecture.providers._get_local_constants is "
-        "missing, so review that guard for this Hypothesis version"
+        "hypothesis.internal.conjecture.providers internals "
+        "(_get_local_constants, _seen_modules, _sys_modules_len) changed, "
+        "so review that guard for this Hypothesis version"
     ) from error
 
 
 def safe_get_local_constants():
     """Call Hypothesis's incremental local-constant scan without unreadable modules.
 
-    The scan runs first unchanged, so the common case pays nothing. If it
-    raises, the modules whose ``__file__`` access raises are hidden, the scan is
-    retried, and they are restored before the caller resumes; a later test sees
-    ``sys.modules`` unchanged. Hiding them is correct for this suite: every
-    local constant is a source literal Hypothesis may draw instead of a random
-    value, and none of the properties depend on that hint.
+    The scan runs first unchanged, so the common case pays nothing (and when
+    ``len(sys.modules)`` is unchanged, no snapshot is taken). If it raises a
+    non-interrupt exception, we roll back ``_providers._seen_modules`` to its
+    pre-scan membership so readable modules scanned before the failing one are
+    rescanned and keep their local constants, mark only the unreadable module
+    objects in ``_providers._seen_modules``, and retry. ``sys.modules`` is
+    never modified, eliminating any pop-window race with other threads and
+    guaranteeing ``sys.modules`` stays identical on any exception including
+    ``KeyboardInterrupt``.
     """
+    if len(sys.modules) == _providers._sys_modules_len:
+        return _original_get_local_constants()
+
+    seen = _providers._seen_modules
+    seen_before = set(seen)
     try:
         return _original_get_local_constants()
-    except Exception:
-        hidden = []
-        for name in unreadable_module_names():
-            module = sys.modules.pop(name, None)
-            if module is not None:
-                hidden.append((name, module))
-        if not hidden:
+    except _UNRECOVERABLE_BASE_EXCEPTIONS:
+        seen.difference_update(seen - seen_before)
+        raise
+    except BaseException:
+        seen.difference_update(seen - seen_before)
+        bad_ids = [id(module) for _name, module in _unreadable_modules(seen_before)]
+        if not bad_ids:
             raise
+        seen.update(bad_ids)
         try:
             return _original_get_local_constants()
-        finally:
-            for name, module in hidden:
-                sys.modules[name] = module
+        except BaseException:
+            seen.difference_update(seen - seen_before)
+            raise
 
 
 _providers._get_local_constants = safe_get_local_constants
 
 
 def given_test_settings(module):
-    """-> {"Class.method": settings} for every ``@given`` test defined in ``module``.
+    """-> {"name": settings} for every ``@given`` property defined in ``module``.
 
+    Walks ``TestCase`` methods, module-level callables, and module-level
+    mappings/sequences of ``@given`` callables (such as per-convention tables).
     A test module uses this to prove its own property tests run under the
     shared profile: ``@given`` captures ``settings.default`` at decoration time,
     so a stray ``@settings`` would show up here as a different object.
@@ -157,6 +206,12 @@ def given_test_settings(module):
             for method_name in dir(attribute):
                 candidates.append(
                     (f"{name}.{method_name}", getattr(attribute, method_name)))
+        elif isinstance(attribute, dict):
+            for key, value in attribute.items():
+                candidates.append((f"{name}[{key!r}]", value))
+        elif isinstance(attribute, (list, tuple)):
+            for index, value in enumerate(attribute):
+                candidates.append((f"{name}[{index}]", value))
         else:
             candidates.append((name, attribute))
     for name, function in candidates:
