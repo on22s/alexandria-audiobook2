@@ -162,7 +162,7 @@ class TestFindSplits(unittest.TestCase):
     def test_nukta_and_nasal_spellings_are_one_voice_not_a_split(self):
         # These are optional marks a writer adds or omits for one name, so a
         # config that assigns them two voices is one split, not two people.
-        for spelled, plain in (("ज़ोया", "जोया"), ("चाँद", "चांद")):
+        for spelled, plain in (("ज़ोया", "जोया"), ("चाँद", "चांद"), ("ਸਿੰਘ", "ਸਿਂਘ")):
             with self.subTest(name=spelled):
                 config = {spelled: dict(LORA), plain: dict(CUSTOM)}
                 splits = find_splits(config, {}, {spelled: 5, plain: 12})

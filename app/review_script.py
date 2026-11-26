@@ -50,7 +50,9 @@ from llm_bench import ensure_cached_or_benchmarked_concurrency
 from review_prompts import (REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT,
                             REVIEW_TEMPLATE_FIELDS, validate_active_review_user_prompt)
 from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_object
+from script_selection_binding import MAX_SOURCE_BINDING_HOPS, get_bound_source_path
 from literal_policy import (get_literal_policy, get_literal_policy_identity,
+                            get_strip_front_matter_choices,
                             ensure_literal_narration, retain_literal_policy,
                             get_word_identity, get_scope_coverage_digest,
                             get_scope_coverage_intervals, is_scope_cut_proof, get_scope_identity,
@@ -3274,7 +3276,7 @@ def _resolve_source_ambiguity(candidates, entries, policy):
 
 
 # Loading a saved script adds one link to the same budget as saved copies.
-MAX_REVIEW_SAVED_SOURCE_HOPS = 8
+MAX_REVIEW_SAVED_SOURCE_HOPS = MAX_SOURCE_BINDING_HOPS
 
 
 def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, _saved_ancestors=()):
@@ -3284,16 +3286,14 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
     import hashlib
     from pathlib import Path
     from book_state_transaction import reuse_book_state, get_book_operation_token
-    from core import BASE_DIR, ROOT_DIR
     from project_scope_files import capture_scope_file
     from script_selection_binding import (_read_selection_state, _read_source_snapshot,
-        _path_digest, _validated_script_entries, parse_script_binding, saved_binding_matches,
+        _validated_script_entries, parse_script_binding, saved_binding_matches,
         check_binding_source, is_script_selection_pending, BINDING_NAME, MAX_BINDING_BYTES,
         get_scope_cut_from_binding)
     from source_encoding import get_decoded_source_text, get_normalized_source_newlines
     from generate_script import get_preprocessed_source
     from three_pass_generate import prepare_source_text
-    from utils import get_app_storage_path
     try:
         active = os.path.abspath(script_path) == os.path.abspath(os.path.join(data_dir, 'annotated_script.json'))
         directory = data_dir if active else os.path.dirname(os.path.abspath(script_path))
@@ -3307,33 +3307,9 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
                                          entries=entries):
                 raise ValueError('Review script has no matching source binding')
             selected = state.get('input_file_path')
-            if active:
-                if is_script_selection_pending(state) or not isinstance(selected, str):
-                    raise ValueError('Review source selection is unavailable')
-                candidates = [selected]
-            else:
-                candidates = [selected] if isinstance(selected, str) else []
-                uploads = get_app_storage_path(data_dir, ROOT_DIR, BASE_DIR, 'uploads')
-                if os.path.isdir(uploads):
-                    for path in Path(uploads).iterdir():
-                        candidates.extend((str(path), path.as_posix(),
-                                           os.path.join(uploads, path.name)))
-            paths = {path for path in candidates if _path_digest(path) == binding['source_path_sha256']}
-            if not paths and not active:
-                from direct_path_admission import is_plain_path
-                from routers.scripts_library import _is_saved_book_filename
-
-                # Save As copies the active binding, whose source can be another
-                # saved book. Existing bindings contain only a path hash. Match
-                # direct library names before opening any candidate's bytes.
-                library = Path(os.path.abspath(data_dir), 'scripts')
-                if is_plain_path(library) and library.is_dir():
-                    paths = {str(path) for path in library.iterdir()
-                             if _is_saved_book_filename(path.name)
-                             and _path_digest(str(path)) == binding['source_path_sha256']}
-            if len(paths) != 1:
-                raise ValueError('Review source path cannot be verified')
-            source_path = paths.pop()
+            if active and (is_script_selection_pending(state) or not isinstance(selected, str)):
+                raise ValueError('Review source selection is unavailable')
+            source_path = get_bound_source_path(data_dir, binding, active=active, selected=selected)
             saved_source = Path(source_path).suffix.lower() == '.json'
             if saved_source:
                 ancestors = (*_saved_ancestors, os.path.normcase(os.path.abspath(script_path)))
@@ -3425,8 +3401,9 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
             raise ValueError('Literal source identity differs from the captured source')
         decoded, _encoding = get_decoded_source_text(raw)
         decoded = get_normalized_source_newlines(decoded)
-        strip_choices = ((policy['strip_front_matter'],) if policy
-                         and 'strip_front_matter' in policy else (False, True))
+        strip_choices = get_strip_front_matter_choices(
+            policy['strip_front_matter'] if policy
+            and 'strip_front_matter' in policy else None)
         sources, valid_choices = set(), set()
         for strip_front_matter in strip_choices:
             try:

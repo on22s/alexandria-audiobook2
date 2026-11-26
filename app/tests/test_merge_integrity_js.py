@@ -45,7 +45,7 @@ kind='differences';decision=false;await handlers['btn-merge']();assert.strictEqu
 assert.deepStrictEqual(events.slice(0,2),['flush','get']);assert.match(el('text-diff-panel').innerHTML,/beta/);assert.match(el('text-diff-panel').innerHTML,/gamma/);
 assert.match(events.at(-1),/1 word differences.*Cancel to fix/);
 decision=true;await handlers['btn-merge']();assert.strictEqual(posts.length,1);assert.strictEqual(posts[0].body.integrity_confirmation,reports.differences.snapshot);assert.strictEqual(posts[0].url,'/api/merge');assert.ok(events.includes('poll'));
-kind='unavailable';await handlers['btn-merge']();assert.strictEqual(posts.length,2);assert.strictEqual(posts[1].body.integrity_confirmation,reports.unavailable.snapshot);assert.match(el('text-diff-panel').textContent,/script JSON/);assert.ok(events.some(event=>event.includes('Continue without a verified source match')));
+kind='unavailable';await handlers['btn-merge']();assert.strictEqual(posts.length,2);assert.strictEqual(posts[1].body.integrity_confirmation,reports.unavailable.snapshot);assert.ok(el('text-diff-panel').textContent.includes(reports.unavailable.reason));assert.ok(events.some(event=>event.includes('Continue without a verified source match')));
 kind='verified';await handlers['btn-merge']();assert.strictEqual(posts.length,3);assert.strictEqual(posts[2].body.integrity_confirmation,reports.verified.snapshot);
 ctx.ensureEditorRenderSnapshot=async()=>{throw Error('save failed');};await handlers['btn-merge']();assert.strictEqual(posts.length,3);assert.match(events.at(-1),/Merge failed\..*Check the audio task status.*Details: save failed/);
 ''')
