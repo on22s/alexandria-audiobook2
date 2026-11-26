@@ -33,7 +33,7 @@ import unicodedata
 from dataclasses import fields, replace
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from config_settings import load_app_config, get_review_labels_only
+from config_settings import load_app_config, get_review_labels_only, validate_review_batch_size
 from llm_provider import (make_llm_client, make_run_client, get_run_model_binding,
                           get_run_fingerprint_identity, get_effective_authorization,
                           get_explicit_authorization, has_unresolved_authorization_reference,
@@ -345,11 +345,11 @@ def get_review_batching(generation_config):
     Every reader of review batching (the checkpoint identity, both request
     loops and the call-count estimate in the review route) goes through here,
     so they cannot disagree about how a config chunks entries. The packing
-    itself is delegated to three_pass_generate.iter_entry_windows.
+    itself is delegated to three_pass_generate.iter_entry_windows. The
+    batch-size rule is config_settings.validate_review_batch_size, which
+    GenerationConfig also applies, so a save and a review cannot disagree.
     """
-    batch_size = generation_config.get("review_batch_size", 25)
-    if not isinstance(batch_size, int) or isinstance(batch_size, bool) or batch_size < 1:
-        raise ValueError("generation.review_batch_size must be a positive integer")
+    batch_size = validate_review_batch_size(generation_config.get("review_batch_size", 25))
     target_chars = generation_config.get("review_target_chars", 0)
     if (isinstance(target_chars, bool) or not isinstance(target_chars, int)
             or not 0 <= target_chars <= 1000000):

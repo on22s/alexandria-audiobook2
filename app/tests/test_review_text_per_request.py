@@ -104,6 +104,33 @@ class ReviewTargetCharsConfigTests(unittest.TestCase):
                 GenerationConfig(review_target_chars=bad)
 
 
+class ReviewBatchSizeConfigTests(unittest.TestCase):
+    """#2335: the config model and review must apply one batching rule."""
+
+    def test_model_and_review_accept_the_same_values(self):
+        for value in (1, 10, 25):
+            with self.subTest(value=value):
+                self.assertEqual(value, GenerationConfig(
+                    review_batch_size=value).review_batch_size)
+                self.assertEqual((value, 0),
+                                 review_script.get_review_batching(
+                                     {"review_batch_size": value}))
+
+    def test_model_and_review_refuse_the_same_values(self):
+        for value in (0, -3, True, False, None, "10", 10.5):
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError):
+                    GenerationConfig(review_batch_size=value)
+                with self.assertRaisesRegex(ValueError, "review_batch_size"):
+                    review_script.get_review_batching({"review_batch_size": value})
+
+    def test_absent_key_keeps_the_existing_default(self):
+        self.assertEqual(25, GenerationConfig().review_batch_size)
+        self.assertEqual((25, 0), review_script.get_review_batching({}))
+        self.assertEqual(review_script.get_review_batching({}),
+                         review_script.get_review_batching(GenerationConfig().model_dump()))
+
+
 class ReviewBatchingIdentityTests(unittest.TestCase):
     def _fingerprint(self, generation):
         from types import SimpleNamespace
