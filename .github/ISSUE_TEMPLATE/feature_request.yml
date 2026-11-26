@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for your suggestion! Please check existing [issues](https://github.com/Finrandojin/alexandria-audiobook/issues) to avoid duplicates.
+        Thanks for your suggestion! Please check existing [issues](https://github.com/on22s/alexandria-audiobook2/issues) to avoid duplicates.
 
   - type: textarea
     id: description
