@@ -1051,11 +1051,12 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(2, finding["details"]["source_occurrences"])
         self.assertEqual(3, finding["details"]["all_text_occurrences"])
 
-    def test_a_wrapped_source_copy_is_never_silently_dropped(self):
+    def test_a_wrapped_copy_between_ordinary_characters_is_never_silently_dropped(self):
         # The capacity check skips a needle with zero capacity, but a wrapped
-        # source copy is counted by the spelling-independent counter, so that
-        # skip is unreachable for it: one wrapped copy blocks a second emission
-        # instead of being dropped.
+        # source copy between ordinary characters is counted by the
+        # spelling-independent counter, so that skip is unreachable for it: one
+        # wrapped copy blocks a second emission instead of being dropped. A wrap
+        # immediately before a combining mark is the known limit pinned below.
         source = "\u300c\u306f\u3044\u305d\u3046\n\u3067\u3059\u300d\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002"
         needle = "\u306f\u3044\u305d\u3046\u3067\u3059"
         self.assertEqual(1, get_boundary_insensitive_counter(source)(needle))
@@ -1072,6 +1073,68 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
             [_entry(spaced, "C0"), _entry(spaced, "C1")], source)[0]
         self.assertEqual("blocking", finding["severity"])
         self.assertEqual(1, finding["details"]["source_occurrences"])
+
+    def test_a_soft_wrap_before_a_combining_mark_is_a_known_limit(self):
+        # Known limit (#2293): when a soft wrap falls immediately before a
+        # combining mark, the mark can no longer attach to the word it follows,
+        # so neither source spelling fuses and the wrapped copy is not counted.
+        # The same source without the wrap blocks the second emission, which
+        # pins that this is the wrap shape and not the line. Kept for a
+        # follow-up: the fix has to reattach a mark across a line ending, and
+        # the six-language sweep is clean without it.
+        cases = (
+            ('"สวัสดีครับ" เขาพูด', '"สวัสด\nีครับ" เขาพูด', 'สวัสดีครับ'),
+            ('"नमस्ते" वे बोले', '"नमस\n्ते" वे बोले', 'नमस्ते'),
+        )
+        for unwrapped, wrapped, line in cases:
+            with self.subTest(line=line):
+                self.assertEqual(
+                    1, get_boundary_insensitive_counter(unwrapped)(line))
+                self.assertEqual(
+                    0, get_boundary_insensitive_counter(wrapped)(line))
+                finding = self._duplicate_findings(
+                    [_entry(line, "C0"), _entry(line, "C1")], unwrapped)[0]
+                self.assertEqual("blocking", finding["severity"])
+                # The known miss: the wrapped copy is invisible, so the second
+                # emission is clean.
+                self.assertEqual([], self._duplicate_findings(
+                    [_entry(line, "C0"), _entry(line, "C1")], wrapped))
+
+    def test_a_hyphen_at_a_line_break_is_a_known_limit(self):
+        # Known limit (#2293): the model removed a hyphen the source kept at a
+        # hard wrap. "go-" and "home" stay two tokens, so the fused spelling is
+        # not a source copy; the spaced spelling is one source line and two of
+        # it block. Kept because fusing "go-" + "home" would also fuse every
+        # hyphenated compound at a wrap, which is not a duplicate question.
+        source = '"Let\'s go-\nhome," she said.'
+        fused = [_entry("Let's gohome.", "C0"), _entry("Let's gohome.", "C1")]
+        self.assertEqual([], self._duplicate_findings(fused, source))
+        spaced = [_entry("Let's go home.", "C0"), _entry("Let's go home.", "C1")]
+        finding = self._duplicate_findings(spaced, source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(2, finding["details"]["all_text_occurrences"])
+
+    def test_a_blank_line_holding_only_an_invisible_character_is_a_break(self):
+        # The paragraph decision used to run on the comparison key: a ZWNJ-only
+        # blank line stayed a soft wrap (ZWNJ is kept lexical) while an LRM-only
+        # one became a paragraph break (LRM is deleted). Both lines are blank,
+        # so both are breaks. Neither shape may block a faithful single copy,
+        # and two fused emissions are no copy of any source line.
+        for character, name in (("\u200c", "ZWNJ"), ("\u200e", "LRM")):
+            with self.subTest(character=name):
+                source = "Z z go\n" + character + "\nhome z z rest"
+                self.assertEqual([], self._duplicate_findings(
+                    [_entry("Gohome.", "C0"), _entry("Gohome.", "C1")], source))
+                self.assertEqual([], self._duplicate_findings(
+                    [_entry("Gohome.", "C0")], source))
+                # The primary key still sees one spaced line, so two spaced
+                # emissions block.
+                finding = self._duplicate_findings(
+                    [_entry("Go home.", "C0"), _entry("Go home.", "C1")],
+                    source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["source_occurrences"])
 
     def test_a_source_with_a_wrapped_copy_and_a_spaced_emission_still_blocks(self):
         # One wrapped source copy, two fused emissions and one spaced emission:
@@ -1266,6 +1329,34 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
                    _entry("she said.")]
 
         self.assertEqual([], self._duplicate_findings(entries, source))
+
+    def test_a_persian_line_in_three_spellings_is_a_known_miss_2353(self):
+        """Known miss (#2353): capacity is shared, emissions are per spelling.
+
+        The source carries two copies (ZWNJ and plain). The model emits one
+        copy in each of the three spellings; each needle is emitted once, so no
+        needle's own count exceeds the shared capacity although the line was
+        emitted three times for two copies. Pinned for the follow-up (sum
+        emissions across spelling variants against the shared capacity).
+        """
+        source = "می\u200cروم و میروم"
+        entries = [_entry("می\u200cروم", "C0"), _entry("میروم", "C1"),
+                   _entry("می روم", "C2")]
+
+        self.assertEqual([], self._duplicate_findings(entries, source))
+
+    def test_an_okay_rewrite_beside_ok_still_blocks(self):
+        # NIT kept (already under Limits): "OK" and "Okay" are different words,
+        # not typography. The source carries each once; two OK entries exceed
+        # the one OK copy and block, because the model may not rewrite the
+        # Okay copy (same class as cannot/can't and Saint/St.).
+        source = '"OK," she said. "Okay," he said.'
+        entries = [_entry("OK", "C0"), _entry("OK", "C1")]
+
+        finding = self._duplicate_findings(entries, source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(2, finding["details"]["all_text_occurrences"])
 
     def test_the_zwsp_sweep_stays_clean_and_catches_each_injection(self):
         # Deterministic form of the ZWSP sweep: every language, both source
@@ -2086,6 +2177,44 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(1, len(findings))
         self.assertEqual("manual_review", findings[0]["severity"])
         self.assertTrue(findings[0]["details"]["rendering_capacity_unknown"])
+
+    def test_a_digit_spelled_source_line_is_capacity_for_its_word_spelling(self):
+        # "Twenty minutes" and "20 minutes" are one line written two ways: one
+        # source copy of each makes two spelled-out emissions faithful (the
+        # second renders the digit line). A third copy exceeds the book and
+        # still blocks, so the number spelling is capacity, not an excuse.
+        source = ('"Twenty minutes!" she cried. He waited. '
+                  '"20 minutes," he repeated.')
+        entries = [_entry("Twenty minutes", "C%d" % index) for index in range(2)]
+
+        self.assertEqual([], self._duplicate_findings(entries, source))
+        self.assertEqual(0, audit_script(entries, source)["counts"]["blocking"])
+
+        finding = self._duplicate_findings(
+            entries + [_entry("Twenty minutes", "C2")], source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(2, finding["details"]["source_occurrences"])
+        self.assertEqual(3, finding["details"]["all_text_occurrences"])
+
+    def test_a_number_spelling_only_excuses_the_same_number_and_line(self):
+        # A digit elsewhere cannot excuse a line whose number does not match:
+        # "99 minutes" is not a spelling of "Twenty minutes".
+        source = ('"Twenty minutes!" she cried. He waited. '
+                  '"99 minutes," he repeated.')
+
+        finding = self._duplicate_findings(
+            [_entry("Twenty minutes", "C0"), _entry("Twenty minutes", "C1")],
+            source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+
+        # A different line in the source cannot be the digit spelling either.
+        source = '"Twenty minutes!" she cried. He waited. "20 seconds," he said.'
+        finding = self._duplicate_findings(
+            [_entry("Twenty minutes", "C0"), _entry("Twenty minutes", "C1")],
+            source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
 
     def test_a_number_does_not_downgrade_an_unrelated_line(self):
         findings = self._duplicate_findings(

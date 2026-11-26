@@ -15,7 +15,7 @@ from silent_word_characters import (
 from source_normalization import iter_source_paragraph_ranges
 from speech_text import get_speech_normalization
 from utils import get_unsafe_text_controls
-from alexandria_alignment import is_spelled_number
+from alexandria_alignment import _num_eq, is_spelled_number
 
 
 _CYRILLIC_RE = re.compile(r"[\u0400-\u04ff]")
@@ -254,10 +254,20 @@ def _gap_is_one_paragraph(gap):
     follows it, while a soft wrap stays one. A gap of ASCII spaces cannot hold
     a break - a paragraph break needs a line ending - so the common case never
     calls the iterator.
+
+    An invisible character does not make a blank line a wrap. ZWNJ is kept in
+    the comparison key while every other Cf character has already been deleted,
+    so a line holding only one of them used to be a wrap in one spelling and a
+    paragraph break in the other. Cf characters are not whitespace to the
+    iterator, so they are removed before the question is asked: a blank line is
+    blank whatever invisible character it carries.
     """
     if not gap.strip(" "):
         return True
-    return len(list(iter_source_paragraph_ranges(gap + "x"))) == 1
+    visible = gap if gap.isascii() else "".join(
+        character for character in gap
+        if unicodedata.category(character) != "Cf")
+    return len(list(iter_source_paragraph_ranges(visible + "x"))) == 1
 
 
 def get_comparison_tokens_and_gaps(text, *, word_boundaries="space",
@@ -589,6 +599,7 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     out_flat = output_starts = offset_to_word = None
     source_tokens = source_positions = None
     digit_words_unemitted = None
+    number_line_view = None
 
     def ensure_unspent():
         """Tokenize the output once and index every unemitted-source-word run.
@@ -1160,14 +1171,68 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         A bracket has no spelling proof, so it keeps the whole-source rule. A
         digit or Roman chapter numeral can only have become words where its own
         source word was not emitted as written, and it can only explain an extra
-        copy of THIS needle when the needle is itself a spelled number. A
-        duplicated line of ordinary words cannot be the rendering of a number
-        elsewhere, so it keeps blocking. A known expansion ("3rd" -> "third")
-        is not a digit word at all.
+        copy of THIS needle when the needle is itself a spelled number, or when
+        the source carries this same line with the number written as digits
+        (counted into capacity by ``number_spelling_source_copies``, so an extra
+        copy beyond those still blocks). A duplicated line of ordinary words
+        that the source never writes with a digit is not the rendering of a
+        number elsewhere, so it keeps blocking. A known expansion ("3rd" ->
+        "third") is not a digit word at all.
         """
         if re.search(r"[\[<]", source_text):
             return True
         return get_digit_words_unemitted() and is_spelled_number(needle.split())
+
+    def number_spelling_source_copies(needle):
+        """Source copies of this line that differ only in a number's spelling.
+
+        "Twenty minutes" and "20 minutes" are one line written two ways: when
+        the book holds one copy of each, a script that spells both copies out
+        ("Twenty minutes" twice) is faithful, and a third copy still exceeds the
+        book. Only ONE token may differ; it must be digits on one side and a
+        spelled number on the other, both must parse to the same value through
+        the number tables that already exist in ``alexandria_alignment``, and
+        the words must be one line - the same comparison tokens and gap rule the
+        boundary counter uses, so punctuation and a paragraph break still
+        separate lines. Copies may not overlap, like every other capacity count.
+        """
+        nonlocal number_line_view
+        words = needle.split()
+        if len(words) < 2:
+            return 0
+        if number_line_view is None:
+            tokens, fusable = get_comparison_tokens_and_gaps(
+                source_text, word_boundaries=output_boundaries,
+                comparison_text=source_comparison_text)
+            starts_by_word = {}
+            for index, token in enumerate(tokens):
+                starts_by_word.setdefault(token, []).append(index)
+            number_line_view = (tokens, fusable, starts_by_word,
+                                [index for index, token in enumerate(tokens)
+                                 if token.isdigit()])
+        tokens, fusable, starts_by_word, digit_starts = number_line_view
+        # Only the first token can differ without making the window impossible
+        # to start here: if it is not the needle's first word, it must be the
+        # digits of the number pair. Every other window starts on an exact word.
+        starts = sorted(set(starts_by_word.get(words[0], ())) | set(digit_starts))
+        count, next_free = 0, 0
+        for start in starts:
+            if start < next_free or start + len(words) > len(tokens):
+                continue
+            differences = [index for index, (left, right)
+                           in enumerate(zip(words, tokens[start:start + len(words)]))
+                           if left != right]
+            if (len(differences) == 1
+                    and all(fusable[position]
+                            for position in range(start + 1, start + len(words)))):
+                mine, theirs = words[differences[0]], tokens[start + differences[0]]
+                digits, spelled = ((mine, theirs) if mine.isdigit()
+                                   else (theirs, mine))
+                if (digits.isdigit() and is_spelled_number([spelled])
+                        and _num_eq([spelled], [digits])):
+                    count += 1
+                    next_free = start + len(words)
+        return count
 
     findings = []
     for ident, needle in enumerate(needles):
@@ -1195,11 +1260,21 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                 capacity = boundary_count
                 counted_whole_tokens = whole_tokens
                 boundary_claimed = claimed_indices
+        if (all_emitted > capacity + added_capacity
+                and not carriers[ident] and not re.search(r"\d", needle)
+                and get_digit_words_unemitted()):
+            # A line the source also writes with a digit for one of the needle's
+            # number words is another copy of the same line, so it is capacity,
+            # not an excuse for an unlimited number of emissions. A third copy
+            # of "Twenty minutes" still blocks.
+            capacity += number_spelling_source_copies(needle)
         if not capacity:
             # A needle the source does not carry at all. A wrapped source copy
-            # cannot land here: the spelling-independent count above fuses a
-            # soft wrap and raises capacity for it, and it runs whenever the
-            # emitted count exceeds the per-view capacity.
+            # between ordinary characters cannot land here: the
+            # spelling-independent count above fuses a soft wrap and raises
+            # capacity for it, and it runs whenever the emitted count exceeds
+            # the per-view capacity. A wrap immediately before a combining mark
+            # is a known limit and is pinned by its own test.
             continue
         if all_emitted <= capacity + added_capacity:
             continue
