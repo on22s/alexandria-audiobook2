@@ -11453,9 +11453,11 @@
   ]
   , "test_prompt_token_truncation": [
     "tests.test_prompt_token_truncation.AttributeBatchTruncationWarningTest.test_dict_usage_is_recorded_like_an_object"
+    , "tests.test_prompt_token_truncation.AttributeBatchTruncationWarningTest.test_exhausted_retries_are_unchanged"
     , "tests.test_prompt_token_truncation.AttributeBatchTruncationWarningTest.test_missing_usage_warns_nothing"
     , "tests.test_prompt_token_truncation.AttributeBatchTruncationWarningTest.test_repro_warns_and_records_the_fact"
     , "tests.test_prompt_token_truncation.AttributeBatchTruncationWarningTest.test_retry_and_acceptance_are_unchanged"
+    , "tests.test_prompt_token_truncation.AttributeBatchTruncationWarningTest.test_warn_only_across_usage_shapes"
     , "tests.test_prompt_token_truncation.CastListTruncationTest.test_incremental_window_warns_and_records_the_fact"
     , "tests.test_prompt_token_truncation.CastListTruncationTest.test_whole_book_cast_records_the_fact"
     , "tests.test_prompt_token_truncation.SuspectPromptTokensTest.test_compressible_prompts_with_faithful_counts_are_not_suspect"

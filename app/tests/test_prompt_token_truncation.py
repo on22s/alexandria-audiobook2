@@ -222,6 +222,64 @@ class AttributeBatchTruncationWarningTest(unittest.TestCase):
         self.assertNotIn("WARNING: server reported prompt_tokens", output)
         self.assertNotIn("prompt_tokens_suspect", attempts[0])
 
+    def test_warn_only_across_usage_shapes(self):
+        """The reviewer's stub diff: usage shape changes the warning and only that.
+
+        Every shipped usage shape, valid or malformed, must leave acceptance,
+        call counts and attempt records identical; the warning appears exactly
+        when the decision function says suspect.
+        """
+        good = json.dumps([{"n": 0, "speaker": "ALICE"}])
+        usages = {
+            "missing": None,
+            "honest": NS(prompt_tokens=len(LATIN) // 4, completion_tokens=9),
+            "suspect": NS(prompt_tokens=100, completion_tokens=9),
+            "integral float": NS(prompt_tokens=100.0, completion_tokens=9),
+            "zero": NS(prompt_tokens=0, completion_tokens=9),
+            "negative": NS(prompt_tokens=-1, completion_tokens=9),
+            "bool": NS(prompt_tokens=True, completion_tokens=9),
+            "deepseek subset": {"prompt_tokens": 5000, "prompt_cache_hit_tokens": 4500},
+            "anthropic separate": NS(prompt_tokens=5000, cache_read_input_tokens=4500),
+            "dict suspect": {"prompt_tokens": 100, "completion_tokens": 9},
+        }
+        shaping = lambda record: {key: value for key, value in record.items()
+                                  if key not in ("request_id", "elapsed_seconds",
+                                                 "prompt_tokens", "completion_tokens",
+                                                 "prompt_tokens_suspect", "prompt_tokens_estimate")}
+        results = {name: self.run_batch(usage, ["not JSON", good])
+                   for name, usage in usages.items()}
+        control = results["missing"]
+        self.assertEqual(["ALICE"], [entry["speaker"] for entry in control[0]])
+        self.assertEqual(2, len(control[1]))
+        for name, (result, calls, attempts, output) in results.items():
+            with self.subTest(usage=name):
+                self.assertEqual([entry["speaker"] for entry in control[0]],
+                                 [entry["speaker"] for entry in result])
+                self.assertEqual(len(control[1]), len(calls))
+                self.assertEqual([shaping(record) for record in control[2]],
+                                 [shaping(record) for record in attempts])
+                expected = get_suspect_prompt_tokens(calls[0]["messages"], usages[name])
+                self.assertEqual(bool(expected),
+                                 "WARNING: server reported prompt_tokens" in output)
+
+    def test_exhausted_retries_are_unchanged(self):
+        counts = []
+        for usage in (None, NS(prompt_tokens=100, completion_tokens=9),
+                      {"prompt_tokens": 100, "completion_tokens": 9}):
+            calls = []
+
+            def create(**kwargs):
+                calls.append(kwargs)
+                return NS(choices=[NS(message=NS(content="not JSON"), finish_reason="stop")],
+                          usage=usage)
+            client = NS(chat=NS(completions=NS(create=create)))
+            with redirect_stdout(io.StringIO()), self.assertRaises(tp.PassExhausted):
+                tp.attribute_batch(client, "m", [{"type": "SPOKEN", "text": LATIN}],
+                                   LLMGenParams(max_tokens=500), roster=["ALICE"],
+                                   max_retries=1)
+            counts.append(len(calls))
+        self.assertEqual([2, 2, 2], counts)
+
     def test_retry_and_acceptance_are_unchanged(self):
         good = json.dumps([{"n": 0, "speaker": "ALICE"}])
         honest, honest_calls, honest_attempts, honest_output = self.run_batch(
