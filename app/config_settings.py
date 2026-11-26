@@ -196,8 +196,11 @@ class GenerationConfig(BaseModel):
     # entries up to this many characters of entry text (context excluded).
     review_target_chars: int = Field(default=0, ge=0, le=1000000)
     # #2335: entries per review request. Declared so a Settings save keeps it;
-    # absent still means 25, exactly as get_review_batching reads it.
-    review_batch_size: Annotated[int, BeforeValidator(validate_review_batch_size)] = 25
+    # absent still means 25, exactly as get_review_batching reads it. `ge=1` is
+    # for the published schema (peers carry `minimum`); the BeforeValidator runs
+    # first and refuses booleans, which `ge=1` alone would coerce to 1.
+    review_batch_size: Annotated[int, BeforeValidator(validate_review_batch_size)] = Field(
+        default=25, ge=1)
     # Which way the attribution question is asked (attribution_prompt_variants;
     # measured results per variant in RECIPES.md). michel2_full since
     # 2026-09-19, when Muse's cell (90.5 vs michel2 86.6) made it the winner

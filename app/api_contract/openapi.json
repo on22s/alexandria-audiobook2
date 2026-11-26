@@ -2840,6 +2840,7 @@
           },
           "review_batch_size": {
             "default": 25,
+            "minimum": 1.0,
             "title": "Review Batch Size",
             "type": "integer"
           },

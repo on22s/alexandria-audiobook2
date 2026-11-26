@@ -630,7 +630,7 @@ class ReviewBatchSizeSaveTests(unittest.TestCase):
     def test_invalid_stored_review_batch_size_is_ignored_with_a_warning(self):
         # Before the fix an undeclared invalid value survived loading and made
         # every review run raise; a declared field is sanitized like its peers.
-        for bad in (0, -3, True, "10", 10.5):
+        for bad in (0, -3, True, False, None, "10", 10.5):
             with self.subTest(value=bad), tempfile.TemporaryDirectory() as tmp:
                 path = Path(tmp) / "config.json"
                 path.write_text(json.dumps(self._document(

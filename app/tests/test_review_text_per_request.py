@@ -117,7 +117,7 @@ class ReviewBatchSizeConfigTests(unittest.TestCase):
                                      {"review_batch_size": value}))
 
     def test_model_and_review_refuse_the_same_values(self):
-        for value in (0, -3, True, False, "10", 10.5):
+        for value in (0, -3, True, False, None, "10", 10.5):
             with self.subTest(value=value):
                 with self.assertRaises(ValidationError):
                     GenerationConfig(review_batch_size=value)

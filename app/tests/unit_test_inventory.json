@@ -3620,6 +3620,12 @@
     , "tests.test_chunk_text_normalisation.DeliveryRetryCompatibilityTest.test_a_real_editor_text_change_is_still_refused"
     , "tests.test_chunk_text_normalisation.DeliveryRetryCompatibilityTest.test_chunks_saved_before_the_change_still_match"
   ]
+  , "test_ci_ffmpeg_fallback": [
+    "tests.test_ci_ffmpeg_fallback.WindowsFfmpegInstallTests.test_every_windows_install_step_uses_the_shared_script"
+    , "tests.test_ci_ffmpeg_fallback.WindowsFfmpegInstallTests.test_installer_pins_url_and_sha256_and_verifies_before_extracting"
+    , "tests.test_ci_ffmpeg_fallback.WindowsFfmpegInstallTests.test_no_workflow_installs_ffmpeg_with_chocolatey_directly"
+    , "tests.test_ci_ffmpeg_fallback.WindowsFfmpegInstallTests.test_path_filters_trigger_on_the_shared_script"
+  ]
   , "test_ci_import_policy": [
     "tests.test_ci_import_policy.CIImportPolicyTests.test_changed_policy_replaces_old_roots_and_preserves_foreign_finders"
     , "tests.test_ci_import_policy.CIImportPolicyTests.test_generator_policy_purges_submodules_and_disables_cleanly"
@@ -4027,8 +4033,19 @@
     , "tests.test_config_jsonable.ConfigIsJsonNativeTest.test_unset_profile_fields_are_dropped_not_none"
   ]
   , "test_config_key_coverage": [
-    "tests.test_config_key_coverage.ConfigReadCoverageTests.test_every_read_config_key_is_declared"
+    "tests.test_config_key_coverage.ConfigReadCoverageTests.test_a_declared_key_is_not_reported"
+    , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_a_name_off_the_list_is_not_followed"
+    , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_a_reassigned_alias_is_not_assumed_to_be_a_section"
+    , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_every_read_config_key_is_declared"
+    , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_profile_subscript_is_not_a_config_key"
+    , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_receiver_call_arguments_are_not_followed"
+    , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_scan_detects_a_get_keyword_read"
+    , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_scan_detects_a_subscript_read"
     , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_scan_detects_an_undeclared_generation_key"
+    , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_scan_follows_a_chained_get_receiver"
+    , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_scan_follows_a_chained_subscript_receiver"
+    , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_scan_follows_a_plain_alias"
+    , "tests.test_config_key_coverage.ScanScopeTests.test_scan_reads_our_modules_and_not_a_virtualenv_beside_them"
   ]
   , "test_config_numbers_js": [
     "tests.test_config_numbers_js.ConfigNumericJsTests.test_empty_nonfinite_and_malformed_fields_keep_existing_defaults_and_zero_is_preserved"
