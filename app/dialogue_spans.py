@@ -533,19 +533,18 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
         paragraph_end = _paragraph_end(text, position)
         closers = _closer_marks(opener)
         next_opener = _next_mark(text, opener, position + 1, paragraph_end)
+        if opener in closers:
+            # A self-paired opener (＂…＂) cannot tell its own marks apart, so
+            # any later one may be the closer.
+            bound = paragraph_end
+        else:
+            # A closer after the next opener of this speech belongs to that
+            # speech, so only marks before it can close this one.
+            bound = paragraph_end if next_opener == -1 else next_opener
         next_closer = _next_plain_mark(
-            text, closers, position + 1, paragraph_end)
+            text, closers, position + 1, bound)
         if next_closer == -1:
-            if opener in closers:
-                # A self-paired opener (＂…＂) cannot tell its own marks apart,
-                # so any later one may be the closer.
-                later = _next_any_mark(
-                    text, closers, position + 1, paragraph_end)
-            else:
-                # A closer after the next opener of this speech belongs to
-                # that speech, so only marks before it can close this one.
-                bound = paragraph_end if next_opener == -1 else next_opener
-                later = _next_any_mark(text, closers, position + 1, bound)
+            later = _next_any_mark(text, closers, position + 1, bound)
             if later == -1:
                 # Nothing else can close this speech, so this mark closes,
                 # whatever word follows (`“It was 1945” long ago.`). Only a

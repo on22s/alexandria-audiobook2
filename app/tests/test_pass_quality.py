@@ -512,6 +512,10 @@ class InchMarkTests(unittest.TestCase):
               ("SPOKEN", "Area 51"), ("NARRATOR", "too.")]),
             ('“It was 1945” long ago, she wrote.',
              [("SPOKEN", "It was 1945"), ("NARRATOR", "long ago, she wrote.")]),
+            # A number mark before the new opener can still close the speech.
+            ('“It is 6” wide and 8” He said so. “Fine.”',
+             [("SPOKEN", 'It is 6” wide and 8'), ("NARRATOR", "He said so."),
+              ("SPOKEN", "Fine.")]),
             # A self-paired opener (＂…＂) has no separate opener mark to bound
             # the search, so its later number mark is still a closer.
             ('＂It is 6" wide and 8＂', [("SPOKEN", 'It is 6" wide and 8')]),

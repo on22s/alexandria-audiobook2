@@ -215,6 +215,12 @@ class SpanTest(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual(expected, [source[a:b] for a, b in
                                             spoken_spans(source, "paired_quotes")])
+        # A number mark before the new opener can still close the speech, so
+        # the measurement before it stays in the speech.
+        source = '“It is 6” wide and 8” He said so. “Fine.”'
+        self.assertEqual(['It is 6” wide and 8', 'Fine.'],
+                         [source[a:b] for a, b in
+                          spoken_spans(source, "paired_quotes")])
 
     def test_a_continued_speech_is_the_only_reason_to_keep_the_mark(self):
         # The next paragraph re-opens the speech and the word after the digit
