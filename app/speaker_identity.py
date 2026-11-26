@@ -1,6 +1,7 @@
 """Safe in-run speaker identity stabilization and uncertain-variant reporting."""
 
 import copy
+import functools
 import re
 import unicodedata
 from difflib import SequenceMatcher
@@ -209,9 +210,13 @@ _IDENTITY_MARK_SCRIPTS = (
     "LIMBU", "BUGINESE", "REJANG", "MAKASAR",
     # Scripts whose vowel or tone marks are required, added after the first
     # pass left them folded: Thaana vowels (ހަސަން/ހުސެން), Kayah Li tones,
-    # Miao vowels and tones, Wancho and Nyiakeng Puachue Hmong tones. Mahajani
-    # is not here: its only mark is the nukta, which folds like every nukta.
+    # Miao vowels and tones, Wancho and Nyiakeng Puachue Hmong tones, N'Ko and
+    # Bassa Vah tones. Mahajani is not here: its only mark is the nukta, which
+    # folds like every nukta. Kawi, Tulu-Tigalari and Gurung Khema have no
+    # combining marks before Unicode 15/16; naming them now is harmless and
+    # they are correct once the interpreter's Unicode tables include them.
     "THAANA", "KAYAH LI", "MIAO", "WANCHO", "NYIAKENG PUACHUE HMONG",
+    "NKO", "BASSA VAH", "KAWI", "TULU-TIGALARI", "GURUNG KHEMA",
     # Southeast-Asian abugidas.
     "THAI", "LAO", "TIBETAN", "MYANMAR", "KHMER", "BALINESE", "JAVANESE",
     "SUNDANESE", "BATAK", "CHAM", "TAGALOG", "HANUNOO", "BUHID", "TAGBANWA",
@@ -220,32 +225,65 @@ _IDENTITY_MARK_SCRIPTS = (
 
 # Marks that name a decoration or a sound a writer may add or omit for the
 # same name. They fold exactly as main folded every mark, so `ज़ोया`/`जोया`
-# (nukta), `चाँद`/`चांद` (candrabindu/anusvara), the Vedic stress accents and
-# the Tibetan tone/decoration marks do not split one character into two.
+# (nukta), the Vedic stress accents and the Tibetan tone/decoration marks do
+# not split one character into two. The nasal signs are NOT here: anusvara is
+# identity-bearing (रंजीत/रजीत are different names), and candrabindu is the
+# same nasal mark in another spelling, mapped onto anusvara below.
 _OPTIONAL_IDENTITY_MARKS = (
-    "NUKTA", "PALUTA",
-    "ANUSVARA", "CANDRABINDU", "ARDHACANDRA",
+    "NUKTA", "ARDHACANDRA",
     "STRESS", "GRAVE ACCENT", "ACUTE ACCENT",
-    "SANDHI", "MUSICAL", "ORNAMENT",
-    "RTAGS", "NGAS BZUNG", "MARK NGO", "ASTROLOGICAL", "TSA -PHRU",
+    "SANDHI", "ORNAMENT",
+    "RTAGS", "NGAS BZUNG", "ASTROLOGICAL", "TSA -PHRU",
     "UDAAT", "YAKASH", "SYMBOL", "CRYPTOGRAMMIC",
-    "CANCELLATION", "YAMAKKAN", "OVERLINE",
+    "YAMAKKAN", "OVERLINE",
 )
 
+# Candrabindu is written where anusvara is meant (`चाँद`/`चांद`). Map each
+# script's candrabindu onto the same script's anusvara so the two spellings
+# share a key, while a name that carries neither still splits (चाँद/चाद).
+_CANDRABINDU_ANUSVARA = {
+    "\u0901": "\u0902",   # Devanagari
+    "\u0981": "\u0982",   # Bengali
+    "\u0a81": "\u0a82",   # Gujarati
+    "\u0b01": "\u0b02",   # Oriya
+    "\u0c00": "\u0c04",   # Telugu combining candrabindu -> combining anusvara
+    "\u0c01": "\u0c02",   # Telugu
+    "\u0c81": "\u0c82",   # Kannada
+    "\u0d01": "\u0d02",   # Malayalam
+    "\u0d81": "\u0d82",   # Sinhala
+    "\ua8c5": "\ua880",   # Saurashtra
+    "\U00011000": "\U00011001",   # Brahmi
+    "\U00011080": "\U00011081",   # Kaithi
+    "\U00011100": "\U00011101",   # Chakma
+    "\U00011180": "\U00011181",   # Sharada
+    "\U00011301": "\U00011302",   # Grantha
+    "\U00011443": "\U00011444",   # Newa
+    "\U000114bf": "\U000114c0",   # Tirhuta
+    "\U000115bc": "\U000115bd",   # Siddham
+    "\U0001193c": "\U0001193b",   # Dives Akuru
+    "\U00011a35": "\U00011a38",   # Zanabazar Square
+    "\U00011c3c": "\U00011c3d",   # Bhaiksuki
+    "\U00011cb6": "\U00011cb5",   # Marchen
+}
 
+
+@functools.lru_cache(maxsize=4096)
 def _is_identity_mark(char):
     """True for a combining mark that changes a letter in an abugida.
 
     `\\w` does not match combining marks, so the old fold dropped them
     everywhere and different Devanagari names shared a key (`राम`/`रमा`). The
-    marks that must survive are the vowel signs and viramas of the Brahmic and
-    Southeast-Asian abugidas. Within those scripts, a mark whose function is
-    optional - the nukta, the nasal signs, the Vedic stress accents, sandhi,
-    musical, ornament and the Tibetan tone/decoration marks - folds away
-    exactly as it did before, because a writer may add or omit it for the same
-    name. Everywhere else a mark is an optional diacritic too: Latin/Greek/
-    Cyrillic accents (including the ones casefold introduces, such as İ's dot),
-    Arabic harakat, Hebrew niqqud.
+    marks that must survive are those of `_IDENTITY_MARK_SCRIPTS` - the vowel
+    signs and viramas of the Brahmic and Southeast-Asian abugidas, plus the
+    required tone/vowel marks of Thaana, N'Ko, Bassa Vah and the later scripts.
+    Within those scripts, a mark whose function is
+    optional - the nukta, the Vedic stress accents, sandhi, ornament and the
+    Tibetan tone/decoration marks - folds away exactly as it did before,
+    because a writer may add or omit it for the same name. Everywhere else a
+    mark is an optional diacritic too: Latin/Greek/Cyrillic accents (including
+    the ones casefold introduces, such as İ's dot), Arabic harakat, Hebrew
+    niqqud. Cached per character: the classification runs `unicodedata.name`
+    per input character, which dominated the fold on long strings.
     """
     if unicodedata.category(char) not in ("Mn", "Mc"):
         return False
@@ -260,12 +298,27 @@ def _identity_key(value):
 
     NFC runs before casefold so composed and decomposed accents compare equal;
     marks are then kept only when they are identity-bearing (see
-    `_is_identity_mark`). Spacing and punctuation always fold.
+    `_is_identity_mark`). Spacing and punctuation always fold. A run of kept
+    marks after one letter is sorted into one fixed order because NFC does not
+    reorder class-0 signs against tone marks: Thai `กิ่` and `ก่ิ`, Lao
+    `ກິ່`/`ກ່ິ` and Khmer `កំុ`/`កុំ` are the same spelling typed two ways, and
+    sorting each run makes them one key without merging names that carry
+    different marks.
     """
     normalized = unicodedata.normalize("NFC", str(value or "")).casefold()
-    return "".join(char for char in normalized
-                   if char == "_" or char.isalnum()
-                   or _is_identity_mark(char))
+    key = []
+    marks = []
+    for char in normalized:
+        if char == "_" or char.isalnum():
+            if marks:
+                key.extend(sorted(marks))
+                marks = []
+            key.append(char)
+        elif _is_identity_mark(char):
+            marks.append(_CANDRABINDU_ANUSVARA.get(char, char))
+    if marks:
+        key.extend(sorted(marks))
+    return "".join(key)
 
 
 def get_speaker_label_index(labels):

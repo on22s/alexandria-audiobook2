@@ -4,7 +4,7 @@ import unittest
 
 from speaker_identity import (build_speaker_consistency_report,
                               get_speaker_label_index, get_validated_alias_map,
-                              resolve_speaker_label,
+                              is_speaker_merge_allowed, resolve_speaker_label,
                               stabilize_speaker_identities, _identity_key)
 
 
@@ -122,8 +122,11 @@ class CombiningMarkIdentityTests(unittest.TestCase):
     THE OTHER HALF. Keeping every Mn/Mc split names that are one character:
     casefold turns `İ` into `i` plus a dot, and Arabic harakat, Hebrew niqqud
     and Latin/Greek accents are optional diacritics, not different names. Only
-    the vowel signs, viramas and nuktas of the Brahmic and Southeast-Asian
-    abugidas are identity-bearing, so only those marks are kept.
+    the marks of the scripts whose marks are required are identity-bearing
+    (the Brahmic and Southeast-Asian abugidas plus Thaana, N'Ko, Bassa Vah and
+    the later tone-mark scripts), and within those anusvara is too
+    (`रंजीत`/`रजीत` are different names) while candrabindu is its other
+    spelling (`चाँद`/`चांद` are one).
     """
 
     def test_devanagari_vowel_signs_are_kept_in_the_key(self):
@@ -168,13 +171,107 @@ class CombiningMarkIdentityTests(unittest.TestCase):
         self.assertEqual(_identity_key("\u0958"), _identity_key("क"))
 
     def test_candrabindu_folds_with_anusvara(self):
-        """Both are nasal ornaments a writer may add or omit for one name."""
+        """Both are the same nasal spelling, so they share a key.
+
+        Candrabindu is mapped onto the same script's anusvara, which keeps
+        `चाँद`/`चांद` one name. A name with neither nasal mark is still
+        different (`चाँद`/`चाद`), because anusvara itself is an identity mark.
+        """
         self.assertEqual(_identity_key("चाँद"), _identity_key("चांद"))
+        self.assertNotEqual(_identity_key("चाँद"), _identity_key("चाद"))
         self.assertEqual("चाँद", resolve_speaker_label("चांद", ["चाँद"]))
         result = stabilize_speaker_identities(
             [_entry("चाँद"), _entry("चांद")], ["चाँद"])
         self.assertEqual(["चाँद", "चाँद"],
                          [entry["speaker"] for entry in result["entries"]])
+
+    def test_anusvara_is_an_identity_mark(self):
+        """Keeping anusvara splits real distinct names instead of merging them.
+
+        Folding every nasal sign merged these pairs, which are different
+        people. Candrabindu folds *into* anusvara; anusvara itself does not
+        fold.
+        """
+        pairs = [
+            ("Hindi", "रंजीत", "रजीत"),
+            ("Sinhala", "රංජිත්", "රජිත්"),
+            ("Sinhala", "සංජීව", "සජීව"),
+            ("Kannada", "ರಂಜಿತ್", "ರಜಿತ್"),
+            ("Telugu", "సంగీత", "సగీత"),
+            ("Myanmar", "\u1000\u1036", "\u1000"),
+        ]
+        for script, first, second in pairs:
+            with self.subTest(script=script):
+                self.assertNotEqual(_identity_key(first), _identity_key(second))
+
+    def test_script_specific_nasal_marks_stay_kept(self):
+        """Thai/Lao/Khmer/Limbu nasal marks were already kept; keep them."""
+        pairs = [
+            ("Thai NIKHAHIT", "\u0e01\u0e4d"),
+            ("Lao NIGGAHITA", "\u0e81\u0ecd"),
+            ("Khmer NIKAHIT", "\u1780\u17c6"),
+            ("Limbu U+1932", "\u1900\u1932"),
+        ]
+        for label, marked in pairs:
+            with self.subTest(label=label):
+                self.assertNotEqual(_identity_key(marked),
+                                    _identity_key(marked[0]))
+
+    def test_mark_order_is_fixed_without_merging_different_marks(self):
+        """NFC does not order a class-0 sign against a tone mark.
+
+        Thai `กิ่`/`ก่ิ`, Lao `ກິ່`/`ກ່ິ` and Khmer `កំុ`/`កុំ` are the same
+        spelling typed in either order, so the key sorts each run of kept
+        marks. Names carrying different marks must still split.
+        """
+        same = [
+            ("Thai", "\u0e01\u0e34\u0e48", "\u0e01\u0e48\u0e34"),
+            ("Lao", "\u0e81\u0eb4\u0ec8", "\u0e81\u0ec8\u0eb4"),
+            ("Khmer", "\u1780\u17c6\u17bb", "\u1780\u17bb\u17c6"),
+        ]
+        for script, first, second in same:
+            with self.subTest(script=script):
+                self.assertEqual(_identity_key(first), _identity_key(second))
+        different = [
+            ("Thai tone", "\u0e01\u0e34\u0e48", "\u0e01\u0e34\u0e49"),
+            ("Lao tone", "\u0e81\u0eb4\u0ec8", "\u0e81\u0eb4\u0ec9"),
+            ("Khmer mark", "\u1780\u17c6\u17bb", "\u1780\u17c6\u17b7"),
+        ]
+        for script, first, second in different:
+            with self.subTest(script=script):
+                self.assertNotEqual(_identity_key(first), _identity_key(second))
+
+    def test_lao_cancellation_and_thai_thanthakhat_are_kept(self):
+        # U+0ECC is Lao's counterpart of Thai THANTHAKHAT U+0E4C, which was
+        # already kept: both are identity marks, not optional decoration.
+        self.assertNotEqual(_identity_key("\u0e81\u0ecc"),
+                            _identity_key("\u0e81"))
+        self.assertNotEqual(_identity_key("\u0e01\u0e4c"),
+                            _identity_key("\u0e01"))
+
+    def test_nko_and_bassa_vah_tone_marks_keep_names_distinct(self):
+        # Their tone marks are required; before this they were outside the
+        # script gate and folded away.
+        self.assertNotEqual(_identity_key("\u07ca\u07eb"),
+                            _identity_key("\u07ca\u07ec"))
+        self.assertNotEqual(_identity_key("\u07ca\u07eb"),
+                            _identity_key("\u07ca"))
+        self.assertNotEqual(_identity_key("\U00016ad0\U00016af0"),
+                            _identity_key("\U00016ad0\U00016af1"))
+
+    def test_protected_labels_keep_their_own_key(self):
+        """A required mark appended to a Latin word makes a different label.
+
+        `UNKNOWNि` is not the protected `UNKNOWN`: the key keeps the
+        Devanagari vowel sign, so the label is distinct. main's fold dropped
+        the sign and therefore refused this merge; head allows it, which the
+        gate found consistent and not exploitable, because plain
+        `UNKNOWN`/`NARRATOR` stay protected and the suffixed label still needs
+        an explicit alias. Pinned rather than changed: refusing it would need
+        a second key for the protected check.
+        """
+        self.assertFalse(is_speaker_merge_allowed("UNKNOWN", "Bob"))
+        self.assertTrue(is_speaker_merge_allowed("UNKNOWN\u093f", "Bob"))
 
     def test_stress_cantillation_and_decoration_marks_fold(self):
         """Optional marks fold even inside a kept abugida script."""
@@ -194,6 +291,15 @@ class CombiningMarkIdentityTests(unittest.TestCase):
             ("\u1b13", "\u1b13\u1b73"),      # ... and the last of the run
             ("ਕ", "ਕ\u0a51"),                # GURMUKHI SIGN UDAAT (stress)
             ("ਕ", "ਕ\u0a75"),                # GURMUKHI SIGN YAKASH (stress)
+            ("\U00011600", "\U00011600\U00011640"),   # MODI ARDHACANDRA
+            ("\U00011a00", "\U00011a00\U00011a36"),   # ZANABAZAR ORNAMENT
+            ("\u0f40", "\u0f40\u0f18"),      # TIBETAN ASTROLOGICAL
+            ("\u0f40", "\u0f40\u0f19"),      # TIBETAN ASTROLOGICAL
+            ("\u0f40", "\u0f40\u0f39"),      # TIBETAN TSA -PHRU
+            ("\u0f40", "\u0f40\u0fc6"),      # TIBETAN SYMBOL PADMA GDAN
+            ("\u1a20", "\u1a20\u1a7f"),      # TAI THAM CRYPTOGRAMMIC DOT
+            ("\u0e01", "\u0e01\u0e4e"),      # THAI YAMAKKAN
+            ("\u0b15", "\u0b15\u0b55"),      # ORIYA OVERLINE
         ]
         for first, second in pairs:
             with self.subTest(first=first, second=second):
