@@ -1,4 +1,5 @@
 import contextlib
+import hashlib
 import json
 import tempfile
 import unittest
@@ -46,6 +47,24 @@ class MergeIntegrityAdmission(unittest.TestCase):
     def change_rows(self, text):
         self.project.save_chunks([dict(self.rows[0], text=text)])
 
+    def write_saved_copy(self, name, source_path, text='alpha beta'):
+        from book_state_transaction import get_book_operation_token
+        from script_selection_binding import make_script_selection_binding
+        scripts = self.root / 'scripts'
+        scripts.mkdir(exist_ok=True)
+        stored = scripts / f'{name}.json'
+        stored.write_text(json.dumps([{'speaker': 'A', 'text': text}]))
+        binding = make_script_selection_binding(
+            get_book_operation_token(self.temp.name),
+            hashlib.sha256(Path(source_path).read_bytes()).hexdigest(),
+            stored.read_bytes(), source_path=str(source_path))
+        (scripts / f'{name}.selection_binding.json').write_text(json.dumps(binding))
+        return stored
+
+    def use_saved_book(self, stored):
+        self.state['input_file_path'] = str(stored)
+        self.write_state()
+
     def test_known_word_replacement_refuses_merge_with_locations(self):
         self.change_rows('alpha gamma')
         self.script.write_text(json.dumps([{'text': 'alpha gamma'}]))
@@ -81,6 +100,54 @@ class MergeIntegrityAdmission(unittest.TestCase):
         self.assertEqual(409, result.status_code, result.text)
         self.assertEqual('unavailable', result.json()['detail']['status'])
         self.assertEqual([], self.scheduled)
+
+    def test_loaded_saved_script_resolves_original_source_through_copies(self):
+        uploads = self.root / 'uploads'
+        uploads.mkdir()
+        source = uploads / 'book.txt'
+        source.write_text('alpha beta')
+        # The reporter's flow saved a copy, loaded it and saved another copy.
+        first = self.write_saved_copy('first', source)
+        second = self.write_saved_copy('second', first)
+        self.state['script_generation_input_file'] = str(self.source)
+        self.state['script_generation_options'] = {'strip_front_matter': True}
+        self.use_saved_book(second)
+        report = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('verified', report['status'], report)
+        self.assertEqual('book.txt', report['source_name'])
+        self.assertEqual(200, self.client.post('/api/merge').status_code)
+
+    def test_loaded_saved_script_without_original_source_explains_restore(self):
+        uploads = self.root / 'uploads'
+        uploads.mkdir()
+        source = uploads / 'book.txt'
+        source.write_text('alpha beta')
+        scripts = self.root / 'scripts'
+        for damage in ('missing-parent', 'missing-binding', 'changed-source'):
+            with self.subTest(damage=damage):
+                source.write_text('alpha beta')
+                first = self.write_saved_copy('first', source)
+                second = self.write_saved_copy('second', first)
+                if damage == 'missing-parent':
+                    first.unlink()
+                    Path(scripts, 'first.selection_binding.json').unlink()
+                elif damage == 'missing-binding':
+                    Path(scripts, 'second.selection_binding.json').unlink()
+                else:
+                    source.write_text('alpha gamma')
+                self.use_saved_book(second)
+                report = self.client.get('/api/editor/integrity').json()
+                self.assertEqual('unavailable', report['status'], report)
+                if damage == 'missing-binding':
+                    self.assertIn('Save the script again', report['reason'])
+                elif damage == 'missing-parent':
+                    self.assertIn('missing or was renamed', report['reason'])
+                    self.assertIn('Re-import', report['reason'])
+                else:
+                    self.assertIn('has changed', report['reason'])
+                refusal = self.client.post('/api/merge', json={})
+                self.assertEqual(409, refusal.status_code, refusal.text)
+                self.assertEqual([], self.scheduled)
 
     def test_foreign_source_settings_cannot_verify_even_identical_prose(self):
         other = self.root / 'other-source.txt'

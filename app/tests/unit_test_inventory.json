@@ -9426,6 +9426,8 @@
     , "tests.test_merge_integrity.MergeIntegrityAdmission.test_explicit_confirmation_is_bound_to_source_book_and_chunks"
     , "tests.test_merge_integrity.MergeIntegrityAdmission.test_foreign_source_settings_cannot_verify_even_identical_prose"
     , "tests.test_merge_integrity.MergeIntegrityAdmission.test_known_word_replacement_refuses_merge_with_locations"
+    , "tests.test_merge_integrity.MergeIntegrityAdmission.test_loaded_saved_script_resolves_original_source_through_copies"
+    , "tests.test_merge_integrity.MergeIntegrityAdmission.test_loaded_saved_script_without_original_source_explains_restore"
     , "tests.test_merge_integrity.MergeIntegrityAdmission.test_saved_script_json_is_unavailable_not_verified_source"
     , "tests.test_merge_integrity.MergeIntegrityAdmission.test_worker_rechecks_and_exports_checked_rows"
     , "tests.test_merge_integrity.SourceIntegritySnapshotTests.test_cache_is_bounded_copy_safe_and_invalidates_source_book_annotation_and_rows"

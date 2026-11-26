@@ -14,6 +14,7 @@ from pathlib import Path
 
 _DIGEST = re.compile(r'^[0-9a-f]{64}$')
 MAX_BINDING_BYTES = 4096
+MAX_SOURCE_BINDING_HOPS = 8
 MAX_SELECTION_STATE_BYTES = 4 * 1024**2
 BINDING_NAME = 'annotated_script.selection_binding.json'
 STALE_SOURCE_MESSAGE = 'Selected source changed during generation; preserving prior output'
@@ -194,6 +195,44 @@ def _path_digest(source_path):
     if not isinstance(source_path, str) or not source_path or len(source_path) > 32768:
         raise ValueError('Invalid selected source path')
     return hashlib.sha256(source_path.encode('utf-8')).hexdigest()
+
+
+def get_bound_source_path(data_dir, binding, *, active, selected=None):
+    """Find the one on-disk file whose path digest the binding recorded.
+
+    A binding stores only the digest of its source path, so every surface that
+    needs the source itself resolves it the same way: the active selection, the
+    legacy uploads directory, then direct saved-book names in the library.
+    Library names are matched before any candidate's bytes are opened.
+    """
+    from core import BASE_DIR, ROOT_DIR
+    from utils import get_app_storage_path
+
+    if active:
+        candidates = [selected]
+    else:
+        candidates = [selected] if isinstance(selected, str) else []
+        uploads = get_app_storage_path(data_dir, ROOT_DIR, BASE_DIR, 'uploads')
+        if os.path.isdir(uploads):
+            for path in Path(uploads).iterdir():
+                candidates.extend((str(path), path.as_posix(),
+                                   os.path.join(uploads, path.name)))
+    paths = {path for path in candidates if _path_digest(path) == binding['source_path_sha256']}
+    if not paths and not active:
+        from direct_path_admission import is_plain_path
+        from routers.scripts_library import _is_saved_book_filename
+
+        # Save As copies the active binding, whose source can be another saved
+        # book. Existing bindings contain only a path hash. Match direct
+        # library names before opening any candidate's bytes.
+        library = Path(os.path.abspath(data_dir), 'scripts')
+        if is_plain_path(library) and library.is_dir():
+            paths = {str(path) for path in library.iterdir()
+                     if _is_saved_book_filename(path.name)
+                     and _path_digest(str(path)) == binding['source_path_sha256']}
+    if len(paths) != 1:
+        raise ValueError('Bound source path cannot be verified')
+    return paths.pop()
 
 
 def _validated_script_entries(script_bytes, *, require_entries=True):

@@ -86,24 +86,83 @@ def get_prepared_source(source, strip_front_matter):
     return prepared
 
 
-def get_source_preparation(state):
+def get_saved_source_prose_path(data_dir, input_path, state):
+    """Follow a loaded saved script's bindings to the prose it was built from.
+
+    Loading a saved book selects the saved script JSON itself, so the original
+    prose is named only by that saved script's binding chain. Each hop is
+    verified against its own script bytes before its source path is trusted.
+    """
+    import os
+    from project_scope_files import capture_scope_file
+    from script_selection_binding import (MAX_SOURCE_BINDING_HOPS, MAX_BINDING_BYTES,
+        _read_source_snapshot, _validated_script_entries, get_bound_source_path,
+        parse_script_binding, saved_binding_matches)
+    path = os.path.abspath(input_path)
+    seen = set()
+    for _hop in range(MAX_SOURCE_BINDING_HOPS + 1):
+        if Path(path).suffix.lower() != '.json':
+            return path
+        key = os.path.normcase(path)
+        if key in seen:
+            raise ValueError("This saved script's original-source chain loops. Load a script made "
+                             'directly from the original source, or re-import the source text.')
+        seen.add(key)
+        directory = os.path.dirname(path)
+        _, raw_binding = capture_scope_file(directory, Path(path).stem + '.selection_binding.json',
+                                            limit=MAX_BINDING_BYTES, include_bytes=True)
+        if raw_binding is None:
+            raise ValueError('This saved script has no recorded link to its original source. '
+                             'Save the script again from the original source text to record one.')
+        binding = parse_script_binding(raw_binding)
+        _, script_raw = _read_source_snapshot(path, include_bytes=True, owning_root=data_dir)
+        if (script_raw is None or not saved_binding_matches(
+                binding, script_sha256=hashlib.sha256(script_raw).hexdigest(),
+                entries=_validated_script_entries(script_raw))):
+            raise ValueError("This saved script's original-source record is damaged. Re-import the "
+                             'original source file and save the script again.')
+        try:
+            source_path = get_bound_source_path(
+                data_dir, binding, active=False, selected=state.get('input_file_path'))
+        except ValueError as error:
+            raise ValueError("The saved script's original source file is missing or was renamed. "
+                             'Re-import the original source under its original name, or save this '
+                             'script again from the source to record a new link.') from error
+        if Path(source_path).suffix.lower() != '.json':
+            digest, _ = _read_source_snapshot(source_path, owning_root=data_dir)
+            if digest != binding['source_sha256']:
+                raise ValueError("The saved script's original source file has changed since the "
+                                 'script was saved. Restore the original source bytes to compare.')
+        path = os.path.abspath(source_path)
+    raise ValueError("This saved script's original-source chain is longer than allowed. Load a "
+                     'script made directly from the original source, or re-import the source text.')
+
+
+def get_source_preparation(state, *, data_dir=None):
     """Resolve the selected prose and its saved preparation policy once."""
     if not isinstance(state, dict):
         raise ValueError('Invalid book state')
     input_path = state.get('input_file_path')
     if not isinstance(input_path, str) or not input_path:
         raise ValueError('No original source is selected for this book.')
-    if Path(input_path).suffix.lower() == '.json':
-        raise ValueError('The selected input is script JSON, not original source prose.')
+    saved_script = Path(input_path).suffix.lower() == '.json'
+    if saved_script:
+        if data_dir is None:
+            raise ValueError('The selected input is script JSON, not original source prose.')
+        input_path = get_saved_source_prose_path(data_dir, input_path, state)
     strip_front_matter = None
     generation_path = state.get('script_generation_input_file')
     if generation_path:
         if generation_path != input_path:
-            raise ValueError('Saved generation settings belong to another source; original source is unavailable.')
-        options = state.get('script_generation_options')
-        if not isinstance(options, dict) or type(options.get('strip_front_matter')) is not bool:
-            raise ValueError('Source preparation settings are unavailable.')
-        strip_front_matter = options['strip_front_matter']
+            # Only a resolved saved script may carry another book's run
+            # settings; every direct selection must still match exactly.
+            if not saved_script:
+                raise ValueError('Saved generation settings belong to another source; original source is unavailable.')
+        else:
+            options = state.get('script_generation_options')
+            if not isinstance(options, dict) or type(options.get('strip_front_matter')) is not bool:
+                raise ValueError('Source preparation settings are unavailable.')
+            strip_front_matter = options['strip_front_matter']
     return input_path, strip_front_matter
 
 
@@ -138,7 +197,7 @@ def _get_cached_diff(snapshot, source, entries_json):
 
 
 def get_source_integrity(state, script_bytes, entries, *, comparison='editor chunks', review_offset=None,
-                         expected_source_sha256=None):
+                         expected_source_sha256=None, data_dir=None):
     """Compare copied rows; callers serialize native book/chunk reads themselves.
 
     A successful comparison is against the *current* selected source, not a
@@ -160,7 +219,7 @@ def get_source_integrity(state, script_bytes, entries, *, comparison='editor chu
     reason = None
     scope = 'current source'
     try:
-        input_path, strip_front_matter = get_source_preparation(state)
+        input_path, strip_front_matter = get_source_preparation(state, data_dir=data_dir)
         source, source_sha256 = get_generation_input(input_path)
         if expected_source_sha256 is not None and source_sha256 != expected_source_sha256:
             raise ValueError('Source changed during the comparison; refresh before relying on it.')

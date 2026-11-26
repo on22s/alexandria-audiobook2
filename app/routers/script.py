@@ -6483,7 +6483,8 @@ def _read_annotated_script_comparison(*, expected_source_sha256=None):
         if not isinstance(entries, list):
             raise HTTPException(status_code=400, detail="Script is not a list of entries")
         binding = {} if expected_source_sha256 is None else {'expected_source_sha256': expected_source_sha256}
-        result = get_source_integrity(state, script_bytes, entries, comparison="annotated script", **binding)
+        result = get_source_integrity(state, script_bytes, entries, comparison="annotated script",
+                                     data_dir=DATA_DIR, **binding)
         return result
 
 

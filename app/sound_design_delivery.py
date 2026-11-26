@@ -79,7 +79,7 @@ def get_sound_source_review(manager, stage_name, candidate_revision, approval_re
             raise ValueError('Sound source metadata changed during review')
         # These exact bytes were already parsed and validated by context capture.
         report = get_source_integrity(json.loads(state_raw), script_raw,
-            context['chunks'], review_offset=offset)
+            context['chunks'], review_offset=offset, data_dir=str(root))
         if report['snapshot'] != expected_snapshot or report['status'] not in ('differences', 'unavailable'):
             raise ValueError('Source comparison changed; refresh before review')
         require_sound_design_context_files_current(root, context)
@@ -126,7 +126,8 @@ def ensure_sound_delivery_stage(manager, stage_name, candidate_revision, approva
                 script_bytes = Path(manager.script_path).read_bytes()
             except FileNotFoundError:
                 script_bytes = b''
-            integrity = get_source_integrity(state, script_bytes, snapshot.chunks, review_offset=0)
+            integrity = get_source_integrity(state, script_bytes, snapshot.chunks,
+                                             review_offset=0, data_dir=str(root))
             integrity.update(candidate_revision=candidate_revision, approval_revision=approval_revision)
         snapshot.verify_sources()
         if not is_source_integrity_admitted(integrity, integrity_confirmation):

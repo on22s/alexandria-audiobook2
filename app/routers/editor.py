@@ -1245,7 +1245,7 @@ def _ensure_editor_integrity_locked():
         script_bytes = Path(SCRIPT_PATH).read_bytes()
     except FileNotFoundError:
         script_bytes = b""
-    return get_source_integrity(state, script_bytes, chunks), chunks
+    return get_source_integrity(state, script_bytes, chunks, data_dir=DATA_DIR), chunks
 
 
 def _ensure_editor_integrity():
