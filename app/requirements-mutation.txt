@@ -1,0 +1,19 @@
+# On-demand mutation testing (tools/mutation_check.sh, .github/workflows/mutation.yml).
+#
+# NOT installed by app/requirements.txt: that file is the Pinokio runtime install,
+# and mutation testing is never part of the required CI path.
+#
+# mutmut 2.x on purpose. mutmut 3+ runs pytest only; this project's suite is
+# unittest (GUIDE.md: run `python -m unittest tests.test_x` from app/), and 2.x
+# is the line that accepts an arbitrary `runner` command in [mutmut].
+#
+# Install into the interpreter used for the check, e.g. app/env:
+#   app/env/bin/python -m pip install -r app/requirements-mutation.txt
+#
+# 2.4.5 supports Python 3.7+ (CI and app/env are 3.10.20) and needs only pure
+# Python dependencies (click, parso, pony, toml, glob2, junit-xml).
+mutmut==2.4.5
+
+# Pin the click major mutmut 2 was tested against so installing this file cannot
+# silently move a shared environment to an incompatible click.
+click==8.4.1
