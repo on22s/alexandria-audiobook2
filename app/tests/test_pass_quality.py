@@ -745,9 +745,9 @@ class InchMarkTests(unittest.TestCase):
                          self._regions(german + '„Zimmer 5“ sagte er. (“nein”).'))
 
     def test_german_inch_mark_speech_agrees_with_the_source_map(self):
-        # The analyzer already ended the German speech at the inch mark; the
-        # source map dropped it because the role classifier called the real
-        # closer an opener. Both must now report the same speech (#2318).
+        # German low-high (`„…“`) is scoped out to match `main` (#2357): both
+        # the analyzer and `spoken_spans` end the speech at `6“` without
+        # dropping it or merging into a later speech.
         prefix = '„Hallo.“ sagte er.\n\n„Guten Tag.“ sagte sie.\n\n'
         for body in ('„It is 6“ wide“ she said.',
                      '„It is 6“ wide“, sagte er.',
@@ -758,6 +758,17 @@ class InchMarkTests(unittest.TestCase):
                 self.assertEqual(['Hallo.', 'Guten Tag.', 'It is 6'],
                                  [source[a:b] for a, b in
                                   spoken_spans(source, "paired_quotes")])
+
+    def test_full_width_inch_mark_keeps_measurement_without_inverting(self):
+        # Full-width quotes (`＂…＂`) keep the inch mark as text and do not
+        # invert the reporting clause or a later speech (#2318).
+        self.assertEqual(
+            [("SPOKEN", 'It is 6＂ wide'), ("NARRATOR", ', she said.')],
+            self._regions('＂It is 6＂ wide＂, she said.'))
+        self.assertEqual(
+            [("SPOKEN", 'It is 6＂ wide'), ("NARRATOR", ', she said.'),
+             ("SPOKEN", 'Fine.')],
+            self._regions('＂It is 6＂ wide＂, she said. ＂Fine.＂'))
 
     def test_a_stray_closer_after_a_digit_keeps_narration_out(self):
         # Ambiguous input: `by 8”` could open the next speech. Closing at

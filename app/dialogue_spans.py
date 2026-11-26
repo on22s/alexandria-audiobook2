@@ -613,6 +613,12 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
     """
     if position <= 0 or not is_number_char(text[position - 1]):
         return False
+    if mark == "“":
+        # German low-high (`„…“`) shares its closer `“` with the English
+        # opener `“…”`, so deciding a digit-preceded `“` needs the role
+        # classifier and this predicate to share one decision; scoped out to
+        # keep German low-high identical to main (#2357).
+        return False
     after = position + 1
     while after < len(text) and text[after].isspace():
         after += 1
@@ -636,9 +642,8 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
             text, closers, position + 1, bound)
         if next_closer != -1 and _is_glued_opener_shaped(text, next_closer):
             # A mark that opens the next speech cannot close this one, and
-            # neither can anything after it. The German low-high speech
-            # `„Zimmer 5“ sagte er. (“nein”).` closes at `5“` instead of
-            # reaching for the mark that opens `nein` (#2318).
+            # neither can anything after it (`“Room 5” he said. Later, ”no”
+            # came back.`, #2318).
             next_closer = -1
         if next_closer == -1:
             later = _next_any_mark(text, closers, position + 1, bound)
@@ -806,32 +811,21 @@ def _paired_spans(text):
                 return candidate
 
             def next_closer(search_from):
-                """-> the offset that ends this pair, or -1.
+                """-> the next closer offset that neither opens English nor is an inch mark, or -1.
 
-                A mark the role classifier calls an opener is skipped. An inch
-                mark is skipped while a real closer may still follow, but the
-                first one is remembered: when every remaining candidate is an
-                inch mark, that one ends the pair. `_ambiguous_mark_roles` has
-                no digit context, so it can call a speech's real German closer
-                an English opener (`„It is 6“ wide“ she said.`); without the
-                fallback the pair reached no end and the whole speech was
-                dropped, while pass_quality's analyzer closed at the inch mark.
-                The fallback lives here, in the caller that owns the role
-                decision, because making `is_inch_mark` reject that opener
-                would then count the opener's own English closer as a German
-                one and lose `„Zimmer 5“` (the round-6 bracket case, #2318).
+                A mark the role classifier calls an English opener (`opens`,
+                populated only for `“`) is skipped. For every convention other
+                than German low-high (`„…“`, where `is_inch_mark` returns False
+                so `main`'s behaviour is preserved, #2357), a number-preceded
+                inch mark is skipped while a real closer remains ahead.
                 """
                 candidate = text.find(closer, search_from)
-                first_inch = -1
-                while candidate != -1:
-                    if candidate not in opens:
-                        if not is_inch_mark(text, candidate, closer, True,
-                                            opener=opener):
-                            return candidate
-                        if first_inch == -1:
-                            first_inch = candidate
+                while candidate != -1 and (
+                        candidate in opens
+                        or is_inch_mark(text, candidate, closer, True,
+                                        opener=opener)):
                     candidate = text.find(closer, candidate + 1)
-                return first_inch
+                return candidate
 
             position = next_opener(0)
             end, bad_breaks = 0, None

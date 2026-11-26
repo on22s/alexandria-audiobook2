@@ -379,13 +379,10 @@ class SpanTest(unittest.TestCase):
                           spoken_spans(source, "paired_quotes")])
 
     def test_a_german_speech_holding_an_inch_mark_is_not_dropped(self):
-        # `_ambiguous_mark_roles` has no digit context, so for German low-high
-        # it calls the speech's real closer (after the measurement) an English
-        # opener. `is_inch_mark` counted that mark as an available closer while
-        # the pairing rejected it, so neither closed the speech and the whole
-        # pair was dropped. Main kept the text up to the inch mark, which is
-        # also where the analyzer stops, so the pairing must end there instead
-        # of dropping the pair (#2318 review).
+        # German low-high (`„…“`) shares `“` with the English opener `“…”` and
+        # is scoped out of inch-mark skipping so `main`'s behaviour is preserved
+        # (#2357): each speech closes at the digit mark instead of being dropped
+        # when `_ambiguous_mark_roles` classifies the real closer as an opener.
         prefix = '„Hallo.“ sagte er.\n\n„Guten Tag.“ sagte sie.\n\n'
         for body, spoken in [
                 ('„It is 6“ wide“ she said.', 'It is 6'),
@@ -406,16 +403,65 @@ class SpanTest(unittest.TestCase):
         self.assertIn('It is 6', [source[a:b] for a, b in
                                   spoken_spans(source, "paired_quotes")])
 
+    def test_german_low_high_inch_mark_does_not_merge_or_drop_later_speech(self):
+        # Gate-8 merge cases: with any later German speech, skipping `6“` while
+        # `_ambiguous_mark_roles` rejects the real closer merged narration and
+        # the next speech into one span (or dropped the first speech across a
+        # narration paragraph break). Scoping out German low-high restores
+        # `main`'s exact spans (#2357).
+        prefix = '„A“, sagte er. „B“, sagte sie. „C.“ „D.“ „E.“ '
+        expected_prefix = ['A', 'B', 'C.', 'D.', 'E.']
+        cases = [
+            ('„Es ist 6“ breit“, sagte er. Dann „Komm“, sagte sie.',
+             ['Es ist 6', 'Komm']),
+            ('„Es ist 6“ breit“, sagte er.\n\n„Komm“, sagte sie.',
+             ['Es ist 6', 'Komm']),
+            ('„Es ist 6“ breit“, sagte er.\n\nEr ging. „Komm“, sagte sie.',
+             ['Es ist 6', 'Komm']),
+            ('„Ein 6“ Brett.“ Dann „Komm“, sagte sie.',
+             ['Ein 6', 'Komm']),
+            ('„Er hat 6“ gesagt“, meinte sie. Dann „Komm“, sagte sie.',
+             ['Er hat 6', 'Komm']),
+            ('„It is 6“ wide“ she said. „Fine.“',
+             ['It is 6', 'Fine.']),
+        ]
+        for body, expected_tail in cases:
+            with self.subTest(body=body):
+                source = prefix + body
+                self.assertEqual(expected_prefix + expected_tail,
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+        self.assertFalse(dialogue_spans.is_inch_mark(
+            '„Es ist 6“ breit“, sagte er.', 9, '“', True, opener='„'))
+        self.assertFalse(dialogue_spans.is_inch_mark(
+            'Es ist 6“ breit', 8, '“', False))
+
     def test_a_later_german_pair_does_not_reopen_the_reply_mark(self):
         # The bracket reply `(“nein”)` must not hold the German speech open
-        # even when a later German pair gives the closer search somewhere else
-        # to reach; the glued-opener stop is what closes `Zimmer 5` there
-        # (#2318 review).
+        # even when a later German pair follows (#2318 review, #2357).
         prefix = '„Hallo.“ sagte er.\n\n'
         source = prefix + '„Zimmer 5“ sagte er. (“nein”). „Gut.“ sagte sie.'
         self.assertEqual(['Hallo.', 'Zimmer 5', 'nein', 'Gut.'],
                          [source[a:b] for a, b in
                           spoken_spans(source, "paired_quotes")])
+        # In curly high (`“…”`), an opener-shaped closer (`”no”`) later in the
+        # paragraph must likewise not hold `“Room 5”` open (#2318).
+        curly = '“Hello.” he said.\n\n“Room 5” he said. Later, ”no” came back.'
+        self.assertEqual(['Hello.', 'Room 5'],
+                         [curly[a:b] for a, b in
+                          spoken_spans(curly, "paired_quotes")])
+
+    def test_full_width_inch_mark_keeps_measurement_and_does_not_invert(self):
+        # Full-width quotes (`＂…＂`) keep an interior inch mark as text both on
+        # its own and when another full-width speech follows (#2318).
+        for source, expected in [
+                ('＂It is 6＂ wide＂, she said.', ['It is 6＂ wide']),
+                ('＂It is 6＂ wide＂, she said. ＂Fine.＂',
+                 ['It is 6＂ wide', 'Fine.'])]:
+            with self.subTest(source=source):
+                self.assertEqual(expected,
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
 
     def test_a_real_closer_before_a_sentence_end_stays_a_known_limit(self):
         # Known limit, identical on main and head: the shape rule reads a real
