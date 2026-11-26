@@ -6430,48 +6430,42 @@ def _selection_source_digest(path, data_dir):
         return _source_digest(path)
 
 
-def _get_saved_book_selection_origin_locked(saved_books_root, previous_path, new_digest):
-    """Origin source digest of the saved book the active script was loaded from.
+def _saved_book_origin_digest_locked(data_dir, saved_books_root, previous_path,
+                                     previous_digest, new_digest):
+    """Verified origin digest of the saved book the active script was loaded from.
 
-    Loading a saved book makes its own script file the active source, so the
+    Loading a saved book makes its own library copy the active source, so the
     active binding's digest names that copy rather than the text the book was
-    generated from. The saved binding kept beside the loaded script still
-    records the original source. Return it only when it validates against the
-    saved script bytes and matches the incoming digest; anything unreadable or
-    inconsistent is not an origin claim.
+    generated from. ``resolve_saved_book_origin`` is the one place that walks a
+    saved binding chain: it confines every hop to the saved-book library, checks
+    each binding against the script bytes it describes and refuses cycles,
+    missing or changed sources with a structured code. Its origin counts as this
+    book only when it is exactly the incoming source and hop 0 is still the
+    exact bytes the active book was loaded from.
+
+    Callers hold the book/state/chunks locks; the resolver takes none. Every
+    refusal falls back to the normal new-book path and is logged with its code.
     """
     if (not isinstance(saved_books_root, str) or not saved_books_root
             or not isinstance(previous_path, str) or not previous_path):
         return None
-    from script_selection_binding import (MAX_BINDING_BYTES, parse_script_binding,
-        saved_binding_matches, _validated_script_entries)
-    from project_scope_files import capture_scope_file, MAX_SCRIPT_BYTES
-    root = os.path.realpath(saved_books_root)
-    previous = os.path.realpath(previous_path)
-    if os.path.dirname(previous) != root:
-        return None
-    script_name = os.path.basename(previous)
-    binding_name = os.path.splitext(script_name)[0] + '.selection_binding.json'
-    _, raw = capture_scope_file(root, binding_name, limit=MAX_BINDING_BYTES,
-                                include_bytes=True)
-    if raw is None:
-        return None
+    from script_selection_binding import (SavedSourceResolutionError,
+                                          resolve_saved_book_origin)
     try:
-        binding = parse_script_binding(raw)
-        if binding['source_sha256'] != new_digest:
-            return None
-        _, script_bytes = capture_scope_file(root, script_name,
-                                             limit=MAX_SCRIPT_BYTES, include_bytes=True)
-        if script_bytes is None:
-            return None
-        entries = _validated_script_entries(script_bytes)
-        if not saved_binding_matches(
-                binding, script_sha256=hashlib.sha256(script_bytes).hexdigest(),
-                entries=entries):
-            return None
-        return binding['source_sha256']
-    except (ValueError, RecursionError):
+        origin = resolve_saved_book_origin(
+            data_dir, previous_path, saved_books_root=saved_books_root,
+            expected_script_sha256=previous_digest)
+    except SavedSourceResolutionError as error:
+        # An ordinary upload source is not a saved book; that is expected. Any
+        # other code means a saved binding could not be trusted, which is worth
+        # finding in the log.
+        level = logging.INFO if error.code == 'outside_library' else logging.WARNING
+        logger.log(level, 'Saved book origin not used (%s); starting a new book',
+                   error.code)
         return None
+    if origin['source_sha256'] != new_digest:
+        return None
+    return origin['source_sha256']
 
 
 def _published_binding_for_selection_locked(data_dir, state, previous_token, previous_path,
@@ -6484,8 +6478,10 @@ def _published_binding_for_selection_locked(data_dir, state, previous_token, pre
     the new generation in the same transaction; the published script itself is
     unchanged. A loaded saved book keeps its origin digest in its saved binding,
     so re-selecting the byte-identical source it came from is that same book,
-    not a new one. Anything unreadable or inconsistent yields no rebind, so the
-    normal pending-selection path stays authoritative.
+    not a new one; the chain is resolved only by
+    ``script_selection_binding.resolve_saved_book_origin``. Anything unreadable
+    or inconsistent yields no rebind, so the normal pending-selection path stays
+    authoritative.
     """
     from script_selection_binding import (BINDING_NAME, MAX_BINDING_BYTES,
         is_script_selection_pending, parse_script_binding, check_binding_source,
@@ -6505,8 +6501,8 @@ def _published_binding_for_selection_locked(data_dir, state, previous_token, pre
         if not isinstance(new_digest, str):
             return None, previous_digest
         if new_digest != previous_digest:
-            origin = _get_saved_book_selection_origin_locked(
-                saved_books_root, previous_path, new_digest)
+            origin = _saved_book_origin_digest_locked(
+                data_dir, saved_books_root, previous_path, previous_digest, new_digest)
             if origin is None:
                 return None, previous_digest
         check_binding_source(raw, previous_token, previous_digest,

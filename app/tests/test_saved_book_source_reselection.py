@@ -1,11 +1,17 @@
-"""Re-selecting the source a loaded saved book came from keeps its rendered work.
+"""Re-selecting the source a saved book came from keeps its rendered work.
 
 Issue #2349 (part 3): a loaded saved script names its own library copy as the
 active source, so re-uploading the EPUB (whose extracted text *is* the text that
 saved book was generated from) was classified as a foreign book. The selection
 retired ``chunks.json`` and set ``script_selection_pending``, so every rendered
 line read back as pending even though the audio files were still on disk.
+
+``script_selection_binding.resolve_saved_book_origin`` is the one place that
+follows a saved binding chain. The reporter-flow test drives the real upload,
+generate-publication, save, load, render and chunk-status routes; only the TTS
+engine is synthetic.
 """
+import copy
 import hashlib
 import io
 import json
@@ -14,18 +20,26 @@ import unittest
 import zipfile
 from contextlib import ExitStack
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
+import numpy as np
+import soundfile as sf
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import core
-from book_state_transaction import get_book_operation_token
+from book_state_transaction import apply_book_input_selection, get_book_operation_token
 from project import ProjectManager
 from routers import editor, script, scripts_library
-from script_selection_binding import BINDING_NAME, make_script_selection_binding
+from script_selection_binding import (BINDING_NAME, _path_digest,
+                                      capture_generation_selection,
+                                      make_script_selection_binding,
+                                      publish_generated_script)
+from tests.test_support import use_private_cpu_fixture_lock
 
-TEXT = 'Synthetic line one about a garden.\nSynthetic line two about a gate.'
+TEXT = ('Synthetic line one about a garden.\n'
+        'Synthetic line two about a gate.')
 OTHER_TEXT = 'A different synthetic book about a harbour.'
 
 
@@ -48,7 +62,7 @@ def epub(text=TEXT, title='Synthetic Book'):
     return raw.getvalue()
 
 
-class SavedBookSourceReselectionTests(unittest.TestCase):
+class SelectionFixture(unittest.TestCase):
     LINES = 7
 
     def setUp(self):
@@ -127,6 +141,12 @@ class SavedBookSourceReselectionTests(unittest.TestCase):
             self.script_bytes, source_path=str(source_path))
         Path(path).write_text(json.dumps(binding, sort_keys=True, separators=(',', ':')))
 
+    def stale_chunks(self):
+        return sorted(path.name for path in self.root.iterdir()
+                      if path.name.startswith('chunks.json.stale-'))
+
+
+class SavedBookSourceReselectionTests(SelectionFixture):
     def seed_saved_rendered_book(self):
         """Upload -> publish -> save -> load, then render (real routes).
 
@@ -151,10 +171,6 @@ class SavedBookSourceReselectionTests(unittest.TestCase):
         self.write_rendered_chunks()
         self.assertEqual(self.LINES, self.rendered_lines())
         return source
-
-    def stale_chunks(self):
-        return sorted(path.name for path in self.root.iterdir()
-                      if path.name.startswith('chunks.json.stale-'))
 
     def test_identical_epub_reupload_keeps_the_rendered_book(self):
         source = self.seed_saved_rendered_book()
@@ -181,17 +197,32 @@ class SavedBookSourceReselectionTests(unittest.TestCase):
         self.assertEqual(1, len(self.stale_chunks()))
         self.assertEqual(self.LINES, len(list((self.root / 'voicelines').iterdir())))
 
-    def test_inconsistent_saved_binding_is_not_trusted(self):
+    def test_changed_saved_script_bytes_start_a_new_book(self):
+        """The resolver's expected digest is the bytes the book was loaded from."""
         self.seed_saved_rendered_book()
         (self.library / 'Synthetic Saved.json').write_bytes(json.dumps(
             [{'speaker': 'NARRATOR', 'text': 'A rewritten saved script.'}]).encode('utf-8'))
-        response = self.upload()
+        with self.assertLogs('book_state_transaction', level='WARNING') as logs:
+            response = self.upload()
         self.assertEqual(200, response.status_code, response.text)
         self.assertTrue(self.state()['script_selection_pending'])
         self.assertEqual(1, len(self.stale_chunks()))
+        self.assertTrue(any('changed_source' in line for line in logs.output), logs.output)
+
+    def test_cycle_in_the_saved_binding_chain_starts_a_new_book(self):
+        self.seed_saved_rendered_book()
+        saved = self.library / 'Synthetic Saved.json'
+        # A self-referential but otherwise consistent saved binding is a loop.
+        self.write_binding(self.library / 'Synthetic Saved.selection_binding.json',
+                           hashlib.sha256(saved.read_bytes()).hexdigest(), saved)
+        with self.assertLogs('book_state_transaction', level='WARNING') as logs:
+            response = self.upload()
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertTrue(self.state()['script_selection_pending'])
+        self.assertEqual(1, len(self.stale_chunks()))
+        self.assertTrue(any('cycle' in line for line in logs.output), logs.output)
 
     def test_origin_binding_outside_the_library_directory_is_not_trusted(self):
-        from book_state_transaction import apply_book_input_selection
         elsewhere = self.root / 'elsewhere'
         elsewhere.mkdir()
         carried = elsewhere / 'Carried.json'
@@ -233,6 +264,119 @@ class SavedBookSourceReselectionTests(unittest.TestCase):
         self.assertEqual(200, response.status_code, response.text)
         self.assertTrue(self.state()['script_selection_pending'])
         self.assertEqual(1, len(self.stale_chunks()))
+
+
+class ReporterFlowTests(SelectionFixture):
+    """The reporter's route, end to end, with only the speech engine stubbed."""
+
+    def setUp(self):
+        super().setUp()
+        # Real rendering chunks the published script; one long line per chunk.
+        self.entries = [{'speaker': 'NARRATOR',
+                         'text': ('Synthetic line number %d, ' % number)
+                                 + 'a quiet garden gate beside the old stone wall. ' * 6,
+                         'instruct': 'Plain.'} for number in range(self.LINES)]
+        self.script_bytes = json.dumps(self.entries).encode('utf-8')
+        stack = ExitStack()
+        self.addCleanup(stack.close)
+        process_state = copy.deepcopy(core.process_state)
+        for value in process_state.values():
+            value['running'] = False
+        stack.enter_context(patch.object(core, 'process_state', process_state))
+        stack.enter_context(patch.object(editor, 'process_state', process_state))
+        stack.enter_context(patch.object(core, '_task_claims', {}))
+        stack.enter_context(patch.object(core, '_gpu_leases', {}))
+        stack.enter_context(use_private_cpu_fixture_lock())
+        # Force the WAV fallback so no encoder is involved in the stub.
+        stack.enter_context(patch('project._export_audio_segment',
+                                  side_effect=RuntimeError('force wav fallback')))
+        self.manager = editor.project_manager
+        self.manager.engine = SimpleNamespace(generate_voice=self._synthesize)
+        self.addCleanup(self._release_claims)
+
+    def _release_claims(self):
+        for name, claim in list(core._task_claims.items()):
+            core.release_gpu_task_claim(name, claim['id'])
+
+    def _synthesize(self, text, instruct, speaker, voices, path):
+        # A duration proportional to the line so the speech-length gate passes.
+        frames = max(24000 * 4, 1200 * len(text))
+        sf.write(path, np.full(frames, 0.15, dtype='float32'), 24000)
+        return True
+
+    def publish_book(self):
+        """Upload the EPUB and publish the generated script (real routes)."""
+        response = self.upload()
+        self.assertEqual(200, response.status_code, response.text)
+        source = self.uploads / 'book.txt'
+        selection = capture_generation_selection(str(self.root), str(source))
+        state = self.state()
+        self.assertNotIn('script_generation_base_sha256', state)
+        script_path = self.root / 'annotated_script.json'
+        state['script_generation_run_id'] = 'f' * 32
+        state['script_generation_base_sha256'] = (
+            hashlib.sha256(script_path.read_bytes()).hexdigest()
+            if script_path.exists() else None)
+        (self.root / 'state.json').write_text(json.dumps(state))
+        publish_generated_script(
+            str(self.root), selection['book_token'], str(source),
+            selection['source_sha256'], self.script_bytes, expected_run_id='f' * 32)
+        return source
+
+    def save_and_load(self, name):
+        response = self.client.post('/api/scripts/save', json={'name': name})
+        self.assertEqual(200, response.status_code, response.text)
+        response = self.client.post('/api/scripts/load', json={'name': name})
+        self.assertEqual(200, response.status_code, response.text)
+        return self.library / (name + '.json')
+
+    def render_chunks(self):
+        """Render every chunk through the real Editor route with a stub engine."""
+        status = self.chunk_status()
+        self.assertEqual(self.LINES, status['total'])
+        for index in range(status['total']):
+            response = self.client.post('/api/chunks/%d/generate' % index)
+            self.assertEqual(200, response.status_code, response.text)
+        status = self.chunk_status()
+        self.assertEqual(self.LINES, self.rendered_lines())
+        return [row['uid'] for row in status['chunks']]
+
+    def assert_rendered_book_kept(self, uids, source):
+        state = self.state()
+        self.assertNotIn('script_selection_pending', state)
+        self.assertEqual('book', state['active_book_id'])
+        self.assertEqual(str(source), state['input_file_path'])
+        self.assertEqual(self.script_bytes,
+                         (self.root / 'annotated_script.json').read_bytes())
+        self.assertEqual([], self.stale_chunks())
+        status = self.chunk_status()
+        self.assertEqual(uids, [row['uid'] for row in status['chunks']])
+        self.assertTrue(all(row['status'] == 'done' for row in status['chunks']))
+        self.assertEqual(self.LINES, len(list((self.root / 'voicelines').iterdir())))
+
+    def test_reporter_flow_keeps_rendered_rows_after_the_same_epub_is_reuploaded(self):
+        source = self.publish_book()
+        self.save_and_load('Synthetic Saved')
+        uids = self.render_chunks()
+        response = self.upload()
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertTrue(response.json()['reused'])
+        self.assert_rendered_book_kept(uids, source)
+
+    def test_two_hop_saved_chain_keeps_rendered_rows(self):
+        """Saved B, loaded while A was active, still resolves to A's origin text."""
+        source = self.publish_book()
+        first = self.save_and_load('Synthetic A')
+        second = self.save_and_load('Synthetic B')
+        self.assertEqual(str(second), self.state()['input_file_path'])
+        binding = json.loads(
+            (self.library / 'Synthetic B.selection_binding.json').read_text())
+        self.assertEqual(_path_digest(str(first)), binding['source_path_sha256'])
+        uids = self.render_chunks()
+        response = self.upload()
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertTrue(response.json()['reused'])
+        self.assert_rendered_book_kept(uids, source)
 
 
 if __name__ == '__main__':
