@@ -49,7 +49,7 @@ import unicodedata
 import xml.etree.ElementTree as ET
 
 import utils  # inserts the repo root on sys.path for alexandria_alignment users
-from epub_package import get_epub_package
+from epub_package import get_epub_package, is_navigation_document
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from qwen_align import (get_normalized_stream, get_stream_chars,
                         get_token_key, get_validated_aligner_tokens,
@@ -237,7 +237,7 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
             language = _get_validated_epub_language(metadata)
         toc = []
         for item in manifest.values():
-            if 'nav' in item['properties'].split():
+            if is_navigation_document(item['properties']):
                 if item['path'] not in member_index:
                     continue
                 try:
@@ -1771,7 +1771,7 @@ def validate_epub_readaloud(archive_bytes):
         if not manifest:
             raise ValueError("Built EPUB manifest is empty.")
         nav_ids = [i for i, (_p, _m, props, _o, _h) in manifest.items()
-                   if 'nav' in (props or '').split()]
+                   if is_navigation_document(props)]
         if len(nav_ids) != 1:
             raise ValueError("Built EPUB must declare exactly one nav item.")
         spine_refs = []
@@ -2169,7 +2169,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
             continue
         mtype = spine_item["media_type"] or ''
         manifest_item = manifest.get(spine_item["idref"], {})
-        if 'nav' in (manifest_item.get("properties") or '').split():
+        if is_navigation_document(manifest_item.get("properties")):
             continue
         if mtype == 'image/svg+xml':
             # Streaming text probe (no whole-document materialization,
@@ -2370,7 +2370,7 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
                     if item.get('id')}
     # Nav: preserve an existing EPUB 3 nav; otherwise generate from NCX.
     nav_items = [item for item in manifest_el.findall(namespace + 'item')
-                 if 'nav' in (item.get('properties') or '').split()]
+                 if is_navigation_document(item.get('properties'))]
     generated_toc_count = None
     if len(nav_items) == 0:
         points = get_ncx_points(retained_epub_bytes, manifest, opf_path)

@@ -110,7 +110,7 @@ from generate_script import LLMGenParams
 from utils import file_lock, is_path_inside
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from alexandria_alignment import validate_epub_archive
-from epub_package import get_epub_package
+from epub_package import get_epub_package, is_navigation_document
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
 from epub_extraction_report import EpubExtractionReport
 from project_scope_files import capture_scope_file
@@ -861,7 +861,7 @@ def _resolve_epub_href(base_path, href):
 def _get_epub3_toc_entries(zf, manifest, *, report=None):
     decisions = []
     nav_items = [item for item in manifest.values()
-                 if 'nav' in item['properties'].split()]
+                 if is_navigation_document(item['properties'])]
     for nav_item in nav_items:
         try:
             root = ET.fromstring(zf.read(nav_item['path']))
@@ -1036,11 +1036,17 @@ def get_epub_xhtml_text(data: bytes) -> str:
     return data.decode(encoding, errors="replace")
 
 
-def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, include_report=False):
+def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, include_report=False,
+                      include_navigation_only=False):
     """Extract plain text from an EPUB file, ordered by spine (reading order).
 
     Parses the EPUB ZIP structure directly using stdlib only:
     META-INF/container.xml -> .opf manifest+spine -> XHTML content files.
+
+    ``include_report`` returns ``(text, report)``. ``include_navigation_only``
+    returns ``(text, report_or_None, navigation_only)`` and lets one caller
+    (the upload route) act on the extractor's own spine classification without
+    a second pass over the same bytes.
     """
     if include_report and archive_bytes is None:
         with open(epub_path, 'rb') as source:
@@ -1101,8 +1107,34 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
         chapters = []
         processed_paths = set()
         skipped_paths = {}
+        archive_paths = set(zf.namelist())
+        # Text documents declared in the spine, and how many of those are
+        # navigation documents. An empty import whose only text document was
+        # the navigation document can say so instead of refusing generically.
+        text_documents = 0
+        navigation_documents = 0
         for spine_index, item_id in enumerate(spine_ids):
             item = manifest.get(item_id)
+            # The EPUB 3 navigation document is a table of contents, not
+            # story text. Read-aloud already skips the whole document, so
+            # extraction skips it too (either one skipping only part would
+            # make the two disagree about what text the book contains).
+            if item is not None and is_navigation_document(item['properties']):
+                # A nav item whose member is absent is still a missing
+                # resource (#2324); the deliberate skip must not hide that.
+                # The import is only navigation-only when that nav document
+                # actually exists: an absent member leaves the generic
+                # empty-book refusal instead of naming a document that was
+                # never there.
+                in_archive = item['path'] in archive_paths
+                if in_archive:
+                    navigation_documents += 1
+                reason = 'navigation_document' if in_archive else 'missing_archive_resource'
+                skipped_paths[item['path']] = reason
+                if report is not None:
+                    report.apply_row('spine', index=spine_index, item_id=item_id,
+                                     resource=item['path'], reason=reason)
+                continue
             # One canonical media-type value drives both spine admission
             # and the strict-XML dispatch below (RFC 6838 sec. 4.2: MIME
             # type/subtype is case-insensitive). Parameters are stripped
@@ -1118,6 +1150,7 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                                      reason='non_html_resource' if item else 'missing_manifest_item')
                 continue
             href = item['path']
+            text_documents += 1
             try:
                 html_bytes = zf.read(href)
             except KeyError:
@@ -1186,7 +1219,6 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                 chapters.append(text)
 
         if report is not None:
-            archive_paths = set(zf.namelist())
             manifest_paths = {item['path'] for item in manifest.values()}
             for path, fragment, label in toc_entries:
                 if path not in processed_paths:
@@ -1194,7 +1226,13 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                                      reason=skipped_paths.get(path) or ('missing_archive_resource' if path not in archive_paths
                                          else 'target_not_in_manifest' if path not in manifest_paths else 'target_outside_spine_not_extracted'))
     text = normalize_extracted_text('\n\n'.join(chapters))
-    return (text, report.get_report(text)) if report is not None else text
+    navigation_only = bool(navigation_documents) and not text_documents
+    extracted = report.get_report(text) if report is not None else None
+    if include_navigation_only:
+        return text, extracted, navigation_only
+    if extracted is not None:
+        return text, extracted
+    return text
 
 
 def _get_upload_hash(path: str) -> str:
@@ -1870,13 +1908,13 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                     raise cancelled
                 options = {'include_report': True} if include_extraction_report else {}
                 extracted, cancelled = await await_upload_operation(asyncio.to_thread(
-                    extract_epub_text, safe_name, archive_bytes=archive_bytes, **options))
+                    extract_epub_text, safe_name, archive_bytes=archive_bytes,
+                    include_navigation_only=True, **options))
                 if cancelled is not None:
                     raise cancelled
-                if include_extraction_report:
-                    text, extraction_report = extracted
-                else:
-                    text = extracted
+                # The extractor's own spine classification: no second pass over
+                # the same bytes on the refusal path.
+                text, extraction_report, navigation_only = extracted
             except FileNotFoundError as error:
                 # Captured archive bytes are the parser's only input. A
                 # missing-path error here describes a malformed internal EPUB
@@ -1899,6 +1937,8 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
             if cancelled is not None:
                 raise cancelled
             if text_bytes is None:
+                if navigation_only:
+                    raise AppError(400, 'The only text document in this EPUB is the navigation document (contents page), which was skipped because a table of contents is not story text.', key='error.upload.epub_navigation_only')
                 raise AppError(400, 'No readable text content found in EPUB.', key='error.upload.epub_empty')
             # Archive bytes are retained for read-aloud (#1779). Windows admits
             # one rename guard per directory, so the capture stage is closed
@@ -6484,7 +6524,8 @@ def _read_annotated_script_comparison(*, expected_source_sha256=None):
         if not isinstance(entries, list):
             raise HTTPException(status_code=400, detail="Script is not a list of entries")
         binding = {} if expected_source_sha256 is None else {'expected_source_sha256': expected_source_sha256}
-        result = get_source_integrity(state, script_bytes, entries, comparison="annotated script", **binding)
+        result = get_source_integrity(state, script_bytes, entries, comparison="annotated script",
+                                     data_dir=DATA_DIR, **binding)
         return result
 
 
