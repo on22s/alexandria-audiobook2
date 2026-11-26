@@ -14291,6 +14291,13 @@
     , "tests.test_saved_book_publication.SavedBookPublicationTests.test_saved_mutations_do_not_wait_for_book_while_holding_task_mutex"
     , "tests.test_saved_book_publication.SavedBookPublicationTests.test_saved_mutations_do_not_wait_for_saved_book_lock"
   ]
+  , "test_saved_book_source_reselection": [
+    "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_different_epub_starts_a_new_book_and_retains_the_old_rows"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_identical_epub_reupload_keeps_the_rendered_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_inconsistent_saved_binding_is_not_trusted"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_origin_binding_outside_the_library_directory_is_not_trusted"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_sibling_binding_outside_the_library_is_not_trusted"
+  ]
   , "test_saved_destination_ownership": [
     "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_claim_scope_is_copied_canonical_and_retired_with_its_exact_owner"
     , "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_foreign_save_observes_active_review_file_lock"

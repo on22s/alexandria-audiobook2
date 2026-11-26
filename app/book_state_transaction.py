@@ -6430,14 +6430,61 @@ def _selection_source_digest(path, data_dir):
         return _source_digest(path)
 
 
+def _get_saved_book_selection_origin_locked(saved_books_root, previous_path, new_digest):
+    """Origin source digest of the saved book the active script was loaded from.
+
+    Loading a saved book makes its own script file the active source, so the
+    active binding's digest names that copy rather than the text the book was
+    generated from. The saved binding kept beside the loaded script still
+    records the original source. Return it only when it validates against the
+    saved script bytes and matches the incoming digest; anything unreadable or
+    inconsistent is not an origin claim.
+    """
+    if (not isinstance(saved_books_root, str) or not saved_books_root
+            or not isinstance(previous_path, str) or not previous_path):
+        return None
+    from script_selection_binding import (MAX_BINDING_BYTES, parse_script_binding,
+        saved_binding_matches, _validated_script_entries)
+    from project_scope_files import capture_scope_file, MAX_SCRIPT_BYTES
+    root = os.path.realpath(saved_books_root)
+    previous = os.path.realpath(previous_path)
+    if os.path.dirname(previous) != root:
+        return None
+    script_name = os.path.basename(previous)
+    binding_name = os.path.splitext(script_name)[0] + '.selection_binding.json'
+    _, raw = capture_scope_file(root, binding_name, limit=MAX_BINDING_BYTES,
+                                include_bytes=True)
+    if raw is None:
+        return None
+    try:
+        binding = parse_script_binding(raw)
+        if binding['source_sha256'] != new_digest:
+            return None
+        _, script_bytes = capture_scope_file(root, script_name,
+                                             limit=MAX_SCRIPT_BYTES, include_bytes=True)
+        if script_bytes is None:
+            return None
+        entries = _validated_script_entries(script_bytes)
+        if not saved_binding_matches(
+                binding, script_sha256=hashlib.sha256(script_bytes).hexdigest(),
+                entries=entries):
+            return None
+        return binding['source_sha256']
+    except (ValueError, RecursionError):
+        return None
+
+
 def _published_binding_for_selection_locked(data_dir, state, previous_token, previous_path,
-                                            new_path, new_digest, new_token):
-    """Return (rebound binding bytes, previous source digest) or (None, digest).
+                                            new_path, new_digest, new_token, *,
+                                            saved_books_root=None):
+    """Return (rebound binding bytes, matched source digest) or (None, digest).
 
     Called with the book/state/chunks locks held, before the pending flag is
     set. A verified published binding for byte-identical source is rebound to
     the new generation in the same transaction; the published script itself is
-    unchanged. Anything unreadable or inconsistent yields no rebind, so the
+    unchanged. A loaded saved book keeps its origin digest in its saved binding,
+    so re-selecting the byte-identical source it came from is that same book,
+    not a new one. Anything unreadable or inconsistent yields no rebind, so the
     normal pending-selection path stays authoritative.
     """
     from script_selection_binding import (BINDING_NAME, MAX_BINDING_BYTES,
@@ -6455,8 +6502,13 @@ def _published_binding_for_selection_locked(data_dir, state, previous_token, pre
     try:
         binding = parse_script_binding(raw)
         previous_digest = binding['source_sha256']
-        if not isinstance(new_digest, str) or new_digest != previous_digest:
+        if not isinstance(new_digest, str):
             return None, previous_digest
+        if new_digest != previous_digest:
+            origin = _get_saved_book_selection_origin_locked(
+                saved_books_root, previous_path, new_digest)
+            if origin is None:
+                return None, previous_digest
         check_binding_source(raw, previous_token, previous_digest,
                              source_path=previous_path)
         script_proof, script_bytes = capture_scope_file(
@@ -6471,7 +6523,7 @@ def _published_binding_for_selection_locked(data_dir, state, previous_token, pre
                                                  source_path=new_path)
         rebound = carry_scope_cut_evidence(raw, rebound)
         return (json.dumps(rebound, sort_keys=True, separators=(',', ':')).encode('utf-8'),
-                previous_digest)
+                new_digest)
 
     except (ValueError, RecursionError):
         # A validation failure leaves the pending-selection path authoritative;
@@ -6574,12 +6626,16 @@ def _plan_selection_chunk_snapshot_locked(data_dir, previous_identity, same_byte
     return replacements, removals
 
 
-def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, before_publication=None):
+def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, before_publication=None,
+                               saved_books_root=None):
     """Select an input under the same book-operation contract as load/jobs.
 
     `before_publication` notifies an upload owner after validation and before
     the first write. After that handoff, errors may have an unknown commit
     outcome; uploaded source/provenance must remain available for recovery.
+    `saved_books_root` is the saved-book library: a loaded saved script names
+    that copy as its source, but its saved binding still records the text it
+    was generated from, so a byte-identical re-selection is the same book.
     """
     from sound_design_registry import ACTIVE_CUES
     from sound_design_renditions import ACTIVE_RENDITIONS, capture_sound_design_companions
@@ -6621,7 +6677,7 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
             # same transaction; changed bytes under any name start a new book.
             rebound_binding, previous_digest = _published_binding_for_selection_locked(
                 data_dir, state, previous_token, previous_path, str(input_path),
-                new_digest, new_token)
+                new_digest, new_token, saved_books_root=saved_books_root)
             same_bytes = (new_digest is not None and new_digest == previous_digest)
             if rebound_binding is not None:
                 state.pop('script_selection_pending', None)
