@@ -85,6 +85,76 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
             self.assertFalse(ok)
             self.assertIn("Multiple retained EPUB", message)
 
+    def test_binding_named_canonical_epub_wins_over_an_identical_duplicate(self):
+        with self.fixture() as (root, api, epub_bytes):
+            self.upload_and_load(api, root, epub_bytes)
+            self.bind_saved_script(root)
+            uploads = Path(core.UPLOADS_DIR)
+            canonical = self.only_retained_upload(root)
+            self.assertEqual(epub_bytes, canonical.read_bytes())
+            # Identical bytes that the old upload scan could not disambiguate.
+            (uploads / "one.source.epub").write_bytes(epub_bytes)
+            self.render_chunks(root)
+            with patch("readalong_export.get_retained_epub_candidate_path",
+                       side_effect=AssertionError(
+                           "a verified binding hit must not scan uploads")):
+                ok, message = readalong_export.build_epub_export(
+                    ProjectManager(str(root)), lambda: False)
+            self.assertTrue(ok, message)
+            receipt = json.loads((root / "readaloud.receipt.json").read_text())
+            self.assertEqual(hashlib.sha256(epub_bytes).hexdigest(),
+                             receipt["retained_epub_sha256"])
+
+    def test_binding_canonical_with_wrong_bytes_still_scans_for_the_match(self):
+        with self.fixture() as (root, api, epub_bytes):
+            self.upload_and_load(api, root, epub_bytes)
+            self.bind_saved_script(root)
+            canonical = self.only_retained_upload(root)
+            canonical.write_bytes(b"replaced canonical bytes")
+            (Path(core.UPLOADS_DIR) / "renamed.source.epub").write_bytes(epub_bytes)
+            self.render_chunks(root)
+            ok, message = readalong_export.build_epub_export(
+                ProjectManager(str(root)), lambda: False)
+            self.assertTrue(ok, message)
+            receipt = json.loads((root / "readaloud.receipt.json").read_text())
+            self.assertEqual(hashlib.sha256(epub_bytes).hexdigest(),
+                             receipt["retained_epub_sha256"])
+
+    def test_uploads_fallback_still_works_without_a_binding(self):
+        with self.fixture() as (root, api, epub_bytes):
+            self.upload_and_load(api, root, epub_bytes)
+            self.assertEqual([], list(Path(core.SCRIPTS_DIR).glob(
+                "*.selection_binding.json")))
+            canonical = self.only_retained_upload(root)
+            canonical.rename(canonical.with_name("renamed.source.epub"))
+            self.render_chunks(root)
+            ok, message = readalong_export.build_epub_export(
+                ProjectManager(str(root)), lambda: False)
+            self.assertTrue(ok, message)
+            receipt = json.loads((root / "readaloud.receipt.json").read_text())
+            self.assertEqual(hashlib.sha256(epub_bytes).hexdigest(),
+                             receipt["retained_epub_sha256"])
+
+    def test_damaged_or_changed_chain_falls_back_without_matching_unrelated_bytes(self):
+        for damage in ("binding", "source"):
+            with self.subTest(damage=damage), self.fixture() as (root, api, epub_bytes):
+                self.upload_and_load(api, root, epub_bytes)
+                self.bind_saved_script(root)
+                uploads = Path(core.UPLOADS_DIR)
+                if damage == "binding":
+                    (Path(core.SCRIPTS_DIR) / "Saved.selection_binding.json").write_bytes(
+                        b"{not a valid binding")
+                else:
+                    next(uploads.glob("*.txt")).write_bytes(b"changed extracted text")
+                (uploads / "unrelated.source.epub").write_bytes(b"unrelated bytes")
+                self.render_chunks(root)
+                ok, message = readalong_export.build_epub_export(
+                    ProjectManager(str(root)), lambda: False)
+                self.assertTrue(ok, message)
+                receipt = json.loads((root / "readaloud.receipt.json").read_text())
+                self.assertEqual(hashlib.sha256(epub_bytes).hexdigest(),
+                                 receipt["retained_epub_sha256"])
+
     # --- fixture ---------------------------------------------------------
 
     @contextlib.contextmanager
@@ -114,6 +184,26 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
                     if hasattr(module, key):
                         stack.enter_context(patch.object(module, key, str(root / name)))
             yield root, api, _make_source_epub_nested()
+
+    def only_retained_upload(self, root):
+        retained = list((Path(core.UPLOADS_DIR)).glob("*.source.epub"))
+        self.assertEqual(1, len(retained))
+        return retained[0]
+
+    def bind_saved_script(self, root):
+        """Write the saved-book binding the shared resolver walks (#2356)."""
+        from book_state_transaction import get_book_operation_token
+        from script_selection_binding import make_script_selection_binding
+
+        state = json.loads((root / "state.json").read_text())
+        saved = Path(state["input_file_path"])
+        extracted = next((Path(core.UPLOADS_DIR)).glob("*.txt"))
+        binding = make_script_selection_binding(
+            get_book_operation_token(str(root)),
+            hashlib.sha256(extracted.read_bytes()).hexdigest(),
+            saved.read_bytes(), source_path=str(extracted))
+        (Path(core.SCRIPTS_DIR) / "Saved.selection_binding.json").write_text(
+            json.dumps(binding))
 
     def upload_and_load(self, api, root, epub_bytes):
         async def go():

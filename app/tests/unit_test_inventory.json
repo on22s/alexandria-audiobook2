@@ -14574,6 +14574,16 @@
     , "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_invalid_load_token_sets_unavailable_identity_not_adoption"
     , "tests.test_saved_script_hydration_js.SavedScriptHydrationTests.test_load_ack_then_hydration_failure_reports_committed_truth"
   ]
+  , "test_saved_script_retained_epub": [
+    "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_binding_canonical_with_wrong_bytes_still_scans_for_the_match"
+    , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_binding_named_canonical_epub_wins_over_an_identical_duplicate"
+    , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_damaged_or_changed_chain_falls_back_without_matching_unrelated_bytes"
+    , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_different_retained_epub_is_not_mistaken_for_this_origin"
+    , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_duplicate_identical_retained_epubs_still_refuse_ambiguity"
+    , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_loaded_saved_script_reaches_the_uploaded_retained_epub"
+    , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_missing_retained_bytes_names_the_non_resetting_recovery"
+    , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_uploads_fallback_still_works_without_a_binding"
+  ]
   , "test_scene_context_listening": [
     "tests.test_scene_context_listening.ArmInstructionTests.test_each_arm_sends_exactly_its_stated_instruction"
     , "tests.test_scene_context_listening.ContentGateTests.test_an_unscored_arm_is_never_a_pass"
