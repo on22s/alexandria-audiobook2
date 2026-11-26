@@ -43,6 +43,49 @@ def get_prompt_token_estimate(messages):
     return (sum(len(str(message.get("content") or "")) for message in messages or []) + 2) // 3
 
 
+def _get_usage_int(usage, name):
+    """Read one integer usage field from an SDK object or a plain dict."""
+    value = usage.get(name) if isinstance(usage, dict) else getattr(usage, name, None)
+    return value if type(value) is int else None
+
+
+def _get_cached_prompt_tokens(usage):
+    """Cached prompt tokens in any spelling a supported server may report."""
+    cached = 0
+    for field in ("prompt_tokens_details", "input_tokens_details"):
+        details = usage.get(field) if isinstance(usage, dict) else getattr(usage, field, None)
+        if details is not None:
+            cached = max(cached, _get_usage_int(details, "cached_tokens") or 0)
+    for field in ("prompt_cache_hit_tokens", "cache_read_input_tokens"):
+        cached = max(cached, _get_usage_int(usage, field) or 0)
+    return cached
+
+
+def get_suspect_prompt_tokens(messages, usage):
+    """Describe a prompt-token report too low to have read the whole request.
+
+    A server whose real context is smaller than the configured one cuts the
+    prompt and answers from the rest, reporting the smaller count in
+    ``usage.prompt_tokens``. The request estimator is the only token measure
+    available without a model tokenizer, and deliberately assumes 3 characters
+    per token; dense Latin prose still tokenizes at about 4, and CJK at about
+    1, so a faithful report is never below half the estimate. Missing,
+    malformed or zero counts are no evidence at all.
+
+    Cached tokens are part of the prompt, never evidence of truncation: the
+    supported servers report them as a subset of ``prompt_tokens`` (OpenAI,
+    llama.cpp, LM Studio, Ollama), while a provider reporting only the
+    uncached remainder puts the rest in a separate field, so both are counted.
+    """
+    reported = _get_usage_int(usage, "prompt_tokens")
+    if reported is None or reported <= 0:
+        return None
+    estimate = get_prompt_token_estimate(messages)
+    if (reported + _get_cached_prompt_tokens(usage)) * 2 >= estimate:
+        return None
+    return {"prompt_tokens_estimate": estimate, "prompt_tokens_reported": reported}
+
+
 def get_budgeted_request(kwargs, limits):
     """Return request options bounded by profile and combined context limits."""
     from lmstudio_settings import get_effective_max_tokens
