@@ -10,8 +10,14 @@ The snapshot binds the captured archive SHA-256 to the exact UTF-8 import-text
 SHA-256. It records the package, spine indices and resource hashes, navigation
 source/fallback, resolved targets, unresolved anchors, duplicate navigation,
 duplicate-anchor first-occurrence behavior, title insertion/suppression decisions,
-and skipped missing/non-HTML/empty resources. Navigation outside the spine is
-reported. Content before a resolved anchor is retained. Resource character
+and skipped missing/non-HTML/empty resources. A navigation document listed in the
+spine is a table of contents, not story text: it is skipped and its spine row
+names the reason `navigation_document`, so it is never narrated. A book whose
+only text document is its navigation document is refused at import, and the
+report's `navigation_only_text` records that case. A navigation document missing
+from the archive is still reported as `missing_archive_resource`. Navigation
+outside the spine is reported. Content before a resolved anchor is retained.
+Resource character
 positions refer to plain text before title insertion and normalization; they are
 not offsets into later edited text or audio.
 

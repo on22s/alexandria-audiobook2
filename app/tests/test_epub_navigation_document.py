@@ -5,10 +5,19 @@ navigation document that also carries prose. Extraction and read-aloud
 must agree about which text the book contains.
 """
 import io
+from contextlib import asynccontextmanager
+from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
+from fastapi import FastAPI
+import httpx
+import core
+from epub_package import is_navigation_document
 from epub_readaloud import build_epub_readaloud
+from routers import script
 from routers.script import extract_epub_text
 from tests.test_epub_readaloud import _make_source_epub, _script_entries
 
@@ -17,7 +26,9 @@ CHAPTERS = 'A Cold Morning\n\nStory begins.\n\nThe Bridge\n\nStory ends.'
 
 
 def navigation_epub(*, version='3.0', nav_in_spine=True, nav_linear=None,
-                    nav_properties='nav', nav_body=None, include_ncx=False):
+                    nav_properties='nav', nav_body=None, include_ncx=False,
+                    chapter_in_spine=True, cover=False, omit_nav_member=False,
+                    empty_body=False):
     """Synthetic EPUB whose navigation document links to two chapters."""
     if nav_body is None:
         nav_body = ('<html xmlns="http://www.w3.org/1999/xhtml" '
@@ -26,22 +37,26 @@ def navigation_epub(*, version='3.0', nav_in_spine=True, nav_linear=None,
                     '<a href="one.xhtml">A Cold Morning</a>'
                     '<a href="two.xhtml">The Bridge</a>'
                     '</nav></body></html>')
+    prose_one, prose_two = ('', '') if empty_body else ('<p>Story begins.</p>', '<p>Story ends.</p>')
     one = ('<html xmlns="http://www.w3.org/1999/xhtml"><head><title>A Cold Morning</title></head>'
-           '<body><p>Story begins.</p></body></html>')
+           f'<body>{prose_one}</body></html>')
     two = ('<html xmlns="http://www.w3.org/1999/xhtml"><head><title>The Bridge</title></head>'
-           '<body><p>Story ends.</p></body></html>')
+           f'<body>{prose_two}</body></html>')
     properties = f' properties="{nav_properties}"' if nav_properties is not None else ''
     manifest = ('<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml"%s/>' % properties
                 + '<item id="one" href="one.xhtml" media-type="application/xhtml+xml"/>'
                 + '<item id="two" href="two.xhtml" media-type="application/xhtml+xml"/>')
+    if cover:
+        manifest += '<item id="cover" href="cover.png" media-type="image/png" properties="cover-image"/>'
     if include_ncx:
         manifest += '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>'
     spine_attributes = ' toc="ncx"' if include_ncx else ''
-    spine = ''
+    spine = '<itemref idref="cover"/>' if cover else ''
     if nav_in_spine:
         linear = f' linear="{nav_linear}"' if nav_linear is not None else ''
         spine += f'<itemref idref="nav"{linear}/>'
-    spine += '<itemref idref="one"/><itemref idref="two"/>'
+    if chapter_in_spine:
+        spine += '<itemref idref="one"/><itemref idref="two"/>'
     package = ('<package xmlns="http://www.idpf.org/2007/opf" version="%s" unique-identifier="uid">'
                '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
                '<dc:identifier id="uid">urn:test:2327</dc:identifier><dc:title>Synthetic</dc:title>'
@@ -60,9 +75,12 @@ def navigation_epub(*, version='3.0', nav_in_spine=True, nav_linear=None,
                          '<rootfiles><rootfile full-path="book.opf" '
                          'media-type="application/oebps-package+xml"/></rootfiles></container>')
         archive.writestr('book.opf', package)
-        archive.writestr('nav.xhtml', nav_body)
+        if not omit_nav_member:
+            archive.writestr('nav.xhtml', nav_body)
         archive.writestr('one.xhtml', one)
         archive.writestr('two.xhtml', two)
+        if cover:
+            archive.writestr('cover.png', b'\x89PNG synthetic cover')
         if include_ncx:
             archive.writestr('toc.ncx', ncx)
     return output.getvalue()
@@ -70,6 +88,23 @@ def navigation_epub(*, version='3.0', nav_in_spine=True, nav_linear=None,
 
 def extract(raw):
     return extract_epub_text('synthetic.epub', archive_bytes=raw, include_report=True)
+
+
+@asynccontextmanager
+async def upload_client():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        uploads = root / 'uploads'
+        uploads.mkdir()
+        app = FastAPI()
+        app.include_router(script.router)
+        app.add_exception_handler(core.AppError, core.handle_app_error)
+        with patch.object(script, 'UPLOADS_DIR', str(uploads)), \
+                patch.object(script, 'DATA_DIR', str(root)):
+            async with httpx.AsyncClient(
+                    transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+                    base_url='http://fixture') as client:
+                yield client
 
 
 class EpubNavigationDocumentTests(unittest.TestCase):
@@ -87,12 +122,31 @@ class EpubNavigationDocumentTests(unittest.TestCase):
                     '<p>Navigation words.</p></body></html>')
         for properties, skipped in (('nav', True), (' nav ', True),
                                     ('cover-image nav', True), ('navx', False),
-                                    ('scripted nav-like', False), ('', False)):
+                                    ('scripted nav-like', False), ('', False),
+                                    # EPUB tokens are case-sensitive: only the
+                                    # lowercase manifest term names the nav doc.
+                                    ('NAV', False), ('Nav', False),
+                                    # ASCII whitespace (tab/LF/FF/CR) separates
+                                    # tokens; NBSP and other Unicode spaces do not.
+                                    ('\tnav\n', True), ('cover-image\tnav', True),
+                                    ('nav\u00a0cover-image', False),
+                                    ('\u00a0nav\u00a0', False)):
             with self.subTest(properties=properties):
                 text, _report = extract(navigation_epub(
                     nav_properties=properties, nav_body=nav_body))
                 self.assertEqual(skipped, text == 'Story begins.\n\nStory ends.')
                 self.assertEqual(not skipped, text.startswith('Navigation words.'))
+
+    def test_ascii_whitespace_tokenisation_of_properties(self):
+        # XML attribute normalization rewrites CR/LF/FF before this point, so
+        # the full ASCII set is checked on the shared predicate directly.
+        for properties, expected in (('nav\rnav2', True), ('nav\f', True),
+                                     ('a\rb\fnav', True), ('nav\u00a0', False),
+                                     ('\u2003nav', False), ('NAV', False),
+                                     ('Nav', False), ('navx', False),
+                                     ('', False), (None, False)):
+            with self.subTest(properties=properties):
+                self.assertEqual(expected, is_navigation_document(properties))
 
     def test_prose_in_a_navigation_document_is_dropped_with_the_whole_document(self):
         nav_body = ('<html xmlns="http://www.w3.org/1999/xhtml" '
@@ -116,6 +170,52 @@ class EpubNavigationDocumentTests(unittest.TestCase):
             self.assertEqual(CHAPTERS, text)
             self.assertNotIn('navigation_document',
                              [row.get('reason') for row in report['rows']])
+
+    def test_toc_entries_pointing_into_the_skipped_navigation_document_are_reported(self):
+        nav_body = ('<html xmlns="http://www.w3.org/1999/xhtml" '
+                    'xmlns:epub="http://www.idpf.org/2007/ops"><body>'
+                    '<nav epub:type="toc"><a href="nav.xhtml#top">Contents</a>'
+                    '<a href="nav.xhtml">Contents again</a>'
+                    '<a href="one.xhtml">A Cold Morning</a><a href="two.xhtml">The Bridge</a>'
+                    '</nav></body></html>')
+        text, report = extract(navigation_epub(nav_body=nav_body))
+        self.assertEqual(CHAPTERS, text)
+        targets = [row for row in report['rows']
+                   if row['kind'] == 'navigation_target' and row['resource'] == 'nav.xhtml']
+        self.assertEqual(['top', None], [row['fragment'] for row in targets])
+        self.assertEqual(['navigation_document'], sorted({row['reason'] for row in targets}))
+
+    def test_epub2_properties_in_the_spine_is_still_the_navigation_document(self):
+        # Non-conforming EPUB 2 carrying the EPUB 3 ``properties="nav"`` token:
+        # extraction skips the document, as read-aloud already did (#2327).
+        text, report = extract(navigation_epub(version='2.0', include_ncx=True,
+                                               nav_properties='nav'))
+        self.assertEqual(CHAPTERS, text)
+        spine = [row for row in report['rows'] if row['kind'] == 'spine']
+        self.assertEqual(['nav', 'one', 'two'], [row['item_id'] for row in spine])
+        self.assertEqual('navigation_document', spine[0]['reason'])
+
+    def test_navigation_document_missing_from_the_archive_is_a_missing_resource(self):
+        # The deliberate nav skip must not hide a genuinely absent member:
+        # #2324 relies on the missing-resource signal.
+        text, report = extract(navigation_epub(omit_nav_member=True))
+        self.assertEqual('Story begins.\n\nStory ends.', text)
+        spine = [row for row in report['rows'] if row['kind'] == 'spine']
+        self.assertEqual(['nav', 'one', 'two'], [row['item_id'] for row in spine])
+        self.assertEqual('missing_archive_resource', spine[0]['reason'])
+
+    def test_navigation_only_text_is_reported_only_when_no_other_text_document_exists(self):
+        for options, expected in (({'nav_in_spine': True, 'chapter_in_spine': False}, True),
+                                  ({'nav_in_spine': True, 'chapter_in_spine': False,
+                                    'cover': True}, True),
+                                  ({}, False),
+                                  ({'nav_in_spine': False}, False),
+                                  # A declared chapter that yields no text is
+                                  # still a text document: not navigation-only.
+                                  ({'empty_body': True}, False)):
+            with self.subTest(options=options):
+                _text, report = extract(navigation_epub(**options))
+                self.assertEqual(expected, report['navigation_only_text'])
 
     def test_nav_in_spine_with_linear_no_is_still_the_navigation_document(self):
         text, report = extract(navigation_epub(nav_linear='no'))
@@ -145,6 +245,41 @@ class EpubNavigationDocumentTests(unittest.TestCase):
         text, _extraction_report = extract(raw)
         self.assertNotIn('Preface prose stays out.', text)
         self.assertIn('Hello synthetic world.', text)
+
+
+class NavigationOnlyImportTests(unittest.IsolatedAsyncioTestCase):
+    async def post(self, client, raw):
+        return await client.post('/api/upload', params={'select_active': 'false'},
+                                 files={'file': ('book.epub', raw, 'application/epub+zip')})
+
+    async def test_a_navigation_only_book_names_the_skipped_navigation_document(self):
+        for options in ({'chapter_in_spine': False},
+                        {'chapter_in_spine': False, 'cover': True}):
+            with self.subTest(options=options):
+                async with upload_client() as client:
+                    response = await self.post(client, navigation_epub(**options))
+                self.assertEqual(400, response.status_code, response.text)
+                body = response.json()
+                self.assertEqual('error.upload.epub_navigation_only', body['message_key'])
+                self.assertIn('navigation document', body['detail'])
+                self.assertIn('contents page', body['detail'])
+
+    async def test_a_book_with_a_non_navigation_text_document_keeps_the_generic_refusal(self):
+        # Two declared chapters whose bodies and anchors are empty: nothing is
+        # spoken, but the book is not navigation-only, so the generic refusal
+        # stands. This is the over-claim guard for the navigation-only message.
+        nav_body = ('<html xmlns="http://www.w3.org/1999/xhtml" '
+                    'xmlns:epub="http://www.idpf.org/2007/ops"><body>'
+                    '<nav epub:type="toc"><a href="one.xhtml#missing">A Cold Morning</a>'
+                    '<a href="two.xhtml#missing">The Bridge</a>'
+                    '</nav></body></html>')
+        async with upload_client() as client:
+            response = await self.post(client, navigation_epub(
+                empty_body=True, nav_body=nav_body))
+        self.assertEqual(400, response.status_code, response.text)
+        body = response.json()
+        self.assertEqual('error.upload.epub_empty', body['message_key'])
+        self.assertEqual('No readable text content found in EPUB.', body['detail'])
 
 
 if __name__ == '__main__':

@@ -1101,6 +1101,12 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
         chapters = []
         processed_paths = set()
         skipped_paths = {}
+        archive_paths = set(zf.namelist())
+        # Text documents declared in the spine, and how many of those are
+        # navigation documents. An empty import whose only text document was
+        # the navigation document can say so instead of refusing generically.
+        text_documents = 0
+        navigation_documents = 0
         for spine_index, item_id in enumerate(spine_ids):
             item = manifest.get(item_id)
             # The EPUB 3 navigation document is a table of contents, not
@@ -1108,10 +1114,15 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
             # extraction skips it too (either one skipping only part would
             # make the two disagree about what text the book contains).
             if item is not None and is_navigation_document(item['properties']):
-                skipped_paths[item['path']] = 'navigation_document'
+                navigation_documents += 1
+                # A nav item whose member is absent is still a missing
+                # resource (#2324); the deliberate skip must not hide that.
+                reason = ('navigation_document' if item['path'] in archive_paths
+                          else 'missing_archive_resource')
+                skipped_paths[item['path']] = reason
                 if report is not None:
                     report.apply_row('spine', index=spine_index, item_id=item_id,
-                                     resource=item['path'], reason='navigation_document')
+                                     resource=item['path'], reason=reason)
                 continue
             # One canonical media-type value drives both spine admission
             # and the strict-XML dispatch below (RFC 6838 sec. 4.2: MIME
@@ -1128,6 +1139,7 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                                      reason='non_html_resource' if item else 'missing_manifest_item')
                 continue
             href = item['path']
+            text_documents += 1
             try:
                 html_bytes = zf.read(href)
             except KeyError:
@@ -1196,7 +1208,6 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                 chapters.append(text)
 
         if report is not None:
-            archive_paths = set(zf.namelist())
             manifest_paths = {item['path'] for item in manifest.values()}
             for path, fragment, label in toc_entries:
                 if path not in processed_paths:
@@ -1204,7 +1215,24 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                                      reason=skipped_paths.get(path) or ('missing_archive_resource' if path not in archive_paths
                                          else 'target_not_in_manifest' if path not in manifest_paths else 'target_outside_spine_not_extracted'))
     text = normalize_extracted_text('\n\n'.join(chapters))
-    return (text, report.get_report(text)) if report is not None else text
+    if report is not None:
+        extracted = report.get_report(text)
+        extracted['navigation_only_text'] = bool(navigation_documents) and not text_documents
+        return text, extracted
+    return text
+
+
+def is_navigation_only_epub(epub_path: str, *, archive_bytes: bytes) -> bool:
+    """Whether an EPUB's only text documents are its navigation documents.
+
+    Applies the extractor's own spine classification (#2327), so an empty
+    import can name the navigation document it skipped instead of refusing
+    generically. The caller already extracted nothing from the same bytes;
+    this re-run only reads the report and never changes any text.
+    """
+    _text, report = extract_epub_text(epub_path, archive_bytes=archive_bytes,
+                                      include_report=True)
+    return bool(report.get('navigation_only_text'))
 
 
 def _get_upload_hash(path: str) -> str:
@@ -1908,6 +1936,13 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
             if cancelled is not None:
                 raise cancelled
             if text_bytes is None:
+                navigation_only, cancelled = await await_upload_operation(
+                    asyncio.to_thread(is_navigation_only_epub, safe_name,
+                                      archive_bytes=archive_bytes))
+                if cancelled is not None:
+                    raise cancelled
+                if navigation_only:
+                    raise AppError(400, 'The only text document in this EPUB is the navigation document (contents page), which was skipped because a table of contents is not story text.', key='error.upload.epub_navigation_only')
                 raise AppError(400, 'No readable text content found in EPUB.', key='error.upload.epub_empty')
             # Archive bytes are retained for read-aloud (#1779). Windows admits
             # one rename guard per directory, so the capture stage is closed

@@ -1,6 +1,12 @@
 """Shared container/OPF parsing for text extraction and publication review."""
 from pathlib import PurePosixPath, PureWindowsPath
+import re
 import xml.etree.ElementTree as ET
+
+# HTML/EPUB space-separated tokens split on ASCII whitespace only. str.split()
+# would also split on NBSP and other Unicode spaces, which those attribute
+# grammars do not treat as separators.
+_ASCII_WHITESPACE = re.compile(r'[ \t\n\f\r]+')
 
 
 def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, include_details=False):
@@ -67,8 +73,10 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
 def is_navigation_document(properties):
     """Return whether a manifest ``properties`` value names the EPUB nav doc.
 
-    EPUB 3 ``properties`` is a whitespace-separated token list, so ``nav``
+    EPUB 3 ``properties`` is an ASCII-whitespace-separated token list, so ``nav``
     must match a whole token: ``navx`` or ``scripted nav-like`` is not the
-    navigation document. One rule for extraction and read-aloud (Rule 15).
+    navigation document, and the token is case-sensitive (``NAV`` is not
+    ``nav``). Non-ASCII spaces such as NBSP do not separate tokens. One rule
+    for extraction and read-aloud (Rule 15).
     """
-    return 'nav' in (properties or '').split()
+    return 'nav' in _ASCII_WHITESPACE.split(properties or '')

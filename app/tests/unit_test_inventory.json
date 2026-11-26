@@ -5887,12 +5887,19 @@
     , "tests.test_epub_extraction_report_js.EpubExtractionReportJsTests.test_real_upload_handler_fences_reports_and_uses_text_only"
   ]
   , "test_epub_navigation_document": [
-    "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_epub2_ncx_and_nav_outside_the_spine_are_unchanged"
+    "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_ascii_whitespace_tokenisation_of_properties"
+    , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_epub2_ncx_and_nav_outside_the_spine_are_unchanged"
+    , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_epub2_properties_in_the_spine_is_still_the_navigation_document"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_nav_in_spine_with_linear_no_is_still_the_navigation_document"
+    , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_navigation_document_missing_from_the_archive_is_a_missing_resource"
+    , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_navigation_only_text_is_reported_only_when_no_other_text_document_exists"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_only_the_whole_nav_properties_token_marks_the_navigation_document"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_prose_in_a_navigation_document_is_dropped_with_the_whole_document"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_readaloud_and_extraction_exclude_the_same_navigation_document"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_spine_navigation_document_is_not_narrated"
+    , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_toc_entries_pointing_into_the_skipped_navigation_document_are_reported"
+    , "tests.test_epub_navigation_document.NavigationOnlyImportTests.test_a_book_with_a_non_navigation_text_document_keeps_the_generic_refusal"
+    , "tests.test_epub_navigation_document.NavigationOnlyImportTests.test_a_navigation_only_book_names_the_skipped_navigation_document"
   ]
   , "test_epub_package": [
     "tests.test_epub_package.EpubPackageTests.test_missing_rootfile_fails_in_both_modes"
