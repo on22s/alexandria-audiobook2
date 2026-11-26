@@ -63,7 +63,7 @@ from utils import (atomic_json_write, backup_file_with_timestamp, file_lock,
                    get_timestamped_backup_path, is_generic_speaker, safe_load_json)
 from sound_design_registry import (ACTIVE_CUES, get_saved_sound_design_path,
                                    MAX_REGISTRY_BYTES)
-from project_scope_files import capture_scope_file, MAX_SCRIPT_BYTES
+from project_scope_files import capture_scope_file, MAX_SCOPE_METADATA_BYTES, MAX_SCRIPT_BYTES
 from collection_overview import MAX_OVERVIEW_BOOKS
 from speech_numbers import STATE_KEY as DATE_ORDER_KEY, DATE_ORDER_CHOICES
 from sound_design_renditions import (ACTIVE_RENDITIONS, get_saved_sound_renditions_path,
@@ -437,6 +437,72 @@ def _publish_saved_repair(path, entries):
     return backup
 
 
+def _published_run_strip_front_matter(active_state, source_path):
+    """The published run's recorded preparation choice, or None.
+
+    Admission writes script_generation_options before a run and cancellation
+    never reverts them, so state alone can describe a run that never published.
+    The run-spec receipt is accepted only when it is the attempt that published
+    the script; otherwise nothing is recorded and the comparison tries both.
+    """
+    import run_spec_receipt
+    from script_selection_binding import _path_digest
+    if not isinstance(active_state, dict):
+        return None
+    run_id = active_state.get('script_generation_published_run_id')
+    if not isinstance(run_id, str) or not run_id:
+        return None
+    try:
+        receipt = run_spec_receipt.load_receipt(DATA_DIR)
+        if (not isinstance(receipt, dict) or receipt.get('run_id') != run_id
+                or receipt.get('sha256') != active_state.get(run_spec_receipt.STATE_DIGEST)
+                or receipt.get('source_path_sha256') != _path_digest(source_path)):
+            return None
+    except (OSError, ValueError):
+        return None
+    options = receipt.get('options')
+    if isinstance(options, dict) and type(options.get('strip_front_matter')) is bool:
+        return options['strip_front_matter']
+    return None
+
+
+def _saved_book_strip_front_matter(active_state, script_bytes, source_path):
+    """Capture the book's own strip_front_matter policy for .meta.json."""
+    from literal_policy import get_literal_policy
+    try:
+        entries = json.loads(script_bytes)
+        policy = get_literal_policy(entries)
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        entries, policy = None, None
+    if isinstance(policy, dict) and type(policy.get('strip_front_matter')) is bool:
+        return policy['strip_front_matter']
+    if not isinstance(source_path, str) or not source_path:
+        return None
+    if Path(source_path).suffix.lower() == '.json':
+        # Carry the loaded saved book's recorded preparation choice across Save
+        # As without borrowing unrelated active-run script_generation_options.
+        # A book saved before the choice was recorded derives it from the
+        # script being saved, so re-saving records the preparation it matched.
+        try:
+            from script_selection_binding import _validate_saved_book_member
+            _, _, _, member_name = _validate_saved_book_member(
+                DATA_DIR, source_path, saved_books_root=SCRIPTS_DIR)
+            _, raw_meta = capture_scope_file(
+                SCRIPTS_DIR, f'{Path(member_name).stem}.meta.json',
+                limit=MAX_SCOPE_METADATA_BYTES, include_bytes=True)
+            if raw_meta is not None:
+                loaded_meta = json.loads(raw_meta)
+                if isinstance(loaded_meta, dict) and type(loaded_meta.get('strip_front_matter')) is bool:
+                    return loaded_meta['strip_front_matter']
+        except (OSError, ValueError, TypeError, RecursionError):
+            return None
+        if entries is None:
+            return None
+        from merge_integrity import get_saved_book_strip_front_matter
+        return get_saved_book_strip_front_matter(DATA_DIR, source_path, entries)
+    return _published_run_strip_front_matter(active_state, source_path)
+
+
 def _save_script_sync(request):
     safe_name = _require_saved_book_name(request.name)
     dest = os.path.join(SCRIPTS_DIR, f"{safe_name}.json")
@@ -494,6 +560,10 @@ def _save_script_sync(request):
         meta = {"book_id": book_id}
         if isinstance(active_state, dict) and active_state.get(DATE_ORDER_KEY) in DATE_ORDER_CHOICES:
             meta[DATE_ORDER_KEY] = active_state[DATE_ORDER_KEY]
+        strip_front_matter = _saved_book_strip_front_matter(
+            active_state, script_bytes, active_state.get('input_file_path'))
+        if strip_front_matter is not None:
+            meta['strip_front_matter'] = strip_front_matter
         replacements = {os.path.basename(dest): script_bytes,
             f"{safe_name}.meta.json": json.dumps(meta).encode("utf-8")}
         if binding_raw is not None:
