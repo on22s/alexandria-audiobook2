@@ -1335,6 +1335,7 @@
   "error.task.gpu_busy": "无法启动 {task}：{running} 正在运行。请等待其完成或取消它，以释放 GPU 显存。",
   "error.upload.docx_text_too_large": "提取的 DOCX 文本超出源文件上传限制。",
   "error.upload.epub_empty": "EPUB 中未找到可读的文本内容。",
+  "error.upload.epub_navigation_only": "此 EPUB 中唯一的文本文件是导航文档（目录页），因为目录不是正文，所以已跳过。",
   "error.upload.epub_text_too_large": "提取的 EPUB 文本超出源文件上传存储限制。",
   "error.upload.no_input_active": "当前书未选择输入文件。",
   "error.upload.source_empty": "当前源文件为空；请先导入一本非空的书。",
