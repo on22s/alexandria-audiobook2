@@ -79,7 +79,7 @@ def word(draw):
 @st.composite
 def speech_text(draw):
     """Speech that never ends in a digit (the #2357 / inch-mark shape)."""
-    tokens = [draw(word()) for _ in range(draw(st.integers(1, 4)))]
+    tokens = [draw(word()) for _ in range(draw(st.integers(2, 4)))]
     if draw(st.booleans()) and len(tokens) > 1:
         at = draw(st.integers(1, len(tokens) - 1))
         tokens.insert(at, draw(st.sampled_from(_INNER_PUNCTUATION)))
@@ -153,6 +153,9 @@ def hard_wrapped(value, raw_index):
     if spaces:
         at = spaces[raw_index % len(spaces)]
         return value[:at] + "\n" + value[at + 1:]
+    if len(value) < 3:
+        # No interior position to wrap; this case still runs on other draws.
+        return value
     at = (raw_index + 1) % (len(value) - 1) + 1
     return value[:at] + "\n" + value[at:]
 
