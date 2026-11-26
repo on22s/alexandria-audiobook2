@@ -44,7 +44,8 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
             raise ValueError('EPUB package XML exceeds the review limit or changed')
         return raw
 
-    container = ET.fromstring(read_member('META-INF/container.xml'))  # nosec B314 - bounded member read (size-capped, review mode)
+    # bounded member read (size-capped, review mode).
+    container = ET.fromstring(read_member('META-INF/container.xml'))  # nosec B314
     ns = {'c': 'urn:oasis:names:tc:opendocument:xmlns:container'}
     rootfiles = container.findall('.//c:rootfile', ns)
     if not rootfiles:
@@ -55,14 +56,16 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
     opf_xml = read_member(opf_path)
     repaired_metadata = False
     try:
-        package = ET.fromstring(opf_xml)  # nosec B314 - bounded member read (size-capped, review mode)
+        # bounded member read (size-capped, review mode).
+        package = ET.fromstring(opf_xml)  # nosec B314
     except ET.ParseError:
         # Preserve the narrow repair used for two verified Sigil-generated
         # books; unrelated malformed XML must still fail.
         repaired = opf_xml.replace(b' refines">"#pub-i"', b'')
         if repaired == opf_xml:
             raise
-        package = ET.fromstring(repaired)  # nosec B314 - bounded member read (size-capped, review mode)
+        # bounded member read (size-capped, review mode).
+        package = ET.fromstring(repaired)  # nosec B314
         repaired_metadata = True
     if include_details:
         return opf_path, package, {'rootfile_count': len(rootfiles),

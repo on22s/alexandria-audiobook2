@@ -241,7 +241,8 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
                 if item['path'] not in member_index:
                     continue
                 try:
-                    root = ET.fromstring(_read_archive_member_bounded(  # nosec B314 - size-bounded archive member
+                    # size-bounded archive member.
+                    root = ET.fromstring(_read_archive_member_bounded(  # nosec B314
                         archive, item['path'], _get_retained_xml_limit(), member_index=member_index))
                 except ET.ParseError:
                     continue
@@ -412,7 +413,8 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
             raise ValueError(f"Spine document is missing: {path}")
         raw = _read_archive_member_bounded(archive, path, max_xml_bytes, member_index=member_index)
     try:
-        root = ET.fromstring(raw)  # nosec B314 - size-bounded archive member
+        # size-bounded archive member.
+        root = ET.fromstring(raw)  # nosec B314
     except ET.ParseError as error:
         raise ValueError(f"Spine document is malformed: {path}") from error
     if _namespace(root.tag) != XHTML_NS:
@@ -1042,7 +1044,8 @@ def _svg_has_text(stream, cancel_check=None):
             pass
 
     target = _Target()
-    parser = ET.XMLParser(target=target)  # nosec B314 - streaming target, no tree retained
+    # streaming target, no tree retained.
+    parser = ET.XMLParser(target=target)  # nosec B314
     # Feed the FULL document before close: an early-found text
     # element must not turn close() into an incomplete-document
     # ParseError (which callers treat as malformed/tolerated).
@@ -1815,7 +1818,8 @@ def validate_epub_readaloud(archive_bytes):
                 raw = _read_archive_member_bounded(
                     archive, path, _get_retained_xml_limit(), member_index=member_index)
                 try:
-                    root = ET.fromstring(raw)  # nosec B314 - size-bounded archive member
+                    # size-bounded archive member.
+                    root = ET.fromstring(raw)  # nosec B314
                 except ET.ParseError as error:
                     raise ValueError("Built EPUB XHTML is malformed.") from error
                 ids = set()
@@ -1891,7 +1895,8 @@ def validate_epub_readaloud(archive_bytes):
             raw = _read_archive_member_bounded(
                 archive, smil_path, MAX_EPUB_READALOUD_XML_BYTES, member_index=member_index)
             try:
-                smil_root = ET.fromstring(raw)  # nosec B314 - size-bounded archive member
+                # size-bounded archive member.
+                smil_root = ET.fromstring(raw)  # nosec B314
             except ET.ParseError as error:
                 raise ValueError("Built EPUB SMIL is malformed.") from error
             if not smil_root.get('version'):
@@ -2052,7 +2057,8 @@ def get_ncx_points(archive_bytes, manifest, opf_path):
         raw = _read_archive_member_bounded(
             archive, ncx_path, _get_retained_xml_limit(), member_index=member_index)
     try:
-        root = ET.fromstring(raw)  # nosec B314 - size-bounded archive member
+        # size-bounded archive member.
+        root = ET.fromstring(raw)  # nosec B314
     except ET.ParseError:
         return []
     nav_map = root.find('.//{%s}navMap' % 'http://www.daisy.org/z3986/2005/ncx/')
@@ -2480,7 +2486,8 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
         except ValueError as error:
             raise ValueError("Retained EPUB lacks META-INF/container.xml.") from error
     try:
-        container = ET.fromstring(container_raw)  # nosec B314 - size-bounded archive member
+        # size-bounded archive member.
+        container = ET.fromstring(container_raw)  # nosec B314
     except ET.ParseError as error:
         raise ValueError("Retained EPUB container is malformed.") from error
     container_ns = container.tag.split('}')[0] + '}' if '}' in container.tag else ''

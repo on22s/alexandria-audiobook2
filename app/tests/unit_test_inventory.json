@@ -1277,6 +1277,23 @@
     , "tests.test_background_speakers.SameSpeakerTest.test_wrong_people_stay_wrong"
     , "tests.test_background_speakers.VolumeTest.test_repeat_generations_group_into_one_volume"
   ]
+  , "test_bandit_gate": [
+    "tests.test_bandit_gate.BanditGateTests.test_command_pins_the_full_bandit_argv"
+    , "tests.test_bandit_gate.BanditGateTests.test_excludes_match_bandit_walked_paths"
+    , "tests.test_bandit_gate.BanditGateTests.test_gate_fails_on_findings_and_on_scan_errors"
+    , "tests.test_bandit_gate.BanditGateTests.test_gate_rejects_non_conforming_nosec_comments"
+    , "tests.test_bandit_gate.BanditGateTests.test_low_findings_do_not_gate"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_bandit_crashes"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_bandit_is_missing"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_report_is_not_json"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_report_is_unreadable"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_prints_the_scanned_file_count"
+    , "tests.test_bandit_gate.BanditGateTests.test_nosec_comments_name_a_test_and_a_reason"
+    , "tests.test_bandit_gate.BanditGateTests.test_report_artifact_is_not_tracked"
+    , "tests.test_bandit_gate.BanditGateTests.test_targets_are_derived_from_the_filesystem"
+    , "tests.test_bandit_gate.BanditGateTests.test_targets_skip_virtualenvs"
+    , "tests.test_bandit_gate.BanditGateTests.test_workflow_runs_the_gate_on_the_linux_pin"
+  ]
   , "test_basic_auth_scheme_case": [
     "tests.test_basic_auth_scheme_case.BasicAuthSchemeTests.test_all_basic_scheme_cases_accept_same_exact_unicode_credentials"
     , "tests.test_basic_auth_scheme_case.BasicAuthSchemeTests.test_wrong_scheme_and_malformed_payload_still_reject"
