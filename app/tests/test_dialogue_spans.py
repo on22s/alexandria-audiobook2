@@ -86,6 +86,493 @@ class SpanTest(unittest.TestCase):
         source = 'She said "I am 5" and he said "I am 6".'
         self.assertEqual(['I am 5', 'I am 6'], [source[a:b] for a, b in spoken_spans(source, 'paired_quotes')])
 
+    def test_an_inch_mark_inside_speech_does_not_split_the_span(self):
+        cases = [
+            ('"The board is 6" wide," he said. "Good," she said.',
+             ['The board is 6" wide,', 'Good,']),
+            ('"It is 6" by 4" wide," he said.',
+             ['It is 6" by 4" wide,']),
+            ('"I counted 5" he said. "Next."',
+             ['I counted 5', 'Next.']),
+            ('"I am 5\'10"," he said.', ['I am 5\'10",']),
+            ('He said "it was 6" and left 5" of rope. "Ok."',
+             ['it was 6', 'Ok.']),
+            ('"Only 5"', ['Only 5']),
+            ('＂The board is 6＂ wide,＂ he said. ＂Good,＂ she said.',
+             ['The board is 6＂ wide,', 'Good,']),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_a_straight_inch_mark_inside_another_marks_speech_stays_spoken(self):
+        cases = [
+            ('“The board is 6" wide,” he said. “Good,” she said.',
+             ['The board is 6" wide,', 'Good,']),
+            ('„Es ist 6" breit“, sagte er. „Gut.“', ['Es ist 6" breit', 'Gut.']),
+            ('«C\'est 6" de large», dit-il.', ["C'est 6\" de large"]),
+            ('「6"の板」と言った。', ['6"の板']),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_a_curly_inch_mark_is_not_a_closer(self):
+        cases = [
+            ('“The board is 6” wide,” he said. “Good,” she said.',
+             ['The board is 6” wide,', 'Good,']),
+            ('The board was 6” wide. “Good,” she said.', ['Good,']),
+            ('“He is 5’10” tall,” she said.', ['He is 5’10” tall,']),
+            ('“I am 12” he said. “Good.”', ['I am 12', 'Good.']),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_a_real_closer_after_a_digit_beats_a_later_inch_mark(self):
+        # A later inch mark of the same character, with no opener between,
+        # must not turn the real closer after a digit into one (#2314 review).
+        pairs = [('"', '"'), ("“", "”"), ("„", "“"), ("„", "”"),
+                 ("「", "」"), ("『", "』"), ("＂", "＂"), ("«", "»"), ("»", "«")]
+        for opener, closer in pairs:
+            with self.subTest(opener=opener, closer=closer):
+                source = (f'{opener}I am 12{closer} she said. '
+                          f'The board was 6{closer} wide.')
+                self.assertEqual(
+                    ['I am 12'],
+                    [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_a_later_speech_after_a_digit_closer_is_still_speech(self):
+        cases = [
+            ('"I am 12" she said. "The board was 6" wide."',
+             ['I am 12', 'The board was 6" wide.']),
+            ('“I am 12” she said. “The board was 6” wide.”',
+             ['I am 12', 'The board was 6” wide.']),
+            ('「I am 12」 she said. 「The board was 6」 wide.」',
+             ['I am 12', 'The board was 6」 wide.']),
+            ('«I am 12» she said. «The board was 6» wide.»',
+             ['I am 12', 'The board was 6» wide.']),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_when_every_later_closer_is_digit_preceded_the_continuation_decides(self):
+        # No real closer is left, so a bare digit end must close
+        # (`12" she said`) unless the text after it is still a measurement
+        # (`6" by 8"`, `6" wide and 8"`).
+        cases = [
+            ('"I am 12" she said. The board was 6" wide.', ['I am 12']),
+            ('"It is 6" by 8", he said.', ['It is 6" by 8']),
+            ('"It is 6" wide and 8"', ['It is 6" wide and 8']),
+            ('“I am 12” she said. The board was 6” wide.', ['I am 12']),
+            ('“It is 6” by 8”, he said.', ['It is 6” by 8']),
+            ('“It is 6” wide and 8”', ['It is 6” wide and 8']),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_a_digit_final_speech_closes_when_no_later_mark_can_close_it(self):
+        # A mark with no later closer in the paragraph is the only thing that
+        # can close this speech, so the word after it cannot make it an inch
+        # mark. Main already answered this way; the inch fix must not undo it.
+        cases = [
+            ('“It was 1945” long ago.', ['It was 1945']),
+            ('"It was 1945" long ago.', ['It was 1945']),
+            ('“We counted 20” high up on the wall.', ['We counted 20']),
+            ('"We counted 20" high up on the wall.', ['We counted 20']),
+            ('“Chapter 7” to 9 were missing.', ['Chapter 7']),
+            ('“He is 12” and 13 is old.', ['He is 12']),
+            ('“Agent 47” across the hall waved.', ['Agent 47']),
+            ('He wrote “1984” long before.', ['1984']),
+            ('He wrote "1984" long before.', ['1984']),
+            ('“Room 12” deep in the cellar was cold.', ['Room 12']),
+            ('She said “10” and 12 people laughed.', ['10']),
+            ('She said "10" and 12 people laughed.', ['10']),
+            ('“It was 1945” long ago, she wrote.', ['It was 1945']),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_a_later_number_mark_behind_a_new_opener_cannot_close(self):
+        # Only the second speech's closer is number-preceded, and it belongs
+        # to that speech, so the first speech still closes at its own mark.
+        for source, expected in [
+                ('“Catch 22” high and low, she searched. “Area 51” too.',
+                 ['Catch 22', 'Area 51']),
+                ('"Catch 22" high and low, she searched. "Area 51" too.',
+                 ['Catch 22', 'Area 51']),
+                ('“We counted 20” high up on the wall. “Good,” she said.',
+                 ['We counted 20', 'Good,'])]:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+        # A number mark before the new opener can still close the speech, so
+        # the measurement before it stays in the speech.
+        source = '“It is 6” wide and 8” He said so. “Fine.”'
+        self.assertEqual(['It is 6” wide and 8', 'Fine.'],
+                         [source[a:b] for a, b in
+                          spoken_spans(source, "paired_quotes")])
+
+    def test_a_digit_final_speech_before_a_new_speaker_keeps_its_close(self):
+        # The narration after the digit and the next speaker's speech both sit
+        # in the same convention, so the only question is whether this mark
+        # closes. It does: the next paragraph re-opening the quote cannot
+        # prove the speech continued, and main closes here (#2318).
+        cases = [
+            ('“Give me 5” high above his head, Tom raised a palm.\n\n'
+             '“Ha!” said Ann.', ['Give me 5', 'Ha!']),
+            ('“Table for 2” and 3 more chairs arrived.\n\n'
+             '“Thanks,” she said.', ['Table for 2', 'Thanks,']),
+            ('"Give me 5" high above his head, Tom raised a palm.\n\n'
+             '"Ha!" said Ann.', ['Give me 5', 'Ha!']),
+            ('"Table for 2" and 3 more chairs arrived.\n\n'
+             '"Thanks," she said.', ['Table for 2', 'Thanks,']),
+            ('„Give me 5“ high above his head, Tom raised a palm.\n\n'
+             '„Ha!“ said Ann.', ['Give me 5', 'Ha!']),
+            ('«Give me 5» high above his head, Tom raised a palm.\n\n'
+             '«Ha!» said Ann.', ['Give me 5', 'Ha!']),
+            ('「Give me 5」 high above his head, Tom raised a palm.\n\n'
+             '「Ha!」 said Ann.', ['Give me 5', 'Ha!']),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_a_mark_after_a_dash_colon_or_bracket_opens_the_next_speech(self):
+        # A mark followed by `…`, `.` or `'` looked closer-shaped, so the next
+        # speech merged into the first. A mark right after `—`, `:` or `(`
+        # is opener-shaped whatever follows it, so the digit mark closes
+        # (#2318).
+        prefixes = [' he said—', ' she said:', ' (he said—',
+                    ' he said, then:', ' (she said:', ' he said (a pause —',
+                    ' per the note:']
+        leaders = ['…', '.', "'"]
+        for opener, closer in (('"', '"'), ('＂', '＂')):
+            for prefix in prefixes:
+                for leader in leaders:
+                    source = (f'{opener}Room 5{closer}{prefix}'
+                              f'{opener}{leader}no, wait.{closer}')
+                    with self.subTest(source=source):
+                        self.assertEqual(
+                            ['Room 5', f'{leader}no, wait.'],
+                            [source[a:b] for a, b in
+                             spoken_spans(source, "paired_quotes")])
+
+    def test_link_and_number_in_narration_do_not_keep_the_close(self):
+        # `and 3` / `by 8` after the digit read like `6" by 8"`, so the
+        # paragraph's later real inch mark kept the closer and swallowed the
+        # narration. A link counts only when the second number is itself
+        # followed by the mark (#2318).
+        pairs = [('"', '"'), ('“', '”'), ('„', '“'), ('„', '”'), ('「', '」'),
+                 ('『', '』'), ('＂', '＂'), ('«', '»'), ('»', '«')]
+        for opener, closer in pairs:
+            for link in ('and', 'by', 'to', 'x'):
+                source = (f'{opener}We leave at 5{closer} {link} 3 of them '
+                          f'nodded. The shelf was 12{closer} deep.')
+                with self.subTest(source=source):
+                    self.assertEqual(
+                        ['We leave at 5'],
+                        [source[a:b] for a, b in
+                         spoken_spans(source, "paired_quotes")])
+        # The `,` and `×` separators are links too, so the second number must
+        # also carry the mark to be a measurement, as `6", 8"` does.
+        for source, expected in [
+                ('“It is 6”, 8 people came. The shelf was 12” deep.',
+                 ['It is 6']),
+                ('“It is 6” × 8 people came. The shelf was 12” deep.',
+                 ['It is 6']),
+                ('“It is 6”, 8” wide” she said.', ['It is 6”, 8” wide'])]:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_a_reply_mark_after_any_narration_punctuation_opens_a_speech(self):
+        # Round 6 recognised only a mark right after `—`, `:` or `(`. The
+        # shape is the same after every dash, bracket, other punctuation or
+        # symbol, spaced or glued, and after a full stop with no space: the
+        # mark is glued to the reply and no letter or digit precedes it, so it
+        # opens a speech and cannot close this one (#2318).
+        separators = [
+            # Pd, Ps, Po, Sm: the four categories the reply mark follows.
+            '–', '—', '‒', '―', '-',
+            '[', '(', '{', '［', '（',
+            '/', ';', '…', '*', '.', '!', '?', '&', ':', '，', '。', '：',
+            '+', '=', '±', '×', '÷', '<', '>', '|', '~',
+        ]
+        leaders = ['...', '…', '.', "'", 'N']
+        for opener, closer in (('"', '"'), ('＂', '＂')):
+            for separator in separators:
+                forms = [f'he said{separator}', f'he said {separator} ']
+                for narration in forms:
+                    for leader in leaders:
+                        source = (f'{opener}Room 5{closer}{narration}'
+                                  f'{opener}{leader}no, wait.{closer}')
+                        with self.subTest(source=source):
+                            self.assertEqual(
+                                ['Room 5', f'{leader}no, wait.'],
+                                [source[a:b] for a, b in
+                                 spoken_spans(source, "paired_quotes")])
+        # No separator at all: the narration runs into the reply's mark.
+        for leader in leaders:
+            source = f'"Room 5"he said"{leader}no, wait."'
+            with self.subTest(source=source):
+                self.assertEqual(['Room 5', f'{leader}no, wait.'],
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+
+    def test_a_unit_word_does_not_keep_the_close_when_narration_follows(self):
+        # A unit word after the digit kept the mark as an inch mark even when
+        # the next word began narration, so a later real inch mark in the
+        # paragraph became this speech's closer and swallowed everything
+        # between. The unit branch needs the same confirmation the link branch
+        # has: a mark, or a linked number a mark follows, inside the clause
+        # (#2318).
+        pairs = [('"', '"'), ('“', '”'), ('„', '“'), ('„', '”'), ('「', '」'),
+                 ('『', '』'), ('＂', '＂'), ('«', '»'), ('»', '«')]
+        continuations = ['in the cellar', 'after midnight', 'open',
+                         'above the door', 'across the yard']
+        for opener, closer in pairs:
+            for unit in sorted(dialogue_spans._MEASURE_UNITS):
+                for continuation in continuations:
+                    source = (f'{opener}Room 12{closer} {unit} '
+                              f'{continuation}, the shelf was cold. '
+                              f'The board was 8{closer} deep.')
+                    with self.subTest(source=source):
+                        self.assertEqual(
+                            ['Room 12'],
+                            [source[a:b] for a, b in
+                             spoken_spans(source, "paired_quotes")])
+        # What follows the unit word may still confirm the measurement: the
+        # speech's closer, or a linked number the closer follows.
+        for source, expected in [
+                ('"It is 6" wide and 8"', 'It is 6" wide and 8'),
+                ('“It is 6” wide and 8”', 'It is 6” wide and 8'),
+                ('"Cut it 3½" wide and 12" long," he said.',
+                 'Cut it 3½" wide and 12" long,'),
+                ('"Make it 12" long and 4" deep," he said.',
+                 'Make it 12" long and 4" deep,'),
+                ('"Room 9" by 2"', 'Room 9" by 2')]:
+            with self.subTest(source=source):
+                self.assertEqual([expected], [source[a:b] for a, b in
+                                              spoken_spans(source, "paired_quotes")])
+
+    def test_an_english_reply_inside_brackets_does_not_hold_a_german_speech_open(self):
+        # `(“nein”)` inside a German low-high paragraph opens an English
+        # speech, so its mark cannot close the German one: `„Zimmer 5“` is
+        # spoken on its own (#2318).
+        german = ('„Hallo.“ sagte er.\n\n„Guten Tag.“ sagte sie.\n\n'
+                  '„Wie geht es?“ fragte er.\n\n„Gut.“ sagte sie.\n\n')
+        source = german + '„Zimmer 5“ sagte er. (“nein”).'
+        self.assertEqual(['Hallo.', 'Guten Tag.', 'Wie geht es?', 'Gut.',
+                          'Zimmer 5', 'nein'],
+                         [source[a:b] for a, b in
+                          spoken_spans(source, "paired_quotes")])
+
+    def test_a_german_speech_holding_an_inch_mark_is_not_dropped(self):
+        # German low-high (`„…“`) shares `“` with the English opener `“…”` and
+        # is scoped out of inch-mark skipping so `main`'s behaviour is preserved
+        # (#2357): each speech closes at the digit mark instead of being dropped
+        # when `_ambiguous_mark_roles` classifies the real closer as an opener.
+        prefix = '„Hallo.“ sagte er.\n\n„Guten Tag.“ sagte sie.\n\n'
+        for body, spoken in [
+                ('„It is 6“ wide“ she said.', 'It is 6'),
+                ('„It is 6“ wide“, sagte er.', 'It is 6'),
+                ('„It is 6“ wide.“ Er ging.', 'It is 6'),
+                ('„It is 6“ wide“... Er ging.', 'It is 6'),
+                ('„It is 6“ by 8“ board“ he said.', 'It is 6'),
+                ('„We leave at 6“.” he said', 'We leave at 6')]:
+            with self.subTest(body=body):
+                source = prefix + body
+                self.assertEqual(['Hallo.', 'Guten Tag.', spoken],
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+        # The gate's five-pair German prefix crosses MIN_CONVENTION_PAIRS, so
+        # the low-high density filter is not what kept the speech.
+        many = ''.join(f'„Wort{i} hier.“ sagte er.\n\n' for i in range(5))
+        source = many + '„It is 6“ wide“ she said.'
+        self.assertIn('It is 6', [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+
+    def test_german_low_high_inch_mark_does_not_merge_or_drop_later_speech(self):
+        # Gate-8 merge cases: with any later German speech, skipping `6“` while
+        # `_ambiguous_mark_roles` rejects the real closer merged narration and
+        # the next speech into one span (or dropped the first speech across a
+        # narration paragraph break). Scoping out German low-high restores
+        # `main`'s exact spans (#2357).
+        prefix = '„A“, sagte er. „B“, sagte sie. „C.“ „D.“ „E.“ '
+        expected_prefix = ['A', 'B', 'C.', 'D.', 'E.']
+        cases = [
+            ('„Es ist 6“ breit“, sagte er. Dann „Komm“, sagte sie.',
+             ['Es ist 6', 'Komm']),
+            ('„Es ist 6“ breit“, sagte er.\n\n„Komm“, sagte sie.',
+             ['Es ist 6', 'Komm']),
+            ('„Es ist 6“ breit“, sagte er.\n\nEr ging. „Komm“, sagte sie.',
+             ['Es ist 6', 'Komm']),
+            ('„Ein 6“ Brett.“ Dann „Komm“, sagte sie.',
+             ['Ein 6', 'Komm']),
+            ('„Er hat 6“ gesagt“, meinte sie. Dann „Komm“, sagte sie.',
+             ['Er hat 6', 'Komm']),
+            ('„It is 6“ wide“ she said. „Fine.“',
+             ['It is 6', 'Fine.']),
+        ]
+        for body, expected_tail in cases:
+            with self.subTest(body=body):
+                source = prefix + body
+                self.assertEqual(expected_prefix + expected_tail,
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+        self.assertFalse(dialogue_spans.is_inch_mark(
+            '„Es ist 6“ breit“, sagte er.', 9, '“', True, opener='„'))
+        self.assertFalse(dialogue_spans.is_inch_mark(
+            'Es ist 6“ breit', 8, '“', False))
+
+    def test_a_later_german_pair_does_not_reopen_the_reply_mark(self):
+        # The bracket reply `(“nein”)` must not hold the German speech open
+        # even when a later German pair follows (#2318 review, #2357).
+        prefix = '„Hallo.“ sagte er.\n\n'
+        source = prefix + '„Zimmer 5“ sagte er. (“nein”). „Gut.“ sagte sie.'
+        self.assertEqual(['Hallo.', 'Zimmer 5', 'nein', 'Gut.'],
+                         [source[a:b] for a, b in
+                          spoken_spans(source, "paired_quotes")])
+        # In curly high (`“…”`), an opener-shaped closer (`”no”`) later in the
+        # paragraph must likewise not hold `“Room 5”` open (#2318).
+        curly = '“Hello.” he said.\n\n“Room 5” he said. Later, ”no” came back.'
+        self.assertEqual(['Hello.', 'Room 5'],
+                         [curly[a:b] for a, b in
+                          spoken_spans(curly, "paired_quotes")])
+
+    def test_full_width_inch_mark_keeps_measurement_and_does_not_invert(self):
+        # Full-width quotes (`＂…＂`) keep an interior inch mark as text both on
+        # its own and when another full-width speech follows (#2318).
+        for source, expected in [
+                ('＂It is 6＂ wide＂, she said.', ['It is 6＂ wide']),
+                ('＂It is 6＂ wide＂, she said. ＂Fine.＂',
+                 ['It is 6＂ wide', 'Fine.'])]:
+            with self.subTest(source=source):
+                self.assertEqual(expected,
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+
+    def test_a_real_closer_before_a_sentence_end_stays_a_known_limit(self):
+        # Known limit, identical on main and head: the shape rule reads a real
+        # closer followed directly by `.`/`…`/`'` as an opener, so only the
+        # text up to the inch mark is spoken. Fixing it would unpick the rule
+        # that lets a reply follow a no-space stop (`he said."...No."`), and
+        # the fallback for the German drop does not reach it (#2318 review).
+        prefix = '"Hello." he said.\n\n'
+        for body, expected in [
+                ('"It is 6" wide". She left.', 'It is 6'),
+                ('"It is 6" wide"... She left.', 'It is 6'),
+                ('"It is 6" wide"\'s fine.', 'It is 6')]:
+            with self.subTest(body=body):
+                source = prefix + body
+                self.assertEqual(['Hello.', expected],
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+
+    def test_a_continued_speech_is_the_only_reason_to_keep_the_mark(self):
+        # The name records the round that added the paragraph-reopen
+        # exception; #2318 removed it. A next paragraph that re-opens the same
+        # mark reads identically whether the speech continues or a new speaker
+        # answers, so it is no evidence, and the digit-preceded mark closes as
+        # main has always read it.
+        for opener, closer in (('“', '”'), ('"', '"')):
+            source = (opener + 'The board is 6' + closer + ' wide and\n\n'
+                      + opener + 'it is heavy,' + closer + ' he said.')
+            with self.subTest(source=source):
+                start = source.index('it is heavy,')
+                self.assertEqual(
+                    [(1, 1 + len('The board is 6')),
+                     (start, start + len('it is heavy,'))],
+                    spoken_spans(source, "paired_quotes"))
+        # The same break with no measurement word after the digit closes.
+        for opener, closer in (('“', '”'), ('"', '"')):
+            source = (opener + 'I am 12' + closer + ' she said\n\n'
+                      + opener + 'Good,' + closer + ' he said.')
+            with self.subTest(source=source):
+                start = source.index('Good,')
+                self.assertEqual(
+                    [(1, 1 + len('I am 12')), (start, start + len('Good,'))],
+                    spoken_spans(source, "paired_quotes"))
+        # A paragraph beginning with something else is not a continuation,
+        # even when the word after the digit is a unit.
+        for source in ('“It was 1945” long ago.\n\nHe left.',
+                       '"It was 1945" long ago.\n\nHe left.'):
+            with self.subTest(source=source):
+                self.assertEqual(['It was 1945'],
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+        source = '“It was 1945” long ago.\n\n"Good," he said.'
+        self.assertEqual(['It was 1945', 'Good,'],
+                         [source[a:b] for a, b in
+                          spoken_spans(source, "paired_quotes")])
+
+    def test_measurement_continuation_forms_keep_the_mark(self):
+        cases = [
+            ('“It is 6” by 8”', 'It is 6” by 8'),
+            ('“It is 6”, 8”', 'It is 6”, 8'),
+            ('“It is 6” × 8”', 'It is 6” × 8'),
+            ('“It is 6” x 8”', 'It is 6” x 8'),
+            ('“It is 6” to 8”', 'It is 6” to 8'),
+            ('“It is 6” and 8”', 'It is 6” and 8'),
+            ('“It is 6” wide and 8”', 'It is 6” wide and 8'),
+            # The link's second number may end with a different mark than the
+            # straight inch mark that opened the measurement.
+            ('“It is 6" and 8”', 'It is 6" and 8'),
+            ('«It is 6" by 8»', 'It is 6" by 8'),
+            ('»It is 6" x 8«', 'It is 6" x 8'),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual([expected], [source[a:b] for a, b in
+                                              spoken_spans(source, "paired_quotes")])
+        # A different closer right after the inch mark is the real closer, not
+        # a duplicate of it, so the inch mark stays and the speech ends.
+        source = "«C'est 6\"», dit-il."
+        self.assertEqual(["C'est 6\""],
+                         [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_a_duplicate_curly_closer_keeps_the_first_closing(self):
+        cases = [
+            ('“I am 12”” she said.', ['I am 12']),
+            ('“I am 12””', ['I am 12']),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_a_real_closer_after_a_unicode_number_is_not_an_inch_mark(self):
+        self.assertTrue(dialogue_spans.is_inch_mark('It is 3½” long', 8, '”'))
+        self.assertTrue(dialogue_spans.is_inch_mark('It is 8²" long', 8, '"'))
+        self.assertFalse(dialogue_spans.is_inch_mark('「三」', 2, '」'))
+
+    def test_an_inch_mark_at_a_line_end_outside_speech_starts_no_span(self):
+        cases = [
+            ('The board was 6"', []),
+            ('He wrote 5"\nShe read it. "Go," she said.', ['Go,']),
+            ('A 12"', []),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
+    def test_adjacent_straight_marks_after_a_close_keep_todays_spans(self):
+        source = '"I counted 5""Next," she said.'
+        self.assertEqual(['I counted 5', 'Next,'], [source[a:b] for a, b in
+                                                    spoken_spans(source, "paired_quotes")])
+
     def test_an_unmatched_straight_quote_does_not_swallow_the_book(self):
         text = '"Only one mark here, and then a great deal of narration. ' + "x " * 500
         self.assertEqual([], spoken_spans(text, "paired_quotes"))
@@ -163,6 +650,92 @@ class SpanTest(unittest.TestCase):
         source = '"Part one.\n\n"Part two ends 5"'
         self.assertEqual(['Part one.\n\n"Part two ends 5'],
             [source[a:b] for a, b in spoken_spans(source, "paired_quotes")])
+
+    def test_the_inch_mark_predicate_matches_the_pairing_rule(self):
+        # One shared predicate: _paired_spans and pass_quality both ask this
+        # exact question (#2314).
+        cases = [
+            ('A 6" wide board', 3, False, True),
+            ('A 12" wide board', 4, False, True),
+            ('A 12""Next', 4, False, True),
+            ('A 12" "Next', 4, False, True),
+            ('A 12"\n"Next', 4, False, True),
+            # Outside speech a line-ending mark is a measurement too; only the
+            # parity-only caller can read a paragraph-final mark as a reprise
+            # closer, and it does so only with an unmatched earlier mark.
+            ('A 12"\nnext', 4, False, True),
+            ('A 12"', 4, False, True),
+            ('A six" wide', 5, False, False),
+            ('"6 of us"', 0, False, False),
+            # Inside open speech: the next non-digit-preceded mark decides.
+            ('"A 6" wide," he said.', 4, True, True),
+            ('"I counted 5" he said. "Next."', 12, True, False),
+            ('"I counted 5" he said.', 12, True, False),
+            ('"It is 6" by 4" wide," he said.', 8, True, True),
+        ]
+        for text, position, inside, expected in cases:
+            with self.subTest(text=text, inside=inside):
+                self.assertEqual(expected, dialogue_spans.is_inch_mark(
+                    text, position, '"', inside))
+
+    def test_a_paragraph_final_mark_is_a_reprise_closer_only_when_unbalanced(self):
+        # `_paired_spans` has parity, not the analyzer's real depth. A
+        # paragraph that re-opened the quote has no closer but its last mark,
+        # so that mark still closes; with balanced earlier marks it cannot.
+        for gap in ("\n\n", "\r\n\r\n"):
+            reprise = f'"Part one.{gap}"Part two ends 5"'
+            self.assertFalse(dialogue_spans.is_inch_mark(
+                reprise, len(reprise) - 1, '"', False))
+        self.assertTrue(dialogue_spans.is_inch_mark('A 12"', 4, '"', False))
+        # A mark ending an ordinary line, not a paragraph, is a measurement.
+        self.assertTrue(dialogue_spans.is_inch_mark('A 12"\nnext', 4, '"', False))
+        # A paragraph-final measurement followed by a new quote stays a
+        # measurement even when the paragraph holds an unmatched earlier mark;
+        # main read it that way. Without this the odd-count rule would close.
+        self.assertTrue(dialogue_spans.is_inch_mark(
+            '"Part one. A 12"\n\n"Next"', 15, '"', False))
+
+    def test_the_inch_mark_predicate_handles_a_different_opener(self):
+        # Inside speech opened by a mark other than the one before the digit,
+        # the opener's own closer decides whether this mark can close (#2314).
+        cases = [
+            ('“The board is 6" wide,” he said.', 15, '"', '“', True),
+            ('„Es ist 5" breit“, sagte er.', 9, '"', '„', True),
+            ('„Es ist 5" sagte er. „Gut."', 9, '"', '„', False),
+            ('«C\'est 6" de large», dit-il.', 8, '"', '«', True),
+            ('「6"の板」と言った。', 2, '"', '「', True),
+            ('“I am 12" he said. “Good.”', 8, '"', '“', False),
+        ]
+        for text, position, mark, opener, expected in cases:
+            with self.subTest(text=text):
+                self.assertEqual(expected, dialogue_spans.is_inch_mark(
+                    text, position, mark, True, opener=opener))
+
+    def test_the_inch_mark_predicate_handles_a_curly_closer(self):
+        # Direction is known for `”`: another `”` later in the paragraph makes
+        # this one a measurement; a `“` makes it the closer.
+        cases = [
+            ('“The board is 6” wide,” he said.', 15, True, '“', True),
+            ('“I am 12” he said. “Good.”', 8, True, '“', False),
+            ('“He said ‘it is 6” wide’ to me,” she said.', 17, True, '“', True),
+            ('The board was 6” wide.', 15, False, None, True),
+            ('The board was 6”', 15, False, None, True),
+        ]
+        for text, position, inside, opener, expected in cases:
+            with self.subTest(text=text):
+                self.assertEqual(expected, dialogue_spans.is_inch_mark(
+                    text, position, '”', inside, opener=opener))
+
+    def test_the_number_test_covers_unicode_numbers_but_not_cjk_numerals(self):
+        for char in ("7", "½", "²", "①"):
+            with self.subTest(char=char):
+                self.assertTrue(dialogue_spans.is_number_char(char))
+        # A CJK numeral is a letter (Lo), a Roman numeral is a letter number
+        # (Nl), and a prime mark is punctuation (Po), so a quote after any of
+        # them is treated as a delimiter rather than an inch mark.
+        for char in ("三", "Ⅻ", "′"):
+            with self.subTest(char=char):
+                self.assertFalse(dialogue_spans.is_number_char(char))
 
     def test_a_stray_closer_after_german_speech_keeps_narration_out(self):
         # A `”` after narration, with no later `“`, must not flip the real

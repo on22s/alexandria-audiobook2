@@ -27,7 +27,9 @@ _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 # Derive every quote-mark set from dialogue_spans' single PAIRED table so the
 # source-map and the generator's segmenter cannot drift apart.
 from dialogue_spans import (PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
-                            get_guillemet_direction as _get_guillemet_direction)
+                            get_guillemet_direction as _get_guillemet_direction,
+                            is_inch_mark as _is_inch_mark,
+                            is_number_char as _is_number_char)
 
 _QUOTE_CHARS = set(_DS_QUOTE_MARKS) | {'”'}
 # The marks analyze_outer_quote_regions opens a spoken region on; "does this
@@ -80,11 +82,13 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     curly quote but shares the paragraph's only closing mark with the outer
     quote; in that case the inner mark is treated as decoration, not a new
     nesting level. Quote delimiters are intentionally omitted from speakable
-    text.
+    text; a straight mark after a number is an inch mark, not a delimiter, and
+    stays in the region.
     """
     regions, current, pending_source_label = [], [], None
     depth, saw_quote, repairs = initial_depth, bool(initial_depth), []
     open_stack = []  # `“` closes „…“ but opens “…”; track which mark is open
+    outer_opener = None  # the mark that opened depth 1, for the inch predicate
     german_inner = False  # inside an English quote nested in a German speech
     skip_until = -1  # consumed by a line-dash dialogue region
 
@@ -155,6 +159,8 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             if depth == 1:
                 flush()
             depth -= 1
+            if depth == 0:
+                outer_opener = None
             open_stack.pop()
             continue
         if char in openers or char in _SELF_PAIRED:
@@ -175,6 +181,7 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                     pending_source_label = _pop_source_label(current)
                 flush()
                 depth = 1
+                outer_opener = char
                 saw_quote = True
             elif not text[paragraph_start:index].strip():
                 # Publishers repeat an opening quote at the start of each
@@ -206,30 +213,52 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             german_inner = False
             continue
         if char in closers and depth:
+            # A closer-shaped mark after a number can be an inch mark instead;
+            # the shared predicate settles it from the open speech's opener
+            # (#2314).
+            if _is_inch_mark(text, index, char, True, opener=outer_opener):
+                current.append(char)
+                saw_quote = True
+                continue
             if char == '”' and depth == 1 and not german_inner:
                 paragraph_tail = text[index + 1:].split("\n\n", 1)[0]
                 next_close = paragraph_tail.find('”')
                 next_open = paragraph_tail.find('“')
-                if next_close >= 0 and (next_open < 0 or next_close < next_open):
+                if (next_close >= 0 and (next_open < 0 or next_close < next_open)
+                        and not _is_inch_mark(text, index + 1 + next_close, '”')):
                     # Stylized cries may use one opening mark and decorative
-                    # closers between fragments: “Ha!”Haha!”Hahaha!”
+                    # closers between fragments: “Ha!”Haha!”Hahaha!” An inch
+                    # mark later in the narration is not one of those closers,
+                    # so the speech closes at this mark (6” falls in narration).
                     continue
             if char == '”' and open_stack and open_stack[-1] == '“':
                 # Close the nested English pair before continuing.
                 if depth == 1:
                     flush()
                 depth -= 1
+                if depth == 0:
+                    outer_opener = None
                 open_stack.pop()
                 continue
             if char == guillemet_close and open_stack and open_stack[-1] == guillemet_open:
                 if depth == 1:
                     flush()
                 depth -= 1
+                if depth == 0:
+                    outer_opener = None
                 open_stack.pop()
                 continue
             if depth == 1:
                 flush()
             depth -= 1
+            if depth == 0:
+                outer_opener = None
+            continue
+        if char == '”' and _is_inch_mark(text, index, char):
+            # Outside speech a `”` after a number is an inch mark (`6” wide`);
+            # it neither closes nor needs the unmatched-closer repair (#2314).
+            current.append(char)
+            saw_quote = True
             continue
         if char == '”':
             # Bounded recovery for a dropped opening delimiter in prose such as
@@ -252,6 +281,15 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             saw_quote = True
             continue
         if char in _SELF_PAIRED:
+            # A straight mark after a number can be an inch mark (6" wide),
+            # not a delimiter; the shared predicate also settles the
+            # inside-speech case. It is text, so it stays in the region
+            # (#2314).
+            if _is_inch_mark(text, index, char, bool(depth),
+                             opener=outer_opener):
+                current.append(char)
+                saw_quote = True
+                continue
             if depth == 0 and _is_metadata_paragraph(current):
                 saw_quote = True
                 continue
@@ -261,7 +299,12 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             if depth == 0:
                 pending_source_label = _pop_source_label(current)
             flush()
-            depth = 0 if depth else 1
+            if depth:
+                depth = 0
+                outer_opener = None
+            else:
+                depth = 1
+                outer_opener = char
             saw_quote = True
             continue
         current.append(char)
@@ -270,6 +313,7 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
         repairs.append({"code": "inferred_missing_close_quote",
                         "offset": len(text)})
         depth = 0
+        outer_opener = None
     else:
         flush()
     complete = depth == 0 or allow_open_end
@@ -371,6 +415,55 @@ def _split_quote_regions(source_text):
     return outside, inside
 
 
+def _number_mark_token(text, position):
+    """-> the number and mark ending at `position`, e.g. `12"` or `8.5”`."""
+    start = position
+    while start > 0 and (_is_number_char(text[start - 1])
+                         or text[start - 1] in ".,"):
+        start -= 1
+    return text[start:position + 1]
+
+
+def _region_has_number_mark(region, token):
+    """Does `region` hold `token` as a whole number and mark?
+
+    A plain substring test matched `5"` inside `15"`, so an inch-mark row was
+    treated as still present only because a longer measurement elsewhere
+    contained the same digits, and the finding became crosses_quote_boundary
+    instead of mixed_quote_region (#2318). The boundary is the one
+    `_number_mark_token` uses to extend a number: another digit or `.`/`,`
+    directly before the match makes it part of that longer number.
+    """
+    start = region.find(token)
+    while start != -1:
+        before = region[start - 1] if start else ""
+        if not before or (before not in ".," and not _is_number_char(before)):
+            return True
+        start = region.find(token, start + 1)
+    return False
+
+
+def _has_quote_delimiter(text, region_texts):
+    """True unless every quote character in `text` is a kept inch mark.
+
+    An inch mark after a number (`6" wide`, `6” wide`) is speakable text, so
+    a row carrying only those is not mixed (#2314). It counts as text only
+    when the same number+mark appears in the analyzed region, which keeps
+    measurements and drops delimiters: a row that kept a real closer after a
+    digit has no such counterpart and stays mixed, as it was before #2314.
+    """
+    for position, char in enumerate(text):
+        if char not in _QUOTE_CHARS:
+            continue
+        token = _number_mark_token(text, position)
+        if (_is_inch_mark(text, position, char)
+                and any(_region_has_number_mark(region, token)
+                        for region in region_texts)):
+            continue
+        return True
+    return False
+
+
 def _region_contains_entry(regions, entry_text):
     needle = normalize_text(entry_text).split()
     if not needle:
@@ -433,12 +526,12 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
         if not enforce_entry:
             continue
         text = str(entry.get("text") or "")
-        if any(char in text for char in _QUOTE_CHARS):
+        expected = inside if entry.get("type") == "SPOKEN" else outside
+        other = outside if entry.get("type") == "SPOKEN" else inside
+        if _has_quote_delimiter(text, expected + other):
             findings.append({"code": "mixed_quote_region", "entry_number": number,
                              "message": "An entry combines quote delimiters with narration or dialogue; split at the quote boundary."})
             continue
-        expected = inside if entry.get("type") == "SPOKEN" else outside
-        other = outside if entry.get("type") == "SPOKEN" else inside
         in_expected = _region_contains_entry(expected, text)
         if not in_expected and _region_contains_entry(other, text):
             findings.append({"code": "quote_region_misclassified", "entry_number": number,
