@@ -45,7 +45,8 @@ class EpubExtractionReport:
             'identity_scope': 'captured_archive_and_import_text_not_current_editor',
             'normalization': 'existing_invisible_character_space_and_blank_line_normalization',
             'title_policy': 'navigation_label_when_not_already_near_target; no_html_title_or_generated_title',
-            'content_policy': 'spine_order; style_script_title_not_spoken; no_front_back_matter_exclusion',
+            'content_policy': ('spine_order; style_script_title_not_spoken; '
+                               'navigation_document_not_spoken; no_front_back_matter_exclusion'),
             'formatting': 'plain_text_only; emphasis_not_attached; xhtml_uses_tolerant_html_parser',
             'rows': list(self.rows),
             'omitted_rows': self.omitted_rows,
