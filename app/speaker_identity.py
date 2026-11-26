@@ -5,6 +5,8 @@ import re
 import unicodedata
 from difflib import SequenceMatcher
 
+from silent_word_characters import remove_silent_word_characters
+
 
 MAX_ALIAS_COUNT = 10000
 MAX_ALIAS_NAME_LENGTH = 1024
@@ -46,7 +48,7 @@ def stabilize_speaker_identities(entries, established_speakers=None):
     changes = []
     review = []
     for speaker in established_speakers or []:
-        value = str(speaker or "").strip()
+        value = remove_silent_word_characters(str(speaker or "").strip())
         if value and value not in canonical_keys:
             canonicals.append(value)
             key = _identity_key(value)
@@ -62,7 +64,9 @@ def stabilize_speaker_identities(entries, established_speakers=None):
         if not isinstance(entry, dict):
             continue
         original = str(entry.get("speaker") or "")
-        stripped = " ".join(original.split())
+        # U+00AD/U+2060 are invisible inside a name (#2316), so the model's
+        # "SON<SHY>YA" is the stored spelling "SONYA", never a second speaker.
+        stripped = remove_silent_word_characters(" ".join(original.split()))
         if stripped:
             seen.append(stripped)
         exact = identity_index.get(_identity_key(stripped))
@@ -126,15 +130,16 @@ def stabilize_speaker_identities(entries, established_speakers=None):
     # text says "Rudeus" 123 times and "R udeus" never. Without that corroboration
     # nothing is joined: "J SMITH" is a person, not a typo, and guessing would
     # invent a character.
-    prose = " ".join(str(e.get("text") or "") for e in repaired
-                     if isinstance(e, dict)).casefold()
+    prose = remove_silent_word_characters(" ".join(
+        str(e.get("text") or "") for e in repaired
+        if isinstance(e, dict))).casefold()
     for entry in repaired:
         if not isinstance(entry, dict):
             continue
         name = " ".join(str(entry.get("speaker") or "").split())
         if _identity_key(name) in roster or not re.fullmatch(r"[A-Za-z]\s[A-Za-z]{2,}", name):
             continue
-        joined = name.replace(" ", "")
+        joined = remove_silent_word_characters(name.replace(" ", ""))
         if re.search(r"(?<!\w)" + re.escape(joined.casefold()) + r"(?!\w)", prose):
             entry["speaker"] = joined
             changes.append({"type": "speaker_split_repair",
@@ -236,8 +241,10 @@ def _uncertain_candidates(speaker, canonicals, identity_keys=None):
 
 def _is_extended_person_name(first, second):
     relation_words = {"mother", "father", "sister", "brother", "daughter", "son"}
-    first_words = re.findall(r"[\w]+", first.casefold(), re.UNICODE)
-    second_words = re.findall(r"[\w]+", second.casefold(), re.UNICODE)
+    first_words = re.findall(r"[\w]+",
+                             remove_silent_word_characters(first).casefold(), re.UNICODE)
+    second_words = re.findall(r"[\w]+",
+                              remove_silent_word_characters(second).casefold(), re.UNICODE)
     shorter, longer = sorted((first_words, second_words), key=len)
     return (len(shorter) == 1 and len(longer) == 2 and shorter[0] == longer[0]
             and not any(word.isdigit() or word in relation_words for word in longer))
@@ -270,8 +277,10 @@ def is_speaker_merge_allowed(variant, canonical):
             or _identity_key(canonical) in protected_keys):
         return False
     if is_group_speaker_label(variant) or is_group_speaker_label(canonical):
-        first = " ".join(unicodedata.normalize("NFC", variant).casefold().split())
-        second = " ".join(unicodedata.normalize("NFC", canonical).casefold().split())
+        first = remove_silent_word_characters(
+            " ".join(unicodedata.normalize("NFC", variant).casefold().split()))
+        second = remove_silent_word_characters(
+            " ".join(unicodedata.normalize("NFC", canonical).casefold().split()))
         return first == second
     return True
 

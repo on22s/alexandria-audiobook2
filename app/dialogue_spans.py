@@ -27,6 +27,9 @@ from collections import Counter, defaultdict, deque
 import logging
 import re
 
+from silent_word_characters import (SILENT_WORD_CHARACTERS,
+                                    remove_silent_word_characters)
+
 PAIRED = [
     ('"', '"'),
     ("“", "”"),      # curly “ ” (English, Dutch, Turkish, ...)
@@ -597,7 +600,8 @@ def get_interior_dash_ambiguities(text, convention):
 
 
 def _normalize(value):
-    return re.sub(r"\s+", " ", _QUOTE_MARKS_RE.sub("", value or "")).strip()
+    return re.sub(r"\s+", " ", _QUOTE_MARKS_RE.sub(
+        "", remove_silent_word_characters(value or ""))).strip()
 
 
 def _normalize_with_offsets(value):
@@ -605,7 +609,7 @@ def _normalize_with_offsets(value):
     characters, offsets = [], []
     pending_space = None
     for index, character in enumerate(value or ""):
-        if character in QUOTE_MARKS:
+        if character in QUOTE_MARKS or character in SILENT_WORD_CHARACTERS:
             continue
         if character.isspace():
             if characters and pending_space is None:
@@ -856,8 +860,15 @@ def apply_source_narration(entries):
 #
 # Where that answer is printed, copying it is free and deterministic, and it
 # needs no model call at all.
+_SILENT_IN_WORD = "".join(SILENT_WORD_CHARACTERS)
 LABEL_BEFORE_QUOTE = re.compile(
-    r'(?:^|\n)[ \t]*([^\W\d_][\w.\'’-]{1,20}(?:[ \t]+[^\W\d_][\w.\'’-]{1,20}){0,2})'
+    # A label may begin with an invisible character (#2316); allow those before
+    # the name and fold the captured name below.
+    r'(?:^|\n)[ \t' + _SILENT_IN_WORD + r']*([^\W\d_][\w.\'’'
+    + _SILENT_IN_WORD +
+    r'-]{1,20}(?:[ \t]+[^\W\d_][\w.\'’'
+    + _SILENT_IN_WORD +
+    r'-]{1,20}){0,2})'
     r'[ \t]+(?=[' + QUOTE_OPENERS + '])')
 
 
@@ -875,10 +886,11 @@ def speaker_labels(text, minimum_repeats=3, speaker_names=()):
     # Repetition establishes formatting, not identity: sentence adverbs can
     # recur before quotes too. Require a corroborated cast name rather than
     # trying to enumerate every word that could be narration.
-    known = {' '.join(name.split()).casefold() for name in speaker_names
+    known = {remove_silent_word_characters(' '.join(name.split())).casefold()
+             for name in speaker_names
              if isinstance(name, str) and name.strip()}
-    hits = [(m.end(), " ".join(m.group(1).split())) for m in
-            LABEL_BEFORE_QUOTE.finditer(text)]
+    hits = [(m.end(), remove_silent_word_characters(" ".join(m.group(1).split())))
+            for m in LABEL_BEFORE_QUOTE.finditer(text)]
     hits = [(pos, name) for pos, name in hits
             if name.casefold() in known]
     counts = {}
