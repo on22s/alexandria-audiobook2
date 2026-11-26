@@ -12,7 +12,6 @@ from heapq import heappop, heappush
 from silent_word_characters import (
     SILENT_WORD_CHARACTERS, WORD_BOUNDARIES, ZERO_WIDTH_JOINER,
     ZERO_WIDTH_NON_JOINER, remove_silent_word_characters)
-from source_normalization import iter_source_paragraph_ranges
 from speech_text import get_speech_normalization
 from utils import get_unsafe_text_controls
 from alexandria_alignment import is_spelled_number
@@ -45,6 +44,10 @@ _COMBINING_MARK_WORD_PATTERN = None
 # apostrophe, curly single quotes, grave/acute accents and a modifier letter.
 _APOSTROPHE_VARIANTS = "'\u2018\u2019\u0060\u00b4\u02bc"
 _APOSTROPHE_FOLD = str.maketrans({character: "'" for character in _APOSTROPHE_VARIANTS})
+_INTRAWORD_APOSTROPHE_RE = re.compile(r"(?<=\w)'(?=\w)")
+_INTRAWORD_APOSTROPHE_VARIANT_RE = re.compile(
+    rf"(?<=\w)[{re.escape(_APOSTROPHE_VARIANTS)}](?=\w)")
+_LINE_BREAKS = frozenset("\n\r\u2028\u2029")
 _FORMAT_TRANSLATIONS = None
 
 
@@ -198,46 +201,34 @@ def _normalize_words(value):
     return " ".join(get_normalized_word_tokens(value))
 
 
-def _normalize_comparison(value):
-    """Comparison-key whitespace: collapse it, but keep a paragraph break.
-
-    A single line ending is a soft wrap inside a paragraph, so it collapses to
-    an ordinary space and the words on either side may fuse. A blank line
-    separates two paragraphs and stays "\\n\\n", so the spelling-independent
-    capacity never fuses a word across one (#2293). The definition of a
-    paragraph break is the project's existing one
-    (``iter_source_paragraph_ranges``: CRLF is atomic, a single line ending is
-    a wrap, U+2029 ends a paragraph).
-    """
-    value = unicodedata.normalize(
-        "NFC", remove_silent_word_characters(value)).casefold()
-    # Most entries are one line with no break at all; counting line endings
-    # keeps them off the paragraph iterator (which then costs nothing in the
-    # common case).
-    if ("\u2029" not in value and "\r" not in value
-            and value.count("\n") + value.count("\u2028") < 2):
-        return " ".join(value.split())
-    return "\n\n".join(
-        " ".join(value[start:end].split())
-        for start, end in iter_source_paragraph_ranges(value))
-
-
 def _comparison_text(text, *, word_boundaries="space"):
     # Transformation shared by the one comparison key. NFKC folds compatibility
     # typography ("ＯＫ" -> "OK"); Cf characters are invisible, so a
     # WORD_BOUNDARIES character is a word break in the default "space" view and
     # the fused view deletes it (#2316, #2293); every apostrophe variant folds
-    # to ASCII before the intraword rule. Comparison only: stored text,
-    # reported offsets and hashes are untouched.
+    # to ASCII before the intraword rule. Line breaks stay intact so
+    # get_comparison_tokens_and_gaps never fuses words across one. Comparison
+    # only: stored text, reported offsets and hashes are untouched.
+    text = str(text or "")
+    if text.isascii():
+        if "`" in text:
+            text = text.replace("`", "'")
+        text = text.lower()
+        if "'" in text:
+            text = _INTRAWORD_APOSTROPHE_RE.sub("", text)
+        return text
     text = remove_format_characters(
-        unicodedata.normalize("NFKC", str(text or "").translate(_APOSTROPHE_FOLD)),
+        unicodedata.normalize("NFKC", text.translate(_APOSTROPHE_FOLD)),
         word_boundaries=word_boundaries)
-    # Casefold AFTER compat folding: casefold itself can produce a mark
-    # ("İ".casefold() == "i\u0307") and can decompose (Greek iota subscript), so
-    # NFC after folding is what makes one word spelled two ways comparable.
-    text = _normalize_comparison(
-        unicodedata.normalize("NFC", _normalize_comparison(text)))
-    return re.sub(r"(?<=\w)'(?=\w)", "", text)
+    # NFC before and after casefold: deleting a silent character can expose a
+    # composable base+mark, and casefold itself can produce or decompose a mark
+    # ("İ".casefold() == "i\u0307", Greek iota subscript), so NFC after folding
+    # is what makes one word spelled two ways comparable.
+    text = unicodedata.normalize(
+        "NFC", unicodedata.normalize("NFC", text).casefold())
+    if "'" in text:
+        text = _INTRAWORD_APOSTROPHE_RE.sub("", text)
+    return text
 
 
 def _comparison_word_pattern(text):
@@ -251,26 +242,30 @@ def _comparison_word_pattern(text):
 def get_comparison_word_view(text, *, word_boundaries="space"):
     """THE comparison key; the duplicate gate and word coverage both use it."""
     text = _comparison_text(text, word_boundaries=word_boundaries)
-    return " ".join(match.group()
-                    for match in _comparison_word_pattern(text).finditer(text))
+    return " ".join(_comparison_word_pattern(text).findall(text))
 
 
-def get_comparison_tokens_and_gaps(text, *, word_boundaries="space"):
+def get_comparison_tokens_and_gaps(text, *, word_boundaries="space",
+                                   comparison_text=None):
     """Comparison-key tokens and whether each gap may fuse its two neighbours.
 
-    A gap is fusable only when it holds whitespace and no blank line:
+    A gap is fusable only when it holds horizontal whitespace (or a ZWNJ,
+    treated as an optional separator) and no line break or punctuation:
     punctuation keeps two lines apart even though the key drops the
-    punctuation itself, and a paragraph break means the words on either side
-    are not one line, so capacity must not fuse across it (#2293).
+    punctuation itself, and any line break (\\n, \\r, U+2028, U+2029) means the
+    words on either side must not be fused into one token (#2293).
     """
-    text = _comparison_text(text, word_boundaries=word_boundaries)
+    text = (_comparison_text(text, word_boundaries=word_boundaries)
+            if comparison_text is None else comparison_text)
     tokens, fusable = [], []
     previous_end = 0
     for match in _comparison_word_pattern(text).finditer(text):
         if tokens:
             gap = text[previous_end:match.start()]
-            fusable.append(all(character.isspace() for character in gap)
-                           and "\n\n" not in gap)
+            fusable.append(all(
+                (character.isspace() and character not in _LINE_BREAKS)
+                or character == ZERO_WIDTH_NON_JOINER
+                for character in gap))
         else:
             fusable.append(False)
         tokens.append(match.group())
@@ -278,59 +273,70 @@ def get_comparison_tokens_and_gaps(text, *, word_boundaries="space"):
     return tokens, fusable
 
 
-def get_boundary_insensitive_counter(source_text):
-    """Count source copies of a line however its word boundaries are spelled.
-
-    ONE rule: a line is the same line with a space, with U+200B, or fused, so a
-    copy is counted when consecutive source tokens concatenate to the phrase
-    and both ends sit on token boundaries. Tokens fuse only across whitespace
-    (punctuation still separates lines) and copies may not overlap, so capacity
-    can never exceed the number of source copies the book actually carries.
-    ZWNJ is an optional separator here: the primary key keeps it inside its
-    word, but a line written with "می" + ZWNJ + "روم" and one written
-    "میروم" (or "می روم") are the same line for capacity (#2293).
-    """
-    tokens, fusable = get_comparison_tokens_and_gaps(source_text)
+def _build_boundary_insensitive_matcher(source_text, *, comparison_text=None):
+    tokens, fusable = get_comparison_tokens_and_gaps(
+        source_text, comparison_text=comparison_text)
     fused_parts = []
-    token_starts = []
-    token_ends = []
+    start_to_index = {}
+    end_to_index = {}
     bad_boundaries = []
     offset = 0
     for index, token in enumerate(tokens):
         if index and not fusable[index]:
             bad_boundaries.append(offset)
-        token = token.replace(ZERO_WIDTH_NON_JOINER, "")
-        token_starts.append(offset)
-        fused_parts.append(token)
-        offset += len(token)
-        token_ends.append(offset)
+        stripped = token.replace(ZERO_WIDTH_NON_JOINER, "")
+        start_to_index[offset] = index
+        fused_parts.append(stripped)
+        offset += len(stripped)
+        end_to_index[offset] = index + 1
     fused_source = "".join(fused_parts)
-    start_offsets = set(token_starts)
-    end_offsets = set(token_ends)
 
-    def count_occurrences(phrase):
+    def match_occurrences(phrase):
         target = "".join(phrase.split()).replace(ZERO_WIDTH_NON_JOINER, "")
         if not target:
-            return 0
+            return 0, Counter(), set()
         count = 0
+        whole_tokens = Counter()
+        claimed_indices = set()
         search_from = 0
         while True:
             # The fused source is scanned in C; Python only validates a hit's
-            # two ends and the punctuation gaps inside it.
+            # two ends and the punctuation/line-break gaps inside it.
             start = fused_source.find(target, search_from)
             if start < 0:
-                return count
+                return count, whole_tokens, claimed_indices
             stop = start + len(target)
             boundary = bisect_right(bad_boundaries, start)
-            if (start in start_offsets and stop in end_offsets
+            tok_start = start_to_index.get(start)
+            tok_stop = end_to_index.get(stop)
+            if (tok_start is not None and tok_stop is not None
                     and (boundary == len(bad_boundaries)
                          or bad_boundaries[boundary] >= stop)):
                 count += 1
+                if tok_stop - tok_start == 1:
+                    whole_tokens[tokens[tok_start]] += 1
+                claimed_indices.update(range(tok_start, tok_stop))
                 search_from = stop
             else:
                 search_from = start + 1
 
-    return count_occurrences
+    return match_occurrences
+
+
+def get_boundary_insensitive_counter(source_text):
+    """Count source copies of a line however its word boundaries are spelled.
+
+    ONE rule: a line is the same line with a space, with U+200B, or fused, so a
+    copy is counted when consecutive source tokens concatenate to the phrase
+    and both ends sit on token boundaries. Tokens fuse only across horizontal
+    whitespace (punctuation and line breaks still separate lines) and copies
+    may not overlap, so capacity can never exceed the number of source copies
+    the book actually carries. ZWNJ is an optional separator here: the primary
+    key keeps it inside its word, but a line written with "می" + ZWNJ + "روم"
+    and one written "میروم" (or "می روم") are the same line for capacity (#2293).
+    """
+    match_occurrences = _build_boundary_insensitive_matcher(source_text)
+    return lambda phrase: match_occurrences(phrase)[0]
 
 
 def _finding(severity, code, message, entry_numbers=None, **details):
@@ -526,11 +532,9 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         return []
     # A line may be spelled more than one way in the source itself ("the cat"
     # and "thecat" in one book), so no single source key sees every copy. The
-    # spelling-independent count is built once and consulted only for a needle
-    # that already exceeds its per-view capacity. Building it always is what
-    # makes capacity "per line, not per spelling"; it costs about 0.09 s on a
-    # 0.46 MB source, and only an excess count calls it.
-    count_boundary_copies = get_boundary_insensitive_counter(source_text)
+    # spelling-independent matcher is built lazily on the first needle that
+    # exceeds its per-view capacity, so clean books pay nothing for it.
+    match_boundary_copies = None
     needle_starts = {needle.split()[0] for needle in needles}
     # The audit word view was tokenized with the mark-dropping _WORD_RE, so it
     # is only trustworthy for an ASCII source with no apostrophe variant: there
@@ -538,11 +542,16 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     # apostrophe guard covers the one other difference. Any other source is
     # rebuilt through canonical so a mark casefold produced ("İ" -> "i\u0307")
     # or typography is not dropped from the source while the needle keeps it.
-    source = (source_normalized if source_normalized is not None
-              and source_is_ascii
-              and not re.search(rf"(?<=\w)[{re.escape(_APOSTROPHE_VARIANTS)}](?=\w)",
-                                source_text)
-              else canonical(source_text))
+    source_comparison_text = None
+    if (source_normalized is not None
+            and source_is_ascii
+            and not _INTRAWORD_APOSTROPHE_VARIANT_RE.search(source_text)):
+        source = source_normalized
+    else:
+        source_comparison_text = _comparison_text(source_text)
+        source = " ".join(
+            _comparison_word_pattern(source_comparison_text).findall(
+                source_comparison_text))
     # A boundary character may be rendered either way by the model: the source
     # "Go\u200bhome" is the same single line as "Go home" and as "Gohome". Count
     # support under both keys and, per needle, keep the larger count as its
@@ -697,7 +706,8 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         units.sort()
         return start_word, stop_word, tuple(fused), tuple(spans), units
 
-    def unspent_token_support(needle):
+    def unspent_token_support(needle, *, counted_whole_tokens=None,
+                              boundary_claimed=None):
         """Copies of a needle that an unemitted source word explains.
 
         A needle fused into a longer source word is invisible to the word scan.
@@ -709,10 +719,15 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         source-token sequence, with every fused token rendered by adjacent
         output words and every whole word by itself. Windows may not overlap and
         each unemitted source copy is used once, so reuse cannot hide a genuine
-        repeat.
+        repeat. Tokens already counted into capacity by the spelling-independent
+        counter are excluded so a fused whole-token copy is never counted twice.
         """
         ensure_unspent()
         if not unspent_counts or not run_groups:
+            return 0
+        available_counts = (unspent_counts - counted_whole_tokens
+                            if counted_whole_tokens else unspent_counts)
+        if not available_counts:
             return 0
         words = output_words
         phrase = needle.split()
@@ -751,6 +766,8 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         for index in range(lo, hi):
             begin, row = run_groups[index]
             for stop, token in row:
+                if not available_counts[token]:
+                    continue
                 value = value_of(begin, stop)
                 if value:
                     raw.append((begin, stop, (token,), value))
@@ -766,6 +783,8 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             for index in range(lo, hi):
                 begin, row = run_groups[index]
                 for stop, token in row:
+                    if not available_counts[token]:
+                        continue
                     first = bisect_right(ends, begin)
                     after = bisect_left(occurrences, stop)
                     cover_start = cover_stop = None
@@ -782,18 +801,20 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                     if source_tokens is None:
                         ensure_source_tokens()
                     if claimed is None:
-                        # Source copies of the whole-line phrase are the ones
-                        # capacity already counts. A window that touches one of
-                        # them is a re-rendering of a counted copy, not new, so
-                        # an occurrence overlapping a claimed token proves
-                        # nothing about an extra copy.
-                        claimed = set()
-                        source_last = 0
-                        for source_start in source_positions.get(phrase[0], ()):
-                            if (source_start >= source_last
-                                    and source_tokens[source_start:source_start + length] == phrase):
-                                claimed.update(range(source_start, source_start + length))
-                                source_last = source_start + length
+                        # Source copies already counted into capacity (either
+                        # by the primary-key scan or by the spelling-independent
+                        # counter when it raised capacity) must not be credited
+                        # a second time through a straddle window.
+                        if boundary_claimed is not None:
+                            claimed = set(boundary_claimed)
+                        else:
+                            claimed = set()
+                            source_last = 0
+                            for source_start in source_positions.get(phrase[0], ()):
+                                if (source_start >= source_last
+                                        and source_tokens[source_start:source_start + length] == phrase):
+                                    claimed.update(range(source_start, source_start + length))
+                                    source_last = source_start + length
                     for position in source_positions.get(token, ()):
                         expanded = expand_run(begin, stop, position,
                                               cover_start, cover_stop)
@@ -830,7 +851,7 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             candidates.append(item)
 
         def tokens_fit(usage, tokens):
-            return all(usage[token] + count <= unspent_counts[token]
+            return all(usage[token] + count <= available_counts[token]
                        for token, count in Counter(tokens).items())
 
         def add_usage(usage, tokens):
@@ -902,7 +923,7 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             for index in chain:
                 usage.update(candidates[index][2])
             return {token for token, count in usage.items()
-                    if count > unspent_counts[token]}
+                    if count > available_counts[token]}
 
         total, chain = solve()
         excess = over_used(chain)
@@ -1134,6 +1155,8 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         capacity = source_counts[ident]
         added_capacity = sum(count for word, count in expansion_sites if word in needle.split())
         all_emitted = output_counts[ident]
+        counted_whole_tokens = None
+        boundary_claimed = None
         # Only an excess count needs the extra scan: the spelling-independent
         # count can raise capacity to the true number of source copies, never
         # above it, so a needle already within its per-view capacity cannot
@@ -1143,7 +1166,14 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             # that spell this line when a space, a U+200B and a ZWNJ are all
             # optional separators, so every output spelling of one line gets
             # one capacity.
-            capacity = max(capacity, count_boundary_copies(needle))
+            if match_boundary_copies is None:
+                match_boundary_copies = _build_boundary_insensitive_matcher(
+                    source_text, comparison_text=source_comparison_text)
+            boundary_count, whole_tokens, claimed_indices = match_boundary_copies(needle)
+            if boundary_count > capacity:
+                capacity = boundary_count
+                counted_whole_tokens = whole_tokens
+                boundary_claimed = claimed_indices
         if not capacity:
             continue
         if all_emitted <= capacity + added_capacity:
@@ -1166,7 +1196,11 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         # entries. Only a separate-entry finding is explained this way; the split
         # must appear adjacent in the output, and an extra copy still blocks.
         if not ambiguous and not carriers[ident]:
-            support = unspent_token_support(needle)
+            support = unspent_token_support(
+                needle,
+                counted_whole_tokens=counted_whole_tokens,
+                boundary_claimed=boundary_claimed,
+            )
             ambiguous = all_emitted <= capacity + added_capacity + support
         findings.append(_finding(
             "manual_review" if ambiguous else "blocking", "contained_source_duplicate",
@@ -1574,27 +1608,46 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
         script_words = Counter(
             word for text in texts
             for word in _WORD_RE.findall(text))
-        # A source word may be spelled another way, so measure coverage against
-        # both the split view and the fused comparison view and keep the better
-        # one. The fused view is THE comparison key the duplicate gate uses, so
-        # coverage and capacity cannot disagree about ZWNJ, ZWJ or BOM. An
-        # ASCII source with no apostrophe fold is the same words in both views
-        # by construction, so a plain book pays nothing for the second one.
-        source_views = [Counter(source_tokens)]
-        if not source_text.isascii() or any(
-                character in source_text for character in _APOSTROPHE_VARIANTS):
-            fused_view = Counter(get_comparison_word_view(
-                source_text, word_boundaries="fused").split())
-            if fused_view != source_views[0]:
-                source_views.append(fused_view)
+        source_words = Counter(source_tokens)
         del source_tokens
-        source_total = sum(source_views[0].values())
-        coverage = 0.0
-        for source_words in source_views:
-            view_total = sum(source_words.values())
-            matched = sum(min(count, script_words.get(word, 0))
-                          for word, count in source_words.items())
-            coverage = max(coverage, matched / view_total if view_total else 1.0)
+        source_total = sum(source_words.values())
+        matched = sum(min(count, script_words.get(word, 0))
+                      for word, count in source_words.items())
+        coverage = matched / source_total if source_total else 1.0
+        if source_total and coverage < 0.85:
+            # Measure again with the comparison key, tokenizing BOTH sides the
+            # same way (combining marks kept, boundary characters fused, ZWNJ
+            # treated as an optional separator) so a faithful spelling
+            # difference (U+200B, ZWJ, ZWNJ, apostrophe fold, combining marks)
+            # never triggers low_source_word_coverage. Only runs when the
+            # primary view fell below the threshold, so healthy books pay
+            # nothing for it.
+            for word_boundaries in ("fused", "space"):
+                if (word_boundaries == "space"
+                        and not any(character in source_text
+                                    for character in WORD_BOUNDARIES)
+                        and not any(
+                            isinstance(entry, dict) and isinstance(entry.get("text"), str)
+                            and any(character in entry["text"]
+                                    for character in WORD_BOUNDARIES)
+                            for entry in entries)):
+                    continue
+                comparison_source = Counter(
+                    get_comparison_word_view(
+                        source_text, word_boundaries=word_boundaries
+                    ).replace(ZERO_WIDTH_NON_JOINER, "").split())
+                comparison_script = Counter(
+                    word for entry in entries
+                    if isinstance(entry, dict) and isinstance(entry.get("text"), str)
+                    for word in get_comparison_word_view(
+                        entry["text"], word_boundaries=word_boundaries
+                    ).replace(ZERO_WIDTH_NON_JOINER, "").split())
+                view_total = sum(comparison_source.values())
+                matched = sum(min(count, comparison_script.get(word, 0))
+                              for word, count in comparison_source.items())
+                coverage = max(coverage, matched / view_total if view_total else 1.0)
+                if coverage >= 0.85:
+                    break
         if source_total and coverage < 0.85:
             findings.append(_finding(
                 "manual_review", "low_source_word_coverage",

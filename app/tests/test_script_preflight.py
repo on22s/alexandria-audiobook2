@@ -1,7 +1,6 @@
 import asyncio
 import json
 from pathlib import Path
-import random
 import sys
 import tempfile
 import unittest
@@ -817,11 +816,10 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
     def test_a_word_joiner_is_not_a_word_boundary(self):
         # U+2060 is the opposite of U+200B (#2316): it joins what it sits
         # between and is deleted, never turned into a space, so the fused
-        # spelling is the source's one word. Two fused copies exceed it and
-        # block. The spaced spelling is the same line for capacity (a space is
-        # an optional separator), so two spaced copies are also an excess; the
-        # source's one joined word was not emitted as written, so that split is
-        # review-only instead of blocking.
+        # spelling is the source's one word. Both spellings share that single
+        # copy of capacity (and that fused token must not be credited a second
+        # time as unemitted split support), so two copies in either spelling
+        # block.
         source = "Go\u2060home"
         fused = [_entry("Gohome", "MARTA"), _entry("Gohome", "PORTER")]
         spaced = [_entry("Go home", "MARTA"), _entry("Go home", "PORTER")]
@@ -831,8 +829,9 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(1, finding["details"]["source_occurrences"])
         self.assertEqual([], self._duplicate_findings(spaced[:1], source))
         finding = self._duplicate_findings(spaced, source)[0]
-        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual("blocking", finding["severity"])
         self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(0, finding["details"]["unemitted_source_split_support"])
 
     def test_an_output_boundary_does_not_change_a_source_without_one(self):
         # A source with no boundary character has one spelling, so an output
@@ -951,31 +950,75 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
 
     def test_capacity_is_per_line_not_per_spelling(self):
         # A plain source with no U+200B still spells one line two ways: "the
-        # cat" and "thecat" are two copies. The spelling-independent count is
-        # built whatever the source carries, so each spelling gets capacity two
-        # and a third copy is an excess. The spaced third copy is review-only
-        # (the source's fused word was not emitted as written); the fused third
-        # copy is proven.
-        source = "the cat sat. Then thecat left."
-        for line, third in (("the cat.", "manual_review"), ("thecat.", "blocking")):
+        # cat" and "thecat" are two copies. The spelling-independent count
+        # gives each spelling capacity two without letting unemitted split
+        # support credit the same fused token a second time, so a third copy in
+        # either spelling blocks.
+        source = '"the cat" sat. Then thecat left.'
+        for line in ("the cat.", "thecat."):
             with self.subTest(line=line):
-                self.assertEqual([], self._duplicate_findings(
-                    [_entry(line, "MARTA"), _entry(line, "PORTER")], source))
-                finding = self._duplicate_findings(
-                    [_entry(line, "MARTA"), _entry(line, "PORTER"),
-                     _entry(line, "ANNA")], source)[0]
-                self.assertEqual(third, finding["severity"])
+                faithful = [_entry(line, "MARTA"), _entry("sat."),
+                            _entry(line, "PORTER"), _entry("Then left.")]
+                self.assertEqual([], self._duplicate_findings(faithful, source))
+                extra = faithful + [_entry(line, "ANNA")]
+                finding = self._duplicate_findings(extra, source)[0]
+                self.assertEqual("blocking", finding["severity"])
                 self.assertEqual(2, finding["details"]["source_occurrences"])
                 self.assertEqual(3, finding["details"]["all_text_occurrences"])
+                self.assertEqual(0, finding["details"]["unemitted_source_split_support"])
+                self.assertFalse(generate_script.passes_final_generation_gate(
+                    validate_chunk_quality(source, extra),
+                    audit_script(extra, source)))
 
-    def test_capacity_does_not_fuse_across_a_paragraph_break(self):
-        # A blank line separates paragraphs, so "go" before it and "home" after
-        # it are not one copy of "Gohome". The review's shape: collapsing all
-        # whitespace before tokenising counted a fusion across the break and
-        # left the duplicate clean. U+2029 is an explicit paragraph separator
-        # by the same project definition, so it may not fuse either.
-        for separator in ("\n\n", "\u2029"):
-            with self.subTest(separator=separator):
+    def test_fused_source_copies_are_not_counted_twice_in_support(self):
+        # N fused whole-token copies counted into capacity by the
+        # spelling-independent counter must never be credited again by
+        # unspent_token_support (which otherwise allowed 2N spaced emissions).
+        source = "The thecat sat. Then thecat ran."
+        entries = [_entry("the cat", "C%d" % index) for index in range(4)]
+        self.assertEqual([], self._duplicate_findings(entries[:2], source))
+        for count in (3, 4):
+            with self.subTest(count=count):
+                finding = self._duplicate_findings(entries[:count], source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(2, finding["details"]["source_occurrences"])
+                self.assertEqual(count, finding["details"]["all_text_occurrences"])
+                self.assertEqual(0, finding["details"]["unemitted_source_split_support"])
+
+        # Four single-fused-copy shapes (1 source copy, 1 spaced emission clean,
+        # 2 spaced emissions must block).
+        single_cases = (
+            ("word_joiner", "Go\u2060home", "Go home"),
+            ("persian_plain", "میروم", "می روم"),
+            ("persian_zwnj", "می\u200cروم", "می روم"),
+            ("japanese", "はいそうです", "はい そうです"),
+            ("thai", "สวัสดีครับ", "สวัสดี ครับ"),
+        )
+        for label, src, spaced in single_cases:
+            with self.subTest(case=label):
+                self.assertEqual([], self._duplicate_findings(
+                    [_entry(spaced, "MARTA")], src))
+                finding = self._duplicate_findings(
+                    [_entry(spaced, "MARTA"), _entry(spaced, "PORTER")], src)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["source_occurrences"])
+                self.assertEqual(2, finding["details"]["all_text_occurrences"])
+                self.assertEqual(0, finding["details"]["unemitted_source_split_support"])
+
+        # A multi-token span already counted by the boundary counter must not
+        # be credited a second time through a straddle window either.
+        straddle_finding = self._duplicate_findings(
+            [_entry("a b c", "MARTA"), _entry("a b c", "PORTER")], "a bc")[0]
+        self.assertEqual("blocking", straddle_finding["severity"])
+        self.assertEqual(1, straddle_finding["details"]["source_occurrences"])
+        self.assertEqual(0, straddle_finding["details"]["unemitted_source_split_support"])
+
+    def test_capacity_does_not_fuse_across_any_line_break(self):
+        # No line break (\n, \r, U+2028, U+2029, or repeated forms like \n\n
+        # and \r\r) may fuse two neighbour tokens into one copy in the
+        # boundary-insensitive counter.
+        for separator in ("\n", "\n\n", "\r", "\r\n", "\r\r", "\u2028", "\u2029"):
+            with self.subTest(separator=repr(separator)):
                 source = "Gohome. Then go" + separator + "home. z z rest"
                 finding = self._duplicate_findings(
                     [_entry("Gohome.", "MARTA"), _entry("Gohome.", "PORTER")], source)[0]
@@ -984,20 +1027,38 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
                 self.assertEqual(1, finding["details"]["source_occurrences"])
                 self.assertEqual(2, finding["details"]["all_text_occurrences"])
 
-    def test_capacity_still_fuses_across_a_single_newline(self):
-        # A single newline is a soft wrap inside a paragraph, so the words on
-        # either side of it may be one line: "Gohome" and "go\\nhome" are two
-        # source copies and two emitted copies are faithful. Only a blank line
-        # (a paragraph break) blocks fusion.
-        source = "Gohome. Then go\nhome. z z rest"
+        # Reported English and Thai single-newline repros.
+        repros = (
+            ("en", '"Gohome," she said.\nChapter Two: Go\nHome was far away.', "Gohome."),
+            ("th", "เขาพูดว่า สวัสดีครับ\nวันนี้เขาพูดว่า สวัสดี\nครับ ผมเข้าใจแล้ว",
+             "สวัสดีครับ"),
+        )
+        for label, source, line in repros:
+            with self.subTest(repro=label):
+                finding = self._duplicate_findings(
+                    [_entry(line, "MARTA"), _entry(line, "PORTER")], source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["source_occurrences"])
+                self.assertEqual(2, finding["details"]["all_text_occurrences"])
 
-        self.assertEqual([], self._duplicate_findings(
-            [_entry("Gohome.", "MARTA"), _entry("Gohome.", "PORTER")], source))
+    def test_hard_wrapped_source_stays_clean_once_and_blocks_at_two(self):
+        # The primary comparison key still collapses a single newline to a word
+        # separator for spaced output, so a hard-wrapped line stays faithful at
+        # one copy and blocks at two.
+        source = '"Go\nhome," she said.'
+        once = [_entry("Go home.", "MARTA"), _entry("she said.")]
+        self.assertEqual([], self._duplicate_findings(once, source))
+        finding = self._duplicate_findings(
+            once + [_entry("Go home.", "PORTER")], source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(2, finding["details"]["all_text_occurrences"])
 
     def test_an_unrelated_zwsp_does_not_change_a_fused_capacity(self):
-        # With the spelling-independent count always built, a U+200B in an
-        # unrelated entry no longer flips a fused duplicate from missed to
-        # blocking: the spaced source is one copy of "Gohome" either way.
+        # With the spelling-independent count built on demand for every source,
+        # a U+200B in an unrelated entry no longer flips a fused duplicate from
+        # missed to blocking: the spaced source is one copy of "Gohome" either
+        # way.
         source = '"Go home," she said.'
         plain = [_entry("Gohome.", "MARTA"), _entry("Gohome.", "PORTER")]
         unrelated = plain + [_entry("z\u200bz", "Narrator")]
@@ -1022,6 +1083,35 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertNotIn("low_source_word_coverage",
                          {finding["code"] for finding in report["findings"]})
 
+    def test_audit_coverage_tokenizes_both_sides_the_same_way(self):
+        # Coverage's fallback comparison view must tokenize both source and
+        # script with the same mark-aware, ZWNJ-insensitive comparison key so
+        # Thai combining marks, Persian ZWNJ toggles, and ASCII apostrophe
+        # folds never trip low_source_word_coverage on a faithful script.
+        faithful_cases = (
+            ("th_zwsp", '"คน\u200bดี" เธอพูด',
+             [_entry("คนดี", "MARTA"), _entry("เธอพูด")]),
+            ("th_zwj", '"คน\u200dดี" เธอพูด',
+             [_entry("คนดี", "MARTA"), _entry("เธอพูด")]),
+            ("fa_zwnj_to_plain", "می\u200cروم", [_entry("میروم", "MARTA")]),
+            ("fa_plain_to_zwnj", "میروم", [_entry("می\u200cروم", "MARTA")]),
+            ("ascii_apostrophe_dropped", "Don't stop.",
+             [_entry("Dont stop.", "MARTA")]),
+            ("ascii_apostrophe_added", "Dont stop.",
+             [_entry("Don't stop.", "MARTA")]),
+        )
+        for label, source, entries in faithful_cases:
+            with self.subTest(case=label):
+                report = audit_script(entries, source)
+                self.assertNotIn("low_source_word_coverage",
+                                 {finding["code"] for finding in report["findings"]})
+
+        # Genuinely missing content still reports low_source_word_coverage.
+        missing = audit_script([_entry("คนดี", "MARTA")],
+                               "คน\u200bดี สวัสดีครับ วันนี้ฝนตกทั้งคืน")
+        self.assertIn("low_source_word_coverage",
+                      {finding["code"] for finding in missing["findings"]})
+
     def test_one_source_copy_in_two_spellings_is_a_known_miss(self):
         """Known miss (#2353): spellings are counted separately.
 
@@ -1038,12 +1128,10 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual([], self._duplicate_findings(entries, source))
 
     def test_the_zwsp_sweep_stays_clean_and_catches_each_injection(self):
-        # A compact, deterministic form of the ZWSP sweep: each language's
-        # boundary-bearing line is faithful once however the model spells it,
-        # and injected twice in any spelling blocks. The same shape over a
-        # spaced source (no U+200B) is checked too, because a kept boundary
-        # there was the reported failure. Seeded so the case mix is fixed and
-        # the CI cost is bounded.
+        # Deterministic form of the ZWSP sweep: every language, both source
+        # forms (boundary-bearing and spaced), and every model spelling are
+        # checked without random sampling. Faithful once is clean; injected
+        # twice in any spelling blocks.
         families = (
             ("en", "Go\u200bhome", "The rain fell all night and the road was quiet.",
              ("Go home", "Gohome", "Go\u200bhome")),
@@ -1054,11 +1142,9 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
             ("zh", "北\u200b京", "雨下了一整夜，路上很安静。",
              ("北 京", "北京", "北\u200b京")),
         )
-        rng = random.Random(2293)
         for language, line, filler, spellings in families:
             for source_line in (line, line.replace("\u200b", " ")):
-                for _ in range(4):
-                    spelling = spellings[rng.randrange(len(spellings))]
+                for spelling in spellings:
                     source = filler + ' "' + source_line + '," she said. ' + filler
                     with self.subTest(language=language, source=source_line,
                                       spelling=spelling):
@@ -1098,22 +1184,45 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(2, finding["details"]["all_text_occurrences"])
 
     def test_each_zwnj_spelling_in_the_source_is_one_copy_of_the_same_line(self):
-        # A source carrying both spellings holds two copies of one line. The
-        # ZWNJ form and the spaced form both get the same capacity of two, so
-        # two emitted copies are faithful and a third is an excess. The spaced
-        # third copy is review-only: the source's joined words were not emitted
-        # as written, so the existing unemitted-split rule applies.
+        # A source carrying both spellings holds two copies of one line. Plain,
+        # ZWNJ, and spaced forms all get capacity two (without double-counting
+        # the fused tokens in split support), so two emitted copies are
+        # faithful and a third copy blocks in every spelling.
         plain, with_zwnj = "میروم", "می\u200cروم"
         source = plain + " " + with_zwnj
-        for line, third in ((plain, "blocking"), (with_zwnj, "blocking"),
-                            ("می روم", "manual_review")):
+        for line in (plain, with_zwnj, "می روم"):
             with self.subTest(line=line):
                 faithful = [_entry(line, "MARTA"), _entry(line, "PORTER")]
                 self.assertEqual([], self._duplicate_findings(faithful, source))
                 finding = self._duplicate_findings(
                     faithful + [_entry(line, "ANNA")], source)[0]
-                self.assertEqual(third, finding["severity"])
+                self.assertEqual("blocking", finding["severity"])
                 self.assertEqual(2, finding["details"]["source_occurrences"])
+                self.assertEqual(0, finding["details"]["unemitted_source_split_support"])
+
+    def test_zwnj_after_space_or_zwsp_is_fusable(self):
+        # A leading ZWNJ after a space or U+200B sits in the gap between the
+        # two tokens rather than trailing the first token; it is still an
+        # optional separator and must fuse, while punctuation or a line break
+        # beside ZWNJ still separates lines.
+        for label, source in (
+                ("space_then_zwnj", "Hello. می \u200cروم world."),
+                ("zwsp_then_zwnj", "Hello. می\u200b\u200cروم world.")):
+            with self.subTest(case=label):
+                self.assertEqual([], self._duplicate_findings(
+                    [_entry("میروم", "MARTA")], source))
+                finding = self._duplicate_findings(
+                    [_entry("میروم", "MARTA"), _entry("میروم", "PORTER")], source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["source_occurrences"])
+                self.assertEqual(2, finding["details"]["all_text_occurrences"])
+
+        for label, source in (
+                ("punctuation_then_zwnj", "Hello. می.\u200cروم world."),
+                ("newline_then_zwnj", "Hello. می\n\u200cروم world.")):
+            with self.subTest(negative=label):
+                self.assertEqual([], self._duplicate_findings(
+                    [_entry("میروم", "MARTA"), _entry("میروم", "PORTER")], source))
 
     def test_a_zero_width_joiner_is_deleted_for_devanagari_conjuncts(self):
         # ZWJ is a glyph-joining hint: "क्\u200dष" and "क्ष" are the same
@@ -1551,9 +1660,9 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
 
     def test_a_line_spelled_fused_and_spaced_in_the_source_carries_two_copies(self):
         # "ja ja" in a quotation and "jaja" as one word are two source copies of
-        # one line, so two emitted copies are faithful. A third is an excess;
-        # it is review-only because the source's fused word was not emitted as
-        # written, which the existing unemitted-split rule explains.
+        # one line, so two emitted copies are faithful and pass the final gate.
+        # A third copy exceeds capacity and must block without crediting "jaja"
+        # a second time in unspent split support.
         de_fill = ("Der Morgen war kalt und der Bahnsteig leer . Marta wartete neben der "
                    "alten Uhr und beobachtete die Gleise . Der Traeger ging langsam und "
                    "hielt eine Lampe . ")
@@ -1562,12 +1671,18 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
                     _entry("sagte er . Und dann sagte sie nur:"), _entry("ja ja", "PORTER")]
 
         self.assertEqual([], self._duplicate_findings(faithful, source))
-        finding = self._duplicate_findings(faithful + [_entry("ja ja", "ANNA")],
-                                           source)[0]
-        self.assertEqual("manual_review", finding["severity"])
+        self.assertTrue(generate_script.passes_final_generation_gate(
+            validate_chunk_quality(source, faithful),
+            audit_script(faithful, source)))
+        extra = faithful + [_entry("ja ja", "ANNA")]
+        finding = self._duplicate_findings(extra, source)[0]
+        self.assertEqual("blocking", finding["severity"])
         self.assertEqual(2, finding["details"]["source_occurrences"])
         self.assertEqual(3, finding["details"]["all_text_occurrences"])
-        self.assertEqual(1, finding["details"]["unemitted_source_split_support"])
+        self.assertEqual(0, finding["details"]["unemitted_source_split_support"])
+        self.assertFalse(generate_script.passes_final_generation_gate(
+            validate_chunk_quality(source, extra),
+            audit_script(extra, source)))
 
     def test_a_multi_word_line_straddling_two_fused_tokens_is_not_blocked(self):
         # The second "はい はい" has one word at the tail of そうはい and one at
@@ -1619,8 +1734,11 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(2, finding["details"]["unemitted_source_split_support"])
 
     def test_a_fused_token_can_explain_several_copies_beyond_the_first(self):
-        # Exact selection over a few candidates: a greedy/de-DP choice credits
-        # only two of the three repeats and blocks this faithful script.
+        # The source carries four copies of "정말 아니요": one spaced, one exact
+        # fused ("정말아니요", counted into capacity = 2), one prefixed fused
+        # ("오늘정말아니요") and one straddled ("정말" + "아니요오늘"). Four
+        # emissions stay unblocked (capacity 2 + support 2), and a fifth blocks
+        # because the exact fused copy is not credited twice.
         source = ("\ub0b4\uc77c \ub0b4\uc77c \uc815\ub9d0 \uc544\ub2c8\uc694 "
                   "\uc815\ub9d0\uc544\ub2c8\uc694 \uc624\ub298\uc815\ub9d0\uc544\ub2c8\uc694 "
                   "\uc815\ub9d0 \uc544\ub2c8\uc694\uc624\ub298 \uc624\ub298")
@@ -1635,8 +1753,12 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         finding = self._duplicate_findings(entries, source)[0]
 
         self.assertEqual("manual_review", finding["severity"])
-        self.assertEqual(3, finding["details"]["unemitted_source_split_support"])
+        self.assertEqual(2, finding["details"]["source_occurrences"])
+        self.assertEqual(2, finding["details"]["unemitted_source_split_support"])
         self.assertEqual(0, audit_script(entries, source)["counts"]["blocking"])
+        extra = entries + [_entry("\uc815\ub9d0 \uc544\ub2c8\uc694", "C10")]
+        self.assertEqual("blocking",
+                         self._duplicate_findings(extra, source)[0]["severity"])
 
     def test_the_above_threshold_fallback_keeps_a_faithful_split_unblocked(self):
         # Both fixtures yield more window/run candidates (23 and 47) than the
