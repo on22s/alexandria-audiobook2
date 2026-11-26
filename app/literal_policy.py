@@ -122,6 +122,20 @@ def is_literal_marker_lineage(marker, policy, uid, policy_identity):
             and policy.get('scope_chunks', {}).get(uid) == marker)
 
 
+def get_strip_front_matter_choices(recorded):
+    """The preparations a script may have been generated with.
+
+    A recorded choice is authoritative. An unrecorded one (books saved before
+    the choice was recorded) admits both preparations, the same ambiguity
+    Review resolves for a legacy parent by trying both.
+    """
+    if recorded is None:
+        return (False, True)
+    if type(recorded) is not bool:
+        raise ValueError('Invalid literal preprocessing choice')
+    return (recorded,)
+
+
 def get_literal_policy(entries):
     policies = [entry[SCRIPT_POLICY_KEY] for entry in entries
                 if isinstance(entry, dict) and SCRIPT_POLICY_KEY in entry]
