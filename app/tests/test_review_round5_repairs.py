@@ -1,5 +1,6 @@
 """Round-5 repairs for #2257: snapshot authentication, checkpoint authority,
 linear lineage, and force/reuse merge-layout agreement."""
+import gc
 import json
 import time
 import unittest
@@ -99,22 +100,40 @@ class LineageScale(unittest.TestCase):
                  'instruct': ''} for index in range(count)]
 
     def _timed(self, count):
+        """Best of three timings with the collector paused.
+
+        A full generational collection landing inside one corpus-sized call adds
+        the same fixed pause whether the scan is linear or not, and a shard-sized
+        heap makes that likely for the larger call. Pausing the collector and
+        keeping the fastest run measures the scan's own work instead.
+        """
         source = self._rows(count)
         output = [dict(item) for item in source]
-        start = time.perf_counter()
-        templates = rev.get_review_source_order_templates(output, source)
-        elapsed = time.perf_counter() - start
+        collector_was_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            elapsed = None
+            for _ in range(3):
+                start = time.perf_counter()
+                templates = rev.get_review_source_order_templates(output, source)
+                run = time.perf_counter() - start
+                elapsed = run if elapsed is None else min(elapsed, run)
+        finally:
+            if collector_was_enabled:
+                gc.enable()
         self.assertIsNotNone(templates)
         self.assertEqual([list(item) for item in source],
                          [list(template) for template in templates])
         return elapsed
 
     def test_lineage_scan_is_subquadratic(self):
-        small = self._timed(400)
-        large = self._timed(1600)
-        # Quadratic rescanning grows ~16x for 4x rows; linear grows ~4x.
-        self.assertLess(large, 6 * small + 0.10,
-                        f'lineage scan looks quadratic: {small:.3f}s -> {large:.3f}s')
+        small = self._timed(800)
+        large = self._timed(3200)
+        # Quadratic rescanning grows ~16x for 4x rows; linear grows ~4x. With the
+        # collector paused and the fastest run kept, the ratio is the scan's own,
+        # so a fixed allowance cannot mask real growth.
+        self.assertLess(large, 8 * small,
+                        f'lineage scan looks quadratic: {small:.4f}s -> {large:.4f}s')
 
 
 class MergeLayout(unittest.TestCase):
