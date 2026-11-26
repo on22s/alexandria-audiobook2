@@ -750,6 +750,103 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
                 self.assertEqual(1, finding["details"]["source_occurrences"])
                 self.assertEqual(2, finding["details"]["all_text_occurrences"])
 
+    def test_a_source_word_boundary_accepts_the_spaced_and_fused_spelling(self):
+        # U+200B is a word boundary (#2316): "Go\u200bhome" in the source is one
+        # copy of the two words "Go home". Writing them twice is a duplicate
+        # whether the model keeps the boundary, writes a space, or drops it; a
+        # kept boundary in the output must compare equal to both source keys.
+        source = '"Go\u200bhome," she said.'
+        for line in ("Go home", "Gohome", "Go\u200bhome"):
+            with self.subTest(line=line):
+                entries = [_entry(line + ".", "MARTA"), _entry("she said."),
+                           _entry(line + ".", "PORTER")]
+
+                finding = self._duplicate_findings(entries, source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["source_occurrences"])
+                self.assertEqual(2, finding["details"]["all_text_occurrences"])
+
+    def test_a_faithful_single_copy_is_clean_under_either_boundary_spelling(self):
+        # The same one source copy, emitted once, is not a finding in any
+        # spelling: spaced or kept must not be read as a repeat, and fused must
+        # not lose the source's word coverage.
+        source = '"Go\u200bhome," she said.'
+        for line in ("Go home", "Gohome", "Go\u200bhome"):
+            with self.subTest(line=line):
+                entries = [_entry(line + ".", "MARTA"), _entry("she said.")]
+
+                self.assertEqual([], self._duplicate_findings(entries, source))
+                report = audit_script(entries, source)
+                self.assertEqual(0, report["counts"]["blocking"])
+                self.assertNotIn("low_source_word_coverage",
+                                 {finding["code"] for finding in report["findings"]})
+
+    def test_a_thai_boundary_character_accepts_the_spaced_spelling(self):
+        # The reported failure: the source carries "สวัสดี\u200bครับ" once, the
+        # model writes the two words with a space three times, and the fused
+        # source key alone matched nothing.
+        source = '"สวัสดี\u200bครับ" เธอพูด'
+        spaced = "\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35 \u0e04\u0e23\u0e31\u0e1a"
+        fused = "\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e04\u0e23\u0e31\u0e1a"
+
+        finding = self._duplicate_findings(
+            [_entry(spaced, "C%d" % index) for index in range(3)], source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(3, finding["details"]["all_text_occurrences"])
+        self.assertEqual("blocking",
+                         self._duplicate_findings(
+                             [_entry(fused, "C%d" % index) for index in range(3)],
+                             source)[0]["severity"])
+
+    def test_a_source_with_two_boundary_copies_carries_both_into_capacity(self):
+        # Two source copies of the same boundary-bearing line stay two copies
+        # after the boundary is resolved, so a third written copy still blocks.
+        source = "Go\u200bhome. Then the rain came. Go\u200bhome."
+        faithful = [_entry("Go home.", "MARTA"), _entry("Then the rain came."),
+                    _entry("Go home.", "PORTER")]
+
+        self.assertEqual([], self._duplicate_findings(faithful, source))
+        finding = self._duplicate_findings(faithful + [_entry("Go home.", "ANNA")],
+                                           source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(2, finding["details"]["source_occurrences"])
+        self.assertEqual(3, finding["details"]["all_text_occurrences"])
+
+    def test_a_word_joiner_is_not_a_word_boundary(self):
+        # U+2060 is the opposite of U+200B (#2316): it joins what it sits
+        # between and is deleted, never turned into a space, so the fused
+        # spelling is the source's one word and the spaced spelling is not.
+        source = "Go\u2060home"
+        fused = [_entry("Gohome", "MARTA"), _entry("Gohome", "PORTER")]
+        spaced = [_entry("Go home", "MARTA"), _entry("Go home", "PORTER")]
+
+        self.assertEqual("blocking",
+                         self._duplicate_findings(fused, source)[0]["severity"])
+        self.assertEqual([], self._duplicate_findings(spaced, source))
+
+    def test_a_superscript_numeral_behaves_like_a_literal_one(self):
+        # NFKC folds "x\u00b2" to "x2", so a superscript is a source numeral
+        # exactly as a literal "x2" is. The digit rule therefore downgrades a
+        # spelled-number repeat to manual_review instead of proving the extra
+        # "Two" unrelated to it. Kept deliberately rather than narrowing the
+        # rule to guess a numeral's written form: a literal "x2" already
+        # behaves this way, and the two must not disagree. Emitting the numeral
+        # removes the doubt and the repeat blocks.
+        entries = [_entry("Two.", "MARTA"), _entry("x squared"),
+                   _entry("Two.", "PORTER")]
+        for numeral in ("x\u00b2", "x2"):
+            with self.subTest(numeral=numeral):
+                finding = self._duplicate_findings(
+                    entries, '"Two." he said. "%s"' % numeral)[0]
+                self.assertEqual("manual_review", finding["severity"])
+                self.assertTrue(finding["details"]["rendering_capacity_unknown"])
+
+        emitted = [_entry("Two.", "MARTA"), _entry("x\u00b2"),
+                   _entry("Two.", "PORTER")]
+        self.assertEqual("blocking", self._duplicate_findings(
+            emitted, '"Two." he said. "x\u00b2"')[0]["severity"])
+
     def test_unsegmented_reduplication_downgrades_to_manual_review(self):
         # The fused source token is split into adjacent entries, which is what
         # the run rule credits; the old fixture was non-adjacent because the

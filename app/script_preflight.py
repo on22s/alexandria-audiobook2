@@ -9,7 +9,8 @@ from bisect import bisect_left, bisect_right, insort
 from collections import Counter
 from heapq import heappop, heappush
 
-from silent_word_characters import remove_silent_word_characters
+from silent_word_characters import (
+    SILENT_WORD_CHARACTERS, WORD_BOUNDARIES, remove_silent_word_characters)
 from speech_text import get_speech_normalization
 from utils import get_unsafe_text_controls
 from alexandria_alignment import is_spelled_number
@@ -42,22 +43,53 @@ _COMBINING_MARK_WORD_PATTERN = None
 # apostrophe, curly single quotes, grave/acute accents and a modifier letter.
 _APOSTROPHE_VARIANTS = "'\u2018\u2019\u0060\u00b4\u02bc"
 _APOSTROPHE_FOLD = str.maketrans({character: "'" for character in _APOSTROPHE_VARIANTS})
-_FORMAT_CHARACTER_TRANSLATION = None
+_FORMAT_TRANSLATIONS = None
 
 
-def remove_format_characters(text):
-    """Delete Unicode format characters (category Cf) from a comparison key.
+def ensure_format_translations():
+    """Build the two comparison views of Unicode format characters (category Cf).
 
-    A soft hyphen is an optional break point inside a word, a word joiner the
-    opposite, and a BOM or bidi control says nothing a reader hears. Comparison
-    only; #2316 will share one definition of the silent ones.
+    ONE definition of which Cf characters break a word and which only vanish
+    (#2316's ``silent_word_characters``). ``WORD_BOUNDARIES`` (U+200B) is a word
+    break: the "space" view maps it to a space, so "Go\\u200bhome" and "Go home"
+    tokenise the same way, while the "fused" view deletes it, so the same source
+    also matches "Gohome". ``SILENT_WORD_CHARACTERS`` (U+00AD, U+2060) are
+    deleted in both views: they sit inside a word.
+
+    The remaining Cf characters (ZWNJ, ZWJ, BOM, bidi controls) are in neither
+    of #2316's sets because they are lexical or directional. The duplicate key
+    keeps its previous treatment of them - deletion, which joins, never breaks,
+    a word - so this change is only about the boundary characters (#2293).
+
+    Built once, from the Unicode database, because a per-character category
+    lookup costs about 0.2 s per megabyte.
     """
-    global _FORMAT_CHARACTER_TRANSLATION
-    if _FORMAT_CHARACTER_TRANSLATION is None:
-        _FORMAT_CHARACTER_TRANSLATION = str.maketrans({
-            chr(code): None for code in range(0x110000)
-            if unicodedata.category(chr(code)) == "Cf"})
-    return text.translate(_FORMAT_CHARACTER_TRANSLATION)
+    global _FORMAT_TRANSLATIONS
+    if _FORMAT_TRANSLATIONS is None:
+        spaced = {character: " " for character in WORD_BOUNDARIES}
+        fused = {character: None for character in WORD_BOUNDARIES}
+        for character in SILENT_WORD_CHARACTERS:
+            spaced[character] = None
+            fused[character] = None
+        for code in range(0x110000):
+            character = chr(code)
+            if character in spaced or unicodedata.category(character) != "Cf":
+                continue
+            spaced[character] = None
+            fused[character] = None
+        _FORMAT_TRANSLATIONS = (str.maketrans(spaced), str.maketrans(fused))
+    return _FORMAT_TRANSLATIONS
+
+
+def remove_format_characters(text, *, word_boundaries="fused"):
+    """Delete Cf characters from a comparison key.
+
+    ``word_boundaries="space"`` keeps a boundary character as a word break;
+    "fused" deletes it so the two words it separated compare as one. Comparison
+    only; stored text, reported offsets and hashes are untouched.
+    """
+    spaced, fused = ensure_format_translations()
+    return text.translate(spaced if word_boundaries == "space" else fused)
 
 
 def ensure_combining_mark_word_pattern():
@@ -311,15 +343,17 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     """
     from dialogue_spans import spoken_spans
 
-    def canonical(text):
+    def canonical(text, *, word_boundaries="space"):
         # One comparison key for every side of this gate. NFKC folds
-        # compatibility typography ("ＯＫ" -> "OK"); category Cf characters
-        # (soft hyphen, ZWJ/ZWNJ, word joiner, BOM) are invisible and dropped;
+        # compatibility typography ("ＯＫ" -> "OK"); Cf characters are
+        # invisible, so a WORD_BOUNDARIES character is a word break in the
+        # default "space" view and the fused view deletes it (#2316, #2293);
         # every apostrophe variant folds to ASCII before the intraword rule.
         # Comparison only: stored text, reported offsets and hashes are
-        # untouched. (#2316 will share one definition of the silent ones.)
+        # untouched.
         text = remove_format_characters(
-            unicodedata.normalize("NFKC", str(text or "").translate(_APOSTROPHE_FOLD)))
+            unicodedata.normalize("NFKC", str(text or "").translate(_APOSTROPHE_FOLD)),
+            word_boundaries=word_boundaries)
         # Casefold AFTER compat folding: casefold itself can produce a mark
         # ("İ".casefold() == "i\u0307") and can decompose (Greek iota
         # subscript), so NFC after folding is what makes one word spelled two
@@ -358,11 +392,24 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     # apostrophe guard covers the one other difference. Any other source is
     # rebuilt through canonical so a mark casefold produced ("İ" -> "i\u0307")
     # or typography is not dropped from the source while the needle keeps it.
+    source_is_ascii = source_text.isascii()
     source = (source_normalized if source_normalized is not None
-              and source_text.isascii()
+              and source_is_ascii
               and not re.search(rf"(?<=\w)[{re.escape(_APOSTROPHE_VARIANTS)}](?=\w)",
                                 source_text)
               else canonical(source_text))
+    # A boundary character may be rendered either way by the model: the source
+    # "Go\u200bhome" is the same single line as "Go home" and as "Gohome". Count
+    # support under both keys and, per needle, keep the larger count as its
+    # capacity, so a duplicate is proven whichever spelling was written and a
+    # faithful single copy stays clean. A boundary character is non-ASCII, so an
+    # ASCII source has one key and skips the extra scan entirely.
+    source_keys = [source]
+    if not source_is_ascii and any(character in source_text
+                                   for character in WORD_BOUNDARIES):
+        fused_source = canonical(source_text, word_boundaries="fused")
+        if fused_source != source:
+            source_keys.append(fused_source)
     unspent_counts = output_words = output_positions = run_groups = total_runs = None
     run_begins = max_run_words = output_word_counts = None
     out_flat = output_starts = offset_to_word = None
@@ -817,7 +864,7 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     longest = max(lengths)
     offsets = [0] * longest
 
-    def scan(text, counts, row=None, quotation=False):
+    def scan(text, counts, row=None, quotation=False, spans=None):
         nonlocal remaining
         state = 0
         last_end = {}
@@ -841,16 +888,28 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                         # Only strictly larger entries can carry a nested copy.
                         if row is None or len(texts[row]) > len(needles[ident]):
                             counts[ident] += 1
-                            if row is None and len(source_spans[ident]) < 8:
-                                source_spans[ident].append([offsets[start % longest], word_match.end()])
-                            elif row is not None and not quotation:
+                            if row is None:
+                                span_rows = source_spans if spans is None else spans
+                                if len(span_rows[ident]) < 8:
+                                    span_rows[ident].append([offsets[start % longest], word_match.end()])
+                            elif not quotation:
                                 carriers[ident].add(row)
                         elif not quotation:
                             counts[ident] += 1
                 hit = suffix[hit]
         return True
 
-    complete = scan(source, source_counts)
+    complete = scan(source_keys[0], source_counts)
+    for variant in source_keys[1:]:
+        if not complete:
+            break
+        variant_counts = [0] * len(needles)
+        variant_spans = [[] for _ in needles]
+        complete = scan(variant, variant_counts, spans=variant_spans)
+        for ident, count in enumerate(variant_counts):
+            if count > source_counts[ident]:
+                source_counts[ident] = count
+                source_spans[ident] = variant_spans[ident]
     for row, text in enumerate(texts):
         if not complete:
             break
@@ -1355,14 +1414,27 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
             ))
 
     if source_text:
-        source_words = Counter(source_tokens)
-        del source_tokens
         script_words = Counter(
             word for text in texts
             for word in _WORD_RE.findall(text))
-        source_total = sum(source_words.values())
-        matched = sum(min(count, script_words.get(word, 0)) for word, count in source_words.items())
-        coverage = matched / source_total if source_total else 1.0
+        # A boundary character may be rendered either way, so measure coverage
+        # against both the split ("Go home") and fused ("Gohome") source views
+        # and keep the better one. Only boundary sources pay for the second
+        # count; every other source has exactly one view.
+        source_views = [Counter(source_tokens)]
+        if not source_text.isascii() and any(
+                character in source_text for character in WORD_BOUNDARIES):
+            fused_source = "".join(character for character in source_text
+                                   if character not in WORD_BOUNDARIES)
+            source_views.append(Counter(get_normalized_word_tokens(fused_source)))
+        del source_tokens
+        source_total = sum(source_views[0].values())
+        coverage = 0.0
+        for source_words in source_views:
+            view_total = sum(source_words.values())
+            matched = sum(min(count, script_words.get(word, 0))
+                          for word, count in source_words.items())
+            coverage = max(coverage, matched / view_total if view_total else 1.0)
         if source_total and coverage < 0.85:
             findings.append(_finding(
                 "manual_review", "low_source_word_coverage",
