@@ -256,43 +256,43 @@ def get_boundary_insensitive_counter(source_text):
     can never exceed the number of source copies the book actually carries.
     """
     tokens, fusable = get_comparison_tokens_and_gaps(source_text)
-    positions = {}
+    fused_parts = []
+    token_starts = []
+    token_ends = []
+    bad_boundaries = []
+    offset = 0
     for index, token in enumerate(tokens):
-        positions.setdefault(token, []).append(index)
-    buckets = {}
-    for token, indices in positions.items():
-        buckets.setdefault(token[0], []).append((token, indices))
+        if index and not fusable[index]:
+            bad_boundaries.append(offset)
+        token_starts.append(offset)
+        fused_parts.append(token)
+        offset += len(token)
+        token_ends.append(offset)
+    fused_source = "".join(fused_parts)
+    start_offsets = set(token_starts)
+    end_offsets = set(token_ends)
 
     def count_occurrences(phrase):
         target = "".join(phrase.split())
         if not target:
             return 0
-        starts = []
-        for token, indices in buckets.get(target[0], ()):
-            if target.startswith(token):
-                starts.extend(indices)
-        if not starts:
-            return 0
-        starts.sort()
         count = 0
-        next_free = 0
-        for start in starts:
-            if start < next_free:
-                continue
-            index = start
-            accumulated = ""
-            while index < len(tokens):
-                if index > start and not fusable[index]:
-                    break
-                accumulated += tokens[index]
-                if not target.startswith(accumulated):
-                    break
-                if len(accumulated) == len(target):
-                    count += 1
-                    next_free = index + 1
-                    break
-                index += 1
-        return count
+        search_from = 0
+        while True:
+            # The fused source is scanned in C; Python only validates a hit's
+            # two ends and the punctuation gaps inside it.
+            start = fused_source.find(target, search_from)
+            if start < 0:
+                return count
+            stop = start + len(target)
+            boundary = bisect_right(bad_boundaries, start)
+            if (start in start_offsets and stop in end_offsets
+                    and (boundary == len(bad_boundaries)
+                         or bad_boundaries[boundary] >= stop)):
+                count += 1
+                search_from = stop
+            else:
+                search_from = start + 1
 
     return count_occurrences
 
