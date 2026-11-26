@@ -236,8 +236,11 @@ class CombiningMarkIdentityTests(unittest.TestCase):
 
         Every table entry must map a kept mark directly to its own script's
         plain anusvara (never chained through another mapped mark), and every
-        kept Unicode mark named CANDRABINDU / ANUSVARA / BINDI / TIPPI in a
-        script that has a plain anusvara must fold to that plain anusvara.
+        Unicode mark named CANDRABINDU / ANUSVARA / BINDI / TIPPI in a script
+        that has a plain anusvara must be an identity mark and fold to that
+        script's plain anusvara. Checking the script first is the point: a
+        nasal mark in a kept script that an optional-mark keyword masks out is
+        exactly the #2347 split this table exists to fix.
         """
         keywords = ("CANDRABINDU", "ANUSVARA", "BINDI", "TIPPI")
         plain_suffixes = ("SIGN ANUSVARA", "SIGN ANUSVARAYA", "SIGN BINDI")
@@ -248,6 +251,12 @@ class CombiningMarkIdentityTests(unittest.TestCase):
                          if name.startswith(s + " ")), None)
 
         for src, dst in _CANDRABINDU_ANUSVARA.items():
+            if "Cn" in (unicodedata.category(src), unicodedata.category(dst)):
+                # Unicode 15 added U+0CF3 and the Kawi block. Older
+                # interpreters (CI runs 3.10 / Unicode 13) cannot classify a
+                # code point they do not know; the enumeration below still
+                # checks every mark the running tables do define.
+                continue
             with self.subTest(entry=(hex(ord(src)), hex(ord(dst)))):
                 self.assertTrue(_is_identity_mark(src))
                 self.assertTrue(_is_identity_mark(dst))
@@ -268,10 +277,15 @@ class CombiningMarkIdentityTests(unittest.TestCase):
             name = unicodedata.name(char, "")
             if not any(kw in name for kw in keywords):
                 continue
-            if not _is_identity_mark(char):
-                continue
             script = script_of(char)
-            self.assertIsNotNone(script)
+            if script is None:
+                # Scriptless marks (U+0310 COMBINING CANDRABINDU) fold
+                # everywhere; they are not a script's nasal sign.
+                continue
+            self.assertTrue(
+                _is_identity_mark(char),
+                f"{hex(ord(char))} ({name}) is a nasal sign in {script} but folds away",
+            )
             by_script.setdefault(script, []).append((char, name))
 
         for script, marks in by_script.items():
