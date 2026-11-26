@@ -307,6 +307,9 @@ def _is_opener_shaped(text, position):
 _CLOSERS_BY_OPENER = {}
 for _pair_opener, _pair_closer in PAIRED:
     _CLOSERS_BY_OPENER.setdefault(_pair_opener, set()).add(_pair_closer)
+# Every mark a convention pairs, so a measurement can end with a different
+# quote character than the inch mark that opened it (`6" and 8”`, `6" and 8»`).
+_PAIRED_MARKS = frozenset(mark for pair in PAIRED for mark in pair)
 
 
 def _closer_marks(opener):
@@ -335,6 +338,13 @@ def is_number_char(char):
     return unicodedata.category(char) in _NUMBER_CATEGORIES
 
 
+# A one-entry cache keyed by text identity. Two threads alternating texts
+# evict each other, so each rescans (measured: 0.50 s for 4 threads against
+# 0.30 s serial); the result stays correct, only the scan repeats. Threading a
+# per-call index down would remove the rescan and these two module globals, but
+# each predicate (`is_inch_mark`, `_paired_spans`, pass_quality's analyzer)
+# would have to carry it; the single-entry cache is kept because it is inert
+# correctness-wise and the cost is one paragraph scan per text (#2318 review).
 _blank_line_cache = (None, ())
 
 
@@ -397,6 +407,8 @@ def _mark_index(text, mark):
 
     Indexed once per text and tested by bisect. Searching forward from every
     digit mark was quadratic on a text whose paragraph holds no plain closer.
+    One entry keyed by text identity, so threads alternating texts rescan
+    rather than share; correct, and the rescan is one pass per text.
     """
     global _mark_index_cache
     cached_text, index = _mark_index_cache
@@ -445,13 +457,34 @@ def _next_any_mark(text, marks, start, end):
     return best
 
 
+def _number_ends_at(text, index):
+    """-> offset just past the number starting at `index`, or -1 if none.
+
+    A decimal separator is part of the number only when a digit follows it,
+    so `8.5` and `8,5` are one number while `8, next` is not.
+    """
+    end = index
+    while end < len(text):
+        if is_number_char(text[end]):
+            end += 1
+        elif (text[end] in ",."
+              and end + 1 < len(text) and is_number_char(text[end + 1])):
+            end += 2
+        else:
+            break
+    return end if end > index else -1
+
+
 def is_measurement_continuation(text, position):
     """Does the text after this number-preceded mark still read as a measurement?
 
     Consulted when no plain closer is left in the paragraph (every later one
-    is number-preceded). Unambiguous evidence: another
-    number linked by `by`/`x`/`×`/`and`/`,`/`to` (`6" by 8"`), or a unit word
-    (`6" wide`). Anything else closes the speech (`12" she said`).
+    is number-preceded). Unambiguous evidence: a unit word (`6" wide`), or a
+    second number linked by `by`/`x`/`×`/`and`/`,`/`to` that is itself
+    followed by a quote mark (`6" by 8"`, and the mixed `6" and 8”`). A link
+    word and a number in narration (`5" and 3 of them nodded`) are not
+    evidence, because no quote mark follows the second number; that closes the
+    speech (#2318). Anything else closes the speech (`12" she said`).
     """
     index = position + 1
     while index < len(text) and text[index] in " \t":
@@ -462,7 +495,9 @@ def is_measurement_continuation(text, position):
         index += 1
         while index < len(text) and text[index] in " \t":
             index += 1
-        return index < len(text) and is_number_char(text[index])
+        number_end = _number_ends_at(text, index)
+        return (number_end != -1 and number_end < len(text)
+                and text[number_end] in _PAIRED_MARKS)
     end = index
     while end < len(text) and text[end].isalpha():
         end += 1
@@ -470,7 +505,9 @@ def is_measurement_continuation(text, position):
     if word in _MEASURE_LINKS:
         while end < len(text) and text[end] in " \t":
             end += 1
-        return end < len(text) and is_number_char(text[end])
+        number_end = _number_ends_at(text, end)
+        return (number_end != -1 and number_end < len(text)
+                and text[number_end] in _PAIRED_MARKS)
     return word in _MEASURE_UNITS
 
 
@@ -567,8 +604,11 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
             return False
         return is_measurement_continuation(text, position)
     # Closer-shaped means text before the mark and a word boundary after it.
-    # A mark glued after a dash but followed by a letter (`—"Next`) is an
-    # opener, so it decides nothing here and this mark closes as always.
+    # A mark right after a dash, colon or opening bracket is an opener,
+    # whatever follows it (`—"...no`, `:"…fine"`, `("...ok" )`), so it
+    # decides nothing here and this mark closes as always.
+    if text[next_position - 1] in "—:(":
+        return False
     following = next_position + 1
     return (not text[next_position - 1].isspace()
             and (following >= len(text) or not text[following].isalnum()))

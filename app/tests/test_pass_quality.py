@@ -593,6 +593,72 @@ class InchMarkTests(unittest.TestCase):
                      ("NARRATOR", "long ago.\n\nHe left.")],
                     self._regions(source))
 
+    def test_a_mark_after_a_dash_colon_or_bracket_is_an_opener(self):
+        # The next speech's opening mark sat behind `—`, `:` or `(`, so it
+        # read as closer-shaped and this speech kept its digit mark as an inch
+        # mark, merging the narration and the reply (#2318).
+        cases = [
+            ('"Room 5" he said—"...no, wait."',
+             [("SPOKEN", "Room 5"), ("NARRATOR", "he said—"),
+              ("SPOKEN", "...no, wait.")]),
+            ('"Room 5" he said:"…no, wait."',
+             [("SPOKEN", "Room 5"), ("NARRATOR", "he said:"),
+              ("SPOKEN", "…no, wait.")]),
+            ("\"Room 5\" (he said—\"'...no, wait.\")",
+             [("SPOKEN", "Room 5"), ("NARRATOR", "(he said—"),
+              ("SPOKEN", "'...no, wait."), ("NARRATOR", ")")]),
+            ('＂Room 5＂ he said—＂…no, wait.＂',
+             [("SPOKEN", "Room 5"), ("NARRATOR", "he said—"),
+              ("SPOKEN", "…no, wait.")]),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, self._regions(source))
+                self.assertEqual(0, analyze_outer_quote_regions(source)["final_depth"])
+
+    def test_a_link_and_number_in_narration_do_not_keep_the_close(self):
+        # `and 3` / `by 8` after the digit looked like `6" by 8"`, so the
+        # paragraph's later inch mark kept the closer and the narration stayed
+        # SPOKEN. The link counts only when the second number is itself
+        # followed by the mark (#2318).
+        cases = [
+            ('“We leave at 5” and 3 of them nodded. The shelf was 12” deep.',
+             [("SPOKEN", "We leave at 5"),
+              ("NARRATOR", "and 3 of them nodded. The shelf was 12” deep.")]),
+            ('"Meet me at 5" by 8 o\'clock she was gone. The shelf was 12" deep.',
+             [("SPOKEN", "Meet me at 5"),
+              ("NARRATOR", 'by 8 o\'clock she was gone. The shelf was 12" deep.')]),
+            ('「We leave at 5」 to 9 they counted. The beam was 4」 thick.',
+             [("SPOKEN", "We leave at 5"),
+              ("NARRATOR", "to 9 they counted. The beam was 4」 thick.")]),
+            ('«We leave at 5» x 2 they multiplied. The shelf was 12» deep.',
+             [("SPOKEN", "We leave at 5"),
+              ("NARRATOR", "x 2 they multiplied. The shelf was 12» deep.")]),
+            ('“It is 6”, 8 people came. The shelf was 12” deep.',
+             [("SPOKEN", "It is 6"),
+              ("NARRATOR", ", 8 people came. The shelf was 12” deep.")]),
+            ('“It is 6” × 8 people came. The shelf was 12” deep.',
+             [("SPOKEN", "It is 6"),
+              ("NARRATOR", "× 8 people came. The shelf was 12” deep.")]),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, self._regions(source))
+                self.assertEqual(0, analyze_outer_quote_regions(source)["final_depth"])
+        # A mark after the second number still makes it a measurement.
+        self.assertEqual([("SPOKEN", 'It is 6" by 8" wide')],
+                         self._regions('"It is 6" by 8" wide"'))
+        self.assertEqual([("SPOKEN", 'It is 6” by 8” wide')],
+                         self._regions('“It is 6” by 8” wide”'))
+        self.assertEqual([("SPOKEN", 'It is 6”, 8” wide')],
+                         self._regions('“It is 6”, 8” wide”'))
+        # The second number may end with a different mark than the straight
+        # inch mark that opened the measurement.
+        self.assertEqual([("SPOKEN", 'It is 6" and 8')],
+                         self._regions('“It is 6" and 8”'))
+        self.assertEqual([("SPOKEN", 'It is 6" by 8')],
+                         self._regions('«It is 6" by 8»'))
+
     def test_initial_depth_keeps_an_inch_mark_when_a_later_closer_follows(self):
         # A chunk continuation has no opener to consult, but a later real
         # closer in the paragraph still proves this mark is a measurement.

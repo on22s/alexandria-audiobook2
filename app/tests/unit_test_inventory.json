@@ -3620,6 +3620,12 @@
     , "tests.test_chunk_text_normalisation.DeliveryRetryCompatibilityTest.test_a_real_editor_text_change_is_still_refused"
     , "tests.test_chunk_text_normalisation.DeliveryRetryCompatibilityTest.test_chunks_saved_before_the_change_still_match"
   ]
+  , "test_ci_ffmpeg_fallback": [
+    "tests.test_ci_ffmpeg_fallback.WindowsFfmpegInstallTests.test_every_windows_install_step_uses_the_shared_script"
+    , "tests.test_ci_ffmpeg_fallback.WindowsFfmpegInstallTests.test_installer_pins_url_and_sha256_and_verifies_before_extracting"
+    , "tests.test_ci_ffmpeg_fallback.WindowsFfmpegInstallTests.test_no_workflow_installs_ffmpeg_with_chocolatey_directly"
+    , "tests.test_ci_ffmpeg_fallback.WindowsFfmpegInstallTests.test_path_filters_trigger_on_the_shared_script"
+  ]
   , "test_ci_import_policy": [
     "tests.test_ci_import_policy.CIImportPolicyTests.test_changed_policy_replaces_old_roots_and_preserves_foreign_finders"
     , "tests.test_ci_import_policy.CIImportPolicyTests.test_generator_policy_purges_submodules_and_disables_cleanly"
@@ -5175,6 +5181,7 @@
     , "tests.test_dialogue_spans.SpanTest.test_a_later_speech_after_a_digit_closer_is_still_speech"
     , "tests.test_dialogue_spans.SpanTest.test_a_long_one_paragraph_speech_is_spoken"
     , "tests.test_dialogue_spans.SpanTest.test_a_long_speech_whose_paragraphs_reopen_the_quote_is_one_span"
+    , "tests.test_dialogue_spans.SpanTest.test_a_mark_after_a_dash_colon_or_bracket_opens_the_next_speech"
     , "tests.test_dialogue_spans.SpanTest.test_a_multi_paragraph_speech_that_does_not_reopen_the_quote_is_refused"
     , "tests.test_dialogue_spans.SpanTest.test_a_pair_across_narration_is_refused_whatever_its_length"
     , "tests.test_dialogue_spans.SpanTest.test_a_paragraph_final_mark_is_a_reprise_closer_only_when_unbalanced"
@@ -5206,6 +5213,7 @@
     , "tests.test_dialogue_spans.SpanTest.test_guillemet_direction_falls_back_to_first_mark_on_a_tie"
     , "tests.test_dialogue_spans.SpanTest.test_guillemets_polish_and_danish_are_first_class_conventions"
     , "tests.test_dialogue_spans.SpanTest.test_inches_before_dialogue_do_not_shift_speech_into_narration"
+    , "tests.test_dialogue_spans.SpanTest.test_link_and_number_in_narration_do_not_keep_the_close"
     , "tests.test_dialogue_spans.SpanTest.test_measurement_continuation_forms_keep_the_mark"
     , "tests.test_dialogue_spans.SpanTest.test_narration_after_a_german_speech_is_narration_not_other_speech"
     , "tests.test_dialogue_spans.SpanTest.test_narration_between_two_quotes_is_not_included"
@@ -10194,6 +10202,8 @@
     , "tests.test_pass_quality.InchMarkTests.test_a_duplicate_curly_closer_reads_as_main"
     , "tests.test_pass_quality.InchMarkTests.test_a_german_speech_closed_with_a_straight_mark_still_closes"
     , "tests.test_pass_quality.InchMarkTests.test_a_kept_real_closer_after_a_digit_is_still_mixed"
+    , "tests.test_pass_quality.InchMarkTests.test_a_link_and_number_in_narration_do_not_keep_the_close"
+    , "tests.test_pass_quality.InchMarkTests.test_a_mark_after_a_dash_colon_or_bracket_is_an_opener"
     , "tests.test_pass_quality.InchMarkTests.test_a_multi_paragraph_speech_without_a_closer_keeps_todays_answer"
     , "tests.test_pass_quality.InchMarkTests.test_a_real_closer_after_a_digit_does_not_swallow_the_narration"
     , "tests.test_pass_quality.InchMarkTests.test_a_real_closer_after_a_digit_inside_speech_still_closes"

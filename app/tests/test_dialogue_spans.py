@@ -248,6 +248,54 @@ class SpanTest(unittest.TestCase):
                 self.assertEqual(expected, [source[a:b] for a, b in
                                             spoken_spans(source, "paired_quotes")])
 
+    def test_a_mark_after_a_dash_colon_or_bracket_opens_the_next_speech(self):
+        # A mark followed by `…`, `.` or `'` looked closer-shaped, so the next
+        # speech merged into the first. A mark right after `—`, `:` or `(`
+        # is opener-shaped whatever follows it, so the digit mark closes
+        # (#2318).
+        prefixes = [' he said—', ' she said:', ' (he said—',
+                    ' he said, then:', ' (she said:', ' he said (a pause —',
+                    ' per the note:']
+        leaders = ['…', '.', "'"]
+        for opener, closer in (('"', '"'), ('＂', '＂')):
+            for prefix in prefixes:
+                for leader in leaders:
+                    source = (f'{opener}Room 5{closer}{prefix}'
+                              f'{opener}{leader}no, wait.{closer}')
+                    with self.subTest(source=source):
+                        self.assertEqual(
+                            ['Room 5', f'{leader}no, wait.'],
+                            [source[a:b] for a, b in
+                             spoken_spans(source, "paired_quotes")])
+
+    def test_link_and_number_in_narration_do_not_keep_the_close(self):
+        # `and 3` / `by 8` after the digit read like `6" by 8"`, so the
+        # paragraph's later real inch mark kept the closer and swallowed the
+        # narration. A link counts only when the second number is itself
+        # followed by the mark (#2318).
+        pairs = [('"', '"'), ('“', '”'), ('„', '“'), ('„', '”'), ('「', '」'),
+                 ('『', '』'), ('＂', '＂'), ('«', '»'), ('»', '«')]
+        for opener, closer in pairs:
+            for link in ('and', 'by', 'to', 'x'):
+                source = (f'{opener}We leave at 5{closer} {link} 3 of them '
+                          f'nodded. The shelf was 12{closer} deep.')
+                with self.subTest(source=source):
+                    self.assertEqual(
+                        ['We leave at 5'],
+                        [source[a:b] for a, b in
+                         spoken_spans(source, "paired_quotes")])
+        # The `,` and `×` separators are links too, so the second number must
+        # also carry the mark to be a measurement, as `6", 8"` does.
+        for source, expected in [
+                ('“It is 6”, 8 people came. The shelf was 12” deep.',
+                 ['It is 6']),
+                ('“It is 6” × 8 people came. The shelf was 12” deep.',
+                 ['It is 6']),
+                ('“It is 6”, 8” wide” she said.', ['It is 6”, 8” wide'])]:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
     def test_a_continued_speech_is_the_only_reason_to_keep_the_mark(self):
         # The name records the round that added the paragraph-reopen
         # exception; #2318 removed it. A next paragraph that re-opens the same
@@ -294,6 +342,11 @@ class SpanTest(unittest.TestCase):
             ('“It is 6” to 8”', 'It is 6” to 8'),
             ('“It is 6” and 8”', 'It is 6” and 8'),
             ('“It is 6” wide and 8”', 'It is 6” wide and 8'),
+            # The link's second number may end with a different mark than the
+            # straight inch mark that opened the measurement.
+            ('“It is 6" and 8”', 'It is 6" and 8'),
+            ('«It is 6" by 8»', 'It is 6" by 8'),
+            ('»It is 6" x 8«', 'It is 6" x 8'),
         ]
         for source, expected in cases:
             with self.subTest(source=source):
