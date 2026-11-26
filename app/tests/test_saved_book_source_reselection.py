@@ -7,9 +7,11 @@ retired ``chunks.json`` and set ``script_selection_pending``, so every rendered
 line read back as pending even though the audio files were still on disk.
 
 ``script_selection_binding.resolve_saved_book_origin`` is the one place that
-follows a saved binding chain. The reporter-flow test drives the real upload,
-generate-publication, save, load, render and chunk-status routes; only the TTS
-engine is synthetic.
+follows a saved binding chain. The reporter-flow tests drive the real upload,
+save, load, render and chunk-status routes; they seed the completed generation
+publication directly and stub only the speech engine. The other tests seed the
+published script, its selection binding and the rendered chunk rows directly,
+then exercise the save, load and selection paths.
 """
 import copy
 import hashlib
@@ -148,10 +150,11 @@ class SelectionFixture(unittest.TestCase):
 
 class SavedBookSourceReselectionTests(SelectionFixture):
     def seed_saved_rendered_book(self):
-        """Upload -> publish -> save -> load, then render (real routes).
+        """Upload, save and load a rendered saved book through their routes.
 
-        Only the completed generation publication is seeded directly; save,
-        load, chunk status and selection all run through their routes.
+        The upload runs through its route; the published script, its selection
+        binding and the rendered chunk rows are written directly. Save, load,
+        chunk status and selection run through their routes.
         """
         response = self.upload()
         self.assertEqual(200, response.status_code, response.text)
@@ -193,9 +196,37 @@ class SavedBookSourceReselectionTests(SelectionFixture):
         self.assertEqual(200, response.status_code, response.text)
         state = self.state()
         self.assertEqual('other', state['active_book_id'])
-        self.assertTrue(state['script_selection_pending'])
+        self.assertTrue(state.get('script_selection_pending'))
         self.assertEqual(1, len(self.stale_chunks()))
         self.assertEqual(self.LINES, len(list((self.root / 'voicelines').iterdir())))
+
+    def test_deleted_origin_with_identical_incoming_bytes_keeps_the_rendered_book(self):
+        """The recorded origin digest is enough when the origin file is gone."""
+        source = self.seed_saved_rendered_book()
+        renamed = self.uploads / 'same.txt'
+        renamed.write_bytes(source.read_bytes())
+        source.unlink()
+        apply_book_input_selection(str(self.root), str(renamed), 'book',
+                                   saved_books_root=str(self.library))
+        state = self.state()
+        self.assertNotIn('script_selection_pending', state)
+        self.assertEqual('book', state['active_book_id'])
+        self.assertEqual(str(renamed), state['input_file_path'])
+        self.assertEqual(self.script_bytes,
+                         (self.root / 'annotated_script.json').read_bytes())
+        self.assertEqual(self.LINES, self.rendered_lines())
+        self.assertEqual([], self.stale_chunks())
+
+    def test_changed_origin_bytes_still_start_a_new_book(self):
+        """An origin file that still exists with different bytes is refused."""
+        source = self.seed_saved_rendered_book()
+        source.write_text('A rewritten source text.', encoding='utf-8')
+        with self.assertLogs('book_state_transaction', level='WARNING') as logs:
+            apply_book_input_selection(str(self.root), str(source), 'book',
+                                       saved_books_root=str(self.library))
+        self.assertTrue(self.state().get('script_selection_pending'))
+        self.assertEqual(1, len(self.stale_chunks()))
+        self.assertTrue(any('changed_source' in line for line in logs.output), logs.output)
 
     def test_changed_saved_script_bytes_start_a_new_book(self):
         """The resolver's expected digest is the bytes the book was loaded from."""
@@ -243,6 +274,23 @@ class SavedBookSourceReselectionTests(SelectionFixture):
                                    saved_books_root=str(self.library))
         self.assertTrue(self.state()['script_selection_pending'])
         self.assertEqual(1, len(self.stale_chunks()))
+
+    def test_saved_binding_pointing_outside_the_library_logs_at_warning(self):
+        """A saved book whose binding leaves the library is security-relevant."""
+        self.seed_saved_rendered_book()
+        elsewhere = self.root / 'elsewhere'
+        elsewhere.mkdir()
+        target = elsewhere / 'Carried.json'
+        target.write_bytes(self.script_bytes)
+        self.write_binding(self.library / 'Synthetic Saved.selection_binding.json',
+                           hashlib.sha256(target.read_bytes()).hexdigest(), target)
+        incoming = self.uploads / 'other.txt'
+        incoming.write_text(OTHER_TEXT, encoding='utf-8')
+        with self.assertLogs('book_state_transaction', level='WARNING') as logs:
+            apply_book_input_selection(str(self.root), str(incoming), 'other',
+                                       saved_books_root=str(self.library))
+        self.assertTrue(self.state().get('script_selection_pending'))
+        self.assertTrue(any('outside_library' in line for line in logs.output), logs.output)
 
     def test_sibling_binding_outside_the_library_is_not_trusted(self):
         response = self.upload()
@@ -305,7 +353,7 @@ class ReporterFlowTests(SelectionFixture):
         return True
 
     def publish_book(self):
-        """Upload the EPUB and publish the generated script (real routes)."""
+        """Upload the EPUB through its route, then seed its publication directly."""
         response = self.upload()
         self.assertEqual(200, response.status_code, response.text)
         source = self.uploads / 'book.txt'

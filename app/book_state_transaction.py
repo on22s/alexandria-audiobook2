@@ -6443,6 +6443,12 @@ def _saved_book_origin_digest_locked(data_dir, saved_books_root, previous_path,
     book only when it is exactly the incoming source and hop 0 is still the
     exact bytes the active book was loaded from.
 
+    The terminal source file itself is optional (``require_terminal_file=False``):
+    the only digest trusted without it is the one the saved binding recorded, and
+    the caller still requires that recorded digest to equal the incoming file's
+    digest. A terminal file that is present with different bytes is still refused
+    as ``changed_source``.
+
     Callers hold the book/state/chunks locks; the resolver takes none. Every
     refusal falls back to the normal new-book path and is logged with its code.
     """
@@ -6450,16 +6456,25 @@ def _saved_book_origin_digest_locked(data_dir, saved_books_root, previous_path,
             or not isinstance(previous_path, str) or not previous_path):
         return None
     from script_selection_binding import (SavedSourceResolutionError,
+                                          _validate_saved_book_member,
                                           resolve_saved_book_origin)
+    try:
+        _validate_saved_book_member(data_dir, previous_path,
+                                    saved_books_root=saved_books_root)
+    except SavedSourceResolutionError:
+        previous_is_saved_book = False
+    else:
+        previous_is_saved_book = True
     try:
         origin = resolve_saved_book_origin(
             data_dir, previous_path, saved_books_root=saved_books_root,
-            expected_script_sha256=previous_digest)
+            expected_script_sha256=previous_digest, require_terminal_file=False)
     except SavedSourceResolutionError as error:
-        # An ordinary upload source is not a saved book; that is expected. Any
-        # other code means a saved binding could not be trusted, which is worth
-        # finding in the log.
-        level = logging.INFO if error.code == 'outside_library' else logging.WARNING
+        # An ordinary upload source is not a saved book, so its outside_library
+        # refusal is expected. Every other refusal means a saved binding could
+        # not be trusted, which is security-relevant and belongs at WARNING.
+        expected_upload = error.code == 'outside_library' and not previous_is_saved_book
+        level = logging.INFO if expected_upload else logging.WARNING
         logger.log(level, 'Saved book origin not used (%s); starting a new book',
                    error.code)
         return None
