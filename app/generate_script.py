@@ -1233,7 +1233,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
     if codec is None:
         from response_codecs import get_codec
         codec = get_codec("json")
-    from llm_request_budget import get_suspect_prompt_tokens
+    from llm_request_budget import (get_suspect_prompt_tokens,
+                                    get_suspect_prompt_tokens_message, get_usage_count)
     resume_state = _resume_state or {}
     retry_feedback = resume_state.get("retry_feedback")
     requested_max = resume_state.get("requested_max", params.max_tokens)
@@ -1403,6 +1404,10 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             finish_reason = choice.finish_reason
             usage = getattr(response, 'usage', None)
             suspect_prompt_tokens = get_suspect_prompt_tokens(messages, usage)
+            # Read dicts and SDK objects the same way, so the record and the
+            # log line can never contradict the warning above.
+            prompt_tokens = get_usage_count(usage, "prompt_tokens")
+            completion_tokens = get_usage_count(usage, "completion_tokens")
             # Reasoning models bill thinking tokens to completion_tokens but
             # return them in message.reasoning_content, so they are invisible
             # to any budget sized on the visible response.
@@ -1444,7 +1449,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         lf.write(f"\n{'='*80}\n")
                         lf.write(f"{label} | attempt {attempt_number} | finish_reason={finish_reason} | request={request_id}\n")
                         if usage:
-                            lf.write(f"tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}\n")
+                            lf.write(f"tokens: prompt={prompt_tokens if prompt_tokens is not None else '?'} "
+                                     f"completion={completion_tokens if completion_tokens is not None else '?'}\n")
                         if suspect_prompt_tokens:
                             lf.write(f"prompt_tokens_suspect: reported={suspect_prompt_tokens['prompt_tokens_reported']} "
                                      f"estimate={suspect_prompt_tokens['prompt_tokens_estimate']}\n")
@@ -1459,12 +1465,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
 
             print(f"  finish_reason={finish_reason}", end="")
             if usage:
-                print(f" | tokens: prompt={getattr(usage, 'prompt_tokens', '?')} completion={getattr(usage, 'completion_tokens', '?')}", end="")
+                print(f" | tokens: prompt={prompt_tokens if prompt_tokens is not None else '?'} "
+                      f"completion={completion_tokens if completion_tokens is not None else '?'}", end="")
             print(f" | took {time.time() - t0:.1f}s")
             if suspect_prompt_tokens:
-                print(f"  WARNING: server reported prompt_tokens={suspect_prompt_tokens['prompt_tokens_reported']} "
-                      f"for a request estimated at {suspect_prompt_tokens['prompt_tokens_estimate']} tokens; "
-                      "it appears to have read only part of the prompt (truncated request). Continuing.", flush=True)
+                print(f"  {get_suspect_prompt_tokens_message(suspect_prompt_tokens)}", flush=True)
             if attempt_observer:
                 attempt_record = {
                     "attempt": attempt_number,
@@ -1474,8 +1479,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     "finish_reason": finish_reason,
                     "requested_max_tokens": requested_max,
                     "effective_max_tokens": effective_max,
-                    "prompt_tokens": getattr(usage, "prompt_tokens", None) if usage else None,
-                    "completion_tokens": getattr(usage, "completion_tokens", None) if usage else None,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
                     **({"prompt_tokens_suspect": True,
                         "prompt_tokens_estimate": suspect_prompt_tokens["prompt_tokens_estimate"]}
                        if suspect_prompt_tokens else {}),
