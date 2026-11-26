@@ -2551,7 +2551,10 @@
     , "tests.test_book_workspace_js.BookWorkspaceJsTests.test_readiness_evidence_distinguishes_saved_metadata_and_historical_export_checks"
     , "tests.test_book_workspace_js.BookWorkspaceJsTests.test_script_recovery_candidate_is_navigation_only_and_has_no_eligibility_promise"
   ]
-  , "test_boundary_conflict_audit": []
+  , "test_boundary_conflict_audit": [
+    "tests.test_boundary_conflict_audit.BoundaryConflictAuditTests.test_audit_windows_words_by_time_with_slack"
+    , "tests.test_boundary_conflict_audit.BoundaryConflictAuditTests.test_boundary_status_names_which_end_failed"
+  ]
   , "test_bounded_media_io": [
     "tests.test_bounded_media_io.BoundedMediaIOTests.test_cancellation_and_short_writes_are_sticky"
     , "tests.test_bounded_media_io.BoundedMediaIOTests.test_cleanup_oserror_preserves_primary_failure_but_programming_error_propagates"
@@ -2591,7 +2594,10 @@
     , "tests.test_bug_report_logging.BugReportLoggingTests.test_worker_log_write_failure_keeps_safe_ui_warning"
     , "tests.test_bug_report_logging.BugReportLoggingTests.test_worker_reader_failure_records_thread_stack"
   ]
-  , "test_build_accent_calibration": []
+  , "test_build_accent_calibration": [
+    "tests.test_build_accent_calibration.BuildAccentCalibrationTests.test_page_warns_not_to_infer_correctness_from_quality"
+    , "tests.test_build_accent_calibration.BuildAccentCalibrationTests.test_questions_separate_language_accuracy_from_delivery"
+  ]
   , "test_build_scoring_sheet": [
     "tests.test_build_scoring_sheet.BuildSheetTest.test_agreement_is_marked"
     , "tests.test_build_scoring_sheet.BuildSheetTest.test_correct_speaker_starts_blank"
@@ -3337,7 +3343,9 @@
     "tests.test_character_roster_ui.CharacterRosterUiTests.test_identity_actions_import_mapping_and_request_book_fences"
     , "tests.test_character_roster_ui.CharacterRosterUiTests.test_import_target_mutations_preserve_explicit_mapping"
   ]
-  , "test_character_style_selector": []
+  , "test_character_style_selector": [
+    "tests.test_character_style_selector.CharacterStyleSelectorTests.test_explicit_nongeneric_quotes_seed_a_generic_override"
+  ]
   , "test_character_traits": [
     "tests.test_character_traits.TestDialogueIsNotEvidenceAboutItsSpeaker.test_dialogue_alone_yields_unknown"
     , "tests.test_character_traits.TestDialogueIsNotEvidenceAboutItsSpeaker.test_male_speaker_talking_about_women_is_not_classified_female"
@@ -4215,7 +4223,12 @@
   , "test_contextual_review_estimate": [
     "tests.test_contextual_review_estimate.ContextualReviewEstimateTests.test_window_is_neighbor_context_and_does_not_partition_the_target_batch"
   ]
-  , "test_contextual_tone_model": []
+  , "test_contextual_tone_model": [
+    "tests.test_contextual_tone_model.ContextualToneModelTests.test_audio_path_uses_requested_arm"
+    , "tests.test_contextual_tone_model.ContextualToneModelTests.test_context_model_falls_back_to_tone_mean"
+    , "tests.test_contextual_tone_model.ContextualToneModelTests.test_contexts_include_sentence_boundaries"
+    , "tests.test_contextual_tone_model.ContextualToneModelTests.test_unit_intervals_cover_audio_without_gaps"
+  ]
   , "test_continuity_summary_budget": [
     "tests.test_continuity_summary_budget.ContinuitySummaryBudgetTests.test_actual_request_clamps_completion_after_full_prompt_and_reserve"
     , "tests.test_continuity_summary_budget.ContinuitySummaryBudgetTests.test_overflow_refuses_dispatch_and_reports_retained_memory"
@@ -5330,7 +5343,15 @@
     , "tests.test_dracor_prose.Frames.test_stage_direction_neighbour_is_kept_not_framed"
     , "tests.test_dracor_prose.Frames.test_target_line_and_label_never_change"
   ]
-  , "test_dracor_trainset": []
+  , "test_dracor_trainset": [
+    "tests.test_dracor_trainset.DracorTrainsetTests.test_language_round_robin_gives_equal_shares_until_a_language_runs_out"
+    , "tests.test_dracor_trainset.DracorTrainsetTests.test_parse_play_flags_a_non_free_licence"
+    , "tests.test_dracor_trainset.DracorTrainsetTests.test_parse_play_keeps_text_units_in_order_and_rejects_the_bad_ones"
+    , "tests.test_dracor_trainset.DracorTrainsetTests.test_parse_play_reads_header_and_roster"
+    , "tests.test_dracor_trainset.DracorTrainsetTests.test_play_rows_carry_canonical_names_and_label_free_context"
+    , "tests.test_dracor_trainset.DracorTrainsetTests.test_play_rows_truncate_context_to_the_window"
+    , "tests.test_dracor_trainset.DracorTrainsetTests.test_speaker_categories_split_by_share_of_speeches"
+  ]
   , "test_drift_reference_assets": [
     "tests.test_drift_reference_assets.DriftReferenceAssetTests.test_native_renamed_adapter_reaches_scoring_without_rewriting_saved_config"
     , "tests.test_drift_reference_assets.DriftReferenceAssetTests.test_relocated_builtin_reference_is_scored_but_reference_symlink_escape_is_not"
@@ -6150,7 +6171,10 @@
     , "tests.test_exit_code_is_not_destroyed.ExitCodeSurvives.test_the_check_would_catch_the_real_thing"
     , "tests.test_exit_code_is_not_destroyed.ExitCodeSurvives.test_the_correct_form_is_not_flagged"
   ]
-  , "test_expected_prosody_fusion": []
+  , "test_expected_prosody_fusion": [
+    "tests.test_expected_prosody_fusion.ExpectedProsodyFusionTests.test_chinese_templates_keep_canonical_directions"
+    , "tests.test_expected_prosody_fusion.ExpectedProsodyFusionTests.test_japanese_accent_templates_place_the_fall_after_the_nucleus"
+  ]
   , "test_experiment_audio_cleanup": [
     "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_dataset_consistency_cleanup_on_success_missing_metadata_metric_error_and_exception"
     , "tests.test_experiment_audio_cleanup.ExperimentAudioCleanupTests.test_experiment_basename_expressions_handle_native_trailing_separators"
@@ -6946,7 +6970,10 @@
     , "tests.test_frontend_regressions.VoiceCardScopeTests.test_style_timeline_is_given_this_cards_own_voice_name"
     , "tests.test_frontend_regressions.VoiceCardScopeTests.test_the_binding_check_would_catch_the_original_line"
   ]
-  , "test_full_sequence_scoring": []
+  , "test_full_sequence_scoring": [
+    "tests.test_full_sequence_scoring.FullSequenceScoringTests.test_recover_logprob_inverts_single_token_bias"
+    , "tests.test_full_sequence_scoring.FullSequenceScoringTests.test_recover_logprob_preserves_ranking"
+  ]
   , "test_gate_campaign": [
     "tests.test_gate_campaign.GateCampaignTests.test_campaign_writers_serialize_and_preserve_durable_results"
     , "tests.test_gate_campaign.GateCampaignTests.test_changed_other_member_refuses_whole_completed_set"
@@ -7890,6 +7917,12 @@
     , "tests.test_inventory.TrackedOnlyDiscoveryTest.test_an_untracked_test_file_is_not_inventoried"
     , "tests.test_inventory.TrackedOnlyDiscoveryTest.test_discovery_falls_back_when_git_is_unavailable"
     , "tests.test_inventory.TrackedOnlyDiscoveryTest.test_tracked_files_are_still_discovered"
+    , "tests.test_inventory.UncollectedTestGuardTests.test_excluded_module_is_not_scanned_or_inventoried"
+    , "tests.test_inventory.UncollectedTestGuardTests.test_load_tests_wrapping_still_collects_and_is_not_flagged"
+    , "tests.test_inventory.UncollectedTestGuardTests.test_module_mixing_a_class_and_bare_function_is_rejected"
+    , "tests.test_inventory.UncollectedTestGuardTests.test_module_that_yields_no_tests_is_rejected"
+    , "tests.test_inventory.UncollectedTestGuardTests.test_module_with_only_bare_test_functions_is_rejected"
+    , "tests.test_inventory.UncollectedTestGuardTests.test_update_check_fails_on_a_bare_function_readded_to_a_real_module"
     , "tests.test_inventory.UntrackedTestWarningTest.test_a_new_untracked_test_file_is_reported"
     , "tests.test_inventory.UntrackedTestWarningTest.test_a_tracked_file_is_not_reported"
   ]
@@ -7950,7 +7983,10 @@
     "tests.test_japanese_asr_cache.JapaneseAsrCacheTests.test_changed_clip_request_partial_coverage_or_model_cannot_skip"
     , "tests.test_japanese_asr_cache.JapaneseAsrCacheTests.test_valid_real_format_good_and_poor_measurements_skip_without_model_or_generation"
   ]
-  , "test_japanese_text_boundary": []
+  , "test_japanese_text_boundary": [
+    "tests.test_japanese_text_boundary.JapaneseTextBoundaryTests.test_grouping_fails_loud_when_vad_has_fewer_windows_than_lines"
+    , "tests.test_japanese_text_boundary.JapaneseTextBoundaryTests.test_grouping_is_monotonic_and_can_merge_internal_pause_windows"
+  ]
   , "test_journal_identity_readers": [
     "tests.test_journal_identity_readers.ExportAdmissionIdentityTests.test_completed_switch_after_admission_refuses_export_stages"
     , "tests.test_journal_identity_readers.ExportAdmissionIdentityTests.test_decoder_time_depth_is_a_controlled_conflict_with_recovery_intact"
@@ -9107,7 +9143,10 @@
     "tests.test_lora_worker_responsiveness.LoraWorkerTests.test_cancelled_render_keeps_task_claim_until_publication_and_cleanup"
     , "tests.test_lora_worker_responsiveness.LoraWorkerTests.test_dataset_and_model_scans_run_outside_event_loop_and_keep_results"
   ]
-  , "test_luar_character_selector": []
+  , "test_luar_character_selector": [
+    "tests.test_luar_character_selector.LuarCharacterSelectorTests.test_generic_labels_are_not_character_profiles"
+    , "tests.test_luar_character_selector.LuarCharacterSelectorTests.test_profiles_use_only_explicit_baseline_predictions"
+  ]
   , "test_m4b_cancellation": [
     "tests.test_m4b_cancellation.M4bCancellationTests.test_cancel_after_encoder_exit_refuses_publication_and_failure_retains_stderr"
     , "tests.test_m4b_cancellation.M4bCancellationTests.test_default_deadline_scales_with_audio_duration"
@@ -9455,7 +9494,11 @@
     , "tests.test_model_residency.ModelResidencyTests.test_sync_failure_retains_models_and_cache_then_releases_locks"
     , "tests.test_model_residency.ModelResidencyTests.test_unknown_device_refuses_and_mps_uses_its_own_sync_and_cache"
   ]
-  , "test_modernbooknlp_adapter": []
+  , "test_modernbooknlp_adapter": [
+    "tests.test_modernbooknlp_adapter.ModernBookNlpAdapterTests.test_adapt_accepts_pdnc_character_aliases"
+    , "tests.test_modernbooknlp_adapter.ModernBookNlpAdapterTests.test_adapt_aligns_names_and_preserves_fixture_id"
+    , "tests.test_modernbooknlp_adapter.ModernBookNlpAdapterTests.test_adapt_counts_unmatched_fixture_rows"
+  ]
   , "test_morning_chain": [
     "tests.test_morning_chain.MorningChainTests.test_chain_capture_waits_for_redirected_late_git_writer"
     , "tests.test_morning_chain.MorningChainTests.test_chain_preserves_cwd_env_nonzero_and_completed_process"
@@ -10244,7 +10287,10 @@
     , "tests.test_pcm_mux_worker.PCMMuxWorkerTests.test_output_guard_refuses_before_allowance_is_crossed"
     , "tests.test_pcm_mux_worker.PCMMuxWorkerTests.test_request_refuses_untrusted_shape_and_settings_before_capture_or_spawn"
   ]
-  , "test_pdnc_balanced_trainset": []
+  , "test_pdnc_balanced_trainset": [
+    "tests.test_pdnc_balanced_trainset.PdncBalancedTrainsetTests.test_balanced_sample_caps_dominant_speakers_and_keeps_categories"
+    , "tests.test_pdnc_balanced_trainset.PdncBalancedTrainsetTests.test_balanced_sample_is_seed_reproducible"
+  ]
   , "test_pdnc_campaign_guards": [
     "tests.test_pdnc_campaign_guards.PdncCampaignGuardTests.test_corrupt_existing_pilot_is_regenerated_before_scientific_decision"
     , "tests.test_pdnc_campaign_guards.PdncCampaignGuardTests.test_corrupt_generated_pilot_is_checkpoint_error"
@@ -11445,7 +11491,12 @@
     , "tests.test_prune_chain.PruneChainTests.test_repeat_preserves_existing_prune_and_package_caches"
     , "tests.test_prune_chain.PruneChainTests.test_selected_checkout_manifest_and_whisper_paths_are_used"
   ]
-  , "test_prune_prosodic_clips": []
+  , "test_prune_prosodic_clips": [
+    "tests.test_prune_prosodic_clips.PruneProsodicClipsTests.test_mahalanobis_flags_the_outlying_phrases_and_only_those"
+    , "tests.test_prune_prosodic_clips.PruneProsodicClipsTests.test_mahalanobis_ignores_clips_without_pitch"
+    , "tests.test_prune_prosodic_clips.PruneProsodicClipsTests.test_mahalanobis_keeps_everything_when_asked_to_drop_nothing"
+    , "tests.test_prune_prosodic_clips.PruneProsodicClipsTests.test_segmental_flags_only_a_real_text_audio_disagreement"
+  ]
   , "test_publication_crash_recovery": [
     "tests.test_publication_crash_recovery.PublicationCrashTests.test_chapter_commit_marker_remains_fenced_until_its_root_sync_succeeds"
     , "tests.test_publication_crash_recovery.PublicationCrashTests.test_chapter_recovery_retries_nested_directory_sync_before_retiring_intent"
@@ -14897,7 +14948,10 @@
     , "tests.test_sentence_initial_speaker_names.SentenceInitialSpeakerNamesTest.test_quoted_openings_and_paragraphs_are_weak_evidence"
     , "tests.test_sentence_initial_speaker_names.SentenceInitialSpeakerNamesTest.test_ratio_and_threshold_still_apply_to_ambiguous_names"
   ]
-  , "test_separator_earcheck_explicit_terms": []
+  , "test_separator_earcheck_explicit_terms": [
+    "tests.test_separator_earcheck_explicit_terms.SeparatorEarcheckExplicitTermsTests.test_resolve_clip_keeps_primary_when_present"
+    , "tests.test_separator_earcheck_explicit_terms.SeparatorEarcheckExplicitTermsTests.test_resolve_clip_uses_allrows_fallback_for_explicit_terms"
+  ]
   , "test_serialized_save_queue": [
     "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_actual_dataset_row_handler_serializes_inflight_saves_and_persists_latest_rows"
     , "tests.test_serialized_save_queue.SerializedSaveQueueTests.test_actual_voice_handlers_and_book_actions_wait_for_latest_save_or_abort_on_failure"

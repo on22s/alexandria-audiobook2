@@ -1,4 +1,5 @@
 from tests.test_support import get_isolated_git_environment, isolate_git_environment
+import ast
 import importlib
 import json
 import os
@@ -81,6 +82,24 @@ def _iter_tests(suite):
             yield test
 
 
+def _uncollected_test_functions(path):
+    """Module-level test functions that unittest would silently not run.
+
+    The default loader collects TestCase methods, or whatever ``load_tests``
+    returns; it never collects module-level functions. A pytest-style module
+    therefore imports and discovers cleanly while running none of its tests.
+    Return those names so discovery can fail loud instead of recording ``[]``.
+    """
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"), str(path))
+    if any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+           and node.name == "load_tests" for node in tree.body):
+        # load_tests may wrap these in FunctionTestCase and does collect them.
+        return []
+    return [node.name for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name.startswith("test")]
+
+
 class InventoryUnavailable(RuntimeError):
     """Discovery could not import every tracked test module.
 
@@ -132,7 +151,14 @@ def get_unit_test_inventory(test_directory=None, *, module_names=None):
             failures.append((qualified, _import_failure_reason(error)))
             continue
         suite = unittest.defaultTestLoader.loadTestsFromModule(module)
-        inventory[module_name] = sorted(test.id() for test in _iter_tests(suite))
+        test_ids = sorted(test.id() for test in _iter_tests(suite))
+        uncollected = _uncollected_test_functions(directory / f"{module_name}.py")
+        if uncollected:
+            failures.append((qualified, "unittest does not collect module-level "
+                             "test functions: " + ", ".join(uncollected)))
+        elif not test_ids:
+            failures.append((qualified, "module yields no unittest tests"))
+        inventory[module_name] = test_ids
     if failures:
         raise InventoryUnavailable(failures)
     return inventory
@@ -703,6 +729,128 @@ class CapabilityGateInventoryTests(unittest.TestCase):
                 updater.write_inventory(path)
             self.assertEqual("\n", writer.call_args.kwargs["newline"])
         self.assertNotIn(b"\r", INVENTORY_PATH.read_bytes())
+
+
+class UncollectedTestGuardTests(unittest.TestCase):
+    """A module unittest runs zero tests from must fail discovery, not read as [].
+
+    Thirteen pytest-style modules once imported and discovered cleanly while
+    every one of their tests was silently skipped. These fixtures pin the two
+    shapes that caused it: a module whose tests are all module-level functions,
+    and a module that mixes a TestCase class with bare functions so the class
+    hides them.
+    """
+
+    def run_discovery(self, name, source):
+        import tests
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / f"{name}.py").write_text(source, encoding="utf-8")
+            original = tests.__path__
+            tests.__path__ = [str(root)]
+            try:
+                return get_unit_test_inventory(root)
+            except InventoryUnavailable as error:
+                return error
+            finally:
+                tests.__path__ = original
+                sys.modules.pop(f"tests.{name}", None)
+
+    def failure_reason(self, module_name, result):
+        self.assertIsInstance(result, InventoryUnavailable,
+                              f"{module_name} was not rejected: {result!r}")
+        return dict(result.failures)["tests." + module_name]
+
+    def test_module_with_only_bare_test_functions_is_rejected(self):
+        result = self.run_discovery(
+            "test_zz_guard_bare_only",
+            "def test_alpha():\n    assert True\n\n\ndef test_beta():\n    pass\n")
+        reason = self.failure_reason("test_zz_guard_bare_only", result)
+        self.assertIn("module-level test functions", reason)
+        self.assertIn("test_alpha", reason)
+        self.assertIn("test_beta", reason)
+
+    def test_module_mixing_a_class_and_bare_function_is_rejected(self):
+        result = self.run_discovery(
+            "test_zz_guard_mixed",
+            "import unittest\n\n\n"
+            "class Collected(unittest.TestCase):\n"
+            "    def test_inside(self):\n        pass\n\n\n"
+            "def test_outside():\n    pass\n")
+        reason = self.failure_reason("test_zz_guard_mixed", result)
+        self.assertIn("test_outside", reason)
+        self.assertNotIn("test_inside", reason)
+
+    def test_module_that_yields_no_tests_is_rejected(self):
+        result = self.run_discovery(
+            "test_zz_guard_empty", "VALUE = 1\n\n\ndef helper():\n    return VALUE\n")
+        reason = self.failure_reason("test_zz_guard_empty", result)
+        self.assertIn("module yields no unittest tests", reason)
+
+    def test_load_tests_wrapping_still_collects_and_is_not_flagged(self):
+        # The issue allows unittest.FunctionTestCase via load_tests; those
+        # functions ARE collected, so the AST scan must not reject them.
+        result = self.run_discovery(
+            "test_zz_guard_load_tests",
+            "import unittest\n\n\n"
+            "def test_wrapped():\n    assert True\n\n\n"
+            "def load_tests(loader, tests, pattern):\n"
+            "    suite = unittest.TestSuite()\n"
+            "    suite.addTest(unittest.FunctionTestCase(test_wrapped))\n"
+            "    return suite\n")
+        self.assertEqual({"test_zz_guard_load_tests": ["test_wrapped"]}, result)
+
+    def test_excluded_module_is_not_scanned_or_inventoried(self):
+        import tests.test_inventory as inventory_module
+        from unittest.mock import patch
+        with patch.object(inventory_module, "EXCLUDED_TEST_MODULES",
+                          {"test_zz_guard_excluded"}):
+            result = self.run_discovery(
+                "test_zz_guard_excluded", "def test_script_style():\n    pass\n")
+        self.assertEqual({}, result)
+
+    def test_update_check_fails_on_a_bare_function_readded_to_a_real_module(self):
+        """The end-to-end mutation: a real module gaining a bare test fails."""
+        import contextlib
+        import io
+        import tests as tests_package
+        import update_test_inventory as updater
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "test_zz_guard_real.py").write_text(
+                "import unittest\n\n\n"
+                "class Real(unittest.TestCase):\n"
+                "    def test_kept(self):\n        pass\n\n\n"
+                "def test_readded():\n    pass\n",
+                encoding="utf-8")
+            inventory = root / "unit_test_inventory.json"
+            inventory.write_text(
+                '{"test_zz_guard_real": ["tests.test_zz_guard_real.Real.test_kept"]}\n',
+                encoding="utf-8")
+            original = tests_package.__path__
+            tests_package.__path__ = [str(root)]
+            try:
+                def current_differences():
+                    return updater.get_inventory_differences(
+                        json.loads(inventory.read_text(encoding="utf-8")),
+                        get_unit_test_inventory(root))
+                with patch.object(updater, "find_untracked_test_modules",
+                                  return_value=[]), \
+                     patch.object(updater, "check_inventory",
+                                  side_effect=current_differences):
+                    output = io.StringIO()
+                    with contextlib.redirect_stdout(output):
+                        result = updater.main(["--check"])
+                self.assertIsInstance(result, int)
+                self.assertEqual(2, result, output.getvalue())
+                text = output.getvalue()
+                self.assertIn("tests.test_zz_guard_real", text)
+                self.assertIn("test_readded", text)
+                self.assertIn("Nothing was compared", text)
+            finally:
+                tests_package.__path__ = original
+                sys.modules.pop("tests.test_zz_guard_real", None)
 
 
 if __name__ == "__main__":
