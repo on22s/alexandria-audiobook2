@@ -1,6 +1,13 @@
 """Shared container/OPF parsing for text extraction and publication review."""
 from pathlib import PurePosixPath, PureWindowsPath
+import re
 import xml.etree.ElementTree as ET
+
+# EPUB 3 calls manifest `properties` a space-separated list; XML separates the
+# tokens with space, tab, CR or LF. str.split() would also split on NBSP and
+# other Unicode spaces, which that grammar does not treat as separators. Form
+# feed is kept for tolerance even though XML 1.0 forbids it in attribute values.
+_XML_WHITESPACE = re.compile(r'[ \t\n\f\r]+')
 
 
 def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, include_details=False):
@@ -62,3 +69,17 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
                                    'selected_rootfile_index': 0,
                                    'narrow_refines_repair_applied': repaired_metadata}
     return opf_path, package
+
+
+def is_navigation_document(properties):
+    """Return whether a manifest ``properties`` value names the EPUB nav doc.
+
+    EPUB 3.3 section 5.3.5 describes ``properties`` as a space-separated list.
+    This app recognises only the spec's lowercase ``nav`` term, matched as a
+    whole token: ``navx`` or ``scripted nav-like`` is not the navigation
+    document, and ``NAV`` is not ``nav``. Tokens are split on XML whitespace
+    (space, tab, CR, LF); form feed is accepted too but cannot occur in an XML
+    1.0 attribute value. Non-XML spaces such as NBSP do not separate tokens.
+    One rule for extraction and read-aloud (Rule 15).
+    """
+    return 'nav' in _XML_WHITESPACE.split(properties or '')
