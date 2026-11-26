@@ -715,6 +715,54 @@ class SavedBookOriginResolverTests(unittest.TestCase):
                 self.assertEqual(r'C:\data\scripts\parent.json', get_bound_source_path(
                     str(root), posix_binding, active=False))
 
+    def test_relative_data_dir_resolves_like_the_absolute_path(self):
+        from script_selection_binding import SavedSourceResolutionError, resolve_saved_book_origin
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'uploads').mkdir()
+            (root / 'scripts').mkdir()
+            book = root / 'uploads' / 'book.txt'
+            book.write_text('alpha beta')
+            saved = root / 'scripts' / 'saved.json'
+            saved.write_text(json.dumps([{'speaker': 'A', 'text': 'alpha beta'}]))
+            self._bind(root, saved, book)
+            current = os.getcwd()
+            os.chdir(root)
+            try:
+                origin = resolve_saved_book_origin('.', 'scripts/saved.json')
+                self.assertEqual(str(book), origin['source_path'])
+                relative_root = resolve_saved_book_origin(
+                    '.', 'scripts/saved.json', saved_books_root='scripts')
+                self.assertEqual(origin, relative_root)
+                # A data_dir that does not contain the library stays refused,
+                # rather than being read relative to the working directory.
+                with self.assertRaises(SavedSourceResolutionError) as error:
+                    resolve_saved_book_origin('scripts', 'saved.json')
+                self.assertEqual('outside_library', error.exception.code)
+            finally:
+                os.chdir(current)
+
+    def test_binding_to_existing_json_outside_library_is_outside_library(self):
+        from script_selection_binding import SavedSourceResolutionError, resolve_saved_book_origin
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'scripts').mkdir()
+            elsewhere = root / 'elsewhere'
+            elsewhere.mkdir()
+            target = elsewhere / 'x.json'
+            target.write_text(json.dumps([{'speaker': 'A', 'text': 'alpha beta'}]))
+            saved = root / 'scripts' / 'saved.json'
+            saved.write_text(json.dumps([{'speaker': 'A', 'text': 'alpha beta'}]))
+            self._bind(root, saved, target)
+            with self.assertRaises(SavedSourceResolutionError) as outside:
+                resolve_saved_book_origin(str(root), str(saved))
+            self.assertEqual('outside_library', outside.exception.code)
+            # The same binding whose target is gone is genuinely missing.
+            target.unlink()
+            with self.assertRaises(SavedSourceResolutionError) as missing:
+                resolve_saved_book_origin(str(root), str(saved))
+            self.assertEqual('missing_source', missing.exception.code)
+
     def test_resolve_saved_book_origin_contract_optional_terminal_and_structured_errors(self):
         from script_selection_binding import (
             MAX_BINDING_BYTES, MAX_SOURCE_BINDING_HOPS,

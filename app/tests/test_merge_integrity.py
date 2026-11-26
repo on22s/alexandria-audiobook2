@@ -13,6 +13,14 @@ from tests.test_chapter_export import _project
 
 
 class MergeIntegrityAdmission(unittest.TestCase):
+    WN_FRONT = (
+        'Manifesto.\n'
+        'Translator note for synthetic test.\n'
+        'Original Web Novel Chapter - Complete.\n'
+        'Original Translation by Synthetic.\n\n'
+    )
+    WN_STORY = 'The morning mist cleared over the quiet valley.\n'
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -63,6 +71,69 @@ class MergeIntegrityAdmission(unittest.TestCase):
         if meta is not None:
             (scripts / f'{name}.meta.json').write_text(json.dumps(meta))
         return stored
+
+    def admit_run(self, source_path, options, *, run_id):
+        """Record an admitted attempt's receipt without publishing it."""
+        import run_spec_receipt
+        from book_state_transaction import get_book_operation_token
+        receipt = run_spec_receipt.build_receipt(
+            book_token=get_book_operation_token(self.temp.name, state=self.state),
+            source_path=str(source_path),
+            source_sha256=hashlib.sha256(Path(source_path).read_bytes()).hexdigest(),
+            prepared_sha256='0' * 64, options=dict(options), settings={},
+            fingerprint='0' * 64, chunk_count=1, run_id=run_id)
+        Path(run_spec_receipt.receipt_path(self.temp.name)).write_bytes(
+            run_spec_receipt.receipt_bytes(receipt))
+        self.state.update({
+            'script_generation_input_file': str(source_path),
+            'script_generation_options': dict(options),
+            'script_generation_run_id': run_id,
+        })
+        self.state[run_spec_receipt.STATE_DIGEST] = receipt['sha256']
+        self.write_state()
+        return receipt
+
+    def publish_run(self, source_path, options, *, run_id='a' * 32):
+        """Record a published generation attempt's receipt for save-time policy."""
+        receipt = self.admit_run(source_path, options, run_id=run_id)
+        self.state['script_generation_published_run_id'] = run_id
+        self.state.pop('script_generation_run_id', None)
+        self.write_state()
+        return receipt
+
+    def library_client(self):
+        """Wire the real save/load routes beside the editor routes."""
+        import core
+        from routers import scripts_library as library
+        (self.root / 'uploads').mkdir(exist_ok=True)
+        (self.root / 'scripts').mkdir(exist_ok=True)
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        for module in (core, library):
+            for name, value in (
+                ('DATA_DIR', str(self.root)),
+                ('SCRIPTS_DIR', str(self.root / 'scripts')),
+                ('SCRIPT_PATH', str(self.script)),
+                ('VOICE_CONFIG_PATH', str(self.root / 'voice_config.json')),
+                ('UPLOADS_DIR', str(self.root / 'uploads')),
+                ('CHUNKS_PATH', str(self.root / 'chunks.json')),
+                ('AUDIOBOOK_PATH', str(self.root / 'book.mp3')),
+                ('M4B_PATH', str(self.root / 'book.m4b')),
+            ):
+                if hasattr(module, name):
+                    stack.enter_context(patch.object(module, name, value))
+        for module in (core, library):
+            stack.enter_context(patch.object(module, 'process_state', self.tasks))
+        for name in ('_task_claims', '_gpu_leases', '_saved_book_publications'):
+            stack.enter_context(patch.object(core, name, {}))
+        app = FastAPI()
+        app.include_router(editor.router)
+        app.include_router(library.router)
+        return stack.enter_context(TestClient(app))
+
+    def load_saved(self, api, name):
+        response = api.post('/api/scripts/load', json={'name': name})
+        self.assertEqual(200, response.status_code, response.text)
 
     def use_saved_book(self, stored, *, write_active_binding=False):
         from book_state_transaction import get_book_operation_token
@@ -154,7 +225,9 @@ class MergeIntegrityAdmission(unittest.TestCase):
                 report = self.client.get('/api/editor/integrity').json()
                 self.assertEqual('unavailable', report['status'], report)
                 if damage == 'missing-binding':
-                    self.assertIn('Save the script again', report['reason'])
+                    self.assertIn('generate the script again', report['reason'])
+                    self.assertIn('Re-import', report['reason'])
+                    self.assertNotIn('Save the script again', report['reason'])
                 elif damage == 'missing-parent':
                     self.assertIn('missing or was renamed', report['reason'])
                     self.assertIn('Re-import', report['reason'])
@@ -323,6 +396,7 @@ class MergeIntegrityAdmission(unittest.TestCase):
                 get_book_operation_token(self.temp.name, state=self.state),
                 hashlib.sha256(wn_book.read_bytes()).hexdigest(),
                 self.script.read_bytes(), source_path=str(wn_book))))
+            self.publish_run(wn_book, {'strip_front_matter': False}, run_id='1' * 32)
             self.assertEqual(200, api.post('/api/scripts/save', json={'name': 'full_book'}).status_code)
             self.assertFalse(json.loads((self.root / 'scripts' / 'full_book.meta.json').read_text())['strip_front_matter'])
             self.assertEqual(200, api.post('/api/scripts/load', json={'name': 'full_book'}).status_code)
@@ -358,6 +432,7 @@ class MergeIntegrityAdmission(unittest.TestCase):
                 get_book_operation_token(self.temp.name, state=self.state),
                 hashlib.sha256(wn_book.read_bytes()).hexdigest(),
                 self.script.read_bytes(), source_path=str(wn_book))))
+            self.publish_run(wn_book, {'strip_front_matter': True}, run_id='2' * 32)
             self.assertEqual(200, api.post('/api/scripts/save', json={'name': 'stripped_book'}).status_code)
             self.assertTrue(json.loads((self.root / 'scripts' / 'stripped_book.meta.json').read_text())['strip_front_matter'])
             self.assertEqual(200, api.post('/api/scripts/load', json={'name': 'stripped_book'}).status_code)
@@ -524,6 +599,202 @@ class MergeIntegrityAdmission(unittest.TestCase):
                     self.assertIn('Re-import', report['reason'])
                 self.assertEqual(409, self.client.post('/api/merge', json={}).status_code)
                 self.assertEqual([], self.scheduled)
+
+    def test_unrecorded_legacy_saved_book_tries_both_preparations(self):
+        api = self.library_client()
+        source = self.root / 'uploads' / 'wn_book.txt'
+        source.write_text(self.WN_FRONT + self.WN_STORY)
+        self.write_saved_copy(
+            'legacy', source, entries=[{'speaker': 'A', 'text': self.WN_STORY}],
+            meta={'book_id': 'legacy'})
+        self.write_saved_copy(
+            'legacy_full', source,
+            entries=[{'speaker': 'A', 'text': self.WN_FRONT + self.WN_STORY}],
+            meta={'book_id': 'legacy_full'})
+
+        # A book generated with the default (checked) strip is verified, not a
+        # false difference against the unstripped preparation.
+        self.load_saved(api, 'legacy')
+        self.change_rows(self.WN_STORY)
+        report = api.get('/api/editor/integrity').json()
+        self.assertEqual('verified', report['status'], report)
+        self.assertIs(True, report['resolved_strip_front_matter'])
+        self.assertIn('no front-matter preparation choice', report['preparation_note'])
+        self.assertIn('front matter stripped', report['preparation_note'])
+        self.assertEqual('current source after generation preprocessing', report['source_scope'])
+        self.assertEqual(200, api.post('/api/merge', json={}).status_code)
+        self.scheduled.clear()
+
+        self.load_saved(api, 'legacy_full')
+        self.change_rows(self.WN_FRONT + self.WN_STORY)
+        report = api.get('/api/editor/integrity').json()
+        self.assertEqual('verified', report['status'], report)
+        self.assertIs(False, report['resolved_strip_front_matter'])
+        self.assertIn('front matter kept', report['preparation_note'])
+        self.assertEqual(200, api.post('/api/merge', json={}).status_code)
+        self.scheduled.clear()
+
+        # The script selects the preparation, exactly as Review does: rows
+        # edited to the other preparation must not borrow its verification.
+        self.load_saved(api, 'legacy')
+        self.change_rows(self.WN_FRONT + self.WN_STORY)
+        divergent = api.get('/api/editor/integrity').json()
+        self.assertEqual('differences', divergent['status'], divergent)
+        self.assertIs(True, divergent['resolved_strip_front_matter'])
+        self.assertEqual(409, api.post('/api/merge', json={}).status_code)
+
+        # Re-saving the unrecorded book records the preparation it matched, so
+        # the loaded copy no longer depends on trying both.
+        self.load_saved(api, 'legacy')
+        self.change_rows(self.WN_STORY)
+        self.assertEqual(200, api.post('/api/scripts/save', json={'name': 'legacy_resaved'}).status_code)
+        resaved = json.loads((self.root / 'scripts' / 'legacy_resaved.meta.json').read_text())
+        self.assertIs(True, resaved['strip_front_matter'])
+        self.load_saved(api, 'legacy_resaved')
+        self.change_rows(self.WN_STORY)
+        self.assertEqual('verified', api.get('/api/editor/integrity').json()['status'])
+
+    def test_cancelled_regeneration_does_not_record_its_preparation(self):
+        api = self.library_client()
+        source = self.root / 'uploads' / 'direct.txt'
+        source.write_text(self.WN_FRONT + self.WN_STORY)
+        self.script.write_text(json.dumps([{'speaker': 'A', 'text': self.WN_STORY}]))
+        self.change_rows(self.WN_STORY)
+        self.state.update({
+            'input_file_path': str(source),
+            'script_generation_input_file': str(source),
+            'script_generation_options': {'strip_front_matter': True},
+        })
+        from book_state_transaction import get_book_operation_token
+        from script_selection_binding import BINDING_NAME, make_script_selection_binding
+        (self.root / BINDING_NAME).write_text(json.dumps(make_script_selection_binding(
+            get_book_operation_token(self.temp.name, state=self.state),
+            hashlib.sha256(source.read_bytes()).hexdigest(),
+            self.script.read_bytes(), source_path=str(source))))
+        self.publish_run(source, {'strip_front_matter': True}, run_id='c' * 32)
+        self.assertEqual(200, api.post('/api/scripts/save', json={'name': 'published'}).status_code)
+        self.assertIs(True, json.loads(
+            (self.root / 'scripts' / 'published.meta.json').read_text())['strip_front_matter'])
+
+        # Admission writes the new options before the run; cancelling never
+        # reverts them. The published run's receipt no longer exists, so the
+        # cancelled choice must not be recorded against the published script.
+        self.admit_run(source, {'strip_front_matter': False}, run_id='d' * 32)
+        self.state.pop('script_generation_run_id', None)
+        self.write_state()
+        self.assertEqual(200, api.post('/api/scripts/save', json={'name': 'after_cancel'}).status_code)
+        after_cancel = json.loads((self.root / 'scripts' / 'after_cancel.meta.json').read_text())
+        self.assertNotIn('strip_front_matter', after_cancel)
+
+        # With nothing recorded, the read path tries both preparations and the
+        # genuinely stripped book still verifies.
+        self.load_saved(api, 'after_cancel')
+        self.change_rows(self.WN_STORY)
+        report = api.get('/api/editor/integrity').json()
+        self.assertEqual('verified', report['status'], report)
+        self.assertIs(True, report['resolved_strip_front_matter'])
+        self.assertEqual(200, api.post('/api/merge', json={}).status_code)
+
+    def test_unrecorded_saved_book_reports_fewer_differences_preparation(self):
+        api = self.library_client()
+        source = self.root / 'uploads' / 'wn_book.txt'
+        source.write_text(self.WN_FRONT + self.WN_STORY)
+        self.write_saved_copy(
+            'legacy', source, entries=[{'speaker': 'A', 'text': self.WN_STORY}],
+            meta={'book_id': 'legacy'})
+        self.load_saved(api, 'legacy')
+        edited = self.WN_STORY.replace('valley', 'mountain')
+        self.change_rows(edited)
+        report = api.get('/api/editor/integrity').json()
+        self.assertEqual('differences', report['status'], report)
+        self.assertEqual(1, len(report['hunks']), report)
+        self.assertIs(True, report['resolved_strip_front_matter'])
+        self.assertIn('no front-matter preparation choice', report['preparation_note'])
+        self.assertEqual(409, api.post('/api/merge', json={}).status_code)
+
+        # When the script itself matches neither preparation, the rows being
+        # compared pick the one with fewer differences, and the report says so.
+        edited_script = [{'speaker': 'A', 'text': edited}]
+        self.script.write_text(json.dumps(edited_script))
+        fallback = api.get('/api/editor/integrity').json()
+        self.assertEqual('differences', fallback['status'], fallback)
+        self.assertEqual(1, len(fallback['hunks']), fallback)
+        self.assertIs(True, fallback['resolved_strip_front_matter'])
+        self.assertIn('no front-matter preparation choice', fallback['preparation_note'])
+        self.assertEqual(409, api.post('/api/merge', json={}).status_code)
+
+    def test_saved_book_snapshot_survives_a_cancelled_runs_option_change(self):
+        api = self.library_client()
+        source = self.root / 'uploads' / 'wn_book.txt'
+        source.write_text(self.WN_FRONT + self.WN_STORY)
+        self.write_saved_copy(
+            'legacy', source, entries=[{'speaker': 'A', 'text': self.WN_STORY}],
+            meta={'book_id': 'legacy'})
+        self.load_saved(api, 'legacy')
+        self.change_rows(self.WN_STORY)
+        verified = api.get('/api/editor/integrity').json()
+        self.assertEqual('verified', verified['status'], verified)
+
+        # A cancelled re-generation rewrites these run fields but not the
+        # comparison, so an issued confirmation must keep working.
+        state_after = json.loads((self.root / 'state.json').read_text())
+        state_after['script_generation_input_file'] = str(source)
+        state_after['script_generation_options'] = {'strip_front_matter': False}
+        (self.root / 'state.json').write_text(json.dumps(state_after))
+        repeated = api.get('/api/editor/integrity').json()
+        self.assertEqual(verified['snapshot'], repeated['snapshot'])
+        self.assertEqual(200, api.post(
+            '/api/merge', json={'integrity_confirmation': verified['snapshot']}).status_code)
+        self.scheduled.clear()
+
+        # A real comparison change still invalidates the confirmation.
+        self.change_rows(self.WN_STORY.replace('valley', 'mountain'))
+        self.assertEqual(409, api.post(
+            '/api/merge', json={'integrity_confirmation': verified['snapshot']}).status_code)
+
+    def test_saved_book_comparison_reads_each_hop_once(self):
+        import merge_integrity
+        import project_scope_files
+        from script_selection_binding import _validated_script_entries
+        (self.root / 'uploads').mkdir(exist_ok=True)
+        source = self.root / 'uploads' / 'book.txt'
+        source.write_text('alpha beta')
+        draft = self.write_saved_copy('draft', source, text='alpha beta')
+        final = self.write_saved_copy('final', draft, text='alpha beta')
+        self.state['input_file_path'] = str(final)
+        self.write_state()
+
+        parses, reads = [], []
+        real_parse, real_read = _validated_script_entries, project_scope_files.capture_scope_file
+        def counting_parse(raw, **kwargs):
+            parses.append(1)
+            return real_parse(raw, **kwargs)
+        def counting_read(root, relative, **kwargs):
+            reads.append(relative)
+            return real_read(root, relative, **kwargs)
+        with patch.object(project_scope_files, 'capture_scope_file', counting_read), \
+                patch('script_selection_binding._validated_script_entries', counting_parse):
+            details = merge_integrity._get_source_preparation_details(
+                self.state, data_dir=str(self.root))
+        self.assertEqual(str(source), details['input_path'])
+        self.assertEqual(2, len(parses))  # final.json and draft.json, once each
+        for name in ('final.json', 'draft.json'):
+            self.assertEqual(1, sum(1 for relative in reads if relative.endswith(name)), reads)
+
+    def test_binding_to_uploads_script_json_is_refused_at_merge(self):
+        api = self.library_client()
+        source = self.root / 'uploads' / 'book.txt'
+        source.write_text('alpha beta')
+        injected = self.root / 'uploads' / 'injected.json'
+        injected.write_text(json.dumps([{'speaker': 'A', 'text': 'alpha beta'}]))
+        self.write_saved_copy('hop', injected, text='alpha beta')
+        self.load_saved(api, 'hop')
+        self.change_rows('alpha beta')
+        report = api.get('/api/editor/integrity').json()
+        self.assertEqual('unavailable', report['status'], report)
+        self.assertIn('outside the saved books library', report['reason'])
+        self.assertEqual(409, api.post('/api/merge', json={}).status_code)
+        self.assertEqual([], self.scheduled)
 
     def test_foreign_source_settings_cannot_verify_even_identical_prose(self):
         other = self.root / 'other-source.txt'

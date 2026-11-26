@@ -437,20 +437,52 @@ def _publish_saved_repair(path, entries):
     return backup
 
 
+def _published_run_strip_front_matter(active_state, source_path):
+    """The published run's recorded preparation choice, or None.
+
+    Admission writes script_generation_options before a run and cancellation
+    never reverts them, so state alone can describe a run that never published.
+    The run-spec receipt is accepted only when it is the attempt that published
+    the script; otherwise nothing is recorded and the comparison tries both.
+    """
+    import run_spec_receipt
+    from script_selection_binding import _path_digest
+    if not isinstance(active_state, dict):
+        return None
+    run_id = active_state.get('script_generation_published_run_id')
+    if not isinstance(run_id, str) or not run_id:
+        return None
+    try:
+        receipt = run_spec_receipt.load_receipt(DATA_DIR)
+        if (not isinstance(receipt, dict) or receipt.get('run_id') != run_id
+                or receipt.get('sha256') != active_state.get(run_spec_receipt.STATE_DIGEST)
+                or receipt.get('source_path_sha256') != _path_digest(source_path)):
+            return None
+    except (OSError, ValueError):
+        return None
+    options = receipt.get('options')
+    if isinstance(options, dict) and type(options.get('strip_front_matter')) is bool:
+        return options['strip_front_matter']
+    return None
+
+
 def _saved_book_strip_front_matter(active_state, script_bytes, source_path):
-    """Capture the active book's own strip_front_matter policy for .meta.json."""
+    """Capture the book's own strip_front_matter policy for .meta.json."""
     from literal_policy import get_literal_policy
     try:
-        policy = get_literal_policy(json.loads(script_bytes))
-    except (ValueError, TypeError, RecursionError):
-        policy = None
+        entries = json.loads(script_bytes)
+        policy = get_literal_policy(entries)
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        entries, policy = None, None
     if isinstance(policy, dict) and type(policy.get('strip_front_matter')) is bool:
         return policy['strip_front_matter']
     if not isinstance(source_path, str) or not source_path:
         return None
     if Path(source_path).suffix.lower() == '.json':
-        # Carry the loaded saved book's recorded preparation choice across Save As
-        # without borrowing unrelated active-run script_generation_options.
+        # Carry the loaded saved book's recorded preparation choice across Save
+        # As without borrowing unrelated active-run script_generation_options.
+        # A book saved before the choice was recorded derives it from the
+        # script being saved, so re-saving records the preparation it matched.
         try:
             from script_selection_binding import _validate_saved_book_member
             _, _, _, member_name = _validate_saved_book_member(
@@ -464,12 +496,11 @@ def _saved_book_strip_front_matter(active_state, script_bytes, source_path):
                     return loaded_meta['strip_front_matter']
         except (OSError, ValueError, TypeError, RecursionError):
             return None
-        return None
-    if isinstance(active_state, dict) and active_state.get('script_generation_input_file') == source_path:
-        options = active_state.get('script_generation_options')
-        if isinstance(options, dict) and type(options.get('strip_front_matter')) is bool:
-            return options['strip_front_matter']
-    return None
+        if entries is None:
+            return None
+        from merge_integrity import get_saved_book_strip_front_matter
+        return get_saved_book_strip_front_matter(DATA_DIR, source_path, entries)
+    return _published_run_strip_front_matter(active_state, source_path)
 
 
 def _save_script_sync(request):

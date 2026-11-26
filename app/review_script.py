@@ -52,6 +52,7 @@ from review_prompts import (REVIEW_SYSTEM_PROMPT, REVIEW_USER_PROMPT,
 from generate_script import LLMGenParams, call_llm_for_entries, call_llm_for_object
 from script_selection_binding import MAX_SOURCE_BINDING_HOPS, get_bound_source_path
 from literal_policy import (get_literal_policy, get_literal_policy_identity,
+                            get_strip_front_matter_choices,
                             ensure_literal_narration, retain_literal_policy,
                             get_word_identity, get_scope_coverage_digest,
                             get_scope_coverage_intervals, is_scope_cut_proof, get_scope_identity,
@@ -3400,8 +3401,9 @@ def get_review_source_snapshot(data_dir, script_path, script_bytes, entries, *, 
             raise ValueError('Literal source identity differs from the captured source')
         decoded, _encoding = get_decoded_source_text(raw)
         decoded = get_normalized_source_newlines(decoded)
-        strip_choices = ((policy['strip_front_matter'],) if policy
-                         and 'strip_front_matter' in policy else (False, True))
+        strip_choices = get_strip_front_matter_choices(
+            policy['strip_front_matter'] if policy
+            and 'strip_front_matter' in policy else None)
         sources, valid_choices = set(), set()
         for strip_front_matter in strip_choices:
             try:

@@ -89,7 +89,7 @@ def get_prepared_source(source, strip_front_matter):
 _SAVED_SOURCE_REASONS = {
     'missing_binding': (
         'This saved script has no recorded link to its original source. '
-        'Save the script again from the original source text to record one.'
+        'Re-import the original source file and generate the script again from it to record one.'
     ),
     'damaged_binding': (
         "This saved script's original-source record is damaged. Re-import the "
@@ -158,31 +158,24 @@ def _get_saved_script_strip_front_matter(data_dir, origin):
     """Read a loaded saved book's own recorded strip_front_matter choice.
 
     Checks the bound script entries' literal policy first, then the saved
-    book's .meta.json across resolved hops. Never borrows unrelated run
-    settings from state['script_generation_options']. When no choice is
-    recorded, returns False so universal preprocessing (publisher colophon
-    and text normalization) runs without silently stripping web-novel front
-    matter.
+    book's .meta.json across resolved hops. The resolver already read and
+    parsed every hop while binding it, so only each hop's small metadata
+    companion is read here. Never borrows unrelated run settings from
+    state['script_generation_options']. None means no hop records a choice:
+    the comparison then tries both preparations, as Review does for a legacy
+    parent, rather than assuming the checkbox default.
     """
     import os
-    from literal_policy import get_literal_policy
-    from project_scope_files import (
-        MAX_SCOPE_METADATA_BYTES, MAX_SCRIPT_BYTES, capture_scope_file)
-    from script_selection_binding import _validated_script_entries
+    from project_scope_files import MAX_SCOPE_METADATA_BYTES, capture_scope_file
 
     data_root = Path(os.path.abspath(data_dir))
     for hop in origin['hops']:
+        if hop.get('strip_front_matter_invalid'):
+            raise ValueError('Source preparation settings are unavailable.')
+        recorded = hop.get('strip_front_matter')
+        if type(recorded) is bool:
+            return recorded
         script_abs = Path(os.path.abspath(hop['script_path']))
-        script_rel = script_abs.relative_to(data_root).as_posix()
-        try:
-            _, script_raw = capture_scope_file(
-                data_root, script_rel, limit=MAX_SCRIPT_BYTES, include_bytes=True)
-            entries = _validated_script_entries(script_raw) if script_raw is not None else []
-            policy = get_literal_policy(entries)
-        except (OSError, ValueError, RecursionError) as error:
-            raise ValueError('Source preparation settings are unavailable.') from error
-        if policy is not None and 'strip_front_matter' in policy:
-            return policy['strip_front_matter']
         meta_rel = (script_abs.parent / (script_abs.stem + '.meta.json')).relative_to(data_root).as_posix()
         try:
             meta_proof, meta_raw = capture_scope_file(
@@ -200,7 +193,44 @@ def _get_saved_script_strip_front_matter(data_dir, origin):
                 if type(meta['strip_front_matter']) is not bool:
                     raise ValueError('Source preparation settings are unavailable.')
                 return meta['strip_front_matter']
-    return False
+    return None
+
+
+def get_saved_book_strip_front_matter(data_dir, saved_script_path, entries):
+    """Derive the preparation an unrecorded saved book's own script matches.
+
+    Save-time only: re-saving a book saved before the choice was recorded must
+    record the preparation its script was generated with. Returns the one
+    preparation the script matches, or None when the origin cannot be resolved,
+    the script matches neither, or both match (then the choice is not
+    observable and stays unrecorded; the read path tries both).
+    """
+    import os
+    from generation_completion import get_generation_input
+    from literal_policy import get_strip_front_matter_choices
+    from script_selection_binding import resolve_saved_book_origin
+
+    if not isinstance(entries, list) or not entries:
+        return None
+    script_words = []
+    for row in entries:
+        if not isinstance(row, dict) or not isinstance(row.get('text', ''), str):
+            return None
+        script_words.extend(get_comparison_words(row['text']))
+    data_root = os.path.abspath(data_dir)
+    try:
+        origin = resolve_saved_book_origin(
+            data_root, saved_script_path, require_terminal_file=True)
+        source, _digest_value = get_generation_input(
+            origin['source_path'], owning_root=data_root)
+    except (OSError, ValueError, UnicodeError, RecursionError):
+        return None
+    try:
+        matches = [choice for choice in get_strip_front_matter_choices(None)
+                   if get_comparison_words(get_prepared_source(source, choice)) == script_words]
+    except (OSError, ValueError, TypeError, UnicodeError, RecursionError):
+        return None
+    return matches[0] if len(matches) == 1 else None
 
 
 def _get_source_preparation_details(state, *, data_dir=None):
@@ -226,7 +256,13 @@ def _get_source_preparation_details(state, *, data_dir=None):
         except SavedSourceResolutionError as error:
             raise ValueError(_SAVED_SOURCE_REASONS[error.code]) from error
         strip_front_matter = _get_saved_script_strip_front_matter(data_dir, origin)
-        return origin['source_path'], strip_front_matter, origin['source_sha256'], True
+        from literal_policy import get_strip_front_matter_choices
+        return {'input_path': origin['source_path'],
+                'strip_front_matter': strip_front_matter,
+                'strip_choices': get_strip_front_matter_choices(strip_front_matter),
+                'source_sha256': origin['source_sha256'],
+                'saved_script': True,
+                'origin': origin}
     strip_front_matter = None
     generation_path = state.get('script_generation_input_file')
     if generation_path:
@@ -236,13 +272,18 @@ def _get_source_preparation_details(state, *, data_dir=None):
         if not isinstance(options, dict) or type(options.get('strip_front_matter')) is not bool:
             raise ValueError('Source preparation settings are unavailable.')
         strip_front_matter = options['strip_front_matter']
-    return input_path, strip_front_matter, None, False
+    return {'input_path': input_path,
+            'strip_front_matter': strip_front_matter,
+            'strip_choices': (strip_front_matter,),
+            'source_sha256': None,
+            'saved_script': False,
+            'origin': None}
 
 
 def get_source_preparation(state, *, data_dir=None):
     """Resolve the selected prose and its saved preparation policy once."""
-    input_path, strip_front_matter, _, _ = _get_source_preparation_details(state, data_dir=data_dir)
-    return input_path, strip_front_matter
+    details = _get_source_preparation_details(state, data_dir=data_dir)
+    return details['input_path'], details['strip_front_matter']
 
 
 def get_selected_source_words(source, source_sha256, strip_front_matter, proof):
@@ -275,6 +316,45 @@ def _get_cached_diff(snapshot, source, entries_json):
     return word_diff(source, json.loads(entries_json))
 
 
+def _script_comparison_words(script_bytes):
+    """The published script's comparison words, or None when unreadable."""
+    try:
+        rows = json.loads(script_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, TypeError):
+        return None
+    if not isinstance(rows, list) or not rows:
+        return None
+    words = []
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get('text', ''), str):
+            return None
+        words.extend(get_comparison_words(row['text']))
+    return words
+
+
+def _choose_unrecorded_preparation(candidates, script_bytes, entries):
+    """Pick the preparation an unrecorded saved book was generated with.
+
+    The script itself selects the preparation, exactly as Review's
+    legacy-parent path proves a child against the variant it derives; an
+    edited comparison row must not choose the variant. When the script
+    matches neither (it was edited beyond preprocessing), the rows being
+    compared choose the preparation with fewer differences. Returns
+    (choice, prepared_text, diff_or_None).
+    """
+    script_words = _script_comparison_words(script_bytes)
+    if script_words is not None:
+        matches = [candidate for candidate in candidates
+                   if get_comparison_words(candidate[1]) == script_words]
+        if len(matches) == 1:
+            return matches[0][0], matches[0][1], None
+    ranked = [(len(word_diff(text, entries)['hunks']), index, choice, text, diff)
+              for index, (choice, text) in enumerate(candidates)
+              for diff in (word_diff(text, entries),)]
+    best = min(ranked, key=lambda row: row[:2])
+    return best[2], best[3], best[4]
+
+
 def get_source_integrity(state, script_bytes, entries, *, comparison='editor chunks', review_offset=None,
                          expected_source_sha256=None, data_dir=None):
     """Compare copied rows; callers serialize native book/chunk reads themselves.
@@ -290,18 +370,34 @@ def get_source_integrity(state, script_bytes, entries, *, comparison='editor chu
             or not isinstance(row.get('text', ''), str) for row in entries)):
         raise ValueError('Invalid comparison rows')
     input_path = state.get('input_file_path')
+    saved_script_shape = (data_dir is not None
+                          and isinstance(input_path, str)
+                          and Path(input_path).suffix.lower() == '.json')
     identity = {key: state.get(key) for key in (
-        'active_book_id', 'book_generation', 'input_file_path',
-        'script_generation_input_file', 'script_generation_options', '_source_scope')}
+        'active_book_id', 'book_generation', 'input_file_path', '_source_scope')}
+    if not saved_script_shape:
+        # A saved book's comparison never reads these run fields, so they must
+        # not invalidate an issued confirmation: a cancelled re-generation
+        # rewrites them without changing anything the comparison used.
+        for key in ('script_generation_input_file', 'script_generation_options'):
+            identity[key] = state.get(key)
     source_sha256 = None
     source = None
     reason = None
     scope = 'current source'
     saved_script = False
     strip_front_matter = None
+    preparation_unrecorded = False
+    preparation_diff = None
     try:
-        input_path, strip_front_matter, resolved_source_sha256, saved_script = (
-            _get_source_preparation_details(state, data_dir=data_dir))
+        details = _get_source_preparation_details(state, data_dir=data_dir)
+        input_path = details['input_path']
+        saved_script = details['saved_script']
+        if saved_script:
+            origin = details['origin']
+            identity['resolved_origin'] = {
+                'source_path': origin['source_path'],
+                'source_path_sha256': origin['source_path_sha256']}
         try:
             source, source_sha256 = get_generation_input(
                 input_path, owning_root=data_dir if saved_script else None)
@@ -309,17 +405,41 @@ def get_source_integrity(state, script_bytes, entries, *, comparison='editor chu
             if saved_script:
                 raise ValueError(_SAVED_SOURCE_REASONS['missing_source']) from exc
             raise
+        resolved_source_sha256 = details['source_sha256']
         if resolved_source_sha256 is not None and source_sha256 != resolved_source_sha256:
             raise ValueError(_SAVED_SOURCE_REASONS['changed_source'])
         if expected_source_sha256 is not None and source_sha256 != expected_source_sha256:
             raise ValueError('Source changed during the comparison; refresh before relying on it.')
-        if strip_front_matter is not None:
-            source = get_prepared_source(source, strip_front_matter)
-            scope = 'current source after generation preprocessing'
-        if '_source_scope' in state:
-            source = get_selected_source_words(source, source_sha256, strip_front_matter,
-                                               state['_source_scope'])
-            scope = 'verified selected source word range'
+        choices = details['strip_choices']
+        if len(choices) == 1:
+            strip_front_matter = choices[0]
+            if strip_front_matter is not None:
+                source = get_prepared_source(source, strip_front_matter)
+                scope = 'current source after generation preprocessing'
+            if '_source_scope' in state:
+                source = get_selected_source_words(source, source_sha256, strip_front_matter,
+                                                   state['_source_scope'])
+                scope = 'verified selected source word range'
+        else:
+            # A book saved before the preparation choice was recorded admits
+            # both preparations, exactly as Review's legacy-parent path does.
+            candidates, errors = [], []
+            for choice in choices:
+                try:
+                    text = get_prepared_source(source, choice)
+                    if '_source_scope' in state:
+                        text = get_selected_source_words(
+                            text, source_sha256, choice, state['_source_scope'])
+                    candidates.append((choice, text))
+                except (OSError, ValueError, UnicodeError) as error:
+                    errors.append(error)
+            if not candidates:
+                raise errors[0]
+            preparation_unrecorded = True
+            strip_front_matter, source, preparation_diff = _choose_unrecorded_preparation(
+                candidates, script_bytes, entries)
+            scope = ('verified selected source word range' if '_source_scope' in state
+                     else 'current source after generation preprocessing')
     except (OSError, ValueError, UnicodeError) as exc:
         reason = str(exc)
         source = None
@@ -331,11 +451,19 @@ def get_source_integrity(state, script_bytes, entries, *, comparison='editor chu
     snapshot = hashlib.sha256(_get_json(payload).encode('utf-8')).hexdigest()
     result = {'snapshot': snapshot, 'comparison': comparison, 'source_scope': scope,
               'source_name': Path(input_path).name if isinstance(input_path, str) else None}
+    if saved_script:
+        result['resolved_strip_front_matter'] = strip_front_matter
+    if preparation_unrecorded:
+        result['preparation_note'] = (
+            'This saved script records no front-matter preparation choice; the '
+            'comparison used the preparation with '
+            + ('front matter stripped.' if strip_front_matter else 'front matter kept.'))
     if source is None:
         report = {**result, 'status': 'unavailable', 'reason': reason,
                   'hunks': [], 'totals': {}, 'chunks_total': 0}
     else:
-        diff = _get_cached_diff(snapshot, source, _get_json(entries))
+        diff = (preparation_diff if preparation_diff is not None
+                else _get_cached_diff(snapshot, source, _get_json(entries)))
         # The paged view reads the cached diff without copying its containers.
         # Legacy callers retain detached mutable reports as before.
         if review_offset is None:

@@ -302,20 +302,29 @@ def _validate_saved_book_member(data_dir, candidate_path, *, saved_books_root=No
     return data_root, library, library_rel, cand.name
 
 
-def _uploads_has_matching_json(data_dir, source_path_sha256):
-    """True when a binding's path digest targets a .json file inside uploads/."""
-    from core import BASE_DIR, ROOT_DIR
-    from utils import get_app_storage_path
+def _has_matching_json_source(data_dir, source_path_sha256):
+    """True when a binding's path digest names an existing .json under data_dir.
 
-    uploads = get_app_storage_path(data_dir, ROOT_DIR, BASE_DIR, 'uploads')
-    if not os.path.isdir(uploads):
-        return False
-    for path in Path(uploads).iterdir():
-        if path.suffix.lower() != '.json':
-            continue
-        if any(_path_digest(spelling) == source_path_sha256
-               for spelling in (str(path), path.as_posix(), os.path.join(uploads, path.name))):
-            return True
+    A binding records only the digest of its source path, so an unresolvable
+    .json source is told apart from a missing one by locating its path. Only
+    path strings are hashed (no file bytes are read), symlinked directories are
+    not followed, and the scan is bounded.
+    """
+    root = os.path.abspath(data_dir)
+    scanned = 0
+    for directory, dirnames, filenames in os.walk(root, onerror=lambda _error: None):
+        dirnames[:] = [name for name in dirnames
+                       if not os.path.islink(os.path.join(directory, name))]
+        for name in filenames:
+            scanned += 1
+            if scanned > 100_000:
+                return False
+            if not name.lower().endswith('.json'):
+                continue
+            path = os.path.join(directory, name)
+            if any(_path_digest(spelling) == source_path_sha256
+                   for spelling in (path, Path(path).as_posix())):
+                return True
     return False
 
 
@@ -340,6 +349,13 @@ def resolve_saved_book_origin(
     """
     from project_scope_files import capture_scope_file, MAX_SCRIPT_BYTES
 
+    # The resolver is a shared API (#2354/#2355); a relative data_dir would
+    # otherwise hash relative candidate spellings that never match the
+    # absolute path digests bindings record.
+    if isinstance(data_dir, (str, os.PathLike)) and os.fspath(data_dir):
+        data_dir = os.path.abspath(os.fspath(data_dir))
+    if isinstance(saved_books_root, (str, os.PathLike)) and os.fspath(saved_books_root):
+        saved_books_root = os.path.abspath(os.fspath(saved_books_root))
     if expected_script_sha256 is not None:
         try:
             _digest(expected_script_sha256)
@@ -381,16 +397,27 @@ def resolve_saved_book_origin(
             raise SavedSourceResolutionError('damaged_binding', 'Saved script or binding is malformed.') from error
         if not saved_binding_matches(binding, script_sha256=script_sha256, entries=entries):
             raise SavedSourceResolutionError('damaged_binding', 'Saved script differs from its binding.')
+        # Carry the literal preparation choice read from the bytes already in
+        # hand so the comparison does not read and parse every hop twice.
+        try:
+            from literal_policy import get_literal_policy
+            hop_policy = get_literal_policy(entries)
+        except ValueError:
+            hop_policy = {'strip_front_matter_invalid': True}
+        else:
+            hop_policy = {'strip_front_matter': hop_policy.get('strip_front_matter')
+                          if isinstance(hop_policy, dict) else None}
         try:
             source_path = get_bound_source_path(
                 data_dir, binding, active=False, saved_books_root=library)
         except ValueError as error:
-            if _uploads_has_matching_json(data_dir, binding['source_path_sha256']):
+            if _has_matching_json_source(data_dir, binding['source_path_sha256']):
                 raise SavedSourceResolutionError(
                     'outside_library', 'Saved script binding points to script JSON outside the library.') from error
             if not require_terminal_file:
                 hops.append({'script_path': str(member_path), 'binding_path': binding_path,
-                             'source_path': None, 'source_sha256': binding['source_sha256']})
+                             'source_path': None, 'source_sha256': binding['source_sha256'],
+                             **hop_policy})
                 return {'source_path': None, 'source_sha256': binding['source_sha256'],
                         'source_path_sha256': binding['source_path_sha256'], 'hops': hops}
             raise SavedSourceResolutionError('missing_source', 'Bound source file is missing.') from error
@@ -401,7 +428,8 @@ def resolve_saved_book_origin(
             except FileNotFoundError as error:
                 if not require_terminal_file:
                     hops.append({'script_path': str(member_path), 'binding_path': binding_path,
-                                 'source_path': None, 'source_sha256': binding['source_sha256']})
+                                 'source_path': None, 'source_sha256': binding['source_sha256'],
+                                 **hop_policy})
                     return {'source_path': None, 'source_sha256': binding['source_sha256'],
                             'source_path_sha256': binding['source_path_sha256'], 'hops': hops}
                 raise SavedSourceResolutionError('missing_source', 'Bound source file is missing.') from error
@@ -413,7 +441,8 @@ def resolve_saved_book_origin(
                 raise SavedSourceResolutionError('changed_source', 'Bound source bytes changed.')
             resolved_source = os.path.abspath(source_path)
             hops.append({'script_path': str(member_path), 'binding_path': binding_path,
-                         'source_path': resolved_source, 'source_sha256': digest})
+                         'source_path': resolved_source, 'source_sha256': digest,
+                         **hop_policy})
             return {'source_path': resolved_source, 'source_sha256': digest,
                     'source_path_sha256': binding['source_path_sha256'], 'hops': hops}
         _, _, _, next_name = _validate_saved_book_member(
@@ -422,7 +451,8 @@ def resolve_saved_book_origin(
         if os.path.normcase(str(next_path)) in seen:
             raise SavedSourceResolutionError('cycle', 'Saved script binding chain loops.')
         hops.append({'script_path': str(member_path), 'binding_path': binding_path,
-                     'source_path': str(next_path), 'source_sha256': binding['source_sha256']})
+                     'source_path': str(next_path), 'source_sha256': binding['source_sha256'],
+                     **hop_policy})
         expected_sha = binding['source_sha256']
         current_name = next_name
     raise SavedSourceResolutionError('hop_limit', 'Saved script binding chain exceeds hop limit.')
