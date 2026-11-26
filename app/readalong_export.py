@@ -1083,11 +1083,16 @@ def build_sidecar_export(manager, cancel_check, progress_callback=None, *,
             pass
 
 
-def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_hashes=None):
+def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_hashes=None,
+                                     search_dirs=()):
     """Locate a candidate; callers verify the actual bytes they consume.
 
     Canonical paths keep legacy download semantics. A renamed fallback
     requires current provenance and exhaustive, bounded ambiguity checks.
+    ``search_dirs`` adds the upload folder for a loaded saved script, whose
+    ``input_file_path`` is the script, not the extracted TXT beside which the
+    retained EPUB lives (#2349). The bytes still have to match the recorded
+    origin hashes there.
     """
     import stat
     from archive_utils import MAX_ARCHIVE_MEMBERS, MAX_ARCHIVE_BYTES
@@ -1109,42 +1114,56 @@ def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_ha
     matches = []
     scanned = 0
     scanned_bytes = 0
-    with os.scandir(os.path.dirname(retained_path)) as candidates:
-        for entry in candidates:
-            if cancel_check is not None:
-                ensure_audio_export_active(cancel_check)
-            scanned += 1
-            if scanned > MAX_ARCHIVE_MEMBERS:
-                raise ValueError("Retained-source search exceeds its entry budget; restore the source filename or re-upload.")
-            if not entry.name.endswith(".source.epub"):
-                continue
-            try:
-                info = entry.stat(follow_symlinks=False)
-            except OSError as error:
-                raise ValueError("Retained-source search could not inspect every candidate; restore the source filename or re-upload.") from error
-            if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= MAX_RETAINED_EPUB_BYTES:
-                continue
-            size = info.st_size
-            scanned_bytes += size
-            if scanned_bytes > MAX_ARCHIVE_BYTES:
-                raise ValueError("Retained-source search exceeds its byte budget; restore the source filename or re-upload.")
-            try:
-                # Exact initial-size cap: growth cannot escape the cumulative
-                # budget, and cancellation is polled between bounded reads.
-                if get_audio_file_sha256(entry.path, limit=size, cancel_check=cancel_check)[0] in wants:
-                    matches.append(entry.path)
-            except ExportCancelled:
-                raise
-            except (OSError, ValueError) as error:
-                raise ValueError("Retained-source search could not inspect every candidate; restore the source filename or re-upload.") from error
+    directories = [os.path.dirname(retained_path)]
+    known = {os.path.abspath(directory) for directory in directories}
+    for directory in search_dirs:
+        if (not isinstance(directory, str) or not directory
+                or not os.path.isdir(directory)
+                or os.path.abspath(directory) in known):
+            continue
+        known.add(os.path.abspath(directory))
+        directories.append(directory)
+    for directory in directories:
+        with os.scandir(directory) as candidates:
+            for entry in candidates:
+                if cancel_check is not None:
+                    ensure_audio_export_active(cancel_check)
+                scanned += 1
+                if scanned > MAX_ARCHIVE_MEMBERS:
+                    raise ValueError("Retained-source search exceeds its entry budget; restore the source filename or re-upload.")
+                if not entry.name.endswith(".source.epub"):
+                    continue
+                try:
+                    info = entry.stat(follow_symlinks=False)
+                except OSError as error:
+                    raise ValueError("Retained-source search could not inspect every candidate; restore the source filename or re-upload.") from error
+                if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= MAX_RETAINED_EPUB_BYTES:
+                    continue
+                size = info.st_size
+                scanned_bytes += size
+                if scanned_bytes > MAX_ARCHIVE_BYTES:
+                    raise ValueError("Retained-source search exceeds its byte budget; restore the source filename or re-upload.")
+                try:
+                    # Exact initial-size cap: growth cannot escape the cumulative
+                    # budget, and cancellation is polled between bounded reads.
+                    if get_audio_file_sha256(entry.path, limit=size, cancel_check=cancel_check)[0] in wants:
+                        matches.append(entry.path)
+                except ExportCancelled:
+                    raise
+                except (OSError, ValueError) as error:
+                    raise ValueError("Retained-source search could not inspect every candidate; restore the source filename or re-upload.") from error
     if len(matches) == 1:
         return matches[0]
     if len(matches) > 1:
         raise ValueError("Multiple retained EPUB files match this source provenance; refusing to guess. Resolve the duplicate retained files first.")
-    raise ValueError("Retained EPUB bytes are missing for this book; re-upload the EPUB to enable read-aloud export.")
+    raise ValueError(
+        "Retained EPUB bytes are missing for this book: no '.source.epub' file matching its "
+        "recorded EPUB origin was found in the upload folder. Restore the original EPUB there as "
+        "a matching '.source.epub' file (see the retained-upload list); do not re-import the "
+        "book, which resets rendered audio.")
 
 
-def _locate_retained_epub(manager, cancel_check, source_txt=None):
+def _locate_retained_epub(manager, cancel_check, source_txt=None, *, uploads_dir=None):
     """Return (retained_bytes, source_txt_path) verifying provenance hashes.
 
     ``source_txt`` may be the snapshot-captured original for the build;
@@ -1154,6 +1173,9 @@ def _locate_retained_epub(manager, cancel_check, source_txt=None):
     re-read after this point. That is the immutable-provenance guard:
     later mutation of the retained file cannot change the built EPUB,
     and the snapshot separately guards the original TXT identity.
+
+    ``uploads_dir`` lets a loaded saved script reach the retained EPUB,
+    which lives in the upload folder rather than beside the script (#2349).
     """
     from publication_source import get_publication_source_capture
     if source_txt is None:
@@ -1170,7 +1192,8 @@ def _locate_retained_epub(manager, cancel_check, source_txt=None):
         raise ValueError("This book did not come from an EPUB upload; EPUB read-aloud needs the retained source EPUB.")
     retained_path = get_retained_epub_candidate_path(
         source_txt, cancel_check,
-        origin_hashes={row["origin"]["sha256"] for row in origins})
+        origin_hashes={row["origin"]["sha256"] for row in origins},
+        search_dirs=(uploads_dir,) if uploads_dir else ())
     retained_bytes = get_retained_epub_bytes(retained_path, cancel_check)
     if hashlib.sha256(retained_bytes).hexdigest() not in {row["origin"]["sha256"] for row in origins}:
         raise ValueError("Retained EPUB bytes do not match the source provenance; refusing to export.")
@@ -1212,8 +1235,10 @@ def build_epub_export(manager, cancel_check, progress_callback=None, *, chunks=N
         # _locate_retained_epub). Receipt joins the same transaction below.
         app_receipt = _require_app_source_receipt(source_snapshot)
         captured_source = _captured_source_path(source_snapshot)
+        from core import UPLOADS_DIR
         retained_bytes, located_source = _locate_retained_epub(
-            manager, cancel_check, source_txt=captured_source)
+            manager, cancel_check, source_txt=captured_source,
+            uploads_dir=UPLOADS_DIR)
         if located_source != captured_source:
             raise ValueError("Retained EPUB source disagrees with the captured snapshot; refusing to export.")
         retained_sha256 = hashlib.sha256(retained_bytes).hexdigest()

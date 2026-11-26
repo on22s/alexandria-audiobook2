@@ -57,6 +57,7 @@ from core import (
     _validate_voicelab_path,
     SCRIPTS_DIR,
     SCRIPT_PATH,
+    UPLOADS_DIR,
     _load_voicelab_config, _llm_summarize_report, _is_evidence_bound_summary,
     _save_upload_limited,
     _warn_corrupted_json,
@@ -2352,7 +2353,8 @@ def _require_readaloud_timing_current(receipt):
                     raise HTTPException(status_code=409, detail=(
                         "EPUB read-aloud source is unavailable. Rebuild it."))
                 from readalong_export import get_retained_epub_candidate_path
-                retained_path = get_retained_epub_candidate_path(input_path)
+                retained_path = get_retained_epub_candidate_path(
+                    input_path, search_dirs=(UPLOADS_DIR,))
                 from epub_readaloud import get_epub_language_from_path
                 try:
                     tag = get_epub_language_from_path(retained_path)
@@ -3122,7 +3124,8 @@ def _validated_epub_bytes():
     # fence below rejects concurrent book or source-publication changes.
     from readalong_export import get_retained_epub_candidate_path, get_retained_epub_sha256
     try:
-        retained_path = get_retained_epub_candidate_path(input_path)
+        retained_path = get_retained_epub_candidate_path(
+            input_path, search_dirs=(UPLOADS_DIR,))
     except (ValueError, OSError) as error:
         raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is unavailable: %s" % error) from error
     if not os.path.isfile(retained_path):
