@@ -11,6 +11,9 @@ import unicodedata
 
 from recall_core import tokens, ngrams, counter_recall
 from review_script import normalize_text
+from silent_word_characters import (SILENT_WORD_CHARACTERS,
+                                    remove_silent_word_characters,
+                                    remove_silent_word_characters_with_offsets)
 # Import the fidelity thresholds and introduced-character check from the
 # single-pass gate so pass 1 tracks any recalibration there automatically
 # (e.g. the 0.84->0.82 near-miss floor history) instead of drifting.
@@ -59,7 +62,7 @@ def _pop_source_label(current):
     match = _SOURCE_LABEL_TAIL.search(value)
     if not match:
         return None
-    candidate = match.group(1).strip().rstrip(":")
+    candidate = remove_silent_word_characters(match.group(1).strip().rstrip(":"))
     words = candidate.split()
     if (not 1 <= len(words) <= 5 or
             not all(word == "???" or word[:1].isupper() for word in words) or
@@ -792,6 +795,16 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
     """
     if not source_text or not name:
         return True
+    # A soft hyphen or word joiner is invisible inside a word (#2316): the
+    # model's "SONYA" and the book's "Son<SHY>ya" are the same attestation, and
+    # a name that came back from the model carrying one is the same name.
+    name = remove_silent_word_characters(name)
+    source_text = remove_silent_word_characters(source_text)
+    if not name:
+        # A non-empty name made only of invisible characters cannot be attested
+        # (#2316). Without this it skipped every check and could be stored as a
+        # SPOKEN speaker that folded to "". An actually empty name stays a no-op.
+        return False
     # Reporting verbs after a pronoun ("He said") are not personal-name
     # evidence. Explicit cast names are handled by the caller before this gate.
     if name.casefold().strip(".?!…") in _NON_PERSON_NAME_WORDS:
@@ -829,7 +842,9 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
     return False
 
 
-_TAG_NAME = r"[^\W\d_][\w’'-]*(?:[ \t]+[^\W\d_][\w’'-]*){0,3}"
+_SILENT_IN_WORD = "".join(SILENT_WORD_CHARACTERS)
+_TAG_NAME = (r"[^\W\d_][\w’'" + _SILENT_IN_WORD + r"-]*"
+             r"(?:[ \t]+[^\W\d_][\w’'" + _SILENT_IN_WORD + r"-]*){0,3}")
 _SOURCE_SPEECH_TAG = re.compile(
     rf"^[ \t]*(?:[,;][ \t]*)?(?:"
     rf"(?P<before>{_TAG_NAME})[ \t]+{_REPORTING_VERBS}|"
@@ -886,6 +901,23 @@ def get_attribution_identity_digest(entry):
                                             for key in ("type", "text")})
 
 
+def _get_silent_folded_source_spans(source_text, needle_text):
+    """Raw source spans of every needle, folding only the silent characters.
+
+    Comparison ignores U+00AD/U+2060 (#2316); the returned offsets still point
+    into the untouched source, because attribution proofs bind a raw-source
+    digest and exact-shift repairs write offsets that must index it.
+    """
+    from dialogue_spans import get_source_match_positions
+    folded, offsets = remove_silent_word_characters_with_offsets(source_text)
+    needle = remove_silent_word_characters(needle_text)
+    if not needle:
+        return []
+    positions = get_source_match_positions(folded, [needle]).get(needle, [])
+    return [(offsets[position], offsets[position + len(needle) - 1] + 1)
+            for position in positions]
+
+
 def get_attribution_tag_proofs(entries, source_text, established_names=(),
                                  speaker_aliases=None):
     """Map batch indexes to uniquely resolved, immediately following tags.
@@ -915,14 +947,20 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
                 forms.append(" ".join(label.split()[:title_count + 1]))
         for key in get_speaker_label_index(forms):
             identities.setdefault(key, set()).add(canonical)
-    needles = [entry.get("text", "").strip() for entry in entries
-               if entry.get("type") == "SPOKEN"]
-    positions = get_source_match_positions(source_text, needles)
-    quote_bounds = set()
+    quote_bounds = {}
     for start, end in spoken_spans(source_text, "paired_quotes"):
         content = source_text[start:end]
-        quote_bounds.add((start + len(content) - len(content.lstrip(" \t")),
-                          end - len(content) + len(content.rstrip(" \t"))))
+        content_start = start + len(content) - len(content.lstrip(" \t"))
+        content_end = end - len(content) + len(content.rstrip(" \t"))
+        quote_bounds[remove_silent_word_characters(
+            source_text[content_start:content_end])] = (content_start, content_end)
+    # One folded traversal for the whole batch (#2316), so repeated retries do
+    # not rescan the source and an occurrence count still spans every entry.
+    folded_source, source_offsets = remove_silent_word_characters_with_offsets(source_text)
+    folded_needles = [remove_silent_word_characters(entry.get("text", "").strip())
+                      for entry in entries if entry.get("type") == "SPOKEN"]
+    positions = get_source_match_positions(
+        folded_source, [needle for needle in folded_needles if needle])
     source_digest = get_attribution_source_digest(source_text)
     context_digest = get_attribution_snapshot_digest([sorted(established_names), aliases])
     evidence = {}
@@ -930,11 +968,13 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         if entry.get("type") != "SPOKEN":
             continue
         text = entry.get("text", "").strip()
-        matches = positions.get(text, [])
+        needle = remove_silent_word_characters(text)
+        matches = positions.get(needle, [])
         if len(matches) != 1:
             continue
-        start, end = matches[0], matches[0] + len(text)
-        if (start, end) not in quote_bounds:
+        start = source_offsets[matches[0]]
+        end = source_offsets[matches[0] + len(needle) - 1] + 1
+        if quote_bounds.get(needle) != (start, end):
             continue
         before = source_text[max(0, start - 8):start].rstrip(" \t")
         after = source_text[end:end + 160].lstrip(" \t")
@@ -944,7 +984,7 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         tag = _SOURCE_SPEECH_TAG.match(after[1:].split("\n", 1)[0])
         if not tag:
             continue
-        name = tag.group("before") or tag.group("after")
+        name = remove_silent_word_characters(tag.group("before") or tag.group("after"))
         if (name.casefold() in _NON_PERSON_NAME_WORDS or
                 name.casefold().rstrip(".") in NAME_TITLE_PREFIXES or
                 any(word.casefold().endswith(("'s", "’s", "'", "’"))
@@ -1009,7 +1049,6 @@ def get_exact_attribution_shift_repair(frozen_entries, response_entries, source_
     ok, _reason, ordered = index_head_check(frozen_entries, response_entries)
     if not ok or get_attribution_snapshot_digest(response_entries) is None:
         return unchanged
-    from dialogue_spans import get_source_match_positions
     from speaker_identity import resolve_speaker_label
     source_digest = get_attribution_source_digest(source_text)
     if source_digest is None:
@@ -1046,10 +1085,10 @@ def get_exact_attribution_shift_repair(frozen_entries, response_entries, source_
         end = proof["reporting_tag_bounds"][1]
         while end < len(source_text) and source_text[end] in " \t":
             end += 1
+        matches = _get_silent_folded_source_spans(source_text, text)
         if (end >= len(source_text) or source_text[end] not in ",.!?:;"
-                or len(text) < end + 1 - begin
-                or source_text[begin:begin + len(text)] != text
-                or get_source_match_positions(source_text, [text]).get(text) != [begin]):
+                or len(matches) != 1 or matches[0][0] != begin
+                or matches[0][1] < end + 1):
             continue
         proposed[index]["speaker"] = expected
         proposed[index + 1]["speaker"] = "NARRATOR"
@@ -1059,7 +1098,8 @@ def get_exact_attribution_shift_repair(frozen_entries, response_entries, source_
                         "reporting_tag_bounds": proof["reporting_tag_bounds"],
                         "closing_offset": proof["closing_offset"],
                         "resolver_context_sha256": proof["resolver_context_sha256"],
-                        "name_bounds": proof["name_bounds"], "narration_bounds": [begin, begin + len(text)]})
+                        "name_bounds": proof["name_bounds"],
+                        "narration_bounds": [begin, matches[0][1]]})
     if not changes:
         return unchanged
     quality = validate_attribution(frozen_entries, proposed, source_text,

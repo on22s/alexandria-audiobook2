@@ -7,6 +7,8 @@ available before asking whether the model can pick it.
 """
 import re
 
+from silent_word_characters import remove_silent_word_characters
+
 # Widened after re-examination: the first list had "nods" but not "nodded", and
 # missed exclaimed, bellowed, agreed and told, each used several times in one
 # book. Tag-only recall on mushoku16 rises from 7.5% to 10.2% - which does not
@@ -23,11 +25,17 @@ SPEECH = (r"(?:said|says|asked|replied|answered|murmured|whispered|shouted|"
 
 
 def _names_in(text, roster):
-    """Roster names written in this text, matched case-insensitively."""
+    """Roster names written in this text, matched case-insensitively.
+
+    Both sides are folded (#2316): a name carrying an invisible U+00AD/U+2060
+    is the same name the roster holds without it.
+    """
+    text = remove_silent_word_characters(text or "")
     found = []
     for name in roster:
-        if re.search(r"\b" + re.escape(name) + r"\b", text or "", re.I):
-            found.append(name.upper())
+        if re.search(r"\b" + re.escape(remove_silent_word_characters(name)) + r"\b",
+                     text, re.I):
+            found.append(remove_silent_word_characters(name).upper())
     return found
 
 
@@ -43,7 +51,7 @@ def tag_candidates(segmented, index, roster, window=2):
     for j in range(max(0, index - window), min(len(segmented), index + window + 1)):
         if j == index or segmented[j].get("type") != "NARRATOR":
             continue
-        text = segmented[j].get("text") or ""
+        text = remove_silent_word_characters(segmented[j].get("text") or "")
         for name in _names_in(text, roster):
             pattern = re.escape(name)
             if re.search(rf"\b{pattern}\b[^.!?]{{0,40}}\b{SPEECH}\b", text, re.I) or \
