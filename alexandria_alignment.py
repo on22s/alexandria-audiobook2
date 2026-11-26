@@ -380,6 +380,21 @@ _NUM_TEENS = {'ten':10,'eleven':11,'twelve':12,'thirteen':13,'fourteen':14,
 _NUM_TENS  = {'twenty':20,'thirty':30,'forty':40,'fifty':50,'sixty':60,
               'seventy':70,'eighty':80,'ninety':90}
 _NUM_TOKENS = set(_NUM_ONES) | set(_NUM_TEENS) | set(_NUM_TENS) | {'hundred','thousand','and'}
+_CARDINAL_NUMBER_TOKENS = set(_NUM_ONES) | set(_NUM_TEENS) | set(_NUM_TENS)
+
+
+def is_spelled_number(words) -> bool:
+    """True when these words could be one number written out instead of digits.
+
+    Used where a digit is missing from one side and a word sequence may be its
+    spoken form. Every word must be a number word and at least one must be a
+    cardinal, so a bare "and" or "hundred" is not a rendering of a number.
+    """
+    tokens = [str(word).lower() for word in words]
+    return (bool(tokens)
+            and all(token in _NUM_TOKENS for token in tokens)
+            and any(token in _CARDINAL_NUMBER_TOKENS for token in tokens))
+
 
 def _parse_number(words: list):
     """Parse a list of tokens as an integer 0–9999. Returns int or None.

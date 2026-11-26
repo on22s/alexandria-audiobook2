@@ -26,6 +26,15 @@ compare = load_script("alexandria_compare")
 
 
 class AlignmentCliRegressionTests(unittest.TestCase):
+    def test_spelled_number_words_are_recognized(self):
+        self.assertTrue(alignment.is_spelled_number(["twenty", "one"]))
+        self.assertTrue(alignment.is_spelled_number(["one", "hundred", "and", "five"]))
+        self.assertTrue(alignment.is_spelled_number(["Twelve"]))
+        self.assertFalse(alignment.is_spelled_number(["and"]))
+        self.assertFalse(alignment.is_spelled_number(["hundred"]))
+        self.assertFalse(alignment.is_spelled_number(["Where", "is", "the", "train"]))
+        self.assertFalse(alignment.is_spelled_number([]))
+
     def test_proper_noun_boundary_policy_is_per_call(self):
         chunk = ["coodo", "anchor"]
         source = ["kudou", "anchor"]

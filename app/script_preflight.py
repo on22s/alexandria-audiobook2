@@ -11,6 +11,7 @@ from heapq import heappop, heappush
 
 from speech_text import get_speech_normalization
 from utils import get_unsafe_text_controls
+from alexandria_alignment import is_spelled_number
 
 
 _CYRILLIC_RE = re.compile(r"[\u0400-\u04ff]")
@@ -329,21 +330,28 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
               and not re.search(r"(?<=\w)['’](?=\w)", source_text)
               else canonical(source_text))
     unspent_counts = output_words = output_positions = run_groups = total_runs = None
-    run_begins = max_run_words = output_word_counts = digits_unrendered = None
+    run_begins = max_run_words = output_word_counts = None
+    out_flat = output_starts = offset_to_word = None
+    source_tokens = source_positions = None
+    digit_words_unemitted = None
 
     def ensure_unspent():
         """Tokenize the output once and index every unemitted-source-word run.
 
         A run is a span of consecutive output words whose concatenation equals
-        an unemitted source word exactly. Runs are found once per call and are
-        independent of any needle: each output position extends word by word
-        while its concatenation is still a prefix of an unemitted source word
-        (one bisect in the sorted token list), and is recorded when it becomes
-        one. A span shorter than two words explains nothing, because a one-word
-        output equal to the token was already counted as emitted.
+        an unemitted source word exactly ("somit" explains "mit" only where
+        "so" and "mit" are adjacent). Only a word that is a prefix of an
+        unemitted token can begin a run, so an output that never re-splits a
+        source word does no per-token work. For a startable word the candidates
+        are the sorted unemitted tokens carrying it as a prefix; each is a run
+        when the characters between its word boundaries equal it. The
+        concatenation is tested as one string slice, never grown word by word,
+        so a very long unspaced token stays a single comparison instead of a
+        quadratic walk.
         """
         nonlocal unspent_counts, output_words, output_positions, run_groups, total_runs
         nonlocal run_begins, max_run_words, output_word_counts
+        nonlocal out_flat, output_starts, offset_to_word
         if unspent_counts is not None:
             return
         output_words = " ".join(texts).split()
@@ -357,35 +365,112 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         run_groups, total_runs, max_run_words = [], 0, 0
         if not tokens:
             return
-        longest = max(len(token) for token in tokens)
-        # A run can only start on an output word that is itself a prefix of an
-        # unemitted token. Most words are not, so this one lookup saves a
-        # bisect at every position of a large book.
-        startable = {}
-        for word in set(output_words):
-            index = bisect_left(tokens, word)
-            startable[word] = index < len(tokens) and tokens[index].startswith(word)
-        for begin in range(len(output_words)):
-            if not startable[output_words[begin]]:
+        prefix_tokens = {}
+
+        def tokens_with_prefix(word):
+            found = prefix_tokens.get(word)
+            if found is None:
+                found = []
+                index = bisect_left(tokens, word)
+                while index < len(tokens) and tokens[index].startswith(word):
+                    found.append(tokens[index])
+                    index += 1
+                prefix_tokens[word] = found
+            return found
+
+        startable = {word for word in output_word_counts if tokens_with_prefix(word)}
+        if not startable:
+            return
+        output_starts = [0]
+        total = 0
+        for word in output_words:
+            total += len(word)
+            output_starts.append(total)
+        offset_to_word = {offset: index for index, offset in enumerate(output_starts)}
+        out_flat = "".join(output_words)
+        for begin, word in enumerate(output_words):
+            if word not in startable:
                 continue
-            prefix, low, high = "", 0, len(tokens)
-            row = None
-            for stop in range(begin + 1, len(output_words) + 1):
-                prefix += output_words[stop - 1]
-                if len(prefix) > longest:
-                    break
-                low = bisect_left(tokens, prefix, low, high)
-                if low >= high or not tokens[low].startswith(prefix):
-                    break
-                if stop - begin >= 2 and tokens[low] == prefix:
-                    if row is None:
-                        row = []
-                    row.append((stop, tokens[low]))
+            start = output_starts[begin]
+            remaining = len(out_flat) - start
+            row = []
+            for token in tokens_with_prefix(word):
+                size = len(token)
+                if size > remaining:
+                    continue
+                stop = offset_to_word.get(start + size)
+                if stop is None or stop - begin < 2:
+                    continue
+                if out_flat.startswith(token, start):
+                    row.append((stop, token))
             if row:
+                row.sort()
                 run_groups.append((begin, row))
                 total_runs += len(row)
                 max_run_words = max(max_run_words, row[-1][0] - begin)
         run_begins = [begin for begin, _row in run_groups]
+
+    def ensure_source_tokens():
+        nonlocal source_tokens, source_positions
+        if source_tokens is not None:
+            return
+        source_tokens = source.split()
+        source_positions = {}
+        for index, token in enumerate(source_tokens):
+            source_positions.setdefault(token, []).append(index)
+
+    def expand_run(begin, stop, index, occurrence_start, occurrence_stop):
+        """Render one occurrence through consecutive source tokens.
+
+        The run pins output words [begin, stop) to source token `index`. Each
+        further unit consumes whole output words equal to the next source token
+        exactly; a unit of two or more words is a fused token the word scan
+        cannot see. A needle may straddle two fused tokens or a fused token and
+        a whole word, so the window grows from the first touched unit to cover
+        the occurrence. Returns (start, stop, fused tokens, fused spans, unit
+        boundaries) or None when the surrounding output does not reproduce the
+        source tokens in order.
+        """
+        start_word, stop_word = begin, stop
+        left_index = right_index = index
+        fused, spans, units = [], [], [(begin, stop, index)]
+        if stop - begin >= 2:
+            fused.append(source_tokens[index])
+            spans.append((begin, stop))
+        while start_word > occurrence_start:
+            if left_index == 0:
+                return None
+            target = source_tokens[left_index - 1]
+            end = output_starts[start_word]
+            previous = offset_to_word.get(end - len(target))
+            if previous is None or previous >= start_word:
+                return None
+            if not out_flat.startswith(target, output_starts[previous]):
+                return None
+            left_index -= 1
+            units.append((previous, start_word, left_index))
+            if start_word - previous >= 2:
+                fused.append(target)
+                spans.append((previous, start_word))
+            start_word = previous
+        while stop_word < occurrence_stop:
+            if right_index + 1 >= len(source_tokens):
+                return None
+            target = source_tokens[right_index + 1]
+            start = output_starts[stop_word]
+            following = offset_to_word.get(start + len(target))
+            if following is None or following <= stop_word:
+                return None
+            if not out_flat.startswith(target, start):
+                return None
+            right_index += 1
+            units.append((stop_word, following, right_index))
+            if following - stop_word >= 2:
+                fused.append(target)
+                spans.append((stop_word, following))
+            stop_word = following
+        units.sort()
+        return start_word, stop_word, tuple(fused), tuple(spans), units
 
     def unspent_token_support(needle):
         """Copies of a needle that an unemitted source word explains.
@@ -393,10 +478,13 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         A needle fused into a longer source word is invisible to the word scan.
         An unemitted source word explains the needle only where consecutive
         output words concatenate to it exactly ("somit" explains "mit" beside
-        "so" and nothing else); a word emitted elsewhere cannot. Runs are chosen
-        to cover as many whole-word occurrences as possible, may not overlap,
-        and each unemitted source copy is used once, so reuse cannot hide a
-        genuine repeat.
+        "so" and nothing else); a word emitted elsewhere cannot. A whole-word
+        occurrence may also straddle two unemitted tokens, or an unemitted token
+        and a whole word: the window covering it must reproduce a consecutive
+        source-token sequence, with every fused token rendered by adjacent
+        output words and every whole word by itself. Windows may not overlap and
+        each unemitted source copy is used once, so reuse cannot hide a genuine
+        repeat.
         """
         ensure_unspent()
         if not unspent_counts or not run_groups:
@@ -428,31 +516,136 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             def value_of(begin, stop):
                 return (bisect_right(ends, stop)
                         - bisect_right(ends, begin + length - 1))
-        candidates, groups = [], []
+        raw = []
         # Only a run whose span covers an occurrence can be worth anything. A
         # run is at most max_run_words long, so its begin lies in this window;
         # bisecting the sorted begins keeps a many-needle book linear in the
         # runs near each needle, not in the whole book.
         lo = bisect_left(run_begins, occurrences[0] - max_run_words)
-        hi = bisect_right(run_begins, occurrences[-1])
+        hi = bisect_right(run_begins, occurrences[-1] + length - 1)
         for index in range(lo, hi):
             begin, row = run_groups[index]
-            start = len(candidates)
             for stop, token in row:
                 value = value_of(begin, stop)
                 if value:
-                    candidates.append((begin, stop, token, value))
-            if len(candidates) > start:
-                groups.append((begin, range(start, len(candidates))))
-        if not candidates:
-            return 0
+                    raw.append((begin, stop, (token,), value))
+        if length >= 2:
+            # A multi-word occurrence can straddle a source token boundary, where
+            # no single run contains it. A run can also be straddled on both
+            # sides at once, so one fused copy explains the occurrence before it
+            # and the occurrence after it. Grow one window from each run that is
+            # straddled, covering every such occurrence, and keep the windows
+            # that reproduce consecutive source tokens.
+            windows = {}
+            claimed = None
+            for index in range(lo, hi):
+                begin, row = run_groups[index]
+                for stop, token in row:
+                    first = bisect_right(ends, begin)
+                    after = bisect_left(occurrences, stop)
+                    cover_start = cover_stop = None
+                    for other in range(first, after):
+                        other_start, other_end = occurrences[other], ends[other]
+                        if begin <= other_start and other_end <= stop:
+                            continue
+                        if cover_start is None or other_start < cover_start:
+                            cover_start = other_start
+                        if cover_stop is None or other_end > cover_stop:
+                            cover_stop = other_end
+                    if cover_start is None:
+                        continue
+                    if source_tokens is None:
+                        ensure_source_tokens()
+                    if claimed is None:
+                        # Source copies of the whole-line phrase are the ones
+                        # capacity already counts. A window that touches one of
+                        # them is a re-rendering of a counted copy, not new, so
+                        # an occurrence overlapping a claimed token proves
+                        # nothing about an extra copy.
+                        claimed = set()
+                        source_last = 0
+                        for source_start in source_positions.get(phrase[0], ()):
+                            if (source_start >= source_last
+                                    and source_tokens[source_start:source_start + length] == phrase):
+                                claimed.update(range(source_start, source_start + length))
+                                source_last = source_start + length
+                    for position in source_positions.get(token, ()):
+                        expanded = expand_run(begin, stop, position,
+                                              cover_start, cover_stop)
+                        if expanded is None:
+                            continue
+                        window_start, window_stop, fused, spans, units = expanded
+                        if not fused or (window_start, window_stop, fused) in windows:
+                            continue
+                        value = 0
+                        window_low = bisect_left(occurrences, window_start)
+                        window_high = bisect_right(occurrences, window_stop - length)
+                        for other in range(window_low, window_high):
+                            other_start, other_end = occurrences[other], ends[other]
+                            if not any(unit_start < other_end and unit_stop > other_start
+                                       for unit_start, unit_stop in spans):
+                                continue
+                            touched = {source_index for unit_start, unit_stop, source_index
+                                       in units
+                                       if unit_start < other_end and unit_stop > other_start}
+                            if touched & claimed:
+                                continue
+                            value += 1
+                        if value:
+                            windows[(window_start, window_stop, fused)] = value
+            for (begin, stop, fused), value in windows.items():
+                raw.append((begin, stop, fused, value))
+        raw.sort(key=lambda item: (item[0], item[1]))
+        candidates, groups = [], []
+        for item in raw:
+            if groups and groups[-1][0] == item[0]:
+                groups[-1][1].append(len(candidates))
+            else:
+                groups.append((item[0], [len(candidates)]))
+            candidates.append(item)
+
+        def tokens_fit(usage, tokens):
+            return all(usage[token] + count <= unspent_counts[token]
+                       for token, count in Counter(tokens).items())
+
+        def add_usage(usage, tokens):
+            for token, count in Counter(tokens).items():
+                usage[token] += count
+
+        def exact():
+            suffix = [0] * (len(candidates) + 1)
+            for index in range(len(candidates) - 1, -1, -1):
+                suffix[index] = suffix[index + 1] + candidates[index][3]
+            best = 0
+
+            def search(index, next_free, usage, covered):
+                nonlocal best
+                if covered + suffix[index] <= best:
+                    return
+                if covered > best:
+                    best = covered
+                if index == len(candidates):
+                    return
+                begin, stop, tokens, value = candidates[index]
+                if begin >= next_free and tokens_fit(usage, tokens):
+                    add_usage(usage, tokens)
+                    search(index + 1, stop, usage, covered + value)
+                    for token, count in Counter(tokens).items():
+                        usage[token] -= count
+                search(index + 1, next_free, usage, covered)
+
+            search(0, 0, Counter(), 0)
+            return best
+
+        if len(candidates) <= 16:
+            return exact()
 
         def solve(excluded_indices=frozenset(), excluded_tokens=frozenset()):
             """Best coverage ignoring token counts, and the runs that give it.
 
-            Runs arrive in position order, so pushing each to its stop and
+            Candidates arrive in position order, so pushing each to its stop and
             draining a stop-ordered heap answers "best coverage ending at or
-            before this word" without sorting every run.
+            before this word" without sorting every candidate.
             """
             heap, best_before, pick_before = [], 0, -1
             predecessor = {}
@@ -462,7 +655,8 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                     if covered > best_before:
                         best_before, pick_before = covered, index
                 for index in group:
-                    if index in excluded_indices or candidates[index][2] in excluded_tokens:
+                    if index in excluded_indices or any(
+                            token in excluded_tokens for token in candidates[index][2]):
                         continue
                     predecessor[index] = pick_before
                     heappush(heap, (candidates[index][1],
@@ -479,7 +673,9 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             return best, chain
 
         def over_used(chain):
-            usage = Counter(candidates[index][2] for index in chain)
+            usage = Counter()
+            for index in chain:
+                usage.update(candidates[index][2])
             return {token for token, count in usage.items()
                     if count > unspent_counts[token]}
 
@@ -491,9 +687,9 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         # Dropping copies from the DP selection leaves a valid, disjoint set.
         kept, remaining = [], Counter()
         for index in sorted(chain, key=lambda index: -candidates[index][3]):
-            token = candidates[index][2]
-            if remaining[token] < unspent_counts[token]:
-                remaining[token] += 1
+            tokens = candidates[index][2]
+            if tokens_fit(remaining, tokens):
+                add_usage(remaining, tokens)
                 kept.append(index)
         best_valid = sum(candidates[index][3] for index in kept)
         # A greedy in position order: longest run first at each free position.
@@ -503,30 +699,30 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                 continue
             chosen = None
             for index in group:
-                if usage[candidates[index][2]] < unspent_counts[candidates[index][2]]:
+                if tokens_fit(usage, candidates[index][2]):
                     chosen = index
             if chosen is None:
                 continue
-            usage[candidates[chosen][2]] += 1
+            add_usage(usage, candidates[chosen][2])
             covered += candidates[chosen][3]
             next_free = candidates[chosen][1]
         best_valid = max(best_valid, covered)
         if len(candidates) <= 200000:
             # A greedy by descending coverage, latest position first.
             buckets = {}
-            for index, (_begin, _stop, _token, value) in enumerate(candidates):
+            for index, (_begin, _stop, _tokens, value) in enumerate(candidates):
                 buckets.setdefault(value, []).append(index)
             chosen_stops, usage, covered = [], Counter(), 0
             for value in sorted(buckets, reverse=True):
                 for index in reversed(buckets[value]):
-                    begin, stop, token, _value = candidates[index]
-                    if usage[token] >= unspent_counts[token]:
+                    begin, stop, tokens, _value = candidates[index]
+                    if not tokens_fit(usage, tokens):
                         continue
                     slot = bisect_left(chosen_stops, (begin, -1))
                     if (slot and chosen_stops[slot - 1][1] > begin) or (
                             slot < len(chosen_stops) and chosen_stops[slot][0] < stop):
                         continue
-                    usage[token] += 1
+                    add_usage(usage, tokens)
                     insort(chosen_stops, (begin, stop))
                     covered += value
             best_valid = max(best_valid, covered)
@@ -537,7 +733,7 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             for index in chain:
                 if tried >= 4:
                     break
-                if candidates[index][2] in excess:
+                if any(token in excess for token in candidates[index][2]):
                     tried += 1
                     recovered, recovered_chain = solve(frozenset((index,)))
                     if not over_used(recovered_chain):
@@ -643,21 +839,11 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                              or re.search(r"\bchapter\s+(?!i\b)[ivxlcdm]+\b", source_text, re.I)
                              or re.search(r"[\[<]", source_text))
 
-    def number_rendering_unknown():
-        """True when this source's numbers may have been spelled out as words.
-
-        A digit can only have become words where its own source word was not
-        emitted as written, so an emitted digit word proves the renderer kept
-        the digits and the number cannot account for extra words in this scope.
-        Brackets have no such proof and keep the whole-source rule; a known
-        expansion ("3rd" -> "third") is not a digit word at all.
-        """
-        nonlocal digits_unrendered
-        if digits_unrendered is not None:
-            return digits_unrendered
-        if re.search(r"[\[<]", source_text):
-            digits_unrendered = True
-            return True
+    def get_digit_words_unemitted():
+        """True when a source number may have been spoken instead of written."""
+        nonlocal digit_words_unemitted
+        if digit_words_unemitted is not None:
+            return digit_words_unemitted
         ensure_unspent()
         # Find digits first, then widen to the whole source word: scanning
         # every word for a digit costs more than the rest of this call on a
@@ -683,8 +869,23 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                 if get_source_phrase_occurrences(output_text, phrase) < get_source_phrase_occurrences(source_words, phrase):
                     unknown = True
                     break
-        digits_unrendered = unknown
+        digit_words_unemitted = unknown
         return unknown
+
+    def number_rendering_unknown(needle):
+        """True when this needle could be the words a number was rendered as.
+
+        A bracket has no spelling proof, so it keeps the whole-source rule. A
+        digit or Roman chapter numeral can only have become words where its own
+        source word was not emitted as written, and it can only explain an extra
+        copy of THIS needle when the needle is itself a spelled number. A
+        duplicated line of ordinary words cannot be the rendering of a number
+        elsewhere, so it keeps blocking. A known expansion ("3rd" -> "third")
+        is not a digit word at all.
+        """
+        if re.search(r"[\[<]", source_text):
+            return True
+        return get_digit_words_unemitted() and is_spelled_number(needle.split())
 
     findings = []
     for ident, needle in enumerate(needles):
@@ -706,7 +907,7 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         # sit in the source as another copy ("three" beside "3"), so the digit
         # count cannot be trusted to prove an extra copy.
         rendering_unknown = (unknown_rendering if carriers[ident] or re.search(r"\d", needle)
-                             else number_rendering_unknown())
+                             else number_rendering_unknown(needle))
         ambiguous = rendering_unknown or proven_emitted <= capacity + added_capacity
         unknown_capacity = ambiguous
         support = 0

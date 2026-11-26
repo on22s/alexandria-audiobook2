@@ -616,13 +616,15 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
 
         self.assertEqual([], self._duplicate_findings(entries, source))
 
-    def test_unknown_number_rendering_downgrades_to_manual_review(self):
+    def test_unrelated_line_is_not_downgraded_by_a_number_elsewhere(self):
+        # "Where is the train?" cannot be the spelled form of "2", so a
+        # chapter number rendered as words elsewhere must not excuse its repeat.
         findings = self._duplicate_findings(self._entries(),
                                             self._source(extra=" Chapter 2."))
 
         self.assertEqual(1, len(findings))
-        self.assertEqual("manual_review", findings[0]["severity"])
-        self.assertTrue(findings[0]["details"]["rendering_capacity_unknown"])
+        self.assertEqual("blocking", findings[0]["severity"])
+        self.assertFalse(findings[0]["details"]["rendering_capacity_unknown"])
         self.assertEqual(0, findings[0]["details"]["unemitted_source_split_support"])
 
     def test_missing_source_abstains(self):
@@ -1085,6 +1087,114 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
                 self.assertFalse(generate_script.passes_final_generation_gate(
                     validate_chunk_quality(source, extra), blocked))
 
+    def test_a_multi_word_line_straddling_two_fused_tokens_is_not_blocked(self):
+        # The second "はい はい" has one word at the tail of そうはい and one at
+        # the head of はいですと答えた. Neither fused token contains the whole
+        # line, but the consecutive source tokens do.
+        source = ("\u5f7c\u306f\u300c\u306f\u3044\u300d\u300c\u306f\u3044\u300d\u3068\u8a00\u3063\u305f\u3002"
+                  "\u5f7c\u5973\u306f\u305d\u3046\u306f\u3044\u3001\u306f\u3044\u3067\u3059\u3068\u7b54\u3048\u305f\u3002")
+        entries = ([_entry("\u5f7c\u306f"), _entry("\u306f\u3044 \u306f\u3044", "C1"),
+                    _entry("\u3068\u8a00\u3063\u305f"), _entry("\u5f7c\u5973\u306f"),
+                    _entry("\u305d\u3046"), _entry("\u306f\u3044 \u306f\u3044", "C2"),
+                    _entry("\u3067\u3059\u3068\u7b54\u3048\u305f")])
+
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(1, finding["details"]["unemitted_source_split_support"])
+        self.assertEqual(0, audit_script(entries, source)["counts"]["blocking"])
+        # A third copy has no unemitted token left to explain it.
+        extra = entries + [_entry("\u306f\u3044 \u306f\u3044", "C3")]
+        self.assertEqual("blocking",
+                         self._duplicate_findings(extra, source)[0]["severity"])
+
+    def test_a_straddle_may_cover_a_whole_word_and_a_fused_token(self):
+        # "a b" occurs once as whole tokens; "bc" and "abc" each render as
+        # adjacent words, so the other two copies straddle a word boundary.
+        source = "a b x a bc y abc z"
+        entries = ([_entry("a b", "C1"), _entry("x"), _entry("a b", "C2"),
+                    _entry("c"), _entry("y"), _entry("a b", "C3"),
+                    _entry("c"), _entry("z")])
+
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(2, finding["details"]["unemitted_source_split_support"])
+        extra = entries + [_entry("a b", "C4")]
+        self.assertEqual("blocking", self._duplicate_findings(extra, source)[0]["severity"])
+
+    def test_one_fused_token_can_explain_a_copy_on_each_side(self):
+        # それいいえ splits to それ いいえ; the line "いいえ それ" straddles it
+        # on the left (one word before) and on the right (one word after).
+        source = "\u3044\u3044\u3048 \u305d\u308c \u306f\u3044 \u3044\u3044\u3048 \u305d\u308c\u3044\u3044\u3048 \u305d\u308c"
+        entries = ([_entry("\u3044\u3044\u3048 \u305d\u308c", "C0"), _entry("\u306f\u3044"),
+                    _entry("\u3044\u3044\u3048 \u305d\u308c", "C3"),
+                    _entry("\u3044\u3044\u3048 \u305d\u308c", "C5")])
+
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(2, finding["details"]["unemitted_source_split_support"])
+
+    def test_a_fused_token_can_explain_several_copies_beyond_the_first(self):
+        # Exact selection over a few candidates: a greedy/de-DP choice credits
+        # only two of the three repeats and blocks this faithful script.
+        source = ("\ub0b4\uc77c \ub0b4\uc77c \uc815\ub9d0 \uc544\ub2c8\uc694 "
+                  "\uc815\ub9d0\uc544\ub2c8\uc694 \uc624\ub298\uc815\ub9d0\uc544\ub2c8\uc694 "
+                  "\uc815\ub9d0 \uc544\ub2c8\uc694\uc624\ub298 \uc624\ub298")
+        entries = ([_entry("\ub0b4\uc77c"), _entry("\ub0b4\uc77c"),
+                    _entry("\uc815\ub9d0 \uc544\ub2c8\uc694", "C2"),
+                    _entry("\uc815\ub9d0 \uc544\ub2c8\uc694", "C4"),
+                    _entry("\uc624\ub298"),
+                    _entry("\uc815\ub9d0 \uc544\ub2c8\uc694", "C7"),
+                    _entry("\uc815\ub9d0 \uc544\ub2c8\uc694", "C9"),
+                    _entry("\uc624\ub298"), _entry("\uc624\ub298")])
+
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(3, finding["details"]["unemitted_source_split_support"])
+        self.assertEqual(0, audit_script(entries, source)["counts"]["blocking"])
+
+    def test_a_left_expansion_must_match_its_source_token(self):
+        # The word before the fused run has the source token's length but not
+        # its characters, so it cannot complete a faithful window.
+        source = "\u6211\u7684\u5417 \u662f\u5417\u662f \u5417 \u662f \u4e0d"
+        entries = ([_entry("\u6211"), _entry("\u7684"),
+                    _entry("\u5417 \u662f", "C2"), _entry("\u5417 \u662f", "C4"),
+                    _entry("\u5417 \u662f", "C6"), _entry("\u4e0d")])
+
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual("manual_review", finding["severity"])
+        self.assertEqual(2, finding["details"]["unemitted_source_split_support"])
+
+    def test_a_long_unspaced_token_is_not_walked_per_output_word(self):
+        # Every "a" word can begin the run, so this shape used to cost one
+        # prefix walk per output word. Quadrupling the token must not cost
+        # anything like the square of that.
+        def trace_lines(size):
+            source = "b " + "a" * size
+            entries = [_entry("b", "C1"), _entry("b", "C2"),
+                       _entry(" ".join(["a"] * size))]
+            seen = []
+
+            def trace(frame, event, arg):
+                if event == "line" and frame.f_code.co_filename.endswith("script_preflight.py"):
+                    seen.append(frame.f_lineno)
+                return trace
+
+            previous = sys.gettrace()
+            sys.settrace(trace)
+            try:
+                self._duplicate_findings(entries, source)
+            finally:
+                sys.settrace(previous)
+            return len(seen)
+
+        small, large = trace_lines(2000), trace_lines(8000)
+        self.assertLess(large, small * 6)
+
     def test_an_unadjacent_split_is_not_credited_in_either_source_order(self):
         for source in ("somit damit mit", "damit somit mit"):
             with self.subTest(source=source):
@@ -1175,29 +1285,37 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual("blocking", findings[0]["severity"])
         self.assertFalse(findings[0]["details"]["rendering_capacity_unknown"])
 
-    def test_a_number_rendered_as_words_downgrades_a_separate_duplicate(self):
-        findings = self._duplicate_findings(
-            self._entries() + [_entry("twelve")], self._source(extra=" 12"))
+    def test_a_number_rendered_as_words_downgrades_that_number(self):
+        # The source carries "twelve" once and "12" once; emitting "twelve"
+        # twice is the two spellings of one number, not a repeat.
+        source = ' "twelve," she said. "12," he said.'
+        entries = [_entry("twelve", "C1"), _entry("twelve", "C2")]
+
+        findings = self._duplicate_findings(entries, source)
 
         self.assertEqual(1, len(findings))
         self.assertEqual("manual_review", findings[0]["severity"])
         self.assertTrue(findings[0]["details"]["rendering_capacity_unknown"])
 
-    def test_a_digit_emitted_once_of_twice_downgrades_a_separate_duplicate(self):
+    def test_a_number_does_not_downgrade_an_unrelated_line(self):
         findings = self._duplicate_findings(
             self._entries() + [_entry("12"), _entry("twelve")],
             self._source(extra=" 12 12"))
 
         self.assertEqual(1, len(findings))
-        self.assertEqual("manual_review", findings[0]["severity"])
+        self.assertEqual("blocking", findings[0]["severity"])
 
-    def test_a_chapter_numeral_rendered_as_words_downgrades_a_duplicate(self):
-        findings = self._duplicate_findings(
+    def test_a_chapter_numeral_downgrades_only_a_spelled_number(self):
+        related = self._duplicate_findings(
+            [_entry("four", "C1"), _entry("four", "C2")],
+            ' "four," she said. "Chapter IV," he said.')
+        unrelated = self._duplicate_findings(
             self._entries() + [_entry("Chapter"), _entry("Four")],
             self._source(extra=" Chapter IV"))
 
-        self.assertEqual(1, len(findings))
-        self.assertEqual("manual_review", findings[0]["severity"])
+        self.assertEqual("manual_review", related[0]["severity"])
+        self.assertEqual(1, len(unrelated))
+        self.assertEqual("blocking", unrelated[0]["severity"])
 
     def test_a_digit_bearing_needle_keeps_the_whole_source_rule(self):
         # The source carries two spellings of one line, "three" and "3".
