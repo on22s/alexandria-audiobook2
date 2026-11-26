@@ -39,6 +39,11 @@ _SCRIPT_PREFIXES = ("LATIN", "CYRILLIC", "HIRAGANA", "KATAKANA", "CJK",
                     "ARABIC", "HEBREW", "HANGUL", "GREEK", "THAI")
 
 _COMBINING_MARK_WORD_PATTERN = None
+# ZWNJ is lexical (#2316): Persian "می\u200cروم" is a different word from
+# "میروم", so the duplicate key keeps it inside the token instead of deleting
+# it. ZWJ stays deleted: in Devanagari "क्\u200dष" and "क्ष" are the same
+# conjunct with and without a glyph-joining hint.
+ZERO_WIDTH_NON_JOINER = "\u200c"
 # Apostrophe-like characters that are the same typography to a reader: ASCII
 # apostrophe, curly single quotes, grave/acute accents and a modifier letter.
 _APOSTROPHE_VARIANTS = "'\u2018\u2019\u0060\u00b4\u02bc"
@@ -56,10 +61,13 @@ def ensure_format_translations():
     also matches "Gohome". ``SILENT_WORD_CHARACTERS`` (U+00AD, U+2060) are
     deleted in both views: they sit inside a word.
 
-    The remaining Cf characters (ZWNJ, ZWJ, BOM, bidi controls) are in neither
-    of #2316's sets because they are lexical or directional. The duplicate key
-    keeps its previous treatment of them - deletion, which joins, never breaks,
-    a word - so this change is only about the boundary characters (#2293).
+    ZWNJ is lexical (#2316), so it is kept inside the token rather than
+    deleted; ZWJ is deleted, because a Devanagari conjunct spelled with and
+    without the joining hint is the same word. The remaining Cf characters
+    (BOM, bidi controls) are in neither of #2316's sets because they are
+    directional. The duplicate key keeps its previous treatment of them -
+    deletion, which joins, never breaks, a word - so this change is only
+    about the boundary characters (#2293).
 
     Built once, from the Unicode database, because a per-character category
     lookup costs about 0.2 s per megabyte.
@@ -73,7 +81,9 @@ def ensure_format_translations():
             fused[character] = None
         for code in range(0x110000):
             character = chr(code)
-            if character in spaced or unicodedata.category(character) != "Cf":
+            if character in spaced or character == ZERO_WIDTH_NON_JOINER:
+                continue
+            if unicodedata.category(character) != "Cf":
                 continue
             spaced[character] = None
             fused[character] = None
@@ -124,7 +134,7 @@ def ensure_combining_mark_word_pattern():
                         else "\\U%08x-\\U%08x" % (first, last)
                         for first, last in ranges)
         _COMBINING_MARK_WORD_PATTERN = re.compile(
-            r"[^\W_](?:[^\W_]|[%s])*" % marks, re.UNICODE)
+            r"[^\W_](?:[^\W_]|[%s]|\u200c)*" % marks, re.UNICODE)
     return _COMBINING_MARK_WORD_PATTERN
 
 
@@ -182,6 +192,109 @@ def get_normalized_word_tokens(value):
 
 def _normalize_words(value):
     return " ".join(get_normalized_word_tokens(value))
+
+
+def _comparison_text(text, *, word_boundaries="space"):
+    # Transformation shared by the one comparison key. NFKC folds compatibility
+    # typography ("ＯＫ" -> "OK"); Cf characters are invisible, so a
+    # WORD_BOUNDARIES character is a word break in the default "space" view and
+    # the fused view deletes it (#2316, #2293); every apostrophe variant folds
+    # to ASCII before the intraword rule. Comparison only: stored text,
+    # reported offsets and hashes are untouched.
+    text = remove_format_characters(
+        unicodedata.normalize("NFKC", str(text or "").translate(_APOSTROPHE_FOLD)),
+        word_boundaries=word_boundaries)
+    # Casefold AFTER compat folding: casefold itself can produce a mark
+    # ("İ".casefold() == "i\u0307") and can decompose (Greek iota subscript), so
+    # NFC after folding is what makes one word spelled two ways comparable.
+    text = _normalize(unicodedata.normalize("NFC", _normalize(text)))
+    return re.sub(r"(?<=\w)'(?=\w)", "", text)
+
+
+def _comparison_word_pattern(text):
+    # _WORD_RE cannot match a mark, so ASCII keeps it. A mark belongs to the
+    # word it follows, so a mark inside a word never moves a token boundary.
+    # Marks stay in the token, not dropped: Thai ก่า and ก้า are different
+    # words, as are pointed and unpointed Hebrew.
+    return _WORD_RE if text.isascii() else ensure_combining_mark_word_pattern()
+
+
+def get_comparison_word_view(text, *, word_boundaries="space"):
+    """THE comparison key; the duplicate gate and word coverage both use it."""
+    text = _comparison_text(text, word_boundaries=word_boundaries)
+    return " ".join(match.group()
+                    for match in _comparison_word_pattern(text).finditer(text))
+
+
+def get_comparison_tokens_and_gaps(text, *, word_boundaries="space"):
+    """Comparison-key tokens and whether each gap may fuse its two neighbours.
+
+    A gap is fusable only when it holds whitespace: punctuation keeps two lines
+    apart even though the key drops the punctuation itself.
+    """
+    text = _comparison_text(text, word_boundaries=word_boundaries)
+    tokens, fusable = [], []
+    previous_end = 0
+    for match in _comparison_word_pattern(text).finditer(text):
+        if tokens:
+            gap = text[previous_end:match.start()]
+            fusable.append(all(character.isspace() for character in gap))
+        else:
+            fusable.append(False)
+        tokens.append(match.group())
+        previous_end = match.end()
+    return tokens, fusable
+
+
+def get_boundary_insensitive_counter(source_text):
+    """Count source copies of a line however its word boundaries are spelled.
+
+    ONE rule: a line is the same line with a space, with U+200B, or fused, so a
+    copy is counted when consecutive source tokens concatenate to the phrase
+    and both ends sit on token boundaries. Tokens fuse only across whitespace
+    (punctuation still separates lines) and copies may not overlap, so capacity
+    can never exceed the number of source copies the book actually carries.
+    """
+    tokens, fusable = get_comparison_tokens_and_gaps(source_text)
+    positions = {}
+    for index, token in enumerate(tokens):
+        positions.setdefault(token, []).append(index)
+    buckets = {}
+    for token, indices in positions.items():
+        buckets.setdefault(token[0], []).append((token, indices))
+
+    def count_occurrences(phrase):
+        target = "".join(phrase.split())
+        if not target:
+            return 0
+        starts = []
+        for token, indices in buckets.get(target[0], ()):
+            if target.startswith(token):
+                starts.extend(indices)
+        if not starts:
+            return 0
+        starts.sort()
+        count = 0
+        next_free = 0
+        for start in starts:
+            if start < next_free:
+                continue
+            index = start
+            accumulated = ""
+            while index < len(tokens):
+                if index > start and not fusable[index]:
+                    break
+                accumulated += tokens[index]
+                if not target.startswith(accumulated):
+                    break
+                if len(accumulated) == len(target):
+                    count += 1
+                    next_free = index + 1
+                    break
+                index += 1
+        return count
+
+    return count_occurrences
 
 
 def _finding(severity, code, message, entry_numbers=None, **details):
@@ -343,29 +456,7 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     """
     from dialogue_spans import spoken_spans
 
-    def canonical(text, *, word_boundaries="space"):
-        # One comparison key for every side of this gate. NFKC folds
-        # compatibility typography ("ＯＫ" -> "OK"); Cf characters are
-        # invisible, so a WORD_BOUNDARIES character is a word break in the
-        # default "space" view and the fused view deletes it (#2316, #2293);
-        # every apostrophe variant folds to ASCII before the intraword rule.
-        # Comparison only: stored text, reported offsets and hashes are
-        # untouched.
-        text = remove_format_characters(
-            unicodedata.normalize("NFKC", str(text or "").translate(_APOSTROPHE_FOLD)),
-            word_boundaries=word_boundaries)
-        # Casefold AFTER compat folding: casefold itself can produce a mark
-        # ("İ".casefold() == "i\u0307") and can decompose (Greek iota
-        # subscript), so NFC after folding is what makes one word spelled two
-        # ways comparable. _WORD_RE cannot match a mark, so ASCII keeps it.
-        text = _normalize(unicodedata.normalize("NFC", _normalize(text)))
-        text = re.sub(r"(?<=\w)'(?=\w)", "", text)
-        if text.isascii():
-            return _normalize_words(text)
-        # A mark belongs to the word it follows, so a mark inside a word never
-        # moves a token boundary. Marks stay in the token, not dropped: Thai
-        # ก่า and ก้า are different words, as are pointed and unpointed Hebrew.
-        return " ".join(ensure_combining_mark_word_pattern().findall(text))
+    canonical = get_comparison_word_view
 
     source_text = str(source_text or "")
     source_is_ascii = source_text.isascii()
@@ -378,6 +469,10 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     # that keeps it does too. Otherwise the output keeps the previous treatment
     # of deleting it, so an ASCII source's behaviour is unchanged. (#2293)
     output_boundaries = "space" if source_has_boundaries else "fused"
+    output_has_boundaries = any(
+        any(character in str(entry.get("text") or "")
+            for character in WORD_BOUNDARIES)
+        for entry in entries if isinstance(entry, dict))
     if len(source_text) + sum(len(e.get("text", "")) for e in entries
                               if isinstance(e, dict) and isinstance(e.get("text"), str)) > 4000000:
         return [_finding("manual_review", "contained_duplicate_budget_exhausted",
@@ -397,6 +492,13 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     needles = list(dict.fromkeys(texts[i] for i in sorted(character_rows) if texts[i]))
     if not needles:
         return []
+    # A mixed source can carry one copy spaced and another fused, so no single
+    # source key sees both; and an output that keeps a ZWSP can match a source
+    # with no ZWSP at all. The spelling-independent count is built once, only
+    # when either side makes the spelling ambiguous.
+    count_boundary_copies = (get_boundary_insensitive_counter(source_text)
+                             if source_has_boundaries or output_has_boundaries
+                             else None)
     needle_starts = {needle.split()[0] for needle in needles}
     # The audit word view was tokenized with the mark-dropping _WORD_RE, so it
     # is only trustworthy for an ASCII source with no apostrophe variant: there
@@ -919,7 +1021,10 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         for ident, count in enumerate(variant_counts):
             if count > source_counts[ident]:
                 source_counts[ident] = count
-                source_spans[ident] = variant_spans[ident]
+                # Spans stay indexed to the PRIMARY key: a variant key is a
+                # different string, so its offsets would point into the wrong
+                # text when reported as source_word_normalized_spans. The
+                # throwaway list above keeps the variant scan from writing them.
     for row, text in enumerate(texts):
         if not complete:
             break
@@ -995,6 +1100,11 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         if not needle:
             continue
         capacity = source_counts[ident]
+        # ONE RULE: capacity is the number of non-overlapping source copies
+        # that spell this line when a space and a U+200B are both optional
+        # separators, so every output spelling of one line gets one capacity.
+        if count_boundary_copies is not None:
+            capacity = max(capacity, count_boundary_copies(needle))
         if not capacity:
             continue
         added_capacity = sum(count for word, count in expansion_sites if word in needle.split())
@@ -1429,14 +1539,15 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
             for word in _WORD_RE.findall(text))
         # A boundary character may be rendered either way, so measure coverage
         # against both the split ("Go home") and fused ("Gohome") source views
-        # and keep the better one. Only boundary sources pay for the second
-        # count; every other source has exactly one view.
+        # and keep the better one. The fused view comes from the same comparison
+        # key the duplicate gate uses, so coverage and capacity cannot disagree
+        # about ZWNJ/ZWJ/BOM. Only boundary sources pay for the second count;
+        # every other source has exactly one view.
         source_views = [Counter(source_tokens)]
         if not source_text.isascii() and any(
                 character in source_text for character in WORD_BOUNDARIES):
-            fused_source = "".join(character for character in source_text
-                                   if character not in WORD_BOUNDARIES)
-            source_views.append(Counter(get_normalized_word_tokens(fused_source)))
+            fused_source = get_comparison_word_view(source_text, word_boundaries="fused")
+            source_views.append(Counter(fused_source.split()))
         del source_tokens
         source_total = sum(source_views[0].values())
         coverage = 0.0

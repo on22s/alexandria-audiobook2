@@ -841,6 +841,157 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual([], self._duplicate_findings(
             [_entry(kept + ".", "MARTA"), _entry("she said.")], source))
 
+    def test_mixed_boundary_source_keeps_two_copies_for_every_output_spelling(self):
+        # The source carries the line twice, once spaced and once with U+200B.
+        # Capacity is per line, not per spelling, so either written spelling is
+        # clean twice and blocks on a third copy. This is also the over-grant
+        # example: two source copies must stay two, never three or four.
+        source = '"Go home," she said. "Go\u200bhome," he said.'
+        for line in ("Go home", "Gohome", "Go\u200bhome"):
+            with self.subTest(line=line):
+                faithful = [_entry(line + ".", "MARTA"), _entry("she said."),
+                            _entry(line + ".", "PORTER"), _entry("he said.")]
+                self.assertEqual([], self._duplicate_findings(faithful, source))
+                finding = self._duplicate_findings(
+                    faithful + [_entry(line + ".", "ANNA")], source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(2, finding["details"]["source_occurrences"])
+                self.assertEqual(3, finding["details"]["all_text_occurrences"])
+
+    def test_a_kept_boundary_matches_a_spaced_source_without_one(self):
+        # The source has no U+200B; a ZWSP the model kept is still a word break,
+        # so it is one copy of the spaced line and a second copy blocks.
+        cases = (
+            ('"Go home," she said.', "Go\u200bhome", "."),
+            ('"สวัสดี ครับ" เธอพูด', "สวัสดี\u200bครับ", ""),
+        )
+        for source, line, suffix in cases:
+            with self.subTest(line=line):
+                self.assertEqual([], self._duplicate_findings(
+                    [_entry(line + suffix, "MARTA")], source))
+                finding = self._duplicate_findings(
+                    [_entry(line + suffix, "MARTA"),
+                     _entry(line + suffix, "PORTER")], source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["source_occurrences"])
+                self.assertEqual(2, finding["details"]["all_text_occurrences"])
+
+    def test_zwsp_positions_do_not_change_capacity(self):
+        # Start, end, repeated and next-to-punctuation positions are all the
+        # same word break, so the line still has one source copy.
+        cases = (
+            ('"\u200bGo home," she said.', "Go home"),
+            ('"Go home\u200b," she said.', "Go home"),
+            ('"Go\u200b\u200bhome," she said.', "Go home"),
+            ('"Go home.\u200b" she said.', "Go home"),
+        )
+        for source, line in cases:
+            with self.subTest(source=source):
+                self.assertEqual([], self._duplicate_findings(
+                    [_entry(line + ".", "MARTA"), _entry("she said.")], source))
+                finding = self._duplicate_findings(
+                    [_entry(line + ".", "MARTA"), _entry("she said."),
+                     _entry(line + ".", "PORTER")], source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["source_occurrences"])
+
+    def test_a_cjk_word_with_an_internal_zwsp_is_one_word(self):
+        # A line-break hint inside a CJK word must not make the word two.
+        source = '"東\u200b京," she said.'
+        self.assertEqual([], self._duplicate_findings(
+            [_entry("東京", "MARTA"), _entry("she said.")], source))
+        finding = self._duplicate_findings(
+            [_entry("東京", "MARTA"), _entry("she said."),
+             _entry("東京", "PORTER")], source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+
+    def test_punctuation_still_separates_two_boundary_lines(self):
+        # The spelling-independent count fuses tokens across whitespace, never
+        # across punctuation: "Go. Home" is not one copy of "Gohome".
+        source = "Go. Home\u200b."
+        entries = [_entry("Gohome.", "MARTA"), _entry("Gohome.", "PORTER")]
+
+        self.assertEqual([], self._duplicate_findings(entries, source))
+
+    def test_a_boundary_line_is_not_counted_inside_a_longer_word(self):
+        # A copy must start and end on token boundaries, so "Gohome" is not a
+        # source copy of "Gohomework".
+        source = "Gohomework\u200b."
+        entries = [_entry("Gohome.", "MARTA"), _entry("Gohome.", "PORTER")]
+
+        self.assertEqual([], self._duplicate_findings(entries, source))
+
+    def test_boundary_capacity_counts_non_overlapping_copies_only(self):
+        # "gogo" appears once (two "go" tokens) followed by another "go". The
+        # overlapping second start must not turn one source copy into two and
+        # let a genuine duplicate through.
+        source = "go\u200bgo\u200bgo"
+        finding = self._duplicate_findings(
+            [_entry("Gogo", "MARTA"), _entry("Gogo", "PORTER")], source)[0]
+
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+
+    def test_a_zero_width_non_joiner_is_lexical(self):
+        # #2316 calls ZWNJ lexical: the Persian spelling with it is a different
+        # word, so a source carrying each spelling once does not give the plain
+        # spelling two copies.
+        plain, with_zwnj = "میروم", "می\u200cروم"
+        source = plain + " " + with_zwnj
+
+        self.assertEqual([], self._duplicate_findings([_entry(plain, "MARTA")], source))
+        finding = self._duplicate_findings(
+            [_entry(plain, "MARTA"), _entry(plain, "PORTER")], source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+
+        # Lexical means the ZWNJ sits inside its word: a spaced copy is a
+        # different line, so it is not given the ZWNJ spelling's capacity.
+        spaced = "می روم"
+        spaced_source = spaced + " " + with_zwnj
+        finding = self._duplicate_findings(
+            [_entry(spaced, "MARTA"), _entry(spaced, "PORTER")], spaced_source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+
+    def test_a_zero_width_joiner_is_deleted_for_devanagari_conjuncts(self):
+        # ZWJ is a glyph-joining hint: "क्\u200dष" and "क्ष" are the same
+        # conjunct, so a source carrying both spellings holds two copies.
+        plain, with_zwj = "क्ष", "क्\u200dष"
+        source = plain + " " + with_zwj
+        faithful = [_entry(plain, "MARTA"), _entry(plain, "PORTER")]
+
+        self.assertEqual([], self._duplicate_findings(faithful, source))
+        finding = self._duplicate_findings(faithful + [_entry(plain, "ANNA")], source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(2, finding["details"]["source_occurrences"])
+
+    def test_audit_coverage_uses_the_duplicate_key_for_a_joined_word(self):
+        # A ZWJ is deleted by the comparison key, so "Go\u200dhome" is one word
+        # for capacity. Coverage must use the same key: the old inline fused
+        # view stripped only U+200B, split the ZWJ into a second token, and
+        # reported low coverage for a faithful single copy.
+        source = '"Go\u200dhome\u200b," she said.'
+        entries = [_entry("Gohome.", "MARTA"), _entry("she said.")]
+
+        report = audit_script(entries, source)
+        self.assertNotIn("low_source_word_coverage",
+                         {finding["code"] for finding in report["findings"]})
+
+    def test_source_spans_stay_indexed_to_the_primary_key(self):
+        # The fused source key wins capacity, but its offsets index a different
+        # string. Reported spans must stay indexed to the primary key, so a
+        # needle absent from the primary key has none.
+        source = '"Go\u200bhome," she said.'
+        entries = [_entry("Gohome.", "MARTA"), _entry("she said."),
+                   _entry("Gohome.", "PORTER")]
+        finding = self._duplicate_findings(entries, source)[0]
+
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual([], finding["details"]["source_word_normalized_spans"])
+        self.assertTrue(finding["details"]["source_spans_truncated"])
+
     def test_a_superscript_numeral_behaves_like_a_literal_one(self):
         # NFKC folds "x\u00b2" to "x2", so a superscript is a source numeral
         # exactly as a literal "x2" is. The digit rule therefore downgrades a
