@@ -86,8 +86,10 @@ def _iter_tests(suite):
 def _module_level_functions(body):
     """Yield function definitions that are not nested in a class or function.
 
-    Includes definitions inside a top-level ``if``/``try``/``with``/loop, so a
-    test defined under ``if __name__ == "__main__":`` cannot hide either.
+    Includes definitions inside a top-level ``if``/``try``/``with``/loop or
+    ``match`` statement, together with their ``else``, ``except`` and
+    ``finally`` arms, so a test defined under ``if __name__ == "__main__":``
+    or a ``case`` body cannot hide either.
     """
     for node in body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -98,16 +100,42 @@ def _module_level_functions(body):
             for handler in getattr(node, "handlers", []):
                 yield from _module_level_functions(handler.body)
             yield from _module_level_functions(getattr(node, "finalbody", []))
+        elif isinstance(node, ast.Match):
+            for case in node.cases:
+                yield from _module_level_functions(case.body)
 
 
-def _discovery_failures(path, collected):
+def _uncollected_test_classes(module):
+    """Classes defined here whose tests unittest will never collect.
+
+    unittest only collects ``TestCase`` subclasses, so a pytest-style plain
+    class imports and discovers cleanly while none of its ``test*`` methods
+    run. Membership in ``TestCase`` is asked of ``unittest`` itself
+    (``issubclass``), which also handles the mixin bases used throughout this
+    suite. Imported classes are skipped: their defining module owns them.
+    """
+    names = []
+    for _, value in inspect.getmembers(module, inspect.isclass):
+        if value.__module__ != module.__name__:
+            continue
+        if issubclass(value, unittest.TestCase):
+            continue
+        methods = sorted(name for name in dir(value) if name.startswith("test"))
+        if value.__name__.startswith("Test") or methods:
+            detail = f" ({', '.join(methods)})" if methods else ""
+            names.append(value.__name__ + detail)
+    return names
+
+
+def _discovery_failures(path, collected, module):
     """Why a tracked test module would silently not run some of its tests.
 
     unittest collects TestCase methods, or whatever ``load_tests`` returns; it
-    never collects module-level functions, and it does not await an ``async``
-    test method on a plain TestCase. A pytest-style module therefore imports
-    and discovers cleanly while running none of its tests. Return those shapes
-    so discovery fails loud instead of recording a plausible-looking ``[]``.
+    never collects module-level functions or methods of a plain class, and it
+    does not await an ``async`` test method on a plain TestCase. A pytest-style
+    module therefore imports and discovers cleanly while running none of its
+    tests. Return those shapes so discovery fails loud instead of recording a
+    plausible-looking ``[]``.
 
     A helper named ``test_*`` that is not a test is rejected too: the naming
     rule is what makes discovery ambiguous, so the message tells the author to
@@ -122,18 +150,21 @@ def _discovery_failures(path, collected):
     functions = list(_module_level_functions(tree.body))
     collected_ids = {test.id() for test in collected}
     # FunctionTestCase.id() is the function's own name, so a function wrapped
-    # by load_tests is represented here; a bare test_* function is not.
-    collected_names = {identifier.rsplit(".", 1)[-1] for identifier in collected_ids}
+    # by load_tests is represented here exactly; a bare test_* function is not.
     problems = []
     uncollected = [node.name for node in functions
-                   if node.name.startswith("test") and node.name != "load_tests"
-                   and node.name not in collected_ids
-                   and node.name not in collected_names]
+                   if node.name.startswith("test")
+                   and node.name not in collected_ids]
     if uncollected:
         problems.append(
             "unittest does not collect these module-level test functions "
             "(rename a non-test helper so it does not start with 'test'): "
             + ", ".join(uncollected))
+    plain_classes = _uncollected_test_classes(module)
+    if plain_classes:
+        problems.append(
+            "these classes look like tests but do not subclass unittest.TestCase, "
+            "so unittest never collects them: " + ", ".join(plain_classes))
     unawaited = [f"{type(test).__name__}.{getattr(test, '_testMethodName', '')}"
                  for test in collected
                  if isinstance(test, unittest.TestCase)
@@ -202,7 +233,7 @@ def get_unit_test_inventory(test_directory=None, *, module_names=None):
         collected = list(_iter_tests(suite))
         test_ids = sorted(test.id() for test in collected)
         for reason in _discovery_failures(
-                directory / f"{module_name}.py", collected):
+                directory / f"{module_name}.py", collected, module):
             failures.append((qualified, reason))
         inventory[module_name] = test_ids
     if failures:
@@ -784,9 +815,13 @@ class UncollectedTestGuardTests(unittest.TestCase):
     every one of their tests was silently skipped. These fixtures pin each
     shape that hides tests: a module whose tests are all module-level
     functions, a module that mixes a TestCase class with bare functions so the
-    class hides them, a bare function a ``load_tests`` wrapper forgot, a test
-    defined under ``if __name__ == "__main__":``, and an ``async`` test method
-    on a plain TestCase whose coroutine is never awaited.
+    class hides them, a bare function whose name merely matches a collected
+    method, a bare function inside an ``if``/``try``/``with``/loop arm or a
+    ``match`` case, a bare function a ``load_tests`` wrapper forgot, a
+    pytest-style plain class beside a TestCase, a test defined under
+    ``if __name__ == "__main__":``, an ``async`` test method on a plain
+    TestCase whose coroutine is never awaited, and two such problems in one
+    module both being reported.
     """
 
     def run_discovery(self, name, source):
@@ -807,7 +842,10 @@ class UncollectedTestGuardTests(unittest.TestCase):
     def failure_reason(self, module_name, result):
         self.assertIsInstance(result, InventoryUnavailable,
                               f"{module_name} was not rejected: {result!r}")
-        return dict(result.failures)["tests." + module_name]
+        reasons = [reason for name, reason in result.failures
+                   if name == "tests." + module_name]
+        self.assertTrue(reasons, f"{module_name} was not rejected: {result!r}")
+        return "\n".join(reasons)
 
     def test_module_with_only_bare_test_functions_is_rejected(self):
         result = self.run_discovery(
@@ -874,6 +912,110 @@ class UncollectedTestGuardTests(unittest.TestCase):
         reason = self.failure_reason("test_zz_guard_mixed", result)
         self.assertIn("test_outside", reason)
         self.assertNotIn("test_inside", reason)
+
+    def test_class_method_does_not_excuse_a_same_named_bare_function(self):
+        # Matching only the last id component let T.test_x vouch for a
+        # module-level test_x, so unittest ran one and silently dropped the
+        # other. A load_tests returning the ordinary suite changes nothing.
+        for label, extra in (
+                ("plain", ""),
+                ("with_load_tests",
+                 "\n\ndef load_tests(loader, tests, pattern):\n"
+                 "    return tests\n")):
+            with self.subTest(label):
+                name = f"test_zz_guard_collision_{label}"
+                result = self.run_discovery(
+                    name,
+                    "import unittest\n\n\n"
+                    "class T(unittest.TestCase):\n"
+                    "    def test_x(self):\n        pass\n\n\n"
+                    "def test_x():\n    assert False\n" + extra)
+                reason = self.failure_reason(name, result)
+                self.assertIn("module-level test functions", reason)
+                self.assertIn("test_x", reason)
+
+    def test_bare_function_hidden_in_compound_statements_is_rejected(self):
+        cases = {
+            "if_body": "if True:\n    def test_hidden(): pass\n",
+            "if_else": "if False:\n    pass\nelse:\n    def test_hidden(): pass\n",
+            "try_body": "try:\n    def test_hidden(): pass\nexcept Exception:\n    pass\n",
+            "try_except": "try:\n    pass\nexcept Exception:\n    def test_hidden(): pass\n",
+            "try_else": "try:\n    pass\nexcept Exception:\n    pass\nelse:\n    def test_hidden(): pass\n",
+            "try_finally": "try:\n    pass\nfinally:\n    def test_hidden(): pass\n",
+            "with": "with open(__file__):\n    def test_hidden(): pass\n",
+            "for_body": "for _ in ():\n    def test_hidden(): pass\n",
+            "for_else": "for _ in ():\n    pass\nelse:\n    def test_hidden(): pass\n",
+            "while_body": "while False:\n    def test_hidden(): pass\n",
+            "while_else": "while False:\n    pass\nelse:\n    def test_hidden(): pass\n",
+        }
+        for label, body in cases.items():
+            with self.subTest(label):
+                name = f"test_zz_guard_hidden_{label}"
+                result = self.run_discovery(name, body)
+                reason = self.failure_reason(name, result)
+                self.assertIn("test_hidden", reason)
+
+    def test_bare_function_hidden_in_a_match_case_is_rejected(self):
+        result = self.run_discovery(
+            "test_zz_guard_match",
+            "import unittest\n\n\n"
+            "class Real(unittest.TestCase):\n"
+            "    def test_ok(self):\n        pass\n\n\n"
+            "match 1:\n"
+            "    case 1:\n"
+            "        def test_hidden(): pass\n")
+        reason = self.failure_reason("test_zz_guard_match", result)
+        self.assertIn("test_hidden", reason)
+        self.assertNotIn("test_ok", reason)
+
+    def test_pytest_style_class_beside_a_test_case_is_rejected(self):
+        result = self.run_discovery(
+            "test_zz_guard_pytest_class",
+            "import unittest\n\n\n"
+            "class TestPy:\n"
+            "    def test_hidden(self):\n        assert False\n\n\n"
+            "class Real(unittest.TestCase):\n"
+            "    def test_ok(self):\n        pass\n")
+        reason = self.failure_reason("test_zz_guard_pytest_class", result)
+        self.assertIn("subclass unittest.TestCase", reason)
+        self.assertIn("TestPy", reason)
+        self.assertIn("test_hidden", reason)
+        self.assertNotIn("test_ok", reason)
+
+    def test_pytest_style_class_not_named_test_is_rejected(self):
+        result = self.run_discovery(
+            "test_zz_guard_pytest_named_other",
+            "import unittest\n\n\n"
+            "class HiddenCases:\n"
+            "    def test_hidden(self):\n        assert False\n\n\n"
+            "class Real(unittest.TestCase):\n"
+            "    def test_ok(self):\n        pass\n")
+        reason = self.failure_reason("test_zz_guard_pytest_named_other", result)
+        self.assertIn("HiddenCases", reason)
+        self.assertIn("test_hidden", reason)
+        self.assertNotIn("test_ok", reason)
+
+    def test_plain_class_named_test_without_test_methods_is_rejected(self):
+        result = self.run_discovery(
+            "test_zz_guard_test_named_class",
+            "import unittest\n\n\n"
+            "class TestHelper:\n    VALUE = 1\n\n\n"
+            "class Real(unittest.TestCase):\n"
+            "    def test_ok(self):\n        pass\n")
+        reason = self.failure_reason("test_zz_guard_test_named_class", result)
+        self.assertIn("TestHelper", reason)
+        self.assertNotIn("test_ok", reason)
+
+    def test_two_problems_in_one_module_are_both_reported(self):
+        result = self.run_discovery(
+            "test_zz_guard_two_problems",
+            "import unittest\n\n\n"
+            "def test_bare():\n    pass\n\n\n"
+            "class NotAsync(unittest.TestCase):\n"
+            "    async def test_never(self):\n        pass\n")
+        reason = self.failure_reason("test_zz_guard_two_problems", result)
+        self.assertIn("test_bare", reason)
+        self.assertIn("test_never", reason)
 
     def test_module_that_yields_no_tests_is_rejected(self):
         result = self.run_discovery(
