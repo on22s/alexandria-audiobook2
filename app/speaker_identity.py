@@ -1,4 +1,19 @@
-"""Safe in-run speaker identity stabilization and uncertain-variant reporting."""
+"""Safe in-run speaker identity stabilization and uncertain-variant reporting.
+
+Limits
+------
+- Order-only mark variants merge: `_identity_key` sorts each run of kept
+  combining marks after a base letter so typing-order equivalents in Thai, Lao
+  and Khmer share one key. As a consequence, Tibetan subjoined-letter stacks
+  (`སྒྲ`/`སྲྒ`, `ཀྲྭ`/`ཀྭྲ`) and Myanmar medial stacks (`ကျွ`/`ကွျ`) that carry
+  the same set of marks in opposite orders also merge (same as before #2347,
+  when combining marks were stripped altogether).
+- Saved voice configs and alias registries keyed under pre-#2347 labels that
+  matched only because required combining marks were stripped (for example a
+  missing vowel sign, tone mark or anusvara) no longer match under the
+  mark-preserving key; explicit aliases are required if one character used both
+  spellings.
+"""
 
 import copy
 import functools
@@ -232,23 +247,31 @@ _IDENTITY_MARK_SCRIPTS = (
 _OPTIONAL_IDENTITY_MARKS = (
     "NUKTA", "ARDHACANDRA",
     "STRESS", "GRAVE ACCENT", "ACUTE ACCENT",
-    "SANDHI", "ORNAMENT",
+    "SANDHI", "CANDRA WITH ORNAMENT",
     "RTAGS", "NGAS BZUNG", "ASTROLOGICAL", "TSA -PHRU",
     "UDAAT", "YAKASH", "SYMBOL", "CRYPTOGRAMMIC",
     "YAMAKKAN", "OVERLINE",
 )
 
-# Candrabindu is written where anusvara is meant (`चाँद`/`चांद`). Map each
-# script's candrabindu onto the same script's anusvara so the two spellings
-# share a key, while a name that carries neither still splits (चाँद/चाद).
+# Alternate nasal signs (candrabindu, inverted candrabindu, combining anusvara
+# above, Gurmukhi tippi and adak bindi, Zanabazar Square candrabindu with
+# ornament) are written where the script's plain anusvara/bindi is meant
+# (`चाँद`/`चांद`, `ਸਿੰਘ`/`ਸਿਂਘ`). Map each onto its own script's plain anusvara
+# so spelling variants share a key, while a name with no nasal mark still
+# splits (`चाँद`/`चाद`, `ਸਿੰਘ`/`ਸਿਘ`).
 _CANDRABINDU_ANUSVARA = {
+    "\u0900": "\u0902",   # Devanagari inverted candrabindu -> anusvara
     "\u0901": "\u0902",   # Devanagari
     "\u0981": "\u0982",   # Bengali
+    "\u0a01": "\u0a02",   # Gurmukhi adak bindi -> bindi
+    "\u0a70": "\u0a02",   # Gurmukhi tippi -> bindi
     "\u0a81": "\u0a82",   # Gujarati
     "\u0b01": "\u0b02",   # Oriya
-    "\u0c00": "\u0c04",   # Telugu combining candrabindu -> combining anusvara
+    "\u0c00": "\u0c02",   # Telugu combining candrabindu above -> anusvara
     "\u0c01": "\u0c02",   # Telugu
+    "\u0c04": "\u0c02",   # Telugu combining anusvara above -> anusvara
     "\u0c81": "\u0c82",   # Kannada
+    "\u0d00": "\u0d02",   # Malayalam combining anusvara above -> anusvara
     "\u0d01": "\u0d02",   # Malayalam
     "\u0d81": "\u0d82",   # Sinhala
     "\ua8c5": "\ua880",   # Saurashtra
@@ -256,12 +279,15 @@ _CANDRABINDU_ANUSVARA = {
     "\U00011080": "\U00011081",   # Kaithi
     "\U00011100": "\U00011101",   # Chakma
     "\U00011180": "\U00011181",   # Sharada
+    "\U000111cf": "\U00011181",   # Sharada inverted candrabindu -> anusvara
+    "\U00011300": "\U00011302",   # Grantha combining anusvara above -> anusvara
     "\U00011301": "\U00011302",   # Grantha
     "\U00011443": "\U00011444",   # Newa
     "\U000114bf": "\U000114c0",   # Tirhuta
     "\U000115bc": "\U000115bd",   # Siddham
     "\U0001193c": "\U0001193b",   # Dives Akuru
     "\U00011a35": "\U00011a38",   # Zanabazar Square
+    "\U00011a36": "\U00011a38",   # Zanabazar Square candrabindu with ornament -> anusvara
     "\U00011c3c": "\U00011c3d",   # Bhaiksuki
     "\U00011cb6": "\U00011cb5",   # Marchen
 }

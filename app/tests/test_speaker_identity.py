@@ -1,11 +1,14 @@
 import copy
 import json
+import unicodedata
 import unittest
 
 from speaker_identity import (build_speaker_consistency_report,
                               get_speaker_label_index, get_validated_alias_map,
                               is_speaker_merge_allowed, resolve_speaker_label,
-                              stabilize_speaker_identities, _identity_key)
+                              stabilize_speaker_identities,
+                              _CANDRABINDU_ANUSVARA, _IDENTITY_MARK_SCRIPTS,
+                              _identity_key, _is_identity_mark)
 
 
 def _entry(speaker):
@@ -185,6 +188,124 @@ class CombiningMarkIdentityTests(unittest.TestCase):
         self.assertEqual(["चाँद", "चाँद"],
                          [entry["speaker"] for entry in result["entries"]])
 
+    def test_script_nasal_variants_fold_to_their_plain_anusvara(self):
+        """Gurmukhi tippi/adak bindi, combining anusvara above and inverted
+        candrabindu share a key with their script's plain anusvara, while a
+        name with no nasal mark still splits.
+        """
+        pairs = [
+            ("Gurmukhi tippi vs bindi", "ਸਿੰਘ", "ਸਿਂਘ", "ਸਿਘ"),
+            ("Gurmukhi adak bindi vs bindi", "ਸਿ\u0a01ਘ", "ਸਿਂਘ", "ਸਿਘ"),
+            ("Telugu combining anusvara above", "స\u0c04గీత", "సంగీత", "సగీత"),
+            ("Telugu combining candrabindu above", "స\u0c00గీత", "సంగీత", "సగీత"),
+            ("Malayalam combining anusvara above", "ഗ\u0d00", "ഗം", "ഗ"),
+            ("Grantha combining anusvara above", "\U00011315\U00011300",
+             "\U00011315\U00011302", "\U00011315"),
+            ("Devanagari inverted candrabindu", "चा\u0900द", "चांद", "चाद"),
+            ("Sharada inverted candrabindu", "\U00011191\U000111cf",
+             "\U00011191\U00011181", "\U00011191"),
+        ]
+        for label, variant, anusvara, bare in pairs:
+            with self.subTest(label=label):
+                self.assertEqual(_identity_key(variant), _identity_key(anusvara))
+                self.assertNotEqual(_identity_key(variant), _identity_key(bare))
+        self.assertEqual("ਸਿੰਘ", resolve_speaker_label("ਸਿਂਘ", ["ਸਿੰਘ"]))
+        result = stabilize_speaker_identities(
+            [_entry("ਸਿੰਘ"), _entry("ਸਿਂਘ")], ["ਸਿੰਘ"])
+        self.assertEqual(["ਸਿੰਘ", "ਸਿੰਘ"],
+                         [entry["speaker"] for entry in result["entries"]])
+
+    def test_zanabazar_candrabindu_with_ornament_matches_candrabindu_and_anusvara(self):
+        """U+11A36 is a candrabindu, so it maps to anusvara like U+11A35.
+
+        U+11A37 (CANDRA WITH ORNAMENT, no bindu) remains an optional ornament
+        and folds away.
+        """
+        base = "\U00011a00"
+        self.assertEqual(_identity_key(base + "\U00011a36"),
+                         _identity_key(base + "\U00011a38"))
+        self.assertEqual(_identity_key(base + "\U00011a36"),
+                         _identity_key(base + "\U00011a35"))
+        self.assertNotEqual(_identity_key(base + "\U00011a36"),
+                            _identity_key(base))
+        self.assertEqual(_identity_key(base + "\U00011a37"),
+                         _identity_key(base))
+
+    def test_every_unicode_nasal_sign_maps_to_its_own_scripts_plain_anusvara(self):
+        """Enumerate Unicode Mn/Mc nasal signs rather than hand-picking.
+
+        Every table entry must map a kept mark directly to its own script's
+        plain anusvara (never chained through another mapped mark), and every
+        kept Unicode mark named CANDRABINDU / ANUSVARA / BINDI / TIPPI in a
+        script that has a plain anusvara must fold to that plain anusvara.
+        """
+        keywords = ("CANDRABINDU", "ANUSVARA", "BINDI", "TIPPI")
+        plain_suffixes = ("SIGN ANUSVARA", "SIGN ANUSVARAYA", "SIGN BINDI")
+
+        def script_of(char):
+            name = unicodedata.name(char, "")
+            return next((s for s in _IDENTITY_MARK_SCRIPTS
+                         if name.startswith(s + " ")), None)
+
+        for src, dst in _CANDRABINDU_ANUSVARA.items():
+            with self.subTest(entry=(hex(ord(src)), hex(ord(dst)))):
+                self.assertTrue(_is_identity_mark(src))
+                self.assertTrue(_is_identity_mark(dst))
+                self.assertNotEqual(src, dst)
+                self.assertNotIn(dst, _CANDRABINDU_ANUSVARA)
+                self.assertIsNotNone(script_of(src))
+                self.assertEqual(script_of(src), script_of(dst))
+                self.assertTrue(
+                    unicodedata.name(dst, "").endswith(plain_suffixes),
+                    f"{hex(ord(dst))} ({unicodedata.name(dst, '')}) is not a plain anusvara",
+                )
+
+        by_script = {}
+        for cp in range(0x110000):
+            char = chr(cp)
+            if unicodedata.category(char) not in ("Mn", "Mc"):
+                continue
+            name = unicodedata.name(char, "")
+            if not any(kw in name for kw in keywords):
+                continue
+            if not _is_identity_mark(char):
+                continue
+            script = script_of(char)
+            self.assertIsNotNone(script)
+            by_script.setdefault(script, []).append((char, name))
+
+        for script, marks in by_script.items():
+            plains = [c for c, n in marks if n.endswith(plain_suffixes)]
+            if not plains:
+                # Single standalone mark such as LIMBU SMALL LETTER ANUSVARA.
+                self.assertEqual(1, len(marks), f"{script}: {marks}")
+                continue
+            self.assertEqual(1, len(plains), f"{script}: multiple plain anusvaras {plains}")
+            plain = plains[0]
+            for char, name in marks:
+                if char == plain:
+                    continue
+                with self.subTest(script=script, mark=hex(ord(char)), name=name):
+                    self.assertEqual(plain, _CANDRABINDU_ANUSVARA.get(char))
+                    self.assertEqual(_identity_key("a" + char),
+                                     _identity_key("a" + plain))
+
+    def test_script_name_must_start_the_character_name(self):
+        """A script name appearing mid-name must not turn a mark into an identity mark.
+
+        U+A8E0..U+A8F1 are COMBINING DEVANAGARI Vedic cantillation marks,
+        U+11366..U+11374 are COMBINING GRANTHA marks, and Adlam/SignWriting
+        MODIFIER marks contain 'MODI' as a substring; all must fold away.
+        """
+        for cp in range(0xA8E0, 0xA8F2):
+            with self.subTest(cp=hex(cp)):
+                self.assertEqual(_identity_key("क"),
+                                 _identity_key("क" + chr(cp)))
+        for char in ("\U00011366", "\U0001da9b", "\U0001e948"):
+            with self.subTest(cp=hex(ord(char))):
+                self.assertEqual(_identity_key("a"),
+                                 _identity_key("a" + char))
+
     def test_anusvara_is_an_identity_mark(self):
         """Keeping anusvara splits real distinct names instead of merging them.
 
@@ -292,7 +413,7 @@ class CombiningMarkIdentityTests(unittest.TestCase):
             ("ਕ", "ਕ\u0a51"),                # GURMUKHI SIGN UDAAT (stress)
             ("ਕ", "ਕ\u0a75"),                # GURMUKHI SIGN YAKASH (stress)
             ("\U00011600", "\U00011600\U00011640"),   # MODI ARDHACANDRA
-            ("\U00011a00", "\U00011a00\U00011a36"),   # ZANABAZAR ORNAMENT
+            ("\U00011a00", "\U00011a00\U00011a37"),   # ZANABAZAR CANDRA WITH ORNAMENT
             ("\u0f40", "\u0f40\u0f18"),      # TIBETAN ASTROLOGICAL
             ("\u0f40", "\u0f40\u0f19"),      # TIBETAN ASTROLOGICAL
             ("\u0f40", "\u0f40\u0f39"),      # TIBETAN TSA -PHRU
