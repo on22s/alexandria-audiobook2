@@ -10,7 +10,9 @@ from collections import Counter
 from heapq import heappop, heappush
 
 from silent_word_characters import (
-    SILENT_WORD_CHARACTERS, WORD_BOUNDARIES, remove_silent_word_characters)
+    SILENT_WORD_CHARACTERS, WORD_BOUNDARIES, ZERO_WIDTH_JOINER,
+    ZERO_WIDTH_NON_JOINER, remove_silent_word_characters)
+from source_normalization import iter_source_paragraph_ranges
 from speech_text import get_speech_normalization
 from utils import get_unsafe_text_controls
 from alexandria_alignment import is_spelled_number
@@ -39,11 +41,6 @@ _SCRIPT_PREFIXES = ("LATIN", "CYRILLIC", "HIRAGANA", "KATAKANA", "CJK",
                     "ARABIC", "HEBREW", "HANGUL", "GREEK", "THAI")
 
 _COMBINING_MARK_WORD_PATTERN = None
-# ZWNJ is lexical (#2316): Persian "می\u200cروم" is a different word from
-# "میروم", so the duplicate key keeps it inside the token instead of deleting
-# it. ZWJ stays deleted: in Devanagari "क्\u200dष" and "क्ष" are the same
-# conjunct with and without a glyph-joining hint.
-ZERO_WIDTH_NON_JOINER = "\u200c"
 # Apostrophe-like characters that are the same typography to a reader: ASCII
 # apostrophe, curly single quotes, grave/acute accents and a modifier letter.
 _APOSTROPHE_VARIANTS = "'\u2018\u2019\u0060\u00b4\u02bc"
@@ -61,10 +58,11 @@ def ensure_format_translations():
     also matches "Gohome". ``SILENT_WORD_CHARACTERS`` (U+00AD, U+2060) are
     deleted in both views: they sit inside a word.
 
-    ZWNJ is lexical (#2316), so it is kept inside the token rather than
-    deleted; ZWJ is deleted, because a Devanagari conjunct spelled with and
-    without the joining hint is the same word. The remaining Cf characters
-    (BOM, bidi controls) are in neither of #2316's sets because they are
+    ZWNJ (``ZERO_WIDTH_NON_JOINER``) is lexical (#2316), so it is kept inside
+    the token rather than deleted; ZWJ (``ZERO_WIDTH_JOINER``) is a
+    glyph-joining hint and is deleted, because a Devanagari conjunct spelled
+    with and without it is the same word. The remaining Cf characters (BOM,
+    bidi controls) are in neither of #2316's sets because they are
     directional. The duplicate key keeps its previous treatment of them -
     deletion, which joins, never breaks, a word - so this change is only
     about the boundary characters (#2293).
@@ -79,9 +77,13 @@ def ensure_format_translations():
         for character in SILENT_WORD_CHARACTERS:
             spaced[character] = None
             fused[character] = None
+        for character in (ZERO_WIDTH_JOINER,):
+            spaced[character] = None
+            fused[character] = None
         for code in range(0x110000):
             character = chr(code)
-            if character in spaced or character == ZERO_WIDTH_NON_JOINER:
+            if character in spaced or character in (
+                    ZERO_WIDTH_NON_JOINER, ZERO_WIDTH_JOINER):
                 continue
             if unicodedata.category(character) != "Cf":
                 continue
@@ -135,7 +137,8 @@ def ensure_combining_mark_word_pattern():
                         else "\\U%08x-\\U%08x" % (first, last)
                         for first, last in ranges)
         _COMBINING_MARK_WORD_PATTERN = re.compile(
-            r"[^\W_](?:[^\W_]|[%s]|\u200c)*" % marks, re.UNICODE)
+            r"[^\W_](?:[^\W_]|[%s]|%s)*"
+            % (marks, re.escape(ZERO_WIDTH_NON_JOINER)), re.UNICODE)
     return _COMBINING_MARK_WORD_PATTERN
 
 
@@ -195,6 +198,30 @@ def _normalize_words(value):
     return " ".join(get_normalized_word_tokens(value))
 
 
+def _normalize_comparison(value):
+    """Comparison-key whitespace: collapse it, but keep a paragraph break.
+
+    A single line ending is a soft wrap inside a paragraph, so it collapses to
+    an ordinary space and the words on either side may fuse. A blank line
+    separates two paragraphs and stays "\\n\\n", so the spelling-independent
+    capacity never fuses a word across one (#2293). The definition of a
+    paragraph break is the project's existing one
+    (``iter_source_paragraph_ranges``: CRLF is atomic, a single line ending is
+    a wrap, U+2029 ends a paragraph).
+    """
+    value = unicodedata.normalize(
+        "NFC", remove_silent_word_characters(value)).casefold()
+    # Most entries are one line with no break at all; counting line endings
+    # keeps them off the paragraph iterator (which then costs nothing in the
+    # common case).
+    if ("\u2029" not in value and "\r" not in value
+            and value.count("\n") + value.count("\u2028") < 2):
+        return " ".join(value.split())
+    return "\n\n".join(
+        " ".join(value[start:end].split())
+        for start, end in iter_source_paragraph_ranges(value))
+
+
 def _comparison_text(text, *, word_boundaries="space"):
     # Transformation shared by the one comparison key. NFKC folds compatibility
     # typography ("ＯＫ" -> "OK"); Cf characters are invisible, so a
@@ -208,7 +235,8 @@ def _comparison_text(text, *, word_boundaries="space"):
     # Casefold AFTER compat folding: casefold itself can produce a mark
     # ("İ".casefold() == "i\u0307") and can decompose (Greek iota subscript), so
     # NFC after folding is what makes one word spelled two ways comparable.
-    text = _normalize(unicodedata.normalize("NFC", _normalize(text)))
+    text = _normalize_comparison(
+        unicodedata.normalize("NFC", _normalize_comparison(text)))
     return re.sub(r"(?<=\w)'(?=\w)", "", text)
 
 
@@ -230,8 +258,10 @@ def get_comparison_word_view(text, *, word_boundaries="space"):
 def get_comparison_tokens_and_gaps(text, *, word_boundaries="space"):
     """Comparison-key tokens and whether each gap may fuse its two neighbours.
 
-    A gap is fusable only when it holds whitespace: punctuation keeps two lines
-    apart even though the key drops the punctuation itself.
+    A gap is fusable only when it holds whitespace and no blank line:
+    punctuation keeps two lines apart even though the key drops the
+    punctuation itself, and a paragraph break means the words on either side
+    are not one line, so capacity must not fuse across it (#2293).
     """
     text = _comparison_text(text, word_boundaries=word_boundaries)
     tokens, fusable = [], []
@@ -239,7 +269,8 @@ def get_comparison_tokens_and_gaps(text, *, word_boundaries="space"):
     for match in _comparison_word_pattern(text).finditer(text):
         if tokens:
             gap = text[previous_end:match.start()]
-            fusable.append(all(character.isspace() for character in gap))
+            fusable.append(all(character.isspace() for character in gap)
+                           and "\n\n" not in gap)
         else:
             fusable.append(False)
         tokens.append(match.group())
@@ -255,6 +286,9 @@ def get_boundary_insensitive_counter(source_text):
     and both ends sit on token boundaries. Tokens fuse only across whitespace
     (punctuation still separates lines) and copies may not overlap, so capacity
     can never exceed the number of source copies the book actually carries.
+    ZWNJ is an optional separator here: the primary key keeps it inside its
+    word, but a line written with "می" + ZWNJ + "روم" and one written
+    "میروم" (or "می روم") are the same line for capacity (#2293).
     """
     tokens, fusable = get_comparison_tokens_and_gaps(source_text)
     fused_parts = []
@@ -265,6 +299,7 @@ def get_boundary_insensitive_counter(source_text):
     for index, token in enumerate(tokens):
         if index and not fusable[index]:
             bad_boundaries.append(offset)
+        token = token.replace(ZERO_WIDTH_NON_JOINER, "")
         token_starts.append(offset)
         fused_parts.append(token)
         offset += len(token)
@@ -274,7 +309,7 @@ def get_boundary_insensitive_counter(source_text):
     end_offsets = set(token_ends)
 
     def count_occurrences(phrase):
-        target = "".join(phrase.split())
+        target = "".join(phrase.split()).replace(ZERO_WIDTH_NON_JOINER, "")
         if not target:
             return 0
         count = 0
@@ -470,10 +505,6 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     # that keeps it does too. Otherwise the output keeps the previous treatment
     # of deleting it, so an ASCII source's behaviour is unchanged. (#2293)
     output_boundaries = "space" if source_has_boundaries else "fused"
-    output_has_boundaries = any(
-        any(character in str(entry.get("text") or "")
-            for character in WORD_BOUNDARIES)
-        for entry in entries if isinstance(entry, dict))
     if len(source_text) + sum(len(e.get("text", "")) for e in entries
                               if isinstance(e, dict) and isinstance(e.get("text"), str)) > 4000000:
         return [_finding("manual_review", "contained_duplicate_budget_exhausted",
@@ -493,13 +524,13 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     needles = list(dict.fromkeys(texts[i] for i in sorted(character_rows) if texts[i]))
     if not needles:
         return []
-    # A mixed source can carry one copy spaced and another fused, so no single
-    # source key sees both; and an output that keeps a ZWSP can match a source
-    # with no ZWSP at all. The spelling-independent count is built once, only
-    # when either side makes the spelling ambiguous.
-    count_boundary_copies = (get_boundary_insensitive_counter(source_text)
-                             if source_has_boundaries or output_has_boundaries
-                             else None)
+    # A line may be spelled more than one way in the source itself ("the cat"
+    # and "thecat" in one book), so no single source key sees every copy. The
+    # spelling-independent count is built once and consulted only for a needle
+    # that already exceeds its per-view capacity. Building it always is what
+    # makes capacity "per line, not per spelling"; it costs about 0.09 s on a
+    # 0.46 MB source, and only an excess count calls it.
+    count_boundary_copies = get_boundary_insensitive_counter(source_text)
     needle_starts = {needle.split()[0] for needle in needles}
     # The audit word view was tokenized with the mark-dropping _WORD_RE, so it
     # is only trustworthy for an ASCII source with no apostrophe variant: there
@@ -1107,10 +1138,11 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         # count can raise capacity to the true number of source copies, never
         # above it, so a needle already within its per-view capacity cannot
         # become a finding because of it.
-        if count_boundary_copies is not None and all_emitted > capacity + added_capacity:
+        if all_emitted > capacity + added_capacity:
             # ONE RULE: capacity is the number of non-overlapping source copies
-            # that spell this line when a space and a U+200B are both optional
-            # separators, so every output spelling of one line gets one capacity.
+            # that spell this line when a space, a U+200B and a ZWNJ are all
+            # optional separators, so every output spelling of one line gets
+            # one capacity.
             capacity = max(capacity, count_boundary_copies(needle))
         if not capacity:
             continue
@@ -1542,17 +1574,19 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
         script_words = Counter(
             word for text in texts
             for word in _WORD_RE.findall(text))
-        # A boundary character may be rendered either way, so measure coverage
-        # against both the split ("Go home") and fused ("Gohome") source views
-        # and keep the better one. The fused view comes from the same comparison
-        # key the duplicate gate uses, so coverage and capacity cannot disagree
-        # about ZWNJ/ZWJ/BOM. Only boundary sources pay for the second count;
-        # every other source has exactly one view.
+        # A source word may be spelled another way, so measure coverage against
+        # both the split view and the fused comparison view and keep the better
+        # one. The fused view is THE comparison key the duplicate gate uses, so
+        # coverage and capacity cannot disagree about ZWNJ, ZWJ or BOM. An
+        # ASCII source with no apostrophe fold is the same words in both views
+        # by construction, so a plain book pays nothing for the second one.
         source_views = [Counter(source_tokens)]
-        if not source_text.isascii() and any(
-                character in source_text for character in WORD_BOUNDARIES):
-            fused_source = get_comparison_word_view(source_text, word_boundaries="fused")
-            source_views.append(Counter(fused_source.split()))
+        if not source_text.isascii() or any(
+                character in source_text for character in _APOSTROPHE_VARIANTS):
+            fused_view = Counter(get_comparison_word_view(
+                source_text, word_boundaries="fused").split())
+            if fused_view != source_views[0]:
+                source_views.append(fused_view)
         del source_tokens
         source_total = sum(source_views[0].values())
         coverage = 0.0
