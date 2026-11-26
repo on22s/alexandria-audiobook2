@@ -159,6 +159,20 @@ class TestFindSplits(unittest.TestCase):
         config = {"राम": dict(LORA), "रमा": dict(CUSTOM)}
         self.assertEqual([], find_splits(config, {}, {"राम": 10, "रमा": 4}))
 
+    def test_casefold_spellings_of_one_name_still_report_a_split(self):
+        # `İBRAHİM` and `Ibrahim` are one character: casefold adds a dot to
+        # the first, and that dot is an optional mark, not a second name.
+        config = {"İBRAHİM": dict(LORA), "Ibrahim": dict(CUSTOM)}
+        splits = find_splits(config, {}, {"İBRAHİM": 3, "Ibrahim": 40})
+        self.assertEqual(1, len(splits))
+        self.assertEqual({"İBRAHİM", "Ibrahim"}, set(splits[0]["keys"]))
+
+    def test_arabic_optional_diacritics_still_report_a_split(self):
+        config = {"مُحَمَّد": dict(LORA), "محمد": dict(CUSTOM)}
+        splits = find_splits(config, {}, {"مُحَمَّد": 2, "محمد": 30})
+        self.assertEqual(1, len(splits))
+        self.assertEqual({"مُحَمَّد", "محمد"}, set(splits[0]["keys"]))
+
 
 class TestAdapterIdIsPartOfIdentity(unittest.TestCase):
     """The field is adapter_id, not adapter. Getting it wrong hid the worst

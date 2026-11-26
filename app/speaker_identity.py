@@ -197,19 +197,51 @@ def build_speaker_consistency_report(entries, identity_review=None):
             "review_suggestions": suggestions}
 
 
+_IDENTITY_MARK_SCRIPTS = (
+    # Brahmic abugidas: the vowel signs, viramas and nuktas are part of a name.
+    "DEVANAGARI", "BENGALI", "GURMUKHI", "GUJARATI", "ORIYA", "TAMIL",
+    "TELUGU", "KANNADA", "MALAYALAM", "SINHALA", "BRAHMI", "KAITHI",
+    "KHOJKI", "KHUDAWADI", "MULTANI", "SHARADA", "SIDDHAM", "TIRHUTA",
+    "GRANTHA", "NEWA", "BHAIKSUKI", "MARCHEN", "MASARAM GONDI",
+    "GUNJALA GONDI", "SOYOMBO", "ZANABAZAR SQUARE", "NANDINAGARI",
+    "DIVES AKURU", "CHAKMA", "MODI", "TAKRI", "AHOM", "DOGRA",
+    "SAURASHTRA", "SYLOTI NAGRI", "MEETEI MAYEK", "KHAROSHTHI", "LEPCHA",
+    "LIMBU", "BUGINESE", "REJANG", "MAKASAR",
+    # Southeast-Asian abugidas.
+    "THAI", "LAO", "TIBETAN", "MYANMAR", "KHMER", "BALINESE", "JAVANESE",
+    "SUNDANESE", "BATAK", "CHAM", "TAGALOG", "HANUNOO", "BUHID", "TAGBANWA",
+    "TAI THAM", "TAI VIET", "NEW TAI LUE",
+)
+
+
+def _is_identity_mark(char):
+    """True for a combining mark that changes a letter in an abugida.
+
+    `\\w` does not match combining marks, so the old fold dropped them
+    everywhere and different Devanagari names shared a key (`राम`/`रमा`). The
+    marks that must survive are the vowel signs, viramas and nuktas of the
+    Brahmic and Southeast-Asian abugidas. Elsewhere a mark is an optional
+    diacritic - Latin/Greek/Cyrillic accents (including the ones casefold
+    introduces, such as İ's dot), Arabic harakat, Hebrew niqqud - and it folds
+    away exactly as it did before.
+    """
+    if unicodedata.category(char) not in ("Mn", "Mc"):
+        return False
+    name = unicodedata.name(char, "")
+    return any(name.startswith(script + " ") for script in _IDENTITY_MARK_SCRIPTS)
+
+
 def _identity_key(value):
     """Fold a speaker name to a comparable identity key.
 
-    Combining marks (Mn/Mc) are part of the identity. They are not `\\w`, so
-    dropping them made Devanagari vowel signs vanish and different names share
-    a key: `राम`/`रमा` both folded to `रम`, and `सीता`/`सता` to `सत`. Spacing
-    and punctuation still fold. Latin accents keep matching across composed and
-    decomposed forms because NFC runs before casefold.
+    NFC runs before casefold so composed and decomposed accents compare equal;
+    marks are then kept only when they are identity-bearing (see
+    `_is_identity_mark`). Spacing and punctuation always fold.
     """
     normalized = unicodedata.normalize("NFC", str(value or "")).casefold()
     return "".join(char for char in normalized
                    if char == "_" or char.isalnum()
-                   or unicodedata.category(char) in ("Mn", "Mc"))
+                   or _is_identity_mark(char))
 
 
 def get_speaker_label_index(labels):

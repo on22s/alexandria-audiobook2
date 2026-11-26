@@ -111,13 +111,19 @@ class SpeakerIdentityTests(unittest.TestCase):
 
 
 class CombiningMarkIdentityTests(unittest.TestCase):
-    """Names that differ only in combining marks are different characters.
+    """A combining mark is kept only where it is part of the letter.
 
     THE BUG. `_identity_key` removed everything that is not `\\w`, and `\\w`
     does not match combining marks (Mn/Mc). Devanagari vowel signs are Mc, so
     `राम` and `रमा` both folded to `रम`, and `सीता`/`सता` to `सत`; the
     stabilizer then rewrote the second character's label to the first and two
     characters shared one voice.
+
+    THE OTHER HALF. Keeping every Mn/Mc split names that are one character:
+    casefold turns `İ` into `i` plus a dot, and Arabic harakat, Hebrew niqqud
+    and Latin/Greek accents are optional diacritics, not different names. Only
+    the vowel signs, viramas and nuktas of the Brahmic and Southeast-Asian
+    abugidas are identity-bearing, so only those marks are kept.
     """
 
     def test_devanagari_vowel_signs_are_kept_in_the_key(self):
@@ -125,29 +131,54 @@ class CombiningMarkIdentityTests(unittest.TestCase):
         self.assertNotEqual(_identity_key("राम"), _identity_key("रमा"))
         self.assertNotEqual(_identity_key("सीता"), _identity_key("सता"))
 
-    def test_other_combining_mark_scripts_keep_names_distinct(self):
+    def test_other_abugida_marks_keep_names_distinct(self):
         pairs = [
-            ("Bengali", "রাম", "রমা"),          # Mc vowel sign
-            ("Tamil", "ராமா", "ரமா"),            # Mc vowel sign
-            ("Arabic vowelled", "رَام", "رام"),  # Mn harakat
-            ("Hebrew niqqud", "שָׁלוֹם", "שלום"),  # Mn points
+            ("Bengali", "রাম", "রমা"),           # Mc vowel sign
+            ("Tamil", "ராமா", "ரமா"),             # Mc vowel sign
+            ("Thai", "กิ", "ก"),                  # Mn vowel sign
+            ("Khmer", "កិ", "ក"),                  # Mn vowel sign
+            ("Tibetan", "ཀི", "ཀ"),                # Mn vowel sign
         ]
         for script, first, second in pairs:
             with self.subTest(script=script):
                 self.assertNotEqual(_identity_key(first), _identity_key(second))
 
-    def test_vowelled_and_unvowelled_arabic_stay_distinct(self):
-        """Deliberate: optional diacritics are not merged.
+    def test_precomposed_indic_letter_keeps_its_nukta(self):
+        # NFC decomposes U+0958 to क + nukta; the two spellings are one letter
+        # and both differ from plain क.
+        self.assertEqual(_identity_key("\u0958"), _identity_key("क\u093c"))
+        self.assertNotEqual(_identity_key("\u0958"), _identity_key("क"))
 
-        Keeping two names apart cannot cost a voice; merging names that are
-        merely written differently can, so the smaller change keeps them
-        distinct. A book that spells one name both ways still resolves each
-        spelling on its own.
+    def test_optional_diacritics_fold_exactly_as_before(self):
+        """The pairs main already merged must stay merged.
+
+        Latin/Greek/Cyrillic accents (including the ones casefold introduces),
+        Arabic harakat and Hebrew niqqud are optional: they do not make a new
+        name, so they fold away.
         """
-        self.assertNotEqual(_identity_key("رَام"), _identity_key("رام"))
+        pairs = [
+            ("İbrahim", "Ibrahim"),              # casefold makes U+0307
+            ("İSMAİL", "ISMAIL"),
+            ("مُحَمَّد", "محمد"),                   # Arabic harakat
+            ("رَام", "رام"),
+            ("שָׁלוֹם", "שלום"),                    # Hebrew niqqud
+            ("ǰ", "j"), ("ẖ", "h"), ("ẗ", "t"), ("ẘ", "w"), ("ẙ", "y"),
+            ("ΐ", "ι"), ("ΰ", "υ"), ("ῦ", "υ"), ("ᾶ", "α"),
+        ]
+        for first, second in pairs:
+            with self.subTest(first=first, second=second):
+                self.assertEqual(_identity_key(first), _identity_key(second))
+
+    def test_precomposed_greek_varia_is_left_as_main_had_it(self):
+        # `ὺ` (U+1F7A) is one letter, not a bare mark: NFC keeps it composed
+        # and the old key kept it too. Only the forms casefold actually
+        # decomposes (ΐ, ΰ, ᾶ, ῦ) fold to their base letter.
+        self.assertEqual("ὺ", _identity_key("ὺ"))
+        self.assertEqual("ὺ", _identity_key("υ\u0300"))
+        self.assertNotEqual(_identity_key("ὺ"), _identity_key("υ"))
 
     def test_controls_and_latin_keys_are_unchanged(self):
-        """Byte-identical keys for the English/Latin books already on disk."""
+        """Representative Latin keys stay as they were."""
         expected = {
             "Ram": "ram", "Rama": "rama",
             "MR SMITH": "mrsmith", "MRS SMITH": "mrssmith",
@@ -166,9 +197,25 @@ class CombiningMarkIdentityTests(unittest.TestCase):
         self.assertEqual(_identity_key("JOSÉ"), _identity_key(decomposed))
         self.assertEqual(_identity_key("Nguyễn"), _identity_key("Nguye\u0302\u0303n"))
         self.assertNotEqual(_identity_key("JOSÉ"), _identity_key("JOSE"))
-        # Casefold decomposes this letter; the key must still match its
-        # uppercase-plus-caron spelling rather than keep a stray mark.
+        # Casefold decomposes ǰ into j plus a combining caron; that mark is
+        # not part of an abugida, so it folds away and matches plain j. NFC
+        # runs once, before casefold - it is not run again to recompose.
         self.assertEqual(_identity_key("ǰ"), _identity_key("J\u030C"))
+        self.assertEqual(_identity_key("ǰ"), _identity_key("j"))
+
+    def test_casefold_and_optional_diacritics_merge_end_to_end(self):
+        result = stabilize_speaker_identities(
+            [_entry("İBRAHİM"), _entry("Ibrahim")], ["İBRAHİM"])
+        self.assertEqual(["İBRAHİM", "İBRAHİM"],
+                         [entry["speaker"] for entry in result["entries"]])
+        self.assertEqual("İBRAHİM",
+                         resolve_speaker_label("Ibrahim", ["İBRAHİM"]))
+        result = stabilize_speaker_identities(
+            [_entry("مُحَمَّد"), _entry("محمد")], ["مُحَمَّد"])
+        self.assertEqual(["مُحَمَّد", "مُحَمَّد"],
+                         [entry["speaker"] for entry in result["entries"]])
+        self.assertEqual("مُحَمَّد",
+                         resolve_speaker_label("محمد", ["مُحَمَّد"]))
 
     def test_two_devanagari_names_are_not_relabelled_by_stabilization(self):
         entries = [_entry("राम"), _entry("रमा")]
