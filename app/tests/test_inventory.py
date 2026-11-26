@@ -1,6 +1,7 @@
 from tests.test_support import get_isolated_git_environment, isolate_git_environment
 import ast
 import importlib
+import inspect
 import json
 import os
 from pathlib import Path
@@ -82,22 +83,69 @@ def _iter_tests(suite):
             yield test
 
 
-def _uncollected_test_functions(path):
-    """Module-level test functions that unittest would silently not run.
+def _module_level_functions(body):
+    """Yield function definitions that are not nested in a class or function.
 
-    The default loader collects TestCase methods, or whatever ``load_tests``
-    returns; it never collects module-level functions. A pytest-style module
-    therefore imports and discovers cleanly while running none of its tests.
-    Return those names so discovery can fail loud instead of recording ``[]``.
+    Includes definitions inside a top-level ``if``/``try``/``with``/loop, so a
+    test defined under ``if __name__ == "__main__":`` cannot hide either.
+    """
+    for node in body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            yield node
+        elif isinstance(node, (ast.If, ast.Try, ast.With, ast.For, ast.While)):
+            yield from _module_level_functions(node.body)
+            yield from _module_level_functions(getattr(node, "orelse", []))
+            for handler in getattr(node, "handlers", []):
+                yield from _module_level_functions(handler.body)
+            yield from _module_level_functions(getattr(node, "finalbody", []))
+
+
+def _discovery_failures(path, collected):
+    """Why a tracked test module would silently not run some of its tests.
+
+    unittest collects TestCase methods, or whatever ``load_tests`` returns; it
+    never collects module-level functions, and it does not await an ``async``
+    test method on a plain TestCase. A pytest-style module therefore imports
+    and discovers cleanly while running none of its tests. Return those shapes
+    so discovery fails loud instead of recording a plausible-looking ``[]``.
+
+    A helper named ``test_*`` that is not a test is rejected too: the naming
+    rule is what makes discovery ambiguous, so the message tells the author to
+    rename the helper rather than exempting it here.
+
+    This also means a future shared helper module named ``test_*.py`` that
+    collects no tests will block ``verify_release.py`` and ``ready.sh``. That
+    is intended: name helpers something other than ``test_*.py``, or add the
+    module to ``EXCLUDED_TEST_MODULES`` if it is deliberately not a test.
     """
     tree = ast.parse(Path(path).read_text(encoding="utf-8"), str(path))
-    if any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-           and node.name == "load_tests" for node in tree.body):
-        # load_tests may wrap these in FunctionTestCase and does collect them.
-        return []
-    return [node.name for node in tree.body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name.startswith("test")]
+    functions = list(_module_level_functions(tree.body))
+    collected_ids = {test.id() for test in collected}
+    # FunctionTestCase.id() is the function's own name, so a function wrapped
+    # by load_tests is represented here; a bare test_* function is not.
+    collected_names = {identifier.rsplit(".", 1)[-1] for identifier in collected_ids}
+    problems = []
+    uncollected = [node.name for node in functions
+                   if node.name.startswith("test") and node.name != "load_tests"
+                   and node.name not in collected_ids
+                   and node.name not in collected_names]
+    if uncollected:
+        problems.append(
+            "unittest does not collect these module-level test functions "
+            "(rename a non-test helper so it does not start with 'test'): "
+            + ", ".join(uncollected))
+    unawaited = [f"{type(test).__name__}.{getattr(test, '_testMethodName', '')}"
+                 for test in collected
+                 if isinstance(test, unittest.TestCase)
+                 and not isinstance(test, unittest.IsolatedAsyncioTestCase)
+                 and inspect.iscoroutinefunction(
+                     getattr(type(test), getattr(test, "_testMethodName", ""), None))]
+    if unawaited:
+        problems.append("async test methods on a non-IsolatedAsyncioTestCase are "
+                        "never awaited: " + ", ".join(unawaited))
+    if not collected_ids and not problems:
+        problems.append("module yields no unittest tests")
+    return problems
 
 
 class InventoryUnavailable(RuntimeError):
@@ -151,13 +199,11 @@ def get_unit_test_inventory(test_directory=None, *, module_names=None):
             failures.append((qualified, _import_failure_reason(error)))
             continue
         suite = unittest.defaultTestLoader.loadTestsFromModule(module)
-        test_ids = sorted(test.id() for test in _iter_tests(suite))
-        uncollected = _uncollected_test_functions(directory / f"{module_name}.py")
-        if uncollected:
-            failures.append((qualified, "unittest does not collect module-level "
-                             "test functions: " + ", ".join(uncollected)))
-        elif not test_ids:
-            failures.append((qualified, "module yields no unittest tests"))
+        collected = list(_iter_tests(suite))
+        test_ids = sorted(test.id() for test in collected)
+        for reason in _discovery_failures(
+                directory / f"{module_name}.py", collected):
+            failures.append((qualified, reason))
         inventory[module_name] = test_ids
     if failures:
         raise InventoryUnavailable(failures)
@@ -735,10 +781,12 @@ class UncollectedTestGuardTests(unittest.TestCase):
     """A module unittest runs zero tests from must fail discovery, not read as [].
 
     Thirteen pytest-style modules once imported and discovered cleanly while
-    every one of their tests was silently skipped. These fixtures pin the two
-    shapes that caused it: a module whose tests are all module-level functions,
-    and a module that mixes a TestCase class with bare functions so the class
-    hides them.
+    every one of their tests was silently skipped. These fixtures pin each
+    shape that hides tests: a module whose tests are all module-level
+    functions, a module that mixes a TestCase class with bare functions so the
+    class hides them, a bare function a ``load_tests`` wrapper forgot, a test
+    defined under ``if __name__ == "__main__":``, and an ``async`` test method
+    on a plain TestCase whose coroutine is never awaited.
     """
 
     def run_discovery(self, name, source):
@@ -769,6 +817,52 @@ class UncollectedTestGuardTests(unittest.TestCase):
         self.assertIn("module-level test functions", reason)
         self.assertIn("test_alpha", reason)
         self.assertIn("test_beta", reason)
+        # A helper that is not a test is rejected by naming rule, so the error
+        # has to tell the author how to fix it rather than just naming it.
+        self.assertIn("rename", reason)
+
+    def test_async_method_on_a_plain_test_case_is_rejected(self):
+        result = self.run_discovery(
+            "test_zz_guard_async",
+            "import unittest\n\n\n"
+            "class NotAsync(unittest.TestCase):\n"
+            "    async def test_never_awaited(self):\n        pass\n")
+        reason = self.failure_reason("test_zz_guard_async", result)
+        self.assertIn("never awaited", reason)
+        self.assertIn("test_never_awaited", reason)
+
+    def test_async_method_on_isolated_asyncio_test_case_is_accepted(self):
+        result = self.run_discovery(
+            "test_zz_guard_isolated",
+            "import unittest\n\n\n"
+            "class Async(unittest.IsolatedAsyncioTestCase):\n"
+            "    async def test_awaited(self):\n        pass\n")
+        self.assertEqual(
+            {"test_zz_guard_isolated":
+             ["tests.test_zz_guard_isolated.Async.test_awaited"]}, result)
+
+    def test_bare_function_hidden_under_main_is_rejected(self):
+        result = self.run_discovery(
+            "test_zz_guard_under_main",
+            "import unittest\n\n\n"
+            "if __name__ == \"__main__\":\n"
+            "    def test_hidden():\n        pass\n")
+        reason = self.failure_reason("test_zz_guard_under_main", result)
+        self.assertIn("test_hidden", reason)
+
+    def test_load_tests_that_forgets_a_bare_function_is_rejected(self):
+        result = self.run_discovery(
+            "test_zz_guard_orphan",
+            "import unittest\n\n\n"
+            "def test_included():\n    pass\n\n\n"
+            "def test_orphan():\n    pass\n\n\n"
+            "def load_tests(loader, tests, pattern):\n"
+            "    suite = unittest.TestSuite()\n"
+            "    suite.addTest(unittest.FunctionTestCase(test_included))\n"
+            "    return suite\n")
+        reason = self.failure_reason("test_zz_guard_orphan", result)
+        self.assertIn("test_orphan", reason)
+        self.assertNotIn("test_included", reason)
 
     def test_module_mixing_a_class_and_bare_function_is_rejected(self):
         result = self.run_discovery(
