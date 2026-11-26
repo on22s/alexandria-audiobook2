@@ -110,7 +110,7 @@ from generate_script import LLMGenParams
 from utils import file_lock, is_path_inside
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from alexandria_alignment import validate_epub_archive
-from epub_package import get_epub_package
+from epub_package import get_epub_package, is_navigation_document
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
 from epub_extraction_report import EpubExtractionReport
 from project_scope_files import capture_scope_file
@@ -861,7 +861,7 @@ def _resolve_epub_href(base_path, href):
 def _get_epub3_toc_entries(zf, manifest, *, report=None):
     decisions = []
     nav_items = [item for item in manifest.values()
-                 if 'nav' in item['properties'].split()]
+                 if is_navigation_document(item['properties'])]
     for nav_item in nav_items:
         try:
             root = ET.fromstring(zf.read(nav_item['path']))
@@ -1103,6 +1103,16 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
         skipped_paths = {}
         for spine_index, item_id in enumerate(spine_ids):
             item = manifest.get(item_id)
+            # The EPUB 3 navigation document is a table of contents, not
+            # story text. Read-aloud already skips the whole document, so
+            # extraction skips it too (either one skipping only part would
+            # make the two disagree about what text the book contains).
+            if item is not None and is_navigation_document(item['properties']):
+                skipped_paths[item['path']] = 'navigation_document'
+                if report is not None:
+                    report.apply_row('spine', index=spine_index, item_id=item_id,
+                                     resource=item['path'], reason='navigation_document')
+                continue
             # One canonical media-type value drives both spine admission
             # and the strict-XML dispatch below (RFC 6838 sec. 4.2: MIME
             # type/subtype is case-insensitive). Parameters are stripped

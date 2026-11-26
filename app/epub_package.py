@@ -62,3 +62,13 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
                                    'selected_rootfile_index': 0,
                                    'narrow_refines_repair_applied': repaired_metadata}
     return opf_path, package
+
+
+def is_navigation_document(properties):
+    """Return whether a manifest ``properties`` value names the EPUB nav doc.
+
+    EPUB 3 ``properties`` is a whitespace-separated token list, so ``nav``
+    must match a whole token: ``navx`` or ``scripted nav-like`` is not the
+    navigation document. One rule for extraction and read-aloud (Rule 15).
+    """
+    return 'nav' in (properties or '').split()
