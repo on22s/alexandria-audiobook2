@@ -4033,9 +4033,11 @@
     , "tests.test_config_jsonable.ConfigIsJsonNativeTest.test_unset_profile_fields_are_dropped_not_none"
   ]
   , "test_config_key_coverage": [
-    "tests.test_config_key_coverage.ConfigReadCoverageTests.test_a_declared_key_is_not_reported"
+    "tests.test_config_key_coverage.ConfigReadCoverageTests.test_a_computed_key_is_not_followed"
+    , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_a_declared_key_is_not_reported"
     , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_a_name_off_the_list_is_not_followed"
     , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_a_reassigned_alias_is_not_assumed_to_be_a_section"
+    , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_a_tracked_name_is_assumed_to_be_its_section"
     , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_every_read_config_key_is_declared"
     , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_profile_subscript_is_not_a_config_key"
     , "tests.test_config_key_coverage.ConfigReadCoverageTests.test_receiver_call_arguments_are_not_followed"

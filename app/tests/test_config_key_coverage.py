@@ -21,8 +21,11 @@ The scan is AST and name based. It reports these reads as a key on a section:
 It does NOT follow a section returned by a function call
 (`load_section(config).get("key")`), a name not in `NAME_SECTION` and not a
 plain alias, a computed key, or any read that is not a `.get`/subscript on one
-of those receivers. The documented exceptions keep the reads the scan does see
-but that are deliberately not declared settings.
+of those receivers. Because the rule is name based, a tracked name is assumed
+to be its section even where a local variable of that name is something else;
+the scan cannot prove otherwise for a function parameter. The documented
+exceptions keep the reads the scan does see but that are deliberately not
+declared settings.
 """
 import ast
 from pathlib import Path
@@ -81,7 +84,8 @@ DOCUMENTED_EXCEPTIONS = {
     ("llm", "provider_extra_body_raw"):
         "Setup editor helper field, stripped by AppConfig.restore_exact_provider_body",
     ("llm", "max_spend_usd"):
-        "experiment-only spend cap (app/experiments/audio_judge_probe.py); not an app setting",
+        "experiment-only spend cap (audio_judge_probe.py); a Settings save still "
+        "drops it, but declaring it would add an app setting - out of scope for #2335",
 }
 
 
@@ -332,6 +336,26 @@ class ConfigReadCoverageTests(unittest.TestCase):
             "    return other.get('not_a_declared_setting')\n"
         )
         self.assertEqual([], self._violations(source))
+
+    def test_a_computed_key_is_not_followed(self):
+        source = (
+            "def chunk(generation_config, name):\n"
+            "    return generation_config.get(name)\n"
+        )
+        self.assertEqual([], self._violations(source))
+
+    def test_a_tracked_name_is_assumed_to_be_its_section(self):
+        # Kept, not narrowed. A function parameter named `llm` can only be
+        # identified by name, so the scan treats it as the llm section even if
+        # the caller passed something else. This is the documented cost of the
+        # name-based rule; narrowing it would lose every config section passed
+        # as a parameter.
+        source = (
+            "def chunk(llm):\n"
+            "    return llm.get('not_a_declared_setting')\n"
+        )
+        self.assertEqual(["synthetic.py:2: undeclared llm.not_a_declared_setting"],
+                         self._violations(source))
 
     def test_every_read_config_key_is_declared(self):
         violations, seen_exceptions = scan_app()
