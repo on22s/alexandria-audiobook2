@@ -197,7 +197,8 @@ def _path_digest(source_path):
     return hashlib.sha256(source_path.encode('utf-8')).hexdigest()
 
 
-def get_bound_source_path(data_dir, binding, *, active, selected=None):
+def get_bound_source_path(data_dir, binding, *, active, selected=None,
+                          saved_books_root=None):
     """Find the one on-disk file whose path digest the binding recorded.
 
     A binding stores only the digest of its source path, so every surface that
@@ -211,10 +212,12 @@ def get_bound_source_path(data_dir, binding, *, active, selected=None):
     if active:
         candidates = [selected]
     else:
-        candidates = [selected] if isinstance(selected, str) else []
+        candidates = [selected] if isinstance(selected, str) and selected else []
         uploads = get_app_storage_path(data_dir, ROOT_DIR, BASE_DIR, 'uploads')
         if os.path.isdir(uploads):
             for path in Path(uploads).iterdir():
+                if path.suffix.lower() == '.json':
+                    continue
                 candidates.extend((str(path), path.as_posix(),
                                    os.path.join(uploads, path.name)))
     paths = {path for path in candidates if _path_digest(path) == binding['source_path_sha256']}
@@ -225,14 +228,204 @@ def get_bound_source_path(data_dir, binding, *, active, selected=None):
         # Save As copies the active binding, whose source can be another saved
         # book. Existing bindings contain only a path hash. Match direct
         # library names before opening any candidate's bytes.
-        library = Path(os.path.abspath(data_dir), 'scripts')
+        library = (Path(os.path.abspath(saved_books_root))
+                   if saved_books_root is not None
+                   else Path(os.path.abspath(data_dir), 'scripts'))
         if is_plain_path(library) and library.is_dir():
             paths = {str(path) for path in library.iterdir()
                      if _is_saved_book_filename(path.name)
-                     and _path_digest(str(path)) == binding['source_path_sha256']}
+                     and any(_path_digest(spelling) == binding['source_path_sha256']
+                             for spelling in (str(path), path.as_posix()))}
     if len(paths) != 1:
         raise ValueError('Bound source path cannot be verified')
     return paths.pop()
+
+
+class SavedSourceResolutionError(ValueError):
+    """Structured failure when resolving a saved book's verified origin chain."""
+
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+def _validate_saved_book_member(data_dir, candidate_path, *, saved_books_root=None):
+    """Confine a saved script path to a direct plain child of the book library."""
+    from direct_path_admission import is_plain_path
+    from routers.scripts_library import _is_saved_book_filename
+
+    if not isinstance(data_dir, (str, os.PathLike)) or not os.fspath(data_dir):
+        raise SavedSourceResolutionError('outside_library', 'Invalid book data directory.')
+    data_root = Path(os.path.abspath(data_dir))
+    library = (Path(os.path.abspath(saved_books_root))
+               if saved_books_root is not None
+               else data_root / 'scripts')
+    try:
+        library_rel = library.relative_to(data_root)
+    except ValueError:
+        raise SavedSourceResolutionError(
+            'outside_library', 'Saved script library is outside the book data directory.') from None
+    if not library_rel.parts:
+        raise SavedSourceResolutionError(
+            'outside_library', 'Saved script library must be a subdirectory of the book data directory.')
+    try:
+        if not is_plain_path(data_root) or not is_plain_path(library):
+            raise SavedSourceResolutionError(
+                'outside_library', 'Saved script library must be a plain directory.')
+    except OSError as error:
+        raise SavedSourceResolutionError(
+            'outside_library', 'Saved script library cannot be verified.') from error
+    if not isinstance(candidate_path, (str, os.PathLike)):
+        raise SavedSourceResolutionError(
+            'outside_library', 'Saved script must be a direct saved book inside the library.')
+    text_path = os.fspath(candidate_path)
+    if not text_path or '\0' in text_path:
+        raise SavedSourceResolutionError(
+            'outside_library', 'Saved script must be a direct saved book inside the library.')
+    try:
+        plain = is_plain_path(text_path)
+    except OSError as error:
+        raise SavedSourceResolutionError(
+            'outside_library', 'Saved script path cannot be verified.') from error
+    if not plain:
+        raise SavedSourceResolutionError(
+            'outside_library', 'Saved script must be a direct plain file inside the library.')
+    cand = Path(os.path.abspath(text_path))
+    same_parent = os.path.normcase(str(cand.parent)) == os.path.normcase(str(library))
+    if not same_parent and os.name != 'nt':
+        same_parent = (os.path.normcase(os.path.realpath(cand.parent))
+                       == os.path.normcase(os.path.realpath(library)))
+    if not same_parent or not _is_saved_book_filename(cand.name):
+        raise SavedSourceResolutionError(
+            'outside_library', 'Saved script must be a direct saved book inside the library.')
+    return data_root, library, library_rel, cand.name
+
+
+def _uploads_has_matching_json(data_dir, source_path_sha256):
+    """True when a binding's path digest targets a .json file inside uploads/."""
+    from core import BASE_DIR, ROOT_DIR
+    from utils import get_app_storage_path
+
+    uploads = get_app_storage_path(data_dir, ROOT_DIR, BASE_DIR, 'uploads')
+    if not os.path.isdir(uploads):
+        return False
+    for path in Path(uploads).iterdir():
+        if path.suffix.lower() != '.json':
+            continue
+        if any(_path_digest(spelling) == source_path_sha256
+               for spelling in (str(path), path.as_posix(), os.path.join(uploads, path.name))):
+            return True
+    return False
+
+
+def resolve_saved_book_origin(
+    data_dir: str,
+    saved_script_path: str,
+    *,
+    saved_books_root: str | None = None,
+    expected_script_sha256: str | None = None,
+    require_terminal_file: bool = True,
+) -> dict:
+    """Walk a saved library script's verified binding chain to its origin source.
+
+    Lock-free: callers hold any required book/state/library locks.
+    Confines every .json hop (including saved_script_path) to direct plain
+    files in saved_books_root (default: <data_dir>/scripts) matching
+    _is_saved_book_filename, checks expected_script_sha256 at hop 0 when
+    given, checks saved_binding_matches AND binding['source_sha256'] at
+    EVERY hop (intermediate .json AND terminal prose), enforces cycle and
+    MAX_SOURCE_BINDING_HOPS guards, and raises a structured
+    SavedSourceResolutionError(code, message) on failure.
+    """
+    from project_scope_files import capture_scope_file, MAX_SCRIPT_BYTES
+
+    if expected_script_sha256 is not None:
+        try:
+            _digest(expected_script_sha256)
+        except ValueError as error:
+            raise SavedSourceResolutionError('damaged_binding', 'Invalid expected script digest.') from error
+    data_root, library, library_rel, current_name = _validate_saved_book_member(
+        data_dir, saved_script_path, saved_books_root=saved_books_root)
+    seen = set()
+    hops = []
+    expected_sha = expected_script_sha256
+    for _hop in range(MAX_SOURCE_BINDING_HOPS):
+        member_path = library / current_name
+        member_rel = (library_rel / current_name).as_posix()
+        binding_name = Path(current_name).stem + '.selection_binding.json'
+        binding_rel = (library_rel / binding_name).as_posix()
+        binding_path = str(library / binding_name)
+        seen.add(os.path.normcase(str(member_path)))
+        try:
+            script_proof, script_raw = capture_scope_file(
+                data_root, member_rel, limit=MAX_SCRIPT_BYTES, include_bytes=True)
+        except (OSError, ValueError) as error:
+            raise SavedSourceResolutionError('damaged_binding', 'Saved script cannot be read safely.') from error
+        if not script_proof.get('exists') or script_raw is None:
+            raise SavedSourceResolutionError('missing_source', 'Saved script file is missing.')
+        script_sha256 = script_proof['sha256']
+        if expected_sha is not None and script_sha256 != expected_sha:
+            raise SavedSourceResolutionError('changed_source', 'Saved script bytes changed since it was linked.')
+        try:
+            binding_proof, raw_binding = capture_scope_file(
+                data_root, binding_rel, limit=MAX_BINDING_BYTES, include_bytes=True)
+        except (OSError, ValueError) as error:
+            raise SavedSourceResolutionError('damaged_binding', 'Saved script binding cannot be read safely.') from error
+        if not binding_proof.get('exists') or raw_binding is None:
+            raise SavedSourceResolutionError('missing_binding', 'Saved script has no original-source binding.')
+        try:
+            binding = parse_script_binding(raw_binding)
+            entries = _validated_script_entries(script_raw)
+        except (ValueError, RecursionError) as error:
+            raise SavedSourceResolutionError('damaged_binding', 'Saved script or binding is malformed.') from error
+        if not saved_binding_matches(binding, script_sha256=script_sha256, entries=entries):
+            raise SavedSourceResolutionError('damaged_binding', 'Saved script differs from its binding.')
+        try:
+            source_path = get_bound_source_path(
+                data_dir, binding, active=False, saved_books_root=library)
+        except ValueError as error:
+            if _uploads_has_matching_json(data_dir, binding['source_path_sha256']):
+                raise SavedSourceResolutionError(
+                    'outside_library', 'Saved script binding points to script JSON outside the library.') from error
+            if not require_terminal_file:
+                hops.append({'script_path': str(member_path), 'binding_path': binding_path,
+                             'source_path': None, 'source_sha256': binding['source_sha256']})
+                return {'source_path': None, 'source_sha256': binding['source_sha256'],
+                        'source_path_sha256': binding['source_path_sha256'], 'hops': hops}
+            raise SavedSourceResolutionError('missing_source', 'Bound source file is missing.') from error
+        if Path(source_path).suffix.lower() != '.json':
+            try:
+                digest, _ = _read_source_snapshot(
+                    source_path, owning_root=data_dir, missing_as_fnf=True)
+            except FileNotFoundError as error:
+                if not require_terminal_file:
+                    hops.append({'script_path': str(member_path), 'binding_path': binding_path,
+                                 'source_path': None, 'source_sha256': binding['source_sha256']})
+                    return {'source_path': None, 'source_sha256': binding['source_sha256'],
+                            'source_path_sha256': binding['source_path_sha256'], 'hops': hops}
+                raise SavedSourceResolutionError('missing_source', 'Bound source file is missing.') from error
+            except (OSError, ValueError) as error:
+                message = str(error).lower()
+                code = 'outside_library' if ('outside' in message or 'alias' in message) else 'damaged_binding'
+                raise SavedSourceResolutionError(code, 'Bound source file cannot be verified safely.') from error
+            if digest != binding['source_sha256']:
+                raise SavedSourceResolutionError('changed_source', 'Bound source bytes changed.')
+            resolved_source = os.path.abspath(source_path)
+            hops.append({'script_path': str(member_path), 'binding_path': binding_path,
+                         'source_path': resolved_source, 'source_sha256': digest})
+            return {'source_path': resolved_source, 'source_sha256': digest,
+                    'source_path_sha256': binding['source_path_sha256'], 'hops': hops}
+        _, _, _, next_name = _validate_saved_book_member(
+            data_dir, source_path, saved_books_root=library)
+        next_path = library / next_name
+        if os.path.normcase(str(next_path)) in seen:
+            raise SavedSourceResolutionError('cycle', 'Saved script binding chain loops.')
+        hops.append({'script_path': str(member_path), 'binding_path': binding_path,
+                     'source_path': str(next_path), 'source_sha256': binding['source_sha256']})
+        expected_sha = binding['source_sha256']
+        current_name = next_name
+    raise SavedSourceResolutionError('hop_limit', 'Saved script binding chain exceeds hop limit.')
 
 
 def _validated_script_entries(script_bytes, *, require_entries=True):

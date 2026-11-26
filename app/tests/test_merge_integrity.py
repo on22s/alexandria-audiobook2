@@ -47,23 +47,38 @@ class MergeIntegrityAdmission(unittest.TestCase):
     def change_rows(self, text):
         self.project.save_chunks([dict(self.rows[0], text=text)])
 
-    def write_saved_copy(self, name, source_path, text='alpha beta'):
+    def write_saved_copy(self, name, source_path, text='alpha beta', *, speaker='A', entries=None, meta=None):
         from book_state_transaction import get_book_operation_token
         from script_selection_binding import make_script_selection_binding
         scripts = self.root / 'scripts'
         scripts.mkdir(exist_ok=True)
         stored = scripts / f'{name}.json'
-        stored.write_text(json.dumps([{'speaker': 'A', 'text': text}]))
+        payload = entries if entries is not None else [{'speaker': speaker, 'text': text}]
+        stored.write_text(json.dumps(payload))
         binding = make_script_selection_binding(
             get_book_operation_token(self.temp.name),
             hashlib.sha256(Path(source_path).read_bytes()).hexdigest(),
             stored.read_bytes(), source_path=str(source_path))
         (scripts / f'{name}.selection_binding.json').write_text(json.dumps(binding))
+        if meta is not None:
+            (scripts / f'{name}.meta.json').write_text(json.dumps(meta))
         return stored
 
-    def use_saved_book(self, stored):
+    def use_saved_book(self, stored, *, write_active_binding=False):
+        from book_state_transaction import get_book_operation_token
+        from script_selection_binding import BINDING_NAME, make_script_selection_binding
         self.state['input_file_path'] = str(stored)
         self.write_state()
+        if write_active_binding:
+            stored_bytes = Path(stored).read_bytes()
+            self.script.write_bytes(stored_bytes)
+            active = make_script_selection_binding(
+                get_book_operation_token(self.temp.name, state=self.state),
+                hashlib.sha256(stored_bytes).hexdigest(),
+                stored_bytes, source_path=str(stored))
+            (self.root / BINDING_NAME).write_text(json.dumps(active))
+            self.state['script_binding_required'] = True
+            self.write_state()
 
     def test_known_word_replacement_refuses_merge_with_locations(self):
         self.change_rows('alpha gamma')
@@ -147,6 +162,367 @@ class MergeIntegrityAdmission(unittest.TestCase):
                     self.assertIn('has changed', report['reason'])
                 refusal = self.client.post('/api/merge', json={})
                 self.assertEqual(409, refusal.status_code, refusal.text)
+                self.assertEqual([], self.scheduled)
+
+    def test_overwritten_intermediate_saved_parent_is_unavailable(self):
+        uploads = self.root / 'uploads'
+        uploads.mkdir()
+        book_a = uploads / 'bookA.txt'
+        book_b = uploads / 'bookB.txt'
+        book_c = uploads / 'bookC.txt'
+        book_a.write_text('alpha beta')
+        book_b.write_text('alpha beta')
+        book_c.write_text('completely different prose')
+        draft = self.write_saved_copy('draft', book_a, text='alpha beta', speaker='A')
+        final = self.write_saved_copy('final', draft, text='alpha beta', speaker='A')
+        self.use_saved_book(final)
+        self.assertEqual('verified', self.client.get('/api/editor/integrity').json()['status'])
+        for replacement_book, replacement_text in ((book_b, 'alpha beta'), (book_c, 'completely different prose')):
+            with self.subTest(replacement=replacement_book.name):
+                self.write_saved_copy('draft', replacement_book, text=replacement_text, speaker='B')
+                report = self.client.get('/api/editor/integrity').json()
+                self.assertEqual('unavailable', report['status'], report)
+                self.assertIn('has changed', report['reason'])
+                self.assertNotEqual(replacement_book.name, report['source_name'])
+                refusal = self.client.post('/api/merge', json={})
+                self.assertEqual(409, refusal.status_code, refusal.text)
+                self.assertEqual([], self.scheduled)
+
+    def test_saved_script_confinement_rejects_outside_and_non_library_json(self):
+        from book_state_transaction import get_book_operation_token
+        from script_selection_binding import BINDING_NAME, make_script_selection_binding
+        uploads = self.root / 'uploads'
+        uploads.mkdir()
+        book = uploads / 'book.txt'
+        book.write_text('alpha beta')
+        book_sha = hashlib.sha256(book.read_bytes()).hexdigest()
+        token = get_book_operation_token(self.temp.name)
+
+        # B1: annotated_script.json with an active binding must stay unavailable.
+        active_binding = make_script_selection_binding(
+            token, book_sha, self.script.read_bytes(), source_path=str(book))
+        (self.root / BINDING_NAME).write_text(json.dumps(active_binding))
+        self.use_saved_book(self.script)
+        b1 = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('unavailable', b1['status'], b1)
+        self.assertIn('outside the saved books library', b1['reason'])
+        self.assertEqual(409, self.client.post('/api/merge', json={}).status_code)
+        (self.root / BINDING_NAME).unlink()
+
+        # B2: elsewhere/carried.json inside data_dir but outside scripts/.
+        elsewhere = self.root / 'elsewhere'
+        elsewhere.mkdir()
+        carried = elsewhere / 'carried.json'
+        carried.write_text(json.dumps([{'speaker': 'A', 'text': 'alpha beta'}]))
+        (elsewhere / 'carried.selection_binding.json').write_text(json.dumps(
+            make_script_selection_binding(token, book_sha, carried.read_bytes(), source_path=str(book))))
+        self.use_saved_book(carried)
+        b2 = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('unavailable', b2['status'], b2)
+        self.assertIn('outside the saved books library', b2['reason'])
+        self.assertEqual(409, self.client.post('/api/merge', json={}).status_code)
+
+        # B3: scripts/sub/nested.json inside a subdirectory of scripts/.
+        sub = self.root / 'scripts' / 'sub'
+        sub.mkdir(parents=True)
+        nested = sub / 'nested.json'
+        nested.write_text(json.dumps([{'speaker': 'A', 'text': 'alpha beta'}]))
+        (sub / 'nested.selection_binding.json').write_text(json.dumps(
+            make_script_selection_binding(token, book_sha, nested.read_bytes(), source_path=str(book))))
+        self.use_saved_book(nested)
+        b3 = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('unavailable', b3['status'], b3)
+        self.assertIn('outside the saved books library', b3['reason'])
+        self.assertEqual(409, self.client.post('/api/merge', json={}).status_code)
+
+        # B4: scripts/hop.json -> uploads/injected.json -> uploads/book.txt.
+        injected = uploads / 'injected.json'
+        injected.write_text(json.dumps([{'speaker': 'A', 'text': 'alpha beta'}]))
+        (uploads / 'injected.selection_binding.json').write_text(json.dumps(
+            make_script_selection_binding(token, book_sha, injected.read_bytes(), source_path=str(book))))
+        hop = self.write_saved_copy('hop', injected)
+        self.use_saved_book(hop)
+        b4 = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('unavailable', b4['status'], b4)
+        self.assertIn('outside the saved books library', b4['reason'])
+        self.assertEqual(409, self.client.post('/api/merge', json={}).status_code)
+
+        # B5: /outside/evil.json with corrupt binding outside data_dir must never be opened.
+        with tempfile.TemporaryDirectory() as outside_tmp:
+            evil = Path(outside_tmp) / 'evil.json'
+            evil.write_text(json.dumps([{'speaker': 'A', 'text': 'alpha beta'}]))
+            (Path(outside_tmp) / 'evil.selection_binding.json').write_bytes(b'{corrupt')
+            self.use_saved_book(evil)
+            b5 = self.client.get('/api/editor/integrity').json()
+            self.assertEqual('unavailable', b5['status'], b5)
+            self.assertIn('outside the saved books library', b5['reason'])
+            self.assertNotIn('Invalid script binding', b5['reason'])
+            self.assertNotIn('damaged', b5['reason'])
+            self.assertEqual(409, self.client.post('/api/merge', json={}).status_code)
+            self.assertEqual([], self.scheduled)
+
+    def test_loaded_saved_script_uses_recorded_front_matter_policy_not_stale_state(self):
+        import core
+        from literal_policy import bind_literal_policy
+        from routers import scripts_library as library
+        from tests.test_publisher_matter import StripPublisherMatterTest
+
+        wn_front = (
+            'Manifesto.\n'
+            'Translator note for synthetic test.\n'
+            'Original Web Novel Chapter - Complete.\n'
+            'Original Translation by Synthetic.\n\n'
+        )
+        wn_story = 'The morning mist cleared over the quiet valley.\n'
+        uploads = self.root / 'uploads'
+        uploads.mkdir()
+        wn_book = uploads / 'wn_book.txt'
+        wn_book.write_text(wn_front + wn_story)
+        other_book = uploads / 'other.txt'
+        other_book.write_text('Completely separate synthetic book.')
+        (self.root / 'scripts').mkdir(exist_ok=True)
+
+        # Wire up the real save/load routes alongside editor routes.
+        with contextlib.ExitStack() as stack:
+            for module in (core, library):
+                for name, value in (
+                    ('DATA_DIR', str(self.root)),
+                    ('SCRIPTS_DIR', str(self.root / 'scripts')),
+                    ('SCRIPT_PATH', str(self.script)),
+                    ('VOICE_CONFIG_PATH', str(self.root / 'voice_config.json')),
+                    ('UPLOADS_DIR', str(uploads)),
+                    ('CHUNKS_PATH', str(self.root / 'chunks.json')),
+                    ('AUDIOBOOK_PATH', str(self.root / 'book.mp3')),
+                    ('M4B_PATH', str(self.root / 'book.m4b')),
+                ):
+                    if hasattr(module, name):
+                        stack.enter_context(patch.object(module, name, value))
+            for module in (core, library):
+                stack.enter_context(patch.object(module, 'process_state', self.tasks))
+            for name in ('_task_claims', '_gpu_leases', '_saved_book_publications'):
+                stack.enter_context(patch.object(core, name, {}))
+            app = FastAPI()
+            app.include_router(editor.router)
+            app.include_router(library.router)
+            api = stack.enter_context(TestClient(app))
+
+            # Repro 1 (merge bypass): full_book saved with strip_front_matter=False,
+            # loaded, front matter removed from Editor chunks, stale state sets
+            # script_generation_input_file=wn_book + strip_front_matter=True.
+            from book_state_transaction import get_book_operation_token
+            from script_selection_binding import BINDING_NAME, make_script_selection_binding
+            full_entries = [{'speaker': 'A', 'text': wn_front + wn_story}]
+            self.script.write_text(json.dumps(full_entries))
+            self.state.update({
+                'input_file_path': str(wn_book),
+                'script_generation_input_file': str(wn_book),
+                'script_generation_options': {'strip_front_matter': False},
+            })
+            self.write_state()
+            (self.root / BINDING_NAME).write_text(json.dumps(make_script_selection_binding(
+                get_book_operation_token(self.temp.name, state=self.state),
+                hashlib.sha256(wn_book.read_bytes()).hexdigest(),
+                self.script.read_bytes(), source_path=str(wn_book))))
+            self.assertEqual(200, api.post('/api/scripts/save', json={'name': 'full_book'}).status_code)
+            self.assertFalse(json.loads((self.root / 'scripts' / 'full_book.meta.json').read_text())['strip_front_matter'])
+            self.assertEqual(200, api.post('/api/scripts/load', json={'name': 'full_book'}).status_code)
+            self.change_rows(wn_story)
+            state_after_load = json.loads((self.root / 'state.json').read_text())
+            state_after_load['script_generation_input_file'] = str(wn_book)
+            state_after_load['script_generation_options'] = {'strip_front_matter': True}
+            (self.root / 'state.json').write_text(json.dumps(state_after_load))
+            bypass_report = api.get('/api/editor/integrity').json()
+            self.assertEqual('differences', bypass_report['status'], bypass_report)
+            self.assertGreaterEqual(len(bypass_report['hunks']), 1)
+            self.assertEqual(409, api.post('/api/merge', json={}).status_code)
+            self.assertEqual([], self.scheduled)
+
+            # Same merge-bypass refusal even when full_book has no recorded .meta.json choice.
+            (self.root / 'scripts' / 'full_book.meta.json').write_text(json.dumps({'book_id': 'full_book'}))
+            bypass_unrecorded = api.get('/api/editor/integrity').json()
+            self.assertEqual('differences', bypass_unrecorded['status'], bypass_unrecorded)
+            self.assertEqual(409, api.post('/api/merge', json={}).status_code)
+            self.assertEqual([], self.scheduled)
+
+            # Repro 2 (false differences): stripped_book generated with strip_front_matter=True,
+            # saved, Save As copy-1, loaded, then another book's stale state options written.
+            stripped_entries = [{'speaker': 'A', 'text': wn_story}]
+            self.script.write_text(json.dumps(stripped_entries))
+            self.state.update({
+                'input_file_path': str(wn_book),
+                'script_generation_input_file': str(wn_book),
+                'script_generation_options': {'strip_front_matter': True},
+            })
+            self.write_state()
+            (self.root / BINDING_NAME).write_text(json.dumps(make_script_selection_binding(
+                get_book_operation_token(self.temp.name, state=self.state),
+                hashlib.sha256(wn_book.read_bytes()).hexdigest(),
+                self.script.read_bytes(), source_path=str(wn_book))))
+            self.assertEqual(200, api.post('/api/scripts/save', json={'name': 'stripped_book'}).status_code)
+            self.assertTrue(json.loads((self.root / 'scripts' / 'stripped_book.meta.json').read_text())['strip_front_matter'])
+            self.assertEqual(200, api.post('/api/scripts/load', json={'name': 'stripped_book'}).status_code)
+            self.assertEqual(200, api.post('/api/scripts/save', json={'name': 'stripped_copy'}).status_code)
+            self.assertTrue(json.loads((self.root / 'scripts' / 'stripped_copy.meta.json').read_text())['strip_front_matter'])
+            self.assertEqual(200, api.post('/api/scripts/load', json={'name': 'stripped_copy'}).status_code)
+            self.change_rows(wn_story)
+            state_after_copy = json.loads((self.root / 'state.json').read_text())
+            state_after_copy['script_generation_input_file'] = str(other_book)
+            state_after_copy['script_generation_options'] = {'strip_front_matter': False}
+            (self.root / 'state.json').write_text(json.dumps(state_after_copy))
+            stripped_report = api.get('/api/editor/integrity').json()
+            self.assertEqual('verified', stripped_report['status'], stripped_report)
+            self.assertEqual('current source after generation preprocessing', stripped_report['source_scope'])
+            self.assertEqual(200, api.post('/api/merge', json={}).status_code)
+            self.scheduled.clear()
+
+            # Publisher colophon (StripPublisherMatterTest.FRONT + STORY) verifies even with no .meta.json.
+            pub_book = uploads / 'pub_book.txt'
+            pub_book.write_text(StripPublisherMatterTest.FRONT + StripPublisherMatterTest.STORY)
+            pub_saved = self.write_saved_copy('pub_saved', pub_book, text=StripPublisherMatterTest.STORY)
+            self.change_rows(StripPublisherMatterTest.STORY)
+            self.state['script_generation_input_file'] = str(other_book)
+            self.state['script_generation_options'] = {'strip_front_matter': False}
+            (self.root / BINDING_NAME).unlink(missing_ok=True)
+            self.state.pop('script_binding_required', None)
+            self.use_saved_book(pub_saved)
+            pub_report = api.get('/api/editor/integrity').json()
+            self.assertEqual('verified', pub_report['status'], pub_report)
+            self.assertEqual(200, api.post('/api/merge', json={}).status_code)
+            self.scheduled.clear()
+
+            # Literal-policy saved script uses its bound strip_front_matter=True even without .meta.json.
+            literal_entries = bind_literal_policy(
+                wn_story, [{'speaker': 'A', 'text': wn_story}],
+                input_sha256=hashlib.sha256(wn_book.read_bytes()).hexdigest(),
+                strip_front_matter=True)
+            literal_saved = self.write_saved_copy('literal_saved', wn_book, entries=literal_entries)
+            self.change_rows(wn_story)
+            self.state['script_generation_input_file'] = str(other_book)
+            self.state['script_generation_options'] = {'strip_front_matter': False}
+            self.use_saved_book(literal_saved)
+            lit_report = api.get('/api/editor/integrity').json()
+            self.assertEqual('verified', lit_report['status'], lit_report)
+            self.assertEqual(200, api.post('/api/merge', json={}).status_code)
+
+    def test_active_binding_catches_replaced_saved_script_without_blocking_editor_diffs(self):
+        uploads = self.root / 'uploads'
+        uploads.mkdir()
+        book_a = uploads / 'bookA.txt'
+        book_b = uploads / 'bookB.txt'
+        book_a.write_text('alpha beta')
+        book_b.write_text('alpha beta')
+        saved_a = self.write_saved_copy('savedA', book_a, text='alpha beta', speaker='A')
+        self.use_saved_book(saved_a, write_active_binding=True)
+
+        verified = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('verified', verified['status'], verified)
+        self.assertEqual('bookA.txt', verified['source_name'])
+
+        # Live Editor edits to annotated_script.json + chunks still show differences, not unavailable.
+        self.script.write_text(json.dumps([{'speaker': 'A', 'text': 'alpha gamma'}]))
+        self.change_rows('alpha gamma')
+        edited = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('differences', edited['status'], edited)
+        self.assertEqual('bookA.txt', edited['source_name'])
+
+        # Overwriting scripts/savedA.json + binding after load must become unavailable, not verified against bookB.
+        self.change_rows('alpha beta')
+        self.write_saved_copy('savedA', book_b, text='alpha beta', speaker='B')
+        replaced = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('unavailable', replaced['status'], replaced)
+        self.assertIn('has changed', replaced['reason'])
+        self.assertNotEqual('bookB.txt', replaced['source_name'])
+        self.assertEqual(409, self.client.post('/api/merge', json={}).status_code)
+        self.assertEqual([], self.scheduled)
+
+    def test_binding_mismatch_cycles_hop_limit_and_structured_damage_hints(self):
+        from script_selection_binding import MAX_BINDING_BYTES, MAX_SOURCE_BINDING_HOPS
+        uploads = self.root / 'uploads'
+        uploads.mkdir()
+        book = uploads / 'book.txt'
+        book.write_text('alpha beta')
+        scripts = self.root / 'scripts'
+        scripts.mkdir(exist_ok=True)
+
+        # L5: saved_binding_matches mismatch (saved script tampered after binding).
+        tampered = self.write_saved_copy('tampered', book, text='alpha beta')
+        tampered.write_text(json.dumps([{'speaker': 'B', 'text': 'alpha beta'}]))
+        self.use_saved_book(tampered)
+        rep = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('unavailable', rep['status'], rep)
+        self.assertIn('record is damaged', rep['reason'])
+        self.assertEqual(409, self.client.post('/api/merge', json={}).status_code)
+
+        # L5: self-loop and 2-node valid-hash cycle.
+        self_loop = scripts / 'self_loop.json'
+        self_loop.write_text(json.dumps([{'speaker': 'A', 'text': 'alpha beta'}]))
+        self.write_saved_copy('self_loop', self_loop, text='alpha beta')
+        self.use_saved_book(self_loop)
+        rep_self = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('unavailable', rep_self['status'], rep_self)
+        self.assertIn('chain loops', rep_self['reason'])
+        self.assertEqual(409, self.client.post('/api/merge', json={}).status_code)
+
+        node_a = scripts / 'cycle_a.json'
+        node_b = scripts / 'cycle_b.json'
+        node_a.write_text(json.dumps([{'speaker': 'A', 'text': 'alpha beta'}]))
+        node_b.write_text(json.dumps([{'speaker': 'B', 'text': 'alpha beta'}]))
+        self.write_saved_copy('cycle_a', node_b, text='alpha beta', speaker='A')
+        self.write_saved_copy('cycle_b', node_a, text='alpha beta', speaker='B')
+        self.use_saved_book(node_a)
+        rep_two = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('unavailable', rep_two['status'], rep_two)
+        self.assertIn('chain loops', rep_two['reason'])
+        self.assertEqual(409, self.client.post('/api/merge', json={}).status_code)
+
+        # L5: hop limit (8 hops verified, 9 hops refused).
+        chain = [scripts / f'hop_{i}.json' for i in range(MAX_SOURCE_BINDING_HOPS + 1)]
+        for i in range(len(chain) - 1, -1, -1):
+            parent = book if i == len(chain) - 1 else chain[i + 1]
+            self.write_saved_copy(f'hop_{i}', parent, text='alpha beta')
+        self.use_saved_book(chain[1])  # 8 hops: hop_1 -> ... -> hop_8 -> book.txt
+        rep_8 = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('verified', rep_8['status'], rep_8)
+        self.assertEqual('book.txt', rep_8['source_name'])
+        self.assertEqual(200, self.client.post('/api/merge', json={}).status_code)
+        self.scheduled.clear()
+
+        self.use_saved_book(chain[0])  # 9 hops: hop_0 -> ... -> hop_8 -> book.txt
+        rep_9 = self.client.get('/api/editor/integrity').json()
+        self.assertEqual('unavailable', rep_9['status'], rep_9)
+        self.assertIn('longer than allowed', rep_9['reason'])
+        self.assertEqual(409, self.client.post('/api/merge', json={}).status_code)
+
+        # L6: corrupt binding, oversized binding, missing saved script, malformed script JSON, deep RecursionError JSON.
+        damage_cases = (
+            ('corrupt_binding', 'record is damaged', 'Invalid script binding'),
+            ('oversized_binding', 'record is damaged', 'Scope'),
+            ('missing_script', 'missing or was renamed', 'Selected source is unavailable'),
+            ('malformed_script', 'record is damaged', 'Invalid script publication'),
+            ('deep_script', 'record is damaged', 'RecursionError'),
+        )
+        for kind, expected_hint, forbidden_raw in damage_cases:
+            with self.subTest(kind=kind):
+                saved = self.write_saved_copy(f'l6_{kind}', book, text='alpha beta')
+                binding_file = scripts / f'l6_{kind}.selection_binding.json'
+                if kind == 'corrupt_binding':
+                    binding_file.write_bytes(b'{corrupt')
+                elif kind == 'oversized_binding':
+                    binding_file.write_bytes(b'x' * (MAX_BINDING_BYTES + 1))
+                elif kind == 'missing_script':
+                    saved.unlink()
+                elif kind == 'malformed_script':
+                    saved.write_bytes(b'{corrupt')
+                else:
+                    saved.write_bytes(b'[' * 2000 + b']' * 2000)
+                self.use_saved_book(saved)
+                report = self.client.get('/api/editor/integrity').json()
+                self.assertEqual('unavailable', report['status'], report)
+                self.assertIn(expected_hint, report['reason'])
+                self.assertNotIn(forbidden_raw, report['reason'])
+                if kind == 'missing_script':
+                    self.assertIn('Re-import', report['reason'])
+                self.assertEqual(409, self.client.post('/api/merge', json={}).status_code)
                 self.assertEqual([], self.scheduled)
 
     def test_foreign_source_settings_cannot_verify_even_identical_prose(self):
