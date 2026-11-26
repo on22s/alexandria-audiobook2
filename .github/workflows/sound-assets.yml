@@ -39,6 +39,7 @@ on:
       - 'app/tests/test_media_output_sink.py'
       - 'app/tests/test_sound_design_mix.py'
       - '.github/workflows/sound-assets.yml'
+      - 'tools/ci/install_ffmpeg_windows.ps1'
       - 'app/audio_pcm_decode.py'
       - 'app/audio_pcm_mux.py'
       - 'app/audio_m4b_pcm.py'
@@ -118,7 +119,7 @@ jobs:
         run: command -v ffmpeg || brew install ffmpeg
       - name: Install FFmpeg on Windows
         if: runner.os == 'Windows'
-        run: choco install ffmpeg --no-progress -y
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File "${{ github.workspace }}/tools/ci/install_ffmpeg_windows.ps1"
       - name: Record native codec versions
         run: |
           ffmpeg -version
