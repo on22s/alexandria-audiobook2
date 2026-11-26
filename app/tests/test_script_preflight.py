@@ -906,6 +906,13 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual("blocking", finding["severity"])
         self.assertEqual(1, finding["details"]["source_occurrences"])
 
+        # One spaced copy and one intra-word-ZWSP copy are two source copies
+        # of the same fused line, not one.
+        mixed = "東 京. Then the rain came. 東\u200b京."
+        faithful = [_entry("東京", "MARTA"), _entry("Then the rain came."),
+                    _entry("東京", "PORTER")]
+        self.assertEqual([], self._duplicate_findings(faithful, mixed))
+
     def test_punctuation_still_separates_two_boundary_lines(self):
         # The spelling-independent count fuses tokens across whitespace, never
         # across punctuation: "Go. Home" is not one copy of "Gohome".
