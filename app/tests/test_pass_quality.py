@@ -525,17 +525,55 @@ class InchMarkTests(unittest.TestCase):
                 self.assertEqual(expected, self._regions(source))
                 self.assertEqual(0, analyze_outer_quote_regions(source)["final_depth"])
 
+    def test_a_digit_final_speech_before_a_new_speaker_keeps_narration_out(self):
+        # The narration after the digit and the next speaker's speech share the
+        # same convention, so nothing in the marks says the speech continued.
+        # Main closes at the digit; marking the narration SPOKEN was the #2318
+        # regression.
+        cases = [
+            ('“Give me 5” high above his head, Tom raised a palm.\n\n'
+             '“Ha!” said Ann.',
+             [("SPOKEN", "Give me 5"),
+              ("NARRATOR", "high above his head, Tom raised a palm."),
+              ("SPOKEN", "Ha!"), ("NARRATOR", "said Ann.")]),
+            ('"Table for 2" and 3 more chairs arrived.\n\n'
+             '"Thanks," she said.',
+             [("SPOKEN", "Table for 2"),
+              ("NARRATOR", "and 3 more chairs arrived."),
+              ("SPOKEN", "Thanks,"), ("NARRATOR", "she said.")]),
+            ('„Give me 5“ high above his head, Tom raised a palm.\n\n'
+             '„Ha!“ said Ann.',
+             [("SPOKEN", "Give me 5"),
+              ("NARRATOR", "high above his head, Tom raised a palm."),
+              ("SPOKEN", "Ha!"), ("NARRATOR", "said Ann.")]),
+            ('«Give me 5» high above his head, Tom raised a palm.\n\n'
+             '«Ha!» said Ann.',
+             [("SPOKEN", "Give me 5"),
+              ("NARRATOR", "high above his head, Tom raised a palm."),
+              ("SPOKEN", "Ha!"), ("NARRATOR", "said Ann.")]),
+            ('「Give me 5」 high above his head, Tom raised a palm.\n\n'
+             '「Ha!」 said Ann.',
+             [("SPOKEN", "Give me 5"),
+              ("NARRATOR", "high above his head, Tom raised a palm."),
+              ("SPOKEN", "Ha!"), ("NARRATOR", "said Ann.")]),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, self._regions(source))
+                self.assertEqual(0, analyze_outer_quote_regions(source)["final_depth"])
+
     def test_a_continued_speech_is_the_only_reason_to_keep_the_mark(self):
-        # The paragraph break is followed by the same opener and the word
-        # after the digit is a unit, so the speech really continues.
+        # The name records the round that added the paragraph-reopen
+        # exception; #2318 removed it. A paragraph that re-opens the same mark
+        # cannot tell a continued speech from a new speaker, so main closes at
+        # the digit, and this now matches main.
         for opener, closer in (('“', '”'), ('"', '"')):
             source = (opener + 'The board is 6' + closer + ' wide and\n\n'
                       + opener + 'it is heavy,' + closer + ' he said.')
             with self.subTest(source=source):
                 self.assertEqual(
-                    [("SPOKEN", 'The board is 6' + closer + ' wide and'),
-                     ("SPOKEN", "it is heavy,"),
-                     ("NARRATOR", "he said.")],
+                    [("SPOKEN", 'The board is 6'), ("NARRATOR", "wide and"),
+                     ("SPOKEN", "it is heavy,"), ("NARRATOR", "he said.")],
                     self._regions(source))
         # Without the measurement word the same break is two speeches.
         for opener, closer in (('“', '”'), ('"', '"')):

@@ -445,26 +445,11 @@ def _next_any_mark(text, marks, start, end):
     return best
 
 
-def _reopens_next_paragraph(text, position, opener):
-    """Does the next paragraph begin by re-opening speech with `opener`?
-
-    A speech may continue past a paragraph break only that way, so it is the
-    only evidence that a mark with no later closer is still a measurement.
-    """
-    end = _paragraph_end(text, position)
-    if end >= len(text):
-        return False
-    while end < len(text) and text[end].isspace():
-        end += 1
-    return text.startswith(opener, end)
-
-
 def is_measurement_continuation(text, position):
     """Does the text after this number-preceded mark still read as a measurement?
 
     Consulted when no plain closer is left in the paragraph (every later one
-    is number-preceded), and to decide whether a speech continued into the
-    next paragraph is still a measurement. Unambiguous evidence: another
+    is number-preceded). Unambiguous evidence: another
     number linked by `by`/`x`/`×`/`and`/`,`/`to` (`6" by 8"`), or a unit word
     (`6" wide`). Anything else closes the speech (`12" she said`).
     """
@@ -513,9 +498,10 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
 
     A mark with no later closer before the next opener (or the paragraph end)
     can be the only way to close the speech, so it closes whatever word
-    follows. The one exception is a speech that demonstrably continues: the
-    next paragraph re-opens it with the same opener and the text after the
-    mark still reads as a measurement.
+    follows. A speech continued into the next paragraph is not distinguished:
+    the next paragraph opens with the same mark whether it continues this
+    speech or begins a new one, so a number-preceded mark with no later closer
+    always closes (#2314).
 
     One predicate for `_paired_spans`, pass_quality's analyzer and
     `_has_quote_delimiter`, and the three-pass repair (#2314).
@@ -547,10 +533,8 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
             later = _next_any_mark(text, closers, position + 1, bound)
             if later == -1:
                 # Nothing else can close this speech, so this mark closes,
-                # whatever word follows (`“It was 1945” long ago.`). Only a
-                # measurement continued into the next paragraph is exempt.
-                return (is_measurement_continuation(text, position)
-                        and _reopens_next_paragraph(text, position, opener))
+                # whatever word follows (`“It was 1945” long ago.`).
+                return False
             # Only number-preceded marks are left; one of them must become
             # the closer, and the text after this one decides
             # (`6” by 8”` keeps it, `12” she said` closes).
@@ -579,10 +563,8 @@ def is_inch_mark(text, position, mark, inside_speech=False, opener=None):
     if next_position == -1:
         if _next_mark(text, mark, position + 1, paragraph_end) == -1:
             # This mark is the only thing that can close the speech, so it
-            # does, unless the speech continues into the next paragraph and
-            # the text after the mark is still a measurement.
-            return (is_measurement_continuation(text, position)
-                    and _reopens_next_paragraph(text, position, mark))
+            # does.
+            return False
         return is_measurement_continuation(text, position)
     # Closer-shaped means text before the mark and a word boundary after it.
     # A mark glued after a dash but followed by a letter (`—"Next`) is an

@@ -222,15 +222,46 @@ class SpanTest(unittest.TestCase):
                          [source[a:b] for a, b in
                           spoken_spans(source, "paired_quotes")])
 
+    def test_a_digit_final_speech_before_a_new_speaker_keeps_its_close(self):
+        # The narration after the digit and the next speaker's speech both sit
+        # in the same convention, so the only question is whether this mark
+        # closes. It does: the next paragraph re-opening the quote cannot
+        # prove the speech continued, and main closes here (#2318).
+        cases = [
+            ('“Give me 5” high above his head, Tom raised a palm.\n\n'
+             '“Ha!” said Ann.', ['Give me 5', 'Ha!']),
+            ('“Table for 2” and 3 more chairs arrived.\n\n'
+             '“Thanks,” she said.', ['Table for 2', 'Thanks,']),
+            ('"Give me 5" high above his head, Tom raised a palm.\n\n'
+             '"Ha!" said Ann.', ['Give me 5', 'Ha!']),
+            ('"Table for 2" and 3 more chairs arrived.\n\n'
+             '"Thanks," she said.', ['Table for 2', 'Thanks,']),
+            ('„Give me 5“ high above his head, Tom raised a palm.\n\n'
+             '„Ha!“ said Ann.', ['Give me 5', 'Ha!']),
+            ('«Give me 5» high above his head, Tom raised a palm.\n\n'
+             '«Ha!» said Ann.', ['Give me 5', 'Ha!']),
+            ('「Give me 5」 high above his head, Tom raised a palm.\n\n'
+             '「Ha!」 said Ann.', ['Give me 5', 'Ha!']),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(expected, [source[a:b] for a, b in
+                                            spoken_spans(source, "paired_quotes")])
+
     def test_a_continued_speech_is_the_only_reason_to_keep_the_mark(self):
-        # The next paragraph re-opens the speech and the word after the digit
-        # is a unit, so the mark is a measurement and the speech continues.
+        # The name records the round that added the paragraph-reopen
+        # exception; #2318 removed it. A next paragraph that re-opens the same
+        # mark reads identically whether the speech continues or a new speaker
+        # answers, so it is no evidence, and the digit-preceded mark closes as
+        # main has always read it.
         for opener, closer in (('“', '”'), ('"', '"')):
             source = (opener + 'The board is 6' + closer + ' wide and\n\n'
                       + opener + 'it is heavy,' + closer + ' he said.')
             with self.subTest(source=source):
+                start = source.index('it is heavy,')
                 self.assertEqual(
-                    [(1, source.index(closer + ' he said'))],
+                    [(1, 1 + len('The board is 6')),
+                     (start, start + len('it is heavy,'))],
                     spoken_spans(source, "paired_quotes"))
         # The same break with no measurement word after the digit closes.
         for opener, closer in (('“', '”'), ('"', '"')):
