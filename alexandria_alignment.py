@@ -477,6 +477,10 @@ def _num_eq(a_words: list, b_words: list) -> bool:
     return a is not None and b is not None and a == b
 
 
+# Public name for callers outside this module (Rule 16: no private imports).
+is_same_number = _num_eq
+
+
 def trim_span_to_alignment(
     chunk_words: list,
     orig_words: list,

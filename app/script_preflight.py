@@ -15,7 +15,7 @@ from silent_word_characters import (
 from source_normalization import iter_source_paragraph_ranges
 from speech_text import get_speech_normalization
 from utils import get_unsafe_text_controls
-from alexandria_alignment import _num_eq, is_spelled_number
+from alexandria_alignment import is_same_number, is_spelled_number
 
 
 _CYRILLIC_RE = re.compile(r"[\u0400-\u04ff]")
@@ -1128,9 +1128,11 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     )
     expansion_sites = [(word, len(re.findall(pattern, source_text, re.I)))
                        for pattern, word in expansions]
+    # Both of these are needle-independent, so scan the whole source once.
+    source_has_bracket = bool(re.search(r"[\[<]", source_text))
     unknown_rendering = bool(re.search(r"\d+", re.sub(r"\b3rd\b", "", source_text, flags=re.I))
                              or re.search(r"\bchapter\s+(?!i\b)[ivxlcdm]+\b", source_text, re.I)
-                             or re.search(r"[\[<]", source_text))
+                             or source_has_bracket)
 
     def get_digit_words_unemitted():
         """True when a source number may have been spoken instead of written."""
@@ -1179,12 +1181,12 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         number elsewhere, so it keeps blocking. A known expansion ("3rd" ->
         "third") is not a digit word at all.
         """
-        if re.search(r"[\[<]", source_text):
+        if source_has_bracket:
             return True
         return get_digit_words_unemitted() and is_spelled_number(needle.split())
 
     def number_spelling_source_copies(needle):
-        """Source copies of this line that differ only in a number's spelling.
+        """Source capacity this line gains from copies with a digit number.
 
         "Twenty minutes" and "20 minutes" are one line written two ways: when
         the book holds one copy of each, a script that spells both copies out
@@ -1195,6 +1197,18 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         the words must be one line - the same comparison tokens and gap rule the
         boundary counter uses, so punctuation and a paragraph break still
         separate lines. Copies may not overlap, like every other capacity count.
+
+        The covered spelling is one English cardinal word: zero through
+        nineteen and the tens. Spellings that need more than one token
+        (hyphenated "twenty-one", "one hundred", "nineteen ninety") and
+        ordinals, Roman numerals, decimals and non-English spellings do not
+        parse as one token here and still block (documented under Limits).
+
+        A digit copy the script also emits as digits is already that digit
+        needle's own capacity, so only copies beyond the digit line's emissions
+        are surplus capacity for the spelled line. Without that, one source copy
+        could serve a digit emission and a spelled emission at once and a
+        genuine extra copy would be hidden.
         """
         nonlocal number_line_view
         words = needle.split()
@@ -1207,15 +1221,30 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
             starts_by_word = {}
             for index, token in enumerate(tokens):
                 starts_by_word.setdefault(token, []).append(index)
+            # Index the one shape a window may start on without its first word:
+            # a digit token followed by an exact match. Keyed by the following
+            # word, this is O(1) per needle instead of a scan of every digit in
+            # the book or of every position of a common second word.
+            digit_before_word = {}
+            for index in range(1, len(tokens)):
+                if tokens[index - 1].isdigit():
+                    digit_before_word.setdefault(tokens[index], []).append(index)
             number_line_view = (tokens, fusable, starts_by_word,
-                                [index for index, token in enumerate(tokens)
-                                 if token.isdigit()])
-        tokens, fusable, starts_by_word, digit_starts = number_line_view
-        # Only the first token can differ without making the window impossible
-        # to start here: if it is not the needle's first word, it must be the
-        # digits of the number pair. Every other window starts on an exact word.
-        starts = sorted(set(starts_by_word.get(words[0], ())) | set(digit_starts))
-        count, next_free = 0, 0
+                                digit_before_word)
+        tokens, fusable, starts_by_word, digit_before_word = number_line_view
+        # A window either starts on the needle's first word (so the one
+        # difference is at a later position), or its first token is the ONE
+        # digit that replaces that word. In the second case every remaining word
+        # matches exactly, so the token after the digit is words[1]: those
+        # starts are words[1]'s positions minus one, filtered to digits. Deriving
+        # them this way keeps the cost proportional to the needle's own token
+        # positions instead of every digit in the book (which made this rule
+        # cost needles x digits and dominated the whole gate on large books).
+        starts = list(starts_by_word.get(words[0], ()))
+        starts.extend(index - 1 for index in digit_before_word.get(words[1], ()))
+        starts.sort()
+        next_free = 0
+        digit_lines = Counter()
         for start in starts:
             if start < next_free or start + len(words) > len(tokens):
                 continue
@@ -1229,10 +1258,17 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                 digits, spelled = ((mine, theirs) if mine.isdigit()
                                    else (theirs, mine))
                 if (digits.isdigit() and is_spelled_number([spelled])
-                        and _num_eq([spelled], [digits])):
-                    count += 1
+                        and is_same_number([spelled], [digits])):
                     next_free = start + len(words)
-        return count
+                    digit_lines[" ".join(tokens[start:start + len(words)])] += 1
+        # A digit copy the script also emits as digits is already capacity for
+        # that digit spelling (the digit needle counts its own source copies).
+        # Only the copies beyond those emissions can carry a spelled emission;
+        # otherwise one source copy serves both a digit and a spelled emission,
+        # and a genuine extra copy is hidden.
+        return sum(copies - output_counts[needle_ids[line]]
+                   if line in needle_ids else copies
+                   for line, copies in digit_lines.items())
 
     findings = []
     for ident, needle in enumerate(needles):

@@ -2196,6 +2196,58 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(2, finding["details"]["source_occurrences"])
         self.assertEqual(3, finding["details"]["all_text_occurrences"])
 
+    def test_a_digit_copy_after_punctuation_is_not_capacity(self):
+        # The digit and the rest of the line are separated by a full stop, so
+        # "20. Minutes" is two lines, not a spelling of "Twenty minutes". The
+        # source holds the line once; the script's two copies are an excess.
+        source = '"Twenty minutes!" she cried. It was 20. Minutes passed.'
+
+        finding = self._duplicate_findings(
+            [_entry("Twenty minutes", "C0"), _entry("Twenty minutes", "C1")],
+            source)[0]
+
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(2, finding["details"]["all_text_occurrences"])
+
+    def test_a_digit_copy_across_a_paragraph_break_is_not_capacity(self):
+        # A blank line ends the paragraph, so "20" and "minutes" on either side
+        # of it are not the line "Twenty minutes" and cannot carry a copy.
+        source = ('"Twenty minutes!" she cried.\n\nHe said 20\n\n'
+                  "minutes passed.")
+
+        finding = self._duplicate_findings(
+            [_entry("Twenty minutes", "C0"), _entry("Twenty minutes", "C1")],
+            source)[0]
+
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(2, finding["details"]["all_text_occurrences"])
+
+    def test_a_digit_copy_the_script_also_emits_is_not_counted_twice(self):
+        # Source: one "Twenty minutes" and two "20 minutes" copies (three
+        # lines). The script emits the digit line once and the spelled line
+        # three times: four emissions for three copies. The digit line's own
+        # emission consumes one digit copy, so only the second digit copy is
+        # capacity for the spelled line and the third spelled copy blocks.
+        source = ('"Twenty minutes!" she cried. "20 minutes," he said. '
+                  '"20 minutes," she said.')
+        entries = ([_entry("Twenty minutes", "C%d" % index) for index in range(3)]
+                   + [_entry("20 minutes", "C3")])
+
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+        self.assertEqual("twenty minutes", findings[0]["details"]["phrase"])
+        self.assertEqual(2, findings[0]["details"]["source_occurrences"])
+        self.assertEqual(3, findings[0]["details"]["all_text_occurrences"])
+
+        # One spelled copy plus one digit copy emitted as digits is faithful.
+        self.assertEqual([], self._duplicate_findings(
+            [_entry("Twenty minutes", "C0"), _entry("20 minutes", "C1")],
+            source))
+
     def test_a_number_spelling_only_excuses_the_same_number_and_line(self):
         # A digit elsewhere cannot excuse a line whose number does not match:
         # "99 minutes" is not a spelling of "Twenty minutes".
