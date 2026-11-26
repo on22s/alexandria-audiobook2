@@ -12,6 +12,7 @@ from heapq import heappop, heappush
 from silent_word_characters import (
     SILENT_WORD_CHARACTERS, WORD_BOUNDARIES, ZERO_WIDTH_JOINER,
     ZERO_WIDTH_NON_JOINER, remove_silent_word_characters)
+from source_normalization import iter_source_paragraph_ranges
 from speech_text import get_speech_normalization
 from utils import get_unsafe_text_controls
 from alexandria_alignment import is_spelled_number
@@ -47,7 +48,6 @@ _APOSTROPHE_FOLD = str.maketrans({character: "'" for character in _APOSTROPHE_VA
 _INTRAWORD_APOSTROPHE_RE = re.compile(r"(?<=\w)'(?=\w)")
 _INTRAWORD_APOSTROPHE_VARIANT_RE = re.compile(
     rf"(?<=\w)[{re.escape(_APOSTROPHE_VARIANTS)}](?=\w)")
-_LINE_BREAKS = frozenset("\n\r\u2028\u2029")
 _FORMAT_TRANSLATIONS = None
 
 
@@ -206,9 +206,10 @@ def _comparison_text(text, *, word_boundaries="space"):
     # typography ("ＯＫ" -> "OK"); Cf characters are invisible, so a
     # WORD_BOUNDARIES character is a word break in the default "space" view and
     # the fused view deletes it (#2316, #2293); every apostrophe variant folds
-    # to ASCII before the intraword rule. Line breaks stay intact so
-    # get_comparison_tokens_and_gaps never fuses words across one. Comparison
-    # only: stored text, reported offsets and hashes are untouched.
+    # to ASCII before the intraword rule. Line endings stay intact here because
+    # get_comparison_tokens_and_gaps decides from the project's paragraph
+    # definition whether a break lets its neighbours fuse. Comparison only:
+    # stored text, reported offsets and hashes are untouched.
     text = str(text or "")
     if text.isascii():
         if "`" in text:
@@ -245,15 +246,35 @@ def get_comparison_word_view(text, *, word_boundaries="space"):
     return " ".join(_comparison_word_pattern(text).findall(text))
 
 
+def _gap_is_one_paragraph(gap):
+    """Whether a whitespace gap between two tokens stays inside one paragraph.
+
+    The project's paragraph iterator is the only definition: a gap that holds a
+    paragraph break (a blank line or U+2029) becomes two spans once a word
+    follows it, while a soft wrap stays one. A gap of ASCII spaces cannot hold
+    a break - a paragraph break needs a line ending - so the common case never
+    calls the iterator.
+    """
+    if not gap.strip(" "):
+        return True
+    return len(list(iter_source_paragraph_ranges(gap + "x"))) == 1
+
+
 def get_comparison_tokens_and_gaps(text, *, word_boundaries="space",
                                    comparison_text=None):
     """Comparison-key tokens and whether each gap may fuse its two neighbours.
 
-    A gap is fusable only when it holds horizontal whitespace (or a ZWNJ,
-    treated as an optional separator) and no line break or punctuation:
-    punctuation keeps two lines apart even though the key drops the
-    punctuation itself, and any line break (\\n, \\r, U+2028, U+2029) means the
-    words on either side must not be fused into one token (#2293).
+    A gap is fusable only when it holds whitespace (or a ZWNJ, treated as an
+    optional separator) and no paragraph break: punctuation keeps two lines
+    apart even though the key drops the punctuation itself, and the words on
+    either side of a paragraph break are separate lines. The break decision is
+    the project's ONE paragraph definition, ``iter_source_paragraph_ranges``: a
+    single line ending (\\n, \\r\\n, \\r, U+2028) is a soft wrap and its words
+    may fuse for capacity, while a blank line or U+2029 ends a paragraph and
+    never fuses (#2293). Other Unicode whitespace (\\x0b, \\x0c, \\x1c-\\x1e,
+    \\x85) is not a line ending to that definition, so it is treated like the
+    horizontal space it is - but when one of them sits between two line
+    endings, the gap is a blank line and does not fuse.
     """
     text = (_comparison_text(text, word_boundaries=word_boundaries)
             if comparison_text is None else comparison_text)
@@ -263,9 +284,8 @@ def get_comparison_tokens_and_gaps(text, *, word_boundaries="space",
         if tokens:
             gap = text[previous_end:match.start()]
             fusable.append(all(
-                (character.isspace() and character not in _LINE_BREAKS)
-                or character == ZERO_WIDTH_NON_JOINER
-                for character in gap))
+                character.isspace() or character == ZERO_WIDTH_NON_JOINER
+                for character in gap) and _gap_is_one_paragraph(gap))
         else:
             fusable.append(False)
         tokens.append(match.group())
@@ -328,8 +348,9 @@ def get_boundary_insensitive_counter(source_text):
 
     ONE rule: a line is the same line with a space, with U+200B, or fused, so a
     copy is counted when consecutive source tokens concatenate to the phrase
-    and both ends sit on token boundaries. Tokens fuse only across horizontal
-    whitespace (punctuation and line breaks still separate lines) and copies
+    and both ends sit on token boundaries. Tokens fuse across whitespace within
+    a paragraph - including a soft-wrapped line ending - but punctuation and a
+    paragraph break (a blank line or U+2029) still separate lines, and copies
     may not overlap, so capacity can never exceed the number of source copies
     the book actually carries. ZWNJ is an optional separator here: the primary
     key keeps it inside its word, but a line written with "می" + ZWNJ + "روم"
@@ -1175,6 +1196,10 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                 counted_whole_tokens = whole_tokens
                 boundary_claimed = claimed_indices
         if not capacity:
+            # A needle the source does not carry at all. A wrapped source copy
+            # cannot land here: the spelling-independent count above fuses a
+            # soft wrap and raises capacity for it, and it runs whenever the
+            # emitted count exceeds the per-view capacity.
             continue
         if all_emitted <= capacity + added_capacity:
             continue

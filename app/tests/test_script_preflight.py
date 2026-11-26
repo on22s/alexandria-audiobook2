@@ -12,7 +12,8 @@ from chunk_quality import validate_chunk_quality
 import generate_script
 from routers import scripts_library
 from script_preflight import (audit_script, audit_unicode_text,
-                              find_contained_source_duplicates)
+                              find_contained_source_duplicates,
+                              get_boundary_insensitive_counter)
 from script_repair import build_deterministic_repair
 from speaker_repair import apply_speaker_selections, build_speaker_review
 from content_repair import apply_content_selections, build_content_review
@@ -1013,33 +1014,158 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(1, straddle_finding["details"]["source_occurrences"])
         self.assertEqual(0, straddle_finding["details"]["unemitted_source_split_support"])
 
-    def test_capacity_does_not_fuse_across_any_line_break(self):
-        # No line break (\n, \r, U+2028, U+2029, or repeated forms like \n\n
-        # and \r\r) may fuse two neighbour tokens into one copy in the
-        # boundary-insensitive counter.
-        for separator in ("\n", "\n\n", "\r", "\r\n", "\r\r", "\u2028", "\u2029"):
+    def test_a_soft_wrapped_copy_shares_capacity_with_a_fused_copy(self):
+        # The project's paragraph definition decides fusion (#2293): a single
+        # line ending is a soft wrap, so a wrapped source copy is the same line
+        # as a fused one and the two copies share capacity two. A third emitted
+        # copy blocks. The old r14 rule refused the wrap and reported the
+        # faithful two-copy book.
+        ja, ja_wrapped = "\u306f\u3044\u305d\u3046\u3067\u3059", "\u306f\u3044\u305d\u3046\n\u3067\u3059"
+        th, th_wrapped = ("\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e04\u0e23\u0e31\u0e1a",
+                          "\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\n\u0e04\u0e23\u0e31\u0e1a")
+        for label, line, wrapped in (("ja", ja, ja_wrapped), ("th", th, th_wrapped)):
+            with self.subTest(case=label):
+                source = ("「%s」と彼は言った。「%s」と彼女は言った。" % (line, wrapped)
+                          if label == "ja" else
+                          "%s เธอพูด %s เธอพูด" % (line, wrapped))
+                faithful = [_entry(line, "C%d" % index) for index in range(2)]
+                self.assertEqual([], self._duplicate_findings(faithful, source))
+                finding = self._duplicate_findings(
+                    faithful + [_entry(line, "C2")], source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(2, finding["details"]["source_occurrences"])
+                self.assertEqual(3, finding["details"]["all_text_occurrences"])
+
+    def test_a_soft_wrap_gain_beside_a_heading_is_a_known_limit(self):
+        # Known limit (#2293): a soft wrap makes the words on either side
+        # candidate one fused word, so the real fused copy "Gohome" and the
+        # heading-to-sentence "Go" + "Home" share capacity two. Pinned: two
+        # emitted copies stay clean, a third blocks. The alternative - refusing
+        # wrap fusion - false-blocks every faithfully wrapped book.
+        source = '"Gohome," she said.\nChapter Two: Go\nHome was far away.'
+        twice = [_entry("Gohome.", "C0"), _entry("Gohome.", "C1")]
+        self.assertEqual([], self._duplicate_findings(twice, source))
+        finding = self._duplicate_findings(
+            twice + [_entry("Gohome.", "C2")], source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(2, finding["details"]["source_occurrences"])
+        self.assertEqual(3, finding["details"]["all_text_occurrences"])
+
+    def test_a_wrapped_source_copy_is_never_silently_dropped(self):
+        # The capacity check skips a needle with zero capacity, but a wrapped
+        # source copy is counted by the spelling-independent counter, so that
+        # skip is unreachable for it: one wrapped copy blocks a second emission
+        # instead of being dropped.
+        source = "\u300c\u306f\u3044\u305d\u3046\n\u3067\u3059\u300d\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002"
+        needle = "\u306f\u3044\u305d\u3046\u3067\u3059"
+        self.assertEqual(1, get_boundary_insensitive_counter(source)(needle))
+
+        finding = self._duplicate_findings(
+            [_entry(needle, "C0"), _entry(needle, "C1")], source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(2, finding["details"]["all_text_occurrences"])
+
+        # The same one wrapped copy spelled as two separate words.
+        spaced = "\u306f\u3044\u305d\u3046 \u3067\u3059"
+        finding = self._duplicate_findings(
+            [_entry(spaced, "C0"), _entry(spaced, "C1")], source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+
+    def test_a_source_with_a_wrapped_copy_and_a_spaced_emission_still_blocks(self):
+        # One wrapped source copy, two fused emissions and one spaced emission:
+        # all three are the same line, and only one is in the book.
+        source = "\u300c\u306f\u3044\u305d\u3046\n\u3067\u3059\u300d\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002"
+        fused = "\u306f\u3044\u305d\u3046\u3067\u3059"
+        spaced = "\u306f\u3044\u305d\u3046 \u3067\u3059"
+        entries = [_entry(fused, "C0"), _entry(fused, "C1"), _entry(spaced, "C2")]
+
+        findings = self._duplicate_findings(entries, source)
+        self.assertTrue(any(finding["severity"] == "blocking" for finding in findings))
+
+    def test_every_single_line_ending_is_a_soft_wrap(self):
+        # \n, \r\n, \r and a lone U+2028 are one line ending to the project's
+        # paragraph definition: the wrapped words may fuse, so the fused needle
+        # sees the copy.
+        for separator in ("\n", "\r\n", "\r", "\u2028"):
             with self.subTest(separator=repr(separator)):
-                source = "Gohome. Then go" + separator + "home. z z rest"
+                source = "Z z go" + separator + "home z z rest"
                 finding = self._duplicate_findings(
-                    [_entry("Gohome.", "MARTA"), _entry("Gohome.", "PORTER")], source)[0]
-
+                    [_entry("Gohome.", "C0"), _entry("Gohome.", "C1")], source)[0]
                 self.assertEqual("blocking", finding["severity"])
                 self.assertEqual(1, finding["details"]["source_occurrences"])
                 self.assertEqual(2, finding["details"]["all_text_occurrences"])
 
-        # Reported English and Thai single-newline repros.
-        repros = (
-            ("en", '"Gohome," she said.\nChapter Two: Go\nHome was far away.', "Gohome."),
-            ("th", "เขาพูดว่า สวัสดีครับ\nวันนี้เขาพูดว่า สวัสดี\nครับ ผมเข้าใจแล้ว",
-             "สวัสดีครับ"),
+    def test_a_paragraph_break_never_fuses(self):
+        # A blank line and U+2029 end a paragraph: the words on either side are
+        # separate lines, so no fused copy exists and the fused needle is not
+        # counted. This is the r13 behaviour the decision keeps.
+        for separator in ("\n\n", "\r\r", "\r\n\r\n", "\n \n", "\u2029"):
+            with self.subTest(separator=repr(separator)):
+                source = "Z z go" + separator + "home z z rest"
+                entries = [_entry("Gohome.", "C0"), _entry("Gohome.", "C1")]
+                self.assertEqual([], self._duplicate_findings(entries, source))
+
+                # The spaced spelling is still the source's one line to the
+                # primary key, so a second spaced copy blocks.
+                spaced = [_entry("Go home.", "C0"), _entry("Go home.", "C1")]
+                finding = self._duplicate_findings(spaced, source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["source_occurrences"])
+
+    def test_other_unicode_whitespace_follows_the_paragraph_definition(self):
+        # L2: \x0b, \x0c, \x1c-\x1e and \x85 are whitespace but not a line
+        # ending to iter_source_paragraph_ranges. Alone they behave like a lone
+        # \n (the words fuse); inside a blank-line run they behave like the
+        # blank line (the words do not fuse). A form feed is not special.
+        for character in ("\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85"):
+            with self.subTest(character=repr(character)):
+                soft = "Z z go" + character + "home z z rest"
+                finding = self._duplicate_findings(
+                    [_entry("Gohome.", "C0"), _entry("Gohome.", "C1")], soft)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["source_occurrences"])
+
+                blank = "Z z go\n" + character + "\nhome z z rest"
+                self.assertEqual([], self._duplicate_findings(
+                    [_entry("Gohome.", "C0"), _entry("Gohome.", "C1")], blank))
+
+    def test_soft_wrapped_source_sweep_stays_faithful_and_catches_injection(self):
+        # 72 deterministic wrapped-source cases (ja/zh/th; wrap inside a word
+        # and at its word gap; every single line ending; one, two and three
+        # source copies): every faithful script is clean and every injected
+        # extra copy blocks.
+        families = (
+            ("ja", "\u6771\u4eac\u30bf\u30ef\u30fc",
+             "\u6771\u4eac\u30bf\n\u30ef\u30fc", "\u6771\u4eac\n\u30bf\u30ef\u30fc",
+             "\u591c\u306e\u9593\u306b\u96e8\u304c\u964d\u308a\u7d9a\u304d\u9053\u306f\u9759\u304b\u3060\u3063\u305f\u3002"),
+            ("zh", "\u5317\u4eac\u996d\u5e97",
+             "\u5317\u4eac\u996d\n\u5e97", "\u5317\u4eac\n\u996d\u5e97",
+             "\u96e8\u4e0b\u4e86\u4e00\u6574\u591c\uff0c\u8def\u4e0a\u5f88\u5b89\u9759\u3002"),
+            ("th", "\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e04\u0e23\u0e31\u0e1a",
+             "\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e04\n\u0e23\u0e31\u0e1a",
+             "\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\n\u0e04\u0e23\u0e31\u0e1a",
+             "\u0e1d\u0e19\u0e15\u0e01\u0e17\u0e31\u0e49\u0e07\u0e04\u0e37\u0e19\u0e16\u0e19\u0e19\u0e40\u0e07\u0e35\u0e22\u0e1a\u0e07\u0e31\u0e1a"),
         )
-        for label, source, line in repros:
-            with self.subTest(repro=label):
-                finding = self._duplicate_findings(
-                    [_entry(line, "MARTA"), _entry(line, "PORTER")], source)[0]
-                self.assertEqual("blocking", finding["severity"])
-                self.assertEqual(1, finding["details"]["source_occurrences"])
-                self.assertEqual(2, finding["details"]["all_text_occurrences"])
+        for language, line, mid_word, at_gap, filler in families:
+            for wrap, wrapped in (("mid_word", mid_word), ("at_gap", at_gap)):
+                for separator in ("\n", "\r\n", "\r", "\u2028"):
+                    shape = wrapped.replace("\n", separator)
+                    copy = filler + "\u300c" + shape + "\u300d\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002"
+                    for copies in (1, 2, 3):
+                        with self.subTest(language=language, wrap=wrap,
+                                          separator=repr(separator), copies=copies):
+                            source = copy * copies + filler
+                            faithful = [_entry(line, "C%d" % index)
+                                        for index in range(copies)]
+                            self.assertEqual([], self._duplicate_findings(faithful, source))
+                            finding = self._duplicate_findings(
+                                faithful + [_entry(line, "CX")], source)[0]
+                            self.assertEqual("blocking", finding["severity"])
+                            self.assertEqual(copies, finding["details"]["source_occurrences"])
+                            self.assertEqual(copies + 1,
+                                             finding["details"]["all_text_occurrences"])
 
     def test_hard_wrapped_source_stays_clean_once_and_blocks_at_two(self):
         # The primary comparison key still collapses a single newline to a word
@@ -1203,11 +1329,13 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
     def test_zwnj_after_space_or_zwsp_is_fusable(self):
         # A leading ZWNJ after a space or U+200B sits in the gap between the
         # two tokens rather than trailing the first token; it is still an
-        # optional separator and must fuse, while punctuation or a line break
-        # beside ZWNJ still separates lines.
+        # optional separator and must fuse. A line ending is a soft wrap too
+        # (#2293), so it fuses; punctuation and a paragraph break still
+        # separate lines.
         for label, source in (
                 ("space_then_zwnj", "Hello. می \u200cروم world."),
-                ("zwsp_then_zwnj", "Hello. می\u200b\u200cروم world.")):
+                ("zwsp_then_zwnj", "Hello. می\u200b\u200cروم world."),
+                ("newline_then_zwnj", "Hello. می\n\u200cروم world.")):
             with self.subTest(case=label):
                 self.assertEqual([], self._duplicate_findings(
                     [_entry("میروم", "MARTA")], source))
@@ -1219,7 +1347,8 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
 
         for label, source in (
                 ("punctuation_then_zwnj", "Hello. می.\u200cروم world."),
-                ("newline_then_zwnj", "Hello. می\n\u200cروم world.")):
+                ("blank_line_then_zwnj", "Hello. می\n\n\u200cروم world."),
+                ("paragraph_separator_then_zwnj", "Hello. می\u2029\u200cروم world.")):
             with self.subTest(negative=label):
                 self.assertEqual([], self._duplicate_findings(
                     [_entry("میروم", "MARTA"), _entry("میروم", "PORTER")], source))
