@@ -5938,6 +5938,19 @@
     "tests.test_epub_extraction_report_js.EpubExtractionReportJsTests.test_api_report_flag_is_explicit_and_does_not_change_batch_default"
     , "tests.test_epub_extraction_report_js.EpubExtractionReportJsTests.test_real_upload_handler_fences_reports_and_uses_text_only"
   ]
+  , "test_epub_hidden_attribute": [
+    "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_all_boolean_spellings_and_until_found_omitted_in_html_and_xhtml"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_css_display_none_aria_hidden_and_foreign_namespace_are_not_dropped"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_extraction_report_records_hidden_omission_without_leaking_text"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_issue_reproduction_all_extraction_paths"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_navigation_targets_inside_hidden_subtree_are_reported_and_not_inserted"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_void_self_closing_nested_and_malformed_markup_in_html_and_xhtml"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_xml_pass_handles_cdata_and_same_tag_self_closing_hidden_elements"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenPredicateTests.test_predicate_accepts_all_boolean_case_until_found_and_xhtml_namespace_forms"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenPredicateTests.test_predicate_rejects_css_aria_data_and_foreign_namespaces"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenReadaloudParityTests.test_alignment_loader_handles_hidden_namespaces_and_out_of_scope_attrs"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenReadaloudParityTests.test_end_to_end_script_and_readaloud_stay_in_sync_with_hidden_elements"
+  ]
   , "test_epub_navigation_document": [
     "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_a_nav_only_book_whose_nav_member_is_absent_is_not_navigation_only"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_epub2_ncx_and_nav_outside_the_spine_are_unchanged"

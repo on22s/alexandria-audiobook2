@@ -109,7 +109,7 @@ from speaker_identity import stabilize_speaker_identities
 from generate_script import LLMGenParams
 from utils import file_lock, is_path_inside
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
-from alexandria_alignment import validate_epub_archive
+from alexandria_alignment import is_html_hidden_attrs, validate_epub_archive
 from epub_package import get_epub_package, is_navigation_document
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
 from epub_extraction_report import EpubExtractionReport
@@ -477,6 +477,12 @@ def normalize_extracted_text(text):
     return re.sub(r"\n{3,}", "\n\n", text)
 
 
+def _get_anchor_id(tag, attrs):
+    attributes = attrs if isinstance(attrs, dict) else dict(attrs)
+    return (attributes.get('id') or attributes.get('xml:id')
+            or (attributes.get('name') if tag == 'a' else None))
+
+
 class _HTMLTextExtractor(HTMLParser):
     """Strip HTML tags from EPUB content, preserving block-level structure."""
     BLOCK_TAGS = frozenset({
@@ -484,6 +490,18 @@ class _HTMLTextExtractor(HTMLParser):
         'li', 'blockquote', 'br', 'hr', 'tr', 'td', 'th', 'section', 'article',
     })
     SKIP_TAGS = frozenset({'style', 'script', 'title'})
+    # HTML5 void elements have no end tag, so a hidden void element (e.g.
+    # <br hidden>, <img hidden>) must never push onto the hidden skip stack.
+    VOID_TAGS = frozenset({
+        'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+        'link', 'meta', 'param', 'source', 'track', 'wbr',
+    })
+    # Block elements that implicitly close an open <p> in tolerant HTML.
+    _P_AUTO_CLOSE_TAGS = frozenset({
+        'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote',
+        'hr', 'section', 'article', 'ul', 'ol', 'dl', 'table', 'pre',
+        'header', 'footer', 'aside', 'nav', 'main', 'figure',
+    })
     # In text/html these are RCDATA: their content is literal text, so markup
     # that looks like a skipped element inside them is not an element at all.
     RCDATA_TAGS = frozenset({'title', 'textarea'})
@@ -524,6 +542,14 @@ class _HTMLTextExtractor(HTMLParser):
         # element, and XHTML structure is owned by the XML parser before
         # this extractor runs, so no name-mismatch policy is needed here.
         self._skip_stack = []
+        # Open non-void element stack inside an HTML `hidden` subtree. Kept
+        # separate from `_skip_stack` so tolerant HTML unclosed hidden tags do
+        # not trip SKIP_TAGS EOF checks, while nested same-name elements inside
+        # a hidden subtree stay balanced.
+        self._hidden_stack = []
+        self.hidden_elements = 0
+        self.first_hidden_location = None
+        self.hidden_anchors = set()
         self._anchor_ids = frozenset(anchor_ids or ())
         self.anchor_counts = {}
         # Ruby is narrated by ruby_text's rule (a kana reading replaces its
@@ -533,29 +559,55 @@ class _HTMLTextExtractor(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
-        if tag == RUBY_TAG and self._ruby is None and not self._skip_stack:
-            self._ruby = RubyCollector()
-        elif tag == RUBY_READING_TAG and self._ruby is not None:
-            self._ruby.start_reading()
-        elif tag == RUBY_FALLBACK_TAG and self._ruby is not None:
-            self._ruby_fallback_depth += 1
-        if tag in self.SKIP_TAGS:
+        is_skip = tag in self.SKIP_TAGS
+        if is_skip:
             self._skip_stack.append(tag)
-        elif tag in self.BLOCK_TAGS:
-            self._pending_newline = max(
-                self._pending_newline, 2 if tag in self.PARAGRAPH_TAGS else 1)
-        if not self._skip_stack and self._anchor_ids:
-            attributes = dict(attrs)
-            anchor_id = (attributes.get('id') or attributes.get('xml:id')
-                         or (attributes.get('name') if tag == 'a' else None))
+        if (self._hidden_stack and self._hidden_stack[-1] == 'p'
+                and tag in self._P_AUTO_CLOSE_TAGS):
+            self._hidden_stack.pop()
+        is_hidden = False
+        if self._hidden_stack:
+            if not is_skip and tag not in self.VOID_TAGS:
+                self._hidden_stack.append(tag)
+            is_hidden = True
+        elif not is_skip and not self._skip_stack and is_html_hidden_attrs(attrs):
+            is_hidden = True
+            self.hidden_elements += 1
+            if self.first_hidden_location is None:
+                self.first_hidden_location = f'line {self.getpos()[0]}, <{tag}>'
+            if tag not in self.VOID_TAGS:
+                self._hidden_stack.append(tag)
+        if not self._skip_stack and not is_hidden:
+            if tag == RUBY_TAG and self._ruby is None:
+                self._ruby = RubyCollector()
+            elif tag == RUBY_READING_TAG and self._ruby is not None:
+                self._ruby.start_reading()
+            elif tag == RUBY_FALLBACK_TAG and self._ruby is not None:
+                self._ruby_fallback_depth += 1
+            if tag in self.BLOCK_TAGS:
+                self._pending_newline = max(
+                    self._pending_newline, 2 if tag in self.PARAGRAPH_TAGS else 1)
+        if self._anchor_ids:
+            anchor_id = _get_anchor_id(tag, attrs)
             if anchor_id in self._anchor_ids:
-                self.anchor_counts[anchor_id] = self.anchor_counts.get(anchor_id, 0) + 1
-                self.parts.append(('anchor', anchor_id))
+                if is_hidden:
+                    self.hidden_anchors.add(anchor_id)
+                elif not self._skip_stack:
+                    self.anchor_counts[anchor_id] = self.anchor_counts.get(anchor_id, 0) + 1
+                    self.parts.append(('anchor', anchor_id))
 
     def handle_endtag(self, tag):
         tag = tag.lower()
         if tag in self.SKIP_TAGS and self._skip_stack:
             self._skip_stack.pop()
+            return
+        if self._hidden_stack:
+            if tag in self._hidden_stack:
+                for index in range(len(self._hidden_stack) - 1, -1, -1):
+                    if self._hidden_stack[index] == tag:
+                        del self._hidden_stack[index:]
+                        break
+            return
         if self._ruby is not None:
             if tag == RUBY_READING_TAG:
                 self._ruby.end_reading()
@@ -567,7 +619,7 @@ class _HTMLTextExtractor(HTMLParser):
                     self._append_text(spoken)
 
     def handle_data(self, data):
-        if self._skip_stack or self._ruby_fallback_depth:
+        if self._skip_stack or self._hidden_stack or self._ruby_fallback_depth:
             return
         if self.cdata_elem == 'textarea':
             # RCDATA decodes character references; HTMLParser suppresses its
@@ -644,9 +696,34 @@ class _HTMLTextExtractor(HTMLParser):
 _POTENTIAL_SKIP_OPEN_RE = re.compile(
     r'<(?:' + '|'.join(sorted(_HTMLTextExtractor.SKIP_TAGS)) +
     r')(?=[\t\n\r\f />]|$)', re.IGNORECASE | re.ASCII)
+# Conservative hint for XML `hidden="..."` (including XHTML-prefixed forms)
+# inside a start tag; quoted attribute values may contain `>`, while prose
+# mentions of the word "hidden" or attributes like `aria-hidden`/`class="hidden"`
+# do not trigger the strict XML pass.
+_POTENTIAL_HIDDEN_ATTR_RE = re.compile(
+    r'<(?:[^<>"\']|"[^"]*"|\'[^\']*\')*[\t\n\r\f :]hidden[\t\n\r\f ]*=',
+    re.IGNORECASE | re.ASCII)
 
 
-def _omit_xml_ignored_subtrees(html_content: str) -> str:
+def _xml_start_tag_end(data: bytes, start: int) -> tuple[int, bool]:
+    """Return ``(index_after_gt, is_self_closing)`` for the XML tag at ``start``."""
+    quote = 0
+    index = start + 1
+    limit = len(data)
+    while index < limit:
+        byte = data[index]
+        if quote:
+            if byte == quote:
+                quote = 0
+        elif byte in (34, 39):  # '"' or "'"
+            quote = byte
+        elif byte == 62:  # '>'
+            return index + 1, index > start + 1 and data[index - 1] == 47  # '/'
+        index += 1
+    raise ValueError('invalid XML: start tag terminator unavailable')
+
+
+def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None) -> str:
     """Omit true XML ignored subtrees, preserving everything outside them.
 
     Well-formed XHTML can carry literal skipped-element markup inside CDATA
@@ -655,17 +732,19 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
     end the skipped element at the literal close and reinterpret a literal
     open as a phantom element, falsely rejecting the book or silently
     swallowing following chapters. Expat (stdlib, no fetch, no entity
-    expansion) locates the real ignored elements in a UTF-8 copy of the
+    expansion) locates the real ignored elements (``SKIP_TAGS`` and elements
+    matched by :func:`is_html_hidden_attrs`) in a UTF-8 copy of the
     already-decoded resource; the untouched outside slices - CRLF,
     whitespace, anchors and all - are fed to the HTML extractor instead.
-    Ignored means exactly the HTML extractor's exact lowercased SKIP_TAGS:
+    Ignored tag names match the HTML extractor's exact lowercased SKIP_TAGS:
     prefixed names such as <x:script> are ordinary elements and are never
     omitted. Nonspoken PIs outside ignored elements are omitted likewise,
     and a DOCTYPE whose internal subset or identifiers could carry literal
     skip markup makes the whole nonspoken prolog be omitted at the root
     element (its lexical start is not directly reported by Expat).
-    Resources with no possible skip opening at all skip the copy and the
-    XML pass entirely (see _POTENTIAL_SKIP_OPEN_RE).
+    Resources with no possible skip opening or hidden attribute skip the copy
+    and the XML pass entirely (see _POTENTIAL_SKIP_OPEN_RE and
+    _POTENTIAL_HIDDEN_ATTR_RE).
     Outside bytes accumulate in a single bytearray candidate (bounded by
     the input size) rather than a per-element record list, and only
     cursor/depth/omission-flag state is retained. Only ignored elements
@@ -678,7 +757,7 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
     this helper and keeps the legacy tolerant HTML path. No partial
     transformed output is ever fed on XML failure.
     """
-    if not _POTENTIAL_SKIP_OPEN_RE.search(html_content):
+    if not _POTENTIAL_SKIP_OPEN_RE.search(html_content) and not _POTENTIAL_HIDDEN_ATTR_RE.search(html_content):
         return html_content
     try:
         data = html_content.encode('utf-8')
@@ -703,6 +782,9 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
     candidate = bytearray()
     cursor = 0
     ignored_depth = 0
+    ignored_self_closing = False
+    in_hidden = False
+    ns_stack = [{}]
     omitted = False
     seen_root = False
     doctype_hazard = False
@@ -739,11 +821,19 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
         cursor = end + 2
         omitted = True
 
-    def start_element(name, _attrs):
-        nonlocal ignored_depth, omitted, seen_root, cursor, pending_ignored
+    def start_element(name, attrs):
+        nonlocal ignored_depth, ignored_self_closing, in_hidden, omitted, seen_root, cursor, pending_ignored
         start = parser.CurrentByteIndex
         if start < 0:
             raise ValueError('invalid XML: element position unavailable')
+        current_ns = ns_stack[-1]
+        if any(key.startswith('xmlns:') for key in attrs):
+            updated = dict(current_ns)
+            for key, value in attrs.items():
+                if key.startswith('xmlns:'):
+                    updated[key[6:]] = value
+            current_ns = updated
+        ns_stack.append(current_ns)
         if not seen_root:
             seen_root = True
             if doctype_hazard:
@@ -754,46 +844,59 @@ def _omit_xml_ignored_subtrees(html_content: str) -> str:
                 candidate.clear()
                 cursor = start
                 omitted = True
-        if is_skipped(name):
-            if ignored_depth == 0:
-                candidate.extend(view[cursor:start])
-                omitted = True
-                pending_ignored = name.lower()
+        if ignored_depth:
             ignored_depth += 1
+            if in_hidden and anchor_ids and stats is not None:
+                anchor_id = _get_anchor_id(name.lower(), attrs)
+                if anchor_id in anchor_ids:
+                    stats['hidden_anchors'].add(anchor_id)
+            return
+        is_skip = is_skipped(name)
+        is_hidden = not is_skip and is_html_hidden_attrs(attrs, xml_namespaces=current_ns)
+        if is_skip or is_hidden:
+            candidate.extend(view[cursor:start])
+            omitted = True
+            pending_ignored = name.lower()
+            _, ignored_self_closing = _xml_start_tag_end(data, start)
+            ignored_depth = 1
+            if is_hidden:
+                in_hidden = True
+                if stats is not None:
+                    stats['hidden_elements'] += 1
+                    if stats['first_hidden_location'] is None:
+                        stats['first_hidden_location'] = (
+                            f'line {parser.CurrentLineNumber}, <{name.lower()}>')
+                    if anchor_ids:
+                        anchor_id = _get_anchor_id(name.lower(), attrs)
+                        if anchor_id in anchor_ids:
+                            stats['hidden_anchors'].add(anchor_id)
 
     def end_element(name):
-        nonlocal ignored_depth, cursor, pending_ignored
-        if not is_skipped(name):
-            return
+        nonlocal ignored_depth, ignored_self_closing, in_hidden, cursor, pending_ignored
+        if len(ns_stack) > 1:
+            ns_stack.pop()
         if ignored_depth == 0:
             return
         ignored_depth -= 1
         if ignored_depth:
             return
+        was_self_closing = ignored_self_closing
+        ignored_self_closing = False
+        in_hidden = False
         pending_ignored = None
         end = parser.CurrentByteIndex
         if end < 0:
             raise ValueError('invalid XML: end element position unavailable')
-        else:
-            # Paired vs self-closing is decided by the end tag's exact
-            # name at this index, not by a bare '</' test: a self-closing
-            # element's index points just past '/>', which may be exactly
-            # at a following *parent* end tag (e.g. <script/></div> or
-            # </textarea>) that must be retained. A paired end names this
-            # element; a self-closing element's following end names its
-            # parent. For an outermost removed element there can be no
-            # ignored ancestor it could be confused with. The XML name
-            # boundary after the name prevents prefix collisions.
-            closing = b'</' + name.encode('utf-8')
-            if data[end:end + len(closing)] == closing:
-                boundary = data[end + len(closing):end + len(closing) + 1]
-                if boundary in (b'>', b' ', b'\t', b'\r', b'\n', b''):
-                    close_end = data.find(b'>', end)
-                    if close_end < 0:
-                        raise ValueError(
-                            'invalid XML: end tag terminator unavailable')
-                    end = close_end + 1
-        # Otherwise self-closing: CurrentByteIndex is already just past '/>'.
+        if not was_self_closing:
+            # Paired start tag: consume its matching closing tag starting at end.
+            # Self-closing elements (e.g. <div hidden=""/> inside <div>...</div>)
+            # already have CurrentByteIndex just past '/>' and must not consume
+            # a following parent end tag even when the parent shares the tag name.
+            close_end = data.find(b'>', end)
+            if close_end < 0:
+                raise ValueError(
+                    'invalid XML: end tag terminator unavailable')
+            end = close_end + 1
         cursor = end
 
     parser.StartElementHandler = start_element
@@ -977,7 +1080,7 @@ def _toc_title_already_present(label, window):
     return False
 
 
-def _get_epub_toc_title_decisions(text, anchor_positions, toc_targets):
+def _get_epub_toc_title_decisions(text, anchor_positions, toc_targets, *, hidden_anchors=None):
     decisions = []
     seen = set()
     for fragment, label in toc_targets:
@@ -992,8 +1095,11 @@ def _get_epub_toc_title_decisions(text, anchor_positions, toc_targets):
         elif fragment in anchor_positions:
             position = anchor_positions[fragment]
         else:
+            reason = ('target_in_hidden_subtree'
+                      if hidden_anchors and fragment in hidden_anchors
+                      else 'unresolved_anchor')
             decisions.append({'fragment': fragment, 'label': label, 'position': None,
-                              'reason': 'unresolved_anchor'})
+                              'reason': reason})
             continue
         reason = ('label_already_near_target' if _toc_title_already_present(label, text[position:position + 500])
                   else 'insert_navigation_label')
@@ -1167,6 +1273,7 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
             extractor = _HTMLTextExtractor(
                 anchor_ids,
                 html_rcdata=media_type != 'application/xhtml+xml')
+            xml_stats = {'hidden_elements': 0, 'first_hidden_location': None, 'hidden_anchors': set()}
             try:
                 # XHTML resources are XML: omit true ignored subtrees via
                 # the strict XML path. Ordinary HTML media keeps the
@@ -1175,7 +1282,8 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                 # HTML parser accumulates its parts; html_bytes (used for
                 # report hashes) is unchanged by this.
                 if media_type == 'application/xhtml+xml':
-                    html_content = _omit_xml_ignored_subtrees(html_content)
+                    html_content = _omit_xml_ignored_subtrees(
+                        html_content, anchor_ids=anchor_ids, stats=xml_stats)
                 extractor.feed(html_content)
                 # The text accessor validates skipped-element balance.
                 # close() is deliberately not called here: it would flush
@@ -1193,9 +1301,14 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                 raise ValueError(
                     f'Malformed EPUB resource at spine index {spine_index}: '
                     f'{error} (resource {href!r})') from error
+            hidden_count = xml_stats['hidden_elements'] + extractor.hidden_elements
+            first_hidden_location = xml_stats['first_hidden_location'] or extractor.first_hidden_location
+            hidden_anchors = xml_stats['hidden_anchors'] | extractor.hidden_anchors
             body_characters = len(text.strip())
             processed_paths.add(href)
-            decisions = _get_epub_toc_title_decisions(text, anchor_positions, targets) if report is not None else None
+            decisions = (_get_epub_toc_title_decisions(text, anchor_positions, targets,
+                                                       hidden_anchors=hidden_anchors)
+                         if report is not None else None)
             insertion_options = {'decisions': decisions} if report is not None else {}
             text = _insert_epub_toc_titles(text, anchor_positions, targets, **insertion_options).strip()
             if report is not None:
@@ -1204,6 +1317,11 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                                      coordinate_scope='plain_resource_before_titles_and_normalization',
                                      anchor_occurrences=extractor.anchor_counts.get(decision['fragment'], 0),
                                      **decision)
+                if hidden_count:
+                    report.apply_row('hidden_content', resource=href, spine_index=spine_index,
+                                     reason='html_hidden_attribute',
+                                     omitted_elements=hidden_count,
+                                     first_location=first_hidden_location)
                 resolved = list(anchor_positions.values())
                 report.apply_row('resource_policy', resource=href,
                                  reason='all_extracted_text_kept_including_before_first_target',

@@ -8,9 +8,19 @@ still apply. Uploading an EPUB remains an import action.
 
 The snapshot binds the captured archive SHA-256 to the exact UTF-8 import-text
 SHA-256. It records the package, spine indices and resource hashes, navigation
-source/fallback, resolved targets, unresolved anchors, duplicate navigation,
+source/fallback, resolved targets, unresolved anchors, anchors inside omitted
+hidden subtrees (`target_in_hidden_subtree`), duplicate navigation,
 duplicate-anchor first-occurrence behavior, title insertion/suppression decisions,
-and skipped missing/non-HTML/empty resources. A navigation document listed in the
+omitted HTML `hidden` content (`hidden_content` rows recording omitted element
+counts and first element location, never the hidden text), and skipped
+missing/non-HTML/empty resources. Elements carrying the HTML `hidden` attribute
+(in any boolean or XHTML-namespaced form, including `hidden="until-found"`, which
+hides content from linear reading until interactive find-in-page reveal) and all
+their descendants are omitted from narration; CSS `display:none` and
+`aria-hidden` are not inferred or dropped. Navigation targets pointing only to
+anchors inside a hidden subtree do not resolve into visible text and do not
+insert navigation labels; they are reported with reason
+`target_in_hidden_subtree`. A navigation document listed in the
 spine is a table of contents, not story text: it is skipped and its spine row
 names the reason `navigation_document`, so it is never narrated. The whole
 document is skipped, including any prose a book places in the same file (for

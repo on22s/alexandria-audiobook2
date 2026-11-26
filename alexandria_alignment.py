@@ -157,6 +157,89 @@ def get_source_word_lists(text: str) -> tuple:
     return display, matching
 
 
+# ── HTML hidden attribute predicate (shared across all EPUB/XHTML paths) ──────
+_XHTML_NS = 'http://www.w3.org/1999/xhtml'
+
+
+def is_html_hidden_attrs(attrs, *, xml_namespaces=None) -> bool:
+    """Return whether an element's attributes carry the HTML ``hidden`` attribute.
+
+    ``hidden`` is matched by attribute presence: bare ``hidden``, ``hidden=""``,
+    ``hidden="hidden"``, uppercase/mixed-case spellings, and explicit XHTML-
+    namespaced spellings (``{http://www.w3.org/1999/xhtml}hidden`` or a prefix
+    bound to that URI via ``xml_namespaces``) all return True.
+    ``hidden="until-found"`` is treated as hidden: in HTML it suppresses
+    rendering (``content-visibility: hidden``) until interactive find-in-page
+    or fragment reveal, which does not occur during linear audiobook narration.
+    Foreign-namespaced ``hidden``, ``aria-hidden``, ``data-hidden``, and CSS
+    ``display:none`` are out of scope and return False.
+
+    One predicate for HTML/XHTML script extraction, XML subtree omission,
+    EPUB read-aloud segmentation, and alignment EPUB loading (Rule 15).
+    """
+    if not attrs:
+        return False
+    names = attrs.keys() if hasattr(attrs, 'keys') else (name for name, _value in attrs)
+    for name in names:
+        if not isinstance(name, str):
+            continue
+        if name.startswith('{'):
+            uri, sep, local = name[1:].partition('}')
+            if sep and uri == _XHTML_NS and local.isascii() and local.lower() == 'hidden':
+                return True
+        elif ':' in name:
+            if xml_namespaces:
+                prefix, _sep, local = name.partition(':')
+                if (xml_namespaces.get(prefix) == _XHTML_NS
+                        and local.isascii() and local.lower() == 'hidden'):
+                    return True
+        elif name.isascii() and name.lower() == 'hidden':
+            return True
+    return False
+
+
+def _bs4_xml_namespaces(tag, *, base=None):
+    """Collect active ``xmlns:<prefix>`` bindings for a BeautifulSoup tag."""
+    namespaces = {}
+    node = tag
+    while node is not None:
+        node_attrs = getattr(node, 'attrs', None)
+        if node_attrs:
+            for key, value in node_attrs.items():
+                if isinstance(key, str) and key.startswith('xmlns:') and isinstance(value, str):
+                    namespaces.setdefault(key[6:], value)
+        node = getattr(node, 'parent', None)
+    if base:
+        for prefix, uri in base.items():
+            namespaces.setdefault(prefix, uri)
+    return namespaces
+
+
+def _epub_item_root_context(item):
+    """Return ``(whole_doc_hidden, root_xml_namespaces)`` from raw item bytes.
+
+    ``ebooklib.EpubHtml.get_content()`` rebuilds ``<html>`` and ``<body>`` from
+    a template, dropping root ``xmlns:*`` declarations and ``hidden`` attributes
+    on ``<html>``/``<body>``. Inspect ``item.content`` when available so
+    ``load_epub`` keeps the same namespace and root-hidden semantics as XHTML
+    extraction without altering ``get_content()`` for callers or mocks.
+    """
+    raw = getattr(item, 'content', None)
+    if not isinstance(raw, (bytes, str)) or not raw:
+        return False, {}
+    raw_soup = BeautifulSoup(raw, 'html.parser')
+    namespaces = {}
+    for root_tag in (raw_soup.find('html'), raw_soup.find('body')):
+        if root_tag is None or not getattr(root_tag, 'attrs', None):
+            continue
+        for key, value in root_tag.attrs.items():
+            if isinstance(key, str) and key.startswith('xmlns:') and isinstance(value, str):
+                namespaces[key[6:]] = value
+        if is_html_hidden_attrs(root_tag.attrs, xml_namespaces=namespaces):
+            return True, namespaces
+    return False, namespaces
+
+
 # ── Source loaders ─────────────────────────────────────────────────────────────
 EPUB_MAX_ARCHIVE_BYTES = 512 * 1024**2
 EPUB_MAX_MEMBERS = 10_000
@@ -227,9 +310,20 @@ def load_epub(path: str) -> str:
             # ITEM_DOCUMENT), whereas character-referenced XML whitespace
             # (&#9;, &#10;, &#13;, &#12;) stays unsplit inside EpubHtml.properties.
             continue
+        doc_hidden, root_namespaces = _epub_item_root_context(item)
+        if doc_hidden:
+            continue
         soup = BeautifulSoup(item.get_content(), 'html.parser')
         for tag in soup(['script', 'style']):
             tag.decompose()
+        for tag in list(soup.find_all(True)):
+            attrs = getattr(tag, 'attrs', None)
+            if not attrs:
+                continue
+            namespaces = (_bs4_xml_namespaces(tag, base=root_namespaces)
+                          if any(isinstance(k, str) and ':' in k for k in attrs) else None)
+            if is_html_hidden_attrs(attrs, xml_namespaces=namespaces):
+                tag.decompose()
         parts.append(soup.get_text(separator=' '))
     if not parts:
         raise ValueError('EPUB has no readable spine documents')

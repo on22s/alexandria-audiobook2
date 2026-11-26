@@ -49,6 +49,7 @@ import unicodedata
 import xml.etree.ElementTree as ET
 
 import utils  # inserts the repo root on sys.path for alexandria_alignment users
+from alexandria_alignment import is_html_hidden_attrs
 from epub_package import get_epub_package, is_navigation_document
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from qwen_align import (get_normalized_stream, get_stream_chars,
@@ -273,11 +274,11 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
 
 
 def _visible_pieces(node):
-    """Yield visible text-node strings of a subtree in order (skip script/style)."""
+    """Yield visible text-node strings of a subtree in order (skip script/style/hidden)."""
     if node.text:
         yield node.text
     for child in node:
-        if _local(child.tag) in _EXCLUDE:
+        if _local(child.tag) in _EXCLUDE or is_html_hidden_attrs(child.attrib):
             if child.tail:
                 yield child.tail
             continue
@@ -320,10 +321,18 @@ def _get_optional_titles(root, segments, toc, path):
     order = {id(element): position for position, element in enumerate(root.iter())}
     starts = [order.get(id(segment["element"]), -1) for segment in segments]
     by_id = {}
-    for element in root.iter():
+
+    def _collect_visible_ids(element):
+        tag = _local(element.tag)
+        if tag in _EXCLUDE or is_html_hidden_attrs(element.attrib):
+            return
         for key in (element.get("id"), element.get("{http://www.w3.org/XML/1998/namespace}id")):
             if key and key not in by_id:
                 by_id[key] = element
+        for child in element:
+            _collect_visible_ids(child)
+
+    _collect_visible_ids(root)
     titles = {}
     for fragment, label in targets:
         index = 0
@@ -346,7 +355,7 @@ def _get_ruby_element_spoken_text(ruby):
 
     def _walk(node):
         tag = _local(node.tag)
-        if tag in _EXCLUDE or tag == RUBY_FALLBACK_TAG:
+        if tag in _EXCLUDE or tag == RUBY_FALLBACK_TAG or is_html_hidden_attrs(node.attrib):
             return
         if tag == RUBY_READING_TAG:
             collector.start_reading()
@@ -375,7 +384,7 @@ def _direct_pieces(node, is_root=True):
     if node.text:
         out.append(node.text)
     for child in node:
-        if _local(child.tag) in _EXCLUDE:
+        if _local(child.tag) in _EXCLUDE or is_html_hidden_attrs(child.attrib):
             if child.tail:
                 out.append(child.tail)
             continue
@@ -394,10 +403,10 @@ def _has_direct_text(node):
 
 
 def _has_block_descendant(node):
-    for desc in node.iter():
-        if desc is node:
+    for child in node:
+        if _local(child.tag) in _EXCLUDE or is_html_hidden_attrs(child.attrib):
             continue
-        if _local(desc.tag) in _BLOCK:
+        if _local(child.tag) in _BLOCK or _has_block_descendant(child):
             return True
     return False
 
@@ -426,6 +435,8 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
                 # Duplicate stable ids would make SMIL references ambiguous.
                 raise ValueError(f"Duplicate element id in spine document: {element_id}")
             seen_ids.add(element_id)
+    if is_html_hidden_attrs(root.attrib):
+        return root, [], ""
     body = None
     for element in root.iter():
         if _local(element.tag) == 'body':
@@ -442,7 +453,7 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
 
     def _process(el):
         tag = _local(el.tag)
-        if tag in _EXCLUDE or tag == 'head':
+        if tag in _EXCLUDE or tag == 'head' or is_html_hidden_attrs(el.attrib):
             return
         if tag in _BLOCK or tag in _CONTAINER or tag == 'html':
             if _has_direct_text(el):
@@ -1150,12 +1161,14 @@ def _inline_events(element):
             events.append(("text", node.text))
         for child in node:
             tag = _local(child.tag)
-            if tag in _BLOCK or tag in _CONTAINER:
+            if tag in _INLINE_SKIP or not isinstance(child.tag, str) \
+                    or is_html_hidden_attrs(child.attrib):
+                events.append(("atom", child))
+            elif tag in _BLOCK or tag in _CONTAINER:
                 raise ValueError(
                     "Sentence spans are unsupported inside a coarsened "
                     "container with nested blocks; refusing to guess.")
-            if tag in _INLINE_SKIP or not isinstance(child.tag, str) \
-                    or _is_textless_element(child):
+            elif _is_textless_element(child):
                 events.append(("atom", child))
             else:
                 events.append(("open", child))
