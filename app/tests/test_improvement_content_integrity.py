@@ -33,8 +33,10 @@ class ImprovementContentIntegrityTests(unittest.TestCase):
             text = alignment.load_source(str(source))
             self.assertLess(text.index('FIRST'), text.index('SECOND'))
             self.assertNotIn('UNLISTED', text)
-            # The chapter contributes its HTML title and body; navigation would add a third.
-            self.assertEqual(2, text.count('FIRST'))
+            self.assertNotIn('Order', text)
+            # ebooklib's get_content() omits <head>/<title>, so each chapter
+            # contributes only its body; including navigation would add a second.
+            self.assertEqual(1, text.count('FIRST'))
 
     def test_non_linear_spine_documents_are_not_read_as_book_text(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1227,10 +1227,7 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                                          else 'target_not_in_manifest' if path not in manifest_paths else 'target_outside_spine_not_extracted'))
     text = normalize_extracted_text('\n\n'.join(chapters))
     navigation_only = bool(navigation_documents) and not text_documents
-    extracted = None
-    if report is not None:
-        report.set_navigation_only(navigation_only)
-        extracted = report.get_report(text)
+    extracted = report.get_report(text) if report is not None else None
     if include_navigation_only:
         return text, extracted, navigation_only
     if extracted is not None:

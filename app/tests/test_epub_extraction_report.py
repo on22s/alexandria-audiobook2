@@ -126,12 +126,6 @@ class EpubExtractionReportTests(unittest.TestCase):
         self.assertEqual(140, sum(row['kind'] == 'spine' for row in result['rows']))
         self.assertNotIn('spine', result['omitted_rows_by_kind'])
 
-    def test_navigation_only_flag_defaults_false_and_is_emitted_when_set(self):
-        report = EpubExtractionReport(b'archive')
-        self.assertFalse(report.get_report('text')['navigation_only_text'])
-        report.set_navigation_only(True)
-        self.assertTrue(report.get_report('text')['navigation_only_text'])
-
     def test_path_only_report_matches_captured_bytes(self):
         raw = archive()
         with tempfile.TemporaryDirectory() as directory:

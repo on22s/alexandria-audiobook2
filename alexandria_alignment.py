@@ -213,12 +213,16 @@ def load_epub(path: str) -> str:
             raise ValueError(f"EPUB spine references missing document: {item_id}")
         if linear == 'no' or item.get_type() != ebooklib.ITEM_DOCUMENT:
             continue
-        if 'nav' in getattr(item, 'properties', []):
+        if isinstance(item, epub.EpubNav) or 'nav' in getattr(item, 'properties', []):
             # Same whole-token rule as app/epub_package.is_navigation_document,
             # which extraction and read-aloud share. This root module is also
             # imported by alexandria_compare.py, which does not put app/ on
             # sys.path, so importing that helper here would break standalone
-            # use; ebooklib already hands us a split token list.
+            # use. ebooklib's _load_manifest turns an XHTML manifest item whose
+            # properties include the whole `nav` token into an epub.EpubNav
+            # whose properties list is [] and get_type() is ITEM_DOCUMENT; keep
+            # the token check as well for any non-EpubNav document item whose
+            # properties list carries `nav`.
             continue
         soup = BeautifulSoup(item.get_content(), 'html.parser')
         for tag in soup(['script', 'style']):

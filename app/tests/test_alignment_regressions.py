@@ -62,31 +62,44 @@ class AlignmentCliRegressionTests(unittest.TestCase):
                 alignment.load_epub("book.epub")
 
     def test_epub_loader_applies_the_same_whole_nav_token_rule_as_extraction(self):
-        # load_epub keeps an inline check because alexandria_compare.py imports
-        # this root module without putting app/ on sys.path. Pin that it agrees
-        # with epub_package.is_navigation_document: ebooklib supplies a split
-        # token list, so only a whole ``nav`` token is the navigation document.
-        class Doc:
-            def __init__(self, text, properties):
-                self._text, self.properties = text, properties
+        # Round-trip real synthetic EPUBs through ebooklib.epub.read_epub:
+        # ebooklib converts manifest items with the whole `nav` property token
+        # into epub.EpubNav (whose properties attribute is [] and get_type() is
+        # ITEM_DOCUMENT). Both load_epub and extract_epub_text must skip all
+        # four whole-token nav spellings and keep `navx`.
+        from routers.script import extract_epub_text
+        from tests.test_epub_navigation_document import navigation_epub
 
-            def get_type(self):
-                return alignment.ebooklib.ITEM_DOCUMENT
-
-            def get_content(self):
-                return f'<html><body><p>{self._text}</p></body></html>'.encode()
-
-        docs = {'nav': Doc('CONTENTS LIST', ['nav']),
-                'near': Doc('NEAR TOKEN PROSE', ['navx']),
-                'plain': Doc('REAL TEXT', [])}
-        book = SimpleNamespace(spine=[('nav', 'yes'), ('near', 'yes'), ('plain', 'yes')],
-                               get_item_with_id=docs.get)
-        with patch.object(alignment, 'validate_epub_archive'), \
-             patch.object(alignment.epub, 'read_epub', return_value=book):
-            text = alignment.load_epub('synthetic.epub')
-        self.assertNotIn('CONTENTS LIST', text)
-        self.assertIn('NEAR TOKEN PROSE', text)
-        self.assertIn('REAL TEXT', text)
+        nav_body = (
+            '<html xmlns="http://www.w3.org/1999/xhtml" '
+            'xmlns:epub="http://www.idpf.org/2007/ops">'
+            '<head><title>Contents</title></head>'
+            '<body><nav epub:type="toc"><h1>NAVMARKER</h1>'
+            '<ol><li><a href="one.xhtml">A Cold Morning</a></li>'
+            '<li><a href="two.xhtml">The Bridge</a></li></ol>'
+            '</nav></body></html>'
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            for index, (properties, skipped) in enumerate((
+                ('nav', True),
+                ('scripted nav', True),
+                ('scripted\tnav', True),
+                ('\nnav\n', True),
+                ('navx', False),
+                ('nav\u00a0x', False),
+                ('NAV', False),
+            )):
+                with self.subTest(properties=properties):
+                    raw = navigation_epub(nav_properties=properties, nav_body=nav_body)
+                    path = Path(tmp) / f'book_{index}.epub'
+                    path.write_bytes(raw)
+                    loaded = alignment.load_epub(str(path))
+                    extracted = extract_epub_text('synthetic.epub', archive_bytes=raw)
+                    expected_count = 0 if skipped else 1
+                    self.assertEqual(expected_count, loaded.count('NAVMARKER'))
+                    self.assertEqual(expected_count, extracted.count('NAVMARKER'))
+                    self.assertIn('Story begins.', loaded)
+                    self.assertIn('Story ends.', loaded)
 
     def test_epub_preflight_counts_decompressed_bytes_not_only_zip_headers(self):
         class UnderreportedMember:

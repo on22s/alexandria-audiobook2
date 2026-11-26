@@ -164,12 +164,16 @@ class EpubNavigationDocumentTests(unittest.TestCase):
         self.assertEqual(['navigation_document'], reasons)
 
     def test_a_nav_only_book_whose_nav_member_is_absent_is_not_navigation_only(self):
-        text, report = extract(navigation_epub(chapter_in_spine=False,
-                                               omit_nav_member=True))
+        text, report, navigation_only = extract_epub_text(
+            'synthetic.epub',
+            archive_bytes=navigation_epub(chapter_in_spine=False, omit_nav_member=True),
+            include_report=True,
+            include_navigation_only=True,
+        )
         self.assertEqual('', text)
         spine = [row for row in report['rows'] if row['kind'] == 'spine']
         self.assertEqual(['missing_archive_resource'], [row['reason'] for row in spine])
-        self.assertFalse(report['navigation_only_text'])
+        self.assertFalse(navigation_only)
 
     def test_epub2_ncx_and_nav_outside_the_spine_are_unchanged(self):
         epub2 = extract(navigation_epub(version='2.0', nav_in_spine=False,
@@ -213,7 +217,7 @@ class EpubNavigationDocumentTests(unittest.TestCase):
         self.assertEqual(['nav', 'one', 'two'], [row['item_id'] for row in spine])
         self.assertEqual('missing_archive_resource', spine[0]['reason'])
 
-    def test_navigation_only_text_is_reported_only_when_no_other_text_document_exists(self):
+    def test_navigation_only_classification_is_true_only_when_no_other_text_document_exists(self):
         for options, expected in (({'nav_in_spine': True, 'chapter_in_spine': False}, True),
                                   ({'nav_in_spine': True, 'chapter_in_spine': False,
                                     'cover': True}, True),
@@ -229,8 +233,14 @@ class EpubNavigationDocumentTests(unittest.TestCase):
                                   # still a text document: not navigation-only.
                                   ({'empty_body': True}, False)):
             with self.subTest(options=options):
-                _text, report = extract(navigation_epub(**options))
-                self.assertEqual(expected, report['navigation_only_text'])
+                _text, report, navigation_only = extract_epub_text(
+                    'synthetic.epub',
+                    archive_bytes=navigation_epub(**options),
+                    include_report=True,
+                    include_navigation_only=True,
+                )
+                self.assertEqual(expected, navigation_only)
+                self.assertNotIn('navigation_only_text', report)
 
     def test_nav_in_spine_with_linear_no_is_still_the_navigation_document(self):
         text, report = extract(navigation_epub(nav_linear='no'))
