@@ -4065,6 +4065,9 @@
     , "tests.test_config_regressions.ConfigTests.test_prompt_presets_validate_and_round_trip"
     , "tests.test_config_regressions.ConfigTests.test_save_config_persists_normalized_copy_without_mutating_request"
     , "tests.test_config_regressions.ConfigTests.test_segmentation_mode_is_bounded"
+    , "tests.test_config_regressions.ReviewBatchSizeSaveTests.test_interrupted_checkpoint_survives_a_save_that_does_not_touch_it"
+    , "tests.test_config_regressions.ReviewBatchSizeSaveTests.test_invalid_stored_review_batch_size_is_ignored_with_a_warning"
+    , "tests.test_config_regressions.ReviewBatchSizeSaveTests.test_settings_save_keeps_review_batch_size"
     , "tests.test_config_regressions.StoredFailoverValidationTests.test_stored_failover_bool_is_validated_before_profile_dispatch"
     , "tests.test_config_regressions.ThreePassKnobBoundsTests.test_chunk_size_cap_and_the_pass2_knobs"
     , "tests.test_config_regressions.ThreePassKnobBoundsTests.test_numbered_pass_prompt_presets_are_named_and_bounded"
@@ -13913,7 +13916,10 @@
     , "tests.test_review_surfacing.ReviewIsLoggedTest.test_nothing_is_logged_when_there_is_nothing_to_review"
   ]
   , "test_review_text_per_request": [
-    "tests.test_review_text_per_request.ReviewBatchingIdentityTests.test_default_zero_keeps_preexisting_receipt_identity"
+    "tests.test_review_text_per_request.ReviewBatchSizeConfigTests.test_absent_key_keeps_the_existing_default"
+    , "tests.test_review_text_per_request.ReviewBatchSizeConfigTests.test_model_and_review_accept_the_same_values"
+    , "tests.test_review_text_per_request.ReviewBatchSizeConfigTests.test_model_and_review_refuse_the_same_values"
+    , "tests.test_review_text_per_request.ReviewBatchingIdentityTests.test_default_zero_keeps_preexisting_receipt_identity"
     , "tests.test_review_text_per_request.ReviewBatchingIdentityTests.test_opt_in_changes_receipt_identity"
     , "tests.test_review_text_per_request.ReviewEstimateParityTests.test_estimate_equals_actual_requests_with_char_target"
     , "tests.test_review_text_per_request.ReviewPackingTests.test_invalid_batch_settings_fail_loud"

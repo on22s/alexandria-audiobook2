@@ -2838,6 +2838,11 @@
             "title": "Presence Penalty",
             "type": "number"
           },
+          "review_batch_size": {
+            "default": 25,
+            "title": "Review Batch Size",
+            "type": "integer"
+          },
           "review_target_chars": {
             "default": 0,
             "maximum": 1000000.0,
