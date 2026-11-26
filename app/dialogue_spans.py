@@ -806,13 +806,32 @@ def _paired_spans(text):
                 return candidate
 
             def next_closer(search_from):
+                """-> the offset that ends this pair, or -1.
+
+                A mark the role classifier calls an opener is skipped. An inch
+                mark is skipped while a real closer may still follow, but the
+                first one is remembered: when every remaining candidate is an
+                inch mark, that one ends the pair. `_ambiguous_mark_roles` has
+                no digit context, so it can call a speech's real German closer
+                an English opener (`„It is 6“ wide“ she said.`); without the
+                fallback the pair reached no end and the whole speech was
+                dropped, while pass_quality's analyzer closed at the inch mark.
+                The fallback lives here, in the caller that owns the role
+                decision, because making `is_inch_mark` reject that opener
+                would then count the opener's own English closer as a German
+                one and lose `„Zimmer 5“` (the round-6 bracket case, #2318).
+                """
                 candidate = text.find(closer, search_from)
-                while candidate != -1 and (
-                        candidate in opens
-                        or is_inch_mark(text, candidate, closer, True,
-                                        opener=opener)):
+                first_inch = -1
+                while candidate != -1:
+                    if candidate not in opens:
+                        if not is_inch_mark(text, candidate, closer, True,
+                                            opener=opener):
+                            return candidate
+                        if first_inch == -1:
+                            first_inch = candidate
                     candidate = text.find(closer, candidate + 1)
-                return candidate
+                return first_inch
 
             position = next_opener(0)
             end, bad_breaks = 0, None

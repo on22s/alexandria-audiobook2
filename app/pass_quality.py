@@ -424,6 +424,25 @@ def _number_mark_token(text, position):
     return text[start:position + 1]
 
 
+def _region_has_number_mark(region, token):
+    """Does `region` hold `token` as a whole number and mark?
+
+    A plain substring test matched `5"` inside `15"`, so an inch-mark row was
+    treated as still present only because a longer measurement elsewhere
+    contained the same digits, and the finding became crosses_quote_boundary
+    instead of mixed_quote_region (#2318). The boundary is the one
+    `_number_mark_token` uses to extend a number: another digit or `.`/`,`
+    directly before the match makes it part of that longer number.
+    """
+    start = region.find(token)
+    while start != -1:
+        before = region[start - 1] if start else ""
+        if not before or (before not in ".," and not _is_number_char(before)):
+            return True
+        start = region.find(token, start + 1)
+    return False
+
+
 def _has_quote_delimiter(text, region_texts):
     """True unless every quote character in `text` is a kept inch mark.
 
@@ -438,7 +457,8 @@ def _has_quote_delimiter(text, region_texts):
             continue
         token = _number_mark_token(text, position)
         if (_is_inch_mark(text, position, char)
-                and any(token in region for region in region_texts)):
+                and any(_region_has_number_mark(region, token)
+                        for region in region_texts)):
             continue
         return True
     return False

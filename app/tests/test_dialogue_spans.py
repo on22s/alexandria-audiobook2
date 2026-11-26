@@ -378,6 +378,62 @@ class SpanTest(unittest.TestCase):
                          [source[a:b] for a, b in
                           spoken_spans(source, "paired_quotes")])
 
+    def test_a_german_speech_holding_an_inch_mark_is_not_dropped(self):
+        # `_ambiguous_mark_roles` has no digit context, so for German low-high
+        # it calls the speech's real closer (after the measurement) an English
+        # opener. `is_inch_mark` counted that mark as an available closer while
+        # the pairing rejected it, so neither closed the speech and the whole
+        # pair was dropped. Main kept the text up to the inch mark, which is
+        # also where the analyzer stops, so the pairing must end there instead
+        # of dropping the pair (#2318 review).
+        prefix = '„Hallo.“ sagte er.\n\n„Guten Tag.“ sagte sie.\n\n'
+        for body, spoken in [
+                ('„It is 6“ wide“ she said.', 'It is 6'),
+                ('„It is 6“ wide“, sagte er.', 'It is 6'),
+                ('„It is 6“ wide.“ Er ging.', 'It is 6'),
+                ('„It is 6“ wide“... Er ging.', 'It is 6'),
+                ('„It is 6“ by 8“ board“ he said.', 'It is 6'),
+                ('„We leave at 6“.” he said', 'We leave at 6')]:
+            with self.subTest(body=body):
+                source = prefix + body
+                self.assertEqual(['Hallo.', 'Guten Tag.', spoken],
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+        # The gate's five-pair German prefix crosses MIN_CONVENTION_PAIRS, so
+        # the low-high density filter is not what kept the speech.
+        many = ''.join(f'„Wort{i} hier.“ sagte er.\n\n' for i in range(5))
+        source = many + '„It is 6“ wide“ she said.'
+        self.assertIn('It is 6', [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+
+    def test_a_later_german_pair_does_not_reopen_the_reply_mark(self):
+        # The bracket reply `(“nein”)` must not hold the German speech open
+        # even when a later German pair gives the closer search somewhere else
+        # to reach; the glued-opener stop is what closes `Zimmer 5` there
+        # (#2318 review).
+        prefix = '„Hallo.“ sagte er.\n\n'
+        source = prefix + '„Zimmer 5“ sagte er. (“nein”). „Gut.“ sagte sie.'
+        self.assertEqual(['Hallo.', 'Zimmer 5', 'nein', 'Gut.'],
+                         [source[a:b] for a, b in
+                          spoken_spans(source, "paired_quotes")])
+
+    def test_a_real_closer_before_a_sentence_end_stays_a_known_limit(self):
+        # Known limit, identical on main and head: the shape rule reads a real
+        # closer followed directly by `.`/`…`/`'` as an opener, so only the
+        # text up to the inch mark is spoken. Fixing it would unpick the rule
+        # that lets a reply follow a no-space stop (`he said."...No."`), and
+        # the fallback for the German drop does not reach it (#2318 review).
+        prefix = '"Hello." he said.\n\n'
+        for body, expected in [
+                ('"It is 6" wide". She left.', 'It is 6'),
+                ('"It is 6" wide"... She left.', 'It is 6'),
+                ('"It is 6" wide"\'s fine.', 'It is 6')]:
+            with self.subTest(body=body):
+                source = prefix + body
+                self.assertEqual(['Hello.', expected],
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+
     def test_a_continued_speech_is_the_only_reason_to_keep_the_mark(self):
         # The name records the round that added the paragraph-reopen
         # exception; #2318 removed it. A next paragraph that re-opens the same

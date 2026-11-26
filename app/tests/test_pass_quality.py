@@ -744,6 +744,65 @@ class InchMarkTests(unittest.TestCase):
                           ("SPOKEN", "nein"), ("NARRATOR", ").")],
                          self._regions(german + '„Zimmer 5“ sagte er. (“nein”).'))
 
+    def test_german_inch_mark_speech_agrees_with_the_source_map(self):
+        # The analyzer already ended the German speech at the inch mark; the
+        # source map dropped it because the role classifier called the real
+        # closer an opener. Both must now report the same speech (#2318).
+        prefix = '„Hallo.“ sagte er.\n\n„Guten Tag.“ sagte sie.\n\n'
+        for body in ('„It is 6“ wide“ she said.',
+                     '„It is 6“ wide“, sagte er.',
+                     '„It is 6“ wide.“ Er ging.'):
+            with self.subTest(body=body):
+                source = prefix + body
+                self.assertIn(("SPOKEN", "It is 6"), self._regions(source))
+                self.assertEqual(['Hallo.', 'Guten Tag.', 'It is 6'],
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+
+    def test_a_stray_closer_after_a_digit_keeps_narration_out(self):
+        # Ambiguous input: `by 8”` could open the next speech. Closing at
+        # `ten”` instead of main's swallow of `by 8` is deliberate, and the
+        # unmatched closer is surfaced as a repair rather than hidden (#2318).
+        source = '“It is ten” by 8” board” he said.'
+        analysis = analyze_outer_quote_regions(source)
+        self.assertEqual([("SPOKEN", "It is ten"),
+                          ("NARRATOR", "by 8” board he said.")],
+                         [(row["type"], row["text"])
+                          for row in analysis["regions"]])
+        self.assertEqual(["ignored_unmatched_close_quote"],
+                         [row["code"] for row in analysis["repairs"]])
+        # The same rule keeps an inch mark in the narration out of the speech.
+        self.assertEqual([("SPOKEN", "Wait,"),
+                          ("NARRATOR", "he said, holding the 6” board."),
+                          ("SPOKEN", "Go.")],
+                         self._regions(
+                             '“Wait,” he said, holding the 6” board. “Go.”'))
+
+    def test_an_inch_mark_token_must_match_whole_in_another_region(self):
+        # A row kept `5"`; the analyzed narration holds `15"`. A substring test
+        # found `5"` inside `15"`, called the mark kept, and reported only
+        # crosses_quote_boundary. A whole number-and-mark token must not match
+        # inside a longer number (#2318 review).
+        source = ('"Hello." he said.\n\n"We leave at 5" she said. '
+                  'The shelf was 15" deep.')
+        entries = [_seg("Hello.", "SPOKEN"), _seg("he said."),
+                   _seg('We leave at 5" she said.'),
+                   _seg('The shelf was 15" deep.')]
+        codes = {finding["code"] for finding in
+                 validate_segment_quality(source, entries)["findings"]}
+        self.assertIn("mixed_quote_region", codes)
+        self.assertNotIn("crosses_quote_boundary", codes)
+
+    def test_a_unit_word_before_a_sentence_end_closes_in_curly_high(self):
+        # The unit branch must not read a full stop after the unit as the
+        # confirmation a quote mark gives. Curly high, not the straight case
+        # already pinned: `wide.` with a later `8” deep` would otherwise keep
+        # the digit mark and swallow the narration (#2318 review).
+        self.assertEqual([("SPOKEN", "Room 12"),
+                          ("NARRATOR", "wide. The board was 8” deep.")],
+                         self._regions(
+                             '“Room 12” wide. The board was 8” deep.'))
+
     def test_initial_depth_keeps_an_inch_mark_when_a_later_closer_follows(self):
         # A chunk continuation has no opener to consult, but a later real
         # closer in the paragraph still proves this mark is a measurement.
