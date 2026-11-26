@@ -1114,6 +1114,20 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
                 self.assertEqual("blocking", finding["severity"])
                 self.assertEqual(1, finding["details"]["source_occurrences"])
 
+        # The B1 Japanese wrapped shape with a break instead of the soft wrap.
+        line = "\u306f\u3044\u305d\u3046\u3067\u3059"
+        spaced_line = "\u306f\u3044\u305d\u3046 \u3067\u3059"
+        for separator in ("\n\n", "\u2029"):
+            with self.subTest(language="ja", separator=repr(separator)):
+                source = ("\u300c\u306f\u3044\u305d\u3046%s\u3067\u3059\u300d"
+                          "\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002" % separator)
+                self.assertEqual([], self._duplicate_findings(
+                    [_entry(line, "C0"), _entry(line, "C1")], source))
+                finding = self._duplicate_findings(
+                    [_entry(spaced_line, "C0"), _entry(spaced_line, "C1")], source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["source_occurrences"])
+
     def test_other_unicode_whitespace_follows_the_paragraph_definition(self):
         # L2: \x0b, \x0c, \x1c-\x1e and \x85 are whitespace but not a line
         # ending to iter_source_paragraph_ranges. Alone they behave like a lone
