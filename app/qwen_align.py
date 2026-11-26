@@ -32,6 +32,8 @@ import re
 import unicodedata
 from fractions import Fraction
 
+from silent_word_characters import remove_silent_word_characters
+
 MAX_ALIGN_SECONDS = 180.0
 # Proven sequential scheduling (parent diagnostics v4/v6): an estimated
 # 20-second text target with a 3-second audio tail, grown in 3-second
@@ -242,8 +244,14 @@ def get_stream_chars(word):
 
 
 def count_units(text):
-    """Count AA2 word tokens, roughly matching an aligner's tokens."""
-    folded = unicodedata.normalize("NFKC", text or "").casefold()
+    """Count AA2 word tokens, roughly matching an aligner's tokens.
+
+    Delete U+00AD/U+2060 first (#2316). They are not spoken, and the word
+    regex would otherwise count "won<SHY>derful" as two words, inflating the
+    window plan that uses this count.
+    """
+    folded = unicodedata.normalize(
+        "NFKC", remove_silent_word_characters(text or "")).casefold()
     folded = folded.replace("’", "'").replace("‘", "'")
     return len(_AA2_WORDS_RE.findall(folded))
 

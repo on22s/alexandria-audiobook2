@@ -40,6 +40,7 @@ from script_preflight import (audit_unicode_text,
                               replacement_load_is_acceptable,
                               replacement_repair_hint)
 from speaker_identity import stabilize_speaker_identities, is_speaker_merge_allowed
+from silent_word_characters import remove_silent_word_characters
 from speaker_traits import get_established_traits
 from repair_source_encoding import preflight_source
 from script_repair import build_deterministic_repair
@@ -522,7 +523,11 @@ def attested_new_speakers(entries, roster_seen, source_text):
     """
     new = []
     for entry in entries:
-        speaker = (entry.get("speaker") or "").strip().upper()
+        # A name the model returned carrying U+00AD/U+2060 is the same speaker
+        # as the plain spelling (#2316). Fold here, the one place a label enters
+        # the roster, so one character cannot become two rows.
+        speaker = remove_silent_word_characters(
+            (entry.get("speaker") or "").strip()).upper()
         if (not speaker or speaker in ("NARRATOR", "UNKNOWN")
                 or speaker in roster_seen or speaker in new
                 or entry.get("attribution_unchecked")):
@@ -574,11 +579,16 @@ def get_cast_from_data(data):
                 or not isinstance(item.get("aliases", []), list)
                 or not all(isinstance(a, str) for a in item.get("aliases", []))):
             raise ValueError(f"bad entry {item!r}")
-        name = item["name"].strip().upper()
+        name = remove_silent_word_characters(item["name"].strip().upper())
+        if not name:
+            raise ValueError(f"bad entry {item!r}")
         if name in names:
             raise ValueError(f"duplicate canonical cast name: {name}")
-        aliases = [a.strip().upper() for a in item.get("aliases", [])
-                   if a.strip() and a.strip().upper() != name]
+        aliases = []
+        for alias in item.get("aliases", []):
+            alias = remove_silent_word_characters(alias.strip().upper())
+            if alias and alias != name:
+                aliases.append(alias)
         names.append(name)
         groups.append([name] + aliases)
         for alias in aliases:
@@ -906,7 +916,12 @@ def is_keepable_exhaustion(frozen_batch, last_entries, last_report):
 def get_cast_speaker(speaker, cast=None):
     """Fold an accepted speaker label through the supplied cast."""
     if isinstance(speaker, str):
-        return ((cast or {}).get("alias_to_name") or {}).get(speaker.strip().upper(), speaker)
+        # Only the lookup key is upper-cased (#2316). Without a cast hit the
+        # caller keeps its own spelling, minus the invisible characters, so a
+        # book without them is byte-identical to before this fix.
+        key = remove_silent_word_characters(speaker.strip().upper())
+        return ((cast or {}).get("alias_to_name") or {}).get(
+            key, remove_silent_word_characters(speaker))
     return speaker
 
 
@@ -3429,7 +3444,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
     for index, entry in enumerate(named):
         if not isinstance(entry, dict) or entry.get("attribution_unchecked"):
             continue
-        speaker = (entry.get("speaker") or "").strip().upper()
+        speaker = remove_silent_word_characters(
+            (entry.get("speaker") or "").strip()).upper()
         if speaker in eligible:
             roster_positions.setdefault(speaker, index)
 
@@ -3590,7 +3606,8 @@ def run_three_pass(client, model_name, source_text, params, chunk_size,
                 admitted = set(attested_new_speakers(
                     (named[index] for index, _ in current), set(), source_text))
                 for index, _ in current:
-                    speaker = (named[index].get("speaker") or "").strip().upper()
+                    speaker = remove_silent_word_characters(
+                        (named[index].get("speaker") or "").strip()).upper()
                     if speaker in admitted and not named[index].get("attribution_unchecked"):
                         roster_positions[speaker] = min(index, roster_positions.get(speaker, index))
                 roster = get_attribution_roster()

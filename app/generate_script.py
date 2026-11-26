@@ -39,6 +39,7 @@ from source_normalization import (normalize_extreme_phrase_repetitions,
                                   strip_publisher_matter)
 from speaker_identity import (build_speaker_consistency_report,
                               stabilize_speaker_identities)
+from silent_word_characters import remove_silent_word_characters
 from script_preflight import (MAX_REPLACEMENT_SHARE, audit_script,
                               audit_unicode_text,
                               replacement_load_is_acceptable,
@@ -358,8 +359,10 @@ def _get_boundary_overlap(left_entries, right_entries, minimum_words=3):
             or not isinstance(left_entries[-1], dict)
             or not isinstance(right_entries[0], dict)):
         return []
-    left_text = str(left_entries[-1].get("text") or "")
-    right_text = str(right_entries[0].get("text") or "")
+    left_text = remove_silent_word_characters(
+        str(left_entries[-1].get("text") or ""))
+    right_text = remove_silent_word_characters(
+        str(right_entries[0].get("text") or ""))
     left_words = re.findall(r"\w+", left_text.casefold(), re.UNICODE)
     right_words = re.findall(r"\w+", right_text.casefold(), re.UNICODE)
     maximum = min(len(left_words), len(right_words))
