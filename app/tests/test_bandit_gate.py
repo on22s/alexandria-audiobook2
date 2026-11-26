@@ -13,6 +13,7 @@ import tempfile
 import unittest
 
 import bandit_gate
+from tests.test_support import app_python_files
 
 ROOT = Path(__file__).resolve().parents[2]
 INI_PATH = ROOT / "app" / "bandit.ini"
@@ -116,7 +117,7 @@ class BanditGateTests(unittest.TestCase):
 
     def test_nosec_comments_name_a_test_and_a_reason(self):
         production = [path for path in
-                      [*ROOT.glob("*.py"), *(ROOT / "app").rglob("*.py")]
+                      [*ROOT.glob("*.py"), *app_python_files(ROOT / "app")]
                       if not {"tests", "experiments", "tools"}
                       & set(path.relative_to(ROOT).parts)]
         marked = []
