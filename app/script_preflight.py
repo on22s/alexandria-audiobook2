@@ -7,6 +7,7 @@ import sys
 import unicodedata
 from collections import Counter
 
+from silent_word_characters import remove_silent_word_characters
 from speech_text import get_speech_normalization
 from utils import get_unsafe_text_controls
 
@@ -75,7 +76,10 @@ def is_possible_misattributed_narration(text, speaker):
 
 
 def _normalize(value):
-    return " ".join(str(value or "").split()).casefold()
+    # One order everywhere (#2316): delete the silent characters first, then
+    # NFC, so a base letter and a combining mark on either side of one compose.
+    return " ".join(unicodedata.normalize(
+        "NFC", remove_silent_word_characters(value)).split()).casefold()
 
 
 def get_normalized_word_tokens(value):
@@ -398,6 +402,9 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
 
 
 def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None, count_phrase=None):
+    # Callers pass comparison-normalized entry text, but a soft hyphen or word
+    # joiner must not make two copies of one block compare unequal (#2316).
+    texts = [remove_silent_word_characters(text) for text in texts]
     findings = []
     occupied = set()
     if source_normalized is None:
@@ -782,7 +789,9 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
     if source_text:
         source_words = Counter(source_tokens)
         del source_tokens
-        script_words = Counter(word for text in texts for word in _WORD_RE.findall(text))
+        script_words = Counter(
+            word for text in texts
+            for word in _WORD_RE.findall(text))
         source_total = sum(source_words.values())
         matched = sum(min(count, script_words.get(word, 0)) for word, count in source_words.items())
         coverage = matched / source_total if source_total else 1.0

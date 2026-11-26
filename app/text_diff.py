@@ -11,6 +11,7 @@ from rapidfuzz.distance import Levenshtein
 from dialogue_spans import PAIRED
 from generate_script import split_into_chunk_records
 from review_script import normalize_text
+from silent_word_characters import remove_silent_word_characters
 
 CONTEXT_WORDS = 3
 _WORD_BOUNDARIES = str.maketrans({
@@ -28,6 +29,7 @@ def get_comparison_words(text):
     directly between two alphanumeric characters is treated like a hyphen and
     removed; every other en dash and every em dash remains a word boundary.
     """
+    text = remove_silent_word_characters(text)
     text = _EN_DASH_BETWEEN_WORDS.sub("", text)
     return normalize_text(text.translate(_WORD_BOUNDARIES)).split()
 

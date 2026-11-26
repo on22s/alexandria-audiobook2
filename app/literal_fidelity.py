@@ -3,6 +3,9 @@ import re
 import unicodedata
 from itertools import chain, zip_longest
 
+from silent_word_characters import (SILENT_WORD_CHARACTERS,
+                                    remove_silent_word_characters)
+
 # Keep case and lexical apostrophes; punctuation/emphasis delimiters are not
 # words. NFC and typographic apostrophes are the only character equivalences.
 _WORD = re.compile(r"[^\W_]+(?:['’][^\W_]+)*", re.UNICODE)
@@ -22,6 +25,8 @@ def _normalized_with_offsets(text):
     """
     decomposed = []
     for index, char in enumerate(text):
+        if char in SILENT_WORD_CHARACTERS:
+            continue
         for piece in unicodedata.normalize('NFD', char):
             decomposed.append((piece, index, index + 1))
     sequences, sequence, built = [], [], ''
@@ -46,9 +51,13 @@ def _normalized_with_offsets(text):
         raw_start = min(item[1] for item in sequence)
         raw_end = max(item[2] for item in sequence)
         for output in composed.replace('’', "'"):
-            pieces.append((output, raw_start, raw_end))
+            if output not in SILENT_WORD_CHARACTERS:
+                pieces.append((output, raw_start, raw_end))
     normalized = ''.join(piece[0] for piece in pieces)
-    baseline = unicodedata.normalize('NFC', text).replace('’', "'")
+    # Delete the silent characters BEFORE NFC so a base letter and its combining
+    # mark on either side of one can still compose (#2316).
+    baseline = unicodedata.normalize(
+        'NFC', remove_silent_word_characters(text)).replace('’', "'")
     if normalized != baseline:
         raise ValueError('Literal NFC offset alignment differs from whole-string NFC')
     return normalized, [(piece[1], piece[2]) for piece in pieces]
@@ -100,7 +109,8 @@ def iter_literal_words(text):
 
 def _words(text):
     """Word-only path: whole-string NFC, no per-character offset vector."""
-    value = unicodedata.normalize('NFC', text).replace('’', "'")
+    value = unicodedata.normalize(
+        'NFC', remove_silent_word_characters(text)).replace('’', "'")
     for word, _, _ in _word_spans(value):
         yield word
 
