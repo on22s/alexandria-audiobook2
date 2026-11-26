@@ -825,6 +825,22 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
                          self._duplicate_findings(fused, source)[0]["severity"])
         self.assertEqual([], self._duplicate_findings(spaced, source))
 
+    def test_an_output_boundary_does_not_change_a_source_without_one(self):
+        # A source with no boundary character has one spelling, so an output
+        # that keeps a ZWSP keeps the previous treatment (deleted): the line is
+        # the source's one word and two copies still block.
+        source = '"Gohome," she said.'
+        kept = "Go\u200bhome"
+        duplicate = [_entry(kept + ".", "MARTA"), _entry("she said."),
+                     _entry(kept + ".", "PORTER")]
+
+        finding = self._duplicate_findings(duplicate, source)[0]
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(2, finding["details"]["all_text_occurrences"])
+        self.assertEqual([], self._duplicate_findings(
+            [_entry(kept + ".", "MARTA"), _entry("she said.")], source))
+
     def test_a_superscript_numeral_behaves_like_a_literal_one(self):
         # NFKC folds "x\u00b2" to "x2", so a superscript is a source numeral
         # exactly as a literal "x2" is. The digit rule therefore downgrades a

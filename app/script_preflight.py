@@ -368,16 +368,28 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         return " ".join(ensure_combining_mark_word_pattern().findall(text))
 
     source_text = str(source_text or "")
+    source_is_ascii = source_text.isascii()
+    # A boundary character is non-ASCII, so only a non-ASCII source can carry
+    # one; an ASCII source keeps the old single key (and the old output key).
+    source_has_boundaries = (
+        not source_is_ascii
+        and any(character in source_text for character in WORD_BOUNDARIES))
+    # When the source treats a boundary character as a word break, an output
+    # that keeps it does too. Otherwise the output keeps the previous treatment
+    # of deleting it, so an ASCII source's behaviour is unchanged. (#2293)
+    output_boundaries = "space" if source_has_boundaries else "fused"
     if len(source_text) + sum(len(e.get("text", "")) for e in entries
                               if isinstance(e, dict) and isinstance(e.get("text"), str)) > 4000000:
         return [_finding("manual_review", "contained_duplicate_budget_exhausted",
                          "Quotation provenance input exceeded its size budget; review without deleting text.",
                          [], character_budget=4000000)]
-    texts = [canonical(e.get("text")) if isinstance(e, dict) else "" for e in entries]
+    texts = [canonical(e.get("text"), word_boundaries=output_boundaries)
+             if isinstance(e, dict) else "" for e in entries]
     character_rows = {i for i, e in enumerate(entries) if isinstance(e, dict)
                       and str(e.get("speaker") or e.get("type") or "").casefold()
                       not in {"", "narrator", "narration"}}
-    quoted = [[canonical(e["text"][a:b]) for a, b in spoken_spans(e["text"], "paired_quotes")]
+    quoted = [[canonical(e["text"][a:b], word_boundaries=output_boundaries)
+               for a, b in spoken_spans(e["text"], "paired_quotes")]
               if isinstance(e, dict) and isinstance(e.get("text"), str) else [] for e in entries]
     # Token Aho-Corasick: scan each source/output region once, not once per
     # character phrase. Suffix matches have a fixed budget; exhaustion abstains.
@@ -392,7 +404,6 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     # apostrophe guard covers the one other difference. Any other source is
     # rebuilt through canonical so a mark casefold produced ("İ" -> "i\u0307")
     # or typography is not dropped from the source while the needle keeps it.
-    source_is_ascii = source_text.isascii()
     source = (source_normalized if source_normalized is not None
               and source_is_ascii
               and not re.search(rf"(?<=\w)[{re.escape(_APOSTROPHE_VARIANTS)}](?=\w)",
@@ -402,11 +413,10 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
     # "Go\u200bhome" is the same single line as "Go home" and as "Gohome". Count
     # support under both keys and, per needle, keep the larger count as its
     # capacity, so a duplicate is proven whichever spelling was written and a
-    # faithful single copy stays clean. A boundary character is non-ASCII, so an
-    # ASCII source has one key and skips the extra scan entirely.
+    # faithful single copy stays clean. A source without a boundary character
+    # has one key and skips the extra scan entirely.
     source_keys = [source]
-    if not source_is_ascii and any(character in source_text
-                                   for character in WORD_BOUNDARIES):
+    if source_has_boundaries:
         fused_source = canonical(source_text, word_boundaries="fused")
         if fused_source != source:
             source_keys.append(fused_source)

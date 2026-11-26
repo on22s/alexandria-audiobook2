@@ -14502,6 +14502,7 @@
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_a_word_joiner_is_not_a_word_boundary"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_adjacent_repeated_splits_are_both_credited"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_an_emitted_digit_does_not_downgrade_a_separate_duplicate"
+    , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_an_output_boundary_does_not_change_a_source_without_one"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_an_unadjacent_split_is_not_credited_in_either_source_order"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_audit_script_does_not_block_a_mixed_normalisation_copy"
     , "tests.test_script_preflight.ContainedSeparateDuplicateTests.test_audit_script_folds_an_apostrophe_variant_word_count"
