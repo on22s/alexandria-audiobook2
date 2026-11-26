@@ -287,6 +287,7 @@
     , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_auto_anchor_prefers_strong_prose_over_weak_intro_match"
     , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_checkpoint_rejects_changed_source_input_or_output"
     , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_compare_rejects_unsafe_auto_approval_thresholds"
+    , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_epub_loader_applies_the_same_whole_nav_token_rule_as_extraction"
     , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_epub_loader_rejects_archive_before_ebooklib_reads_it"
     , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_epub_preflight_counts_decompressed_bytes_not_only_zip_headers"
     , "tests.test_alignment_regressions.AlignmentCliRegressionTests.test_epub_preflight_rejects_resource_exhaustion_before_parsing"
@@ -5875,6 +5876,7 @@
     , "tests.test_epub_extraction_report.EpubExtractionReportTests.test_epub2_and_epub3_reports_preserve_exact_extraction_and_spine_order"
     , "tests.test_epub_extraction_report.EpubExtractionReportTests.test_identity_budget_is_reserved_after_navigation_detail_fills"
     , "tests.test_epub_extraction_report.EpubExtractionReportTests.test_missing_resources_and_malformed_navigation_preserve_fallback"
+    , "tests.test_epub_extraction_report.EpubExtractionReportTests.test_navigation_only_flag_defaults_false_and_is_emitted_when_set"
     , "tests.test_epub_extraction_report.EpubExtractionReportTests.test_path_only_report_matches_captured_bytes"
     , "tests.test_epub_extraction_report.EpubExtractionReportTests.test_report_budget_and_field_truncation_never_replace_text_identity"
     , "tests.test_epub_extraction_report.EpubExtractionReportTests.test_skipped_spine_targets_and_empty_body_labels_are_explained"
@@ -5887,7 +5889,7 @@
     , "tests.test_epub_extraction_report_js.EpubExtractionReportJsTests.test_real_upload_handler_fences_reports_and_uses_text_only"
   ]
   , "test_epub_navigation_document": [
-    "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_ascii_whitespace_tokenisation_of_properties"
+    "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_a_nav_only_book_whose_nav_member_is_absent_is_not_navigation_only"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_epub2_ncx_and_nav_outside_the_spine_are_unchanged"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_epub2_properties_in_the_spine_is_still_the_navigation_document"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_nav_in_spine_with_linear_no_is_still_the_navigation_document"
@@ -5898,8 +5900,11 @@
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_readaloud_and_extraction_exclude_the_same_navigation_document"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_spine_navigation_document_is_not_narrated"
     , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_toc_entries_pointing_into_the_skipped_navigation_document_are_reported"
+    , "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_xml_whitespace_tokenisation_of_properties"
     , "tests.test_epub_navigation_document.NavigationOnlyImportTests.test_a_book_with_a_non_navigation_text_document_keeps_the_generic_refusal"
+    , "tests.test_epub_navigation_document.NavigationOnlyImportTests.test_a_navigation_document_missing_from_the_archive_keeps_the_generic_refusal"
     , "tests.test_epub_navigation_document.NavigationOnlyImportTests.test_a_navigation_only_book_names_the_skipped_navigation_document"
+    , "tests.test_epub_navigation_document.NavigationOnlyImportTests.test_a_navigation_only_refusal_uses_the_single_extraction_pass"
   ]
   , "test_epub_package": [
     "tests.test_epub_package.EpubPackageTests.test_missing_rootfile_fails_in_both_modes"

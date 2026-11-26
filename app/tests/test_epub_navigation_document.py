@@ -126,8 +126,9 @@ class EpubNavigationDocumentTests(unittest.TestCase):
                                     # EPUB tokens are case-sensitive: only the
                                     # lowercase manifest term names the nav doc.
                                     ('NAV', False), ('Nav', False),
-                                    # ASCII whitespace (tab/LF/FF/CR) separates
-                                    # tokens; NBSP and other Unicode spaces do not.
+                                    # XML whitespace (tab/LF/CR; FF is outside
+                                    # XML 1.0 but tolerated) separates tokens;
+                                    # NBSP and other Unicode spaces do not.
                                     ('\tnav\n', True), ('cover-image\tnav', True),
                                     ('nav\u00a0cover-image', False),
                                     ('\u00a0nav\u00a0', False)):
@@ -137,9 +138,9 @@ class EpubNavigationDocumentTests(unittest.TestCase):
                 self.assertEqual(skipped, text == 'Story begins.\n\nStory ends.')
                 self.assertEqual(not skipped, text.startswith('Navigation words.'))
 
-    def test_ascii_whitespace_tokenisation_of_properties(self):
+    def test_xml_whitespace_tokenisation_of_properties(self):
         # XML attribute normalization rewrites CR/LF/FF before this point, so
-        # the full ASCII set is checked on the shared predicate directly.
+        # the full set is checked on the shared predicate directly.
         for properties, expected in (('nav\rnav2', True), ('nav\f', True),
                                      ('a\rb\fnav', True), ('nav\u00a0', False),
                                      ('\u2003nav', False), ('NAV', False),
@@ -161,6 +162,14 @@ class EpubNavigationDocumentTests(unittest.TestCase):
         reasons = [row['reason'] for row in report['rows']
                    if row['kind'] == 'spine' and row['item_id'] == 'nav']
         self.assertEqual(['navigation_document'], reasons)
+
+    def test_a_nav_only_book_whose_nav_member_is_absent_is_not_navigation_only(self):
+        text, report = extract(navigation_epub(chapter_in_spine=False,
+                                               omit_nav_member=True))
+        self.assertEqual('', text)
+        spine = [row for row in report['rows'] if row['kind'] == 'spine']
+        self.assertEqual(['missing_archive_resource'], [row['reason'] for row in spine])
+        self.assertFalse(report['navigation_only_text'])
 
     def test_epub2_ncx_and_nav_outside_the_spine_are_unchanged(self):
         epub2 = extract(navigation_epub(version='2.0', nav_in_spine=False,
@@ -210,6 +219,12 @@ class EpubNavigationDocumentTests(unittest.TestCase):
                                     'cover': True}, True),
                                   ({}, False),
                                   ({'nav_in_spine': False}, False),
+                                  # A nav document absent from the archive was
+                                  # never imported, so the book is not
+                                  # navigation-only; the missing-resource row
+                                  # carries the real signal (#2324).
+                                  ({'nav_in_spine': True, 'chapter_in_spine': False,
+                                    'omit_nav_member': True}, False),
                                   # A declared chapter that yields no text is
                                   # still a text document: not navigation-only.
                                   ({'empty_body': True}, False)):
@@ -263,6 +278,30 @@ class NavigationOnlyImportTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual('error.upload.epub_navigation_only', body['message_key'])
                 self.assertIn('navigation document', body['detail'])
                 self.assertIn('contents page', body['detail'])
+
+    async def test_a_navigation_only_refusal_uses_the_single_extraction_pass(self):
+        # The refusal must come from the classification the extractor already
+        # made, not from a second extraction of the same bytes.
+        async with upload_client() as client:
+            with patch.object(script, 'extract_epub_text',
+                              wraps=script.extract_epub_text) as extractor:
+                response = await self.post(client, navigation_epub(chapter_in_spine=False))
+        self.assertEqual(400, response.status_code, response.text)
+        self.assertEqual('error.upload.epub_navigation_only',
+                         response.json()['message_key'])
+        self.assertEqual(1, extractor.call_count)
+
+    async def test_a_navigation_document_missing_from_the_archive_keeps_the_generic_refusal(self):
+        # The nav member was never in the archive, so nothing was actually
+        # skipped: the refusal names no navigation document and the extractor
+        # reports the member as missing, not as the navigation document.
+        async with upload_client() as client:
+            response = await self.post(client, navigation_epub(
+                chapter_in_spine=False, omit_nav_member=True))
+        self.assertEqual(400, response.status_code, response.text)
+        body = response.json()
+        self.assertEqual('error.upload.epub_empty', body['message_key'])
+        self.assertEqual('No readable text content found in EPUB.', body['detail'])
 
     async def test_a_book_with_a_non_navigation_text_document_keeps_the_generic_refusal(self):
         # Two declared chapters whose bodies and anchors are empty: nothing is

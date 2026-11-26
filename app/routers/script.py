@@ -1036,11 +1036,17 @@ def get_epub_xhtml_text(data: bytes) -> str:
     return data.decode(encoding, errors="replace")
 
 
-def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, include_report=False):
+def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, include_report=False,
+                      include_navigation_only=False):
     """Extract plain text from an EPUB file, ordered by spine (reading order).
 
     Parses the EPUB ZIP structure directly using stdlib only:
     META-INF/container.xml -> .opf manifest+spine -> XHTML content files.
+
+    ``include_report`` returns ``(text, report)``. ``include_navigation_only``
+    returns ``(text, report_or_None, navigation_only)`` and lets one caller
+    (the upload route) act on the extractor's own spine classification without
+    a second pass over the same bytes.
     """
     if include_report and archive_bytes is None:
         with open(epub_path, 'rb') as source:
@@ -1114,11 +1120,16 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
             # extraction skips it too (either one skipping only part would
             # make the two disagree about what text the book contains).
             if item is not None and is_navigation_document(item['properties']):
-                navigation_documents += 1
                 # A nav item whose member is absent is still a missing
                 # resource (#2324); the deliberate skip must not hide that.
-                reason = ('navigation_document' if item['path'] in archive_paths
-                          else 'missing_archive_resource')
+                # The import is only navigation-only when that nav document
+                # actually exists: an absent member leaves the generic
+                # empty-book refusal instead of naming a document that was
+                # never there.
+                in_archive = item['path'] in archive_paths
+                if in_archive:
+                    navigation_documents += 1
+                reason = 'navigation_document' if in_archive else 'missing_archive_resource'
                 skipped_paths[item['path']] = reason
                 if report is not None:
                     report.apply_row('spine', index=spine_index, item_id=item_id,
@@ -1215,24 +1226,16 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                                      reason=skipped_paths.get(path) or ('missing_archive_resource' if path not in archive_paths
                                          else 'target_not_in_manifest' if path not in manifest_paths else 'target_outside_spine_not_extracted'))
     text = normalize_extracted_text('\n\n'.join(chapters))
+    navigation_only = bool(navigation_documents) and not text_documents
+    extracted = None
     if report is not None:
+        report.set_navigation_only(navigation_only)
         extracted = report.get_report(text)
-        extracted['navigation_only_text'] = bool(navigation_documents) and not text_documents
+    if include_navigation_only:
+        return text, extracted, navigation_only
+    if extracted is not None:
         return text, extracted
     return text
-
-
-def is_navigation_only_epub(epub_path: str, *, archive_bytes: bytes) -> bool:
-    """Whether an EPUB's only text documents are its navigation documents.
-
-    Applies the extractor's own spine classification (#2327), so an empty
-    import can name the navigation document it skipped instead of refusing
-    generically. The caller already extracted nothing from the same bytes;
-    this re-run only reads the report and never changes any text.
-    """
-    _text, report = extract_epub_text(epub_path, archive_bytes=archive_bytes,
-                                      include_report=True)
-    return bool(report.get('navigation_only_text'))
 
 
 def _get_upload_hash(path: str) -> str:
@@ -1907,13 +1910,13 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
                     raise cancelled
                 options = {'include_report': True} if include_extraction_report else {}
                 extracted, cancelled = await await_upload_operation(asyncio.to_thread(
-                    extract_epub_text, safe_name, archive_bytes=archive_bytes, **options))
+                    extract_epub_text, safe_name, archive_bytes=archive_bytes,
+                    include_navigation_only=True, **options))
                 if cancelled is not None:
                     raise cancelled
-                if include_extraction_report:
-                    text, extraction_report = extracted
-                else:
-                    text = extracted
+                # The extractor's own spine classification: no second pass over
+                # the same bytes on the refusal path.
+                text, extraction_report, navigation_only = extracted
             except FileNotFoundError as error:
                 # Captured archive bytes are the parser's only input. A
                 # missing-path error here describes a malformed internal EPUB
@@ -1936,11 +1939,6 @@ async def upload_file(file: UploadFile = File(...), select_active: bool = True, 
             if cancelled is not None:
                 raise cancelled
             if text_bytes is None:
-                navigation_only, cancelled = await await_upload_operation(
-                    asyncio.to_thread(is_navigation_only_epub, safe_name,
-                                      archive_bytes=archive_bytes))
-                if cancelled is not None:
-                    raise cancelled
                 if navigation_only:
                     raise AppError(400, 'The only text document in this EPUB is the navigation document (contents page), which was skipped because a table of contents is not story text.', key='error.upload.epub_navigation_only')
                 raise AppError(400, 'No readable text content found in EPUB.', key='error.upload.epub_empty')

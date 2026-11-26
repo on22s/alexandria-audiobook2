@@ -3,10 +3,11 @@ from pathlib import PurePosixPath, PureWindowsPath
 import re
 import xml.etree.ElementTree as ET
 
-# HTML/EPUB space-separated tokens split on ASCII whitespace only. str.split()
-# would also split on NBSP and other Unicode spaces, which those attribute
-# grammars do not treat as separators.
-_ASCII_WHITESPACE = re.compile(r'[ \t\n\f\r]+')
+# EPUB 3 calls manifest `properties` a space-separated list; XML separates the
+# tokens with space, tab, CR or LF. str.split() would also split on NBSP and
+# other Unicode spaces, which that grammar does not treat as separators. Form
+# feed is kept for tolerance even though XML 1.0 forbids it in attribute values.
+_XML_WHITESPACE = re.compile(r'[ \t\n\f\r]+')
 
 
 def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, include_details=False):
@@ -73,10 +74,12 @@ def get_epub_package(archive, *, max_xml_bytes=None, require_unique=False, inclu
 def is_navigation_document(properties):
     """Return whether a manifest ``properties`` value names the EPUB nav doc.
 
-    EPUB 3 ``properties`` is an ASCII-whitespace-separated token list, so ``nav``
-    must match a whole token: ``navx`` or ``scripted nav-like`` is not the
-    navigation document, and the token is case-sensitive (``NAV`` is not
-    ``nav``). Non-ASCII spaces such as NBSP do not separate tokens. One rule
-    for extraction and read-aloud (Rule 15).
+    EPUB 3.3 section 5.3.5 describes ``properties`` as a space-separated list.
+    This app recognises only the spec's lowercase ``nav`` term, matched as a
+    whole token: ``navx`` or ``scripted nav-like`` is not the navigation
+    document, and ``NAV`` is not ``nav``. Tokens are split on XML whitespace
+    (space, tab, CR, LF); form feed is accepted too but cannot occur in an XML
+    1.0 attribute value. Non-XML spaces such as NBSP do not separate tokens.
+    One rule for extraction and read-aloud (Rule 15).
     """
-    return 'nav' in _ASCII_WHITESPACE.split(properties or '')
+    return 'nav' in _XML_WHITESPACE.split(properties or '')

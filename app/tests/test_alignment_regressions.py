@@ -61,6 +61,33 @@ class AlignmentCliRegressionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unsafe EPUB"):
                 alignment.load_epub("book.epub")
 
+    def test_epub_loader_applies_the_same_whole_nav_token_rule_as_extraction(self):
+        # load_epub keeps an inline check because alexandria_compare.py imports
+        # this root module without putting app/ on sys.path. Pin that it agrees
+        # with epub_package.is_navigation_document: ebooklib supplies a split
+        # token list, so only a whole ``nav`` token is the navigation document.
+        class Doc:
+            def __init__(self, text, properties):
+                self._text, self.properties = text, properties
+
+            def get_type(self):
+                return alignment.ebooklib.ITEM_DOCUMENT
+
+            def get_content(self):
+                return f'<html><body><p>{self._text}</p></body></html>'.encode()
+
+        docs = {'nav': Doc('CONTENTS LIST', ['nav']),
+                'near': Doc('NEAR TOKEN PROSE', ['navx']),
+                'plain': Doc('REAL TEXT', [])}
+        book = SimpleNamespace(spine=[('nav', 'yes'), ('near', 'yes'), ('plain', 'yes')],
+                               get_item_with_id=docs.get)
+        with patch.object(alignment, 'validate_epub_archive'), \
+             patch.object(alignment.epub, 'read_epub', return_value=book):
+            text = alignment.load_epub('synthetic.epub')
+        self.assertNotIn('CONTENTS LIST', text)
+        self.assertIn('NEAR TOKEN PROSE', text)
+        self.assertIn('REAL TEXT', text)
+
     def test_epub_preflight_counts_decompressed_bytes_not_only_zip_headers(self):
         class UnderreportedMember:
             file_size = 1

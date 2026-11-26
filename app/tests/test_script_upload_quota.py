@@ -155,7 +155,7 @@ class ScriptUploadQuotaTests(unittest.IsolatedAsyncioTestCase):
             existing.write_bytes(b'old source')
             with patch.object(script, 'UPLOADS_DIR', str(uploads)), patch.object(script, 'DATA_DIR', tmp), \
                  patch.object(script, 'MAX_UPLOAD_STORAGE_BYTES', 32, create=True), \
-                 patch.object(script, 'extract_epub_text', return_value='あ' * 20):
+                 patch.object(script, 'extract_epub_text', return_value=('あ' * 20, None, False)):
                 async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app()), base_url='http://fixture') as client:
                     response = await client.post('/api/upload', files={'file': ('book.EPUB', b'fixture archive')})
                     self.assertEqual(413, response.status_code, response.text)

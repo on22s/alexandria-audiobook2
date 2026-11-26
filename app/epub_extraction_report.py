@@ -15,6 +15,11 @@ class EpubExtractionReport:
         self.omitted_rows = 0
         self.omitted_rows_by_kind = {}
         self.row_bytes_by_group = {'identity': 0, 'detail': 0}
+        self.navigation_only_text = False
+
+    def set_navigation_only(self, navigation_only):
+        """Record whether the spine's only text documents were navigation docs."""
+        self.navigation_only_text = bool(navigation_only)
 
     def apply_row(self, kind, **values):
         row = {'kind': kind}
@@ -47,6 +52,7 @@ class EpubExtractionReport:
             'title_policy': 'navigation_label_when_not_already_near_target; no_html_title_or_generated_title',
             'content_policy': ('spine_order; style_script_title_not_spoken; '
                                'navigation_document_not_spoken; no_front_back_matter_exclusion'),
+            'navigation_only_text': self.navigation_only_text,
             'formatting': 'plain_text_only; emphasis_not_attached; xhtml_uses_tolerant_html_parser',
             'rows': list(self.rows),
             'omitted_rows': self.omitted_rows,

@@ -12,9 +12,16 @@ source/fallback, resolved targets, unresolved anchors, duplicate navigation,
 duplicate-anchor first-occurrence behavior, title insertion/suppression decisions,
 and skipped missing/non-HTML/empty resources. A navigation document listed in the
 spine is a table of contents, not story text: it is skipped and its spine row
-names the reason `navigation_document`, so it is never narrated. A book whose
+names the reason `navigation_document`, so it is never narrated. The whole
+document is skipped, including any prose a book places in the same file (for
+example a title page or foreword): extraction does not try to separate it,
+which matches read-aloud. Whether that skipped file held non-TOC text is not
+reported, because deciding it would need a second parse of the navigation
+member beyond the parse the extractor already made. A book whose
 only text document is its navigation document is refused at import, and the
-report's `navigation_only_text` records that case. A navigation document missing
+report's `navigation_only_text` records that case; a navigation document that
+is declared in the spine but absent from the archive is not counted, so such a
+book keeps the generic empty-book refusal. A navigation document missing
 from the archive is still reported as `missing_archive_resource`. Navigation
 outside the spine is reported. Content before a resolved anchor is retained.
 Resource character
