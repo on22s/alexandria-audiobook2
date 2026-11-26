@@ -789,6 +789,33 @@ class InchMarkTests(unittest.TestCase):
                          self._regions(
                              '“Wait,” he said, holding the 6” board. “Go.”'))
 
+    def test_roman_numeral_and_prime_before_closer_stay_known_limits(self):
+        # Known limit pinned on head: `Ⅻ` (Unicode Nl, not Nd/No) and `′`
+        # (Unicode Po) are not number characters in `is_number_char`, so the
+        # following `”` counts as a real closer while `8”` stays a narration
+        # inch mark and the final `”` surfaces as `ignored_unmatched_close_quote`
+        # (main swallowed `by 8 board` into the spoken region).
+        cases = [
+            ('“It is Ⅻ” by 8” board” he said.',
+             [("SPOKEN", "It is Ⅻ"),
+              ("NARRATOR", "by 8” board he said.")]),
+            ('“It is 6′” by 8” board” he said.',
+             [("SPOKEN", "It is 6′"),
+              ("NARRATOR", "by 8” board he said.")]),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                analysis = analyze_outer_quote_regions(source)
+                self.assertEqual(expected,
+                                 [(row["type"], row["text"])
+                                  for row in analysis["regions"]])
+                self.assertEqual(["ignored_unmatched_close_quote"],
+                                 [row["code"] for row in analysis["repairs"]])
+                self.assertEqual([text for kind, text in expected
+                                  if kind == "SPOKEN"],
+                                 [source[a:b] for a, b in
+                                  spoken_spans(source, "paired_quotes")])
+
     def test_an_inch_mark_token_must_match_whole_in_another_region(self):
         # A row kept `5"`; the analyzed narration holds `15"`. A substring test
         # found `5"` inside `15"`, called the mark kept, and reported only
@@ -1076,6 +1103,32 @@ class InchMarkTests(unittest.TestCase):
         expected = [("SPOKEN", 'Es ist 6" breit'),
                     ("NARRATOR", ", sagte er."),
                     ("SPOKEN", "Gut.")]
+        analysis = analyze_outer_quote_regions(source)
+        self.assertEqual([], analysis["repairs"])
+        self.assertEqual(expected, [(row["type"], row["text"])
+                                    for row in analysis["regions"]])
+        self.assertEqual([text for kind, text in expected if kind == "SPOKEN"],
+                         [source[a:b] for a, b in
+                          spoken_spans(source, "paired_quotes")])
+        self.assertTrue(validate_segment_quality(
+            source, analysis["regions"], quote_analysis=analysis)["passed"])
+
+    def test_a_curly_inch_mark_inside_german_speech_stays_spoken(self):
+        # German low-high (`„…“`) closes with `“`, so an interior curly `”`
+        # after a digit is an inch mark rather than a closer. Unlike `“`
+        # (#2357), curly `”` inside German is fixed in the analyzer and agrees
+        # with `spoken_spans` instead of inverting narration and later speech.
+        prefix = '„A“ „B“ „C“ „D“ „E“ '
+        source = (prefix + '„Es ist 6” breit“, sagte er. '
+                  'Dann „Komm“, sagte sie.')
+        expected = [
+            ("SPOKEN", "A"), ("SPOKEN", "B"), ("SPOKEN", "C"),
+            ("SPOKEN", "D"), ("SPOKEN", "E"),
+            ("SPOKEN", "Es ist 6” breit"),
+            ("NARRATOR", ", sagte er. Dann"),
+            ("SPOKEN", "Komm"),
+            ("NARRATOR", ", sagte sie."),
+        ]
         analysis = analyze_outer_quote_regions(source)
         self.assertEqual([], analysis["repairs"])
         self.assertEqual(expected, [(row["type"], row["text"])

@@ -730,8 +730,12 @@ class SpanTest(unittest.TestCase):
         for char in ("7", "½", "²", "①"):
             with self.subTest(char=char):
                 self.assertTrue(dialogue_spans.is_number_char(char))
-        # A CJK numeral is a letter, so a quote after it is a delimiter.
-        self.assertFalse(dialogue_spans.is_number_char("三"))
+        # A CJK numeral is a letter (Lo), a Roman numeral is a letter number
+        # (Nl), and a prime mark is punctuation (Po), so a quote after any of
+        # them is treated as a delimiter rather than an inch mark.
+        for char in ("三", "Ⅻ", "′"):
+            with self.subTest(char=char):
+                self.assertFalse(dialogue_spans.is_number_char(char))
 
     def test_a_stray_closer_after_german_speech_keeps_narration_out(self):
         # A `”` after narration, with no later `“`, must not flip the real
