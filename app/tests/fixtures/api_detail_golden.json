@@ -544,6 +544,7 @@
     "'The line text or selected occurrence changed. Remove stale rules and choose fresh matches.'",
     "'The local TTS engine is still in use. Wait for it to finish before starting GPU work.'",
     "'The manual LLM request file manual_llm/pending.json in the data directory is corrupt. Cancel the manual request (or restart the app), then delete or rename this file before trying again.'",
+    "'The only text document in this EPUB is the navigation document (contents page), which was skipped because a table of contents is not story text.'",
     "'The pending manual LLM request could not be read. Try again.'",
     "'The preview changed since generation. Generate a new preview before saving.'",
     "'The preview receipt could not be read; regenerate the preview before saving.'",
