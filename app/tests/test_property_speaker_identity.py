@@ -13,15 +13,16 @@ derandomized, no database, no deadline).
 
 Deliberately out of scope: the nasal-sign table (anusvara, candrabindu and the
 spellings mapped onto them) is being changed by #2358. These properties use
-vowel signs and viramas only, so they hold both before and after that table
-changes.
+vowel signs, viramas and the Thai tone marks that the key keeps with their
+base, so they hold both before and after that table changes.
 
 The generated text is synthetic; no book or person data is used.
 """
+import sys
 import unicodedata
 import unittest
 
-from hypothesis import assume, given, settings, strategies as st
+from hypothesis import assume, given, strategies as st
 
 from tests import hypothesis_profile
 from speaker_identity import _identity_key
@@ -44,7 +45,8 @@ _SEPARATORS = (" ", "  ", "-", "'", "’", ".", "\u200b", "\u00ad", "")
 _ACCENTS = ("\u0301", "\u0300", "\u0308", "\u0327", "\u0342", "\u0483")
 
 # A base letter plus ONE required mark: vowel signs and viramas of the
-# abugidas. Nasal signs are excluded on purpose (#2358 owns their table).
+# abugidas, plus the Thai tone marks (mai ek, mai tai khu) that the key keeps
+# with their base. Nasal signs are excluded on purpose (#2358 owns their table).
 _REQUIRED_SYLLABLES = (
     ("क", "\u093f"), ("क", "\u0940"), ("क", "\u0941"), ("क", "\u0947"),
     ("क", "\u094d"), ("क", "\u093e"), ("र", "\u093f"), ("म", "\u0941"),
@@ -110,11 +112,11 @@ class RequiredMarkTests(unittest.TestCase):
 
 
 class ProfileTests(unittest.TestCase):
-    def test_property_tests_run_under_the_bounded_ci_profile(self):
-        self.assertIs(hypothesis_profile.ACTIVE_SETTINGS, settings.default)
-        self.assertTrue(settings.default.derandomize)
-        self.assertIsNone(settings.default.database)
-        self.assertIsNone(settings.default.deadline)
+    def test_this_modules_property_tests_use_the_bounded_profile(self):
+        configured = hypothesis_profile.given_test_settings(sys.modules[__name__])
+        self.assertTrue(configured)
+        for name, active in configured.items():
+            self.assertIs(hypothesis_profile.ACTIVE_SETTINGS, active, name)
 
 
 if __name__ == "__main__":
