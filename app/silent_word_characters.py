@@ -23,3 +23,21 @@ def remove_silent_word_characters(text):
     if type(text) is not str:
         text = str(text or "")
     return text.translate(_SILENT_WORD_TRANSLATION)
+
+
+def remove_silent_word_characters_with_offsets(text):
+    """Delete the characters as above and report each survivor's raw offset.
+
+    A comparison needs both views: the folded string to match, and the raw
+    positions so a span found in the folded string still points into the
+    untouched text (attribution proofs, transcript alignment).
+    """
+    if type(text) is not str:
+        text = str(text or "")
+    kept, offsets = [], []
+    for index, character in enumerate(text):
+        if character in SILENT_WORD_CHARACTERS:
+            continue
+        kept.append(character)
+        offsets.append(index)
+    return "".join(kept), offsets

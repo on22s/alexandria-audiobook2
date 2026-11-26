@@ -40,6 +40,8 @@ import os
 import re
 import threading
 
+from silent_word_characters import remove_silent_word_characters
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_PATH = os.path.join(REPO, "pronunciation.json")
 
@@ -165,6 +167,10 @@ def get_pronunciation_result(text, entries, pattern=None):
     pattern = pattern if pattern is not None else _compile(active)
     if not text or not pattern:
         return text, []
+    # A key is a written name (#2316): the editor preview reads raw chunk text,
+    # so fold the invisible characters before matching, as rendering already
+    # does in speech preparation. Text without them is unchanged.
+    text = remove_silent_word_characters(text)
     applied = []
 
     def swap(match):

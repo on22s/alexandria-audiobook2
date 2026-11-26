@@ -25,13 +25,28 @@ from routers import scripts_library
 from silent_word_characters import remove_silent_word_characters
 from recall_core import tokens
 from chunk_quality import validate_chunk_quality
-from pass_quality import validate_segment_quality
+from pass_quality import (validate_segment_quality, is_attested_name,
+                          get_attribution_tag_evidence, get_attribution_tag_proofs,
+                          get_exact_attribution_shift_repair,
+                          get_attribution_snapshot_digest)
 from literal_fidelity import audit_literal_words, iter_literal_words
-from script_preflight import get_normalized_word_tokens
-from dialogue_spans import mark_entries
+from script_preflight import get_normalized_word_tokens, find_adjacent_duplicate_blocks
+from dialogue_spans import mark_entries, speaker_labels, uses_speaker_labels
 from speech_text import get_speech_normalization, normalize_for_speech
 from generate_personas import _resolve_to_canonical, normalize_speaker_name
-from pronunciation import apply_pronunciation
+from pronunciation import apply_pronunciation, get_pronunciation_result
+from generate_script import _get_boundary_overlap
+from text_diff import get_comparison_words, word_diff
+from speaker_identity import (stabilize_speaker_identities,
+                              _is_extended_person_name,
+                              is_speaker_merge_allowed)
+from narrator_prompt import is_narrator_attested
+from find_nicknames import _name_tokens, collect_context
+from word_timing import get_word_tokens
+from speech_verification_compare import get_comparison_tokens
+import epub_readaloud
+import qwen_align
+import three_pass_generate
 from tests import test_sound_design_upload_selection as selection_tests
 from tests.test_upload_publication_source import epub
 
@@ -248,6 +263,248 @@ class SavedBookReloadTests(unittest.TestCase):
             self.assertEqual(payload, json.loads(
                 (root / "annotated_script.json").read_text(encoding="utf-8")))
             self.assertIn(SOFT, (root / "annotated_script.json").read_text(encoding="utf-8"))
+
+
+class SpeakerIdentityConsumerTests(unittest.TestCase):
+    def test_an_attested_name_joins_the_word_in_both_directions(self):
+        dirty = ('"Go now," Son' + SOFT + 'ya said. Son' + SOFT + 'ya left. '
+                 'Then Son' + SOFT + 'ya sat.')
+        clean = without_silent_characters(dirty)
+        self.assertTrue(is_attested_name("SONYA", dirty))
+        self.assertTrue(is_attested_name(("Son" + SOFT + "ya").upper(), clean))
+
+    def test_speech_tag_evidence_joins_the_word_in_both_directions(self):
+        entries = [{"type": "SPOKEN", "text": "Go now,"}]
+        dirty = '"Go now," Son' + SOFT + 'ya said. Son' + SOFT + 'ya sat.'
+        clean = without_silent_characters(dirty)
+        self.assertEqual({0: "SONYA"}, get_attribution_tag_evidence(entries, dirty))
+        self.assertEqual({0: "SONYA"}, get_attribution_tag_evidence(entries, clean))
+        dirty_entry = [{"type": "SPOKEN", "text": "Go" + JOINER + " now,"}]
+        self.assertEqual({0: "SONYA"}, get_attribution_tag_evidence(dirty_entry, clean))
+
+    def test_a_source_carrying_the_character_proves_the_shift(self):
+        for source, narration in (
+                ('\u201cYes,\u201d said Son' + SOFT + 'ya.', "said Sonya."),
+                ('\u201cYes,\u201d said Sonya.', "said Son" + SOFT + "ya.")):
+            with self.subTest(source=repr(source), narration=repr(narration)):
+                frozen = [{"type": "SPOKEN", "text": "Yes,"},
+                          {"type": "NARRATOR", "text": narration}]
+                names = ("SONYA",)
+                proofs = get_attribution_tag_proofs(frozen, source, names, {})
+                evidence = {index: proof["speaker"]
+                            for index, proof in proofs.items()}
+                snapshot = get_attribution_snapshot_digest([frozen, sorted(names), [], {}])
+                result = get_exact_attribution_shift_repair(
+                    frozen, [{"n": 0, "speaker": "NARRATOR"},
+                             {"n": 1, "speaker": "SONYA"}],
+                    source, proofs, evidence, snapshot,
+                    established_names=names, speaker_aliases={})
+                self.assertEqual(["SONYA", "NARRATOR"],
+                                 [entry["speaker"] for entry in result["entries"]])
+                self.assertIn("exact_adjacent_attribution_shift",
+                              [change["code"] for change in
+                               result["accepted_metadata"]["repairs"]])
+
+    def test_a_printed_speaker_label_joins_the_word_in_both_directions(self):
+        lines = ["Go now.", "Again.", "Third.", "Fourth.", "Fifth.", "Sixth."]
+        labelled = "\n\n".join("Son" + SOFT + "ya \u201c" + line + "\u201d"
+                               for line in lines) + "\n"
+        clean = without_silent_characters(labelled)
+        dirty_name = ("Son" + SOFT + "ya").upper()
+        for source, names in ((labelled, ["SONYA"]), (clean, [dirty_name])):
+            with self.subTest(source=repr(source), names=names):
+                labels = speaker_labels(source, minimum_repeats=3,
+                                        speaker_names=names)
+                self.assertEqual(["Sonya"] * len(lines),
+                                 [name for _pos, name in labels])
+                self.assertTrue(uses_speaker_labels(source, speaker_names=names))
+
+    def test_a_dirty_roster_spelling_folds_to_the_clean_one(self):
+        entries = [{"speaker": "Son" + SOFT + "ya", "text": "Sonya left."}]
+        result = stabilize_speaker_identities(entries, established_speakers=["SONYA"])
+        self.assertEqual("SONYA", result["entries"][0]["speaker"])
+        self.assertEqual({"type": "speaker_identity", "entry_number": 1,
+                          "before": "Son" + SOFT + "ya", "after": "SONYA"},
+                         result["changes"][0])
+
+    def test_a_clean_name_is_not_rewritten_to_a_dirty_roster_spelling(self):
+        entries = [{"speaker": "SONYA", "text": "Sonya left."}]
+        result = stabilize_speaker_identities(
+            entries, established_speakers=[("Son" + SOFT + "ya").upper()])
+        self.assertEqual("SONYA", result["entries"][0]["speaker"])
+        self.assertEqual([], result["changes"])
+
+    def test_a_lone_dirty_name_is_stored_without_the_character(self):
+        result = stabilize_speaker_identities(
+            [{"speaker": "Son" + SOFT + "ya", "text": "Sonya left."}])
+        self.assertEqual("Sonya", result["entries"][0]["speaker"])
+        self.assertEqual("Son" + SOFT + "ya", result["changes"][0]["before"])
+
+    def test_extended_person_name_and_group_alias_fold_both_sides(self):
+        self.assertTrue(_is_extended_person_name("Son" + SOFT + "ya", "Sonya Smith"))
+        self.assertTrue(_is_extended_person_name("Sonya", "Son" + SOFT + "ya Smith"))
+        self.assertTrue(is_speaker_merge_allowed(
+            "RAM AND RE" + JOINER + "M", "RAM AND REM"))
+        self.assertTrue(is_speaker_merge_allowed(
+            "RAM AND REM", "RAM AND RE" + JOINER + "M"))
+
+    def test_the_roster_admits_one_canonical_name(self):
+        source = "Sonya left. Sonya sat. Sonya read. " * 3
+        entries = [{"speaker": "SONYA", "type": "SPOKEN", "text": "Sonya left."},
+                   {"speaker": ("Son" + SOFT + "ya").upper(), "type": "SPOKEN",
+                    "text": "Sonya sat."}]
+        self.assertEqual(["SONYA"], three_pass_generate.build_roster(entries, source))
+
+    def test_a_model_name_resolves_through_the_cast_to_the_same_speaker(self):
+        named = three_pass_generate.get_named_from_answer(
+            [{"type": "SPOKEN", "text": "Sonya left."}],
+            [{"speaker": ("Son" + SOFT + "ya").upper(), "text": "Sonya left."}])
+        self.assertEqual("SONYA", named[0]["speaker"])
+        cast = three_pass_generate.get_cast_from_data(
+            [{"name": "Son" + SOFT + "ya",
+              "aliases": ["Son" + SOFT + "ya Bell"]}])
+        self.assertEqual(["SONYA"], cast["names"])
+        self.assertIn("SONYA BELL", cast["alias_to_name"])
+        self.assertEqual("SONYA", cast["alias_to_name"]["SONYA BELL"])
+        self.assertEqual("SONYA", three_pass_generate.get_cast_speaker(
+            ("Son" + JOINER + "ya").upper(), cast))
+        self.assertEqual("SONYA", three_pass_generate.get_cast_speaker(
+            ("Son" + SOFT + "ya Bell").upper(), cast))
+
+    def test_a_cast_name_that_is_only_invisible_characters_is_refused(self):
+        with self.assertRaises(ValueError):
+            three_pass_generate.get_cast_from_data(
+                [{"name": "  " + SOFT + JOINER, "aliases": []}])
+
+
+class SourceComparisonConsumerTests(unittest.TestCase):
+    def test_nickname_words_join_the_word(self):
+        self.assertEqual(["sonya"], _name_tokens("Son" + SOFT + "ya"))
+        speakers, _samples, cooccur = collect_context([
+            {"speaker": "SONYA", "text": "Son" + SOFT + "ya met Rem."},
+            {"speaker": "REM", "text": "Son" + SOFT + "ya met Rem."}])
+        self.assertEqual(["REM", "SONYA"], speakers)
+        self.assertEqual(["Son" + SOFT + "ya met Rem."], cooccur)
+
+    def test_narrator_attestation_joins_the_word_in_both_directions(self):
+        source = "SONYA " * 4
+        self.assertTrue(is_narrator_attested("Sonya", ("Son" + SOFT + "ya ") * 4))
+        self.assertTrue(is_narrator_attested("Son" + SOFT + "ya", source))
+
+    def test_boundary_overlap_joins_the_word_in_both_directions(self):
+        right = [{"text": "Sonya read books today"}]
+        for left in ([{"text": "we saw Sonya read books"}],
+                     [{"text": "we saw Son" + SOFT + "ya read books"}]):
+            with self.subTest(left=left):
+                self.assertEqual(["sonya", "read", "books"],
+                                 _get_boundary_overlap(left, right))
+        dirty_right = [{"text": "Son" + JOINER + "ya read books today"}]
+        self.assertEqual(["sonya", "read", "books"],
+                         _get_boundary_overlap(
+                             [{"text": "we saw Sonya read books"}], dirty_right))
+
+    def test_a_duplicate_block_is_found_when_one_copy_has_the_character(self):
+        unit = ["alpha bravo charlie delta", "echo foxtrot golf hotel",
+                "india juliet kilo lima", "mike november oscar papa",
+                "quebec romeo sierra tango"]
+        dirty = [line.replace("charlie", "char" + SOFT + "lie") for line in unit]
+        source = " ".join(unit) + " narration " + " ".join(dirty)
+        findings = find_adjacent_duplicate_blocks(unit + dirty, source)
+        self.assertEqual([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]],
+                         [finding["entry_numbers"] for finding in findings])
+
+    def test_text_diff_words_join_the_word_through_an_en_dash(self):
+        self.assertEqual(["ab", "c"], get_comparison_words("a" + SOFT + "\u2013b c"))
+        self.assertEqual(["ab", "c"], get_comparison_words("a\u2013b c"))
+        totals = word_diff("They met Son" + SOFT + "ya at the hall.",
+                           [{"text": "They met Sonya at the hall."}])["totals"]
+        self.assertEqual(0, totals["deleted"] + totals["inserted"] + totals["replaced"])
+
+    def test_pronunciation_matches_raw_chunk_text_from_the_editor_preview(self):
+        spoken, applied = get_pronunciation_result(
+            "Son" + SOFT + "ya sat", {"Sonya": "Sohn-yah"})
+        self.assertEqual("Sohn-yah sat", spoken)
+        self.assertEqual([{"name": "Sonya", "spoken": "Sohn-yah"}], applied)
+
+    def test_word_timing_joins_the_word_and_keeps_raw_offsets(self):
+        text = "Son" + SOFT + "ya paid five fifty."
+        self.assertEqual(
+            [("sonya", 0, 6), ("paid", 7, 11), ("five", 12, 16), ("fifty", 17, 22)],
+            get_word_tokens(text))
+        self.assertEqual("Son" + SOFT + "ya", text[0:6])
+        self.assertEqual(["sonya", "paid", "five", "fifty"],
+                         get_comparison_tokens("Son" + SOFT + "ya paid five fifty."))
+        self.assertEqual(get_comparison_tokens("Sonya paid five fifty."),
+                         get_comparison_tokens("Son" + SOFT + "ya paid five fifty."))
+
+    def test_epub_and_script_words_match_when_only_one_side_has_the_character(self):
+        cleaned_script = epub_readaloud.get_normalized_words(
+            normalize_for_speech("Son" + SOFT + "ya paid five fifty."))
+        self.assertEqual(["sonya", "paid", "five", "fifty"],
+                         epub_readaloud.get_spoken_words(
+                             "Son" + SOFT + "ya paid five fifty."))
+        self.assertEqual(epub_readaloud.get_spoken_words("Sonya paid five fifty."),
+                         cleaned_script)
+
+    def test_aligner_stream_and_token_key_fold_the_character(self):
+        self.assertEqual(
+            qwen_align.get_normalized_stream("Sonya paid five fifty.")[0],
+            qwen_align.get_normalized_stream("Son" + SOFT + "ya paid five fifty.")[0])
+        self.assertEqual(qwen_align.get_token_key("Sonya"),
+                         qwen_align.get_token_key("Son" + SOFT + "ya"))
+
+
+class BooksWithoutTheCharactersTests(unittest.TestCase):
+    """Every changed function keeps its pre-fix result on text without them."""
+
+    def test_no_changed_function_moves_for_a_book_without_the_characters(self):
+        source = '"Sonya left," Sonya said. Sonya sat. Sonya read.'
+        entries = [{"type": "SPOKEN", "text": "Sonya left,"}]
+        self.assertTrue(is_attested_name("SONYA", source))
+        self.assertFalse(is_attested_name("BRENDA", source))
+        self.assertEqual({0: "SONYA"}, get_attribution_tag_evidence(entries, source))
+        self.assertEqual("SONYA", get_attribution_tag_proofs(
+            entries, source, ["SONYA"])[0]["speaker"])
+        self.assertEqual(["sonya", "smith"], _name_tokens("Sonya Smith"))
+        self.assertEqual(["REM", "SONYA"], collect_context([
+            {"speaker": "SONYA", "text": "Sonya met Rem."},
+            {"speaker": "REM", "text": "Sonya met Rem."}])[0])
+        self.assertTrue(is_narrator_attested("Sonya", "Sonya " * 4))
+        self.assertEqual(["sonya", "read", "books"], _get_boundary_overlap(
+            [{"text": "we saw Sonya read books"}], [{"text": "Sonya read books today"}]))
+        self.assertEqual(["ab", "c"], get_comparison_words("a\u2013b c"))
+        self.assertEqual(0, word_diff("Sonya sat.", [{"text": "Sonya sat."}])
+                         ["totals"]["replaced"])
+        unit = ["alpha bravo charlie delta", "echo foxtrot golf hotel",
+                "india juliet kilo lima", "mike november oscar papa",
+                "quebec romeo sierra tango"]
+        self.assertEqual([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]],
+                         [finding["entry_numbers"] for finding in
+                          find_adjacent_duplicate_blocks(
+                              unit + unit, " ".join(unit) + " narration " +
+                              " ".join(unit))])
+        self.assertEqual("Sonya", stabilize_speaker_identities(
+            [{"speaker": "Sonya", "text": "Sonya left."}])["entries"][0]["speaker"])
+        self.assertTrue(_is_extended_person_name("Sonya", "Sonya Smith"))
+        self.assertTrue(is_speaker_merge_allowed("RAM AND REM", "RAM AND REM"))
+        self.assertEqual(("Sohn-yah sat", [{"name": "Sonya", "spoken": "Sohn-yah"}]),
+                         get_pronunciation_result("Sonya sat", {"Sonya": "Sohn-yah"}))
+        self.assertEqual([("sonya", 0, 5), ("paid", 6, 10)],
+                         get_word_tokens("Sonya paid."))
+        self.assertEqual(["sonya", "paid"], get_comparison_tokens("Sonya paid."))
+        self.assertEqual(["sonya", "paid"],
+                         epub_readaloud.get_spoken_words("Sonya paid."))
+        self.assertEqual("sonyapaid",
+                         qwen_align.get_normalized_stream("Sonya paid")[0])
+        self.assertEqual(["SONYA"], three_pass_generate.build_roster(
+            [{"speaker": "SONYA", "type": "SPOKEN", "text": "Sonya left."}],
+            "Sonya left. Sonya sat. Sonya read."))
+        self.assertEqual(["Sonya"] * 3, [name for _pos, name in speaker_labels(
+            "Sonya \u201cOne.\u201d\n\nSonya \u201cTwo.\u201d\n\nSonya \u201cThree.\u201d\n",
+            minimum_repeats=3, speaker_names=["SONYA"])])
+        self.assertEqual("Sonya", three_pass_generate.get_named_from_answer(
+            [{"type": "SPOKEN", "text": "Sonya left."}],
+            [{"speaker": "SONYA", "text": "Sonya left."}])[0]["speaker"].title())
 
 
 if __name__ == "__main__":

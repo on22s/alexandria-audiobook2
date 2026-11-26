@@ -1,6 +1,8 @@
 """Prompt and validation helpers for explicit first-person narrator metadata."""
 import re
 
+from silent_word_characters import remove_silent_word_characters
+
 
 def normalize_narrator_name(name):
     return " ".join((name or "").upper().split())
@@ -20,10 +22,10 @@ def get_valid_narrator_name(name):
 
 def is_narrator_attested(name, source_text, minimum=3):
     """Require the complete exact name to occur before seeding the roster."""
-    narrator = normalize_narrator_name(name)
+    narrator = remove_silent_word_characters(normalize_narrator_name(name))
     if len(narrator) < 2:
         return False
-    source = (source_text or "").upper()
+    source = remove_silent_word_characters(source_text or "").upper()
     pattern = r"(?<!\w)" + r"\s+".join(
         re.escape(part) for part in narrator.split()) + r"(?!\w)"
     return len(re.findall(pattern, source)) >= minimum

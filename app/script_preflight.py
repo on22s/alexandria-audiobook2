@@ -76,13 +76,13 @@ def is_possible_misattributed_narration(text, speaker):
 
 
 def _normalize(value):
-    return " ".join(str(value or "").split()).casefold()
+    return " ".join(
+        remove_silent_word_characters(value).split()).casefold()
 
 
 def get_normalized_word_tokens(value):
     """Read immutable word tokens using the existing preflight normalization."""
-    return tuple(_WORD_RE.findall(
-        _normalize(remove_silent_word_characters(value))))
+    return tuple(_WORD_RE.findall(_normalize(value)))
 
 
 def _normalize_words(value):
@@ -400,6 +400,9 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
 
 
 def find_adjacent_duplicate_blocks(texts, source_text, *, source_normalized=None, count_phrase=None):
+    # Callers pass comparison-normalized entry text, but a soft hyphen or word
+    # joiner must not make two copies of one block compare unequal (#2316).
+    texts = [remove_silent_word_characters(text) for text in texts]
     findings = []
     occupied = set()
     if source_normalized is None:
@@ -786,7 +789,7 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
         del source_tokens
         script_words = Counter(
             word for text in texts
-            for word in _WORD_RE.findall(remove_silent_word_characters(text)))
+            for word in _WORD_RE.findall(text))
         source_total = sum(source_words.values())
         matched = sum(min(count, script_words.get(word, 0)) for word, count in source_words.items())
         coverage = matched / source_total if source_total else 1.0
