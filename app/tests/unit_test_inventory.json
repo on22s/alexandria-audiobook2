@@ -11538,6 +11538,20 @@
     , "tests.test_pronunciation_panel_js.PronunciationPanelJsTests.test_multiline_native_value_normalization_preserves_unedited_raw_rules"
     , "tests.test_pronunciation_panel_js.PronunciationPanelJsTests.test_replacement_audition_sends_original_and_draft_rule_together"
   ]
+  , "test_property_dialogue_spans": [
+    "tests.test_property_dialogue_spans.InvariantTests.test_analyzer_regions_and_repairs_stay_inside_the_source"
+    , "tests.test_property_dialogue_spans.InvariantTests.test_spans_stay_inside_the_source_in_order_and_disjoint"
+    , "tests.test_property_dialogue_spans.ProfileTests.test_property_tests_run_under_the_bounded_ci_profile"
+    , "tests.test_property_dialogue_spans.WellFormedDialogueTests.test_every_supported_convention_yields_exactly_its_speeches"
+    , "tests.test_property_dialogue_spans.WellFormedDialogueTests.test_soft_wrap_inside_narration_keeps_the_same_spoken_text"
+    , "tests.test_property_dialogue_spans.WellFormedDialogueTests.test_the_two_functions_agree_which_text_is_spoken"
+  ]
+  , "test_property_speaker_identity": [
+    "tests.test_property_speaker_identity.CanonicalEquivalenceTests.test_canonical_re_encodings_share_one_key"
+    , "tests.test_property_speaker_identity.CanonicalEquivalenceTests.test_case_variants_share_one_key"
+    , "tests.test_property_speaker_identity.ProfileTests.test_property_tests_run_under_the_bounded_ci_profile"
+    , "tests.test_property_speaker_identity.RequiredMarkTests.test_removing_a_required_mark_changes_the_key"
+  ]
   , "test_prune_chain": [
     "tests.test_prune_chain.PruneChainTests.test_cached_report_without_metadata_fails_package_and_blocks_training"
     , "tests.test_prune_chain.PruneChainTests.test_control_copy_failure_blocks_training_even_when_pruned_package_succeeds"
