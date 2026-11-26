@@ -63,10 +63,15 @@ class AlignmentCliRegressionTests(unittest.TestCase):
 
     def test_epub_loader_applies_the_same_whole_nav_token_rule_as_extraction(self):
         # Round-trip real synthetic EPUBs through ebooklib.epub.read_epub:
-        # ebooklib converts manifest items with the whole `nav` property token
-        # into epub.EpubNav (whose properties attribute is [] and get_type() is
-        # ITEM_DOCUMENT). Both load_epub and extract_epub_text must skip all
-        # four whole-token nav spellings and keep `navx`.
+        # ebooklib splits manifest `properties` on ASCII space only, so a
+        # space-separated `nav` token becomes epub.EpubNav (properties == [],
+        # get_type() == ITEM_DOCUMENT), while XML character references
+        # (&#9;, &#10;, &#13;) survive XML attribute normalization and remain
+        # unsplit inside EpubHtml.properties. Both load_epub and
+        # extract_epub_text must skip those nav spellings and keep non-matches
+        # (`navx`, NBSP `nav&#xA0;x`, uppercase `NAV`).
+        import xml.etree.ElementTree as ET
+        from epub_package import is_navigation_document
         from routers.script import extract_epub_text
         from tests.test_epub_navigation_document import navigation_epub
 
@@ -83,10 +88,11 @@ class AlignmentCliRegressionTests(unittest.TestCase):
             for index, (properties, skipped) in enumerate((
                 ('nav', True),
                 ('scripted nav', True),
-                ('scripted\tnav', True),
-                ('\nnav\n', True),
+                ('scripted&#9;nav', True),
+                ('&#10;nav', True),
+                ('nav&#13;', True),
                 ('navx', False),
-                ('nav\u00a0x', False),
+                ('nav&#xA0;x', False),
                 ('NAV', False),
             )):
                 with self.subTest(properties=properties):
@@ -100,6 +106,22 @@ class AlignmentCliRegressionTests(unittest.TestCase):
                     self.assertEqual(expected_count, extracted.count('NAVMARKER'))
                     self.assertIn('Story begins.', loaded)
                     self.assertIn('Story ends.', loaded)
+
+            # Form feed (&#12;) is forbidden in XML 1.0 (ET.fromstring in
+            # extract_epub_text rejects it), but ebooklib's tolerant lxml
+            # parser accepts it into EpubHtml.properties; load_epub applies the
+            # same whitespace split as epub_package.is_navigation_document.
+            with self.subTest(properties='scripted&#12;nav'):
+                raw = navigation_epub(nav_properties='scripted&#12;nav', nav_body=nav_body)
+                path = Path(tmp) / 'book_ff.epub'
+                path.write_bytes(raw)
+                loaded = alignment.load_epub(str(path))
+                self.assertEqual(0, loaded.count('NAVMARKER'))
+                self.assertIn('Story begins.', loaded)
+                self.assertIn('Story ends.', loaded)
+                self.assertTrue(is_navigation_document('scripted\fnav'))
+                with self.assertRaises(ET.ParseError):
+                    extract_epub_text('synthetic.epub', archive_bytes=raw)
 
     def test_epub_preflight_counts_decompressed_bytes_not_only_zip_headers(self):
         class UnderreportedMember:
