@@ -213,7 +213,19 @@ def load_epub(path: str) -> str:
             raise ValueError(f"EPUB spine references missing document: {item_id}")
         if linear == 'no' or item.get_type() != ebooklib.ITEM_DOCUMENT:
             continue
-        if 'nav' in getattr(item, 'properties', []):
+        if isinstance(item, epub.EpubNav) or any(
+            'nav' in re.split(r'[ \t\n\f\r]+', prop)
+            for prop in (getattr(item, 'properties', None) or ())
+        ):
+            # Same whole-token XML-whitespace rule as
+            # app/epub_package.is_navigation_document (space, tab, LF, CR, plus
+            # FF tolerance; not NBSP). This root module is imported by
+            # alexandria_compare.py without app/ on sys.path, so importing that
+            # helper here would break standalone use. ebooklib's _load_manifest
+            # splits `properties` on ASCII space only: space-delimited `nav`
+            # becomes an epub.EpubNav (properties == [], get_type() ==
+            # ITEM_DOCUMENT), whereas character-referenced XML whitespace
+            # (&#9;, &#10;, &#13;, &#12;) stays unsplit inside EpubHtml.properties.
             continue
         soup = BeautifulSoup(item.get_content(), 'html.parser')
         for tag in soup(['script', 'style']):
