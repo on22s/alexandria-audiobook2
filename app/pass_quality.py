@@ -936,13 +936,97 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
 
 
 _SILENT_IN_WORD = "".join(SILENT_WORD_CHARACTERS)
-_TAG_NAME = (r"[^\W\d_][\w’'" + _SILENT_IN_WORD + r"-]*"
-             r"(?:[ \t]+[^\W\d_][\w’'" + _SILENT_IN_WORD + r"-]*){0,3}")
+_TAG_WORD = r"[^\W\d_][\w’'" + _SILENT_IN_WORD + r"-]*"
+_TAG_NAME = rf"{_TAG_WORD}(?:[ \t]+{_TAG_WORD}){{0,3}}?"
+_TAG_ADVERB = r"(?-i:[a-z][\w’'" + _SILENT_IN_WORD + r"-]*ly)"
+_TAG_OBJECT_PRONOUNS = frozenset({
+    "him", "her", "them", "me", "us", "you", "himself", "herself",
+})
+_TAG_OBJECT = rf"(?:(?-i:him|her|them|me|us|you|himself|herself)|{_TAG_NAME})"
+# Dedicated verb list for the speech-tag check (#2332): do not widen
+# _REPORTING_VERBS, which drives quote recovery, lexical quotes and weak-name
+# attestation context.
+_SOURCE_TAG_VERBS = (
+    r"(?:murmured|murmurs|whispered|whispers|said|says|replied|replies|"
+    r"answered|answers|asked|asks|cried|cries|shouted|shouts|exclaimed|exclaims|"
+    r"called|calls|muttered|mutters|added|adds|continued|continues|"
+    r"observed|observes|remarked|remarks|rejoined|rejoins|"
+    r"returned|returns|retorted|retorts|repeated|repeats|resumed|resumes|"
+    r"interrupted|interrupts|inquired|inquires|enquired|enquires|"
+    r"protested|protests|declared|declares|insisted|insists|"
+    r"demanded|demands|explained|explains|faltered|falters|"
+    r"stammered|stammers|responded|responds|urged|urges|pleaded|pleads|begged|begs)"
+)
 _SOURCE_SPEECH_TAG = re.compile(
     rf"^[ \t]*(?:[,;][ \t]*)?(?:"
-    rf"(?P<before>{_TAG_NAME})[ \t]+{_REPORTING_VERBS}|"
-    rf"{_REPORTING_VERBS}[ \t]+(?P<after>{_TAG_NAME}))"
+    rf"(?P<before>{_TAG_NAME})(?:[ \t]+{_TAG_ADVERB})?[ \t]+"
+    rf"(?:{_SOURCE_TAG_VERBS}(?:[ \t]+{_TAG_ADVERB})?(?:[ \t]+to[ \t]+(?P<obj_b>{_TAG_OBJECT}))?|"
+    rf"(?:told|tells)[ \t]+(?P<obj_t>{_TAG_OBJECT})(?:[ \t]+{_TAG_ADVERB})?)|"
+    rf"{_SOURCE_TAG_VERBS}[ \t]+(?P<after>{_TAG_NAME})"
+    rf"(?:[ \t]+{_TAG_ADVERB})?(?:[ \t]+to[ \t]+(?P<obj_a>{_TAG_OBJECT}))?)"
     r"(?=[ \t]*[,.!?:;])", re.IGNORECASE)
+_TAG_QUOTE_PAIRS = frozenset(_PAIRED)
+
+
+def _is_valid_tag_name(value):
+    return bool(
+        value
+        and value.casefold() not in _NON_PERSON_NAME_WORDS
+        and value.casefold().rstrip(".") not in NAME_TITLE_PREFIXES
+        and not any(word.casefold().endswith(("'s", "’s", "'", "’"))
+                    for word in value.split())
+        and all(word[:1].isupper() for word in value.split())
+    )
+
+
+def _resolve_alias_canonical(name, aliases, alias_index=None):
+    """Follow speaker_aliases using speaker_identity's normalized key."""
+    if not aliases or not name:
+        return name
+    from speaker_identity import _identity_key, get_speaker_label_index
+    index = get_speaker_label_index(aliases.keys()) if alias_index is None else alias_index
+    current, seen = name, set()
+    key = _identity_key(current)
+    while key and key not in seen and key in index:
+        seen.add(key)
+        current = aliases[index[key]]
+        key = _identity_key(current)
+    return current
+
+
+def _split_speaker_title_and_words(label):
+    from speaker_identity import _identity_key
+    words = remove_silent_word_characters(str(label or "")).split()
+    titles = []
+    while words and words[0].casefold().rstrip(".") in NAME_TITLE_PREFIXES:
+        titles.append(words[0].casefold().rstrip("."))
+        words = words[1:]
+    return titles, [key for key in (_identity_key(word) for word in words) if key]
+
+
+def _is_same_tag_identity(speaker, expected, established_pool):
+    """True when speaker and expected are compatible forms of the same character.
+
+    Distinct established roster labels with different personal words (e.g.
+    MARY MUSGROVE vs MRS MUSGROVE) and labels with conflicting titles (MR. vs
+    MRS.) still contradict.
+    """
+    from speaker_identity import resolve_speaker_label
+    if resolve_speaker_label(speaker, [expected]):
+        return True
+    sp_titles, sp_words = _split_speaker_title_and_words(speaker)
+    exp_titles, exp_words = _split_speaker_title_and_words(expected)
+    if not sp_words or not exp_words:
+        return False
+    if sp_titles and exp_titles and sp_titles != exp_titles:
+        return False
+    if sp_words == exp_words:
+        return True
+    if resolve_speaker_label(expected, established_pool):
+        return False
+    short, full = ((exp_words, sp_words) if len(exp_words) <= len(sp_words)
+                   else (sp_words, exp_words))
+    return full[:len(short)] == short or full[-len(short):] == short
 
 
 def get_attribution_source_digest(source_text):
@@ -1023,16 +1107,19 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
     from dialogue_spans import get_source_match_positions, spoken_spans
     from speaker_identity import get_speaker_label_index
     aliases = speaker_aliases or {}
+    alias_index = get_speaker_label_index(aliases.keys())
     established_names = set(established_names)
     identities = {}
     for label in set(established_names) | set(aliases):
-        canonical = aliases.get(label, label)
+        canonical = _resolve_alias_canonical(label, aliases, alias_index)
         words = label.split()
         while words and words[0].casefold().rstrip(".") in NAME_TITLE_PREFIXES:
             words = words[1:]
         forms = [label]
         if words:
             forms.extend([words[0], words[-1]])
+            if len(words) > 1:
+                forms.append(" ".join(words))
             # Keep the title with the first personal component (Lord Henry),
             # but never treat a title alone as a character identity.
             title_count = len(label.split()) - len(words)
@@ -1071,18 +1158,25 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
             continue
         before = source_text[max(0, start - 8):start].rstrip(" \t")
         after = source_text[end:end + 160].lstrip(" \t")
-        pairs = {'"': '"', '“': '”', '「': '」', '『': '』'}
-        if not before or not after or pairs.get(before[-1]) != after[0]:
+        if not before or not after or (before[-1], after[0]) not in _TAG_QUOTE_PAIRS:
             continue
-        tag = _SOURCE_SPEECH_TAG.match(after[1:].split("\n", 1)[0])
+        tail = after[1:].split("\n", 1)[0]
+        tag = _SOURCE_SPEECH_TAG.match(tail)
         if not tag:
             continue
+        if (text and text[-1] in _SENTENCE_END and tag.group("before")
+                and not tail.lstrip(" \t").startswith((",", ";"))):
+            rest = tail[tag.end():].lstrip(" \t")
+            after_punct = rest[1:].lstrip(" \t") if rest and rest[0] in (",", ":") else ""
+            if after_punct and after_punct[0] in QUOTE_MARKS:
+                continue
+        obj = tag.group("obj_b") or tag.group("obj_a") or tag.group("obj_t")
+        if obj is not None:
+            obj_clean = remove_silent_word_characters(obj)
+            if obj_clean not in _TAG_OBJECT_PRONOUNS and not _is_valid_tag_name(obj_clean):
+                continue
         name = remove_silent_word_characters(tag.group("before") or tag.group("after"))
-        if (name.casefold() in _NON_PERSON_NAME_WORDS or
-                name.casefold().rstrip(".") in NAME_TITLE_PREFIXES or
-                any(word.casefold().endswith(("'s", "’s", "'", "’"))
-                    for word in name.split()) or
-                not all(word[:1].isupper() for word in name.split())):
+        if not _is_valid_tag_name(name):
             continue
         key = next(iter(get_speaker_label_index([name])), None)
         candidates = identities.get(key, set())
@@ -1142,10 +1236,11 @@ def get_exact_attribution_shift_repair(frozen_entries, response_entries, source_
     ok, _reason, ordered = index_head_check(frozen_entries, response_entries)
     if not ok or get_attribution_snapshot_digest(response_entries) is None:
         return unchanged
-    from speaker_identity import resolve_speaker_label
+    from speaker_identity import get_speaker_label_index, resolve_speaker_label
     source_digest = get_attribution_source_digest(source_text)
     if source_digest is None:
         return unchanged
+    alias_index = get_speaker_label_index(aliases.keys())
     resolver_digest = get_attribution_snapshot_digest([
         sorted(set(established_names) | set(known_names)), aliases])
     proposed = copy.deepcopy(ordered)
@@ -1165,9 +1260,10 @@ def get_exact_attribution_shift_repair(frozen_entries, response_entries, source_
                 or proof.get("resolver_context_sha256") != resolver_digest):
             continue
         name = right["speaker"].strip().upper()
-        expected = proof["speaker"]
+        expected = _resolve_alias_canonical(proof["speaker"], aliases, alias_index)
         if (name in ("", "UNKNOWN", "NARRATOR")
-                or not resolve_speaker_label(aliases.get(name, name), [expected])):
+                or not resolve_speaker_label(
+                    _resolve_alias_canonical(name, aliases, alias_index), [expected])):
             continue
         text = frozen_entries[index + 1].get("text", "")
         if not isinstance(text, str) or not text or text != text.strip(" \t"):
@@ -1223,6 +1319,8 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
         tag_evidence = get_attribution_tag_evidence(
             frozen_entries, source_text, established_names, speaker_aliases)
     aliases = speaker_aliases or {}
+    alias_index = None
+    established_pool = None
     findings = []
     for i, (frozen, item) in enumerate(zip(frozen_entries, ordered), 1):
         source_line = frozen.get("text", "")
@@ -1269,10 +1367,14 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
                 continue
             expected_speaker = tag_evidence.get(i - 1)
             if expected_speaker and speaker.upper() not in ("UNKNOWN", "NARRATOR", ""):
-                from speaker_identity import resolve_speaker_label
-                canonical = aliases.get(speaker.upper(), speaker.upper())
-                if (resolve_speaker_label(canonical, established_names | set(aliases.values()))
-                        and not resolve_speaker_label(canonical, [expected_speaker])):
+                from speaker_identity import get_speaker_label_index, resolve_speaker_label
+                if alias_index is None:
+                    alias_index = get_speaker_label_index(aliases.keys())
+                    established_pool = established_names | set(aliases.values())
+                canonical = _resolve_alias_canonical(speaker.upper(), aliases, alias_index)
+                expected_canonical = _resolve_alias_canonical(expected_speaker, aliases, alias_index)
+                if (resolve_speaker_label(canonical, established_pool)
+                        and not _is_same_tag_identity(canonical, expected_canonical, established_pool)):
                     findings.append({"code": "speaker_contradicts_source_tag",
                                      "entry_number": i, "value": speaker,
                                      "source_line": source_line,
