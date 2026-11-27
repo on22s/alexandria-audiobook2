@@ -1749,39 +1749,176 @@ class DashDialogueTagTests(unittest.TestCase):
                     [line[a:b] for a, b in spoken_spans(line, "dash_lines")],
                 )
 
+    @staticmethod
+    def _parts(line):
+        parts, ambiguous = dialogue_spans.split_dash_line(line, 1, len(line))
+        return ambiguous, [(kind, line[a:b].strip()) for kind, a, b in parts]
+
     def test_word_limit_and_boundary_guards_before_reporting_verb(self):
         for line, expected_tag in (
             ("— Yes, said John.", "said John."),
             ("— Yes, he replied.", "he replied."),
             ("— Yes, old John replied.", "old John replied."),
-            ("— Yes, the old man replied.", "the old man replied."),
-            ("—Hola —el viejo hombre dijo—. Vamos.", "el viejo hombre dijo"),
         ):
             with self.subTest(accepted=line):
-                parts, ambiguous = dialogue_spans.split_dash_line(line, 1, len(line))
+                ambiguous, parts = self._parts(line)
                 self.assertFalse(ambiguous)
                 self.assertEqual(
-                    [expected_tag],
-                    [line[a:b] for kind, a, b in parts if kind == "NARRATOR"],
+                    [("NARRATOR", expected_tag)],
+                    [part for part in parts if part[0] == "NARRATOR"],
                 )
         for line in (
-            "— Yes, the tired old man replied.",
-            "—Hola —el muy viejo hombre dijo—. Vamos.",
-            "— Wait, no. He said nothing.",
-            "— Please, don't ask.",
+            "— Yes, the old man replied.",
+            "—Hola —el viejo hombre dijo—. Vamos.",
+            "— Hola, el muy tonto dijo que no.",
+            "— Wait, I said nothing.",
             "— Wait, it won't fit.",
-            "— Please, continue.",
         ):
             with self.subTest(rejected=line):
-                parts, ambiguous = dialogue_spans.split_dash_line(line, 1, len(line))
+                ambiguous, parts = self._parts(line)
                 self.assertTrue(ambiguous)
-                self.assertEqual(["SPOKEN"], [kind for kind, _a, _b in parts])
+                self.assertEqual(["SPOKEN"], [kind for kind, _text in parts])
+        for line in (
+            # The reporting verb is outside the 0-3 subject window, or is not a
+            # reporting form: the line is plain speech, not an unverified tag.
+            "— Yes, the tired old man replied.",
+            "— Wait, no. He said nothing.",
+            "— Please, don't ask.",
+            "— Please, continue.",
+        ):
+            with self.subTest(no_candidate=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(["SPOKEN"], [kind for kind, _text in parts])
+
+    def test_comma_introduced_tag_resumes_speech_and_period_tag_stays_narrator(self):
+        cases = (
+            ("— Oui, répondit-il, je viens demain.",
+             [("SPOKEN", "Oui,"), ("NARRATOR", "répondit-il,"),
+              ("SPOKEN", "je viens demain.")]),
+            ("— Non, dit-elle, jamais.",
+             [("SPOKEN", "Non,"), ("NARRATOR", "dit-elle,"),
+              ("SPOKEN", "jamais.")]),
+            ("— Non, dit-elle en souriant.",
+             [("SPOKEN", "Non,"), ("NARRATOR", "dit-elle en souriant.")]),
+            ("— Que vous seriez bon, monsieur, dit la dame, "
+             "de vouloir bien ramasser mon éventail.",
+             [("SPOKEN", "Que vous seriez bon, monsieur,"),
+              ("NARRATOR", "dit la dame,"),
+              ("SPOKEN", "de vouloir bien ramasser mon éventail.")]),
+            ("— Non, dit-elle. — Jamais.",
+             [("SPOKEN", "Non,"), ("NARRATOR", "dit-elle."),
+              ("SPOKEN", "Jamais.")]),
+        )
+        for line, expected in cases:
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_period_tag_with_continuation_is_not_vouched_for(self):
+        line = "— Partez! dit Emma. C'est se moquer, je vous chasse."
+        ambiguous, parts = self._parts(line)
+        self.assertTrue(ambiguous)
+        self.assertEqual(
+            [("SPOKEN", "Partez!"),
+             ("NARRATOR", "dit Emma. C'est se moquer, je vous chasse.")],
+            parts,
+        )
+
+    def test_question_exclamation_and_ellipsis_introduced_tags(self):
+        cases = (
+            ("— Des moyens? répliqua M. Homais.",
+             [("SPOKEN", "Des moyens?"), ("NARRATOR", "répliqua M. Homais.")]),
+            ("— Artémise! criait la maîtresse d’auberge, de la voix.",
+             [("SPOKEN", "Artémise!"),
+              ("NARRATOR", "criait la maîtresse d’auberge,"),
+              ("SPOKEN", "de la voix.")]),
+            ("— Quel pauvre homme! quel pauvre homme! disait-elle tout bas, "
+             "en se mordant les lèvres.",
+             [("SPOKEN", "Quel pauvre homme! quel pauvre homme!"),
+              ("NARRATOR", "disait-elle tout bas,"),
+              ("SPOKEN", "en se mordant les lèvres.")]),
+            ("— Ma cas... fit timidement le nouveau, promenant autour de lui.",
+             [("SPOKEN", "Ma cas..."),
+              ("NARRATOR", "fit timidement le nouveau,"),
+              ("SPOKEN", "promenant autour de lui.")]),
+            ("— Je ne sais pas… dit-il.",
+             [("SPOKEN", "Je ne sais pas…"), ("NARRATOR", "dit-il.")]),
+            ("— Vraiment! s'écria-t-il.",
+             [("SPOKEN", "Vraiment!"), ("NARRATOR", "s'écria-t-il.")]),
+        )
+        for line, expected in cases:
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_false_tag_readings_inside_speech_stay_whole(self):
+        for line in (
+            "— Dije que no, dijo que sí",
+            "— Wait, I said nothing.",
+            "— Fine, that said nothing.",
+            "— Rien, autrement dit.",
+            "— Señor, dice Pepe que sea yo franco con usted.",
+            "— Bueno, como dice el refrán, no hay mal que dure.",
+            "— En efecto, le vi, y me dijeron su nombre.",
+            "— Hola, el muy tonto dijo que no.",
+            "— Hola, el viejo hombre dijo—. Vamos.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual(["SPOKEN"], [kind for kind, _text in parts])
+                self.assertEqual([line[2:].strip()], [text for _kind, text in parts])
+
+    def test_first_person_reporting_forms_are_speech_not_tags(self):
+        for line in (
+            "— Pues allí tienes, digo, loca no, cuerda.",
+            "— Dije que no.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+
+    def test_spanish_enclitic_tags(self):
+        cases = (
+            ("— Vete, preguntóle.", "preguntóle."),
+            ("— Lárgate, díjole con rabia.", "díjole con rabia."),
+            ("— Lárgate, contestóles.", "contestóles."),
+            ("— Lárgate, preguntóle Ana.", "preguntóle Ana."),
+        )
+        for line, expected_tag in cases:
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(
+                    [("NARRATOR", expected_tag)],
+                    [part for part in parts if part[0] == "NARRATOR"],
+                )
+
+    def test_a_later_unverified_break_keeps_the_line_ambiguous(self):
+        for line in (
+            "—Hola —dijo Ana— y el tren —tarde otra vez— llegó.",
+            "—Hola —dijo Ana—. El tren —tarde otra vez— llegó.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertIn(("NARRATOR", "dijo Ana"), parts)
+        ambiguous, parts = self._parts("—Hola —dijo Ana—. Vamos.")
+        self.assertFalse(ambiguous)
+        self.assertEqual(
+            [("SPOKEN", "Hola"), ("NARRATOR", "dijo Ana"), ("SPOKEN", "Vamos.")],
+            parts,
+        )
 
     def test_negative_controls_and_degenerate_dash_lines(self):
         for line, expected_ambiguous in (
             ("— The train — late again — finally came.", True),
             ("— Wait — I forgot the keys.", True),
-            ("— Wait, she turned away.", True),
+            ("— Wait, she turned away.", False),
             ("— I was going to—", False),
             ("— Primera línea.", False),
         ):

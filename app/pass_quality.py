@@ -27,6 +27,7 @@ _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 # Derive every quote-mark set from dialogue_spans' single PAIRED table so the
 # source-map and the generator's segmenter cannot drift apart.
 from dialogue_spans import (PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
+                            dash_line_unverified_prefixes as _dash_prefixes,
                             get_guillemet_direction as _get_guillemet_direction,
                             is_inch_mark as _is_inch_mark,
                             is_number_char as _is_number_char,
@@ -330,6 +331,9 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
               "final_depth": depth}
     if unverified_dash:
         result["unverified_dash"] = True
+        # The gate can still vouch for the opening speech of each unverified
+        # line (#2329 finding 5); the rest of the line is unchecked.
+        result["unverified_dash_prefixes"] = _dash_prefixes(text)
     return result
 
 
@@ -510,16 +514,44 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
     disables itself without saying so is the shape that has already cost this
     project three separate measurements ([[Rule 8]]).
     """
-    if quote_analysis and (not quote_analysis.get("regions")
-                           or quote_analysis.get("unverified_dash")):
+    unverified_prefixes = None
+    if quote_analysis and quote_analysis.get("unverified_dash"):
+        unverified_prefixes = (quote_analysis.get("unverified_dash_prefixes")
+                               or _dash_prefixes(source_text))
         quote_analysis = None
-    if not quote_analysis and not any(char in source_text for char in _QUOTE_CHARS):
-        try:
-            from dialogue_spans import detect_convention
-            convention = detect_convention(source_text)
-        except Exception as exc:                            # noqa: BLE001
-            return [], "skipped:error:" + type(exc).__name__
-        return [], "skipped:" + (convention or "none_detected")
+    if quote_analysis and not quote_analysis.get("regions"):
+        quote_analysis = None
+    if not quote_analysis and unverified_prefixes is None and \
+            not any(char in source_text for char in _QUOTE_CHARS):
+        # A dash book with no evidenced split is unchecked, as before. An
+        # unverified dash line is not: its opening speech is still checked.
+        unverified_prefixes = _dash_prefixes(source_text) or None
+        if unverified_prefixes is None:
+            try:
+                from dialogue_spans import detect_convention
+                convention = detect_convention(source_text)
+            except Exception as exc:                        # noqa: BLE001
+                return [], "skipped:error:" + type(exc).__name__
+            return [], "skipped:" + (convention or "none_detected")
+    if unverified_prefixes is not None:
+        # Only the text before the first interior break is unambiguous; the
+        # model owns the rest of an unverified line (#2329 finding 5).
+        spoken = [str(entry.get("text") or "") for entry in entries
+                  if isinstance(entry, dict) and entry.get("type") == "SPOKEN"]
+        findings = []
+        for prefix in unverified_prefixes:
+            if not prefix or any(_region_contains_entry([text], prefix)
+                                 for text in spoken):
+                continue
+            entry_number = next(
+                (number for number, entry in enumerate(entries, 1)
+                 if isinstance(entry, dict)
+                 and _region_contains_entry([str(entry.get("text") or "")],
+                                            prefix)), 1)
+            findings.append({
+                "code": "quote_region_misclassified", "entry_number": entry_number,
+                "message": "The opening speech of an unverified dash line must be SPOKEN; the rest of the line is unchecked."})
+        return findings, "ran"
     if quote_analysis:
         source_regions = quote_analysis["regions"]
         outside = [entry["text"] for entry in source_regions

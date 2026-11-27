@@ -1987,10 +1987,10 @@ class DashDialogueTagSegmenterTests(unittest.TestCase):
              "The train — late again — finally came."),
             ("He paused.\n— Wait — I forgot the keys.",
              "Wait — I forgot the keys."),
-            ("She smiled.\n— Wait, she turned away.",
-             "Wait, she turned away."),
-            ("She paused.\n— Yes, the tired old man replied.",
-             "Yes, the tired old man replied."),
+            ("She smiled.\n— Wait, she said nothing.",
+             "Wait, she said nothing."),
+            ("He paused.\n— Wait, it won't fit.",
+             "Wait, it won't fit."),
         ]
         for chunk, whole_line in cases:
             with self.subTest(chunk=chunk):
@@ -2008,14 +2008,30 @@ class DashDialogueTagSegmenterTests(unittest.TestCase):
 
         # When routed to the model, validate_segment_quality must not reject a
         # valid model split using the unverified whole-line dash region.
-        chunk = "She smiled.\n— Wait, she turned away."
+        chunk = "She smiled.\n— The train — late again — finally came."
         analysis = analyze_outer_quote_regions(chunk)
         model_entries = [
             {"type": "NARRATOR", "text": "She smiled."},
-            {"type": "SPOKEN", "text": "Wait,"},
-            {"type": "NARRATOR", "text": "she turned away."},
+            {"type": "SPOKEN", "text": "The train"},
+            {"type": "NARRATOR", "text": "late again finally came."},
         ]
         report = validate_segment_quality(chunk, model_entries, quote_analysis=analysis)
+        self.assertTrue(report["passed"], report["findings"])
+
+    def test_unverified_dash_gate_checks_the_opening_speech(self):
+        chunk = "She smiled.\n— Wait — I forgot the keys."
+        analysis = analyze_outer_quote_regions(chunk)
+        self.assertTrue(analysis.get("unverified_dash"))
+        wrong = [{"type": "NARRATOR", "text": "She smiled. Wait I forgot the keys."}]
+        report = validate_segment_quality(chunk, wrong, quote_analysis=analysis)
+        self.assertFalse(report["passed"])
+        self.assertEqual("ran", report["quote_gate"])
+        correct = [
+            {"type": "NARRATOR", "text": "She smiled."},
+            {"type": "SPOKEN", "text": "Wait"},
+            {"type": "NARRATOR", "text": "I forgot the keys."},
+        ]
+        report = validate_segment_quality(chunk, correct, quote_analysis=analysis)
         self.assertTrue(report["passed"], report["findings"])
 
     def test_clean_dash_interruption_narration_and_paired_quotes_keep_existing_behaviour(self):

@@ -58,14 +58,18 @@ _DASH_REPORTING_VERBS = (
     "stammered|stammers|snapped|snaps|growled|growls|hissed|hisses|"
     "screamed|screams|gasped|gasps|sighed|sighs|called|calls|"
     # Spanish (preterite, imperfect, present)
-    "dijo|dije|decía|dice|digo|dijeron|dicen|"
-    "respondió|respondí|respondía|responde|respondieron|responden|"
-    "contestó|contesté|contestaba|contesta|contestaron|contestan|"
-    "preguntó|pregunté|preguntaba|pregunta|preguntaron|preguntan|"
-    "susurró|susurré|susurraba|susurra|murmuró|murmuré|murmuraba|murmura|"
-    "gritó|grité|gritaba|grita|exclamó|exclamé|exclamaba|exclama|"
-    "añadió|añadí|añadía|añade|agregó|agregué|agregaba|agrega|"
-    "continuó|continué|continuaba|continúa|siguió|seguía|"
+    # First-person forms are speech in a dash line (`— ..., digo, ...`), so
+    # they are deliberately absent (#2329 finding 2).
+    "dijo|decía|decíamos|decían|dice|dijeron|dicen|"
+    "díjole|díjoles|díjome|díjote|díjose|"
+    "respondió|respondía|respondían|responde|respondieron|responden|"
+    "contestó|contestaba|contestaban|contesta|contestaron|contestan|"
+    "preguntó|preguntaba|preguntaban|pregunta|preguntaron|preguntan|"
+    "susurró|susurraba|susurra|murmuró|murmuraba|murmura|"
+    "gritó|gritaba|gritaban|grita|exclamó|exclamaba|exclama|"
+    "añadió|añadía|añade|agregó|agregaba|agrega|"
+    "continuó|continuaba|continúa|siguió|seguía|seguir|"
+    "prosiguió|proseguía|prosigue|repuso|reponía|reponen|"
     "repitió|repetía|repite|replicó|replicaba|replica|"
     "interrumpió|interrumpía|interrumpe|insistió|insistía|insiste|"
     "explicó|explicaba|explica|comentó|comentaba|comenta|"
@@ -75,37 +79,69 @@ _DASH_REPORTING_VERBS = (
     "protestó|protestaba|protesta|advirtió|advertía|advierte|"
     "ordenó|ordenaba|ordena|confesó|confesaba|confiesa|"
     "aclaró|aclaraba|aclara|concluyó|concluía|concluye|"
+    "declaró|declaraba|declara|manifestó|manifestaba|manifiesta|"
+    "observó|observaba|observa|objetó|objetaba|objeta|"
     # French (passé simple, imparfait, present; clitic s'/m' handled in prefix)
-    "dit|dis|disait|dirent|disent|"
-    "répondit|répondis|répondait|répond|répondirent|répondent|"
-    "demanda|demandai|demandait|demande|demandèrent|demandent|"
-    "murmura|murmurai|murmurait|murmure|murmurèrent|murmurent|"
-    "chuchota|chuchotai|chuchotait|chuchote|"
-    "cria|criai|criait|crie|crièrent|crient|"
-    "écria|écriai|écriait|écrie|écrièrent|écrient|"
-    "exclama|exclamai|exclamait|exclame|"
-    "ajouta|ajoutai|ajoutait|ajoute|ajoutèrent|ajoutent|"
-    "continua|continuai|continuait|"
-    "reprit|repris|reprenait|reprend|poursuivit|poursuivait|poursuit|"
-    "répéta|répétait|répète|répliqua|répliquait|réplique|"
-    "rétorqua|rétorquait|rétorque|interrompit|interrompait|interrompt|"
-    "insista|insistait|insiste|expliqua|expliquait|explique|"
-    "questionna|questionnait|questionne|interrogea|interrogeait|interroge|"
-    "hurla|hurlait|hurle|souffla|soufflait|souffle|soupira|soupirait|soupire|"
-    "balbutia|balbutiait|balbutie|bégaya|bégayait|bégaie|bégaye|"
-    "grommela|grommelait|grommelle|grogna|grognait|grogne|"
-    "supplia|suppliait|supplie|protesta|protestait|proteste|"
-    "avoua|avouait|avoue|déclara|déclarait|déclare|annonça|annonçait|annonce|"
-    "conclut|concluait|fit-(?:il|elle|on)|remarqua|remarquait|remarque"
+    "dit|disait|disaient|dirent|disent|"
+    "répondit|répondait|répondaient|répond|répondirent|répondent|"
+    "demanda|demandait|demandaient|demande|demandèrent|demandent|"
+    "murmura|murmurait|murmuraient|murmure|murmurèrent|murmurent|"
+    "chuchota|chuchotait|chuchotaient|chuchote|"
+    "cria|criait|criaient|crie|crièrent|crient|"
+    "écria|écriait|écriaient|écrie|écrièrent|écrient|"
+    "exclama|exclamait|exclame|"
+    "ajouta|ajoutait|ajoutaient|ajoute|ajoutèrent|ajoutent|"
+    "continua|continuait|continuaient|"
+    "reprit|repris|reprenait|reprenaient|reprend|poursuivit|poursuivait|poursuit|"
+    "répéta|répétait|répétaient|répète|répliqua|répliquait|répliquaient|réplique|"
+    "rétorqua|rétorquait|rétorquaient|rétorque|interrompit|interrompait|interrompt|"
+    "insista|insistait|insistaient|insiste|expliqua|expliquait|expliquaient|explique|"
+    "questionna|questionnait|questionnaient|questionne|interrogea|interrogeait|interroge|"
+    "hurla|hurlait|hurle|souffla|soufflait|souffle|"
+    "soupira|soupirait|soupiraient|soupire|"
+    "balbutia|balbutiait|balbutiaient|balbutie|bégaya|bégayait|bégaie|bégaye|"
+    "grommela|grommelait|grommelaient|grommelle|grogna|grognait|grogne|"
+    "supplia|suppliait|suppliaient|supplie|protesta|protestait|proteste|"
+    "avoua|avouait|avouaient|avoue|déclara|déclarait|déclaraient|déclare|"
+    "annonça|annonçait|annonçaient|annonce|conclut|concluait|fit|remarqua|"
+    "remarquait|remarquaient|remarque|hasarda|hasardait|hasarde|"
+    "bredouilla|bredouillait|bredouille"
 )
-_DASH_TAG_WORD = r"[^\W\d_]+(?:[-'’][^\W\d_]+)*"
-_DASH_TAG_EVIDENCE = re.compile(
-    rf"[ \t]*(?:{_DASH_TAG_WORD}[ \t]+){{0,3}}(?:[smtljdn]['’])?"
-    rf"(?:{_DASH_REPORTING_VERBS})\b",
-    re.IGNORECASE,
-)
-_DASH_BREAK = re.compile(r"[—–,]")
-_DASH_CHAR = re.compile(r"[—–]")
+# One reporting verb as a whole word, with an optional Spanish enclitic
+# pronoun (`preguntóle`, `contestóles`, `díjole`).
+_DASH_TAG_TOKEN = re.compile(r"[^\W\d_]+")
+_DASH_VERB = re.compile(
+    rf"(?:{_DASH_REPORTING_VERBS})(?:les|le|me|te|se|lo|la)?(?![\w])",
+    re.IGNORECASE)
+# Words before a reporting verb may name a subject but never an object,
+# conjunction, relative, adverb or determiner (#2329 review finding 2).
+_DASH_TAG_STOPWORDS = frozenset(
+    "an the this that these those my your his her its our their some any no "
+    "every each and or but so yet for nor because which who whom whose what "
+    "when where while if then here there now again still just only too also "
+    "never always not very quite well suddenly finally immediately quietly "
+    "softly loudly quickly slowly already almost really perhaps maybe however "
+    "el la los las un una unos unas este esta estos estas ese esa esos esas "
+    "aquel aquella mi tu su nuestro nuestra y e o u pero sino que como cuando "
+    "porque aunque mientras si et mais ou car donc or ni ce cet cette ces mon "
+    "ton son notre votre des du autrement tout tous toute toutes".split())
+# Subject pronouns a tag may carry. First and second person are speech.
+_DASH_THIRD_PERSON = frozenset(
+    "he she it they one il elle on ils elles él ella ellos ellas".split())
+_DASH_OTHER_PERSON = frozenset(
+    "i we you je j nous vous tu yo nosotros nosotras tú vosotros vosotras "
+    "usted ustedes".split())
+# Object/reflexive clitics that can precede a reporting verb (`lui dit-il`,
+# `se disait-elle`, `me dijo`).
+_DASH_CLITICS = frozenset(
+    "me te se nos os lui leur le les en".split())
+_DASH_TAG_COMPLEMENTIZERS = frozenset(
+    "que that which who whom whose qui dont où si como cuando porque "
+    "puisque car aunque mientras pero sino and but or because while although".split())
+_DASH_TAG_OBJECTS = frozenset(
+    "nothing something anything everything todo nada algo".split())
+_DASH_BREAK = re.compile(r"\.{3}|[—–,!?…]")
+_DASH_TAG_INTRODUCERS = "!?…"
 # A possible turn after narration, with a second dash introducing its tag.
 # Its formatting establishes uncertainty, not speech or a speaker identity.
 INTERIOR_DASH_TURN = re.compile(
@@ -968,25 +1004,146 @@ def validate_spoken_spans(spans, text):
     return True
 
 
-def split_dash_line(text, start, end):
-    """Split one dash-opened line body into (parts, ambiguous).
+def _dash_tag_clause_end(text, start, limit):
+    """-> (end, delimiter) for the tag clause beginning at `start`.
 
-    `text[start:end]` is the content after the opening dash of a single line.
-    Returns `(parts, ambiguous)` where `parts` is a list of
-    `(type, span_start, span_end)` offsets ("SPOKEN" or "NARRATOR") and
-    `ambiguous` is True iff the line had an interior dash or comma break with
-    no reporting-verb tag evidence. Single shared rule for `dialogue_spans` and
-    `pass_quality` (#2329).
+    The clause ends at the first comma, period, `!`, `?`, ellipsis, semicolon
+    or dash after the verb and its subject (#2329 review finding 1). A period
+    inside a single-letter abbreviation (`M. Homais`) is not a boundary.
     """
+    index = start
+    while index < limit:
+        char = text[index]
+        if char in ",!?;:—–…":
+            return index + 1, char
+        if char == ".":
+            if text.startswith("...", index):
+                return index + 3, "..."
+            before = index - 1
+            while before >= start and text[before] in " \t":
+                before -= 1
+            word_end = before
+            while before >= start and text[before].isalpha():
+                before -= 1
+            word = text[before + 1:word_end + 1]
+            if len(word) == 1 and word.isupper():
+                index += 1
+                continue
+            return index + 1, "."
+        index += 1
+    return limit, ""
+
+
+def _dash_tag_tokens(text, start, end):
+    return list(_DASH_TAG_TOKEN.finditer(text, start, end))
+
+
+def _dash_preverb_is_subject(words):
+    """Are the words before a reporting verb a subject, not speech?
+
+    A pronoun (`he`, `lui`, `se`) or a proper name/title is a subject; a
+    conjunction, relative, adverb, determiner or first/second-person pronoun
+    is speech (`that said`, `como dice`, `I said`, `el muy tonto dijo`).
+    """
+    if not words:
+        return True
+    if len(words) > 3:
+        return False
+    lowered = [word.lower() for word in words]
+    if any(word in _DASH_TAG_STOPWORDS or word in _DASH_OTHER_PERSON
+           for word in lowered):
+        return False
+    last = words[-1]
+    return (last.lower() in _DASH_THIRD_PERSON
+            or last.lower() in _DASH_CLITICS
+            or last[:1].isupper())
+
+
+def _dash_inverted_is_tag(tail):
+    """Is the text after an inverted reporting verb a subject, not speech?
+
+    Inverted tags (`dijo Ana`, `répondit-il`, `said he`) may be followed by a
+    name, a pronoun or a determiner+noun. A complementizer starts a reported
+    clause, so `dice Pepe que sea yo franco` and `dijo que sí` are speech.
+    """
+    lowered = [word.lower() for word in tail]
+    if any(word in _DASH_TAG_COMPLEMENTIZERS for word in lowered):
+        return False
+    if any(word in _DASH_TAG_OBJECTS for word in lowered):
+        return False
+    if lowered and lowered[0] in _DASH_OTHER_PERSON:
+        return False
+    return True
+
+
+def _dash_prefixed_clitic(text, words, verb_index):
+    """Is `s'écria` / `m'écriai` one verb token split by its clitic?"""
+    return (verb_index == 1 and words[0].group().lower() in "smtljdn"
+            and text[words[0].end():words[1].start()].strip() in ("'", "’"))
+
+
+def _dash_tag_candidate(text, pos, limit, introducer):
+    """Could a reporting-verb tag start at `pos`?
+
+    A comma is only a break candidate when a listed verb follows within the
+    subject limit; ordinary commas inside speech are not breaks. A dash is
+    always a candidate (#1216), because it can introduce a turn with no tag.
+    `!`, `?` and an ellipsis are candidates only before a lower-case verb.
+    """
+    clause_end, _delimiter = _dash_tag_clause_end(text, pos, limit)
+    words = _dash_tag_tokens(text, pos, clause_end)
+    for index, word in enumerate(words[:4]):
+        if _DASH_VERB.fullmatch(word.group()):
+            if introducer in _DASH_TAG_INTRODUCERS or introducer == "...":
+                first = index == 0 or _dash_prefixed_clitic(text, words, index)
+                return first and text[words[0].start()].islower()
+            return True
+    return False
+
+
+def _dash_tag_evidence(text, pos, limit, introducer):
+    """-> True when a reporting-verb tag starts at `pos`.
+
+    `introducer` is the break character before the tag. `!`, `?` and an
+    ellipsis only introduce a tag when the reporting verb is the very next
+    word and is written lower case (#2329 review findings 2, 3, 4).
+    """
+    clause_end, _delimiter = _dash_tag_clause_end(text, pos, limit)
+    words = _dash_tag_tokens(text, pos, clause_end)
+    verb_index = None
+    for index, word in enumerate(words[:4]):
+        if _DASH_VERB.fullmatch(word.group()):
+            verb_index = index
+            break
+    if verb_index is None:
+        return False
+    prefixed = _dash_prefixed_clitic(text, words, verb_index)
+    if introducer in _DASH_TAG_INTRODUCERS or introducer == "...":
+        if not (verb_index == 0 or prefixed) or not text[words[0].start()].islower():
+            return False
+    if verb_index == 0 or prefixed:
+        # s'écria / m'écriai: the clitic belongs to the verb, not the subject.
+        before = []
+    else:
+        before = [word.group() for word in words[:verb_index]]
+    tail = [word.group() for word in words[verb_index + 1:]]
+    if not before:
+        return _dash_inverted_is_tag(tail)
+    return _dash_preverb_is_subject(before) and _dash_inverted_is_tag(tail)
+
+
+def _split_dash_line_with_break(text, start, end):
+    """Like `split_dash_line`, also returning the first interior break."""
     while start < end and text[start] in " \t":
         start += 1
     limit = end
     while limit > start and text[limit - 1] in " \t\r":
         limit -= 1
     if start >= limit:
-        return [], False
+        return [], False, None
     parts, speech_start, scan = [], start, start
-    split_any, has_interior_break = False, False
+    split_any, unverified, first_break = False, False, None
+    pending_unverified = False
     while scan < limit:
         match = _DASH_BREAK.search(text, scan, limit)
         if match is None:
@@ -996,41 +1153,122 @@ def split_dash_line(text, start, end):
             after += 1
         if after >= limit:
             break
-        if sep == "," and text[after] in "—–":
+        if (sep in ",!?…" or sep == "...") and text[after] in "—–":
+            # `? —preguntó` / `, —dijo`: the dash introduces the tag.
             scan = after
             continue
-        has_interior_break = True
-        speech_end = match.end() if sep == "," else match.start()
+        if not _dash_tag_candidate(text, after, limit, sep):
+            # An ordinary comma is punctuation inside speech, and `!`/`?`/
+            # ellipsis is speech punctuation unless a lower-case reporting
+            # verb follows (#2329 finding 3). A dash with no tag is the
+            # interior-dash ambiguity already tracked by #1216.
+            if sep in "—–":
+                if first_break is None:
+                    first_break = (start, match.start())
+                if split_any:
+                    unverified = True
+                else:
+                    pending_unverified = True
+            scan = match.end()
+            continue
+        if first_break is None:
+            first_break = (start, match.start())
+        speech_end = match.start() if sep in "—–" else match.end()
         while speech_end > speech_start and text[speech_end - 1] in " \t":
             speech_end -= 1
-        if speech_end <= speech_start or not _DASH_TAG_EVIDENCE.match(text, after, limit):
-            scan = after
+        if speech_end <= speech_start or not _dash_tag_evidence(
+                text, after, limit, sep):
+            # Before the first split a break with no evidence is just speech
+            # punctuation. After one split it is a later unverified break,
+            # and the line must stay ambiguous (#2329 finding 6).
+            if split_any:
+                unverified = True
+            else:
+                pending_unverified = True
+            scan = match.end()
             continue
         split_any = True
+        pending_unverified = False
         parts.append(("SPOKEN", speech_start, speech_end))
-        if sep in "—–":
-            close = _DASH_CHAR.search(text, after, limit)
-            if close is not None:
-                tag_end = close.start()
-                while tag_end > after and text[tag_end - 1] in " \t":
-                    tag_end -= 1
-                if tag_end > after:
-                    parts.append(("NARRATOR", after, tag_end))
-                resume = close.end()
-                while resume < limit and text[resume] in ".,;: \t":
-                    resume += 1
-                speech_start = scan = resume
-                continue
+        clause_end, delimiter = _dash_tag_clause_end(text, after, limit)
+        if delimiter in "—–":
+            # A closing dash ends the tag and the same character resumes
+            # speech (`—Hola —dijo Ana—. Vamos.`).
+            tag_end = clause_end - 1
+            while tag_end > after and text[tag_end - 1] in " \t":
+                tag_end -= 1
+            if tag_end > after:
+                parts.append(("NARRATOR", after, tag_end))
+            resume = clause_end
+            while resume < limit and text[resume] in ".,;: \t":
+                resume += 1
+            speech_start = scan = resume
+            continue
+        if delimiter == ",":
+            # An incise: speech resumes after the comma
+            # (`— Oui, répondit-il, je viens demain.`). The tag span keeps the
+            # comma so the line's text stays accounted for.
+            parts.append(("NARRATOR", after, clause_end))
+            scan = clause_end
+            while scan < limit and text[scan] in " \t":
+                scan += 1
+            speech_start = scan
+            continue
+        # A period, `!`, `?`, ellipsis, semicolon or colon ends the tag. The
+        # rest is narration, unless a new dash resumes speech. Text after
+        # such a tag may still be the same speaker, so the line is not
+        # vouched for and is routed to the model (#2329 decision 1).
+        resume = clause_end
+        while resume < limit and text[resume] in " \t":
+            resume += 1
+        if resume < limit and text[resume] in "—–":
+            parts.append(("NARRATOR", after, resume))
+            resume += 1
+            while resume < limit and text[resume] in ".,;: \t":
+                resume += 1
+            speech_start = scan = resume
+            continue
+        if resume < limit:
+            unverified = True
         parts.append(("NARRATOR", after, limit))
         speech_start = limit
         break
     if not split_any:
-        return [("SPOKEN", start, end)], has_interior_break
+        return [("SPOKEN", start, end)], pending_unverified, first_break
     while speech_start < limit and text[speech_start] in " \t":
         speech_start += 1
     if speech_start < limit:
         parts.append(("SPOKEN", speech_start, limit))
-    return parts, False
+    return parts, unverified, first_break
+
+
+def split_dash_line(text, start, end):
+    """Split one dash-opened line body into (parts, ambiguous).
+
+    `text[start:end]` is the content after the opening dash of a single line.
+    Returns `(parts, ambiguous)` where `parts` is a list of
+    `(type, span_start, span_end)` offsets ("SPOKEN" or "NARRATOR") and
+    `ambiguous` is True iff any interior break on the line lacked
+    reporting-verb tag evidence. Single shared rule for `dialogue_spans` and
+    `pass_quality` (#2329).
+    """
+    parts, ambiguous, _break = _split_dash_line_with_break(text, start, end)
+    return parts, ambiguous
+
+
+def dash_line_unverified_prefixes(text):
+    """-> opening speech before the first interior break for ambiguous lines.
+
+    The quote gate cannot vouch for the rest of an unverified dash line, but
+    the opening speech is unambiguous: it must be SPOKEN (#2329 finding 5).
+    """
+    prefixes = []
+    for match in DASH_LINE.finditer(text):
+        _parts, ambiguous, first_break = _split_dash_line_with_break(
+            text, match.start(1), match.end(1))
+        if ambiguous and first_break is not None and first_break[0] < first_break[1]:
+            prefixes.append(text[first_break[0]:first_break[1]].strip())
+    return prefixes
 
 
 def _dash_line_spans(text):
