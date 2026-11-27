@@ -1679,3 +1679,128 @@ class SourceNarrationTest(unittest.TestCase):
             row = {} if spoken is None else {"spoken": spoken}
             self.assertIs(expected, get_review_source_narration(row))
 
+
+class DashDialogueTagTests(unittest.TestCase):
+    """#2329: split narrator tags out of dash dialogue only on tag evidence."""
+
+    def test_issue_rows_split_narrator_tags_out_of_spoken_spans(self):
+        cases = [
+            ("—Hola —dijo Ana—. Vamos.", ["Hola", "Vamos."], "dijo Ana"),
+            ("— Oui, répondit-il.", ["Oui,"], "répondit-il."),
+            ("— Yes, he replied.", ["Yes,"], "he replied."),
+        ]
+        for line, expected_spoken, tag in cases:
+            with self.subTest(line=line):
+                spans = spoken_spans(line, "dash_lines")
+                self.assertEqual(expected_spoken, [line[a:b] for a, b in spans])
+                entries = [{"speaker": "ANA", "text": expected_spoken[0]},
+                           {"speaker": "ANA", "text": tag}]
+                if len(expected_spoken) > 1:
+                    entries.append({"speaker": "ANA", "text": expected_spoken[1]})
+                source = line + "\n" + "\n".join(f"— Turn {i}." for i in range(5))
+                mapped = apply_dialogue_map(entries, source)
+                self.assertEqual("dash_lines", mapped["convention"])
+                self.assertTrue(mapped["entries"][0]["spoken"])
+                self.assertFalse(mapped["entries"][1]["spoken"])
+                self.assertEqual("NARRATOR", mapped["entries"][1]["speaker"])
+                if len(expected_spoken) > 1:
+                    self.assertTrue(mapped["entries"][2]["spoken"])
+
+    def test_reporting_verbs_cover_english_spanish_french_past_and_present(self):
+        cases = [
+            ("— Yes, he said.", ["Yes,"], ["he said."]),
+            ("— Yes, she says.", ["Yes,"], ["she says."]),
+            ("— Wait, Ana replies.", ["Wait,"], ["Ana replies."]),
+            ("— Go, whispered Tom.", ["Go,"], ["whispered Tom."]),
+            ("— Stop, he asks.", ["Stop,"], ["he asks."]),
+            ("—Hola —dijo Ana.", ["Hola"], ["dijo Ana."]),
+            ("—Hola —dice Ana—. Vamos.", ["Hola", "Vamos."], ["dice Ana"]),
+            ("—Sí —respondió Luis.", ["Sí"], ["respondió Luis."]),
+            ("—Sí —responde el guía.", ["Sí"], ["responde el guía."]),
+            ("—¿Quién? —preguntó Ana.", ["¿Quién?"], ["preguntó Ana."]),
+            ("—¿Quién? —pregunta Ana.", ["¿Quién?"], ["pregunta Ana."]),
+            ("— Oui, répondit-il.", ["Oui,"], ["répondit-il."]),
+            ("— Oui, répond-il.", ["Oui,"], ["répond-il."]),
+            ("— Non, dit-elle.", ["Non,"], ["dit-elle."]),
+            ("— Venez, s'écria-t-il.", ["Venez,"], ["s'écria-t-il."]),
+            ("— Venez, s’écrie-t-elle.", ["Venez,"], ["s’écrie-t-elle."]),
+            ("— Chut, murmura-t-elle.", ["Chut,"], ["murmura-t-elle."]),
+            ("— Bon, fit-il.", ["Bon,"], ["fit-il."]),
+            ("–Hola –dijo Ana–. Vamos.", ["Hola", "Vamos."], ["dijo Ana"]),
+            ("— Sí, —dijo Ana—. Vamos.", ["Sí,", "Vamos."], ["dijo Ana"]),
+            ("— Sí, señor —dijo Ana—. Vamos.", ["Sí, señor", "Vamos."], ["dijo Ana"]),
+            ("—Hola —dijo Ana—. Es tarde —añadió Juan.",
+             ["Hola", "Es tarde"], ["dijo Ana", "añadió Juan."]),
+        ]
+        for line, expected_spoken, expected_narrator in cases:
+            with self.subTest(line=line):
+                parts, ambiguous = dialogue_spans.split_dash_line(line, 1, len(line))
+                self.assertFalse(ambiguous)
+                self.assertEqual(
+                    expected_spoken,
+                    [line[a:b] for kind, a, b in parts if kind == "SPOKEN"],
+                )
+                self.assertEqual(
+                    expected_narrator,
+                    [line[a:b] for kind, a, b in parts if kind == "NARRATOR"],
+                )
+                self.assertEqual(
+                    expected_spoken,
+                    [line[a:b] for a, b in spoken_spans(line, "dash_lines")],
+                )
+
+    def test_word_limit_and_boundary_guards_before_reporting_verb(self):
+        for line, expected_tag in (
+            ("— Yes, said John.", "said John."),
+            ("— Yes, he replied.", "he replied."),
+            ("— Yes, old John replied.", "old John replied."),
+            ("— Yes, the old man replied.", "the old man replied."),
+            ("—Hola —el viejo hombre dijo—. Vamos.", "el viejo hombre dijo"),
+        ):
+            with self.subTest(accepted=line):
+                parts, ambiguous = dialogue_spans.split_dash_line(line, 1, len(line))
+                self.assertFalse(ambiguous)
+                self.assertEqual(
+                    [expected_tag],
+                    [line[a:b] for kind, a, b in parts if kind == "NARRATOR"],
+                )
+        for line in (
+            "— Yes, the tired old man replied.",
+            "—Hola —el muy viejo hombre dijo—. Vamos.",
+            "— Wait, no. He said nothing.",
+            "— Please, don't ask.",
+            "— Wait, it won't fit.",
+            "— Please, continue.",
+        ):
+            with self.subTest(rejected=line):
+                parts, ambiguous = dialogue_spans.split_dash_line(line, 1, len(line))
+                self.assertTrue(ambiguous)
+                self.assertEqual(["SPOKEN"], [kind for kind, _a, _b in parts])
+
+    def test_negative_controls_and_degenerate_dash_lines(self):
+        for line, expected_ambiguous in (
+            ("— The train — late again — finally came.", True),
+            ("— Wait — I forgot the keys.", True),
+            ("— Wait, she turned away.", True),
+            ("— I was going to—", False),
+            ("— Primera línea.", False),
+        ):
+            with self.subTest(line=line):
+                parts, ambiguous = dialogue_spans.split_dash_line(line, 1, len(line))
+                self.assertEqual(expected_ambiguous, ambiguous)
+                self.assertEqual([line[2:]], [line[a:b] for a, b in spoken_spans(line, "dash_lines")])
+                self.assertEqual(["SPOKEN"], [kind for kind, _a, _b in parts])
+        self.assertEqual([], spoken_spans("The train — late again — finally came.", "dash_lines"))
+        paired = 'She sighed. "The train — late again — finally came." "Yes, he replied."'
+        self.assertEqual(
+            ["The train — late again — finally came.", "Yes, he replied."],
+            [paired[a:b] for a, b in spoken_spans(paired, "paired_quotes")],
+        )
+        mixed = "“Line.”\n" * 5 + "— Oui, répondit-il."
+        other = [mixed[a:b] for a, b in get_other_speech_spans(mixed, "paired_quotes")]
+        self.assertEqual(["Oui,"], other)
+        for edge in ("—   ", "— —dijo Ana.", "—Hola —dijo Ana—."):
+            with self.subTest(edge=edge):
+                spans = spoken_spans(edge, "dash_lines")
+                self.assertIs(True, validate_spoken_spans(spans, edge))
+

@@ -44,6 +44,68 @@ PAIRED = [
 ]
 # An em or en dash opening a line, the Continental convention.
 DASH_LINE = re.compile(r"^[ \t]*[—–][ \t]*(\S.*)$", re.M)
+# Closed reporting-verb list (English, Spanish, French — past and present)
+# used to recognise narrator speech tags inside a dash-opened line (#2329).
+_DASH_REPORTING_VERBS = (
+    # English (past and 3sg present; bare infinitives omitted so spoken
+    # imperatives like "don't ask" do not trigger a split)
+    "said|says|replied|replies|answered|answers|asked|asks|"
+    "whispered|whispers|murmured|murmurs|muttered|mutters|mumbled|mumbles|"
+    "shouted|shouts|yelled|yells|cried|cries|exclaimed|exclaims|"
+    "added|adds|continued|continues|repeated|repeats|responded|responds|"
+    "retorted|retorts|interrupted|interrupts|insisted|insists|"
+    "explained|explains|inquired|inquires|demanded|demands|"
+    "stammered|stammers|snapped|snaps|growled|growls|hissed|hisses|"
+    "screamed|screams|gasped|gasps|sighed|sighs|called|calls|"
+    # Spanish (preterite, imperfect, present)
+    "dijo|dije|decía|dice|digo|dijeron|dicen|"
+    "respondió|respondí|respondía|responde|respondieron|responden|"
+    "contestó|contesté|contestaba|contesta|contestaron|contestan|"
+    "preguntó|pregunté|preguntaba|pregunta|preguntaron|preguntan|"
+    "susurró|susurré|susurraba|susurra|murmuró|murmuré|murmuraba|murmura|"
+    "gritó|grité|gritaba|grita|exclamó|exclamé|exclamaba|exclama|"
+    "añadió|añadí|añadía|añade|agregó|agregué|agregaba|agrega|"
+    "continuó|continué|continuaba|continúa|siguió|seguía|"
+    "repitió|repetía|repite|replicó|replicaba|replica|"
+    "interrumpió|interrumpía|interrumpe|insistió|insistía|insiste|"
+    "explicó|explicaba|explica|comentó|comentaba|comenta|"
+    "suspiró|suspiraba|suspira|musitó|musitaba|musita|"
+    "inquirió|inquiría|inquiere|balbuceó|balbuceaba|balbucea|"
+    "gruñó|gruñía|gruñe|espetó|espetaba|espeta|suplicó|suplicaba|suplica|"
+    "protestó|protestaba|protesta|advirtió|advertía|advierte|"
+    "ordenó|ordenaba|ordena|confesó|confesaba|confiesa|"
+    "aclaró|aclaraba|aclara|concluyó|concluía|concluye|"
+    # French (passé simple, imparfait, present; clitic s'/m' handled in prefix)
+    "dit|dis|disait|dirent|disent|"
+    "répondit|répondis|répondait|répond|répondirent|répondent|"
+    "demanda|demandai|demandait|demande|demandèrent|demandent|"
+    "murmura|murmurai|murmurait|murmure|murmurèrent|murmurent|"
+    "chuchota|chuchotai|chuchotait|chuchote|"
+    "cria|criai|criait|crie|crièrent|crient|"
+    "écria|écriai|écriait|écrie|écrièrent|écrient|"
+    "exclama|exclamai|exclamait|exclame|"
+    "ajouta|ajoutai|ajoutait|ajoute|ajoutèrent|ajoutent|"
+    "continua|continuai|continuait|"
+    "reprit|repris|reprenait|reprend|poursuivit|poursuivait|poursuit|"
+    "répéta|répétait|répète|répliqua|répliquait|réplique|"
+    "rétorqua|rétorquait|rétorque|interrompit|interrompait|interrompt|"
+    "insista|insistait|insiste|expliqua|expliquait|explique|"
+    "questionna|questionnait|questionne|interrogea|interrogeait|interroge|"
+    "hurla|hurlait|hurle|souffla|soufflait|souffle|soupira|soupirait|soupire|"
+    "balbutia|balbutiait|balbutie|bégaya|bégayait|bégaie|bégaye|"
+    "grommela|grommelait|grommelle|grogna|grognait|grogne|"
+    "supplia|suppliait|supplie|protesta|protestait|proteste|"
+    "avoua|avouait|avoue|déclara|déclarait|déclare|annonça|annonçait|annonce|"
+    "conclut|concluait|fit-(?:il|elle|on)|remarqua|remarquait|remarque"
+)
+_DASH_TAG_WORD = r"[^\W\d_]+(?:[-'’][^\W\d_]+)*"
+_DASH_TAG_EVIDENCE = re.compile(
+    rf"[ \t]*(?:{_DASH_TAG_WORD}[ \t]+){{0,3}}(?:[smtljdn]['’])?"
+    rf"(?:{_DASH_REPORTING_VERBS})\b",
+    re.IGNORECASE,
+)
+_DASH_BREAK = re.compile(r"[—–,]")
+_DASH_CHAR = re.compile(r"[—–]")
 # A possible turn after narration, with a second dash introducing its tag.
 # Its formatting establishes uncertainty, not speech or a speaker identity.
 INTERIOR_DASH_TURN = re.compile(
@@ -906,6 +968,80 @@ def validate_spoken_spans(spans, text):
     return True
 
 
+def split_dash_line(text, start, end):
+    """Split one dash-opened line body into (parts, ambiguous).
+
+    `text[start:end]` is the content after the opening dash of a single line.
+    Returns `(parts, ambiguous)` where `parts` is a list of
+    `(type, span_start, span_end)` offsets ("SPOKEN" or "NARRATOR") and
+    `ambiguous` is True iff the line had an interior dash or comma break with
+    no reporting-verb tag evidence. Single shared rule for `dialogue_spans` and
+    `pass_quality` (#2329).
+    """
+    while start < end and text[start] in " \t":
+        start += 1
+    limit = end
+    while limit > start and text[limit - 1] in " \t\r":
+        limit -= 1
+    if start >= limit:
+        return [], False
+    parts, speech_start, scan = [], start, start
+    split_any, has_interior_break = False, False
+    while scan < limit:
+        match = _DASH_BREAK.search(text, scan, limit)
+        if match is None:
+            break
+        sep, after = match.group(0), match.end()
+        while after < limit and text[after] in " \t":
+            after += 1
+        if after >= limit:
+            break
+        if sep == "," and text[after] in "—–":
+            scan = after
+            continue
+        has_interior_break = True
+        speech_end = match.end() if sep == "," else match.start()
+        while speech_end > speech_start and text[speech_end - 1] in " \t":
+            speech_end -= 1
+        if speech_end <= speech_start or not _DASH_TAG_EVIDENCE.match(text, after, limit):
+            scan = after
+            continue
+        split_any = True
+        parts.append(("SPOKEN", speech_start, speech_end))
+        if sep in "—–":
+            close = _DASH_CHAR.search(text, after, limit)
+            if close is not None:
+                tag_end = close.start()
+                while tag_end > after and text[tag_end - 1] in " \t":
+                    tag_end -= 1
+                if tag_end > after:
+                    parts.append(("NARRATOR", after, tag_end))
+                resume = close.end()
+                while resume < limit and text[resume] in ".,;: \t":
+                    resume += 1
+                speech_start = scan = resume
+                continue
+        parts.append(("NARRATOR", after, limit))
+        speech_start = limit
+        break
+    if not split_any:
+        return [("SPOKEN", start, end)], has_interior_break
+    while speech_start < limit and text[speech_start] in " \t":
+        speech_start += 1
+    if speech_start < limit:
+        parts.append(("SPOKEN", speech_start, limit))
+    return parts, False
+
+
+def _dash_line_spans(text):
+    return [
+        (start, end)
+        for match in DASH_LINE.finditer(text)
+        for kind, start, end in split_dash_line(text, match.start(1), match.end(1))[0]
+        if kind == "SPOKEN"
+    ]
+
+
 def spoken_spans(text, convention=None):
     """-> sorted, non-overlapping (start, end) offsets of spoken text."""
     if convention is None:
@@ -915,7 +1051,7 @@ def spoken_spans(text, convention=None):
     if convention == "paired_quotes":
         spans = _paired_spans(text)
     elif convention == "dash_lines":
-        spans = [(m.start(1), m.end(1)) for m in DASH_LINE.finditer(text)]
+        spans = _dash_line_spans(text)
     elif convention == "label_lines":
         spans = [(m.start(2), m.end(2)) for m in LABEL_LINE.finditer(text)]
     else:
@@ -996,7 +1132,7 @@ def _other_speech_spans(text, convention):
              if BLANK_LINE.search(text, m.start(1), m.end(1)) is None
              and not inside_primary(m.start(1), m.end(1))]
     if convention != "dash_lines":
-        spans += [(m.start(1), m.end(1)) for m in DASH_LINE.finditer(text)]
+        spans += _dash_line_spans(text)
     if convention != "paired_quotes":
         spans += pairs
         return spans, []

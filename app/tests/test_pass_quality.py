@@ -1945,5 +1945,105 @@ class ConcurrentQuoteTelemetryTests(unittest.TestCase):
                 self.assertTrue(saved_second['passed'], saved_second['findings'])
 
 
+class DashDialogueTagSegmenterTests(unittest.TestCase):
+    """#2329: pass_quality and quote_regions_decision share dialogue_spans' rule."""
+
+    def test_issue_rows_segment_speech_and_tag_and_agree_with_dialogue_spans(self):
+        from dialogue_spans import spoken_spans
+        from three_pass_generate import quote_regions_decision
+
+        cases = [
+            ("—Hola —dijo Ana—. Vamos.",
+             [("SPOKEN", "Hola"), ("NARRATOR", "dijo Ana"), ("SPOKEN", "Vamos.")]),
+            ("— Oui, répondit-il.",
+             [("SPOKEN", "Oui,"), ("NARRATOR", "répondit-il.")]),
+            ("— Yes, he replied.",
+             [("SPOKEN", "Yes,"), ("NARRATOR", "he replied.")]),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                analysis = analyze_outer_quote_regions(source)
+                self.assertNotIn("unverified_dash", analysis)
+                self.assertEqual(
+                    expected,
+                    [(row["type"], row["text"]) for row in analysis["regions"]],
+                )
+                self.assertEqual(
+                    [text for kind, text in expected if kind == "SPOKEN"],
+                    [source[a:b] for a, b in spoken_spans(source, "dash_lines")],
+                )
+                regions, resolution = quote_regions_decision("auto", source, analysis)
+                self.assertEqual("quote_presegmented", resolution)
+                self.assertEqual(
+                    expected,
+                    [(row["type"], row["text"]) for row in regions],
+                )
+
+    def test_no_evidence_interior_break_routes_to_model_and_allows_model_split(self):
+        from three_pass_generate import quote_regions_decision
+
+        cases = [
+            ("She sighed.\n— The train — late again — finally came.",
+             "The train — late again — finally came."),
+            ("He paused.\n— Wait — I forgot the keys.",
+             "Wait — I forgot the keys."),
+            ("She smiled.\n— Wait, she turned away.",
+             "Wait, she turned away."),
+            ("She paused.\n— Yes, the tired old man replied.",
+             "Yes, the tired old man replied."),
+        ]
+        for chunk, whole_line in cases:
+            with self.subTest(chunk=chunk):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertTrue(analysis.get("unverified_dash"))
+                self.assertEqual(
+                    whole_line,
+                    [row["text"] for row in analysis["regions"] if row["type"] == "SPOKEN"][0],
+                )
+                self.assertEqual((None, None), quote_regions_decision("auto", chunk, analysis))
+                self.assertEqual((None, None), quote_regions_decision("lexical", chunk, analysis))
+                forced_regions, forced_res = quote_regions_decision("quotes", chunk, analysis)
+                self.assertEqual("quote_forced", forced_res)
+                self.assertEqual(analysis["regions"], forced_regions)
+
+        # When routed to the model, validate_segment_quality must not reject a
+        # valid model split using the unverified whole-line dash region.
+        chunk = "She smiled.\n— Wait, she turned away."
+        analysis = analyze_outer_quote_regions(chunk)
+        model_entries = [
+            {"type": "NARRATOR", "text": "She smiled."},
+            {"type": "SPOKEN", "text": "Wait,"},
+            {"type": "NARRATOR", "text": "she turned away."},
+        ]
+        report = validate_segment_quality(chunk, model_entries, quote_analysis=analysis)
+        self.assertTrue(report["passed"], report["findings"])
+
+    def test_clean_dash_interruption_narration_and_paired_quotes_keep_existing_behaviour(self):
+        from three_pass_generate import quote_regions_decision
+
+        cases = [
+            ("— Primera línea.\n\n— Segunda línea.",
+             [("SPOKEN", "Primera línea."), ("SPOKEN", "Segunda línea.")]),
+            ("He paused.\n— I was going to—",
+             [("NARRATOR", "He paused."), ("SPOKEN", "I was going to—")]),
+            ("The train — late again — finally came.\n— All aboard!",
+             [("NARRATOR", "The train — late again — finally came."), ("SPOKEN", "All aboard!")]),
+            ('She sighed. "The train — late again — finally came." "Yes, he replied."',
+             [("NARRATOR", "She sighed."),
+              ("SPOKEN", "The train — late again — finally came."),
+              ("SPOKEN", "Yes, he replied.")]),
+        ]
+        for chunk, expected in cases:
+            with self.subTest(chunk=chunk):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertNotIn("unverified_dash", analysis)
+                regions, resolution = quote_regions_decision("auto", chunk, analysis)
+                self.assertEqual("quote_presegmented", resolution)
+                self.assertEqual(
+                    expected,
+                    [(row["type"], row["text"]) for row in regions],
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

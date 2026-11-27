@@ -29,7 +29,8 @@ _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 from dialogue_spans import (PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
                             get_guillemet_direction as _get_guillemet_direction,
                             is_inch_mark as _is_inch_mark,
-                            is_number_char as _is_number_char)
+                            is_number_char as _is_number_char,
+                            split_dash_line as _split_dash_line)
 
 _QUOTE_CHARS = set(_DS_QUOTE_MARKS) | {'”'}
 # The marks analyze_outer_quote_regions opens a spoken region on; "does this
@@ -91,6 +92,7 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     outer_opener = None  # the mark that opened depth 1, for the inch predicate
     german_inner = False  # inside an English quote nested in a German speech
     skip_until = -1  # consumed by a line-dash dialogue region
+    unverified_dash = False  # dash line had interior break without tag evidence
 
     # One guillemet direction per text: an opposite-direction closer must not
     # be parsed as an opener (HIGH in the app-wide review). Decided by the
@@ -126,16 +128,22 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     for index, char in enumerate(text):
         if index < skip_until:
             continue
-        if dash_is_dialogue and char in "—–" and (index == 0 or text[index - 1] == "\n"):
-            # Continental line-dash dialogue: the rest of this line is speech.
+        if (dash_is_dialogue and not depth and char in "—–"
+                and not text[text.rfind("\n", 0, index) + 1:index].strip(" \t")):
+            # Continental line-dash dialogue: split at evidenced tags via the
+            # single shared rule in dialogue_spans (#2329).
             flush()
             line_end = text.find("\n", index)
             if line_end == -1:
                 line_end = len(text)
-            spoken = text[index + 1:line_end].strip()
-            if spoken:
-                regions.append({"type": "SPOKEN", "text": spoken})
-                saw_quote = True
+            parts, ambiguous = _split_dash_line(text, index + 1, line_end)
+            if ambiguous:
+                unverified_dash = True
+            for part_type, part_start, part_end in parts:
+                part_text = text[part_start:part_end].strip()
+                if part_text:
+                    regions.append({"type": part_type, "text": part_text})
+                    saw_quote = True
             skip_until = line_end
             continue
         if char == "\n" and text[index:index + 2] == "\n\n" and depth:
@@ -317,9 +325,12 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     else:
         flush()
     complete = depth == 0 or allow_open_end
-    return {"regions": regions if saw_quote and complete else [],
-            "repairs": repairs, "initial_depth": initial_depth,
-            "final_depth": depth}
+    result = {"regions": regions if saw_quote and complete else [],
+              "repairs": repairs, "initial_depth": initial_depth,
+              "final_depth": depth}
+    if unverified_dash:
+        result["unverified_dash"] = True
+    return result
 
 
 def split_outer_quote_regions(text):
@@ -499,7 +510,8 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
     disables itself without saying so is the shape that has already cost this
     project three separate measurements ([[Rule 8]]).
     """
-    if quote_analysis and not quote_analysis.get("regions"):
+    if quote_analysis and (not quote_analysis.get("regions")
+                           or quote_analysis.get("unverified_dash")):
         quote_analysis = None
     if not quote_analysis and not any(char in source_text for char in _QUOTE_CHARS):
         try:
@@ -575,9 +587,13 @@ def _introduced_character_findings(source_text, output_text, entries, quote_anal
     role_specific = quoted_must_be_spoken and unquoted_must_be_narrator
     source_narration_text = None
     if role_specific:
-        quote_regions = (quote_analysis or {}).get("regions")
-        if not quote_regions:
-            quote_regions = analyze_outer_quote_regions(source_text).get("regions", [])
+        if (quote_analysis or {}).get("unverified_dash"):
+            quote_regions = []
+        else:
+            quote_regions = (quote_analysis or {}).get("regions")
+            if not quote_regions:
+                analyzed = analyze_outer_quote_regions(source_text)
+                quote_regions = [] if analyzed.get("unverified_dash") else analyzed.get("regions", [])
         source_narration_text = " ".join(region["text"] for region in quote_regions
                                          if region.get("type") == "NARRATOR") or source_text
     for duplicate in find_seam_duplicate_narration(
