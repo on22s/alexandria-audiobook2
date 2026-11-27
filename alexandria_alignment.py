@@ -22,12 +22,10 @@ Callers build a per-book proper-noun lexicon and pass it to alignment helpers.
 The default empty lexicon preserves library callers' baseline behavior.
 """
 
-import codecs
 import re
 import io
 import difflib
 import functools
-from html.parser import HTMLParser
 import sys
 import os
 import zipfile
@@ -162,52 +160,54 @@ def get_source_word_lists(text: str) -> tuple:
 
 # ── HTML hidden attribute predicate (shared across all EPUB/XHTML paths) ──────
 _XHTML_NS = 'http://www.w3.org/1999/xhtml'
-_ROOT_PROLOG_TAGS = frozenset({
-    'html', 'head', 'title', 'meta', 'link', 'style', 'script', 'base',
-    'basefont', 'bgsound', 'noscript', 'noframes', 'template', 'textarea',
-})
 
 
-def is_html_hidden_attrs(attrs, *, xml_namespaces=None, element_namespace=None) -> bool:
-    """Return whether an element's attributes carry the HTML ``hidden`` attribute.
+def is_html_hidden_attrs(attrs, *, element_namespace) -> bool:
+    """Return whether an element carries the HTML ``hidden`` attribute.
 
-    ``hidden`` is an HTML-only global attribute: non-HTML elements (e.g. SVG or
-    MathML when ``element_namespace`` is set to a non-XHTML URI) return False.
-    ``hidden`` is matched by attribute presence (ASCII case-insensitive in both
-    HTML and XML for parity): bare ``hidden``, ``hidden=""``,
-    ``hidden="hidden"``, uppercase/mixed-case spellings, and explicit XHTML-
-    namespaced spellings (``{http://www.w3.org/1999/xhtml}hidden`` or a prefix
-    bound to that URI via ``xml_namespaces``, used wherever the document is
-    parsed as XML — that is, well-formed ``application/xhtml+xml`` only)
-    all return True.
-    ``hidden="until-found"`` is treated as hidden: in HTML it suppresses
-    rendering (``content-visibility: hidden``) until interactive find-in-page
-    or fragment reveal, which does not occur during linear audiobook narration.
-    Foreign-namespaced ``hidden``, ``aria-hidden``, ``data-hidden``, and CSS
-    ``display:none`` are out of scope and return False.
+    This matches what both Chrome and Firefox do when they render an XHTML
+    document as XML, attribute for attribute. An element is hidden only when
+    **both** hold:
 
-    One predicate for HTML/XHTML script extraction, XML subtree omission,
-    EPUB read-aloud segmentation, and alignment EPUB loading (Rule 15).
+    * the element itself is in the XHTML namespace
+      (``http://www.w3.org/1999/xhtml``), and
+    * it carries an attribute whose name is exactly lowercase ``hidden`` in
+      **no namespace**.
+
+    XML attribute names are case-sensitive, so ``HIDDEN``/``Hidden`` are
+    ordinary attributes. A namespaced attribute such as ``h:hidden`` (even when
+    ``h`` is bound to the XHTML URI) is not the null-namespace HTML attribute.
+    An element in the null namespace (``xmlns=""``, or a document with no
+    ``xmlns`` at all) is not an HTML element. SVG/MathML elements with an
+    explicit ``xmlns`` are not hidden either; a bare ``<svg>``/``<math>``
+    without its own ``xmlns`` inherits the XHTML namespace in XML and is.
+    Attribute *values* do not matter: ``hidden=""``, ``hidden="hidden"``,
+    ``hidden="false"`` and ``hidden="until-found"`` all hide. ``until-found``
+    is treated as hidden because find-in-page reveal does not occur during
+    linear audiobook narration. ``aria-hidden``, ``data-hidden`` and CSS
+    ``display:none`` are out of scope.
+
+    One predicate for script extraction, XML subtree omission, EPUB read-aloud
+    segmentation, and alignment EPUB loading (Rule 15). Callers pass the
+    element's resolved namespace: Expat/ElementTree paths pass the URI or ``''``
+    for the null namespace, never ``None``.
     """
-    if not attrs or (element_namespace and element_namespace != _XHTML_NS):
+    if not attrs or element_namespace != _XHTML_NS:
         return False
     names = attrs.keys() if hasattr(attrs, 'keys') else (name for name, _value in attrs)
-    for name in names:
-        if not isinstance(name, str):
-            continue
-        if name.startswith('{'):
-            uri, sep, local = name[1:].partition('}')
-            if sep and uri == _XHTML_NS and local.isascii() and local.lower() == 'hidden':
-                return True
-        elif ':' in name:
-            if xml_namespaces:
-                prefix, _sep, local = name.partition(':')
-                if (xml_namespaces.get(prefix) == _XHTML_NS
-                        and local.isascii() and local.lower() == 'hidden'):
-                    return True
-        elif name.isascii() and name.lower() == 'hidden':
-            return True
-    return False
+    return any(isinstance(name, str) and name == 'hidden' for name in names)
+
+
+def is_hidden_xml_element(name: str, attrs, ns_map: dict) -> bool:
+    """Return whether an Expat element is hidden, using the one predicate.
+
+    ``ns_map`` is the in-scope prefix map (``''`` for the default namespace)
+    maintained from ``xmlns``/``xmlns:*`` attributes by the XML walkers. An
+    unprefixed element uses the default namespace; a prefixed element uses its
+    binding. A missing binding is the null namespace, as Expat reports it.
+    """
+    prefix = name.partition(':')[0] if ':' in name else ''
+    return is_html_hidden_attrs(attrs, element_namespace=ns_map.get(prefix, ''))
 
 
 _XHTML_MEDIA_TYPE = 'application/xhtml+xml'
@@ -270,89 +270,6 @@ def html_hidden_handling_applies(media_type, *, xml_well_formed: bool) -> bool:
             and bool(xml_well_formed))
 
 
-class _RootContextParser(HTMLParser):
-    """Inspect only the opening ``<html>``/``<body>`` start tags of an EPUB item.
-
-    Only the document's own ``<html>``/``<body>`` tags are considered. Literal
-    ``<body hidden>`` text inside head-only content cannot become a false
-    positive: ``title``/``textarea``/``noscript`` are RCDATA/raw text,
-    ``<template>`` content is a separate fragment (its markup is skipped),
-    comments/PIs/CDATA are tokenizer-level constructs, and
-    :meth:`parse_html_declaration` skips a DOCTYPE internal subset as a unit.
-    """
-    CDATA_CONTENT_ELEMENTS = HTMLParser.CDATA_CONTENT_ELEMENTS + (
-        'title', 'textarea', 'noscript')
-
-    def __init__(self):
-        super().__init__()
-        self.namespaces = {}
-        self.doc_hidden = False
-        self.done = False
-        self.template_depth = 0
-
-    def parse_html_declaration(self, index):
-        # HTMLParser stops a DOCTYPE at the first ``>``, so
-        # ``<!DOCTYPE html [ ... <body hidden> ... ]>`` leaves the rest of
-        # the subset to be read as markup (a fake document body). The subset
-        # can never contain the document element, so skip the whole
-        # declaration, quotes and bracket depth included, in one step.
-        rawdata = self.rawdata
-        if rawdata[index:index + 9].lower() != '<!doctype':
-            return super().parse_html_declaration(index)
-        depth = 0
-        quote = None
-        cursor = index + 9
-        while cursor < len(rawdata):
-            char = rawdata[cursor]
-            if quote is not None:
-                if char == quote:
-                    quote = None
-            elif char in '"\'':
-                quote = char
-            elif char == '[':
-                depth += 1
-            elif char == ']' and depth:
-                depth -= 1
-            elif char == '>' and not depth:
-                self.handle_decl(rawdata[index + 2:cursor])
-                return cursor + 1
-            cursor += 1
-        return -1  # incomplete declaration: wait for the next chunk
-
-    def handle_starttag(self, tag, attrs):
-        if self.done:
-            return
-        tag = tag.lower()
-        if tag == 'template':
-            self.template_depth += 1
-            return
-        if self.template_depth:
-            # Template content is parsed into a separate DocumentFragment;
-            # a <body> inside it is not the document body.
-            return
-        if tag in ('html', 'body'):
-            for key, value in attrs:
-                if not isinstance(key, str) or not isinstance(value, str):
-                    continue
-                if key == 'xmlns':
-                    self.namespaces[''] = value
-                elif key.startswith('xmlns:'):
-                    self.namespaces[key[6:]] = value
-            elem_ns = self.namespaces.get('', '')
-            if is_html_hidden_attrs(
-                    attrs, xml_namespaces=self.namespaces, element_namespace=elem_ns):
-                self.doc_hidden = True
-                self.done = True
-            elif tag == 'body':
-                self.done = True
-        elif tag not in _ROOT_PROLOG_TAGS:
-            self.done = True
-
-    def handle_endtag(self, tag):
-        if tag.lower() == 'template' and self.template_depth:
-            self.template_depth -= 1
-
-
 def _decode_head_encoding(raw: bytes) -> str:
     if raw.startswith((b'\xff\xfe', b'\xfe\xff')):
         return 'utf-16'
@@ -364,159 +281,234 @@ def _decode_head_encoding(raw: bytes) -> str:
     return match.group(1).decode('ascii') if match else 'utf-8-sig'
 
 
-def _epub_item_root_context(item):
-    """Return ``(whole_doc_hidden, root_xml_namespaces)`` from raw item bytes.
+def _decode_epub_markup(raw):
+    """Decode an item's bytes exactly as extraction's ``get_epub_xhtml_text``.
 
-    ``ebooklib.EpubHtml.get_content()`` rebuilds ``<html>`` and ``<body>`` from
-    a template, dropping root ``xmlns:*`` declarations and ``hidden`` attributes
-    on ``<html>``/``<body>``. Feed ``item.content`` in small chunks and stop at
-    ``<body>`` (or the first body element) so large chapters never suffer a
-    second full-document parse.
+    Same BOM/declaration detection and ``errors='replace'``, so
+    ``load_epub`` and ``extract_epub_text`` judge well-formedness on the same
+    decoded string. A ``str`` item is returned unchanged.
     """
-    raw = getattr(item, 'content', None)
-    if not isinstance(raw, (bytes, str)) or not raw:
-        return False, {}
-    parser = _RootContextParser()
-    chunk_size = 4096
     if isinstance(raw, str):
-        for offset in range(0, len(raw), chunk_size):
-            parser.feed(raw[offset:offset + chunk_size])
-            if parser.done:
-                break
-    else:
-        encoding = _decode_head_encoding(raw)
+        return raw
+    encoding = _decode_head_encoding(raw)
+    return raw.decode(encoding, errors='replace')
+
+
+_XML_DECL_ENCODING_RE = re.compile(
+    r'^(\s*<\?xml\b[^>]*?\bencoding\s*=\s*[\'"])([^\'"]*)([\'"])', re.ASCII)
+
+
+def _utf8_markup(visible: str) -> bytes:
+    """Encode substituted markup as UTF-8 with a matching XML declaration.
+
+    ``ebooklib`` rejects a ``str`` that carries an encoding declaration, so
+    ``load_epub`` passes bytes. The original declaration may name a single-byte
+    or UTF-16 encoding; normalize it to UTF-8 so the parser decodes the bytes
+    we supply. This changes only the declaration, never document text.
+    """
+    if visible.startswith('\ufeff'):
+        visible = visible[1:]
+    visible = _XML_DECL_ENCODING_RE.sub(r'\1utf-8\3', visible, count=1)
+    return visible.encode('utf-8')
+
+
+def _xml_start_tag_end(data: bytes, start: int) -> tuple[int, bool]:
+    """Return ``(index_after_gt, is_self_closing)`` for the XML tag at ``start``."""
+    quote = 0
+    index = start + 1
+    limit = len(data)
+    while index < limit:
+        byte = data[index]
+        if quote:
+            if byte == quote:
+                quote = 0
+        elif byte in (34, 39):  # '"' or "'"
+            quote = byte
+        elif byte == 62:  # '>'
+            return index + 1, index > start + 1 and data[index - 1] == 47  # '/'
+        index += 1
+    raise ValueError('invalid XML: start tag terminator unavailable')
+
+
+class _XmlHiddenScan(NamedTuple):
+    visible: str
+    saw_hidden: bool
+    hidden_text_removed: bool
+    document_hidden: bool
+
+
+def strip_hidden_xml(content):
+    """Return the document with XML-hidden subtrees cut out, or ``None``.
+
+    ``None`` means the content is not well-formed under the extraction pass's
+    own Expat configuration, so the shared predicate
+    (:func:`html_hidden_handling_applies`) declines hidden handling.
+
+    This is the single XML walk that decides hidden regions for both script
+    extraction's strict pass and ``load_epub`` (Rule 15): Expat with
+    ``DefaultHandler`` (no entity expansion, no external fetch), the same
+    ``xmlns`` stack, and :func:`is_hidden_xml_element` calling the one
+    attribute predicate. XML containment is the browser's rendering, so a
+    hidden subtree is exactly its start tag through its matching end tag; the
+    bytes outside it are kept verbatim. ``document_hidden`` covers a hidden
+    root element or a hidden ``<body>`` that is a direct child of the root
+    ``<html>``; a ``<body hidden>`` nested somewhere else (for example inside
+    ``<template>``) is not the document body. ``hidden_text_removed`` is True
+    only when omission suppressed non-whitespace character data outside
+    ``script``/``style`` (which extraction never narrated), so a hidden void
+    element removes no text.
+    """
+    if not isinstance(content, str):
         try:
-            decoder = codecs.getincrementaldecoder(encoding)(errors='replace')
+            content = _decode_epub_markup(content)
         except LookupError:
-            decoder = codecs.getincrementaldecoder('utf-8-sig')(errors='replace')
-        limit = len(raw)
-        for offset in range(0, limit, chunk_size):
-            chunk = raw[offset:offset + chunk_size]
-            parser.feed(decoder.decode(chunk, final=offset + chunk_size >= limit))
-            if parser.done:
-                break
-    return parser.doc_hidden, parser.namespaces
-
-
-def resolve_html_element_namespace(tag: str, attrs, inherited_ns: str, ns_map: dict):
-    """Return ``(element_ns, child_default_ns, updated_ns_map)`` for an XHTML tag.
-
-    This walk is XHTML-only (see :func:`_extract_bs4_visible_text`): a bare
-    ``<svg>``/``<math>`` without ``xmlns`` therefore stays in the inherited
-    XHTML namespace, exactly as a browser's XML parser reads it, so ``hidden``
-    applies to it. Only an explicit ``xmlns`` moves an element out of XHTML,
-    and children inherit that namespace: XML has no HTML integration points,
-    so an unprefixed child of an explicitly namespaced SVG ``foreignObject``
-    or MathML ``annotation-xml`` stays in the SVG/MathML namespace and its
-    ``hidden`` is not an HTML attribute. Extraction (Expat, explicit
-    ``xmlns`` only) reads the document the same way.
-    """
-    if (not attrs and ':' not in tag and inherited_ns in ('', _XHTML_NS)):
-        # Fast path: an unprefixed HTML element with no attributes inherits
-        # the HTML namespace; nothing below can change that.
-        return inherited_ns, inherited_ns, ns_map
-    elem_ns_map = ns_map
-    explicit_xmlns = None
-    attr_items = list(attrs.items()) if hasattr(attrs, 'items') else list(attrs or ())
-    for key, value in attr_items:
-        if not isinstance(key, str) or not isinstance(value, str):
-            continue
-        if key == 'xmlns':
-            explicit_xmlns = value
-        elif key.startswith('xmlns:'):
-            if elem_ns_map is ns_map:
-                elem_ns_map = dict(ns_map)
-            elem_ns_map[key[6:]] = value
-    if ':' in tag:
-        elem_ns = elem_ns_map.get(tag.partition(':')[0], inherited_ns)
-    elif explicit_xmlns is not None:
-        elem_ns = explicit_xmlns
-    else:
-        elem_ns = inherited_ns
-    # XML has no HTML integration points: children stay in this element's
-    # namespace unless they declare their own ``xmlns``.
-    return elem_ns, elem_ns, elem_ns_map
-
-
-def _hidden_subtree_has_text(node, string_types) -> bool:
-    """Return whether ``node`` contains narrated text hidden by omission.
-
-    Only string types the soup counts as content (not comments etc.) and not
-    inside ``script``/``style`` (which ``origin/main`` removed before reading)
-    count: omitting them never removed narrated text.
-    """
-    stack = [node]
-    while stack:
-        current = stack.pop()
-        for child in getattr(current, 'contents', None) or ():
-            if isinstance(child, NavigableString):
-                if type(child) in string_types and str(child).strip():
-                    return True
-            elif getattr(child, 'name', None) not in ('script', 'style'):
-                stack.append(child)
-    return False
-
-
-def _extract_bs4_visible_text(soup, *, root_namespaces=None,
-                              root_hidden=False, apply_hidden=True):
-    """Return ``(visible_text, saw_hidden, hidden_text_removed)`` in one pass.
-
-    Without ``decompose()``, so large chapters are walked linearly. The walk is
-    XHTML-only: ``load_epub``'s items come from ebooklib, which builds
-    ``EpubHtml``/``ITEM_DOCUMENT`` only for ``application/xhtml+xml``
-    resources, and a bare ``<svg>``/``<math>`` without ``xmlns`` stays in the
-    inherited XHTML namespace, exactly as a browser's XML parser reads it.
-
-    ``apply_hidden`` is the shared document-scope predicate's answer
-    (:func:`html_hidden_handling_applies`). When False the walk reproduces
-    ``origin/main``'s text exactly: hidden attributes are ignored and the
-    content is narrated. ``hidden_text_removed`` is True only when hidden
-    omission actually suppressed a non-whitespace narrated string; a document
-    with nothing but hidden void elements therefore removed no text.
-    """
-    string_types = soup.interesting_string_types or soup.MAIN_CONTENT_STRING_TYPES
-    base_ns = dict(root_namespaces) if root_namespaces else {}
-    initial_ns = base_ns.get('', '')
-    chunks = []
+            # Unknown declared encoding: extraction's decoder also declines
+            # this document, so hidden handling must not apply.
+            return None
+    try:
+        data = content.encode('utf-8')
+    except UnicodeEncodeError:
+        return None
+    parser = expat.ParserCreate(encoding='utf-8')
+    # DefaultHandler inhibits entity expansion and reporting in character
+    # content; attribute values still undergo Expat's standard normalization
+    # inside its amplification bound. No external entity/DTD handler is
+    # registered, so nothing is fetched.
+    parser.DefaultHandler = lambda _data: None
+    candidate = bytearray()
+    view = memoryview(data)
+    cursor = 0
+    hidden_depth = 0
+    hidden_self_closing = False
+    excluded_depth = 0
+    omitted = False
     saw_hidden = False
     hidden_text_removed = False
-    # (node, ns_map, inherited_ns, hidden)
-    stack = [(child, base_ns, initial_ns, bool(root_hidden and apply_hidden))
-             for child in reversed(soup.contents)]
+    document_hidden = False
+    ns_stack = [{}]
+    elements = []
+
+    def start_element(name, attrs):
+        nonlocal cursor, hidden_depth, hidden_self_closing, excluded_depth
+        nonlocal omitted, saw_hidden, hidden_text_removed, document_hidden
+        start = parser.CurrentByteIndex
+        if start < 0:
+            raise ValueError('invalid XML: element position unavailable')
+        current_ns = ns_stack[-1]
+        if 'xmlns' in attrs or any(key.startswith('xmlns:') for key in attrs):
+            updated = dict(current_ns)
+            for key, value in attrs.items():
+                if key == 'xmlns':
+                    updated[''] = value
+                elif key.startswith('xmlns:'):
+                    updated[key[6:]] = value
+            current_ns = updated
+        ns_stack.append(current_ns)
+        parent = elements[-1] if elements else None
+        local = name.rpartition(':')[2].lower()
+        elem_ns = current_ns.get(name.partition(':')[0] if ':' in name else '', '')
+        elements.append((local, elem_ns))
+        if local in ('script', 'style'):
+            excluded_depth += 1
+        if hidden_depth:
+            hidden_depth += 1
+            return
+        if not is_hidden_xml_element(name, attrs, current_ns):
+            return
+        candidate.extend(view[cursor:start])
+        cursor = start
+        omitted = True
+        saw_hidden = True
+        _, hidden_self_closing = _xml_start_tag_end(data, start)
+        hidden_depth = 1
+        if parent is None or (
+                local == 'body' and elem_ns == _XHTML_NS
+                and parent == ('html', _XHTML_NS)):
+            document_hidden = True
+
+    def end_element(name):
+        nonlocal cursor, hidden_depth, hidden_self_closing, excluded_depth
+        if len(ns_stack) > 1:
+            ns_stack.pop()
+        local = name.rpartition(':')[2].lower()
+        if local in ('script', 'style') and excluded_depth:
+            excluded_depth -= 1
+        if elements:
+            elements.pop()
+        if hidden_depth == 0:
+            return
+        hidden_depth -= 1
+        if hidden_depth:
+            return
+        was_self_closing = hidden_self_closing
+        hidden_self_closing = False
+        end = parser.CurrentByteIndex
+        if end < 0:
+            raise ValueError('invalid XML: end element position unavailable')
+        if not was_self_closing:
+            # Paired start tag: consume its matching closing tag starting at
+            # ``end``. A self-closing element has CurrentByteIndex just past
+            # ``/>`` and must not consume a following parent end tag even when
+            # the parent shares the tag name.
+            close_end = data.find(b'>', end)
+            if close_end < 0:
+                raise ValueError('invalid XML: end tag terminator unavailable')
+            end = close_end + 1
+        cursor = end
+
+    def character_data(text):
+        nonlocal hidden_text_removed
+        if hidden_depth and not excluded_depth and text.strip():
+            hidden_text_removed = True
+
+    parser.StartElementHandler = start_element
+    parser.EndElementHandler = end_element
+    parser.CharacterDataHandler = character_data
+    try:
+        parser.Parse(data, True)
+    except (expat.ExpatError, ValueError, TypeError, LookupError):
+        return None
+    finally:
+        # Break the parser->handler->closure->parser cycle so completed
+        # chapter buffers release deterministically, success or failure.
+        parser.StartElementHandler = None
+        parser.EndElementHandler = None
+        parser.CharacterDataHandler = None
+        parser.DefaultHandler = None
+    if not omitted:
+        return _XmlHiddenScan(content, False, False, False)
+    candidate.extend(view[cursor:])
+    try:
+        visible = candidate.decode('utf-8')
+    except UnicodeDecodeError:
+        return None
+    return _XmlHiddenScan(visible, saw_hidden, hidden_text_removed, document_hidden)
+
+
+def _extract_bs4_visible_text(soup) -> str:
+    """Return the visible text of ``soup`` in ``origin/main``'s join order.
+
+    ``origin/main`` decomposed ``script``/``style`` and called
+    ``soup.get_text(separator=' ')``; this walks the tree without
+    ``decompose()`` so large chapters stay linear and produces the same
+    separator-joined string. Hidden decisions are not made here: ``load_epub``
+    cuts hidden subtrees from the raw XML first, using the same parse as
+    extraction (Rule 15).
+    """
+    string_types = soup.interesting_string_types or soup.MAIN_CONTENT_STRING_TYPES
+    chunks = []
+    stack = list(reversed(soup.contents))
     while stack:
-        node, ns_map, inherited_ns, hidden = stack.pop()
+        node = stack.pop()
         if isinstance(node, NavigableString):
             if type(node) in string_types:
-                if hidden:
-                    if str(node).strip():
-                        hidden_text_removed = True
-                else:
-                    chunks.append(str(node))
+                chunks.append(str(node))
             continue
         name = getattr(node, 'name', None)
-        if not isinstance(name, str):
+        if not isinstance(name, str) or name.lower() in ('script', 'style'):
             continue
-        tag = name.lower()
-        if tag in ('script', 'style'):
-            continue
-        if hidden:
-            saw_hidden = True
-            if not hidden_text_removed and _hidden_subtree_has_text(node, string_types):
-                hidden_text_removed = True
-            continue
-        attrs = getattr(node, 'attrs', None)
-        elem_ns, child_ns, elem_ns_map = resolve_html_element_namespace(
-            tag, attrs, inherited_ns, ns_map)
-        node_hidden = apply_hidden and bool(attrs and is_html_hidden_attrs(
-            attrs, xml_namespaces=elem_ns_map, element_namespace=elem_ns))
-        if node_hidden:
-            saw_hidden = True
-            if not hidden_text_removed and _hidden_subtree_has_text(node, string_types):
-                hidden_text_removed = True
-            continue
-        for child in reversed(getattr(node, 'contents', None) or ()):
-            stack.append((child, elem_ns_map, child_ns, False))
-    return ' '.join(chunks), saw_hidden, hidden_text_removed
+        stack.extend(reversed(getattr(node, 'contents', None) or ()))
+    return ' '.join(chunks)
 
 
 # ── Source loaders ─────────────────────────────────────────────────────────────
@@ -591,18 +583,46 @@ def load_epub(path: str) -> str:
             # ITEM_DOCUMENT), whereas character-referenced XML whitespace
             # (&#9;, &#10;, &#13;, &#12;) stays unsplit inside EpubHtml.properties.
             continue
-        doc_hidden, root_namespaces = _epub_item_root_context(item)
+        media_type = getattr(item, 'media_type', '')
         considered_documents += 1
         # One predicate (Rule 15) decides hidden handling for every path:
-        # application/xhtml+xml AND well-formed XML. Malformed XHTML and every
+        # application/xhtml+xml AND well-formed XML. The well-formedness answer
+        # comes from the same XML walk that finds hidden regions, using the
+        # extraction pass's own Expat configuration. Malformed XHTML and every
         # other media type keep origin/main's narrated output exactly.
+        hidden_scan = None
+        if _normalized_media_type(media_type) == _XHTML_MEDIA_TYPE:
+            # Decide hidden regions from the raw XML, never from ebooklib's
+            # HTML reserialization: that parser lowercases attribute names and
+            # applies HTML implied-end rules, which would leak hidden text and
+            # hide visible text (review gate 1, findings 1-2).
+            hidden_scan = strip_hidden_xml(getattr(item, 'content', None) or b'')
         hidden_applies = html_hidden_handling_applies(
-            getattr(item, 'media_type', ''),
-            xml_well_formed=is_well_formed_xml(getattr(item, 'content', b'') or b''))
-        soup = BeautifulSoup(item.get_content(), 'html.parser')
-        text, item_hidden, hidden_text_removed = _extract_bs4_visible_text(
-            soup, root_namespaces=root_namespaces,
-            root_hidden=doc_hidden, apply_hidden=hidden_applies)
+            media_type, xml_well_formed=hidden_scan is not None)
+        item_hidden = False
+        hidden_text_removed = False
+        doc_hidden = False
+        if hidden_applies and hidden_scan.saw_hidden:
+            item_hidden = True
+            hidden_text_removed = hidden_scan.hidden_text_removed
+            doc_hidden = hidden_scan.document_hidden
+            if doc_hidden:
+                text = ''
+            else:
+                # Feed ebooklib's own pipeline the hidden-free document so it
+                # sees exactly what a browser's XML tree shows. The
+                # declaration is normalized to UTF-8 because the substituted
+                # value is a decoded string re-encoded as UTF-8.
+                original_content = item.content
+                try:
+                    item.content = _utf8_markup(hidden_scan.visible)
+                    soup = BeautifulSoup(item.get_content(), 'html.parser')
+                finally:
+                    item.content = original_content
+                text = _extract_bs4_visible_text(soup)
+        else:
+            soup = BeautifulSoup(item.get_content(), 'html.parser')
+            text = _extract_bs4_visible_text(soup)
         if not (item_hidden and hidden_text_removed and not text.strip()):
             # A document is entirely hidden only when hidden omission actually
             # removed non-whitespace text. An empty visible chapter, or a

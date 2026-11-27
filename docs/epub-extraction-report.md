@@ -18,14 +18,21 @@ text), and skipped missing/non-HTML/empty resources.
 Hidden handling applies only where the browser itself parses the document as
 XML: an `application/xhtml+xml` spine item that is well-formed XML. One shared
 predicate answers that question for script extraction, read-aloud and
-`load_epub`. In such a document, HTML elements carrying the HTML `hidden`
-attribute (ASCII case-insensitive, in any form including `hidden="until-found"`,
-which hides content from linear reading until interactive find-in-page reveal;
-XHTML-namespaced prefixed forms such as `h:hidden` apply too) and all their
-descendants are omitted from narration. Because `hidden` is an HTML-only global
-attribute, it is not applied to SVG or MathML elements with an explicit
-`xmlns` (a bare `<svg>`/`<math>` inherits the XHTML namespace in XML and does
-take it); CSS `display:none` and `aria-hidden` are not inferred or dropped.
+`load_epub`. In such a document, an element is hidden only when both Chrome and
+Firefox render it hidden: the element is in the XHTML namespace
+(`http://www.w3.org/1999/xhtml`) **and** carries an attribute whose name is
+exactly lowercase `hidden` in no namespace. XML attribute names are
+case-sensitive, so `HIDDEN` and `Hidden` are ordinary attributes; a namespaced
+attribute such as `h:hidden` is not the null-namespace HTML attribute, even
+when `h` is bound to the XHTML URI; and an element in no namespace (`xmlns=""`,
+or a document with no `xmlns` at all) is not an HTML element. Attribute values
+do not matter: `hidden=""`, `hidden="false"` and `hidden="until-found"` all hide
+(`until-found` hides content from linear reading until interactive
+find-in-page reveal). Hidden elements and all their descendants are omitted
+from narration. Because `hidden` is an HTML-only global attribute, it is not
+applied to SVG or MathML elements with an explicit `xmlns` (a bare
+`<svg>`/`<math>` inherits the XHTML namespace in XML and does take it); CSS
+`display:none` and `aria-hidden` are not inferred or dropped.
 XML has no HTML integration points either: an unprefixed child of an
 explicitly namespaced SVG `foreignObject` or MathML `annotation-xml` stays in
 the SVG/MathML namespace, so its `hidden` is not applied.
@@ -49,13 +56,19 @@ hidden void element (`<br hidden>`, `<img hidden>`) is not counted because it
 omits no text. `content_policy` names `html_hidden_not_spoken` only when hidden
 omission actually applied to an included resource, so a hidden-free or
 non-XHTML import keeps the previous policy string unchanged.
-`load_epub`'s `<html>`/`<body>` root detection decodes UTF-8/UTF-16 and skips
-comments, PIs, DOCTYPE internal subsets, RCDATA head content (`title`,
-`textarea`, `noscript`), and `<template>` fragments, so literal `<body hidden>`
-text in any of them is not mistaken for the document body. `load_epub`'s
-existing `BeautifulSoup` text path still returns `''` for a UTF-16 chapter
-(unchanged from before this feature); this is pre-existing and out of scope,
-so encoding support is not claimed end-to-end. When every spine document in an
+For a document the shared predicate accepts, `load_epub` decides hidden
+regions from the same raw-XML Expat walk the extraction pass uses, never from
+`ebooklib`'s HTML reserialization (which lowercases attribute names and applies
+HTML implied-end rules). Extraction and `load_epub` therefore agree on which
+text is omitted; a hidden subtree is cut from the XML before the HTML parser
+runs, so text cannot be moved out of it. The document root's own start tag and
+the document `<body>` (the direct child of the root `<html>`) are recognized
+through the XML tree, so a `<body hidden>` nested in `<template>`, `noscript`
+or `textarea` is not mistaken for the document body. `load_epub`'s existing
+`BeautifulSoup` text path still returns `''` for a hidden-free UTF-16 chapter
+(unchanged from before this feature); a hidden-bearing accepted document is
+substituted as UTF-8 and does load, so encoding support is not claimed
+end-to-end. When every spine document in an
 EPUB is entirely hidden (hidden omission actually removed non-whitespace text,
 whether the document root carries `hidden` or all of its text is inside hidden
 elements), script extraction returns no chapter text (with no

@@ -32,6 +32,7 @@ from epub_readaloud import (
 from routers import script
 from routers.script import (
     _HTMLTextExtractor,
+    _POTENTIAL_HIDDEN_ATTR_RE,
     _get_anchor_id,
     _omit_xml_ignored_subtrees,
     extract_epub_text,
@@ -135,66 +136,90 @@ def make_multi_epub(docs, *, media_type='application/xhtml+xml'):
     return buf.getvalue()
 
 
+XHTML_NS = 'http://www.w3.org/1999/xhtml'
+
+
+def _load_bytes(raw):
+    with tempfile.TemporaryDirectory() as tmp:
+        epub_path = Path(tmp) / 'probe.epub'
+        epub_path.write_bytes(raw)
+        return alignment.load_epub(str(epub_path))
+
+
+def _normalised(text):
+    return ' '.join(text.split())
+
+
+def _three_paths(raw):
+    """Return (extraction text, read-aloud segment texts, load text)."""
+    extracted = extract_epub_text('synthetic.epub', archive_bytes=raw)
+    _root, segments, _full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+    return extracted, [segment['text'] for segment in segments], _load_bytes(raw)
+
+
 class HtmlHiddenPredicateTests(unittest.TestCase):
-    def test_predicate_accepts_all_boolean_case_until_found_and_xhtml_namespace_forms(self):
-        xhtml_ns = {'h': 'http://www.w3.org/1999/xhtml'}
-        positives = [
-            [('hidden', None)],
-            [('hidden', '')],
-            [('hidden', 'hidden')],
-            [('hidden', 'until-found')],
-            [('hidden', 'UNTIL-FOUND')],
-            [('hidden', 'false')],
-            [('HIDDEN', None)],
-            [('Hidden', '')],
-            [('HiDdEn', 'HIDDEN')],
-            {'hidden': ''},
-            {'hidden': 'hidden'},
-            {'hidden': 'until-found'},
-            {'{http://www.w3.org/1999/xhtml}hidden': ''},
-            {'{http://www.w3.org/1999/xhtml}hidden': 'until-found'},
-        ]
-        for attrs in positives:
-            with self.subTest(attrs=attrs):
-                self.assertTrue(alignment.is_html_hidden_attrs(attrs))
-        self.assertTrue(alignment.is_html_hidden_attrs(
-            {'h:hidden': 'hidden'}, xml_namespaces=xhtml_ns))
-        self.assertTrue(alignment.is_html_hidden_attrs(
-            {'h:hidden': 'until-found'}, xml_namespaces=xhtml_ns))
+    def test_predicate_accepts_only_the_lowercase_null_namespace_attribute(self):
+        # Attribute *value* never matters; only presence of the exact
+        # null-namespace name `hidden` does.
+        for value in ('', 'hidden', 'HIDDEN', 'false', 'until-found',
+                      'UNTIL-FOUND', 'x', None):
+            attrs = [('hidden', value)]
+            with self.subTest(value=value, attrs=attrs):
+                self.assertTrue(alignment.is_html_hidden_attrs(
+                    attrs, element_namespace=XHTML_NS))
+            with self.subTest(value=value, attrs={'hidden': value}):
+                self.assertTrue(alignment.is_html_hidden_attrs(
+                    {'hidden': value}, element_namespace=XHTML_NS))
 
-    def test_predicate_rejects_css_aria_data_and_foreign_namespaces(self):
-        negatives = [
-            None,
-            [],
-            {},
-            [('style', 'display:none')],
-            [('style', 'visibility:hidden')],
-            [('aria-hidden', 'true')],
-            [('data-hidden', 'true')],
-            [('class', 'hidden')],
-            [('id', 'hidden')],
-            {'{urn:example}hidden': 'hidden'},
-            {'{http://www.idpf.org/2007/ops}hidden': 'hidden'},
-            {'x:hidden': 'hidden'},
-        ]
-        for attrs in negatives:
+        # XML attribute names are case-sensitive: these are ordinary
+        # attributes a browser renders (gate rows a and b).
+        for attrs in ({'HIDDEN': ''}, {'Hidden': ''}, {'HiDdEn': 'HIDDEN'},
+                      {'hidden2': ''}, {'data-hidden': ''},
+                      {'aria-hidden': 'true'}, {'style': 'display:none'}):
             with self.subTest(attrs=attrs):
-                self.assertFalse(alignment.is_html_hidden_attrs(attrs))
-        self.assertFalse(alignment.is_html_hidden_attrs(
-            {'x:hidden': 'hidden'}, xml_namespaces={'x': 'urn:example'}))
+                self.assertFalse(alignment.is_html_hidden_attrs(
+                    attrs, element_namespace=XHTML_NS))
 
-    def test_predicate_ignores_non_html_element_namespaces(self):
-        xhtml_ns = {'h': 'http://www.w3.org/1999/xhtml'}
-        for ns in ('http://www.w3.org/2000/svg', 'http://www.w3.org/1998/Math/MathML', 'urn:example'):
+        # A namespaced attribute is not the null-namespace HTML attribute,
+        # even when its prefix is bound to the XHTML URI (gate row c).
+        for attrs in ({'{http://www.w3.org/1999/xhtml}hidden': ''},
+                      {'h:hidden': 'hidden'},
+                      {'x:hidden': 'hidden'},
+                      {'{urn:example}hidden': 'hidden'}):
+            with self.subTest(attrs=attrs):
+                self.assertFalse(alignment.is_html_hidden_attrs(
+                    attrs, element_namespace=XHTML_NS))
+
+    def test_predicate_requires_the_xhtml_element_namespace(self):
+        for ns in (None, '', 'urn:example',
+                   'http://www.w3.org/2000/svg',
+                   'http://www.w3.org/1998/Math/MathML'):
             with self.subTest(element_namespace=ns):
                 self.assertFalse(alignment.is_html_hidden_attrs(
                     {'hidden': ''}, element_namespace=ns))
-                self.assertFalse(alignment.is_html_hidden_attrs(
-                    {'h:hidden': 'hidden'}, xml_namespaces=xhtml_ns, element_namespace=ns))
-        for ns in (None, '', 'http://www.w3.org/1999/xhtml'):
-            with self.subTest(html_namespace=ns):
-                self.assertTrue(alignment.is_html_hidden_attrs(
-                    {'hidden': ''}, element_namespace=ns))
+        self.assertTrue(alignment.is_html_hidden_attrs(
+            {'hidden': ''}, element_namespace=XHTML_NS))
+
+    def test_xml_element_predicate_resolves_prefixes_and_default_namespace(self):
+        # Unprefixed element in the XHTML default namespace: hidden applies.
+        self.assertTrue(alignment.is_hidden_xml_element(
+            'p', {'hidden': ''}, {'': XHTML_NS}))
+        # Case-sensitive attribute name and prefixed attribute: narrated.
+        self.assertFalse(alignment.is_hidden_xml_element(
+            'p', {'HIDDEN': ''}, {'': XHTML_NS}))
+        self.assertFalse(alignment.is_hidden_xml_element(
+            'p', {'h:hidden': ''}, {'': XHTML_NS, 'h': XHTML_NS}))
+        # Null namespace element (xmlns="" or no xmlns): narrated.
+        self.assertFalse(alignment.is_hidden_xml_element(
+            'p', {'hidden': ''}, {'': ''}))
+        self.assertFalse(alignment.is_hidden_xml_element(
+            'p', {'hidden': ''}, {}))
+        # A prefixed element bound to XHTML is an HTML element; its
+        # unprefixed attribute is the HTML one.
+        self.assertTrue(alignment.is_hidden_xml_element(
+            'h:p', {'hidden': ''}, {'h': XHTML_NS}))
+        self.assertFalse(alignment.is_hidden_xml_element(
+            'h:p', {'h:hidden': ''}, {'h': XHTML_NS}))
 
 
 class HtmlHiddenExtractionTests(unittest.TestCase):
@@ -233,39 +258,121 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             ('canonical', '<p>Start.</p><p hidden="hidden">Secret.</p><p>End.</p>'),
             ('until_found', '<p>Start.</p><p hidden="until-found">Secret.</p><p>End.</p>'),
             ('until_found_upper', '<p>Start.</p><p hidden="UNTIL-FOUND">Secret.</p><p>End.</p>'),
-            ('upper_attr', '<p>Start.</p><p HIDDEN="HIDDEN">Secret.</p><p>End.</p>'),
-            ('mixed_case', '<p>Start.</p><p HiDdEn="Hidden">Secret.</p><p>End.</p>'),
             ('false_still_hidden', '<p>Start.</p><p hidden="false">Secret.</p><p>End.</p>'),
         ]
         for name, body in doc_cases:
             with self.subTest(case=name):
                 raw = make_epub(body, toc_links=[])
-                self.assertEqual(
-                    'Start.\n\nEnd.',
-                    extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-        # XHTML-namespaced prefixed form applies on the XHTML path.
-        prefixed = '<p>Start.</p><p h:hidden="hidden">Secret.</p><p>End.</p>'
-        extra = ' xmlns:h="http://www.w3.org/1999/xhtml"'
-        raw = make_epub(prefixed, extra_html_attrs=extra, toc_links=[])
-        self.assertEqual('Start.\n\nEnd.',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+                extracted, segments, loaded = _three_paths(raw)
+                self.assertEqual('Start.\n\nEnd.', extracted)
+                self.assertEqual(['Start.', 'End.'], segments)
+                self.assertEqual('Start. End.', _normalised(loaded))
 
         # Nested hidden elements and hidden descendants.
         nested = ('<p>Before.</p><div hidden=""><p hidden="">Double hidden</p>'
                   '<p>Still inside outer hidden.</p></div><p>After.</p>')
         raw = make_epub(nested, toc_links=[])
-        self.assertEqual('Before.\n\nAfter.',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+        extracted, segments, loaded = _three_paths(raw)
+        self.assertEqual('Before.\n\nAfter.', extracted)
+        self.assertEqual(['Before.', 'After.'], segments)
+        self.assertEqual('Before. After.', _normalised(loaded))
 
-        # Unnamespaced XHTML root document
-        raw_unns = make_epub(
+    def test_gate_row_a_uppercase_attribute_is_narrated(self):
+        # Chrome and Firefox render `<p HIDDEN="">` (XML attribute names are
+        # case-sensitive), so every path must keep the token.
+        raw = make_epub('<p>Before.</p><p HIDDEN="">UPPERATTR</p><p>After.</p>',
+                        toc_links=[])
+        extracted, segments, loaded = _three_paths(raw)
+        self.assertEqual('Before.\n\nUPPERATTR\n\nAfter.', extracted)
+        self.assertEqual(['Before.', 'UPPERATTR', 'After.'], segments)
+        self.assertEqual('Before. UPPERATTR After.', _normalised(loaded))
+
+    def test_gate_row_b_mixed_case_attribute_is_narrated(self):
+        for spelling in ('Hidden', 'HiDdEn'):
+            with self.subTest(spelling=spelling):
+                raw = make_epub(
+                    f'<p>Before.</p><p {spelling}="">MIXEDATTR</p><p>After.</p>',
+                    toc_links=[])
+                extracted, segments, loaded = _three_paths(raw)
+                self.assertEqual('Before.\n\nMIXEDATTR\n\nAfter.', extracted)
+                self.assertEqual(['Before.', 'MIXEDATTR', 'After.'], segments)
+                self.assertEqual('Before. MIXEDATTR After.', _normalised(loaded))
+
+    def test_gate_row_c_prefixed_hidden_attribute_is_narrated(self):
+        # A namespaced attribute is not the null-namespace HTML attribute,
+        # whether the prefix is declared on <html> or on the element.
+        for name, body, extra in (
+            ('prefix_on_html', '<p h:hidden="">PREFIXATTR</p>',
+             ' xmlns:h="http://www.w3.org/1999/xhtml"'),
+            ('prefix_on_element',
+             '<p xmlns:h="http://www.w3.org/1999/xhtml" h:hidden="">PREFIXATTR</p>',
+             ''),
+        ):
+            with self.subTest(case=name):
+                raw = make_epub(f'<p>Before.</p>{body}<p>After.</p>',
+                                extra_html_attrs=extra, toc_links=[])
+                extracted, segments, loaded = _three_paths(raw)
+                self.assertEqual('Before.\n\nPREFIXATTR\n\nAfter.', extracted)
+                self.assertEqual(['Before.', 'PREFIXATTR', 'After.'], segments)
+                self.assertEqual('Before. PREFIXATTR After.', _normalised(loaded))
+
+    def test_gate_row_d_null_namespace_elements_are_narrated(self):
+        # `xmlns=""` puts the element (and subtree) in no namespace, so the
+        # HTML UA rule scoped to XHTML never applies.
+        cases = [
+            ('null_ns_div', '<div xmlns=""><p hidden="">NULLNS</p></div>'),
+            ('null_ns_p', '<p xmlns="" hidden="">NULLNSP</p>'),
+        ]
+        for name, body in cases:
+            token = 'NULLNS' if name == 'null_ns_div' else 'NULLNSP'
+            with self.subTest(case=name):
+                raw = make_epub(f'<p>Before.</p>{body}<p>After.</p>', toc_links=[])
+                extracted, segments, loaded = _three_paths(raw)
+                self.assertEqual(f'Before.\n\n{token}\n\nAfter.', extracted)
+                self.assertEqual(['Before.', token, 'After.'], segments)
+                self.assertEqual(f'Before. {token} After.', _normalised(loaded))
+
+    def test_gate_row_e_document_without_xmlns_is_narrated(self):
+        # No xmlns at all: every element is in the null namespace, so a
+        # lowercase `hidden` is not the HTML attribute. Extraction and
+        # load_epub narrate it; read-aloud refuses the document as not XHTML
+        # on both trees (pre-existing behaviour, not hidden handling).
+        raw = make_epub(
             '',
-            raw_document='<html><body><p>Start.</p><p hidden="">Secret.</p><p>End.</p></body></html>',
-            toc_links=[],
-        )
-        self.assertEqual('Start.\n\nEnd.',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw_unns))
+            raw_document=(
+                '<html><head><title>t</title></head><body>'
+                '<p>Before.</p><p hidden="">NONSROOT</p><p>After.</p>'
+                '</body></html>'),
+            toc_links=[])
+        self.assertEqual('Before.\n\nNONSROOT\n\nAfter.',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+        self.assertEqual('Before. NONSROOT After.', _normalised(_load_bytes(raw)))
+        with self.assertRaisesRegex(ValueError, r'not in the XHTML namespace'):
+            get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+
+    def test_browser_controls_still_apply(self):
+        # Lowercase hidden omits; an uppercase *element* name is still an
+        # XHTML element, so `hidden` applies; values are irrelevant; an
+        # explicitly SVG-namespaced text element is not an HTML element.
+        omitted = [
+            ('lowercase_p', '<p hidden="">SECRET</p>'),
+            ('uppercase_element', '<P hidden="">SECRET</P>'),
+            ('hidden_value_upper', '<p hidden="HIDDEN">SECRET</p>'),
+            ('hidden_false', '<p hidden="false">SECRET</p>'),
+        ]
+        for name, body in omitted:
+            with self.subTest(case=name):
+                raw = make_epub(f'<p>Before.</p>{body}<p>After.</p>', toc_links=[])
+                extracted, segments, loaded = _three_paths(raw)
+                self.assertNotIn('SECRET', extracted)
+                self.assertNotIn('SECRET', segments)
+                self.assertNotIn('SECRET', loaded)
+        svg = ('<p>Before.</p><svg xmlns="http://www.w3.org/2000/svg">'
+               '<text hidden="">SVGTEXT</text></svg><p>After.</p>')
+        raw = make_epub(svg, toc_links=[])
+        extracted, _segments, loaded = _three_paths(raw)
+        self.assertIn('SVGTEXT', extracted)
+        self.assertIn('SVGTEXT', loaded)
 
     def test_bare_boolean_hidden_in_text_html_is_narrated_documented_leak(self):
         # A bare HTML boolean attribute is not well-formed XML, so the document
@@ -547,19 +654,21 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
 
         # Self-closing hidden element sharing its parent's tag name must not
         # consume the parent's closing tag (even with '>' or '/>' inside attrs/text).
+        # The documents need the XHTML default namespace for `hidden` to apply.
+        NS = ' xmlns="http://www.w3.org/1999/xhtml"'
         self_closing_cases = [
             ('same_tag_self_closing',
-             '<html><body><div><div hidden=""/></div><p>After.</p></body></html>',
-             '<html><body><div></div><p>After.</p></body></html>'),
+             f'<html{NS}><body><div><div hidden=""/></div><p>After.</p></body></html>',
+             f'<html{NS}><body><div></div><p>After.</p></body></html>'),
             ('gt_in_attr_self_closing',
-             '<html><body><div><div title="a>b" hidden=""/></div><p>After.</p></body></html>',
-             '<html><body><div></div><p>After.</p></body></html>'),
+             f'<html{NS}><body><div><div title="a>b" hidden=""/></div><p>After.</p></body></html>',
+             f'<html{NS}><body><div></div><p>After.</p></body></html>'),
             ('slash_gt_in_text_paired',
-             '<html><body><div><div hidden="">a/></div></div><p>After.</p></body></html>',
-             '<html><body><div></div><p>After.</p></body></html>'),
+             f'<html{NS}><body><div><div hidden="">a/></div></div><p>After.</p></body></html>',
+             f'<html{NS}><body><div></div><p>After.</p></body></html>'),
             ('void_self_closing',
-             '<html><body><p>Before.</p><br hidden=""/><img hidden="hidden" src="x.png"/><p>After.</p></body></html>',
-             '<html><body><p>Before.</p><p>After.</p></body></html>'),
+             f'<html{NS}><body><p>Before.</p><br hidden=""/><img hidden="hidden" src="x.png"/><p>After.</p></body></html>',
+             f'<html{NS}><body><p>Before.</p><p>After.</p></body></html>'),
         ]
         for name, source, expected in self_closing_cases:
             with self.subTest(case=name):
@@ -780,59 +889,61 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             self.assertNotEqual('target_in_hidden_subtree',
                                 by_frag_html[fragment]['reason'])
 
-    def test_root_context_skips_template_doctype_subset_and_noscript(self):
-        class _FakeItem:
-            def __init__(self, content):
-                self.content = content
-
-        cases = [
-            ('template_then_hidden_body',
-             b'<html xmlns="http://www.w3.org/1999/xhtml"><head><template><p>t</p>'
-             b'</template></head><body hidden=""><p>Secret.</p></body></html>', True),
+    def test_load_epub_decides_hidden_from_the_xml_walk_not_an_html_scan(self):
+        # `load_epub` no longer guesses the document root from an HTML parser;
+        # the same Expat walk extraction uses decides hidden regions. A
+        # `<body hidden>` nested in <template>, <noscript> or <textarea> is
+        # not the document body, so the real visible body survives.
+        walker_cases = [
             ('template_fake_body_only',
-             b'<html><head><template><template><body hidden="">'
-             b'</template></template></head><body><p>Visible.</p></body></html>', False),
-            ('doctype_internal_subset_fake_body',
-             b'<!DOCTYPE html [ <!ENTITY foo "bar"> <body hidden=""> ]>'
-             b'<html><body><p>Visible.</p></body></html>', False),
-            ('noscript_in_head_fake_body',
-             b'<html><head><noscript><body hidden=""></noscript></head>'
-             b'<body><p>Visible.</p></body></html>', False),
-            ('textarea_in_head_fake_body',
-             b'<html><head><textarea><body hidden=""></textarea></head>'
-             b'<body><p>Visible.</p></body></html>', False),
-            ('hidden_body_before_template',
-             b'<html><head><template><p>t</p></template></head><body hidden="">x</body></html>',
-             True),
+             '<html xmlns="http://www.w3.org/1999/xhtml"><head><template>'
+             '<body hidden=""/></template></head><body><p>Visible.</p></body></html>',
+             False),
+            ('noscript_fake_body',
+             '<html xmlns="http://www.w3.org/1999/xhtml"><head><noscript>'
+             '<body hidden=""/></noscript></head><body><p>Visible.</p></body></html>',
+             False),
+            ('textarea_fake_body',
+             '<html xmlns="http://www.w3.org/1999/xhtml"><head><textarea>'
+             '<body hidden=""/></textarea></head><body><p>Visible.</p></body></html>',
+             False),
+            ('hidden_real_body',
+             '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+             '</head><body hidden=""><p>Secret.</p></body></html>', True),
+            ('hidden_root',
+             '<html xmlns="http://www.w3.org/1999/xhtml" hidden=""><body>'
+             '<p>Secret.</p></body></html>', True),
         ]
-        for name, raw, expected in cases:
+        for name, raw_doc, expected in walker_cases:
             with self.subTest(case=name):
-                self.assertEqual(expected,
-                                 alignment._epub_item_root_context(_FakeItem(raw))[0])
+                scan = alignment.strip_hidden_xml(raw_doc)
+                self.assertIsNotNone(scan)
+                self.assertEqual(expected, scan.document_hidden)
 
-        # End to end: a chapter whose real <body> is hidden after a template in
-        # <head> is omitted by load_epub (the finding-5 regression), and a
-        # DOCTYPE internal subset holding a fake <body hidden> does not refuse
-        # the visible chapter.
-        hidden_after_template = (
-            '<html xmlns="http://www.w3.org/1999/xhtml"><head><template><p>t</p>'
-            '</template></head><body hidden=""><p>Secret.</p></body></html>')
+        # A fake <body hidden> in head-only content does not hide the chapter.
+        for name, raw_doc in (
+            ('template_fake_body_only', walker_cases[0][1]),
+            ('noscript_fake_body', walker_cases[1][1]),
+            ('textarea_fake_body', walker_cases[2][1]),
+        ):
+            with self.subTest(end_to_end=name):
+                raw = make_epub('', raw_document=raw_doc, toc_links=[])
+                self.assertIn('Visible.', _load_bytes(raw))
+
+        # A real hidden <body> after a template is still refused.
+        hidden_after_template = walker_cases[3][1]
         raw_hidden = make_epub('', raw_document=hidden_after_template, toc_links=[])
-        with tempfile.TemporaryDirectory() as tmp:
-            epub_path = Path(tmp) / 'template_hidden.epub'
-            epub_path.write_bytes(raw_hidden)
-            with self.assertRaisesRegex(
-                    ValueError, r'no readable text after omitting HTML hidden elements'):
-                alignment.load_epub(str(epub_path))
+        with self.assertRaisesRegex(
+                ValueError, r'no readable text after omitting HTML hidden elements'):
+            _load_bytes(raw_hidden)
+
+        # A DOCTYPE internal subset can never contain the document body.
         doctype_subset = (
             '<!DOCTYPE html [ <!ENTITY foo "bar"> <body hidden=""> ]>'
-            '<html><body><p>Visible.</p></body></html>')
+            '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Visible.</p>'
+            '</body></html>')
         raw_subset = make_epub('', raw_document=doctype_subset, toc_links=[])
-        with tempfile.TemporaryDirectory() as tmp:
-            epub_path = Path(tmp) / 'doctype_subset.epub'
-            epub_path.write_bytes(raw_subset)
-            self.assertEqual('Visible.', ' '.join(
-                alignment.load_epub(str(epub_path)).split()))
+        self.assertEqual('Visible.', _normalised(_load_bytes(raw_subset)))
 
     def test_bare_svg_and_math_without_xmlns_use_the_xhtml_namespace(self):
         # XHTML is XML: a bare <svg>/<math> without xmlns stays in the
@@ -1015,18 +1126,22 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         self.assertIn('Omitted SVG', text_html)
         self.assertIn('Omitted foreign HTML', text_html)
 
-    def test_prefixed_xhtml_hidden_applies_on_every_xml_path(self):
+    def test_prefixed_xhtml_hidden_is_narrated_on_every_xml_path(self):
+        # Review gate 1 finding 1c: `h:hidden` is a namespaced attribute, not
+        # the null-namespace HTML attribute, so both browsers show the text.
         body = '<p h:hidden="hidden">Prefixed secret.</p><p>Visible.</p>'
         extra = ' xmlns:h="http://www.w3.org/1999/xhtml"'
         raw = make_epub(body, extra_html_attrs=extra, toc_links=[])
-        self.assertEqual('Visible.', extract_epub_text('synthetic.epub', archive_bytes=raw))
+        self.assertEqual('Prefixed secret.\n\nVisible.',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
         _root, segs, _full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
-        self.assertEqual(['Visible.'], [s['text'] for s in segs])
+        self.assertEqual(['Prefixed secret.', 'Visible.'],
+                         [s['text'] for s in segs])
         with tempfile.TemporaryDirectory() as tmp:
             epub_path = Path(tmp) / 'prefixed.epub'
             epub_path.write_bytes(raw)
             loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
-        self.assertEqual('Visible.', loaded)
+        self.assertEqual('Prefixed secret. Visible.', loaded)
         # Non-XHTML narrates it, exactly as origin/main did.
         raw_html = make_epub(body, media_type='text/html', extra_html_attrs=extra,
                              toc_links=[])
@@ -1038,7 +1153,6 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         all_hidden_shapes = [
             ('html_hidden', doc_tpl.format(extra=' hidden="hidden"', inner='<head><title>T</title></head><body><p>Secret.</p></body>')),
             ('body_hidden', doc_tpl.format(extra='', inner='<head><title>T</title></head><body hidden=""><p>Secret.</p></body>')),
-            ('body_h_hidden', doc_tpl.format(extra=' xmlns:h="http://www.w3.org/1999/xhtml"', inner='<head><title>T</title></head><body h:hidden=""><p>Secret.</p></body>')),
             ('only_p_hidden', doc_tpl.format(extra='', inner='<head><title>T</title></head><body><p hidden="">Secret.</p></body>')),
         ]
         for name, raw_doc in all_hidden_shapes:
@@ -1058,6 +1172,20 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                                      toc_links=[])
                 self.assertEqual('Secret.',
                                  extract_epub_text('synthetic.epub', archive_bytes=raw_html))
+
+        # Gate row c: a prefixed `h:hidden` on <body> is not the HTML
+        # attribute, so the chapter is narrated on every path.
+        body_h_hidden = doc_tpl.format(
+            extra=' xmlns:h="http://www.w3.org/1999/xhtml"',
+            inner='<head><title>T</title></head><body h:hidden=""><p>Secret.</p></body>')
+        raw_prefixed = make_epub('', raw_document=body_h_hidden, toc_links=[])
+        self.assertEqual('Secret.',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw_prefixed))
+        _root, prefixed_segs, prefixed_full = get_xhtml_segments(
+            raw_prefixed, 'OEBPS/ch1.xhtml')
+        self.assertEqual(['Secret.'], [s['text'] for s in prefixed_segs])
+        self.assertIn('Secret.', prefixed_full)
+        self.assertIn('Secret.', _load_bytes(raw_prefixed))
 
         # Nav-only EPUB (no hidden elements) keeps the original spine-documents message.
         nav_only = make_multi_epub([])
@@ -1118,24 +1246,67 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             epub_path.write_bytes(raw_empty)
             self.assertFalse(alignment.load_epub(str(epub_path)).strip())
 
-        # Direct _epub_item_root_context checks: detects hidden on <html>/<body>,
-        # ignores fake <body hidden> inside <style>/comments, and stops at <body>.
-        class _FakeItem:
-            def __init__(self, content):
-                self.content = content
+    def test_hidden_hint_regex_matches_only_the_browser_attribute(self):
+        # The conservative pre-parse hint must engage the strict pass only for
+        # the exact lowercase null-namespace attribute, never for uppercase,
+        # prefixed or CSS/aria lookalikes.
+        for source in ('<p hidden="">', '<p class="x" hidden="">',
+                       "<p\nhidden='x'>", '<p hidden = "x">'):
+            with self.subTest(matches=source):
+                self.assertIsNotNone(_POTENTIAL_HIDDEN_ATTR_RE.search(source))
+        for source in ('<p HIDDEN="">', '<p Hidden="">', '<p h:hidden="">',
+                       '<p aria-hidden="true">', '<p data-hidden="x">',
+                       '<p class="hidden">', '<p title="hidden = 5">'):
+            with self.subTest(no_match=source):
+                self.assertIsNone(_POTENTIAL_HIDDEN_ATTR_RE.search(source))
 
-        self.assertTrue(alignment._epub_item_root_context(
-            _FakeItem(b'<html hidden="hidden"><body><p>S</p></body></html>'))[0])
-        self.assertTrue(alignment._epub_item_root_context(
-            _FakeItem(b'<html><body hidden=""><p>S</p></body></html>'))[0])
-        self.assertTrue(alignment._epub_item_root_context(
-            _FakeItem(b'<html xmlns:h="http://www.w3.org/1999/xhtml"><body h:hidden=""><p>S</p></body></html>'))[0])
-        hidden_flag, ns = alignment._epub_item_root_context(_FakeItem(
-            b'<html xmlns:h="http://www.w3.org/1999/xhtml"><head>'
-            b'<style>/* <body hidden> */</style><!-- <body hidden> --></head>'
-            b'<body><p hidden="">S</p></body></html>'))
-        self.assertFalse(hidden_flag)
-        self.assertEqual('http://www.w3.org/1999/xhtml', ns.get('h'))
+    def test_hidden_load_agrees_on_declared_single_byte_and_utf16_encodings(self):
+        # Review gate 1: extraction, read-aloud and load must agree for the
+        # same hidden-bearing document in a declared non-UTF-8 encoding.
+        for encoding, codec in (('windows-1252', 'cp1252'),
+                                ('iso-8859-1', 'latin-1'),
+                                ('utf-16', 'utf-16')):
+            with self.subTest(encoding=encoding):
+                source = (
+                    f'<?xml version="1.0" encoding="{encoding}"?>\n'
+                    '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>t</title>'
+                    '</head><body><p>Before café.</p><p hidden="">SECRET</p>'
+                    '<p>After.</p></body></html>')
+                raw = make_epub('', raw_document=source.encode(codec), toc_links=[])
+                extracted, segments, loaded = _three_paths(raw)
+                self.assertEqual('Before café.\n\nAfter.', extracted)
+                self.assertEqual(['Before café.', 'After.'], segments)
+                self.assertEqual('Before café. After.', _normalised(loaded))
+
+    def test_substituted_markup_normalizes_the_declaration_to_utf8(self):
+        # The substituted value is re-encoded as UTF-8, so the XML declaration
+        # must not keep naming the old single-byte/UTF-16 encoding.
+        encoded = alignment._utf8_markup(
+            '<?xml version="1.0" encoding="windows-1252"?>\n<p>café</p>')
+        self.assertEqual(
+            b'<?xml version="1.0" encoding="utf-8"?>\n<p>caf\xc3\xa9</p>',
+            encoded)
+
+    def test_unknown_declared_encoding_declines_hidden_handling(self):
+        # is_well_formed_xml and extraction's decoder both reject an unknown
+        # declared encoding; load_epub must narrate the hidden text like
+        # origin/main rather than applying hidden handling to it.
+        raw_doc = (
+            b'<?xml version="1.0" encoding="bogus"?>\n'
+            b'<html xmlns="http://www.w3.org/1999/xhtml"><head><title>t</title>'
+            b'</head><body><p>Before.</p><p hidden="">SECRET</p>'
+            b'<p>After.</p></body></html>')
+        self.assertFalse(alignment.is_well_formed_xml(raw_doc))
+        raw = make_epub('', raw_document=raw_doc, toc_links=[])
+        with self.assertRaises(LookupError):
+            extract_epub_text('synthetic.epub', archive_bytes=raw)
+        self.assertIn('SECRET', _load_bytes(raw))
+
+    def test_load_epub_hidden_script_only_is_not_entirely_hidden(self):
+        # `script` text was never narrated, so hiding it removed no narrated
+        # text: this is origin/main's empty result, not the hidden refusal.
+        raw = make_epub('<script hidden="">var secret = 1;</script>', toc_links=[])
+        self.assertFalse(_load_bytes(raw).strip())
 
     def test_malformed_xhtml_load_epub_narrates_hidden_like_origin_main(self):
         # Review 6 finding 2: load_epub must apply hidden handling only when
@@ -1316,8 +1487,10 @@ class HtmlHiddenReadaloudParityTests(unittest.TestCase):
             '<p>Visible one.</p>'
             '<p hidden="hidden">Drop canonical.</p>'
             '<p hidden="until-found">Drop until found.</p>'
-            '<p h:hidden="hidden">Drop xhtml prefixed.</p>'
+            '<p h:hidden="hidden">Keep xhtml prefixed.</p>'
             '<p x:hidden="hidden">Keep foreign prefixed.</p>'
+            '<p HIDDEN="">Keep upper attribute.</p>'
+            '<p xmlns="" hidden="">Keep null namespace.</p>'
             '<p style="display:none">Keep CSS.</p>'
             '<p aria-hidden="true">Keep aria.</p>'
         )
@@ -1326,17 +1499,14 @@ class HtmlHiddenReadaloudParityTests(unittest.TestCase):
             extra_html_attrs=' xmlns:h="http://www.w3.org/1999/xhtml" xmlns:x="urn:example"',
             toc_links=[],
         )
-        with tempfile.TemporaryDirectory() as tmp:
-            epub_path = Path(tmp) / 'align.epub'
-            epub_path.write_bytes(raw)
-            loaded = alignment.load_epub(str(epub_path))
-        self.assertIn('Visible one.', loaded)
-        self.assertIn('Keep foreign prefixed.', loaded)
-        self.assertIn('Keep CSS.', loaded)
-        self.assertIn('Keep aria.', loaded)
+        loaded = _load_bytes(raw)
+        for kept in ('Visible one.', 'Keep xhtml prefixed.', 'Keep foreign prefixed.',
+                     'Keep upper attribute.', 'Keep null namespace.',
+                     'Keep CSS.', 'Keep aria.'):
+            with self.subTest(kept=kept):
+                self.assertIn(kept, loaded)
         self.assertNotIn('Drop canonical.', loaded)
         self.assertNotIn('Drop until found.', loaded)
-        self.assertNotIn('Drop xhtml prefixed.', loaded)
 
     def test_block_with_inline_text_and_hidden_block_descendant_keeps_visible_segment(self):
         # A block containing a container child plus a hidden block descendant

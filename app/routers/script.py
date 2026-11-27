@@ -110,8 +110,9 @@ from generate_script import LLMGenParams
 from utils import file_lock, is_path_inside
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from alexandria_alignment import (
+    _xml_start_tag_end,
     html_hidden_handling_applies,
-    is_html_hidden_attrs,
+    is_hidden_xml_element,
     is_well_formed_xml,
     validate_epub_archive,
 )
@@ -663,37 +664,20 @@ class _HTMLTextExtractor(HTMLParser):
 _POTENTIAL_SKIP_OPEN_RE = re.compile(
     r'<(?:' + '|'.join(sorted(_HTMLTextExtractor.SKIP_TAGS)) +
     r')(?=[\t\n\r\f />]|$)', re.IGNORECASE | re.ASCII)
-# Conservative hint for XML `hidden="..."` (including XHTML-prefixed forms)
-# inside a start tag; quoted attribute values may contain `>`, while prose
-# mentions of the word "hidden" or attributes like `aria-hidden`/`class="hidden"`
-# do not trigger the strict XML pass.
+# Conservative hint for the exact XML `hidden="..."` attribute (lowercase, no
+# namespace) inside a start tag; quoted attribute values may contain `>`, while
+# prose mentions of the word "hidden", `HIDDEN`/`Hidden`, prefixed `h:hidden`
+# and attributes like `aria-hidden`/`class="hidden"` do not trigger the strict
+# XML pass. XML attribute names are case-sensitive and the HTML attribute is
+# the null-namespace lowercase name (see is_html_hidden_attrs).
 _POTENTIAL_HIDDEN_ATTR_RE = re.compile(
-    r'<(?:[^<>"\']|"[^"]*"|\'[^\']*\')*[\t\n\r\f :]hidden[\t\n\r\f ]*=',
-    re.IGNORECASE | re.ASCII)
+    r'<(?:[^<>"\']|"[^"]*"|\'[^\']*\')*[\t\n\r\f ]hidden[\t\n\r\f ]*=')
 # HTML void elements omit no text of their own, so a hidden void element is
 # not counted as an omitted element in the extraction report.
 _XML_VOID_TAGS = frozenset({
     'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
     'link', 'meta', 'param', 'source', 'track', 'wbr',
 })
-
-
-def _xml_start_tag_end(data: bytes, start: int) -> tuple[int, bool]:
-    """Return ``(index_after_gt, is_self_closing)`` for the XML tag at ``start``."""
-    quote = 0
-    index = start + 1
-    limit = len(data)
-    while index < limit:
-        byte = data[index]
-        if quote:
-            if byte == quote:
-                quote = 0
-        elif byte in (34, 39):  # '"' or "'"
-            quote = byte
-        elif byte == 62:  # '>'
-            return index + 1, index > start + 1 and data[index - 1] == 47  # '/'
-        index += 1
-    raise ValueError('invalid XML: start tag terminator unavailable')
 
 
 def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None,
@@ -712,9 +696,9 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
     Ignored tag names match the HTML extractor's exact lowercased SKIP_TAGS:
     prefixed names such as <x:script> are ordinary elements and are never
     omitted. ``omit_hidden`` additionally omits subtrees whose attributes
-    match :func:`is_html_hidden_attrs`; the shared predicate
-    :func:`html_hidden_handling_applies` answers it for the caller, and it is
-    True only for well-formed ``application/xhtml+xml`` resources.
+    match :func:`alexandria_alignment.is_html_hidden_attrs`; the shared
+    predicate :func:`html_hidden_handling_applies` answers it for the caller,
+    and it is True only for well-formed ``application/xhtml+xml`` resources.
     Nonspoken PIs outside ignored elements are omitted likewise,
     and a DOCTYPE whose internal subset or identifiers could carry literal
     skip markup makes the whole nonspoken prolog be omitted at the root
@@ -831,10 +815,8 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
                     stats['hidden_anchors'].add(anchor_id)
             return
         is_skip = is_skipped(name)
-        elem_ns = (current_ns.get(name.partition(':')[0], '')
-                   if ':' in name else current_ns.get('', ''))
-        is_hidden = (omit_hidden and not is_skip and is_html_hidden_attrs(
-            attrs, xml_namespaces=current_ns, element_namespace=elem_ns))
+        is_hidden = (omit_hidden and not is_skip
+                     and is_hidden_xml_element(name, attrs, current_ns))
         if is_skip or is_hidden:
             candidate.extend(view[cursor:start])
             omitted = True
