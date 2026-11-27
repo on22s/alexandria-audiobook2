@@ -1726,6 +1726,8 @@ class DashDialogueTagTests(unittest.TestCase):
             ("— Venez, s’écrie-t-elle.", ["Venez,"], ["s’écrie-t-elle."]),
             ("— Chut, murmura-t-elle.", ["Chut,"], ["murmura-t-elle."]),
             ("— Bon, fit-il.", ["Bon,"], ["fit-il."]),
+            ("— Bon, fit-elle.", ["Bon,"], ["fit-elle."]),
+            ("— Bon, fit-on.", ["Bon,"], ["fit-on."]),
             ("–Hola –dijo Ana–. Vamos.", ["Hola", "Vamos."], ["dijo Ana"]),
             ("— Sí, —dijo Ana—. Vamos.", ["Sí,", "Vamos."], ["dijo Ana"]),
             ("— Sí, señor —dijo Ana—. Vamos.", ["Sí, señor", "Vamos."], ["dijo Ana"]),
@@ -1865,6 +1867,7 @@ class DashDialogueTagTests(unittest.TestCase):
             "— En efecto, le vi, y me dijeron su nombre.",
             "— Hola, el muy tonto dijo que no.",
             "— Hola, el viejo hombre dijo—. Vamos.",
+            "— Oui, comme on dit, c'est vrai.",
         ):
             with self.subTest(line=line):
                 ambiguous, parts = self._parts(line)
@@ -1940,4 +1943,123 @@ class DashDialogueTagTests(unittest.TestCase):
             with self.subTest(edge=edge):
                 spans = spoken_spans(edge, "dash_lines")
                 self.assertIs(True, validate_spoken_spans(spans, edge))
+
+    def test_period_tag_continuation_is_ambiguous_in_the_source_map(self):
+        """The unverified tail must not be voiced as NARRATOR by the map."""
+        line = "— Partez! dit Emma. C'est se moquer, je vous chasse."
+        source = "\n".join([line] + [f"— Filler {i} dit-il." for i in range(5)])
+        entries = [
+            {"speaker": "EMMA", "text": "Partez!"},
+            {"speaker": "NARRATOR", "text": "dit Emma."},
+            {"speaker": "EMMA", "text": "C'est se moquer, je vous chasse."},
+        ]
+        mapped = apply_dialogue_map(entries, source)["entries"]
+        self.assertTrue(mapped[0]["spoken"])
+        self.assertFalse(mapped[1]["spoken"])
+        self.assertNotIn("spoken", mapped[2])
+        self.assertEqual("unverified_dash_tail", mapped[2]["dialogue_ambiguity"])
+        self.assertEqual("EMMA", mapped[2]["speaker"])
+        self.assertEqual([], apply_dialogue_map(entries, source)["narration_changes"])
+        # The same line through both production callers leaves the speaker.
+        self.assertEqual("EMMA", apply_source_narration(mapped)[0][2]["speaker"])
+
+    def test_confident_comma_tag_keeps_the_source_map(self):
+        line = "— Oui, répondit-il, je viens demain."
+        source = "\n".join([line] + [f"— Filler {i} dit-il." for i in range(5)])
+        entries = [
+            {"speaker": "CHARLES", "text": "Oui,"},
+            {"speaker": "NARRATOR", "text": "répondit-il,"},
+            {"speaker": "CHARLES", "text": "je viens demain."},
+        ]
+        mapped = apply_dialogue_map(entries, source)
+        self.assertEqual([True, False, True], [row["spoken"] for row in mapped["entries"]])
+        self.assertEqual([], mapped["narration_changes"])
+
+    def test_relative_clause_after_the_subject_does_not_reject_the_tag(self):
+        cases = (
+            ("—Olor no, sino peste de ellos —replicó un viejo ladino que montaba "
+             "el burro delantero—.",
+             "replicó un viejo ladino que montaba el burro delantero"),
+            ("—Es de mi madre —dijo Calpena mirando el papel que la condesa de "
+             "Luchana puso ante sus ojos.",
+             "dijo Calpena mirando el papel que la condesa de Luchana puso ante sus ojos."),
+            ("—Los que hemos visto la subida de Banderas —indicó don Fernando— "
+             "estamos curados de asombro.",
+             "indicó don Fernando"),
+        )
+        for line, expected_tag in cases:
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertIn(("NARRATOR", expected_tag), parts)
+
+    def test_penser_songer_objecter_and_pronominal_clitic_tags(self):
+        cases = (
+            ("— Pauvre garçon! pensait-elle.",
+             [("SPOKEN", "Pauvre garçon!"), ("NARRATOR", "pensait-elle.")]),
+            ("— Quelle folie! se disait-il, comme les autres.",
+             [("SPOKEN", "Quelle folie!"), ("NARRATOR", "se disait-il,"),
+              ("SPOKEN", "comme les autres.")]),
+            ("— Comment vais-je signer, maintenant? se dit-il.",
+             [("SPOKEN", "Comment vais-je signer, maintenant?"),
+              ("NARRATOR", "se dit-il.")]),
+            ("— Cependant…, objectait madame Bovary.",
+             [("SPOKEN", "Cependant…,"), ("NARRATOR", "objectait madame Bovary.")]),
+            ("— On dit pourtant qu'il a des moyens, objecta l'hôtesse.",
+             [("SPOKEN", "On dit pourtant qu'il a des moyens,"),
+              ("NARRATOR", "objecta l'hôtesse.")]),
+            ("— Ah! non, ici, pensa-t-elle, je serai bien.",
+             [("SPOKEN", "Ah! non, ici,"), ("NARRATOR", "pensa-t-elle,"),
+              ("SPOKEN", "je serai bien.")]),
+        )
+        for line, expected in cases:
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_dit_on_and_dizque_are_idioms_not_tags(self):
+        for line in ("— Rien, dit-on.", "— Nada, dizque.",
+                     "— Ça lui a passé, dit-on."):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+
+    def test_first_person_reporting_forms_stay_speech_in_the_comma_path(self):
+        # `dije` is absent from the table; `decíamos` is tabled and is still
+        # refused by the first-person guard, so the rule has one test that
+        # actually reaches the guard (#2390 review 6).
+        for line in ("— No, dije, es tarde.", "— Pues, decíamos, no es tarde."):
+            with self.subTest(line=line):
+                _ambiguous, parts = self._parts(line)
+                self.assertEqual(["SPOKEN"], [kind for kind, _text in parts])
+
+    def test_introducer_tags_need_a_lower_case_verb_behind_at_most_one_clitic(self):
+        self.assertEqual(
+            [("SPOKEN", "Vraiment! Marie s'écria.")],
+            self._parts("— Vraiment! Marie s'écria.")[1],
+        )
+        # A capitalised name after speech punctuation is a new sentence, not a
+        # tag: without the introducer gate `Anna demanda` would split away.
+        ambiguous, parts = self._parts("— Vraiment! Anna demanda une explication.")
+        self.assertFalse(ambiguous)
+        self.assertEqual([("SPOKEN", "Vraiment! Anna demanda une explication.")], parts)
+        for line, expected in (
+            ("— Vraiment! s'écria-t-il.",
+             [("SPOKEN", "Vraiment!"), ("NARRATOR", "s'écria-t-il.")]),
+            ("— Quelle folie! se disait-il.",
+             [("SPOKEN", "Quelle folie!"), ("NARRATOR", "se disait-il.")]),
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_leading_indented_dash_line_is_dialogue(self):
+        line = "  —Hola —dijo Ana—. Vamos."
+        self.assertEqual(
+            ["Hola", "Vamos."],
+            [line[a:b] for a, b in spoken_spans(line, "dash_lines")],
+        )
 

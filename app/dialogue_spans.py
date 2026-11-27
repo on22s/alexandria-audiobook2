@@ -81,6 +81,7 @@ _DASH_REPORTING_VERBS = (
     "aclaró|aclaraba|aclara|concluyó|concluía|concluye|"
     "declaró|declaraba|declara|manifestó|manifestaba|manifiesta|"
     "observó|observaba|observa|objetó|objetaba|objeta|"
+    "indicó|indicaba|indica|"
     # French (passé simple, imparfait, present; clitic s'/m' handled in prefix)
     "dit|disait|disaient|dirent|disent|"
     "répondit|répondait|répondaient|répond|répondirent|répondent|"
@@ -105,7 +106,9 @@ _DASH_REPORTING_VERBS = (
     "avoua|avouait|avouaient|avoue|déclara|déclarait|déclaraient|déclare|"
     "annonça|annonçait|annonçaient|annonce|conclut|concluait|fit|remarqua|"
     "remarquait|remarquaient|remarque|hasarda|hasardait|hasarde|"
-    "bredouilla|bredouillait|bredouille"
+    "bredouilla|bredouillait|bredouille|"
+    "pensa|pensait|pensaient|pensé|songea|songeait|songé|"
+    "objecta|objectait|objectaient|objecte|objectent"
 )
 # One reporting verb as a whole word, with an optional Spanish enclitic
 # pronoun (`preguntóle`, `contestóles`, `díjole`).
@@ -124,7 +127,9 @@ _DASH_TAG_STOPWORDS = frozenset(
     "el la los las un una unos unas este esta estos estas ese esa esos esas "
     "aquel aquella mi tu su nuestro nuestra y e o u pero sino que como cuando "
     "porque aunque mientras si et mais ou car donc or ni ce cet cette ces mon "
-    "ton son notre votre des du autrement tout tous toute toutes".split())
+    "ton son notre votre des du autrement tout tous toute toutes comme comment "
+    "quand lorsque lorsqu puisque parce afin tandis pendant depuis ainsi alors "
+    "enfin pourtant cependant voilà voici ensuite puis malgré selon".split())
 # Subject pronouns a tag may carry. First and second person are speech.
 _DASH_THIRD_PERSON = frozenset(
     "he she it they one il elle on ils elles él ella ellos ellas".split())
@@ -135,11 +140,22 @@ _DASH_OTHER_PERSON = frozenset(
 # `se disait-elle`, `me dijo`).
 _DASH_CLITICS = frozenset(
     "me te se nos os lui leur le les en".split())
+# Complementizers that begin a reported clause (`dice Pepe que…`, `dijo que
+# sí`). Relative pronouns (`qui`, `who`, `which`, `dont`) are deliberately
+# absent: `replicó un viejo ladino que montaba…` and `interrompit Charles qui
+# mordait…` are tags whose subject carries a relative clause, and rejecting
+# them routed a third of Vergara's evidenced tags to the model (#2390 review 3).
 _DASH_TAG_COMPLEMENTIZERS = frozenset(
-    "que that which who whom whose qui dont où si como cuando porque "
-    "puisque car aunque mientras pero sino and but or because while although".split())
+    "que that si como cuando porque puisque car aunque mientras pero sino "
+    "because while although".split())
 _DASH_TAG_OBJECTS = frozenset(
     "nothing something anything everything todo nada algo".split())
+# First-person reporting forms are the character speaking, never the narrator
+# (`— No, dije, es tarde.`). They are absent from the table, and this guard
+# also refuses them if one is tabled later (#2390 review 6).
+_DASH_FIRST_PERSON = frozenset(
+    "dije digo dijimos dijiste decíamos dis disais écriai écrivis répondis "
+    "demandai murmurai criai".split())
 _DASH_BREAK = re.compile(r"\.{3}|[—–,!?…]")
 _DASH_TAG_INTRODUCERS = "!?…"
 # A possible turn after narration, with a second dash introducing its tag.
@@ -1063,13 +1079,16 @@ def _dash_inverted_is_tag(tail):
     """Is the text after an inverted reporting verb a subject, not speech?
 
     Inverted tags (`dijo Ana`, `répondit-il`, `said he`) may be followed by a
-    name, a pronoun or a determiner+noun. A complementizer starts a reported
-    clause, so `dice Pepe que sea yo franco` and `dijo que sí` are speech.
+    name, a pronoun or a determiner+noun. A complementizer inside the subject
+    window (the first three words after the verb) starts a reported clause, so
+    `dice Pepe que sea yo franco` and `dijo que sí` are speech. A relative
+    clause after the subject (`replicó un viejo ladino que montaba…`) is not
+    in that window and does not reject (#2390 review 3).
     """
     lowered = [word.lower() for word in tail]
-    if any(word in _DASH_TAG_COMPLEMENTIZERS for word in lowered):
+    if any(word in _DASH_TAG_COMPLEMENTIZERS for word in lowered[:3]):
         return False
-    if any(word in _DASH_TAG_OBJECTS for word in lowered):
+    if any(word in _DASH_TAG_OBJECTS for word in lowered[:3]):
         return False
     if lowered and lowered[0] in _DASH_OTHER_PERSON:
         return False
@@ -1082,20 +1101,39 @@ def _dash_prefixed_clitic(text, words, verb_index):
             and text[words[0].end():words[1].start()].strip() in ("'", "’"))
 
 
+def _dash_introducer_precedes_verb(text, words, verb_index):
+    """Is the reporting verb the next word after `!`/`?`/`…`, modulo a clitic?
+
+    A pronominal clitic may sit between the punctuation and the verb
+    (`— Quelle folie! se disait-il.`), and `s'écria` carries its clitic inside
+    the verb token (#2390 review 4).
+    """
+    if verb_index == 0 or _dash_prefixed_clitic(text, words, verb_index):
+        return True
+    return (verb_index == 1 and words[0].group().lower() in _DASH_CLITICS
+            and text[words[0].start()].islower())
+
+
 def _dash_tag_candidate(text, pos, limit, introducer):
     """Could a reporting-verb tag start at `pos`?
 
     A comma is only a break candidate when a listed verb follows within the
     subject limit; ordinary commas inside speech are not breaks. A dash is
     always a candidate (#1216), because it can introduce a turn with no tag.
-    `!`, `?` and an ellipsis are candidates only before a lower-case verb.
+    `!`, `?` and an ellipsis are candidates only before a lower-case verb
+    (optionally behind one clitic).
     """
     clause_end, _delimiter = _dash_tag_clause_end(text, pos, limit)
     words = _dash_tag_tokens(text, pos, clause_end)
     for index, word in enumerate(words[:4]):
         if _DASH_VERB.fullmatch(word.group()):
+            # `dit-on` is the French idiom "they say", not a narrator tag
+            # (#2390 review 5). Decided here, once, like the introducer rule.
+            if (word.group().lower() == "dit" and index + 1 < len(words)
+                    and words[index + 1].group().lower() == "on"):
+                continue
             if introducer in _DASH_TAG_INTRODUCERS or introducer == "...":
-                first = index == 0 or _dash_prefixed_clitic(text, words, index)
+                first = _dash_introducer_precedes_verb(text, words, index)
                 return first and text[words[0].start()].islower()
             return True
     return False
@@ -1104,9 +1142,9 @@ def _dash_tag_candidate(text, pos, limit, introducer):
 def _dash_tag_evidence(text, pos, limit, introducer):
     """-> True when a reporting-verb tag starts at `pos`.
 
-    `introducer` is the break character before the tag. `!`, `?` and an
-    ellipsis only introduce a tag when the reporting verb is the very next
-    word and is written lower case (#2329 review findings 2, 3, 4).
+    `introducer` is the break character before the tag. The `!`/`?`/ellipsis
+    shape is gated in `_dash_tag_candidate` alone (one decision, not two:
+    #2390 review 6); this decides which side of the verb is the subject.
     """
     clause_end, _delimiter = _dash_tag_clause_end(text, pos, limit)
     words = _dash_tag_tokens(text, pos, clause_end)
@@ -1117,32 +1155,38 @@ def _dash_tag_evidence(text, pos, limit, introducer):
             break
     if verb_index is None:
         return False
+    tail = [word.group() for word in words[verb_index + 1:]]
+    if words[verb_index].group().lower() in _DASH_FIRST_PERSON:
+        return False
     prefixed = _dash_prefixed_clitic(text, words, verb_index)
-    if introducer in _DASH_TAG_INTRODUCERS or introducer == "...":
-        if not (verb_index == 0 or prefixed) or not text[words[0].start()].islower():
-            return False
     if verb_index == 0 or prefixed:
         # s'écria / m'écriai: the clitic belongs to the verb, not the subject.
         before = []
     else:
         before = [word.group() for word in words[:verb_index]]
-    tail = [word.group() for word in words[verb_index + 1:]]
     if not before:
         return _dash_inverted_is_tag(tail)
     return _dash_preverb_is_subject(before) and _dash_inverted_is_tag(tail)
 
 
 def _split_dash_line_with_break(text, start, end):
-    """Like `split_dash_line`, also returning the first interior break."""
+    """Like `split_dash_line`, also returning the first interior break.
+
+    The fourth value lists the ranges whose speaker is not vouched for: the
+    text after an unverified break. `mark_entries` publishes those as
+    dialogue ambiguity, so the source map never overrides the model's own
+    label for them (#2390 review 1).
+    """
     while start < end and text[start] in " \t":
         start += 1
     limit = end
     while limit > start and text[limit - 1] in " \t\r":
         limit -= 1
     if start >= limit:
-        return [], False, None
+        return [], False, None, []
     parts, speech_start, scan = [], start, start
     split_any, unverified, first_break = False, False, None
+    unverified_ranges = []
     pending_unverified = False
     while scan < limit:
         match = _DASH_BREAK.search(text, scan, limit)
@@ -1167,6 +1211,7 @@ def _split_dash_line_with_break(text, start, end):
                     first_break = (start, match.start())
                 if split_any:
                     unverified = True
+                    unverified_ranges.append((match.start(), limit))
                 else:
                     pending_unverified = True
             scan = match.end()
@@ -1183,6 +1228,7 @@ def _split_dash_line_with_break(text, start, end):
             # and the line must stay ambiguous (#2329 finding 6).
             if split_any:
                 unverified = True
+                unverified_ranges.append((match.start(), limit))
             else:
                 pending_unverified = True
             scan = match.end()
@@ -1230,16 +1276,17 @@ def _split_dash_line_with_break(text, start, end):
             continue
         if resume < limit:
             unverified = True
+            unverified_ranges.append((resume, limit))
         parts.append(("NARRATOR", after, limit))
         speech_start = limit
         break
     if not split_any:
-        return [("SPOKEN", start, end)], pending_unverified, first_break
+        return [("SPOKEN", start, end)], pending_unverified, first_break, []
     while speech_start < limit and text[speech_start] in " \t":
         speech_start += 1
     if speech_start < limit:
         parts.append(("SPOKEN", speech_start, limit))
-    return parts, unverified, first_break
+    return parts, unverified, first_break, unverified_ranges
 
 
 def split_dash_line(text, start, end):
@@ -1252,7 +1299,7 @@ def split_dash_line(text, start, end):
     reporting-verb tag evidence. Single shared rule for `dialogue_spans` and
     `pass_quality` (#2329).
     """
-    parts, ambiguous, _break = _split_dash_line_with_break(text, start, end)
+    parts, ambiguous, _break, _ranges = _split_dash_line_with_break(text, start, end)
     return parts, ambiguous
 
 
@@ -1264,11 +1311,30 @@ def dash_line_unverified_prefixes(text):
     """
     prefixes = []
     for match in DASH_LINE.finditer(text):
-        _parts, ambiguous, first_break = _split_dash_line_with_break(
+        _parts, ambiguous, first_break, _ranges = _split_dash_line_with_break(
             text, match.start(1), match.end(1))
         if ambiguous and first_break is not None and first_break[0] < first_break[1]:
             prefixes.append(text[first_break[0]:first_break[1]].strip())
     return prefixes
+
+
+def dash_line_unverified_tails(text):
+    """-> ranges after an unverified break on ambiguous dash lines.
+
+    A period-like tag ends the tag clause, but the text after it may be the
+    same character still speaking (`— Partez! dit Emma. C'est se moquer…`).
+    The segmenter cannot vouch for it, so the map must not either: these
+    ranges become `dialogue_ambiguity`, exactly like
+    `get_interior_dash_ambiguities`, and `apply_source_narration` leaves the
+    model's label alone (#2390 review 1).
+    """
+    ranges = []
+    for match in DASH_LINE.finditer(text):
+        _parts, ambiguous, _break, tails = _split_dash_line_with_break(
+            text, match.start(1), match.end(1))
+        if ambiguous:
+            ranges.extend(tails)
+    return ranges
 
 
 def _dash_line_spans(text):
@@ -1539,6 +1605,8 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
     convention = detect_convention(source_text) if convention is None else convention
     spans = spoken_spans(source_text, convention)
     ambiguities = get_interior_dash_ambiguities(source_text, convention)
+    unverified_tails = (dash_line_unverified_tails(source_text)
+                        if convention == "dash_lines" else [])
     other_speech, no_body_openers = _other_speech_spans(source_text, convention)
     # A line that straddles an unclosed opener with no paragraph body is still
     # "other convention", not narration: that was main's verdict, and this is a
@@ -1590,7 +1658,13 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
                 overlap = any(span_start < entry_end and entry_start < span_stop
                               for span_start, span_stop in spans)
                 if not overlap and any(span_start < entry_end and entry_start < span_stop
-                                       for span_start, span_stop in ambiguities):
+                                       for span_start, span_stop in unverified_tails):
+                    # After a period-like tag the speaker is not established:
+                    # the source map must not overrule the model that was
+                    # asked because of that uncertainty (#2390 review 1).
+                    row["dialogue_ambiguity"] = "unverified_dash_tail"
+                elif not overlap and any(span_start < entry_end and entry_start < span_stop
+                                         for span_start, span_stop in ambiguities):
                     row["dialogue_ambiguity"] = "interior_dash_turn"
                 elif not overlap and any(span_start < entry_end and entry_start < span_stop
                                          for span_start, span_stop in other_speech):

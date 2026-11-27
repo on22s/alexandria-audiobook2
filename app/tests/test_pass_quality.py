@@ -2060,6 +2060,62 @@ class DashDialogueTagSegmenterTests(unittest.TestCase):
                     [(row["type"], row["text"]) for row in regions],
                 )
 
+    def test_opening_speech_may_span_consecutive_spoken_entries(self):
+        """The review's finding 2: a model may split the prefix itself."""
+        chunk = "She smiled.\n— It is late. The road is long — I forgot the keys."
+        analysis = analyze_outer_quote_regions(chunk)
+        self.assertTrue(analysis.get("unverified_dash"))
+        self.assertIn("It is late. The road is long",
+                      analysis.get("unverified_dash_prefixes"))
+        entries = [
+            {"type": "NARRATOR", "text": "She smiled."},
+            {"type": "SPOKEN", "text": "It is late."},
+            {"type": "SPOKEN", "text": "The road is long"},
+            {"type": "NARRATOR", "text": "I forgot the keys."},
+        ]
+        report = validate_segment_quality(chunk, entries, quote_analysis=analysis)
+        self.assertTrue(report["passed"], report["findings"])
+        self.assertEqual("ran", report["quote_gate"])
+
+    def test_opening_speech_across_a_narrator_entry_still_rejects(self):
+        chunk = "She smiled.\n— It is late. The road is long — I forgot the keys."
+        analysis = analyze_outer_quote_regions(chunk)
+        entries = [
+            {"type": "NARRATOR", "text": "She smiled."},
+            {"type": "SPOKEN", "text": "It is late."},
+            {"type": "NARRATOR", "text": "The road"},
+            {"type": "SPOKEN", "text": "is long"},
+            {"type": "NARRATOR", "text": "I forgot the keys."},
+        ]
+        report = validate_segment_quality(chunk, entries, quote_analysis=analysis)
+        self.assertFalse(report["passed"])
+        self.assertEqual("quote_region_misclassified",
+                         report["findings"][0]["code"])
+
+    def test_leading_indented_dash_line_is_dialogue(self):
+        analysis = analyze_outer_quote_regions("He paused.\n  —Hola —dijo Ana—. Vamos.")
+        self.assertEqual(
+            [("NARRATOR", "He paused."), ("SPOKEN", "Hola"),
+             ("NARRATOR", "dijo Ana"), ("SPOKEN", "Vamos.")],
+            [(row["type"], row["text"]) for row in analysis["regions"]],
+        )
+
+    def test_line_dash_inside_an_unclosed_guillemet_is_not_split(self):
+        analysis = analyze_outer_quote_regions("«Et il dit:\n— Oui, répondit-il.")
+        self.assertEqual(
+            [("SPOKEN", "Et il dit:\n— Oui, répondit-il.")],
+            [(row["type"], row["text"]) for row in analysis["regions"]],
+        )
+
+    def test_line_dash_inside_an_open_quote_chunk_is_not_split(self):
+        """`not depth` keeps a chunk that starts inside a quote conservative."""
+        analysis = analyze_outer_quote_regions(
+            "— Oui, répondit-il.", initial_depth=1, allow_open_end=True)
+        self.assertEqual(
+            [("SPOKEN", "— Oui, répondit-il.")],
+            [(row["type"], row["text"]) for row in analysis["regions"]],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

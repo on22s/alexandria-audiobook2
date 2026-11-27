@@ -491,6 +491,24 @@ def _region_contains_entry(regions, entry_text):
     return False
 
 
+def _contiguous_spoken_groups(entries):
+    """-> runs of consecutive SPOKEN entries as one text per run.
+
+    A NARRATOR entry between two SPOKEN ones breaks the run: the model put
+    narration there, so the words are no longer contiguous dialogue.
+    """
+    groups, current = [], []
+    for entry in entries:
+        if isinstance(entry, dict) and entry.get("type") == "SPOKEN":
+            current.append(str(entry.get("text") or ""))
+        elif current:
+            groups.append(" ".join(current))
+            current = []
+    if current:
+        groups.append(" ".join(current))
+    return groups
+
+
 def _quote_region_findings(source_text, entries, quote_analysis=None,
                            quoted_must_be_spoken=True,
                            unquoted_must_be_narrator=True):
@@ -535,13 +553,13 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
             return [], "skipped:" + (convention or "none_detected")
     if unverified_prefixes is not None:
         # Only the text before the first interior break is unambiguous; the
-        # model owns the rest of an unverified line (#2329 finding 5).
-        spoken = [str(entry.get("text") or "") for entry in entries
-                  if isinstance(entry, dict) and entry.get("type") == "SPOKEN"]
+        # model owns the rest of an unverified line (#2329 finding 5). A model
+        # may split that opening speech into consecutive SPOKEN entries, so the
+        # prefix passes when its words lie in order across them (#2390 review 2).
         findings = []
         for prefix in unverified_prefixes:
-            if not prefix or any(_region_contains_entry([text], prefix)
-                                 for text in spoken):
+            if not prefix or any(_region_contains_entry([group], prefix)
+                                 for group in _contiguous_spoken_groups(entries)):
                 continue
             entry_number = next(
                 (number for number, entry in enumerate(entries, 1)
