@@ -9,7 +9,12 @@ and marked "THE PRIEST" wrong for gold "A PRIEST".
 """
 import unittest
 
+import pass_quality
+import three_pass_generate
+from pass_quality import (NAME_ATTESTATION_UNATTESTED,
+                          get_name_attestation_verdict, validate_attribution)
 from experiments import background_speakers as bs
+from experiments import background_speakers_ab as ab
 
 
 SUN_ALIASES = [{"A PRIEST", "PRIEST"}, {"A WAITER", "WAITER"},
@@ -158,6 +163,56 @@ class AbScoringTest(unittest.TestCase):
         json.dump(doc, open(path, "w"))
         with self.assertRaises(ValueError):
             self.score()
+
+
+class BackgroundSpeakingArmGateTest(unittest.TestCase):
+    """#2330 review F2: an installed arm must reach BOTH production gates.
+
+    The arm used to patch is_attested_name, but after #2330 the output gate
+    (validate_attribution) and the roster gate (attested_new_speakers) call
+    get_name_attestation_verdict directly, so every arm silently ran as the
+    control while still recording its name in provenance. Pinned with a
+    synthetic admitting gate: control rejects GHOST, the arm admits it.
+    """
+
+    SOURCE = "Roxy smiled at Rudi. Rudi laughed. Roxy spoke. " * 40
+
+    def setUp(self):
+        self._verdicts = (pass_quality.get_name_attestation_verdict,
+                          three_pass_generate.get_name_attestation_verdict)
+        self._admits = ab.is_described_in_source
+        self.addCleanup(self._restore)
+
+    def _restore(self):
+        (pass_quality.get_name_attestation_verdict,
+         three_pass_generate.get_name_attestation_verdict) = self._verdicts
+        ab.is_described_in_source = self._admits
+
+    def _assert_control_rejects(self):
+        frozen = [{"type": "SPOKEN", "text": "Hello."}]
+        self.assertEqual([], three_pass_generate.build_roster(
+            [{"speaker": "GHOST"}], self.SOURCE))
+        self.assertEqual([], three_pass_generate.attested_new_speakers(
+            [{"speaker": "GHOST"}], set(), self.SOURCE))
+        self.assertFalse(validate_attribution(
+            frozen, [{"n": 0, "speaker": "GHOST"}],
+            source_text=self.SOURCE)["passed"])
+
+    def test_admit_descriptive_arm_differs_from_control_at_both_gates(self):
+        self._assert_control_rejects()
+        ab.is_described_in_source = lambda name, source: name == "GHOST"
+        ab.install_arm("admit_descriptive")
+        frozen = [{"type": "SPOKEN", "text": "Hello."}]
+        self.assertEqual(["GHOST"], three_pass_generate.build_roster(
+            [{"speaker": "GHOST"}], self.SOURCE))
+        self.assertEqual(["GHOST"], three_pass_generate.attested_new_speakers(
+            [{"speaker": "GHOST"}], set(), self.SOURCE))
+        self.assertTrue(validate_attribution(
+            frozen, [{"n": 0, "speaker": "GHOST"}],
+            source_text=self.SOURCE)["passed"])
+        # The arm adds only its own labels; everything else keeps the real gate.
+        self.assertEqual(NAME_ATTESTATION_UNATTESTED,
+                         get_name_attestation_verdict("PHANTOM", self.SOURCE))
 
 
 if __name__ == "__main__":
