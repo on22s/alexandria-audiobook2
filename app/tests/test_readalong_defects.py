@@ -467,7 +467,8 @@ console.log('player-gate-ok');
             source = str(Path(tmp) / "book.txt")
             first = Path(tmp) / "a.source.epub"
             (Path(tmp) / "book.source.epub").rename(first)
-            self.assertEqual((expected, source), _locate_retained_epub(manager, lambda: False))
+            self.assertEqual((expected, source), _locate_retained_epub(
+                manager, lambda: False, uploads_dir=tmp))
             second = Path(tmp) / "z.source.epub"
             second.write_bytes(expected)
             with os.scandir(tmp) as scan:
@@ -479,9 +480,10 @@ console.log('player-gate-ok');
                         side_effect=lambda _path: nullcontext(iter(sorted(
                             entries, key=lambda entry: entry.name, reverse=reverse)))):
                     with self.assertRaisesRegex(ValueError, "Multiple retained EPUB"):
-                        _locate_retained_epub(manager, lambda: False)
+                        _locate_retained_epub(manager, lambda: False, uploads_dir=tmp)
             second.unlink()
-            self.assertEqual((expected, source), _locate_retained_epub(manager, lambda: False))
+            self.assertEqual((expected, source), _locate_retained_epub(
+                manager, lambda: False, uploads_dir=tmp))
 
     # ---- F: mapping exactness ----
     def test_F_repeat_split_merge_text(self):

@@ -6443,7 +6443,9 @@ def _saved_book_origin_digest_locked(data_dir, saved_books_root, previous_path,
     book only when it is exactly the incoming source and hop 0 is still the
     exact bytes the active book was loaded from.
 
-    The terminal source file itself is optional (``require_terminal_file=False``):
+    ``resolve_saved_book_reattachment`` is the one check this route shares with
+    the retained-EPUB recovery text (#2355), so the advice that text gives is
+    exactly this route's decision. The terminal source file itself is optional:
     the only digest trusted without it is the one the saved binding recorded, and
     the caller still requires that recorded digest to equal the incoming file's
     digest. A terminal file that is present with different bytes is still refused
@@ -6457,7 +6459,7 @@ def _saved_book_origin_digest_locked(data_dir, saved_books_root, previous_path,
         return None
     from script_selection_binding import (SavedSourceResolutionError,
                                           _validate_saved_book_member,
-                                          resolve_saved_book_origin)
+                                          resolve_saved_book_reattachment)
     try:
         _validate_saved_book_member(data_dir, previous_path,
                                     saved_books_root=saved_books_root)
@@ -6466,9 +6468,12 @@ def _saved_book_origin_digest_locked(data_dir, saved_books_root, previous_path,
     else:
         previous_is_saved_book = True
     try:
-        origin = resolve_saved_book_origin(
+        # One shared check with the retained-EPUB recovery text (#2355): a
+        # refusal code or verified origin here is exactly what the message
+        # builder reports, so its advice matches this route.
+        origin = resolve_saved_book_reattachment(
             data_dir, previous_path, saved_books_root=saved_books_root,
-            expected_script_sha256=previous_digest, require_terminal_file=False)
+            expected_script_sha256=previous_digest)
     except SavedSourceResolutionError as error:
         # An ordinary upload source is not a saved book, so its outside_library
         # refusal is expected. Every other refusal means a saved binding could
