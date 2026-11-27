@@ -51,7 +51,7 @@ from narrator_prompt import (add_narrator_prior, get_valid_narrator_name,
                              is_narrator_attested, normalize_narrator_name)
 from pass_quality import (NAME_ATTESTATION_ATTESTED,
                           get_name_attestation_verdict,
-                          is_attested_name, strip_roster_alias_echo,
+                          strip_roster_alias_echo,
                           classify_lexical_quote_regions,
                           validate_segment_quality, validate_attribution,
                           get_attribution_tag_evidence,

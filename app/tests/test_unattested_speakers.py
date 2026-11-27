@@ -309,6 +309,81 @@ class UncasedScriptAttestationTest(unittest.TestCase):
         self.assertEqual(NAME_ATTESTATION_UNATTESTED,
                          get_name_attestation_verdict("민수", ko_inside))
 
+    def test_one_letter_uncased_names_are_never_attested(self):
+        from generate_script import LLMGenParams
+        from three_pass_generate import (attested_new_speakers, attribute_batch,
+                                         build_roster)
+
+        # Synthetic Chinese prose: 的 occurs 3x and 他 4x, so occurrence count
+        # alone would attest both. 79.9% of a full novel's distinct Han
+        # characters reach T, so a one-letter label cannot be judged by count.
+        source = ("他的书在那里。你的书也在这里。谁的书在桌子上。"
+                  "他说了什么。他人很好。他走了。"
+                  "王明来了。王明笑了。王明走了。") + self.LONG_FILLER
+        frozen = [{"type": "SPOKEN", "text": "你好"}]
+        for name in ("的", "他"):
+            with self.subTest(name=name):
+                self.assertEqual(NAME_ATTESTATION_UNVERIFIABLE,
+                                 get_name_attestation_verdict(name, source))
+                self.assertFalse(is_attested_name(name, source))
+                # Output gate accepts (no retry, no unchecked flag) ...
+                self.assertTrue(validate_attribution(
+                    frozen, [{"n": 0, "speaker": name}],
+                    source_text=source)["passed"])
+                # ... the roster refuses it.
+                self.assertEqual([], build_roster([{"speaker": name}], source))
+                self.assertEqual(
+                    [], attested_new_speakers([{"speaker": name}], set(), source))
+
+        # A supplied cast still ships a one-letter name.
+        client = _StubAttributionClient("的")
+        out = attribute_batch(
+            client, "stub-model", frozen, LLMGenParams(), roster=[],
+            source_text=source, cast={"known_names": {"的"}}, max_retries=1)
+        self.assertEqual(1, client.calls)
+        self.assertEqual("的", out[0]["speaker"])
+        self.assertTrue(validate_attribution(
+            frozen, [{"n": 0, "speaker": "的"}], source_text=source,
+            known_names=frozenset({"的"}))["passed"])
+
+        # Two-letter names are unchanged: >= T is attested and roster-eligible.
+        self.assertEqual(NAME_ATTESTATION_ATTESTED,
+                         get_name_attestation_verdict("王明", source))
+        self.assertEqual(["王明"], build_roster([{"speaker": "王明"}], source))
+
+    def test_korean_honorific_suffixes_are_attested(self):
+        from three_pass_generate import build_roster
+
+        # 씨 was the only honorific the earlier test exercised; a mutant that
+        # cut the alternation to 씨 survived. Each alternative is pinned.
+        for honorific, particle in (("씨", "가"), ("님", "이"),
+                                    ("군", "은"), ("양", "도")):
+            source = (f"민수{honorific}{particle} 왔다. "
+                      f"민수{honorific}{particle} 웃었다. "
+                      f"민수{honorific}{particle} 말했다.") + self.LONG_FILLER
+            with self.subTest(honorific=honorific):
+                self.assertEqual(NAME_ATTESTATION_ATTESTED,
+                                 get_name_attestation_verdict("민수", source))
+                self.assertEqual(["민수"],
+                                 build_roster([{"speaker": "민수"}], source))
+
+    def test_spaced_script_known_residuals_are_pinned(self):
+        from pass_quality import _count_uncased_occurrences
+
+        # Documented false positives (Limits in the PR): a spaced-script word
+        # beginning with a proclitic that contains the candidate name. Counted
+        # by design today; pinned so a future change is deliberate.
+        self.assertEqual(1, _count_uncased_occurrences("مال", "كمال"))
+        self.assertEqual(1, _count_uncased_occurrences("تاب", "كتاب"))
+        self.assertEqual(1, _count_uncased_occurrences("בן", "לבן"))
+        self.assertEqual(1, _count_uncased_occurrences("בד", "כבד"))
+        # Documented false negatives: the proclitic lookback is two characters,
+        # and the Korean suffix alternation does not cover 만의 / 라는.
+        self.assertEqual(0, _count_uncased_occurrences("كتاب", "بالكتاب"))
+        self.assertEqual(0, _count_uncased_occurrences("أحمد", "بفأحمد"))
+        self.assertEqual(0, _count_uncased_occurrences("민수", "민수만의"))
+        self.assertEqual(0, _count_uncased_occurrences("민수", "민수라는"))
+
     def test_cjk_name_in_unspaced_prose_and_inside_longer_word(self):
         from three_pass_generate import build_roster
 

@@ -819,7 +819,18 @@ NAME_ATTESTATION_UNATTESTED = "unattested"
 NAME_ATTESTATION_UNVERIFIABLE = "unverifiable"
 # Measured on public-domain Japanese (Aozora: Kokoro, Ningen Shikkaku, Rashomon)
 # and Apache-2.0 Chinese (WP reconstructed): T=3 keeps 93.9% ZH / 96.2% JA
-# (>=2-char) cast while cutting random 3-char substring hits >2x vs T=2.
+# (>=2-char) cast while cutting random 3-char substring hits 1.8x-3.8x vs T=2
+# (Kokoro 28.4->15.7%, 1.81x; Ningen 23.9->12.1%, 1.97x; WP full 19.3->8.7%,
+# 2.22x; WP 15k 7.6->2.0%, 3.8x; Rashomon 16.3->6.2%, 2.63x).
+#
+# Uncased names use max(T, min_attestations) at every source length: unlike
+# cased names they do not drop to 1 on a short (< MIN_SOURCE_FOR_ATTESTATION)
+# source, because one literal occurrence in an unspaced script cannot be told
+# from any substring. Consequence: in a short CJK chapter a real name written
+# once or twice is "unverifiable" - the output gate accepts it (no retry), but
+# the roster never receives it, so a short book whose whole cast is mentioned
+# only once or twice keeps an empty roster (same roster outcome as main, which
+# admitted no uncased name at all).
 UNCASED_MIN_NAME_ATTESTATIONS = 3
 _UNSPACED_SCRIPT_RE = re.compile(
     r"[\u3005\u3040-\u30ff\u31f0-\u31ff\u3400-\u4dbf\u4e00-\u9fff"
@@ -907,7 +918,30 @@ def _is_uncased_letter_name(text):
             and not _has_cased_letter(text))
 
 
+def _is_single_letter_uncased_name(text):
+    """One letter (combining marks ignored), all uncased: 的, 他, 민, ر."""
+    return (_is_uncased_letter_name(text)
+            and sum(1 for ch in text
+                    if unicodedata.category(ch).startswith("L")) == 1)
+
+
 def _count_uncased_occurrences(name, source_text):
+    """Literal occurrences of an uncased name, with the script heuristics.
+
+    KNOWN RESIDUALS, pinned by tests.test_unattested_speakers so that changing
+    these heuristics is deliberate:
+      - A spaced-script word that begins with a proclitic and CONTAINS a
+        candidate name counts as an occurrence: Arabic "مال" in "كمال",
+        "تاب" in "كتاب"; Hebrew "בן" in "לבן" (white), "בד" in "כבד" (heavy).
+      - The proclitic lookback is two characters, so a three-character chain
+        misses a real prefix: "كتاب" in "بالكتاب" (bi-al-...) and "أحمد" in
+        "بفأحمد" count 0.
+      - The Korean suffix alternation covers common honorifics and particles,
+        not every agglutinated ending: "민수" in "민수만의" and "민수라는"
+        counts 0.
+      - Vocalized Arabic/Hebrew (harakat/niqqud) is not normalised, so those
+        spellings count 0.
+    """
     if _UNSPACED_SCRIPT_RE.search(name):
         return sum(1 for _ in re.finditer(re.escape(name), source_text))
     arabic = bool(_ARABIC_CHAR_RE.match(name))
@@ -944,6 +978,15 @@ def get_name_attestation_verdict(name, source_text, min_attestations=MIN_NAME_AT
     (accepted and roster-eligible), and in between is ``unverifiable`` (not
     rejected as invented by the output gate, not admitted to the roster).
 
+    A one-letter uncased name is NEVER ``attested`` by occurrence count: it is
+    ``unattested`` at 0 and ``unverifiable`` above that. Any plausible character
+    recurs far past the threshold in a real book (79.9% of the distinct Han
+    characters in a full Chinese novel reach 3, and 的/他 reached 196/113), so
+    counting cannot separate a real one-character name from a particle. The
+    output gate accepts ``unverifiable`` and the roster refuses it; a supplied
+    cast bypasses both gates at the caller (``known_names`` / roster seed), so a
+    cast one-character name still ships.
+
     The single implementation for both gates (output validation and roster
     admission) and for ``is_attested_name``.
     """
@@ -963,6 +1006,11 @@ def get_name_attestation_verdict(name, source_text, min_attestations=MIN_NAME_AT
         count = _count_uncased_occurrences(name, source_text)
         if count == 0:
             return NAME_ATTESTATION_UNATTESTED
+        if _is_single_letter_uncased_name(name):
+            # A single letter is never attested by counting (see docstring).
+            # At most "unverifiable": the output gate accepts it, the roster
+            # refuses it. A supplied cast is handled before this gate.
+            return NAME_ATTESTATION_UNVERIFIABLE
         threshold = max(UNCASED_MIN_NAME_ATTESTATIONS, min_attestations)
         return (NAME_ATTESTATION_ATTESTED if count >= threshold
                 else NAME_ATTESTATION_UNVERIFIABLE)
