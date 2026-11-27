@@ -447,6 +447,81 @@ class LlmReviewTests(unittest.TestCase):
                 self.assertEqual(entries, result)
                 self.assertEqual(1, len(calls))
 
+    def _run_reply(self, reply, temperature, attempts=None):
+        calls = []
+
+        def create(**_kwargs):
+            calls.append(1)
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=reply),
+                finish_reason="stop")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        params = generate_script.LLMGenParams(
+            temperature=temperature, max_tokens=256)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+                generate_script, "get_response_log_path",
+                return_value=str(Path(tmp, "response.log"))):
+            result = generate_script.call_llm_for_entries(
+                client, "model", "system", "user", params,
+                "response.log", "TEST", max_retries=3,
+                validate_entries=lambda _entries: {"passed": True,
+                                                   "findings": []},
+                attempt_observer=(attempts if attempts is not None else []).append)
+        return calls, result
+
+    def test_adjacent_array_with_literal_newline_is_combined(self):
+        """#2336 behaviour change (pinned): adjacent spans are judged with the
+        same control-character escape as the final payload.
+
+        The second array holds a literal newline inside its text, so its span
+        only parses after that repair. Main kept the strict parse for adjacent
+        spans: it returned None and the passing validator saw 0 entries (1 call
+        at 0.0, 4 at 0.7). Head combines both arrays and accepts on the first
+        call at both temperatures.
+        """
+        first = [{"speaker": "NARRATOR", "text": "one two", "instruct": "neutral"}]
+        second = [{"speaker": "ELENA", "text": "three four", "instruct": "firm"}]
+        reply = json.dumps(first) + json.dumps(second).replace(
+            "three four", "three\nfour")
+        expected = first + [{"speaker": "ELENA", "text": "three\nfour",
+                             "instruct": "firm"}]
+
+        for temperature in (0.0, 0.7):
+            with self.subTest(temperature=temperature):
+                calls, result = self._run_reply(reply, temperature)
+
+                self.assertEqual(expected, result)
+                self.assertEqual(1, len(calls))
+
+    def test_adjacent_duplicate_array_with_literal_newline_still_overlaps(self):
+        """#2336 behaviour change (pinned): the overlap check also judges the
+        second span after the control-character escape.
+
+        Two copies of one array, one with a literal newline inside its text.
+        Main's strict adjacent parse returned None before the overlap check, so
+        its raw salvage returned the duplicated entries (1 call). Head parses
+        both spans, their boundary words match, and AdjacentArrayOverlapError is
+        raised: no entries after 2 calls at 0.0 (the feedback retry is then
+        blocked by the deterministic guard) and all 4 at 0.7.
+        """
+        entries = [{"speaker": "NARRATOR", "text": "alpha beta gamma delta",
+                    "instruct": "neutral"}]
+        doubled = (json.dumps(entries)
+                   + json.dumps(entries).replace(
+                       "alpha beta gamma delta", "alpha beta gamma\ndelta"))
+
+        for temperature, expected_calls in ((0.0, 2), (0.7, 4)):
+            with self.subTest(temperature=temperature):
+                attempts = []
+                calls, result = self._run_reply(doubled, temperature, attempts)
+
+                self.assertEqual([], result)
+                self.assertEqual(expected_calls, len(calls))
+                self.assertEqual(["adjacent_array_overlap"],
+                                 attempts[-1]["failure_codes"])
+
     def test_notes_main_already_tolerated_stay_tolerated(self):
         """Non-regression only: these preambles already produced the answer on
         main (json repair dropped the note), so they do not discriminate the

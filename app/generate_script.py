@@ -1385,7 +1385,6 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         attempt_number = attempt_offset + request_attempt
         t0 = time.time()
         truncation_retry_available = False
-        retry_blocked = False
         # The budget this attempt was sent with, before any truncation bump.
         attempt_requested_max = requested_max
         attempt_record = None
@@ -2126,8 +2125,11 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
             # The bonus call is a fresh call_llm_for_entries: same user prompt,
             # same budget, no feedback. At temperature 0 that is byte-identical
             # to the first request this chunk already sent, which the
-            # deterministic repeat guard exists to prevent - a repeated
-            # deterministic prompt cannot return a different sample. The
+            # deterministic repeat guard exists to prevent. Skipping it follows
+            # the same temperature-0 policy as the in-loop guard (which treats
+            # temperature 0 as deterministic for every client path; hosted,
+            # MoE or reasoning models that ignore temperature are treated the
+            # same way by that existing policy, not by anything new here). The
             # near-miss retention above is unaffected: near_miss_sink still
             # carries the entries to the exhaustion-only fallback, so no
             # salvage is lost by not spending the request.
