@@ -69,6 +69,24 @@ def _write_temp_epub(raw: bytes) -> str:
     return str(_TMP_EPUB)
 
 
+# Known-issue scope for parity mode (`build_structured_epub(..., parity_mode=True)`):
+# - Handled explicitly below:
+#   * #2350: non-navigation `nav_linear="no"` spine candidates (note: story
+#     chapters deliberately never generate `chapter_linear="no"` in parity_mode,
+#     so #2350 is only reachable via the nav-candidate itemref).
+#   * #2369: non-exact `application/xhtml+xml` spine items (e.g. `text/html`).
+#   * #2371: `ebooklib._parse_nav` `IndexError` on multi-token/non-toc `<nav>`.
+# - Not excluded here because the parity builder cannot produce them:
+#   * #2367: every archive entry written by `_epub_builder` has a non-empty path
+#     (never `""`).
+#   * #2368: `parity_mode=True` sets `allow_tricky_encodings=False`, so chapters
+#     are always plain UTF-8 without XML encoding declarations.
+#   * #2370 & #2375: `parity_mode=True` hardcodes `encoding="utf-8"` in
+#     `META-INF/container.xml`, OPF, `nav.xhtml`, and `toc.ncx`.
+# If the builder is ever widened to emit those inputs in parity mode, any crash
+# will surface immediately instead of being silently masked here.
+
+
 def test_one_input(data: bytes) -> None:
     fdp = atheris.FuzzedDataProvider(data)
     spec = build_structured_epub(fdp, parity_mode=True)
@@ -85,6 +103,10 @@ def test_one_input(data: bytes) -> None:
             include_report=True,
             include_navigation_only=True,
         )
+    except UnicodeError:
+        # UnicodeError subclasses ValueError; never swallow unexpected codec
+        # errors as refusal ValueErrors.
+        raise
     except _EXPECTED_EXTRACT_REFUSALS as exc:
         extract_error = exc
     except KeyError as exc:
@@ -99,6 +121,10 @@ def test_one_input(data: bytes) -> None:
     aligned_text = None
     try:
         aligned_text = alexandria_alignment.load_epub(epub_path)
+    except UnicodeError:
+        # UnicodeError subclasses ValueError; never swallow unexpected codec
+        # errors as refusal ValueErrors.
+        raise
     except _EXPECTED_LOAD_REFUSALS as exc:
         load_error = exc
     except KeyError as exc:

@@ -68,3 +68,7 @@ ab_test_runtime/evidence/**/fixtures/**/*.json    text eol=lf
 # rewrote the LF blobs to CRLF and every pinned hash failed. Keep the whole
 # archive byte-stable so checkout bytes equal committed blob bytes everywhere.
 docs/benchmarks/raw/cpu-speaker-windows-20261022/**    -text
+
+# Atheris fuzz corpus inputs (.bin, .epub, and intentional CRLF/encoding .txt
+# seeds) are byte-exact test inputs; never rewrite line endings on checkout.
+tools/fuzz/corpus/**                            -text

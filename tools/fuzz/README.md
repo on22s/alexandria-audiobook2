@@ -19,7 +19,14 @@ Install the pinned fuzz dependency into `app/env` (never into `app/requirements.
 app/env/bin/python -m pip install -r app/requirements-fuzz.txt
 ```
 
-Run any harness for a bounded time using a scratch corpus copy and artifact directory so the checkout stays clean:
+Run any harness directly with libFuzzer `-flag=value` options (space-separated forms like `-max_total_time 60` are rejected with an error). When no positional corpus directory is passed, the harness automatically writes newly discovered inputs into a fresh temporary scratch directory while reading the checked-in seeds under `tools/fuzz/corpus/` read-only:
+
+```bash
+PYTHONPATH=app:. app/env/bin/python tools/fuzz/fuzz_epub_structured.py \
+  -max_total_time=600 -print_final_stats=1
+```
+
+Or pass an explicit scratch corpus and artifact directory (as `.github/workflows/fuzz.yml` does) to retain grown corpus units or crash artifacts after the run:
 
 ```bash
 SCRATCH=$(mktemp -d /var/tmp/aa2-fuzz.XXXXXX)
@@ -29,6 +36,8 @@ PYTHONPATH=app:. app/env/bin/python tools/fuzz/fuzz_epub_structured.py \
   -max_total_time=600 -print_final_stats=1 \
   -artifact_prefix="$SCRATCH/artifacts/" "$SCRATCH/corpus"
 ```
+
+`tools/fuzz/.gitignore` also ignores stray `crash-*`, `timeout-*`, `oom-*`, `slow-unit-*`, `fuzz*.log`, and locally grown 40-hex libFuzzer corpus files under `tools/fuzz/corpus/*/`.
 
 To replay a single crash artifact:
 

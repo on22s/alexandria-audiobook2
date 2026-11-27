@@ -54,6 +54,9 @@ def _check_prepare(text: str) -> None:
     try:
         with contextlib.redirect_stdout(_NULL_WRITER):
             prepared, audit = prepare_source_text(text)
+    except UnicodeError:
+        # UnicodeError subclasses ValueError; never swallow unexpected codec errors.
+        raise
     except ValueError as exc:
         msg = str(exc)
         if any(snippet in msg for snippet in _EXPECTED_PREPARE_REFUSAL_SUBSTRINGS):
