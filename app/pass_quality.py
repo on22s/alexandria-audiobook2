@@ -201,11 +201,12 @@ def _has_single_quote_opener_between(text, start, end, ambiguous=None):
 def _is_possessive_continuing_span(text, index, opener, limit, ambiguous=None):
     """Is the `…s’`/`…s'` mark at `index` a possessive with a later closer?
 
-    The span keeps going when a paired quote already sits before the mark, or
-    when one sits between it and the next closer. With no later closer the mark
-    is the end of the speech (`‘He runs’ she said.`). The closer is the first
-    mark that passes `_is_single_quote_closer`, so an apostrophe inside the
-    nested quote (`“it’s loud”`) is not mistaken for it (#2331 review 4).
+    The span keeps going when a paired quote sits anywhere between the opener
+    and the next closer, including a pair that straddles this mark
+    (`“the dogs’ bones”`). With no later closer the mark is the end of the
+    speech (`‘He runs’ she said.`). The closer is the first mark that passes
+    `_is_single_quote_closer`, so an apostrophe inside the nested quote
+    (`“it’s loud”`) is not mistaken for it (#2331 review 4).
 
     A candidate sibling speech opener before that later closer ends the
     lookahead: `‘Yes’ she said. ‘He said “run”,’ he said.` The `Yes’` mark ends
@@ -223,8 +224,12 @@ def _is_possessive_continuing_span(text, index, opener, limit, ambiguous=None):
     if _has_single_quote_opener_between(
             text, index + 1, later, ambiguous):
         return False
-    if opener is not None and _contains_paired_quote(text, opener + 1, index):
-        return True
+    if opener is not None:
+        # A pair that straddles the mark also belongs to the quote the span
+        # nests (`“the dogs’ bones”`): neither side alone contains the pair,
+        # so checking only before or only after it truncated the span at the
+        # possessive and certified main's inside-out split (#2331 review 5).
+        return _contains_paired_quote(text, opener + 1, later)
     return _contains_paired_quote(text, index + 1, later)
 
 

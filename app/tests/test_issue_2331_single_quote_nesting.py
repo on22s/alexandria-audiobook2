@@ -55,7 +55,7 @@ The rev4 review repaired the span model itself:
     `dogs’ “it’s loud”` and the straight versions keep one span;
   - in a targeted chunk the gate rejects main's inside-out row whose SPOKEN
     text is only the nested pair while NARRATOR reproduces the span's words
-    (64/64 repeated-attribution variants);
+    (32 chunks × 2 gate paths);
   - the uncertainty net ignores a stray straight `'` after sentence
     punctuation and before `-`/`"`, so the three PDNC fixture strings return to
     main's behaviour;
@@ -63,6 +63,16 @@ The rev4 review repaired the span model itself:
     so a pair past the outer 500-character bound still abstains;
   - a targeted chunk can also be uncertain, and then the gate is the adopted
     span's, not main's.
+
+The rev5 review closed the possessive INSIDE the nested pair:
+  - `“the dogs’ bones”` straddles the `…s’` mark, so the pair was wholly in
+    neither half; the lookahead now sees it across the mark and keeps the span,
+    so the truthful row passes both gate paths and main's inside-out row does
+    not;
+  - the no-terminator sibling still drops both spans and stays `quote_forced`;
+    Limits now describes that measured behaviour instead of claiming the span
+    continues;
+  - the `own == -1` sibling branch is pinned by a mixed-convention chunk.
 """
 import hashlib
 import io
@@ -457,6 +467,82 @@ NESTED_AND_UNCERTAIN_INVERTED = [
     {"type": "NARRATOR", "text": "\u2018He said"},
     {"type": "SPOKEN", "text": "run"},
     {"type": "NARRATOR", "text": ",\u2019 she said. \u2018Then she said \u201cgo\u201d"},
+]
+
+# rev5 finding 1: a plural possessive INSIDE the nested pair straddles the
+# `…s’` mark, so neither `opener+1..mark` nor `mark+1..later` contained the
+# pair. The span closed at the possessive, `auto`/`quotes` certified main's
+# inside-out split, and the truthful row failed both gate paths.
+POSSESSIVE_INSIDE_WORDS = (("dogs", "bones"), ("boys", "toys"),
+                           ("girls", "books"), ("Joneses", "house"),
+                           ("soldiers", "rifles"), ("players", "names"),
+                           ("guards", "orders"))
+
+
+def _inside_out_row(chunk, open_mark, close_mark):
+    """-> main's inverted split: SPOKEN is only the nested pair."""
+    start = chunk.index(open_mark)
+    end = chunk.index(close_mark, start + 1)
+    return [
+        {"type": "NARRATOR", "text": chunk[:start]},
+        {"type": "SPOKEN", "text": chunk[start + 1:end]},
+        {"type": "NARRATOR", "text": chunk[end + 1:]},
+    ]
+
+
+def _possessive_inside_case(word, noun, outer=("\u2018", "\u2019"),
+                            nested=("\u201c", "\u201d"), possessive="\u2019"):
+    """-> (chunk, truthful row, main's inside-out row) for `… “the dogs’ …”`."""
+    chunk = ("%sHe read %sthe %s%s %s%s aloud,%s she said."
+             % (outer[0], nested[0], word, possessive, noun, nested[1],
+                outer[1]))
+    truthful = [{
+        "type": "SPOKEN",
+        "text": "He read %sthe %s%s %s%s aloud,"
+                % (nested[0], word, possessive, noun, nested[1])},
+        {"type": "NARRATOR", "text": "she said."}]
+    return chunk, truthful, _inside_out_row(chunk, nested[0], nested[1])
+
+
+POSSESSIVE_INSIDE_CASES = {}
+for _word, _noun in POSSESSIVE_INSIDE_WORDS:
+    POSSESSIVE_INSIDE_CASES[_word] = _possessive_inside_case(_word, _noun)
+# The straight convention: the possessive and the outer marks are both `'`.
+POSSESSIVE_INSIDE_CASES["straight"] = _possessive_inside_case(
+    "dogs", "bones", ("'", "'"), ('"', '"'), "'")
+POSSESSIVE_INSIDE_CASES["guillemets"] = _possessive_inside_case(
+    "dogs", "bones", nested=("\u00ab", "\u00bb"))
+POSSESSIVE_INSIDE_CASES["corner brackets"] = _possessive_inside_case(
+    "dogs", "bones", nested=("\u300c", "\u300d"))
+
+# rev5 finding 1, with a sibling single quotation beside the nested pair.
+SIBLING_POSSESSIVE_INSIDE = ("\u2018He said \u201cthe dogs\u2019 bones\u201d to "
+                             "\u2018Bob\u2019,\u2019 she said.")
+SIBLING_POSSESSIVE_INSIDE_TRUTHFUL = [
+    {"type": "SPOKEN",
+     "text": "He said \u201cthe dogs\u2019 bones\u201d to \u2018Bob\u2019,"},
+    {"type": "NARRATOR", "text": "she said."},
+]
+
+# rev5 finding 2: a sibling speech opened after `…s’` with no sentence
+# punctuation between. The lookahead takes the nested reading, so the outer
+# span never closes and BOTH spans are dropped. Limits must describe that.
+NO_TERMINATOR_SIBLING = "\u2018Yes\u2019 she said \u2018He said \u201crun\u201d,\u2019 he said."
+NO_TERMINATOR_SIBLING_REGIONS = [
+    {"type": "NARRATOR", "text": "\u2018Yes\u2019 she said \u2018He said"},
+    {"type": "SPOKEN", "text": "run"},
+    {"type": "NARRATOR", "text": ",\u2019 he said."},
+]
+
+# rev5 nit 3: a mixed-convention sibling whose straight opener has no closer of
+# its own. The `own == -1` branch makes it a sibling, so `Yes’` closes and the
+# `Yes` span exists. Removing the branch drops that span (the decisions stay
+# the same), so the span list is what pins the branch.
+MIXED_CONVENTION_SIBLING = "\u2018Yes\u2019 she said. 'He said \u201crun\u201d,\u2019 he said."
+MIXED_CONVENTION_SIBLING_REGIONS = [
+    {"type": "NARRATOR", "text": "\u2018Yes\u2019 she said. 'He said"},
+    {"type": "SPOKEN", "text": "run"},
+    {"type": "NARRATOR", "text": ",\u2019 he said."},
 ]
 
 # rev4 finding 4: the three fixture strings where a stray straight apostrophe
@@ -1339,10 +1425,114 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                                 chunk, inverted, **kwargs)["passed"],
                             "certifies the inverted split")
 
+    def test_a_plural_possessive_inside_the_nested_quote_keeps_the_span(self):
+        # Rev5 finding 1: the pair straddles the `…s’` mark, so the lookahead
+        # checks the whole `opener+1..later` range. Every case adopts one span,
+        # auto/lexical abstain, "quotes" certifies the truthful split, the
+        # truthful row passes both gate paths, and main's inside-out row does
+        # not. The guillemets-only analysis-free path is the documented
+        # `_QUOTE_CHARS` limit: that gate skips instead of rejecting.
+        cases = dict(POSSESSIVE_INSIDE_CASES)
+        cases["sibling quotation"] = (
+            SIBLING_POSSESSIVE_INSIDE, SIBLING_POSSESSIVE_INSIDE_TRUTHFUL,
+            _inside_out_row(SIBLING_POSSESSIVE_INSIDE, "\u201c", "\u201d"))
+        for label, (chunk, truthful, inverted) in cases.items():
+            with self.subTest(label=label):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertTrue(analysis.get("nested_single_quoted_speech"))
+                self.assertFalse(analysis.get("uncertain_single_quoted_speech"))
+                self.assertEqual(
+                    1, len(analysis.get("adopted_single_quote_spans")))
+                if get_single_quoted_speech_spans is not None:
+                    self.assertEqual(
+                        1, len(get_single_quoted_speech_spans(chunk)))
+                for mode in ("auto", "lexical"):
+                    self.assertEqual(
+                        (None, None),
+                        tp.quote_regions_decision(mode, chunk, analysis))
+                entries, resolution = tp.quote_regions_decision(
+                    "quotes", chunk, analysis)
+                self.assertEqual("quote_presegmented", resolution)
+                self.assertEqual(
+                    [{"type": entry["type"], "text": entry["text"]}
+                     for entry in analysis["regions"]], entries)
+                for gate_label, kwargs in (
+                        ("analysis-backed", {"quote_analysis": analysis}),
+                        ("analysis-free", {})):
+                    with self.subTest(gate=gate_label):
+                        report = validate_segment_quality(
+                            chunk, truthful, **kwargs)
+                        self.assertTrue(report["passed"], report["findings"])
+                        bad = validate_segment_quality(chunk, inverted, **kwargs)
+                        if (gate_label == "analysis-free"
+                                and label == "guillemets"):
+                            # `_QUOTE_CHARS` omits «» on main too: this path
+                            # records a skipped gate, not a vouched split.
+                            self.assertTrue(
+                                bad["quote_gate"].startswith("skipped:"),
+                                bad["quote_gate"])
+                            continue
+                        self.assertFalse(
+                            bad["passed"],
+                            "certifies main's inside-out split")
+
+    def test_a_no_terminator_sibling_drops_both_spans_and_is_quote_forced(self):
+        # Rev5 finding 2: with no sentence punctuation the lookahead takes the
+        # nested reading, so the outer span never closes. Both spans are
+        # dropped (not continued), the chunk is uncertain, auto/lexical
+        # abstain, and "quotes" returns main's split as quote_forced.
+        analysis = analyze_outer_quote_regions(NO_TERMINATOR_SIBLING)
+        self.assertEqual([], analysis.get("adopted_single_quote_spans"))
+        self.assertEqual([], analysis.get("unadopted_single_quote_spans"))
+        self.assertFalse(analysis.get("nested_single_quoted_speech"))
+        self.assertTrue(analysis.get("uncertain_single_quoted_speech"))
+        if get_single_quoted_speech_spans is not None:
+            self.assertEqual([], get_single_quoted_speech_spans(
+                NO_TERMINATOR_SIBLING))
+        for mode in ("auto", "lexical"):
+            self.assertEqual(
+                (None, None),
+                tp.quote_regions_decision(mode, NO_TERMINATOR_SIBLING,
+                                          analysis))
+        entries, resolution = tp.quote_regions_decision(
+            "quotes", NO_TERMINATOR_SIBLING, analysis)
+        self.assertEqual("quote_forced", resolution)
+        self.assertEqual(NO_TERMINATOR_SIBLING_REGIONS, entries)
+        self.assertNotIn("mixed_quote_region",
+                         {finding["code"] for finding in
+                          validate_segment_quality(
+                              NO_TERMINATOR_SIBLING,
+                              NO_TERMINATOR_SIBLING_REGIONS,
+                              quote_analysis=analysis)["findings"]})
+
+    def test_a_mixed_convention_sibling_pins_the_no_own_closer_branch(self):
+        # Rev5 nit 3: keeping the `own == -1` branch. The straight opener of
+        # the sibling has no closer of its own, so it is a sibling and `Yes’`
+        # closes; the `Yes` span exists. Removing the branch drops that span,
+        # so this assertion is the mutation's discriminator. Either way no
+        # wrong split is certified: "quotes" stays quote_forced.
+        analysis = analyze_outer_quote_regions(MIXED_CONVENTION_SIBLING)
+        if get_single_quoted_speech_spans is not None:
+            self.assertEqual(
+                [(0, 1, 4, 4)],
+                get_single_quoted_speech_spans(MIXED_CONVENTION_SIBLING))
+        self.assertEqual([], analysis.get("adopted_single_quote_spans"))
+        self.assertTrue(analysis.get("uncertain_single_quoted_speech"))
+        for mode in ("auto", "lexical"):
+            self.assertEqual(
+                (None, None),
+                tp.quote_regions_decision(mode, MIXED_CONVENTION_SIBLING,
+                                          analysis))
+        entries, resolution = tp.quote_regions_decision(
+            "quotes", MIXED_CONVENTION_SIBLING, analysis)
+        self.assertEqual("quote_forced", resolution)
+        self.assertEqual(MIXED_CONVENTION_SIBLING_REGIONS, entries)
+
     def test_the_gate_rejects_the_repeated_attribution_inside_out_row(self):
         # Rev4 finding 3: the speech's opening words recur in the attribution,
         # so the old role check found main's inside-out row inside the narrator
-        # text and accepted it. 64/64 variants must now be rejected, and the
+        # text and accepted it. The 32 chunks × 2 gate paths must now be
+        # rejected, and the
         # truthful row must still pass on both gate paths.
         for pronoun in REPEATED_ATTRIBUTION_PRONOUNS:
             for verb in REPEATED_ATTRIBUTION_VERBS:
@@ -1372,7 +1562,8 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                             with self.subTest(gate=gate_label):
                                 report = validate_segment_quality(
                                     chunk, inverted, **kwargs)
-                                self.assertFalse(report["passed"], "64/64 must fail")
+                                self.assertFalse(report["passed"],
+                                                 "32 chunks × 2 gate paths must fail")
                                 self.assertIn(
                                     "quote_region_misclassified",
                                     {finding["code"]
@@ -1466,10 +1657,10 @@ class SingleQuotedSpeechTests(unittest.TestCase):
     def test_double_quoted_decisions_and_gate_are_unchanged(self):
         # Differential guard: 260 synthetic chunks plus the quote shapes the
         # repository already tests must produce byte-identical decisions and
-        # gate reports to origin/main 0dcb4b95a (the digest was produced from
-        # that tree, with the British/split-head family held out because rev3
-        # deliberately makes it abstain). Both the analysis-backed gate and the
-        # analysis-free gate are hashed.
+        # gate reports to origin/main e71775d33 (the merged base; the digest
+        # was produced from that tree, with the British/split-head family held
+        # out because rev3 deliberately makes it abstain). Both the
+        # analysis-backed gate and the analysis-free gate are hashed.
         self.assertEqual(
             "755aab93213e4edd375e288d6d9ff01f61ce1567a39197a0e3b5dc560ace6a53",
             _differential_digest())
