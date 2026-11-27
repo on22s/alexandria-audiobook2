@@ -1105,11 +1105,6 @@ _TAG_NEXT_QUOTE_OPENERS = frozenset(QUOTE_MARKS) | {"‘"}
 # Gutenberg texts are hard-wrapped, so the tag's comma and the next quotation
 # can be separated by one line break or by one blank line (#2388 gate 3).
 _TAG_NEXT_QUOTE_WRAP = re.compile(r"[ \t]*\r?\n(?:[ \t]*\r?\n)?[ \t]*")
-# Only a quote that ends a full sentence with a period can be introducing the
-# NEXT quotation; a quote ending `?`/`!`/`...` with a following subject-first
-# tag is more often a split quotation by the same speaker, so the guard does
-# not abstain on it (#2388 finding 3: reduce needless abstention, stay safe).
-_TAG_NEXT_QUOTE_SENTENCE_END = frozenset({".", "。"})
 
 
 def _title_key(word):
@@ -1358,7 +1353,7 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         if tag.group("adv_before") and (tag.group("adv_after")
                                         or tag.group("adv_after_t")):
             continue
-        if (text and text[-1] in _TAG_NEXT_QUOTE_SENTENCE_END and tag.group("before")
+        if (text and text[-1] in _SENTENCE_END and tag.group("before")
                 and not tail.lstrip(" \t").startswith((",", ";"))):
             # Read past the tag from the source, not from the line-truncated
             # tail, so a single hard line wrap can be seen (#2388 gate 2).
