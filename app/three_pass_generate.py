@@ -49,7 +49,9 @@ from default_prompts import (load_segment_prompts, load_attribute_prompts,
                              load_instruct_prompts)
 from narrator_prompt import (add_narrator_prior, get_valid_narrator_name,
                              is_narrator_attested, normalize_narrator_name)
-from pass_quality import (is_attested_name, strip_roster_alias_echo,
+from pass_quality import (NAME_ATTESTATION_ATTESTED,
+                          get_name_attestation_verdict,
+                          is_attested_name, strip_roster_alias_echo,
                           classify_lexical_quote_regions,
                           validate_segment_quality, validate_attribution,
                           get_attribution_tag_evidence,
@@ -532,7 +534,8 @@ def attested_new_speakers(entries, roster_seen, source_text):
                 or speaker in roster_seen or speaker in new
                 or entry.get("attribution_unchecked")):
             continue
-        if not is_attested_name(speaker, source_text, MIN_ROSTER_ATTESTATIONS):
+        if (get_name_attestation_verdict(speaker, source_text, MIN_ROSTER_ATTESTATIONS)
+                != NAME_ATTESTATION_ATTESTED):
             continue
         new.append(speaker)
     return new
