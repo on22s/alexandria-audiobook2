@@ -7,6 +7,7 @@ import sys
 import unicodedata
 from bisect import bisect_left, bisect_right, insort
 from collections import Counter
+from functools import lru_cache
 from heapq import heappop, heappush
 
 from silent_word_characters import (
@@ -51,24 +52,15 @@ _NUMBER_GAP_LINE_BREAKS = "\n\r\u2028\u2029\x0b\x0c\x85"
 # Range and clock marks join two digit tokens into one numeral ONLY when the
 # mark touches both digits. A SPACED mark is sentence punctuation, not a range
 # or a clock: "1914 — 5" is a year and a separate number, and "12: 5" is a
-# count and a new sentence. Glued hyphen, en dash, em dash, figure dash,
-# minus, Gutenberg's double hyphen, ASCII tilde, wave dash and fullwidth tilde
-# are ranges; a glued colon is a clock. A SLASH is never sentence punctuation,
-# so it joins a ratio or date even when spaced ("5 / 6", "9 / 11") (#2304 gate
-# 4 L1, L2 and N3 - one rule for every range mark).
+# count and a new sentence. A slash follows the same rule as every other mark:
+# glued "5/6" is a ratio and joins, while a spaced "12 / 5" (a ratio or quoted
+# verse) is punctuation. Glued hyphen, en dash, em dash, figure dash, minus,
+# Gutenberg's double hyphen, ASCII tilde, wave dash, fullwidth tilde and slash
+# are ranges; a glued colon is a clock. (#2304 gate 4 L1/L2, gate 5 L3 - one
+# glued-only rule for every mark.)
 _NUMERAL_GAP_MARKS = frozenset((
     "-", "--", "\u2013", "\u2014", "\u2012", "\u2212",
-    "~", "\u301c", "\uff5e", ":"))
-_NUMERAL_SLASH_MARKS = frozenset(("/",))
-# A RANGE may be wrapped at its own mark: "5-\n6" and "5\n-6" are one range,
-# so the digit beside the mark is a fragment, not a whole number (#2304 gate 4
-# L3). The mark must still touch a digit on its own line and exactly one line
-# break may sit between the mark and the other digit; a space, a second break
-# (a blank line, so a "- 12 -" page number) or a wrapped clock/ratio does not
-# join.
-_NUMERAL_WRAPPED_MARKS = frozenset((
-    "-", "--", "\u2013", "\u2014", "\u2012", "\u2212",
-    "~", "\u301c", "\uff5e"))
+    "~", "\u301c", "\uff5e", "/", ":"))
 # Whitespace that is NOT a line break: the same-line spacing the mark rule
 # rejects. Kept as its own list so narrowing the line-break guard cannot turn
 # a break into a horizontal space.
@@ -99,20 +91,22 @@ def _number_gap_line_breaks(gap):
 
 
 def _raw_number_gap(source_text, comparison_text, start, stop, gap,
-                    word_boundaries):
+                    word_boundaries, offsets):
     """The untouched source gap when the comparison offsets still point at it.
 
     The comparison key maps a word boundary (U+200B) to an ordinary space, so
     an invisible boundary between a digit and its mark looks exactly like real
     spacing there. The raw slice decides it: ``5\\u200b-6`` is a glued range
-    whose mark a reader sees touching the digit. The slice is returned only
-    when folding it reproduces the comparison gap exactly, which fails for any
-    source whose folding changed length or characters before this point; the
-    caller then falls back to the comparison gap's spacing.
+    whose mark a reader sees touching the digit. Folding can change the source
+    length anywhere in the book - before OR after this gap - so the comparison
+    offsets are not source offsets; ``offsets`` (``_comparison_offset_map``)
+    maps each one back. The slice is returned only when folding it reproduces
+    the comparison gap exactly; otherwise the caller falls back to the
+    comparison gap's spacing.
     """
-    if len(source_text) != len(comparison_text) or source_text == comparison_text:
+    if source_text == comparison_text or offsets is None:
         return None
-    raw = source_text[start:stop]
+    raw = source_text[offsets[start]:offsets[stop]]
     if _comparison_text(raw, word_boundaries=word_boundaries) != gap:
         return None
     return raw
@@ -308,6 +302,58 @@ def _comparison_text(text, *, word_boundaries="space"):
     if "'" in text:
         text = _INTRAWORD_APOSTROPHE_RE.sub("", text)
     return text
+
+
+def _comparison_offset_map(source_text, comparison_text, word_boundaries):
+    """Map each comparison-text offset back to the source offset it came from.
+
+    Folding is not length-preserving: NFKC expands a ligature (``ﬁ`` ->
+    ``fi``), casefold expands ``ß`` to ``ss``, and an intraword apostrophe is
+    deleted, so a comparison offset is not a source offset. The map is built
+    one character cluster at a time (a character with the combining marks that
+    can compose with it) so NFC sees the same cluster the whole text did. It is
+    accepted only when it reproduces the comparison text's length exactly;
+    otherwise None is returned and the caller keeps the comparison spacing
+    rather than risk a wrong slice. Only the offsets have to be right: a
+    context-dependent character fold (a word-final Greek sigma) maps to the
+    right source position even when its character differs.
+    """
+    positions = []
+    folded_parts = []
+    index = 0
+    length = len(source_text)
+    while index < length:
+        stop = index + 1
+        # Only a non-ASCII character can be a combining mark; skip the
+        # category lookup for the common ASCII text.
+        while (stop < length and source_text[stop] > "\x7f"
+               and (unicodedata.combining(source_text[stop])
+                    or unicodedata.category(source_text[stop]).startswith("M"))):
+            stop += 1
+        folded = _folded_comparison_cluster(source_text[index:stop],
+                                            word_boundaries)
+        folded_parts.append(folded)
+        positions.extend([index] * len(folded))
+        index = stop
+    folded_text = "".join(folded_parts)
+    if len(folded_text) != len(comparison_text):
+        # The intraword apostrophe is removed only after folding, so a
+        # per-cluster fold keeps one that the whole text deleted.
+        removed = {match.start()
+                   for match in _INTRAWORD_APOSTROPHE_RE.finditer(folded_text)}
+        if not removed or len(folded_text) - len(removed) != len(comparison_text):
+            return None
+        positions = [position for offset, position in enumerate(positions)
+                     if offset not in removed]
+    if len(positions) != len(comparison_text):
+        return None
+    return positions + [len(source_text)]
+
+
+@lru_cache(maxsize=8192)
+def _folded_comparison_cluster(cluster, word_boundaries):
+    """One cluster's fold, cached: a book repeats few distinct clusters."""
+    return _comparison_text(cluster, word_boundaries=word_boundaries)
 
 
 def _comparison_word_pattern(text):
@@ -1383,18 +1429,20 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         `5-6`, `5--6`, en dash, em dash, figure dash, minus, ASCII tilde, wave
         dash, fullwidth tilde, `5:30` and `5/6` are one numeral in two tokens,
         so neither piece is whole. A SPACED mark is sentence punctuation, not a
-        separator: `1914 — 5`, `12 — 5` and `12: 5` keep the far digit whole
-        (#2304 gate 4 L1/L2). The exception is a range wrapped at its own mark:
-        `5-\\n6` and `5\\n-6` join across exactly ONE line break when the mark
-        touches a digit on its own line (#2304 gate 4 L3).
+        separator: `1914 — 5`, `12 — 5`, `12: 5` and a spaced slash (`12 / 5`,
+        a ratio or quoted verse) keep the far digit whole (#2304 gate 4 L1/L2,
+        gate 5 L3 - one glued-only rule for every mark).
 
-        A LINE BREAK IS NEVER A NUMERAL SEPARATOR. A digit that starts a line
-        after a line ending in a number opens a new line, not the far half of
-        a number, so a gap containing `\\n`, `\\r`, U+2028, U+2029, `\\x0b`,
-        `\\x0c` or `\\x85` does not join unless it is the wrapped range above
-        (#2304 gate 3: a faithful book with "Chapter 12" above "5 minutes
-        later" must stay clean, and a blank line keeps a "- 12 -" page number
-        apart for every break type).
+        A LINE BREAK IS NEVER A NUMERAL SEPARATOR - for any mark or break
+        type. A digit that starts a line after a line ending in a number opens
+        a new line, not the far half of a number, so a gap containing `\\n`,
+        `\\r`, U+2028, U+2029, `\\x0b`, `\\x0c` or `\\x85` never joins. A false
+        block stops the user's audiobook while a missed duplicate does not, so
+        a range wrapped across a line break (`5-\\n6`) is credited as two whole
+        numbers and a duplicate of it can pass (documented under Limits). A
+        faithful book with "Chapter 12" above "5 minutes later" stays clean,
+        and a blank line keeps a "- 12 -" page number apart for every break
+        type (#2304 gate 3; gate 5 governing rule).
 
         A digit copy the script also emits as digits is already that digit
         needle's own capacity, so only copies beyond the digit line's emissions
@@ -1424,6 +1472,11 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                 source_text, word_boundaries=output_boundaries,
                 comparison_text=comparison_source, token_spans=spans)
             whole_number = [True] * len(tokens)
+            # The raw-gap rescue needs comparison offsets mapped back to source
+            # offsets; build that map lazily, once, and only if a spaced mark is
+            # actually found.
+            raw_gap_offsets = None
+            raw_gap_offsets_ready = False
             for index, token in enumerate(tokens):
                 if not token.isdigit():
                     continue
@@ -1453,47 +1506,45 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                         gap_start, gap_end = end, spans[other][0]
                         right = other
                     gap = comparison_source[gap_start:gap_end]
-                    # A line break is never a numeral separator, with ONE
-                    # exception: a range wrapped at its own mark. "5-\n6" and
-                    # "5\n-6" are one range, so the digit beside the mark is a
-                    # fragment. The mark must touch a digit on its own line,
-                    # exactly one break may separate it from the other digit,
-                    # and a space or a blank line still keeps them apart (a
-                    # "- 12 -" page number is not a wrapped range).
-                    breaks = _number_gap_line_breaks(gap)
-                    if breaks:
-                        if (len(breaks) == 1
-                                and gap.replace(breaks[0], "", 1)
-                                in _NUMERAL_WRAPPED_MARKS):
-                            joined = True
-                            break
+                    # A line break is never a numeral separator, for any mark
+                    # or break type. A digit that opens a line after a line
+                    # ending in a number opens a NEW line, not the far half of
+                    # one numeral, so a range wrapped across a break ("5-\n6")
+                    # is two whole numbers - an accepted under-block, because a
+                    # false block stops the audiobook and a missed duplicate
+                    # does not (#2304 gate 5 governing rule).
+                    if _number_gap_line_breaks(gap):
                         continue
                     stripped = gap.strip()
                     # A range/clock mark joins only when it touches both
                     # digits. A spaced mark is sentence punctuation: "1914 — 5"
                     # is a year and a separate number, "12: 5" a count and a
-                    # new sentence (#2304 gate 4 L1/L2).
+                    # new sentence, "12 / 5" a ratio or quoted verse (#2304
+                    # gate 4 L1/L2, gate 5 L3).
                     if stripped in _NUMERAL_GAP_MARKS:
                         spaced = any(character in _HORIZONTAL_GAP_SPACES
                                      for character in gap)
                         if spaced:
                             # An invisible word boundary is a space in the
                             # comparison key but not on the page: "5\u200b-6"
-                            # is a glued range. Decide on the raw gap when its
-                            # offsets still line up.
+                            # is a glued range. Decide on the raw gap; folding
+                            # may have changed the source length anywhere, so
+                            # map the comparison offsets back first.
+                            if not raw_gap_offsets_ready:
+                                raw_gap_offsets = (
+                                    None if source_text == comparison_source
+                                    else _comparison_offset_map(
+                                        source_text, comparison_source,
+                                        output_boundaries))
+                                raw_gap_offsets_ready = True
                             raw_gap = _raw_number_gap(
                                 source_text, comparison_source, gap_start,
-                                gap_end, gap, output_boundaries)
+                                gap_end, gap, output_boundaries,
+                                raw_gap_offsets)
                             if raw_gap is None or any(
                                     character in _HORIZONTAL_GAP_SPACES
                                     for character in raw_gap):
                                 continue
-                        joined = True
-                        break
-                    # A slash is never sentence punctuation: a spaced ratio or
-                    # date ("5 / 6", "9 / 11") is still one numeral in two
-                    # tokens.
-                    if stripped in _NUMERAL_SLASH_MARKS:
                         joined = True
                         break
                     # Whitespace joins only a thousands group, whose far half
