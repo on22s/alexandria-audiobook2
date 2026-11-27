@@ -8,9 +8,105 @@ still apply. Uploading an EPUB remains an import action.
 
 The snapshot binds the captured archive SHA-256 to the exact UTF-8 import-text
 SHA-256. It records the package, spine indices and resource hashes, navigation
-source/fallback, resolved targets, unresolved anchors, duplicate navigation,
+source/fallback, resolved targets, unresolved anchors, anchors inside omitted
+hidden subtrees (`target_in_hidden_subtree`), duplicate navigation,
 duplicate-anchor first-occurrence behavior, title insertion/suppression decisions,
-and skipped missing/non-HTML/empty resources. A navigation document listed in the
+omitted HTML `hidden` content in well-formed XHTML (`hidden_content` rows
+recording omitted element counts and first element location, never the hidden
+text), and skipped missing/non-HTML/empty resources.
+
+Hidden handling applies only where the browser itself parses the document as
+XML: an `application/xhtml+xml` spine item that is well-formed XML. One shared
+predicate answers that question for script extraction, read-aloud and
+`load_epub`. In such a document, an element is hidden only when both Chrome and
+Firefox render it hidden: the element is in the XHTML namespace
+(`http://www.w3.org/1999/xhtml`) **and** carries an attribute whose name is
+exactly lowercase `hidden` in no namespace. XML attribute names are
+case-sensitive, so `HIDDEN` and `Hidden` are ordinary attributes; a namespaced
+attribute such as `h:hidden` is not the null-namespace HTML attribute, even
+when `h` is bound to the XHTML URI; and an element in no namespace (`xmlns=""`,
+or a document with no `xmlns` at all) is not an HTML element. Attribute values
+do not matter: `hidden=""`, `hidden="false"` and `hidden="until-found"` all hide
+(`until-found` hides content from linear reading until interactive
+find-in-page reveal). Hidden elements and all their descendants are omitted
+from narration. An internal DTD subset that defaults `hidden` onto elements
+(for example `<!ATTLIST p hidden CDATA "x">`) hides them too: Expat and both
+browsers apply that default, and extraction engages the same XML walk for such
+a document. Read-aloud's segment root is the first `<body>` that has no
+hidden ancestor (a hidden `<body>` is not itself visible either); if bodies
+exist but all sit inside hidden subtrees, no segments are emitted.
+Because `hidden` is an HTML-only global attribute, it is not
+applied to SVG or MathML elements with an explicit `xmlns` (a bare
+`<svg>`/`<math>` inherits the XHTML namespace in XML and does take it); CSS
+`display:none` and `aria-hidden` are not inferred or dropped.
+XML has no HTML integration points either: an unprefixed child of an
+explicitly namespaced SVG `foreignObject` or MathML `annotation-xml` stays in
+the SVG/MathML namespace, so its `hidden` is not applied.
+
+Every other media type (`text/html` and any other non-XHTML type), and malformed
+XHTML, gets no hidden handling. Its output or refusal is byte-identical to the
+code before this feature: hidden content is narrated whenever that code
+narrated the document. That includes documents with bare
+boolean attributes (`<p hidden>` without a value), unclosed tags, and HTML-only
+entities such as `&nbsp;`, none of which are well-formed XML, so a quoted
+`hidden` attribute cannot newly engage the strict parse. A malformed XHTML
+document that already had a `script`/`style`/`title` opening is rejected by the
+same strict parse as before, with the same error. This is a
+documented leak, chosen because dropping visible text is worse than narrating
+hidden text; it is never a visible drop. A well-formed `text/html` document
+therefore keeps HTML5 tree construction: a hidden table cell containing a
+`caption`, or a hidden paragraph containing a block element, narrates the text
+a browser renders, exactly as before.
+`omitted_elements` counts outermost hidden elements that can omit text; a
+hidden void element (`<br hidden>`, `<img hidden>`) is not counted because it
+omits no text. `content_policy` names `html_hidden_not_spoken` only when hidden
+omission actually applied to an included resource, so a hidden-free or
+non-XHTML import keeps the previous policy string unchanged.
+For a document the shared predicate accepts, `load_epub` decides hidden
+regions from the same raw-XML Expat walk the extraction pass uses, never from
+`ebooklib`'s HTML reserialization (which lowercases attribute names and applies
+HTML implied-end rules). Extraction and `load_epub` therefore agree on which
+text is omitted; a hidden subtree is cut from the XML before the HTML parser
+runs, so text cannot be moved out of it. A hidden element is only a subtree:
+the walk cuts exactly its start tag through its matching end tag, wherever it
+sits - including a hidden `<body>`, whether it is the real document body or a
+`<body>` nested in `<template>`, `noscript` or `textarea`. `load_epub` then
+parses what remains visible around it, so a hidden `<body>` beside visible
+content keeps that visible content (the hidden body is not by itself "the
+document is hidden"). The walk Expat-parses each
+`application/xhtml+xml` spine item, which `load_epub` did not do before this
+feature; it uses the extraction pass's own configuration (no entity
+expansion, no external fetch) and is bounded by Expat's amplification limit.
+`load_epub`'s existing `BeautifulSoup` text path still returns `''` for a
+hidden-free UTF-16 chapter (unchanged from before this feature); a
+hidden-bearing accepted document is substituted as UTF-8 and does load, so
+encoding support is not claimed end-to-end. A spine document is entirely
+hidden only when hidden omission actually removed narrated non-whitespace text
+**and no visible text remains after the cut**. "Visible" is the shared walker's
+answer on the substituted XML, not `ebooklib`'s body-only text: flow content
+outside `<body>` counts as visible (though `load_epub`'s own text stays
+body-only, as before), a head `<title>` does not, and a body `<title>` does.
+The shape does not matter: a hidden root, a hidden body with nothing visible
+beside it, or all text inside hidden elements. In that case script extraction
+returns no chapter text (with no navigation target it returns `''`; a
+navigation entry that targets the hidden document still contributes its
+visible table-of-contents label, exactly as it already did for an
+otherwise-empty chapter), read-aloud returns no segments,
+and `alexandria_alignment.load_epub` raises a `ValueError` naming hidden
+elements when **every** considered spine document is entirely hidden. One
+entirely hidden chapter in an otherwise visible book contributes no text and
+does not refuse the book.
+A document whose only hidden elements are void elements (for example
+`<br hidden=""/><img hidden=""/>`) removed no text, so it behaves as before the
+feature. An EPUB with one entirely hidden chapter and one empty visible chapter
+is not in that class: `load_epub` returns the empty visible text, as it did
+before this feature, instead of raising the hidden-specific error. A book with
+no considered spine documents keeps the existing `no readable spine documents`
+refusal.
+Navigation targets pointing only to
+anchors inside a hidden subtree do not resolve into visible text and do not
+insert navigation labels; they are reported with reason
+`target_in_hidden_subtree`. A navigation document listed in the
 spine is a table of contents, not story text: it is skipped and its spine row
 names the reason `navigation_document`, so it is never narrated. The whole
 document is skipped, including any prose a book places in the same file (for

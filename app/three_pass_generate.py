@@ -1020,6 +1020,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
     sys_prompt, user_prompt = build_attribute_request(
         frozen_batch, params, roster, neighbor_contexts, surround)
     from pass_quality import (get_attribution_tag_proofs, get_attribution_snapshot_digest,
+                              get_attribution_tag_evidence_projection,
                               get_exact_attribution_shift_repair)
     if (repair_exact_shift and entries_provider is not None
             and not getattr(entries_provider, "supports_attribution_transform", False)):
@@ -1032,7 +1033,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         proofs = get_attribution_tag_proofs(
             frozen_batch, source_text, established_names | known_names, aliases,
             continuation_evidence=continuations)
-        tag_evidence = {**continuations, **{index: proof["speaker"] for index, proof in proofs.items()}}
+        tag_evidence = get_attribution_tag_evidence_projection(proofs, continuations)
         snapshot = get_attribution_snapshot_digest([
             frozen_batch, sorted(established_names), sorted(known_names), aliases])
     else:

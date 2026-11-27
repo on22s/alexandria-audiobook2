@@ -349,6 +349,11 @@ def _identity_key(value):
     return "".join(key)
 
 
+def get_speaker_identity_key(value):
+    """Public pure identity fold for callers outside this module (#2332)."""
+    return _identity_key(value)
+
+
 def get_speaker_label_index(labels):
     """Index normalized identities, retaining the sorted first matching label."""
     index = {}

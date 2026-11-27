@@ -103,6 +103,25 @@ class ExactShiftTests(unittest.TestCase):
     def test_alias_and_ambiguous_identity(self):
         self.assertIn('accepted_metadata',self.repair(answer=[SHIFT[0],{**SHIFT[1],'speaker':'ALLY'}],aliases={'ALLY':'ALICE'}))
         self.assertNotIn('accepted_metadata',self.repair(names=('ALICE JONES','ALICE SMITH')))
+    def test_repair_canonicalises_both_sides_through_aliases(self):
+        # The proof carries the canonical label while the response names the
+        # tag by its alias spelling. The repair writes the canonical speaker,
+        # so the alias on the response side must be resolved too.
+        aliases={'Miss Vale':'Mary Vale'}
+        source='“Yes,” said Mary Vale.'
+        frozen=[FROZEN[0],{**FROZEN[1],'text':'said Mary Vale.'}]
+        answer=[{**SHIFT[0],'speaker':'NARRATOR'},
+                {**SHIFT[1],'speaker':'MISS VALE'}]
+        result=self.repair(frozen=frozen,answer=answer,source=source,
+                           names=('MARY VALE',),aliases=aliases)
+        self.assertEqual(['MARY VALE','NARRATOR'],[r['speaker'] for r in result['entries']])
+        self.assertIn('accepted_metadata',result)
+        # A response spelling a different identity must still refuse.
+        other=[{**SHIFT[0],'speaker':'NARRATOR'},
+               {**SHIFT[1],'speaker':'MARY SMITH'}]
+        self.assertNotIn('accepted_metadata',self.repair(
+            frozen=frozen,answer=other,source=source,
+            names=('MARY VALE',),aliases=aliases))
     def test_repeated_quote_narration_and_wrong_or_partial_narration(self):
         for source,text in [(SOURCE+' “Yes,” said Bob.','said Alice.'),
                             (SOURCE+' Later said Alice.','said Alice.'),
