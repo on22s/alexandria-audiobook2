@@ -864,7 +864,8 @@ def _get_epub3_toc_entries(zf, manifest, *, report=None):
                  if is_navigation_document(item['properties'])]
     for nav_item in nav_items:
         try:
-            root = ET.fromstring(zf.read(nav_item['path']))
+            # archive admitted by validate_epub_archive.
+            root = ET.fromstring(zf.read(nav_item['path']))  # nosec B314
         except (KeyError, ET.ParseError):
             decisions.append((nav_item['path'], 'missing_or_malformed_navigation'))
             continue
@@ -903,7 +904,8 @@ def _get_epub2_toc_entries(zf, opf, opf_ns, manifest, *, report=None):
     if ncx_item is None:
         return [], [(None, 'no_epub2_navigation')]
     try:
-        root = ET.fromstring(zf.read(ncx_item['path']))
+        # archive admitted by validate_epub_archive.
+        root = ET.fromstring(zf.read(ncx_item['path']))  # nosec B314
     except (KeyError, ET.ParseError):
         return [], [(ncx_item['path'], 'missing_or_malformed_navigation')]
     entries = []
