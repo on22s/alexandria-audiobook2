@@ -71,9 +71,22 @@ The rev5 review closed the possessive INSIDE the nested pair:
     not;
   - the no-terminator sibling keeps both spans and stays `quote_forced`: the
     nested reading has no later mark to close the outer span, so the sibling
-    reading is forced and `quotes` returns the truthful sibling split instead
-    of main's inside-out split;
+    reading is forced; `quotes` returns the r3 sibling output (three entries,
+    narrating `Yes`), not main's inside-out split, and the truthful four-row
+    split passes the gate;
   - the `own == -1` sibling branch is pinned by a mixed-convention chunk.
+
+The gate review of rev5 found the forced reading also matches an UNCLOSED
+speech whose candidate nests a pair:
+  - British multi-paragraph speech, a chunk-end cut, and a real closer past the
+    500-character bound looked the same, so `quotes` certified a wrong split;
+    the forced mark is now recorded and the chunk is uncertain: `auto`/`lexical`
+    abstain and `quotes` returns `quote_forced`, never `quote_presegmented`;
+  - the "no later closer" condition that keeps a CLOSED sibling on one span
+    (`… the dogs’ ‘walk “now”’ is the order,’ she said.`) is pinned: one span,
+    `quote_presegmented`, truthful row passes, the split-at-the-possessive row
+    rejected;
+  - the helpers that record ambiguity are named `_record_…` (Rule 16).
 """
 import hashlib
 import io
@@ -529,13 +542,55 @@ SIBLING_POSSESSIVE_INSIDE_TRUTHFUL = [
 # punctuation between. The nested reading has no later mark to close the outer
 # span, so it cannot produce a span at all; the lookahead forces the sibling
 # reading, and both spans (the `Yes` speech and the `He said “run”,` speech)
-# survive. `quotes` returns the truthful sibling split, not main's inside-out
-# split.
+# survive. `quotes` returns the r3 sibling output (three entries: it narrates
+# `Yes`), not main's inside-out split, and does not certify it.
 NO_TERMINATOR_SIBLING = "\u2018Yes\u2019 she said \u2018He said \u201crun\u201d,\u2019 he said."
 NO_TERMINATOR_SIBLING_REGIONS = [
     {"type": "NARRATOR", "text": "\u2018Yes\u2019 she said"},
     {"type": "SPOKEN", "text": "He said run,"},
     {"type": "NARRATOR", "text": "he said."},
+]
+
+# gate review 1: the forced sibling reading also matches an UNCLOSED speech
+# whose candidate nests a pair -- British multi-paragraph speech, a chunk-end
+# cut, and a real closer past the 500-character span bound. The mark is now
+# recorded, so the chunk is uncertain: `quotes` returns `quote_forced` instead
+# of certifying the forced split as `quote_presegmented`.
+FORCED_SIBLING_UNCLOSED_CASES = {
+    "british multi-paragraph": (
+        "\u2018He told \u201cgo\u201d to the dogs\u2019 \u2018walk \u201cnow\u201d\u2019"
+        " is the order\n\n\u2018and he said \u201cstop\u201d,\u2019 she said."),
+    "chunk-end cut": (
+        "\u2018Mum said \u201cfeed the dogs\u201d and the dogs\u2019 \u2018friend "
+        "\u201cRex\u201d\u2019 too, and then we"),
+    "closer past the 500-character bound": (
+        "\u2018He told \u201cgo\u201d to the dogs\u2019 \u2018walk \u201cnow\u201d\u2019"
+        " is the order" + " and the night went on" * 22
+        + " until night,\u2019 she said."),
+}
+
+# gate review 2 (mutation M30): with a later closer the forced branch must NOT
+# fire. One span, the truthful row passes both gate paths, and `quotes`
+# certifies that split -- removing the "no later closer" condition splits at
+# `dogs’` and returns a different (wrong) split.
+CLOSED_SIBLING_WITH_LATER_CLOSER = (
+    "\u2018He told \u201cgo\u201d to the dogs\u2019 \u2018walk \u201cnow\u201d\u2019"
+    " is the order,\u2019 she said.")
+CLOSED_SIBLING_WITH_LATER_CLOSER_REGIONS = [
+    {"type": "SPOKEN",
+     "text": "He told go to the dogs\u2019 \u2018walk now\u2019 is the order,"},
+    {"type": "NARRATOR", "text": "she said."},
+]
+CLOSED_SIBLING_WITH_LATER_CLOSER_TRUTHFUL = [
+    {"type": "SPOKEN",
+     "text": "He told \u201cgo\u201d to the dogs\u2019 \u2018walk \u201cnow\u201d\u2019"
+             " is the order,"},
+    {"type": "NARRATOR", "text": "she said."},
+]
+CLOSED_SIBLING_WITH_LATER_CLOSER_WRONG_SPLIT = [
+    {"type": "SPOKEN", "text": "He told \u201cgo\u201d to the dogs\u2019"},
+    {"type": "SPOKEN", "text": "\u2018walk \u201cnow\u201d\u2019"},
+    {"type": "NARRATOR", "text": "is the order,\u2019 she said."},
 ]
 
 # rev5 nit 3: a mixed-convention sibling whose straight opener has no closer of
@@ -1481,19 +1536,22 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                             "certifies main's inside-out split")
 
     def test_a_no_terminator_sibling_keeps_both_spans_and_is_quote_forced(self):
-        # Rev5 finding 2: with no sentence punctuation the candidate's own
-        # closer is the last mark, so the nested reading cannot close the outer
-        # span. The sibling reading is forced: both spans survive, only the
-        # `He said “run”,` span is adopted, auto/lexical abstain, and "quotes"
-        # returns the truthful sibling split as quote_forced (the reviewed
-        # r3 head's output, not main's inside-out split).
+        # Rev5 finding 2 / gate review 1: with no sentence punctuation the
+        # candidate's own closer is the last mark, so the nested reading cannot
+        # close the outer span. The sibling reading is forced: both spans
+        # survive, only the `He said “run”,` span is adopted, auto/lexical
+        # abstain, and "quotes" returns the r3 sibling output as quote_forced
+        # (the reviewed r3 head's output, not main's inside-out split). It is
+        # not the truthful split -- the output has three entries and narrates
+        # `Yes` -- so the forced reading also marks the chunk uncertain; the
+        # truthful four-row split is what passes the gate.
         analysis = analyze_outer_quote_regions(NO_TERMINATOR_SIBLING)
         self.assertEqual([(15, 16, 30, 30)],
                          analysis.get("adopted_single_quote_spans"))
         self.assertEqual([(0, 1, 4, 4)],
                          analysis.get("unadopted_single_quote_spans"))
         self.assertTrue(analysis.get("nested_single_quoted_speech"))
-        self.assertFalse(analysis.get("uncertain_single_quoted_speech"))
+        self.assertTrue(analysis.get("uncertain_single_quoted_speech"))
         if get_single_quoted_speech_spans is not None:
             self.assertEqual([(0, 1, 4, 4), (15, 16, 30, 30)],
                              get_single_quoted_speech_spans(
@@ -1537,6 +1595,74 @@ class SingleQuotedSpeechTests(unittest.TestCase):
         self.assertEqual(
             [{"type": "NARRATOR", "text": "\u2018Yes\u2019 she said"},
              {"type": "SPOKEN", "text": "He said run"}], inner_entries)
+
+    def test_an_unclosed_forced_sibling_is_uncertain_not_certified(self):
+        # Gate review 1: British multi-paragraph speech, a chunk-end cut and a
+        # real closer past the 500-character bound look exactly like the forced
+        # no-terminator sibling. They must not be certified: the mark is
+        # recorded, the chunk is uncertain, auto/lexical abstain, and "quotes"
+        # returns the analysis split as quote_forced, never quote_presegmented.
+        expected_spans = {
+            "british multi-paragraph": [(0, 1, 25, 25), (27, 28, 38, 38),
+                                        (54, 55, 74, 74)],
+            "chunk-end cut": [(0, 1, 38, 38), (40, 41, 53, 53)],
+            "closer past the 500-character bound": [(0, 1, 25, 25),
+                                                    (27, 28, 38, 38)],
+        }
+        long_label = "closer past the 500-character bound"
+        self.assertGreater(len(FORCED_SIBLING_UNCLOSED_CASES[long_label]), 501)
+        for label, chunk in FORCED_SIBLING_UNCLOSED_CASES.items():
+            with self.subTest(case=label):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertEqual(expected_spans[label],
+                                 analysis.get("adopted_single_quote_spans"))
+                self.assertEqual(
+                    [], analysis.get("unadopted_single_quote_spans"))
+                self.assertTrue(analysis.get("nested_single_quoted_speech"))
+                self.assertTrue(
+                    analysis.get("uncertain_single_quoted_speech"))
+                for mode in ("auto", "lexical"):
+                    self.assertEqual(
+                        (None, None),
+                        tp.quote_regions_decision(mode, chunk, analysis))
+                entries, resolution = tp.quote_regions_decision(
+                    "quotes", chunk, analysis)
+                self.assertEqual("quote_forced", resolution)
+                self.assertEqual(analysis["regions"], entries)
+
+    def test_a_closed_sibling_with_a_later_closer_is_not_forced(self):
+        # Gate review 2 (mutation M30): the forced branch requires that no later
+        # mark can close the continuing span. This chunk has one (`order,’`), so
+        # the possessive continues and one span covers the inner `‘walk “now”’`
+        # quotation. Splitting at the possessive certifies a wrong split.
+        chunk = CLOSED_SIBLING_WITH_LATER_CLOSER
+        analysis = analyze_outer_quote_regions(chunk)
+        self.assertEqual([(0, 1, 53, 53)],
+                         analysis.get("adopted_single_quote_spans"))
+        self.assertEqual([], analysis.get("unadopted_single_quote_spans"))
+        self.assertTrue(analysis.get("nested_single_quoted_speech"))
+        self.assertFalse(analysis.get("uncertain_single_quoted_speech"))
+        for mode in ("auto", "lexical"):
+            self.assertEqual(
+                (None, None),
+                tp.quote_regions_decision(mode, chunk, analysis))
+        entries, resolution = tp.quote_regions_decision(
+            "quotes", chunk, analysis)
+        self.assertEqual("quote_presegmented", resolution)
+        self.assertEqual(CLOSED_SIBLING_WITH_LATER_CLOSER_REGIONS, entries)
+        for gate_label, kwargs in (
+                ("analysis-backed", {"quote_analysis": analysis}),
+                ("analysis-free", {})):
+            with self.subTest(gate=gate_label):
+                self.assertTrue(
+                    validate_segment_quality(
+                        chunk, CLOSED_SIBLING_WITH_LATER_CLOSER_TRUTHFUL,
+                        **kwargs)["passed"])
+                self.assertFalse(
+                    validate_segment_quality(
+                        chunk, CLOSED_SIBLING_WITH_LATER_CLOSER_WRONG_SPLIT,
+                        **kwargs)["passed"],
+                    "certifies the split at the possessive")
 
     def test_a_no_terminator_nested_quotation_still_abstains(self):
         # The forced sibling reading above must not fire when the candidate

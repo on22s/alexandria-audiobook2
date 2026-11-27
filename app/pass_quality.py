@@ -106,9 +106,12 @@ def _is_single_quote_opener(text, index):
     return True
 
 
-def _is_single_quote_closer(text, index, limit=None, opener=None,
-                            ambiguous=None):
+def _record_single_quote_closer(text, index, limit=None, opener=None,
+                                ambiguous=None):
     """True when the mark at `index` closes the span it opened.
+
+    Records in `ambiguous` a mark whose two readings the possessive lookahead
+    cannot settle (the `record` verb signals that side effect, Rule 16).
 
     A letter or digit after the mark makes it an apostrophe inside a word
     (`can't`, `Anna’s`), not the end of speech. The closer side also elides and
@@ -148,7 +151,7 @@ def _find_single_quote_closer(text, start, limit, closer, ambiguous=None):
     """
     position = text.find(closer, start, limit)
     while position != -1:
-        if _is_single_quote_closer(text, position, limit, None, ambiguous):
+        if _record_single_quote_closer(text, position, limit, None, ambiguous):
             return position
         position = text.find(closer, position + 1, limit)
     return -1
@@ -159,9 +162,12 @@ def _has_sentence_end_between(text, start, end):
     return any(char in _SENTENCE_END for char in text[start:end])
 
 
-def _has_single_quote_opener_between(text, start, end, ambiguous=None,
-                                    limit=None, closer=None):
+def _record_single_quote_opener_between(text, start, end, ambiguous=None,
+                                        limit=None, closer=None):
     """Does a candidate SIBLING speech opener start in `text[start:end]`?
+
+    Records the candidate in `ambiguous` when the nested and sibling readings
+    both fit (the `record` verb signals that side effect, Rule 16).
 
     A candidate opener that has its own closer is a closed nested quotation,
     not a sibling: `‘The dogs’ “run” and ‘fort’ are here,’` keeps `dogs’` as a
@@ -182,8 +188,11 @@ def _has_single_quote_opener_between(text, start, end, ambiguous=None,
     the continuing span. If `end` is the last mark that can close it, the nested
     reading cannot produce a span at all: the lookahead would lose both the
     outer and the inner speech. `‘Yes’ she said ‘He said “run”,’ he said.` is
-    that chunk, so the sibling reading is forced there and both spans survive
-    (#2331 review 5).
+    that chunk, so the sibling reading is forced there and both spans survive.
+    The same shape is an unclosed speech whose candidate nests a pair (British
+    multi-paragraph, a chunk-end cut, a closer past the 500-character bound), so
+    the mark is recorded and the chunk is uncertain: `quotes` returns
+    `quote_forced`, never `quote_presegmented` (#2331 review 5 / gate review 1).
     """
     for position in range(start, end):
         if (text[position] not in _SINGLE_QUOTE_OPEN_CLOSE
@@ -206,13 +215,21 @@ def _has_single_quote_opener_between(text, start, end, ambiguous=None,
         if (limit is not None and closer is not None
                 and _contains_paired_quote(text, position + 1, own)
                 and _find_single_quote_closer(
-                    text, end + 1, limit, closer, ambiguous) == -1):
+                    text, end + 1, limit, closer) == -1):
             # No later mark can close the continuing span, so the nested
             # reading would drop it and the candidate's own speech with it.
             # Only the candidate is worth keeping when its own text nests the
             # paired quote; otherwise forcing the sibling would close a span
             # that holds no speech and certify the analysis it used to abstain
             # from (`‘The dogs’ “run” and ‘fort’ are here,`).
+            # The forced reading is still one of two readings: an unclosed
+            # speech whose candidate nests a pair (British multi-paragraph,
+            # a chunk-end cut, a closer past the 500-character bound) looks
+            # the same from here. Record the mark so the chunk is uncertain and
+            # `quotes` returns `quote_forced` instead of certifying the split
+            # (#2331 gate review 1).
+            if ambiguous is not None:
+                ambiguous.append(position)
             return True
     return False
 
@@ -224,7 +241,7 @@ def _is_possessive_continuing_span(text, index, opener, limit, ambiguous=None):
     and the next closer, including a pair that straddles this mark
     (`“the dogs’ bones”`). With no later closer the mark is the end of the
     speech (`‘He runs’ she said.`). The closer is the first mark that passes
-    `_is_single_quote_closer`, so an apostrophe inside the nested quote
+    `_record_single_quote_closer`, so an apostrophe inside the nested quote
     (`“it’s loud”`) is not mistaken for it (#2331 review 4).
 
     A candidate sibling speech opener before that later closer ends the
@@ -240,7 +257,7 @@ def _is_possessive_continuing_span(text, index, opener, limit, ambiguous=None):
     later = _find_single_quote_closer(text, index + 1, limit, closer, ambiguous)
     if later == -1:
         return False
-    if _has_single_quote_opener_between(
+    if _record_single_quote_opener_between(
             text, index + 1, later, ambiguous, limit, closer):
         return False
     if opener is not None:
@@ -276,8 +293,8 @@ def _scan_single_quoted_speech_spans(text):
         while cursor < limit:
             level_closer = stack[-1][1]
             if (text[cursor] == level_closer
-                    and _is_single_quote_closer(text, cursor, limit,
-                                                stack[-1][0], ambiguous)):
+                    and _record_single_quote_closer(text, cursor, limit,
+                                                    stack[-1][0], ambiguous)):
                 stack.pop()
                 if not stack:
                     if text[index + 1:cursor].strip():

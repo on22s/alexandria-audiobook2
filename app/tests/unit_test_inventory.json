@@ -8197,7 +8197,8 @@
     , "tests.test_isolated_api_port.IsolatedApiPortTests.test_windows_receipt_open_denial_retries_until_readable_or_deadline"
   ]
   , "test_issue_2331_single_quote_nesting": [
-    "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_a_double_quoted_book_with_nested_single_quotes_is_unchanged"
+    "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_a_closed_sibling_with_a_later_closer_is_not_forced"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_a_double_quoted_book_with_nested_single_quotes_is_unchanged"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_a_dropped_closer_with_a_nested_quote_is_uncertain"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_a_mixed_convention_sibling_pins_the_no_own_closer_branch"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_a_narration_quotation_with_only_nested_quotes_is_a_limit"
@@ -8213,6 +8214,7 @@
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_a_targeted_chunk_can_also_be_uncertain"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_a_title_in_a_non_targeted_chunk_stays_rejection_safe"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_an_inch_mark_inside_an_adopted_span_stays_content"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_an_unclosed_forced_sibling_is_uncertain_not_certified"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_an_unclosed_opener_does_not_run_past_its_paragraph_or_500_chars"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_apostrophes_elisions_and_wrong_direction_do_not_open_speech"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_british_multiparagraph_and_split_chunks_are_pinned_limits"
