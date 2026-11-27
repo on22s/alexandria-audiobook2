@@ -77,6 +77,9 @@ def _contains_paired_quote(text, start=0, end=None):
                     candidate = text.find(closer, candidate + 1, stop)
                 if candidate != -1:
                     return True
+                # No non-inch closer after this opener, so none can follow a
+                # later opener either: one scan, not one per mark.
+                break
             position = text.find(opener, position + 1, stop)
     return False
 
