@@ -27,6 +27,22 @@ class MarkEntriesNoneTextTest(unittest.TestCase):
         for forbidden in ("spoken", "source_span", "source_speaker", "dialogue_ambiguity"):
             self.assertNotIn(forbidden, marked[0])
 
+        # With corroborated printed speaker labels, no source_speaker is stamped either.
+        labeled_source = (
+            'Alice “None of us moved.”\n'
+            'Alice “Line 1.”\n'
+            'Alice “Line 2.”\n'
+            'Alice “Line 3.”\n'
+            'Alice “Line 4.”\n'
+        )
+        labeled = mark_entries(
+            [{"speaker": "ALICE", "text": None}],
+            labeled_source,
+            "paired_quotes",
+            speaker_names=("Alice", "ALICE"),
+        )
+        self.assertEqual(labeled, [{"speaker": "ALICE", "text": None}])
+
     def test_none_text_matches_missing_key_and_empty_string(self):
         source = (
             'Alice “None of us moved.”\n'
