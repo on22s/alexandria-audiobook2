@@ -106,7 +106,8 @@ def _is_single_quote_opener(text, index):
     return True
 
 
-def _is_single_quote_closer(text, index, limit=None, opener=None):
+def _is_single_quote_closer(text, index, limit=None, opener=None,
+                            ambiguous=None):
     """True when the mark at `index` closes the span it opened.
 
     A letter or digit after the mark makes it an apostrophe inside a word
@@ -128,7 +129,8 @@ def _is_single_quote_closer(text, index, limit=None, opener=None):
         # `rock ’n’ roll`: this apostrophe closes the elision, not the speech.
         return False
     if (previous.lower() == "s" and following.isspace() and limit is not None
-            and _is_possessive_continuing_span(text, index, opener, limit)):
+            and _is_possessive_continuing_span(
+                text, index, opener, limit, ambiguous)):
         # `The dogs’ “bones” are here,’`, `'The dogs' "bones",'` and
         # `… “run”, and the dogs’ bones are here,’`: the apostrophe is a plural
         # possessive, not the closer.
@@ -136,53 +138,114 @@ def _is_single_quote_closer(text, index, limit=None, opener=None):
     return True
 
 
-def _has_single_quote_opener_between(text, start, end):
-    """Does a candidate sibling speech opener start in `text[start:end]`?"""
+def _find_single_quote_closer(text, start, limit, closer, ambiguous=None):
+    """-> the first mark at or after `start` that can really close a span.
+
+    A letter after the mark makes it an apostrophe (`it’s`, `don’t`), and an
+    elision apostrophe does too, so neither can be the `later` closer the
+    possessive lookahead is looking for (#2331 review 4). Searching for the
+    raw character stopped at the apostrophe inside a nested `“it’s loud”`.
+    """
+    position = text.find(closer, start, limit)
+    while position != -1:
+        if _is_single_quote_closer(text, position, limit, None, ambiguous):
+            return position
+        position = text.find(closer, position + 1, limit)
+    return -1
+
+
+def _has_sentence_end_between(text, start, end):
+    """Does a sentence terminator sit in `text[start:end]`?"""
+    return any(char in _SENTENCE_END for char in text[start:end])
+
+
+def _has_single_quote_opener_between(text, start, end, ambiguous=None):
+    """Does a candidate SIBLING speech opener start in `text[start:end]`?
+
+    A candidate opener that has its own closer is a closed nested quotation,
+    not a sibling: `‘The dogs’ “run” and ‘fort’ are here,’` keeps `dogs’` as a
+    possessive because `‘fort’` has its own closer. Only an opener with no
+    closer of its own starts a new speech (#2331 review 4). Since `end` is the
+    earliest closer that could close the continuing span, the candidate's own
+    closer can only be `end` itself.
+
+    That case supports both readings: a nested quotation inside the continuing
+    speech, or a sibling speech whose closer is the same mark. A sentence
+    terminator between the mark and the candidate means the previous sentence
+    ended, so it is the sibling reading (`‘Yes’ she said. ‘He said “run”,’`);
+    without one it is the nested reading. When both readings remain plausible
+    the mark is recorded in `ambiguous` and the sibling reading wins, so the
+    chunk is never certified.
+    """
     for position in range(start, end):
-        if (text[position] in _SINGLE_QUOTE_OPEN_CLOSE
-                and _is_single_quote_opener(text, position)):
+        if (text[position] not in _SINGLE_QUOTE_OPEN_CLOSE
+                or not _is_single_quote_opener(text, position)):
+            continue
+        own = _find_single_quote_closer(
+            text, position + 1, end + 1,
+            _SINGLE_QUOTE_OPEN_CLOSE[text[position]], ambiguous)
+        if own == -1:
+            return True  # an opener with no closer of its own: a sibling
+        # `own` is `end` (the earliest plausible closer after the possessive
+        # mark), so the candidate is closed at the same mark that could close
+        # the continuing span. A sentence terminator before it selects the
+        # sibling reading; otherwise it is a nested quotation.
+        sentence_end = _has_sentence_end_between(text, start, position)
+        if sentence_end and ambiguous is not None:
+            ambiguous.append(position)
+        if sentence_end:
             return True
     return False
 
 
-def _is_possessive_continuing_span(text, index, opener, limit):
+def _is_possessive_continuing_span(text, index, opener, limit, ambiguous=None):
     """Is the `…s’`/`…s'` mark at `index` a possessive with a later closer?
 
     The span keeps going when a paired quote already sits before the mark, or
     when one sits between it and the next closer. With no later closer the mark
-    is the end of the speech (`‘He runs’ she said.`).
+    is the end of the speech (`‘He runs’ she said.`). The closer is the first
+    mark that passes `_is_single_quote_closer`, so an apostrophe inside the
+    nested quote (`“it’s loud”`) is not mistaken for it (#2331 review 4).
 
     A candidate sibling speech opener before that later closer ends the
     lookahead: `‘Yes’ she said. ‘He said “run”,’ he said.` The `Yes’` mark ends
     its own sentence and the sibling `‘` opens a new speech, so this is a
-    closer, not a possessive with a continuation (#2331 review 3). Without the
-    bound both spans were lost and main's inside-out split was certified.
+    closer, not a possessive with a continuation (#2331 review 3). A closed
+    nested quotation between the mark and the later closer is not a sibling
+    (`‘The dogs’ “run” and ‘fort’ are here,’`), so it does not truncate the
+    span. Without the sibling/closer distinction both spans were lost and
+    main's inside-out split was certified.
     """
     closer = text[index]
-    later = text.find(closer, index + 1, limit)
+    later = _find_single_quote_closer(text, index + 1, limit, closer, ambiguous)
     if later == -1:
         return False
-    if _has_single_quote_opener_between(text, index + 1, later):
+    if _has_single_quote_opener_between(
+            text, index + 1, later, ambiguous):
         return False
     if opener is not None and _contains_paired_quote(text, opener + 1, index):
         return True
     return _contains_paired_quote(text, index + 1, later)
 
 
+def _single_quote_span_limit(text, index):
+    """The end bound for a span opened at `index` (#2331)."""
+    limit = min(index + _SINGLE_QUOTE_MAX_SPAN + 1, len(text))
+    # Bound the paragraph search too: an unbounded search rescanned the rest
+    # of a quote-heavy chunk for every opener (#2331 review 2).
+    paragraph = _BLANK_LINE.search(text, index + 1, limit)
+    return paragraph.start() if paragraph else limit
+
+
 def _scan_single_quoted_speech_spans(text):
-    """-> (spans, failed_ranges); the one single-quote span scan (#2331)."""
-    spans, failed_ranges, index, length = [], [], 0, len(text)
+    """-> (spans, failed_ranges, ambiguous_marks); the one scan (#2331)."""
+    spans, failed_ranges, ambiguous, index, length = [], [], [], 0, len(text)
     while index < length:
         closer = _SINGLE_QUOTE_OPEN_CLOSE.get(text[index])
         if closer is None or not _is_single_quote_opener(text, index):
             index += 1
             continue
-        limit = min(index + _SINGLE_QUOTE_MAX_SPAN + 1, length)
-        # Bound the paragraph search too: an unbounded search rescanned the
-        # rest of a quote-heavy chunk for every opener (#2331 review 2).
-        paragraph = _BLANK_LINE.search(text, index + 1, limit)
-        if paragraph:
-            limit = paragraph.start()
+        limit = _single_quote_span_limit(text, index)
         stack = [(index, closer)]
         cursor = index + 1
         closed = False
@@ -190,7 +253,7 @@ def _scan_single_quoted_speech_spans(text):
             level_closer = stack[-1][1]
             if (text[cursor] == level_closer
                     and _is_single_quote_closer(text, cursor, limit,
-                                                stack[-1][0])):
+                                                stack[-1][0], ambiguous)):
                 stack.pop()
                 if not stack:
                     if text[index + 1:cursor].strip():
@@ -209,14 +272,30 @@ def _scan_single_quoted_speech_spans(text):
             # range can be adopted, or a span that was only "top level" because
             # the outer quote failed would be certified as speech.
             failed_ranges.append((index, limit))
+            # An opener still on the stack started inside this failed range and
+            # never closed either. Record its own range as well, so a pair it
+            # contains still marks the chunk uncertain: resuming after the
+            # range used to hide the inner failed range (#2331 review 4). It is
+            # record-only; the spans found after the jump are still filtered.
+            # Only the innermost open range is recorded: every earlier stack
+            # range starts before it and the outer range already covers the
+            # text up to `limit`, so the innermost bound is the only one that
+            # can reach a pair past the outer bound. Recording the whole stack
+            # made the uncertainty pass superlinear on the 75 KB all-opener
+            # input.
+            if len(stack) > 1:
+                nested_index = stack[-1][0]
+                failed_ranges.append(
+                    (nested_index, _single_quote_span_limit(text, nested_index)))
             # No span starting inside a failed range can be adopted (it is
             # dropped below), so resume after the range instead of scanning
             # every opener inside it. Without this an adversarial all-opener
             # input was O(n * 500): 75 KB took 2.5-3.6 s (#2331 review 3).
             index = limit
             continue
-    return [span for span in spans
-            if not any(start < span[0] < end for start, end in failed_ranges)], failed_ranges
+    return ([span for span in spans
+             if not any(start < span[0] < end for start, end in failed_ranges)],
+            failed_ranges, ambiguous)
 
 
 def get_single_quoted_speech_spans(text):
@@ -242,21 +321,19 @@ def is_double_quote_inside_span(text, start, end):
     return _contains_paired_quote(text, start, end)
 
 
-def _has_paired_quote_outside_spans(text, spans):
-    """Does text outside every single-quoted span pair a double quote?"""
-    cursor = 0
-    for opener, _content_start, _content_end, closer in sorted(spans):
-        if _contains_paired_quote(text, cursor, opener):
-            return True
-        cursor = closer + 1
-    return _contains_paired_quote(text, cursor)
-
-
-def _get_adopted_single_quote_spans(text, spans):
+def _get_adopted_single_quote_spans(text, spans, failed_ranges=()):
     """The adopted spans for a scan result; see get_adopted_single_quote_spans."""
     adopted = [span for span in spans
                if is_double_quote_inside_span(text, span[1], span[2])]
-    if not adopted or _has_paired_quote_outside_spans(text, spans):
+    if not adopted:
+        return []
+    excluded = [(opener, closer + 1) for opener, _start, _end, closer in spans]
+    # A pair inside a range whose single-quote nesting could not be resolved is
+    # not the chunk's outer convention either: it may be the inner speech of a
+    # second speech the scan could not pair. Adopting the spans that did close
+    # and marking the chunk uncertain is the decided behaviour (#2331 review 4).
+    excluded.extend(failed_ranges)
+    if _has_paired_quote_outside(text, excluded):
         return []
     return adopted
 
@@ -266,13 +343,44 @@ def get_adopted_single_quote_spans(text):
 
     Only a span that nests a paired other-convention quote is adopted, so a
     quoted title in narration (`Later ‘Hamlet’ was banned.`) stays narration.
-    A chunk that also pairs double quotes outside every single span is a
-    double-quoted book whose narration quotes someone, so nothing is adopted
-    and the chunk keeps main's analysis. The same list is the gate's only
-    source of allowed nested marks, so decision and gate cannot disagree.
+    A chunk that also pairs double quotes outside every single span and every
+    unresolved range is a double-quoted book whose narration quotes someone, so
+    nothing is adopted and the chunk keeps main's analysis. The same list is
+    the gate's only source of allowed nested marks, so decision and gate cannot
+    disagree.
     """
-    return _get_adopted_single_quote_spans(
-        text, get_single_quoted_speech_spans(text))
+    spans, failed_ranges, _ambiguous = _scan_single_quoted_speech_spans(text)
+    return _get_adopted_single_quote_spans(text, spans, failed_ranges)
+
+
+def _is_plausible_uncertain_opener(text, index):
+    """Can the opener at `index` be a speech opener the model should be asked
+    about?
+
+    A straight `'` immediately before `-`/`"` after sentence punctuation is a
+    stray apostrophe in double-quoted prose (`composed?'"`, `applicants.'--`),
+    not a speech opener. Main's split for such a chunk is usually right, so the
+    uncertainty net must not fire there (#2331 review 4).
+    """
+    if not _is_single_quote_opener(text, index):
+        return False
+    if text[index] != "'":
+        return True
+    previous = text[index - 1] if index else ""
+    following = text[index + 1] if index + 1 < len(text) else ""
+    if previous in _SENTENCE_END and following in "-\u2010\u2011\u2012\u2013\u2014\u2015\"":
+        return False
+    return True
+
+
+def _has_paired_quote_outside(text, excluded_ranges):
+    """Is there a paired quote outside every range in `excluded_ranges`?"""
+    cursor = 0
+    for start, end in sorted(excluded_ranges):
+        if start >= cursor and _contains_paired_quote(text, cursor, start):
+            return True
+        cursor = max(cursor, end)
+    return _contains_paired_quote(text, cursor)
 
 
 _REPORTING_VERBS = (
@@ -353,22 +461,31 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     # byte for byte.
     # The same scan supplies the failed ranges and the complete spans the
     # analysis did not adopt. A span-start scan is not repeated (#2331).
-    _all_single_spans, _failed_single_ranges = (
+    _all_single_spans, _failed_single_ranges, _ambiguous_single_marks = (
         _scan_single_quoted_speech_spans(text))
     adopted_single_spans = _get_adopted_single_quote_spans(
-        text, _all_single_spans)
+        text, _all_single_spans, _failed_single_ranges)
     # A range whose single-quote nesting could not be resolved is uncertain
     # when a paired quote sits inside it and the chunk does not already pair
     # quotes outside it: the analysis cannot tell whether that pair is the
     # chunk's outer convention or inner speech, so nothing may be certified
-    # (#2331 review 3). The outside-pair guard is the same question adoption
-    # asks (`_has_paired_quote_outside_spans`), so a double-quoted book whose
-    # prose has a stray straight apostrophe keeps main's analysis.
+    # (#2331 review 3). The outside check ignores the failed range and the
+    # spans the analysis adopted, so a targeted chunk that also has an
+    # unresolvable range is uncertain (`‘He said “run”,’ she said. ‘Then she
+    # said “go”`), while a double-quoted book whose prose has a stray straight
+    # apostrophe keeps main's analysis (#2331 review 4).
     uncertain_single = any(
-        _contains_paired_quote(text, start, end)
-        and not (_contains_paired_quote(text, 0, start)
-                 or _contains_paired_quote(text, end))
+        _is_plausible_uncertain_opener(text, start)
+        and _contains_paired_quote(text, start, end)
+        and not _has_paired_quote_outside(
+            text, [(start, end)]
+            + [(span[0], span[3] + 1) for span in adopted_single_spans])
         for start, end in _failed_single_ranges)
+    if adopted_single_spans and _ambiguous_single_marks:
+        # The possessive lookahead could not choose between a nested quotation
+        # and a sibling speech; the scan took the sibling reading so the spans
+        # still split, but the chunk must not be certified (#2331 review 4).
+        uncertain_single = True
     span_by_opener = {span[0]: span for span in adopted_single_spans}
     single_openers = {opener: closer
                       for opener, _content_start, _content_end, closer
@@ -846,6 +963,74 @@ def _region_contains_entry(regions, entry_text):
     return False
 
 
+def _paired_quote_ranges(text, start, end):
+    """-> [(opener_position, closer_position)] for non-inch paired quotes.
+
+    Rule 15: the same `_DOUBLE_QUOTE_PAIRS` and `is_inch_mark` predicate the
+    analyzer uses, so the gate sees the nested pair the analyzer adopted.
+    """
+    ranges = []
+    for opener, closer in _DOUBLE_QUOTE_PAIRS:
+        position = text.find(opener, start, end)
+        while position != -1:
+            if not _is_inch_mark(text, position, opener):
+                candidate = text.find(closer, position + 1, end)
+                while (candidate != -1
+                       and _is_inch_mark(text, candidate, closer)):
+                    candidate = text.find(closer, candidate + 1, end)
+                if candidate != -1:
+                    ranges.append((position, candidate))
+                    position = text.find(opener, candidate + 1, end)
+                    continue
+                break
+            position = text.find(opener, position + 1, end)
+    return sorted(ranges)
+
+
+def _nested_pair_only_entries(entries, adopted_spans, source_text):
+    """-> entry numbers whose SPOKEN text is only a nested pair, inside out.
+
+    In a targeted chunk the single-quote delimiters are real delimiters even
+    though `_QUOTE_CHARS` cannot see them. A row whose SPOKEN text is only the
+    paired phrase inside an adopted span, while a NARRATOR row reproduces text
+    from that span, is main's inside-out split: the nested phrase is not the
+    speech (#2331 review 4 finding 3).
+    """
+    narrator_words = [normalize_text(str(entry.get("text") or "")).split()
+                      for entry in entries
+                      if isinstance(entry, dict)
+                      and entry.get("type") == "NARRATOR"]
+    flagged = set()
+    for _opener, content_start, content_end, _closer in adopted_spans:
+        for nested_start, nested_end in _paired_quote_ranges(
+                source_text, content_start, content_end):
+            nested = normalize_text(
+                source_text[nested_start + 1:nested_end]).split()
+            if not nested:
+                continue
+            inside_fragments = [
+                words for words in (
+                    normalize_text(source_text[content_start:nested_start]).split(),
+                    normalize_text(source_text[nested_end + 1:content_end]).split())
+                if words]
+            if not inside_fragments:
+                continue
+            reproduced = any(
+                any(narrator[i:i + len(fragment)] == fragment
+                    for i in range(len(narrator) - len(fragment) + 1))
+                for narrator in narrator_words
+                for fragment in inside_fragments)
+            if not reproduced:
+                continue
+            for number, entry in enumerate(entries, 1):
+                if (isinstance(entry, dict)
+                        and entry.get("type") == "SPOKEN"
+                        and normalize_text(
+                            str(entry.get("text") or "")).split() == nested):
+                    flagged.add(number)
+    return flagged
+
+
 def _matches_unadopted_single_quote_span(text, spans, source_text):
     """Is this row one complete single-quoted speech span the analysis did not
     adopt?
@@ -913,6 +1098,11 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
     # Complete single-quoted speeches the analysis did not adopt (#2331
     # review 2). Only a targeted chunk reports them.
     unadopted_spans = source_analysis.get("unadopted_single_quote_spans") or []
+    # In a targeted chunk the adopted span's single-quote delimiters are real
+    # delimiters. A row that keeps only the nested pair as SPOKEN and puts the
+    # span's own words in NARRATOR is inside out (#2331 review 4 finding 3).
+    nested_pair_only = (_nested_pair_only_entries(
+        entries, adopted_spans, source_text) if adopted_spans else set())
     findings = []
     for number, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
@@ -923,6 +1113,10 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
         if not enforce_entry:
             continue
         text = str(entry.get("text") or "")
+        if number in nested_pair_only:
+            findings.append({"code": "quote_region_misclassified", "entry_number": number,
+                             "message": "SPOKEN text is only the phrase quoted inside single-quoted speech; the surrounding words are the speech."})
+            continue
         expected = inside if entry.get("type") == "SPOKEN" else outside
         other = outside if entry.get("type") == "SPOKEN" else inside
         if _has_quote_delimiter(

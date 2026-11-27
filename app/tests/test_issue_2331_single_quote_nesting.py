@@ -44,10 +44,30 @@ The rev3 review closed the issue's own `…s’` case and bounded the scan:
     rescanning every opener inside it;
   - the three guards that a single removal left green now have their own
     decision/predicate cases without an outside double pair.
+
+The rev4 review repaired the span model itself:
+  - a candidate opener that is itself a closed nested quotation is not a
+    sibling speech, so `dogs’ “run” and ‘fort’` keeps one span; a candidate
+    closed exactly at the later closer where a sentence terminator precedes it
+    supports both readings, so the sibling reading is taken and the chunk is
+    uncertain;
+  - the possessive lookahead skips marks that fail the closer predicate, so
+    `dogs’ “it’s loud”` and the straight versions keep one span;
+  - in a targeted chunk the gate rejects main's inside-out row whose SPOKEN
+    text is only the nested pair while NARRATOR reproduces the span's words
+    (64/64 repeated-attribution variants);
+  - the uncertainty net ignores a stray straight `'` after sentence
+    punctuation and before `-`/`"`, so the three PDNC fixture strings return to
+    main's behaviour;
+  - the innermost opener of a failed range is recorded as a failed range too,
+    so a pair past the outer 500-character bound still abstains;
+  - a targeted chunk can also be uncertain, and then the gate is the adopted
+    span's, not main's.
 """
 import hashlib
 import io
 import json
+import os
 import unittest
 from unittest import mock
 
@@ -359,6 +379,112 @@ SPLIT_TAIL_REGIONS = []
 # rev1 finding 7: conventions derived from PAIRED.
 GUILLEMETS = "\u2018He said \u00abbonjour\u00bb twice,\u2019 she said."
 CORNER_BRACKETS = "\u2018He said \u300c\u3053\u3093\u306b\u3061\u306f\u300d twice,\u2019 she said."
+
+# rev4 finding 1: a nested single-quoted quotation is not a sibling speech.
+# The sibling-opener bound used to cut the span at `dogs’`, so head certified
+# the inverted split. Curly quotes only: straight quotes are accidentally
+# immune because the opener and closer are the same character.
+POSSESSIVE_NESTED = "\u2018The dogs\u2019 \u201crun\u201d and \u2018fort\u2019 are here,\u2019 she said."
+POSSESSIVE_NESTED_TRUTHFUL = [
+    {"type": "SPOKEN", "text": "The dogs\u2019 \u201crun\u201d and \u2018fort\u2019 are here,"},
+    {"type": "NARRATOR", "text": "she said."},
+]
+POSSESSIVE_NESTED_INVERTED = [
+    {"type": "NARRATOR", "text": "\u2018The dogs\u2019"},
+    {"type": "SPOKEN", "text": "run"},
+    {"type": "NARRATOR", "text": "and \u2018fort\u2019 are here,\u2019 she said."},
+]
+POSSESSIVE_AFTER_NESTED = ("\u2018He said \u201crun\u201d, and the dogs\u2019 \u2018fort\u2019 "
+                           "is here,\u2019 she said.")
+POSSESSIVE_AFTER_NESTED_TRUTHFUL = [
+    {"type": "SPOKEN",
+     "text": "He said \u201crun\u201d, and the dogs\u2019 \u2018fort\u2019 is here,"},
+    {"type": "NARRATOR", "text": "she said."},
+]
+POSSESSIVE_AFTER_NESTED_INVERTED = [
+    {"type": "SPOKEN", "text": "He said run, and the dogs"},
+    {"type": "NARRATOR", "text": "\u2018fort\u2019 is here,\u2019 she said."},
+]
+
+# rev4 finding 2: a possessive before a nested quote that contains an
+# apostrophe. `later` used to stop at the apostrophe in `it’s`, so the span
+# closed at `dogs’` and the inverted split was certified.
+def _nested_apostrophe_case(quote_open, quote_close, phrase):
+    """`…s’` before a DOUBLE-quoted phrase that itself holds an apostrophe."""
+    chunk = ("%sThe dogs%s \"%s\" are here,%s she said."
+             % (quote_open, quote_close, phrase, quote_close))
+    truthful = ("The dogs%s \"%s\" are here," % (quote_close, phrase))
+    analysed = "The dogs%s %s are here," % (quote_close, phrase)
+    inverted = [
+        {"type": "NARRATOR", "text": "%sThe dogs%s" % (quote_open, quote_close)},
+        {"type": "SPOKEN", "text": phrase},
+        {"type": "NARRATOR",
+         "text": "are here,%s she said." % quote_close},
+    ]
+    return chunk, truthful, analysed, inverted
+
+
+NESTED_APOSTROPHE_CASES = {}
+for _name, _phrase in (("it's", "it\u2019s loud"),
+                       ("don't", "don\u2019t run"),
+                       ("I'm", "I\u2019m fine")):
+    NESTED_APOSTROPHE_CASES[_name] = _nested_apostrophe_case(
+        "\u2018", "\u2019", _phrase)
+for _name, _phrase in (("straight it's", "it's loud"),
+                       ("straight don't", "don't run"),
+                       ("straight I'm", "I'm fine")):
+    NESTED_APOSTROPHE_CASES[_name] = _nested_apostrophe_case("'", "'", _phrase)
+
+# rev4 finding 3: the speech's opening words recur in the attribution, so the
+# gate's role check found them in the narrator text and accepted main's
+# inside-out row. A targeted chunk now treats the adopted span's own text as
+# the speech, so the nested pair cannot be the only spoken row.
+REPEATED_ATTRIBUTION_PRONOUNS = ("he", "she")
+REPEATED_ATTRIBUTION_VERBS = ("said", "asked", "replied", "whispered")
+REPEATED_ATTRIBUTION_OBJECTS = ("run", "go", "wait", "hurry")
+
+# rev4 finding 6: resuming at the failed-range end hid a nested failed range.
+# Outer opener fails at 501; the inner opener at 499 and its range contain the
+# pair `“y”`, so the chunk must be uncertain.
+NESTED_FAILED_RANGE = ("\u2018" + "a " * 249
+                       + "\u2018x \u201cy\u201d more words and then it ended here ok.")
+
+# rev4 finding 10: one adopted span plus one unresolved range that nests a
+# pair. The analysis is targeted (not main's) and uncertain at the same time.
+NESTED_AND_UNCERTAIN = ("\u2018He said \u201crun\u201d,\u2019 she said. "
+                        "\u2018Then she said \u201cgo\u201d")
+NESTED_AND_UNCERTAIN_INVERTED = [
+    {"type": "NARRATOR", "text": "\u2018He said"},
+    {"type": "SPOKEN", "text": "run"},
+    {"type": "NARRATOR", "text": ",\u2019 she said. \u2018Then she said \u201cgo\u201d"},
+]
+
+# rev4 finding 4: the three fixture strings where a stray straight apostrophe
+# after sentence punctuation and before `-`/`"` opened a failed range. Main's
+# split is correct, so the uncertainty net must not fire.
+STRAY_APOSTROPHE_FIXTURES = (
+    ("attribution_gold_pdnc_theawakening.json", 404, "prev_context"),
+    ("attribution_gold_pdnc_theawakening.json", 405, "prev_context"),
+    ("attribution_gold_pdnc_emma.json", 1485, "prev_context"),
+)
+STRAY_APOSTROPHE_WORDS = ("applicants.", "composed?", "guests.", "visitors?",
+                          "readers.", "friends?")
+STRAY_APOSTROPHE_TAILS = ("--", "\"")
+STRAY_APOSTROPHE_PROSE = ("Bad enough as it is.",
+                          "Quite new, in fact, as it happened.")
+
+
+def _stray_apostrophe_chunks():
+    # 6 words x 2 tails x 2 sentences = the review's 24 variants.
+    chunks = []
+    for prose in STRAY_APOSTROPHE_PROSE:
+        for word in STRAY_APOSTROPHE_WORDS:
+            for tail in STRAY_APOSTROPHE_TAILS:
+                chunks.append(
+                    "%s'%s%s \"run,\" said Anna. Ben left."
+                    % (word, tail, prose))
+    return chunks
+
 
 # Quote shapes the repository already exercises: #624 run-on quotes, #2314 and
 # #2318 inch marks, German low-high, Polish, guillemets, Japanese, full-width,
@@ -1130,6 +1256,212 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                 self.assertEqual([], spans)
                 self.assertFalse(analyze_outer_quote_regions(chunk).get(
                     "nested_single_quoted_speech"))
+
+    def test_a_nested_single_quoted_quotation_is_not_a_sibling_bound(self):
+        # Rev4 finding 1: a candidate opener with its own closer is a closed
+        # nested quotation, not a new sibling speech, so it must not end the
+        # possessive lookahead. The two repros are curly only: the straight
+        # version is accidentally immune because opener and closer coincide.
+        for label, chunk, truthful, inverted in (
+                ("possessive before", POSSESSIVE_NESTED,
+                 POSSESSIVE_NESTED_TRUTHFUL, POSSESSIVE_NESTED_INVERTED),
+                ("possessive after", POSSESSIVE_AFTER_NESTED,
+                 POSSESSIVE_AFTER_NESTED_TRUTHFUL,
+                 POSSESSIVE_AFTER_NESTED_INVERTED)):
+            with self.subTest(label=label):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertTrue(analysis.get("nested_single_quoted_speech"))
+                self.assertEqual(1, len(analysis.get("adopted_single_quote_spans")))
+                # The nested quotation is not a sentence: the nested reading is
+                # unambiguous, so the chunk is not made uncertain.
+                self.assertFalse(analysis.get("uncertain_single_quoted_speech"))
+                for mode in ("auto", "lexical"):
+                    self.assertEqual(
+                        (None, None),
+                        tp.quote_regions_decision(mode, chunk, analysis))
+                entries, resolution = tp.quote_regions_decision(
+                    "quotes", chunk, analysis)
+                self.assertEqual("quote_presegmented", resolution)
+                self.assertEqual(analysis["regions"], entries)
+                for gate_label, kwargs in (
+                        ("analysis-backed", {"quote_analysis": analysis}),
+                        ("analysis-free", {})):
+                    with self.subTest(gate=gate_label):
+                        report = validate_segment_quality(
+                            chunk, truthful, **kwargs)
+                        self.assertTrue(report["passed"], report["findings"])
+                        bad = validate_segment_quality(chunk, inverted, **kwargs)
+                        self.assertFalse(bad["passed"], "certifies the inverted split")
+
+    def test_a_sibling_reading_that_disagrees_is_uncertain(self):
+        # Rev4 finding 1's fallback: when the candidate opener is closed exactly
+        # at the later closer and a sentence terminator precedes it, the nested
+        # (possessive) and sibling readings both fit. The scan keeps the sibling
+        # reading so the spans still split, but the chunk is never certified.
+        analysis = analyze_outer_quote_regions(SIBLING_AFTER_S)
+        self.assertTrue(analysis.get("nested_single_quoted_speech"))
+        self.assertTrue(analysis.get("uncertain_single_quoted_speech"))
+        # Without a sentence terminator the nested reading is unambiguous and
+        # POSSESSIVE_NESTED stays out of the uncertainty net (covered above).
+
+    def test_a_possessive_before_a_nested_quote_with_an_apostrophe(self):
+        # Rev4 finding 2: `later` skips marks that fail the closer predicate,
+        # so the apostrophe in `it’s`/`don’t`/`I’m` no longer ends the span.
+        for label, (chunk, speech, analysed, inverted) in (
+                NESTED_APOSTROPHE_CASES.items()):
+            with self.subTest(label=label):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertTrue(analysis.get("nested_single_quoted_speech"))
+                self.assertEqual(1, len(analysis.get("adopted_single_quote_spans")))
+                self.assertEqual(
+                    [{"type": "SPOKEN", "text": analysed},
+                     {"type": "NARRATOR", "text": "she said."}],
+                    analysis["regions"])
+                truthful = [{"type": "SPOKEN", "text": speech},
+                            {"type": "NARRATOR", "text": "she said."}]
+                for gate_label, kwargs in (
+                        ("analysis-backed", {"quote_analysis": analysis}),
+                        ("analysis-free", {})):
+                    with self.subTest(gate=gate_label):
+                        report = validate_segment_quality(
+                            chunk, truthful, **kwargs)
+                        self.assertTrue(report["passed"], report["findings"])
+                for mode in ("auto", "lexical"):
+                    self.assertEqual(
+                        (None, None),
+                        tp.quote_regions_decision(mode, chunk, analysis))
+                for gate_label, kwargs in (
+                        ("analysis-backed", {"quote_analysis": analysis}),
+                        ("analysis-free", {})):
+                    with self.subTest(inverted_gate=gate_label):
+                        self.assertFalse(
+                            validate_segment_quality(
+                                chunk, inverted, **kwargs)["passed"],
+                            "certifies the inverted split")
+
+    def test_the_gate_rejects_the_repeated_attribution_inside_out_row(self):
+        # Rev4 finding 3: the speech's opening words recur in the attribution,
+        # so the old role check found main's inside-out row inside the narrator
+        # text and accepted it. 64/64 variants must now be rejected, and the
+        # truthful row must still pass on both gate paths.
+        for pronoun in REPEATED_ATTRIBUTION_PRONOUNS:
+            for verb in REPEATED_ATTRIBUTION_VERBS:
+                for obj in REPEATED_ATTRIBUTION_OBJECTS:
+                    with self.subTest(pronoun=pronoun, verb=verb, obj=obj):
+                        chunk = ("\u2018%s %s \u201c%s\u201d,\u2019 %s %s. "
+                                 "Ben left." % (pronoun.capitalize(), verb, obj,
+                                                pronoun, verb))
+                        analysis = analyze_outer_quote_regions(chunk)
+                        open_mark = chunk.index("\u201c")
+                        close_mark = chunk.index("\u201d")
+                        inverted = [
+                            {"type": "NARRATOR", "text": chunk[:open_mark]},
+                            {"type": "SPOKEN", "text": obj},
+                            {"type": "NARRATOR", "text": chunk[close_mark + 1:]},
+                        ]
+                        truthful = [
+                            {"type": "SPOKEN",
+                             "text": "%s %s \u201c%s\u201d," % (
+                                 pronoun.capitalize(), verb, obj)},
+                            {"type": "NARRATOR",
+                             "text": "%s %s. Ben left." % (pronoun, verb)},
+                        ]
+                        for gate_label, kwargs in (
+                                ("analysis-backed", {"quote_analysis": analysis}),
+                                ("analysis-free", {})):
+                            with self.subTest(gate=gate_label):
+                                report = validate_segment_quality(
+                                    chunk, inverted, **kwargs)
+                                self.assertFalse(report["passed"], "64/64 must fail")
+                                self.assertIn(
+                                    "quote_region_misclassified",
+                                    {finding["code"]
+                                     for finding in report["findings"]})
+                                good = validate_segment_quality(
+                                    chunk, truthful, **kwargs)
+                                self.assertTrue(good["passed"], good["findings"])
+        # The review's exact repro.
+        chunk = "\u2018She said \u201crun\u201d,\u2019 she said. Ben left."
+        analysis = analyze_outer_quote_regions(chunk)
+        inverted = [
+            {"type": "NARRATOR", "text": "\u2018She said"},
+            {"type": "SPOKEN", "text": "run"},
+            {"type": "NARRATOR", "text": ",\u2019 she said. Ben left."},
+        ]
+        self.assertFalse(validate_segment_quality(
+            chunk, inverted, quote_analysis=analysis)["passed"])
+
+    def test_a_nested_failed_range_marks_the_chunk_uncertain(self):
+        # Rev4 finding 6: the scan resumes at the outer failed range's end but
+        # still records the openers that started inside it, so a pair in the
+        # inner range is not hidden.
+        self.assertEqual(543, len(NESTED_FAILED_RANGE))
+        analysis = analyze_outer_quote_regions(NESTED_FAILED_RANGE)
+        self.assertTrue(analysis.get("uncertain_single_quoted_speech"))
+        self.assertFalse(analysis.get("nested_single_quoted_speech"))
+        for mode in ("auto", "lexical"):
+            self.assertEqual(
+                (None, None),
+                tp.quote_regions_decision(mode, NESTED_FAILED_RANGE, analysis))
+        self.assertEqual(
+            (analysis["regions"], "quote_forced"),
+            tp.quote_regions_decision("quotes", NESTED_FAILED_RANGE, analysis))
+
+    def test_the_uncertainty_net_ignores_a_stray_apostrophe_in_double_quoted_prose(self):
+        # Rev4 finding 4: a straight `'` after sentence punctuation and before
+        # `-`/`"` is not a speech opener, so the three fixture strings and the
+        # synthetic family keep main's decisions.
+        root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))
+        for name, index, key in STRAY_APOSTROPHE_FIXTURES:
+            with self.subTest(fixture=name, index=index):
+                with open(os.path.join(root, "app", "fixtures", name),
+                          encoding="utf-8") as handle:
+                    text = json.load(handle)["entries"][index][key]
+                analysis = analyze_outer_quote_regions(text)
+                self.assertFalse(analysis.get("uncertain_single_quoted_speech"))
+                entries, resolution = tp.quote_regions_decision(
+                    "auto", text, analysis)
+                self.assertIsNotNone(entries)
+                self.assertTrue(str(resolution).startswith("quote_presegmented"))
+        for chunk in _stray_apostrophe_chunks():
+            with self.subTest(chunk=chunk[:24]):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertFalse(analysis.get("uncertain_single_quoted_speech"))
+                self.assertIsNotNone(
+                    tp.quote_regions_decision("auto", chunk, analysis)[0])
+
+    def test_a_targeted_chunk_can_also_be_uncertain(self):
+        # Rev4 finding 10: one adopted span plus one unresolved range that
+        # nests a pair. The gate uses the adopted span, so this is not main's
+        # result; only the report's "gate stays main's for uncertain chunks"
+        # sentence was wrong.
+        analysis = analyze_outer_quote_regions(NESTED_AND_UNCERTAIN)
+        self.assertTrue(analysis.get("nested_single_quoted_speech"))
+        self.assertTrue(analysis.get("uncertain_single_quoted_speech"))
+        self.assertEqual(1, len(analysis.get("adopted_single_quote_spans")))
+        for mode in ("auto", "lexical"):
+            self.assertEqual(
+                (None, None),
+                tp.quote_regions_decision(mode, NESTED_AND_UNCERTAIN, analysis))
+        entries, resolution = tp.quote_regions_decision(
+            "quotes", NESTED_AND_UNCERTAIN, analysis)
+        self.assertEqual("quote_forced", resolution)
+        self.assertEqual(analysis["regions"], entries)
+        # The adopted span is the gate's, so main's inside-out first speech is
+        # rejected on both paths and the analysis row still passes.
+        analysis_row = [{"type": entry["type"], "text": entry["text"]}
+                        for entry in analysis["regions"]]
+        for gate_label, kwargs in (
+                ("analysis-backed", {"quote_analysis": analysis}),
+                ("analysis-free", {})):
+            with self.subTest(gate=gate_label):
+                bad = validate_segment_quality(
+                    NESTED_AND_UNCERTAIN, NESTED_AND_UNCERTAIN_INVERTED, **kwargs)
+                self.assertFalse(bad["passed"])
+                good = validate_segment_quality(
+                    NESTED_AND_UNCERTAIN, analysis_row, **kwargs)
+                self.assertTrue(good["passed"], good["findings"])
 
     def test_double_quoted_decisions_and_gate_are_unchanged(self):
         # Differential guard: 260 synthetic chunks plus the quote shapes the
