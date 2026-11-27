@@ -2414,10 +2414,14 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         ("Five dollars each", "$5 each", False, "blocking"),
         ("Six minutes", "5-6 minutes", False, "blocking"),
         ("Five minutes", "5-6 minutes", False, "blocking"),
+        ("Six minutes", "5--6 minutes", False, "blocking"),
         ("Six minutes", "5\u20136 minutes", False, "blocking"),
         ("Six minutes", "5\u20146 minutes", False, "blocking"),
         ("Six minutes", "5\u20126 minutes", False, "blocking"),
         ("Six minutes", "5\u22126 minutes", False, "blocking"),
+        ("Six minutes", "5~6 minutes", False, "blocking"),
+        ("Six minutes", "5\u301c6 minutes", False, "blocking"),
+        ("Six minutes", "5\uff5e6 minutes", False, "blocking"),
         ("Six minutes", "5/6 minutes", False, "blocking"),
         ("Thirty exactly", "5:30 exactly", False, "blocking"),
         ("Five minutes", "\u0665 minutes", True, "blocking"),
@@ -2456,19 +2460,41 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
                 self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
 
     def test_a_line_break_is_never_a_numeral_separator(self):
-        # Gate 3 B1: a digit that opens a line after a line ending in a number
-        # opens a NEW line, not the far half of one numeral. Every line ending
-        # and every vertical whitespace that readers treat as a break keeps
-        # the digit whole, so a faithful book with a chapter number or a year
-        # above "5 minutes later" stays clean.
+        # Gate 3 B1 + gate 4 L4: a digit that opens a line after a line ending
+        # in a number opens a NEW line, not the far half of one numeral. Every
+        # line ending is pinned twice. The "- 12 -" page number is the review's
+        # source (the old "12<br>5" row was already kept whole by the
+        # three-digit rule, so it could not see the guard). The glued range
+        # mark before a blank line is the row that only the guard keeps apart:
+        # delete the guard and "-\n\n" becomes one numeral, so the faithful
+        # source blocks; narrow the guard to "\n" and every other break type
+        # does the same.
         entries = [_entry("Five minutes later", "C0"),
                    _entry("Five minutes later", "C1")]
         for line_break in ("\n", "\r", "\r\n", "\u2028", "\u2029",
                            "\x0b", "\x0c", "\x85"):
-            with self.subTest(line_break=repr(line_break)):
-                source = ('"Five minutes later," she said.'
-                          '%s12%s5 minutes later, he left.'
-                          % (line_break, line_break))
+            with self.subTest(line_break=repr(line_break),
+                              shape="page number"):
+                source = ('"Five minutes later," she said.%s%s- 12 -%s%s'
+                          '5 minutes later, he left.'
+                          % (line_break, line_break, line_break, line_break))
+
+                self.assertEqual([], self._duplicate_findings(entries, source))
+
+                third = self._duplicate_findings(
+                    entries + [_entry("Five minutes later", "C2")], source)
+                self.assertEqual(1, len(third))
+                self.assertEqual("blocking", third[0]["severity"])
+                self.assertEqual(2, third[0]["details"]["source_occurrences"])
+                self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
+
+            with self.subTest(line_break=repr(line_break), shape="glued mark"):
+                # A range mark glued to the digit it follows, then a blank
+                # line: one break would be a wrapped range, two are a page
+                # number or a dash that ends a line, so the digits stay whole.
+                source = ('"Five minutes later," she said.%s12-%s%s'
+                          '5 minutes later, he left.'
+                          % (line_break, line_break, line_break))
 
                 self.assertEqual([], self._duplicate_findings(entries, source))
 
@@ -2533,6 +2559,122 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(1, len(third))
         self.assertEqual(2, third[0]["details"]["source_occurrences"])
         self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
+
+    def test_a_spaced_range_mark_is_sentence_punctuation(self):
+        # Gate 4 L1: an em dash between digits is a range only when it touches
+        # both of them. Spaced, it is the sentence's punctuation - a year and a
+        # separate number - so the "5" stays whole and carries the digit copy.
+        entries = [_entry("Five men died", "C0"),
+                   _entry("Five men died", "C1")]
+        for source in (
+                '"Five men died," she said. '
+                'It was 1914 \u2014 5 men died that day.',
+                '"Five men died," she said. '
+                'The count was 12 \u2014 5 men died that day.'):
+            with self.subTest(source=source):
+                self.assertEqual([], self._duplicate_findings(entries, source))
+
+                third = self._duplicate_findings(
+                    entries + [_entry("Five men died", "C2")], source)
+                self.assertEqual(1, len(third))
+                self.assertEqual("blocking", third[0]["severity"])
+                self.assertEqual(2, third[0]["details"]["source_occurrences"])
+                self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
+
+    def test_a_glued_range_mark_inside_a_year_is_a_known_limit(self):
+        # Gate 4 L1 kept under Limits: a glued em dash touches both digits, so
+        # it follows the one glued-mark rule even where the page means a year
+        # and a new sentence. "1914-5" is therefore not capacity for "Five".
+        source = ('"Five men died," she said. '
+                  'It was 1914\u20145 men died that day.')
+        entries = [_entry("Five men died", "C0"),
+                   _entry("Five men died", "C1")]
+
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+        self.assertEqual(1, findings[0]["details"]["source_occurrences"])
+        self.assertEqual(2, findings[0]["details"]["all_text_occurrences"])
+
+    def test_a_spaced_colon_is_sentence_punctuation(self):
+        # Gate 4 L2: a colon joins only when it touches both digits ("5:30").
+        # Spaced, it ends a clause, so "12: 5" is a count and a new number and
+        # a verse reference stays a reference.
+        entries = [_entry("Five men died", "C0"),
+                   _entry("Five men died", "C1")]
+        for source in (
+                '"Five men died," she said. '
+                'The count was 12: 5 men died that day.',
+                '"Five men died," she said. '
+                'See John 3:16. 5 men died that day.'):
+            with self.subTest(source=source):
+                self.assertEqual([], self._duplicate_findings(entries, source))
+
+                third = self._duplicate_findings(
+                    entries + [_entry("Five men died", "C2")], source)
+                self.assertEqual(1, len(third))
+                self.assertEqual("blocking", third[0]["severity"])
+                self.assertEqual(2, third[0]["details"]["source_occurrences"])
+                self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
+
+    def test_a_range_wrapped_at_its_mark_joins_one_line_break(self):
+        # Gate 4 L3: a range wrapped at its own dash is still one numeral. The
+        # mark must touch a digit on its own line and ONE break may sit between
+        # it and the other digit, so both ends of the wrap join and the pair
+        # blocks a real duplicate instead of crediting a fragment.
+        entries = [_entry("Six men", "C0"), _entry("Six men", "C1")]
+        for line_break in ("\n", "\r", "\r\n", "\u2028", "\u2029",
+                           "\x0b", "\x0c", "\x85"):
+            for shape in ('"Six men," she said. "5-%s6 men," he said.',
+                          '"Six men," she said. "5%s-6 men," he said.'):
+                with self.subTest(line_break=repr(line_break), shape=shape):
+                    source = shape % line_break
+                    findings = self._duplicate_findings(entries, source)
+                    self.assertEqual(1, len(findings))
+                    self.assertEqual("blocking", findings[0]["severity"])
+                    self.assertEqual(1, findings[0]["details"]["source_occurrences"])
+                    self.assertEqual(2, findings[0]["details"]["all_text_occurrences"])
+
+    def test_a_far_group_of_three_makes_the_near_group_a_fragment(self):
+        # Gate 4 N1: the thousands rule reads the group AFTER the space. In
+        # "12 345" the FAR group is three digits, so the "12" is a fragment
+        # and cannot spell "twelve" even when it is the needle's last word:
+        # the far "345" then falls outside the two-word window, so only the
+        # near group decides. Checking the NEAR group instead (the gate 4
+        # mutant) leaves "12" whole and credits the duplicate.
+        source = ('"Exactly twelve," she said. '
+                  '"Exactly 12 345 times," he said.')
+        entries = [_entry("Exactly twelve", "C0"),
+                   _entry("Exactly twelve", "C1")]
+
+        findings = self._duplicate_findings(entries, source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+        self.assertEqual(1, findings[0]["details"]["source_occurrences"])
+        self.assertEqual(2, findings[0]["details"]["all_text_occurrences"])
+
+        third = self._duplicate_findings(
+            entries + [_entry("Exactly twelve", "C2")], source)
+        self.assertEqual(1, len(third))
+        self.assertEqual("blocking", third[0]["severity"])
+        self.assertEqual(1, third[0]["details"]["source_occurrences"])
+        self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
+
+    def test_an_invisible_word_boundary_keeps_a_range_marked(self):
+        # U+200B is a word boundary in the comparison key, so the key sees a
+        # spaced mark. The raw source has no spacing: the mark touches both
+        # digits, so the range still joins and blocks (gate 4 verified it).
+        source = ('"Six men," she said. '
+                  '"5\u200b\u20136\u200b men," he said.')
+        findings = self._duplicate_findings(
+            [_entry("Six men", "C0"), _entry("Six men", "C1")], source)
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("blocking", findings[0]["severity"])
+        self.assertEqual(1, findings[0]["details"]["source_occurrences"])
+        self.assertEqual(2, findings[0]["details"]["all_text_occurrences"])
 
     def test_a_digit_used_as_an_identifier_is_a_known_limit(self):
         # The second F2 repro, kept and documented. "Route 1 more often" holds

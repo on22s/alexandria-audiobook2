@@ -48,12 +48,75 @@ _SCRIPT_PREFIXES = ("LATIN", "CYRILLIC", "HIRAGANA", "KATAKANA", "CJK",
 # \x85 break lines in every reader although the paragraph iterator treats them
 # as horizontal space, so no numeral joins across any of the seven.
 _NUMBER_GAP_LINE_BREAKS = "\n\r\u2028\u2029\x0b\x0c\x85"
-# Range and clock marks join two digit tokens into one numeral whatever their
-# lengths: hyphen, en dash, em dash, figure dash and minus for ranges, colon
-# and slash for clocks, ratios and dates. A thousands SPACE is narrower than
-# that - see the whole-number test in find_contained_source_duplicates.
-_NUMERAL_GAP_MARKS = frozenset(("-", "\u2013", "\u2014", "\u2012",
-                                "\u2212", ":", "/"))
+# Range and clock marks join two digit tokens into one numeral ONLY when the
+# mark touches both digits. A SPACED mark is sentence punctuation, not a range
+# or a clock: "1914 — 5" is a year and a separate number, and "12: 5" is a
+# count and a new sentence. Glued hyphen, en dash, em dash, figure dash,
+# minus, Gutenberg's double hyphen, ASCII tilde, wave dash and fullwidth tilde
+# are ranges; a glued colon is a clock. A SLASH is never sentence punctuation,
+# so it joins a ratio or date even when spaced ("5 / 6", "9 / 11") (#2304 gate
+# 4 L1, L2 and N3 - one rule for every range mark).
+_NUMERAL_GAP_MARKS = frozenset((
+    "-", "--", "\u2013", "\u2014", "\u2012", "\u2212",
+    "~", "\u301c", "\uff5e", ":"))
+_NUMERAL_SLASH_MARKS = frozenset(("/",))
+# A RANGE may be wrapped at its own mark: "5-\n6" and "5\n-6" are one range,
+# so the digit beside the mark is a fragment, not a whole number (#2304 gate 4
+# L3). The mark must still touch a digit on its own line and exactly one line
+# break may sit between the mark and the other digit; a space, a second break
+# (a blank line, so a "- 12 -" page number) or a wrapped clock/ratio does not
+# join.
+_NUMERAL_WRAPPED_MARKS = frozenset((
+    "-", "--", "\u2013", "\u2014", "\u2012", "\u2212",
+    "~", "\u301c", "\uff5e"))
+# Whitespace that is NOT a line break: the same-line spacing the mark rule
+# rejects. Kept as its own list so narrowing the line-break guard cannot turn
+# a break into a horizontal space.
+_HORIZONTAL_GAP_SPACES = frozenset(
+    " \t\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008"
+    "\u2009\u200a\u202f\u205f\u3000")
+
+
+def _number_gap_line_breaks(gap):
+    """The line-break sequences inside a gap, CRLF counted as one break.
+
+    The seven characters are the project's line endings plus the vertical
+    controls readers break on (#2304 gate 3). ``\r\n`` is one ending even
+    though it is two characters, so a single Windows wrap is one break and not
+    the blank line a page number needs.
+    """
+    breaks = []
+    index = 0
+    while index < len(gap):
+        if gap.startswith("\r\n", index):
+            breaks.append("\r\n")
+            index += 2
+            continue
+        if gap[index] in _NUMBER_GAP_LINE_BREAKS:
+            breaks.append(gap[index])
+        index += 1
+    return breaks
+
+
+def _raw_number_gap(source_text, comparison_text, start, stop, gap,
+                    word_boundaries):
+    """The untouched source gap when the comparison offsets still point at it.
+
+    The comparison key maps a word boundary (U+200B) to an ordinary space, so
+    an invisible boundary between a digit and its mark looks exactly like real
+    spacing there. The raw slice decides it: ``5\\u200b-6`` is a glued range
+    whose mark a reader sees touching the digit. The slice is returned only
+    when folding it reproduces the comparison gap exactly, which fails for any
+    source whose folding changed length or characters before this point; the
+    caller then falls back to the comparison gap's spacing.
+    """
+    if len(source_text) != len(comparison_text) or source_text == comparison_text:
+        return None
+    raw = source_text[start:stop]
+    if _comparison_text(raw, word_boundaries=word_boundaries) != gap:
+        return None
+    return raw
+
 
 _COMBINING_MARK_WORD_PATTERN = None
 # Apostrophe-like characters that are the same typography to a reader: ASCII
@@ -1313,15 +1376,25 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         covers `.`/`,` glued to a far digit, a thousands SPACE (space, NBSP,
         thin or figure space - joined only when the far group is exactly three
         digits, so "1999 5" is a year and a separate number), and a range or
-        clock mark between digits: `-`, en dash, em dash, figure dash, minus,
-        `:` and `/`. A sentence's "5." or a list's "5," is a whole number, not
-        a fragment.
+        clock mark glued between digits. A sentence's "5." or a list's "5," is
+        a whole number, not a fragment.
+
+        A mark between digits joins ONLY when it touches both digits. Glued
+        `5-6`, `5--6`, en dash, em dash, figure dash, minus, ASCII tilde, wave
+        dash, fullwidth tilde, `5:30` and `5/6` are one numeral in two tokens,
+        so neither piece is whole. A SPACED mark is sentence punctuation, not a
+        separator: `1914 — 5`, `12 — 5` and `12: 5` keep the far digit whole
+        (#2304 gate 4 L1/L2). The exception is a range wrapped at its own mark:
+        `5-\\n6` and `5\\n-6` join across exactly ONE line break when the mark
+        touches a digit on its own line (#2304 gate 4 L3).
 
         A LINE BREAK IS NEVER A NUMERAL SEPARATOR. A digit that starts a line
         after a line ending in a number opens a new line, not the far half of
         a number, so a gap containing `\\n`, `\\r`, U+2028, U+2029, `\\x0b`,
-        `\\x0c` or `\\x85` does not join (#2304 gate 3: a faithful book with
-        "Chapter 12" above "5 minutes later" must stay clean).
+        `\\x0c` or `\\x85` does not join unless it is the wrapped range above
+        (#2304 gate 3: a faithful book with "Chapter 12" above "5 minutes
+        later" must stay clean, and a blank line keeps a "- 12 -" page number
+        apart for every break type).
 
         A digit copy the script also emits as digits is already that digit
         needle's own capacity, so only copies beyond the digit line's emissions
@@ -1374,23 +1447,59 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                     if not tokens[other].isdigit():
                         continue
                     if other < index:
-                        gap = comparison_source[spans[other][1]:start]
+                        gap_start, gap_end = spans[other][1], start
                         right = index
                     else:
-                        gap = comparison_source[end:spans[other][0]]
+                        gap_start, gap_end = end, spans[other][0]
                         right = other
-                    # A gap that opens a new line never joins: a digit at the
-                    # start of a line is a new number even when the line above
-                    # ended in one (#2304 gate 3).
-                    if any(break_ in gap for break_ in _NUMBER_GAP_LINE_BREAKS):
+                    gap = comparison_source[gap_start:gap_end]
+                    # A line break is never a numeral separator, with ONE
+                    # exception: a range wrapped at its own mark. "5-\n6" and
+                    # "5\n-6" are one range, so the digit beside the mark is a
+                    # fragment. The mark must touch a digit on its own line,
+                    # exactly one break may separate it from the other digit,
+                    # and a space or a blank line still keeps them apart (a
+                    # "- 12 -" page number is not a wrapped range).
+                    breaks = _number_gap_line_breaks(gap)
+                    if breaks:
+                        if (len(breaks) == 1
+                                and gap.replace(breaks[0], "", 1)
+                                in _NUMERAL_WRAPPED_MARKS):
+                            joined = True
+                            break
                         continue
                     stripped = gap.strip()
-                    # A range/clock mark always joins. Whitespace joins only a
-                    # thousands group, whose far half is exactly three digits
-                    # ("1 000", "12 345 678"); "In 1999 5 minutes later" is a
-                    # year and a separate number, not a numeral.
-                    if stripped in _NUMERAL_GAP_MARKS or (
-                            not stripped and len(tokens[right]) == 3):
+                    # A range/clock mark joins only when it touches both
+                    # digits. A spaced mark is sentence punctuation: "1914 — 5"
+                    # is a year and a separate number, "12: 5" a count and a
+                    # new sentence (#2304 gate 4 L1/L2).
+                    if stripped in _NUMERAL_GAP_MARKS:
+                        spaced = any(character in _HORIZONTAL_GAP_SPACES
+                                     for character in gap)
+                        if spaced:
+                            # An invisible word boundary is a space in the
+                            # comparison key but not on the page: "5\u200b-6"
+                            # is a glued range. Decide on the raw gap when its
+                            # offsets still line up.
+                            raw_gap = _raw_number_gap(
+                                source_text, comparison_source, gap_start,
+                                gap_end, gap, output_boundaries)
+                            if raw_gap is None or any(
+                                    character in _HORIZONTAL_GAP_SPACES
+                                    for character in raw_gap):
+                                continue
+                        joined = True
+                        break
+                    # A slash is never sentence punctuation: a spaced ratio or
+                    # date ("5 / 6", "9 / 11") is still one numeral in two
+                    # tokens.
+                    if stripped in _NUMERAL_SLASH_MARKS:
+                        joined = True
+                        break
+                    # Whitespace joins only a thousands group, whose far half
+                    # is exactly three digits ("1 000", "12 345 678"); "In
+                    # 1999 5 minutes later" is a year and a separate number.
+                    if not stripped and len(tokens[right]) == 3:
                         joined = True
                         break
                 whole_number[index] = not (
