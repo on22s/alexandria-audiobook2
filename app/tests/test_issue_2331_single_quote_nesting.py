@@ -69,9 +69,10 @@ The rev5 review closed the possessive INSIDE the nested pair:
     neither half; the lookahead now sees it across the mark and keeps the span,
     so the truthful row passes both gate paths and main's inside-out row does
     not;
-  - the no-terminator sibling still drops both spans and stays `quote_forced`;
-    Limits now describes that measured behaviour instead of claiming the span
-    continues;
+  - the no-terminator sibling keeps both spans and stays `quote_forced`: the
+    nested reading has no later mark to close the outer span, so the sibling
+    reading is forced and `quotes` returns the truthful sibling split instead
+    of main's inside-out split;
   - the `own == -1` sibling branch is pinned by a mixed-convention chunk.
 """
 import hashlib
@@ -525,13 +526,16 @@ SIBLING_POSSESSIVE_INSIDE_TRUTHFUL = [
 ]
 
 # rev5 finding 2: a sibling speech opened after `…s’` with no sentence
-# punctuation between. The lookahead takes the nested reading, so the outer
-# span never closes and BOTH spans are dropped. Limits must describe that.
+# punctuation between. The nested reading has no later mark to close the outer
+# span, so it cannot produce a span at all; the lookahead forces the sibling
+# reading, and both spans (the `Yes` speech and the `He said “run”,` speech)
+# survive. `quotes` returns the truthful sibling split, not main's inside-out
+# split.
 NO_TERMINATOR_SIBLING = "\u2018Yes\u2019 she said \u2018He said \u201crun\u201d,\u2019 he said."
 NO_TERMINATOR_SIBLING_REGIONS = [
-    {"type": "NARRATOR", "text": "\u2018Yes\u2019 she said \u2018He said"},
-    {"type": "SPOKEN", "text": "run"},
-    {"type": "NARRATOR", "text": ",\u2019 he said."},
+    {"type": "NARRATOR", "text": "\u2018Yes\u2019 she said"},
+    {"type": "SPOKEN", "text": "He said run,"},
+    {"type": "NARRATOR", "text": "he said."},
 ]
 
 # rev5 nit 3: a mixed-convention sibling whose straight opener has no closer of
@@ -1476,19 +1480,24 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                             bad["passed"],
                             "certifies main's inside-out split")
 
-    def test_a_no_terminator_sibling_drops_both_spans_and_is_quote_forced(self):
-        # Rev5 finding 2: with no sentence punctuation the lookahead takes the
-        # nested reading, so the outer span never closes. Both spans are
-        # dropped (not continued), the chunk is uncertain, auto/lexical
-        # abstain, and "quotes" returns main's split as quote_forced.
+    def test_a_no_terminator_sibling_keeps_both_spans_and_is_quote_forced(self):
+        # Rev5 finding 2: with no sentence punctuation the candidate's own
+        # closer is the last mark, so the nested reading cannot close the outer
+        # span. The sibling reading is forced: both spans survive, only the
+        # `He said “run”,` span is adopted, auto/lexical abstain, and "quotes"
+        # returns the truthful sibling split as quote_forced (the reviewed
+        # r3 head's output, not main's inside-out split).
         analysis = analyze_outer_quote_regions(NO_TERMINATOR_SIBLING)
-        self.assertEqual([], analysis.get("adopted_single_quote_spans"))
-        self.assertEqual([], analysis.get("unadopted_single_quote_spans"))
-        self.assertFalse(analysis.get("nested_single_quoted_speech"))
-        self.assertTrue(analysis.get("uncertain_single_quoted_speech"))
+        self.assertEqual([(15, 16, 30, 30)],
+                         analysis.get("adopted_single_quote_spans"))
+        self.assertEqual([(0, 1, 4, 4)],
+                         analysis.get("unadopted_single_quote_spans"))
+        self.assertTrue(analysis.get("nested_single_quoted_speech"))
+        self.assertFalse(analysis.get("uncertain_single_quoted_speech"))
         if get_single_quoted_speech_spans is not None:
-            self.assertEqual([], get_single_quoted_speech_spans(
-                NO_TERMINATOR_SIBLING))
+            self.assertEqual([(0, 1, 4, 4), (15, 16, 30, 30)],
+                             get_single_quoted_speech_spans(
+                                 NO_TERMINATOR_SIBLING))
         for mode in ("auto", "lexical"):
             self.assertEqual(
                 (None, None),
@@ -1498,12 +1507,61 @@ class SingleQuotedSpeechTests(unittest.TestCase):
             "quotes", NO_TERMINATOR_SIBLING, analysis)
         self.assertEqual("quote_forced", resolution)
         self.assertEqual(NO_TERMINATOR_SIBLING_REGIONS, entries)
-        self.assertNotIn("mixed_quote_region",
-                         {finding["code"] for finding in
-                          validate_segment_quality(
-                              NO_TERMINATOR_SIBLING,
-                              NO_TERMINATOR_SIBLING_REGIONS,
-                              quote_analysis=analysis)["findings"]})
+        truthful = [
+            {"type": "SPOKEN", "text": "Yes"},
+            {"type": "NARRATOR", "text": "she said"},
+            {"type": "SPOKEN", "text": "He said \u201crun\u201d,"},
+            {"type": "NARRATOR", "text": "he said."},
+        ]
+        for gate_label, rows, kwargs in (
+                ("analysis-backed", NO_TERMINATOR_SIBLING_REGIONS,
+                 {"quote_analysis": analysis}),
+                ("analysis-free", NO_TERMINATOR_SIBLING_REGIONS, {}),
+                ("truthful-backed", truthful, {"quote_analysis": analysis}),
+                ("truthful-free", truthful, {})):
+            with self.subTest(gate=gate_label):
+                report = validate_segment_quality(
+                    NO_TERMINATOR_SIBLING, rows, **kwargs)
+                self.assertTrue(report["passed"], report["findings"])
+        # The same forced reading keeps the inner speech when the candidate's
+        # closer is the chunk's last mark. This shape used to drop both spans
+        # and return main's inside-out split.
+        unclosed_inner = ("\u2018Yes\u2019 she said \u2018He said "
+                          "\u201crun\u201d\u2019")
+        inner_analysis = analyze_outer_quote_regions(unclosed_inner)
+        self.assertEqual([(15, 16, 29, 29)],
+                         inner_analysis.get("adopted_single_quote_spans"))
+        inner_entries, inner_resolution = tp.quote_regions_decision(
+            "quotes", unclosed_inner, inner_analysis)
+        self.assertEqual("quote_forced", inner_resolution)
+        self.assertEqual(
+            [{"type": "NARRATOR", "text": "\u2018Yes\u2019 she said"},
+             {"type": "SPOKEN", "text": "He said run"}], inner_entries)
+
+    def test_a_no_terminator_nested_quotation_still_abstains(self):
+        # The forced sibling reading above must not fire when the candidate
+        # has no paired quote of its own: `‘The dogs’ “run” and ‘fort’ are
+        # here,` has no later mark to close the continuing span either, but
+        # forcing the sibling would close a span that holds no speech and
+        # certify the analysis that head abstained from. Both unclosed shapes
+        # keep head's measured behaviour: no span survives unadopted, the
+        # failed range is uncertain, auto/lexical abstain and `quotes` stays
+        # quote_forced on main's split.
+        for chunk in (
+                "\u2018The dogs\u2019 \u201crun\u201d and \u2018fort\u2019 are here,",
+                "\u2018He said \u201crun\u201d, and the dogs\u2019 \u2018fort\u2019 "
+                "is here,"):
+            with self.subTest(chunk=chunk):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertEqual([], analysis.get("adopted_single_quote_spans"))
+                self.assertTrue(analysis.get("uncertain_single_quoted_speech"))
+                for mode in ("auto", "lexical"):
+                    self.assertEqual(
+                        (None, None),
+                        tp.quote_regions_decision(mode, chunk, analysis))
+                _entries, resolution = tp.quote_regions_decision(
+                    "quotes", chunk, analysis)
+                self.assertEqual("quote_forced", resolution)
 
     def test_a_mixed_convention_sibling_pins_the_no_own_closer_branch(self):
         # Rev5 nit 3: keeping the `own == -1` branch. The straight opener of

@@ -159,7 +159,8 @@ def _has_sentence_end_between(text, start, end):
     return any(char in _SENTENCE_END for char in text[start:end])
 
 
-def _has_single_quote_opener_between(text, start, end, ambiguous=None):
+def _has_single_quote_opener_between(text, start, end, ambiguous=None,
+                                    limit=None, closer=None):
     """Does a candidate SIBLING speech opener start in `text[start:end]`?
 
     A candidate opener that has its own closer is a closed nested quotation,
@@ -176,6 +177,13 @@ def _has_single_quote_opener_between(text, start, end, ambiguous=None):
     without one it is the nested reading. When both readings remain plausible
     the mark is recorded in `ambiguous` and the sibling reading wins, so the
     chunk is never certified.
+
+    Without a terminator, the nested reading still needs a later mark to close
+    the continuing span. If `end` is the last mark that can close it, the nested
+    reading cannot produce a span at all: the lookahead would lose both the
+    outer and the inner speech. `‘Yes’ she said ‘He said “run”,’ he said.` is
+    that chunk, so the sibling reading is forced there and both spans survive
+    (#2331 review 5).
     """
     for position in range(start, end):
         if (text[position] not in _SINGLE_QUOTE_OPEN_CLOSE
@@ -194,6 +202,17 @@ def _has_single_quote_opener_between(text, start, end, ambiguous=None):
         if sentence_end and ambiguous is not None:
             ambiguous.append(position)
         if sentence_end:
+            return True
+        if (limit is not None and closer is not None
+                and _contains_paired_quote(text, position + 1, own)
+                and _find_single_quote_closer(
+                    text, end + 1, limit, closer, ambiguous) == -1):
+            # No later mark can close the continuing span, so the nested
+            # reading would drop it and the candidate's own speech with it.
+            # Only the candidate is worth keeping when its own text nests the
+            # paired quote; otherwise forcing the sibling would close a span
+            # that holds no speech and certify the analysis it used to abstain
+            # from (`‘The dogs’ “run” and ‘fort’ are here,`).
             return True
     return False
 
@@ -222,7 +241,7 @@ def _is_possessive_continuing_span(text, index, opener, limit, ambiguous=None):
     if later == -1:
         return False
     if _has_single_quote_opener_between(
-            text, index + 1, later, ambiguous):
+            text, index + 1, later, ambiguous, limit, closer):
         return False
     if opener is not None:
         # A pair that straddles the mark also belongs to the quote the span
