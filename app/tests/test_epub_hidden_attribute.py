@@ -344,13 +344,17 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
              'Before.\n\nAfter.'),
             ('stray_close_inside_hidden',
              '<p>Before.</p><div hidden=""><p>Secret</span>Still secret</p></div><p>After.</p>',
-             'Before.\n\nAfter.'),
+             # A stray close makes the prepass distrust the region (Rule 15):
+             # the hidden div is treated as visible, a leak, not a drop.
+             'Before.\n\nSecretStill secret\n\nAfter.'),
             ('unclosed_hidden_at_eof',
              '<p>Before.</p><div hidden=""><p>Hidden until EOF',
              'Before.'),
             ('hidden_textarea_at_eof',
              '<p>Before.</p><textarea hidden>Hidden form text',
-             'Before.'),
+             # An unclosed textarea is RCDATA to EOF and never popped, so the
+             # structural gate treats its `hidden` as absent and narrates it.
+             'Before.Hidden form text\n</body></html>'),
         ]
         for name, body, expected in malformed_html_cases:
             with self.subTest(case=name):
@@ -706,12 +710,14 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
              '<dt><div hidden=""><td><dt>VisibleText', 'VisibleText'),
             ('ignored_caption_does_not_stop_p_scan',
              '<p><caption><span hidden=""><center>VisibleText', 'VisibleText'),
-            # ... and its own implied end tags must not run either. A nested
-            # (ignored) <form> must not run the <p>-closing rule, so the open
-            # hidden <p> stays open exactly as in the browser.
-            ('ignored_nested_form_does_not_close_hidden_p',
+            # A nested (ignored) <form> must not run the <p>-closing rule, so
+            # the open hidden <p> stays open in the model exactly as in the
+            # browser; because a nested form is unmodelled error recovery, the
+            # structural prepass distrusts the document and leaks it instead
+            # of proving the region (Rule 15, safe direction).
+            ('ignored_nested_form_poisons_hidden_decision',
              '<form><p hidden="">SECRETHID<span>X<form hidden="">VISIBLEONE',
-             ''),
+             'SECRETHIDXVISIBLEONE'),
             ('ignored_tr_does_not_close_hidden_li',
              '<caption><li hidden=""><tr><blockquote hidden=""></li>VisibleText',
              'VisibleText'),
@@ -763,23 +769,150 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         self.assertEqual('VISIBLEONESECRETHID\n\nVISIBLETWO',
                          extract_epub_text('synthetic.epub', archive_bytes=raw))
 
-    def test_ignored_end_tags_never_close_hidden_ancestors(self):
+    def test_structural_gate_legacy_ignored_tokens_never_open_hidden_regions(self):
+        # HTML's <image> is <img> (void), <keygen>/<frame> are void, and
+        # <frameset> is ignored in body content. None creates a modelled
+        # element, so a `hidden` on one must never silence later prose.
+        for tag in ('image', 'keygen', 'frame', 'frameset'):
+            with self.subTest(tag=tag):
+                raw = make_epub(f'<p>ONE</p><{tag} hidden="">TWO<p>THREE</p>',
+                                media_type='text/html', toc_links=[])
+                self.assertEqual('ONETWO\n\nTHREE',
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+                # A close after the token must not turn it into a region that
+                # hides its content: the browser never inserted the element.
+                raw = make_epub(f'<{tag} hidden="">SECRET</{tag}>VISWORD',
+                                media_type='text/html', toc_links=[])
+                self.assertEqual('SECRETVISWORD',
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+        # A colgroup has no renderable text: browser-fostered text leaks.
+        raw = make_epub('<table><colgroup hidden="">SECRET</colgroup>'
+                        '<tr><td>VISWORD</td></tr></table>',
+                        media_type='text/html', toc_links=[])
+        self.assertEqual('SECRET\n\nVISWORD',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+        # A table token at an in-body current node is ignored, not inserted.
+        raw = make_epub('<table><summary><td hidden="">SECRET</td></summary>'
+                        'VISWORD</table>', media_type='text/html', toc_links=[])
+        self.assertEqual('SECRETVISWORD',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+        # Character data inside a column group is fostered out of the table.
+        raw = make_epub('<table hidden=""><colgroup>VISWORD</colgroup></table>',
+                        media_type='text/html', toc_links=[])
+        self.assertEqual('VISWORD',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+        raw = make_epub('<table hidden=""><colgroup><p>VISWORD</p></colgroup></table>',
+                        media_type='text/html', toc_links=[])
+        self.assertEqual('VISWORD',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+
+    def test_unmodelled_closes_and_table_modes_are_leaks_never_drops(self):
+        # Every review-4 drop repro, asserted on the full extraction: the
+        # visible words are present. The secret may also be narrated (a
+        # documented leak); a missing visible word would be a bug.
+        cases = [
+            ('b_before_p_close', '<b hidden="">SECRETHID<p></b>VISWORD'),
+            ('em_before_p_close', '<em hidden="">SECRETHID<p></em>VISWORD'),
+            ('nested_a', '<a hidden=""><a>VISWORD'),
+            ('b_before_div_close', '<b hidden="">SECRETHID<div></b>VISWORD'),
+            ('nested_button', '<button hidden="">SECRETHID<button>VISWORD'),
+            ('nested_select', '<select hidden="">SECRETHID<select>VISWORD'),
+            ('nested_nobr', '<nobr hidden="">SECRETHID<nobr>VISWORD'),
+            ('table_form', '<table><form hidden="">VISWORD'),
+            ('table_hidden_form', '<table hidden=""><form hidden="">VISWORD'),
+            ('table_dt_colgroup', '<table><dt hidden=""><colgroup>VISWORD'),
+            ('table_dd_tbody', '<table><dd hidden=""><tbody></tbody>VISWORD'),
+        ]
+        for name, body in cases:
+            with self.subTest(case=name):
+                raw = make_epub(body, media_type='text/html', toc_links=[])
+                text = extract_epub_text('synthetic.epub', archive_bytes=raw)
+                self.assertIn('VISWORD', text)
+        # The same shapes at least never drop the prose before them.
+        for name, body in cases:
+            with self.subTest(prefix=name):
+                raw = make_epub(body, media_type='text/html', toc_links=[])
+                self.assertTrue(extract_epub_text('synthetic.epub', archive_bytes=raw))
+
+    def test_heading_rule_pops_only_the_current_node(self):
+        # The spec's heading close is "current node only": an intervening span
+        # means the second heading does not pop the hidden one. A scope scan
+        # would narrate VISWORD; the browser hides it, so this pins the leak
+        # direction against the surviving mutant. The raw document has no
+        # closing body tag, so the h2 is only ended by the optional-end EOF
+        # rule (not by an ancestor close).
+        raw = make_epub('', media_type='text/html', toc_links=[],
+                        raw_document='<h2 hidden="">SECRETHID<span><h3>VISWORD</h3></span>')
+        self.assertEqual('', extract_epub_text('synthetic.epub', archive_bytes=raw))
+
+    def test_prepass_poison_and_limits_are_pinned(self):
+        # Unmodelled insertion-mode anomalies anywhere poison the whole
+        # document: even a hidden region that closed cleanly before the
+        # anomaly is treated as visible (leak) so no later restructure can
+        # turn it into a drop.
+        poisoned = [
+            ('nested_select', '<p hidden="">SECRETHID</p><select><select>VISWORD'),
+            ('nested_form', '<p hidden="">SECRETHID</p><form><form>VISWORD'),
+            ('nested_anchor', '<p hidden="">SECRETHID</p><a><a>VISWORD'),
+        ]
+        for name, body in poisoned:
+            with self.subTest(case=name):
+                raw = make_epub(body, media_type='text/html', toc_links=[])
+                self.assertEqual('SECRETHIDVISWORD',
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+        # An ancestor end tag blocked by a special element leaves the hidden
+        # region open in the model, but the browser may close the ancestor:
+        # the prepass distrusts it and narrates (leak), never dropping the
+        # following prose.
+        raw = make_epub('<p hidden="">SECRETHID<blockquote><ruby>'
+                        '<summary hidden=""><b>HIDDENWORD</ruby>VISWORD',
+                        media_type='text/html', toc_links=[])
+        self.assertEqual('SECRETHID\n\nHIDDENWORDVISWORD',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+        # Balanced hidden regions are still proved and omitted.
+        raw = make_epub('<p>VISIBLEONE</p><div hidden="">SECRETHID</div>'
+                        '<p>VISIBLETWO</p>', media_type='text/html', toc_links=[])
+        self.assertEqual('VISIBLEONE\n\nVISIBLETWO',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+        # UTF-16 limitation (pre-existing, out of scope): load_epub's
+        # BeautifulSoup text path yields no words for a UTF-16 chapter
+        # (whitespace only) while extract_epub_text decodes it. Pinned so the
+        # PR body's Limit cannot drift from the code.
+        utf16_doc = (
+            '<?xml version="1.0" encoding="utf-16"?>'
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title></head>'
+            '<body><p>VisibleOne.</p><p hidden="">Secret.</p>'
+            '<p>VisibleTwo.</p></body></html>')
+        raw = make_epub('', media_type='application/xhtml+xml', toc_links=[],
+                        raw_document=utf16_doc.encode('utf-16'))
+        self.assertEqual('VisibleOne.\n\nVisibleTwo.',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+        with tempfile.TemporaryDirectory() as tmp:
+            epub_path = Path(tmp) / 'utf16.epub'
+            epub_path.write_bytes(raw)
+            self.assertEqual([], alignment.load_epub(str(epub_path)).split())
+
+    def test_ignored_end_tags_make_a_hidden_region_unsafe(self):
         # HTML5 "any other end tag" stops at a special element and ignores the
         # token: </span> above <p> and </ruby> above <ol> do not close the
-        # hidden element, so the following text stays hidden.
+        # hidden element. The structural prepass cannot prove where that
+        # region ends, so Rule 15 treats the hidden element as visible (a
+        # leak) instead of keeping the region open and dropping visible text.
         bodies = [
-            ('<span hidden="">Secret<p>para</span>Visible</p><p>After.</p>', ''),
-            ('<ruby hidden="">Secret<ol></ruby>Visible', ''),
+            ('<span hidden="">Secret<p>para</span>Visible</p><p>After.</p>',
+             'Secret\n\nparaVisible\n\nAfter.'),
+            ('<ruby hidden="">Secret<ol></ruby>Visible', 'SecretVisible'),
             ('<div hidden="">Secret<p>para</span>Visible</p></div><p>After.</p>',
-             'After.'),
+             'Secret\n\nparaVisible\n\nAfter.'),
         ]
         for body, expected in bodies:
             with self.subTest(body=body):
                 raw = make_epub(body, media_type='text/html', toc_links=[])
                 self.assertEqual(expected,
                                  extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # Control: a non-special descendant is still closed by the ancestor's
-        # end tag, so visible prose before it survives.
+        # Control: a non-special descendant is closed by the ancestor's end
+        # tag exactly as in a browser, so the region is proved and stays
+        # hidden.
         raw = make_epub('<div>Visible start. <span hidden="">secret</div><p>After.</p>',
                         media_type='text/html', toc_links=[])
         self.assertEqual('Visible start. \n\nAfter.',
@@ -804,11 +937,12 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
              '<table><tr hidden="">Fostered in row<td>Cell</td></tr></table><p>After.</p>',
              'Fostered in row\n\nAfter.'),
             # A hidden element foster-parented out of the table (and left
-            # unclosed) does not become the table's outside environment: text
-            # directly in the following row is fostered too and stays visible.
+            # unclosed) does not become the table's outside environment. The
+            # prepass cannot prove where the browser placed it, so its
+            # `hidden` is treated as absent and its text is narrated (a leak).
             ('fostered_element_above_table',
              '<table><ruby hidden="">Reading<tr>FosteredVisible</tr></table>',
-             'FosteredVisible'),
+             'ReadingFosteredVisible'),
             ('nested_table_closes_hidden_table',
              '<table hidden=""><table><tr><td>Inner</td></tr></table>'
              '<tr><td>Cell</td></tr></table><p>After.</p>',

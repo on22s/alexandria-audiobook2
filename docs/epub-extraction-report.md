@@ -26,9 +26,24 @@ it is not applied to SVG or MathML elements; CSS `display:none` and
 follows one governing rule: this is an audiobook, so losing visible text is
 worse than narrating hidden text. When it meets structure it does not model, it
 fails open - the hidden region ends no later than the browser would end it, and
-it never silences text the browser would show. `hidden` leaks in invalid markup
-are documented limits; a visible drop is a bug.
-In tolerant `text/html` resources, self-closing syntax on non-void elements
+it never silences text the browser would show. The guarantee is **structural**
+(Rule 15), not a list of known-bad tags: a prepass runs the same tree
+construction with output off and a `hidden` element opens a region only when
+the model can prove where that region ends. The element must not be void, an
+element the browser ignores (`image`, `keygen`, `frame`, `frameset`, table
+structure outside a table, a nested `form`), or foster-parented out of a table;
+and either its end is one the implemented optional-end-tag rules close (`p`,
+`li`, `dd`, `dt`, `option`, `optgroup`, `rt`, `rp`, `tr`, `td`, `th`, `thead`,
+`tbody`, `tfoot`, `caption`, and headings), or the prepass proves the model
+pops it through an explicit matching end tag, an implemented implied close or
+an ancestor close. A region also ends wherever the model pops its root element
+for any reason. If the prepass sees an unmodelled insertion-mode anomaly
+anywhere in the document (nested or poisoned `select`, an ignored table token
+or nested `form`, an adoption-agency formatting shape, a blocked ancestor end
+tag), it trusts no hidden region in that document and treats every hidden
+element as visible. Anything not proved is narrated: `hidden` leaks in invalid
+markup are documented limits; a visible drop is a bug. In tolerant `text/html`
+resources, self-closing syntax on non-void elements
 (such as `<div hidden=""/>`) is treated as self-closing by Python's
 `HTMLParser`, so the following text is narrated. This is a deliberate
 divergence *from* browsers, not parity: HTML ignores the slash on non-void
@@ -47,7 +62,7 @@ annotations, and `head`/`body`. Start tags the browser ignores in body mode
 (table structure outside a table, a nested `form`) create no element, so their
 `hidden` attribute never opens a hidden root; end tags the browser ignores (a
 stray `</span>` above a `<p>`, `</ruby>` above `<ol>`) never close a hidden
-ancestor. Content
+ancestor, but they do make the prepass distrust the document. Content
 the HTML5 parser foster-parents out of a table (character data, prose or an
 unexpected element directly inside a table, table section or row) is rendered
 before the table, so a hidden table does not hide it and it is narrated; XHTML
