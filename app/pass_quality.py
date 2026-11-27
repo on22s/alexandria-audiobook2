@@ -1112,11 +1112,16 @@ _TAG_NEXT_QUOTE_WRAP = re.compile(r"[ \t]*\r?\n(?:[ \t]*\r?\n)?[ \t]*")
 _TAG_NEXT_QUOTE_SENTENCE_END = frozenset({".", "。"})
 
 
+def _title_key(word):
+    """One title-token normalizer, shared by tag-name rejection and stripping."""
+    return word.casefold().rstrip(".")
+
+
 def _is_valid_tag_name(value):
     return bool(
         value
         and value.casefold() not in _NON_PERSON_NAME_WORDS
-        and value.casefold().rstrip(".") not in NAME_TITLE_PREFIXES
+        and _title_key(value) not in NAME_TITLE_PREFIXES
         and not any(word.casefold().endswith(("'s", "’s", "'", "’"))
                     for word in value.split())
         and all(word[:1].isupper() for word in value.split())
@@ -1142,8 +1147,8 @@ def _get_speaker_title_and_words(label):
     """Split a label into its leading titles and the remaining words."""
     words = remove_silent_word_characters(str(label or "")).split()
     titles = []
-    while words and words[0].casefold().rstrip(".") in NAME_TITLE_PREFIXES:
-        titles.append(words[0].casefold().rstrip("."))
+    while words and _title_key(words[0]) in NAME_TITLE_PREFIXES:
+        titles.append(_title_key(words[0]))
         words = words[1:]
     return titles, words
 
