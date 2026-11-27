@@ -10,6 +10,7 @@ while its generated entries kept 16.
 import json
 import random
 import re
+import signal
 import threading
 import unittest
 from pathlib import Path
@@ -26,12 +27,33 @@ def _call_with_deadline(call, label, timeout=5.0):
     """-> call(), failing within `timeout` instead of hanging if it never returns.
 
     CI runs the unit shard without a per-test timeout, so a mutation that makes
-    a scanner loop forever holds the whole shard instead of failing it. That is
-    how `_paired_spans`' reverse scan used to behave once the empty-pair case
-    joined the suite. Run the call on a daemon thread and join with a deadline:
-    portable to Windows, where SIGALRM does not exist. A call that is still
-    running fails the test here; the orphaned daemon thread dies with the shard.
+    a scanner loop forever would hold the whole shard instead of failing it.
+    This helper is what turns the #651/#94/#671 hang class into an ordinary
+    test failure.
+
+    POSIX uses SIGALRM so the call is interrupted in place, leaving no thread
+    behind. A thread-based deadline was tried first and is NOT safe here: the
+    scanner tests share one process, and an abandoned thread still spinning in
+    `_paired_spans` raced the tests that followed, so the same mutant sometimes
+    finished and sometimes hung. SIGALRM has no such orphan.
+
+    Windows has no SIGALRM, and mutation testing is POSIX-only
+    (`tools/mutation_check.sh`), so the Windows fallback runs the call on a
+    joinable daemon thread. It still turns a hang into a failure; the orphan
+    dies with the process.
     """
+    if hasattr(signal, "setitimer"):
+        def expire(_signum, _frame):
+            raise AssertionError(f"{label} did not return within {timeout:g}s")
+
+        previous = signal.signal(signal.SIGALRM, expire)
+        signal.setitimer(signal.ITIMER_REAL, timeout)
+        try:
+            return call()
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, previous)
+
     outcome = {}
 
     def target():
@@ -48,6 +70,31 @@ def _call_with_deadline(call, label, timeout=5.0):
     if "error" in outcome:
         raise outcome["error"]
     return outcome["value"]
+
+
+# Outputs a #94/#671-class scanner regression changes while the current code is
+# correct. Shared by the standalone regression tests and the linearity guards
+# below, so a regression fails on the output BEFORE the large linearity call
+# (which it would otherwise make spin) is ever reached.
+_SHARED_MARK_SCAN_SOURCE = "„He said “Hi” to me.“"
+_SHARED_MARK_SCAN_SPANS = [(1, len(_SHARED_MARK_SCAN_SOURCE) - 1)]
+_STRAIGHT_PAIR_SCAN_SOURCE = '"A" "B" "C" "D" A""x,,'
+_STRAIGHT_PAIR_SCAN_SPANS = [(1, 2), (5, 6), (9, 10), (13, 14)]
+
+
+def _assert_straight_pair_scan_is_sane(case):
+    """-> fail fast on a #651-class reverse-scan regression.
+
+    An off-by-one on `_paired_spans`' reverse range raises `IndexError` on a
+    plain straight pair, so this cheap assertion aborts the calling test
+    BEFORE it feeds the scanner an empty pair, which that regression loops on.
+    The result: #651 fails immediately instead of spending two 5 s deadlines.
+    A regression that only loops on an empty pair still fails via the deadline
+    in `_call_with_deadline`.
+    """
+    spans = spoken_spans('"Hi"', "paired_quotes")
+    if spans != [(1, 3)]:
+        raise AssertionError(f"{case}: plain straight pair returned {spans!r}")
 
 
 def _main_get_other_speech_spans(text, convention):
@@ -858,13 +905,25 @@ class SpanTest(unittest.TestCase):
         # A mark that opens a paragraph re-opens the quote, so the closer search
         # skips it. Restarting that scan at every opener was quadratic: 8k
         # marks took ~3.3s. A forward index keeps it linear (~0.02s).
+        #
+        # Assert the #671 output FIRST: that regression both invents spans and
+        # spins this test, so without the guard the failure would surface only
+        # as a hang (or a deadline) instead of the wrong result.
+        _assert_straight_pair_scan_is_sane("reprise linearity guard")
+        self.assertEqual(
+            _STRAIGHT_PAIR_SCAN_SPANS,
+            _call_with_deadline(lambda: spoken_spans(_STRAIGHT_PAIR_SCAN_SOURCE, "paired_quotes"),
+                                "straight pair scan guard"),
+        )
         import time
         for mark in ('"', '＂'):
             with self.subTest(mark=mark):
                 source = "\n\n".join(mark + "line" for _ in range(8000))
                 started = time.monotonic()
                 # Every mark opens a paragraph, so none can close a pair.
-                self.assertEqual([], spoken_spans(source, "paired_quotes"))
+                spans = _call_with_deadline(lambda: spoken_spans(source, "paired_quotes"),
+                                            f"reprise chain {mark}")
+                self.assertEqual([], spans)
                 self.assertLess(time.monotonic() - started, 1.0)
 
     def test_a_foreign_quote_density_stays_secondary_in_an_english_book(self):
@@ -935,10 +994,21 @@ class SpanTest(unittest.TestCase):
         # The shared-mark roles are resolved with position-indexed lookups. A
         # linear rescan per quote made a 20k-pair text take seconds; this is a
         # coarse wall-clock guard with a wide margin (measured ~0.05s).
+        #
+        # Assert the #94 output FIRST: that regression both truncates the pair
+        # and spins this test, so without the guard the failure would surface
+        # only as a hang (or a deadline) instead of the wrong result.
+        self.assertEqual(
+            _SHARED_MARK_SCAN_SPANS,
+            _call_with_deadline(lambda: spoken_spans(_SHARED_MARK_SCAN_SOURCE, "paired_quotes"),
+                                "shared mark scan guard"),
+        )
         import time
         source = "\n\n".join("„Speech " + str(i) + " here“ said he." for i in range(20000))
         started = time.monotonic()
-        self.assertEqual(20000, len(spoken_spans(source, "paired_quotes")))
+        spans = _call_with_deadline(lambda: spoken_spans(source, "paired_quotes"),
+                                    "shared mark disambiguation chain")
+        self.assertEqual(20000, len(spans))
         self.assertLess(time.monotonic() - started, 2.0)
 
     def test_guillemet_closers_do_not_pair_as_openers(self):
@@ -1862,6 +1932,10 @@ class ScannerBoundaryAndMeasurementTests(unittest.TestCase):
     """Edge offsets, paragraph boundaries, shared-mark disambiguation and unit words."""
 
     def test_scanner_boundary_matrix_exact_spans(self):
+        # Fail fast on #651 before the loop reaches its two empty-pair cases,
+        # which that regression loops on. Without this guard the method still
+        # fails, but only after two 5 s deadlines.
+        _assert_straight_pair_scan_is_sane("scanner boundary matrix")
         cases = [
             ("empty", "", []),
             ("only_pair", '"Hi"', [(1, 3)]),
@@ -1889,10 +1963,12 @@ class ScannerBoundaryAndMeasurementTests(unittest.TestCase):
         ]
         for label, text, expected in cases:
             with self.subTest(label=label):
-                # Deadline: `empty_pair` is the case that turns a reverse-scan
-                # off-by-one on `_paired_spans` into an infinite loop, and CI
-                # has no per-test timeout. Every case runs under it so such a
-                # regression fails instead of hanging the shard.
+                # Deadline: a reverse-scan off-by-one on `_paired_spans` (#651)
+                # loops on the two EMPTY straight pairs below, and CI has no
+                # per-test timeout. This turns that regression into a failure
+                # instead of a hang. It is not counted as assertion coverage:
+                # mutmut still books #651 as a timeout because the suite spends
+                # the deadline deliberately (see the PR body's scope note).
                 self.assertEqual(
                     expected,
                     _call_with_deadline(lambda: spoken_spans(text, "paired_quotes"),
@@ -1924,6 +2000,8 @@ class ScannerBoundaryAndMeasurementTests(unittest.TestCase):
             ("„He said “X” to me.“", ["He said “X” to me."]),
             ('„He said “6" wide” to me.“', ['He said “6" wide” to me.']),
             ("„He said “it's ＂5＂ wide” to me.“ end", ["He said “it's ＂5＂ wide” to me."]),
+            # Current output keeps the gap before the stray `”`, so the span
+            # ends in a space. That is a cosmetic artifact, not a contract.
             ("„German “ ”", ["German "]),
             ("„“Hi”", []),
             ("„A.““Hi.”", ["A.", "Hi."]),
@@ -1946,12 +2024,11 @@ class ScannerBoundaryAndMeasurementTests(unittest.TestCase):
     def test_shared_mark_scan_returns_the_whole_german_pair_without_looping(self):
         # Mutant #94 (`in ('"', '＂')` -> `not in` in next_english_mark) skips the
         # curly marks it exists to find and truncates this pair to `He said `.
-        # The assertion, run with a deadline, is the detection: the pre-existing
-        # linearity tests only catch the mutant by spinning.
-        source = "„He said “Hi” to me.“"
+        # This output assertion is the detection; the pre-existing linearity
+        # test repeats it as a guard so the mutant cannot reach its spin.
         self.assertEqual(
-            [(1, len(source) - 1)],
-            _call_with_deadline(lambda: spoken_spans(source, "paired_quotes"),
+            _SHARED_MARK_SCAN_SPANS,
+            _call_with_deadline(lambda: spoken_spans(_SHARED_MARK_SCAN_SOURCE, "paired_quotes"),
                                 "shared mark scan"),
         )
 
@@ -1959,14 +2036,15 @@ class ScannerBoundaryAndMeasurementTests(unittest.TestCase):
         # Mutant #671 (`index += 1` -> `index = 1` when no closer remains)
         # restarts the straight-quote scan at the second mark and invents a span
         # inside every gap between the real pairs, which also flips detection
-        # from None to "paired_quotes". Asserted by output, not by a hang.
-        source = '"A" "B" "C" "D" A""x,,'
+        # from None to "paired_quotes". Asserted by output, not by a hang; the
+        # reprise linearity test repeats the span check as a guard.
+        _assert_straight_pair_scan_is_sane("straight pair scan")
         self.assertEqual(
-            [(1, 2), (5, 6), (9, 10), (13, 14)],
-            _call_with_deadline(lambda: spoken_spans(source, "paired_quotes"),
+            _STRAIGHT_PAIR_SCAN_SPANS,
+            _call_with_deadline(lambda: spoken_spans(_STRAIGHT_PAIR_SCAN_SOURCE, "paired_quotes"),
                                 "straight pair scan"),
         )
-        self.assertIsNone(_call_with_deadline(lambda: detect_convention(source),
+        self.assertIsNone(_call_with_deadline(lambda: detect_convention(_STRAIGHT_PAIR_SCAN_SOURCE),
                                               "straight pair detection"))
 
     def test_paragraph_start_and_odd_earlier_marks_boundaries(self):
