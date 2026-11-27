@@ -814,6 +814,41 @@ MIN_NAME_ATTESTATIONS = 2
 # Short sources may legitimately write a real name once; they must still
 # supply that occurrence rather than admitting every proposed name.
 MIN_SOURCE_FOR_ATTESTATION = 5000
+NAME_ATTESTATION_ATTESTED = "attested"
+NAME_ATTESTATION_UNATTESTED = "unattested"
+NAME_ATTESTATION_UNVERIFIABLE = "unverifiable"
+# Measured on public-domain Japanese (Aozora: Kokoro, Ningen Shikkaku, Rashomon)
+# and Apache-2.0 Chinese (WP reconstructed): T=3 keeps 93.9% ZH / 96.2% JA
+# (>=2-char) cast while cutting random 3-char substring hits 1.8x-3.8x vs T=2
+# (Kokoro 28.4->15.7%, 1.81x; Ningen 23.9->12.1%, 1.97x; WP full 19.3->8.7%,
+# 2.22x; WP 15k 7.6->2.0%, 3.8x; Rashomon 16.3->6.2%, 2.63x).
+#
+# Uncased names use max(T, min_attestations) at every source length: unlike
+# cased names they do not drop to 1 on a short (< MIN_SOURCE_FOR_ATTESTATION)
+# source, because one literal occurrence in an unspaced script cannot be told
+# from any substring. Consequence: in a short CJK chapter a real name written
+# once or twice is "unverifiable" - the output gate accepts it (no retry), but
+# the roster never receives it, so a short book whose whole cast is mentioned
+# only once or twice keeps an empty roster (same roster outcome as main, which
+# admitted no uncased name at all).
+UNCASED_MIN_NAME_ATTESTATIONS = 3
+_UNSPACED_SCRIPT_RE = re.compile(
+    r"[\u3005\u3040-\u30ff\u31f0-\u31ff\u3400-\u4dbf\u4e00-\u9fff"
+    r"\uf900-\ufaff\uff65-\uff9f\U00020000-\U0002ffff"
+    r"\u0e00-\u0e7f\u0e80-\u0eff\u1000-\u109f\u1780-\u17ff]"
+)
+_ARABIC_CHAR_RE = re.compile(r"[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]")
+_HEBREW_CHAR_RE = re.compile(r"[\u0590-\u05ff]")
+_HANGUL_CHAR_RE = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]")
+# Unvocalized proclitic prefixes: Arabic (wa/fa + bi/li/ka) and Hebrew (ve/she + be/le/ke/me/ha).
+_ARABIC_PREFIX_RE = re.compile(r"(?:[وف]?[بلك]|[وف])$")
+_HEBREW_PREFIX_RE = re.compile(r"(?:[וש]?[בלכמה]|[וש])$")
+# Korean honorifics and postpositional particles attached without a space.
+_KOREAN_SUFFIX_RE = re.compile(
+    r"(?:씨|님|군|양)?"
+    r"(?:께서|에게서|에게|한테서|한테|으로부터|로부터|으로|부터|까지|보다|처럼|하고|이랑|마저|조차|라고|이라|라서|여서|이다|였다|[이가은는을를의에도만로와과랑야아께])?"
+    r"[은는도만]?"
+)
 NAME_TITLE_PREFIXES = frozenset({
     "mr", "mrs", "ms", "miss", "dr", "doctor", "professor", "captain",
     "king", "queen", "prince", "princess", "lord", "lady", "sir", "dame",
@@ -870,24 +905,93 @@ def get_name_attestation_threshold(source_text, min_attestations=MIN_NAME_ATTEST
     return 1 if len(source_text) < MIN_SOURCE_FOR_ATTESTATION else min_attestations
 
 
-def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
-    """Whether a speaker name is written as a name in the source.
+def _is_word_char(ch):
+    return ch.isalnum() or ch == "_" or unicodedata.category(ch) in ("Mn", "Mc")
 
-    A real character is capitalised nearly every time; an invented one is not
-    in the text at all, or is a common word the model mistook for a name. The
-    ratio rather than a flat "never lowercase" rule, so a character whose name
-    is also a word (Rose, Hope) still passes on being named far more often than
-    the word is used.
 
-    The single implementation for both gates. Roster admission passes a higher
-    min_attestations because a bad name there propagates to every later batch,
-    while the output gate only has to judge one entry. They previously had
-    separate implementations and drifted: the output gate was fixed for
-    hyphenated names and the roster gate was not, so build_roster went on
-    rejecting Bri-chan after validate_attribution had started accepting him.
+def _has_cased_letter(text):
+    return any(unicodedata.category(ch) in ("Lu", "Ll", "Lt") for ch in text)
+
+
+def _is_uncased_letter_name(text):
+    return (any(unicodedata.category(ch).startswith("L") for ch in text)
+            and not _has_cased_letter(text))
+
+
+def _is_single_letter_uncased_name(text):
+    """One letter (combining marks ignored), all uncased: 的, 他, 민, ر."""
+    return (_is_uncased_letter_name(text)
+            and sum(1 for ch in text
+                    if unicodedata.category(ch).startswith("L")) == 1)
+
+
+def _count_uncased_occurrences(name, source_text):
+    """Literal occurrences of an uncased name, with the script heuristics.
+
+    KNOWN RESIDUALS, pinned by tests.test_unattested_speakers so that changing
+    these heuristics is deliberate:
+      - A spaced-script word that begins with a proclitic and CONTAINS a
+        candidate name counts as an occurrence: Arabic "مال" in "كمال",
+        "تاب" in "كتاب"; Hebrew "בן" in "לבן" (white), "בד" in "כבד" (heavy).
+      - The proclitic lookback is two characters, so a three-character chain
+        misses a real prefix: "كتاب" in "بالكتاب" (bi-al-...) and "أحمد" in
+        "بفأحمد" count 0.
+      - The Korean suffix alternation covers common honorifics and particles,
+        not every agglutinated ending: "민수" in "민수만의" and "민수라는"
+        counts 0.
+      - Vocalized Arabic/Hebrew (harakat/niqqud) is not normalised, so those
+        spellings count 0.
+    """
+    if _UNSPACED_SCRIPT_RE.search(name):
+        return sum(1 for _ in re.finditer(re.escape(name), source_text))
+    arabic = bool(_ARABIC_CHAR_RE.match(name))
+    hebrew = bool(_HEBREW_CHAR_RE.match(name))
+    hangul = bool(_HANGUL_CHAR_RE.search(name))
+    count = 0
+    for found in re.finditer(re.escape(name), source_text):
+        start, end = found.start(), found.end()
+        if start > 0 and _is_word_char(source_text[start - 1]):
+            prefix_re = _ARABIC_PREFIX_RE if arabic else (_HEBREW_PREFIX_RE if hebrew else None)
+            prefix = prefix_re.search(source_text[max(0, start - 2):start]) if prefix_re else None
+            prefix_start = start - len(prefix.group()) if prefix else -1
+            if not prefix or (prefix_start > 0 and _is_word_char(source_text[prefix_start - 1])):
+                continue
+        if end < len(source_text) and _is_word_char(source_text[end]):
+            if not hangul:
+                continue
+            tail = _KOREAN_SUFFIX_RE.match(source_text, end)
+            tail_end = tail.end() if tail else end
+            if tail_end == end or (tail_end < len(source_text) and _is_word_char(source_text[tail_end])):
+                continue
+        count += 1
+    return count
+
+
+def get_name_attestation_verdict(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
+    """Three-way attestation verdict: ``attested``, ``unattested``, or ``unverifiable``.
+
+    Names containing any cased letter (including Latin+CJK mixed names) or no
+    letters at all keep the capital-ratio rule and return only ``attested`` or
+    ``unattested``. Names whose letters are all uncased (Japanese, Chinese,
+    Korean, Arabic, Hebrew, Devanagari, ...) cannot be judged by case: 0 exact
+    occurrences is ``unattested`` (rejected), >= threshold is ``attested``
+    (accepted and roster-eligible), and in between is ``unverifiable`` (not
+    rejected as invented by the output gate, not admitted to the roster).
+
+    A one-letter uncased name is NEVER ``attested`` by occurrence count: it is
+    ``unattested`` at 0 and ``unverifiable`` above that. Any plausible character
+    recurs far past the threshold in a real book (79.9% of the distinct Han
+    characters in a full Chinese novel reach 3, and 的/他 reached 196/113), so
+    counting cannot separate a real one-character name from a particle. The
+    output gate accepts ``unverifiable`` and the roster refuses it; a supplied
+    cast bypasses both gates at the caller (``known_names`` / roster seed), so a
+    cast one-character name still ships.
+
+    The single implementation for both gates (output validation and roster
+    admission) and for ``is_attested_name``.
     """
     if not source_text or not name:
-        return True
+        return NAME_ATTESTATION_ATTESTED
     # A soft hyphen or word joiner is invisible inside a word (#2316): the
     # model's "SONYA" and the book's "Son<SHY>ya" are the same attestation, and
     # a name that came back from the model carrying one is the same name.
@@ -897,11 +1001,23 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
         # A non-empty name made only of invisible characters cannot be attested
         # (#2316). Without this it skipped every check and could be stored as a
         # SPOKEN speaker that folded to "". An actually empty name stays a no-op.
-        return False
+        return NAME_ATTESTATION_UNATTESTED
+    if _is_uncased_letter_name(name):
+        count = _count_uncased_occurrences(name, source_text)
+        if count == 0:
+            return NAME_ATTESTATION_UNATTESTED
+        if _is_single_letter_uncased_name(name):
+            # A single letter is never attested by counting (see docstring).
+            # At most "unverifiable": the output gate accepts it, the roster
+            # refuses it. A supplied cast is handled before this gate.
+            return NAME_ATTESTATION_UNVERIFIABLE
+        threshold = max(UNCASED_MIN_NAME_ATTESTATIONS, min_attestations)
+        return (NAME_ATTESTATION_ATTESTED if count >= threshold
+                else NAME_ATTESTATION_UNVERIFIABLE)
     # Reporting verbs after a pronoun ("He said") are not personal-name
     # evidence. Explicit cast names are handled by the caller before this gate.
     if name.casefold().strip(".?!…") in _NON_PERSON_NAME_WORDS:
-        return False
+        return NAME_ATTESTATION_UNATTESTED
     min_attestations = get_name_attestation_threshold(source_text, min_attestations)
     # Match case-insensitively and judge by the first letter, because str.title()
     # capitalises after every non-letter: "BRI-CHAN".title() is "Bri-Chan" but
@@ -917,9 +1033,11 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
                           if found.group()[:1].isupper() and
                           is_name_context(found, source_text))
         # Do not let the full-name fallback turn a countdown into a person.
-        return capitalized >= min_attestations and capitalized > lowercase * 2
+        return (NAME_ATTESTATION_ATTESTED
+                if capitalized >= min_attestations and capitalized > lowercase * 2
+                else NAME_ATTESTATION_UNATTESTED)
     if capitalized >= min_attestations and capitalized > lowercase * 2:
-        return True
+        return NAME_ATTESTATION_ATTESTED
     # A full name the book writes once - "Ian Fairytale" at his introduction,
     # "Ian" on every later page - is that character, not an invention (#622:
     # IAN FAIRYTALE was rejected while IAN passed). The full form must be in
@@ -931,8 +1049,15 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
     if len(words) > 1 and capitalized >= 1:
         while words and words[0].casefold().rstrip(".") in NAME_TITLE_PREFIXES:
             words = words[1:]
-        return bool(words and is_attested_name(words[0], source_text, min_attestations))
-    return False
+        if words and _has_cased_letter(words[0]):
+            return get_name_attestation_verdict(words[0], source_text, min_attestations)
+    return NAME_ATTESTATION_UNATTESTED
+
+
+def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
+    """Whether a speaker name is written as a name in the source."""
+    return (get_name_attestation_verdict(name, source_text, min_attestations)
+            == NAME_ATTESTATION_ATTESTED)
 
 
 _SILENT_IN_WORD = "".join(SILENT_WORD_CHARACTERS)
@@ -1239,24 +1364,28 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
             if (source_text and speaker
                     and speaker.upper() not in ("UNKNOWN", "NARRATOR")
                     and speaker.upper() not in known_names
-                    and not is_attested_name(speaker, source_text)):
+                    and get_name_attestation_verdict(speaker, source_text)
+                    == NAME_ATTESTATION_UNATTESTED):
                 # The roster gate filters what goes IN; nothing filtered what
                 # came OUT. The model invented FUTURE_ME - the protagonist's
                 # future self, a phrase the book never capitalises - and
                 # shipped it on 250 entries, 13% of one book. With MAILMAN,
                 # ARUMANFI and SWORD_GOD_GARU_FARION that was 279 entries,
                 # 14.6% of the book, attributed to names not in the text.
+                message = (
+                    "The speaker does not appear in the source text."
+                    if _is_uncased_letter_name(remove_silent_word_characters(speaker))
+                    else ("The speaker does not appear as a name in the source text "
+                          "(a name must be written capitalised at least "
+                          f"{'once' if get_name_attestation_threshold(source_text) == 1 else 'twice'}, "
+                          "or be a full name the text writes whose personal name is).")
+                )
                 findings.append({"code": "speaker_not_in_source",
                                  "entry_number": i,
                                  "value": speaker,
                                  "source_line": source_line,
                                  "expected": _VALIDATION_EXPECTED["speaker_not_in_source"],
-                                 "message": "The speaker does not appear as a "
-                                            "name in the source text (a name "
-                                            "must be written capitalised at "
-                                            f"least {'once' if get_name_attestation_threshold(source_text) == 1 else 'twice'}, "
-                                            "or be a full name the text writes "
-                                            "whose personal name is)."})
+                                 "message": message})
                 continue
             if speaker.upper() in ENTRY_TYPE_NAMES:
                 findings.append({"code": "speaker_is_entry_type",
