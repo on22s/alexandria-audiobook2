@@ -1,14 +1,24 @@
+import contextlib
 import copy
+import io
 import json
 import unicodedata
 import unittest
 
 from speaker_identity import (build_speaker_consistency_report,
-                              get_speaker_label_index, get_validated_alias_map,
+                              get_resolved_speaker_merge_map,
+                              get_safe_alias_proposals,
+                              get_saveable_alias_graph,
+                              get_speaker_label_index,
+                              get_validated_alias_graph,
+                              get_validated_alias_map,
+                              is_group_speaker_label,
                               is_speaker_merge_allowed, resolve_speaker_label,
                               stabilize_speaker_identities,
                               _CANDRABINDU_ANUSVARA, _IDENTITY_MARK_SCRIPTS,
-                              _identity_key, _is_identity_mark)
+                              _get_alias_roots, _identity_key,
+                              _is_extended_person_name, _is_identity_mark,
+                              _uncertain_candidates)
 
 
 def _entry(speaker):
@@ -654,6 +664,415 @@ class FinishedScriptRepairTest(unittest.TestCase):
             {"speaker": "R UDEUS", "text": "Rudeus said so himself."},
         ])
         self.assertIn("speaker_split_repair", {c["type"] for c in out["changes"]})
+
+
+class AliasRegistryBoundaryAndConflictTests(unittest.TestCase):
+    def test_alias_registry_count_and_name_length_boundaries(self):
+        at_limit = {f"v{i}": f"c{i}" for i in range(10000)}
+        validated = get_validated_alias_map(at_limit)
+        self.assertEqual(10000, len(validated))
+
+        over_limit = dict(at_limit)
+        over_limit["v10000"] = "c10000"
+        with self.assertRaises(ValueError):
+            get_validated_alias_map(over_limit)
+
+        max_name = "a" * 1024
+        max_target = "b" * 1024
+        self.assertEqual({max_name: max_target},
+                         get_validated_alias_map({max_name: max_target}))
+        with self.assertRaises(ValueError):
+            get_validated_alias_map({"a" * 1025: "b"})
+        with self.assertRaises(ValueError):
+            get_validated_alias_map({"a": "b" * 1025})
+
+    def test_alias_registry_stripped_and_normalized_target_conflicts(self):
+        # Two raw keys stripping to the same variant with different exact targets.
+        with self.assertRaises(ValueError):
+            get_validated_alias_map({" A": "B", "A": "b"})
+
+        # Two raw keys stripping to the same variant with the same target.
+        self.assertEqual({"A": "B"},
+                         get_validated_alias_map({"A": "B", "A ": "B"}))
+
+        # Two spellings of one identity pointing to the same canonical target.
+        self.assertEqual({"A": "B", "a": "B"},
+                         get_validated_alias_map({"A": "B", "a": "B"}))
+
+        # Two spellings of one identity pointing to conflicting canonical targets.
+        with self.assertRaises(ValueError):
+            get_validated_alias_map({"A": "B", "a": "C"})
+
+
+class SpeakerIdentityEdgeAndAuditTests(unittest.TestCase):
+    def test_empty_and_missing_speakers_pass_through_unchanged(self):
+        entries = [
+            {"speaker": None, "text": "a"},
+            {"speaker": "", "text": "b"},
+            {"text": "d"},
+        ]
+        result = stabilize_speaker_identities(
+            entries, established_speakers=[None, "", "ALICE", "ALICE"])
+        self.assertEqual(entries, result["entries"])
+        self.assertEqual([], result["changes"])
+        self.assertEqual([], result["review"])
+        self.assertEqual(["ALICE"], result["speakers"])
+
+        # Whitespace-only speaker passes through unchanged with no change or sentinel.
+        ws_entries = [{"speaker": "   ", "text": "c"}]
+        ws_result = stabilize_speaker_identities(ws_entries, established_speakers=["ALICE"])
+        self.assertEqual(ws_entries, ws_result["entries"])
+        self.assertEqual([], ws_result["changes"])
+        self.assertNotIn("XXXX", ws_result["speakers"])
+
+        self.assertEqual("", _identity_key(None))
+        self.assertEqual("", _identity_key(""))
+        self.assertFalse(is_group_speaker_label(None))
+
+        report = build_speaker_consistency_report(
+            ["not-a-dict", {"speaker": None}, {"speaker": ""}, {"speaker": "ALICE"}])
+        self.assertEqual(1, report["speaker_count"])
+        self.assertEqual(
+            [{"speaker": "ALICE", "entry_count": 1, "first_entry_numbers": [4]}],
+            report["speakers"],
+        )
+
+    def test_stabilization_continues_past_non_dict_and_non_matching_entries(self):
+        # First loop: non-dict entry before a variant that must be canonicalized.
+        out_id = stabilize_speaker_identities(
+            ["not-a-dict", {"speaker": " roswaal ", "text": "hello"}],
+            established_speakers=["ROSWAAL"],
+        )
+        self.assertEqual("ROSWAAL", out_id["entries"][1]["speaker"])
+        self.assertEqual(
+            [{"type": "speaker_identity", "entry_number": 2,
+              "before": " roswaal ", "after": "ROSWAAL"}],
+            out_id["changes"],
+        )
+
+        # Spelling pass: non-dict and roster speaker before split/intact pair.
+        out_spell = stabilize_speaker_identities(
+            ["not-a-dict",
+             {"speaker": "EMILIA", "text": "x"},
+             {"speaker": "R UDEUS", "text": "a"},
+             {"speaker": "RUDEUS", "text": "b"}],
+            established_speakers=["EMILIA"],
+        )
+        self.assertEqual("RUDEUS", out_spell["entries"][2]["speaker"])
+        self.assertEqual("RUDEUS", out_spell["entries"][3]["speaker"])
+        self.assertIn(
+            {"type": "speaker_spelling", "entry_number": 3,
+             "before": "R UDEUS", "after": "RUDEUS"},
+            out_spell["changes"],
+        )
+
+        # Split-repair pass: non-dict and non-split speaker before split name.
+        out_split = stabilize_speaker_identities([
+            "not-a-dict",
+            {"speaker": "NARRATOR", "text": "Rudeus arrived."},
+            {"speaker": "R UDEUS", "text": "Hello."},
+        ])
+        self.assertEqual("RUDEUS", out_split["entries"][2]["speaker"])
+        self.assertEqual(
+            [{"type": "speaker_split_repair",
+              "before": "R UDEUS", "after": "RUDEUS"}],
+            out_split["changes"],
+        )
+
+    def test_audit_records_entry_numbers_and_speaker_list_order(self):
+        out = stabilize_speaker_identities([
+            {"speaker": "BOB", "text": "hi"},
+            {"speaker": "R UDEUS", "text": "a"},
+            {"speaker": "ALICE", "text": "b"},
+            {"speaker": "RUDEUS", "text": "c"},
+            {"speaker": "ROSWAL", "text": "d"},
+        ], established_speakers=["ROSWAAL"])
+
+        self.assertEqual(["ROSWAAL", "BOB", "ALICE", "ROSWAL", "RUDEUS"],
+                         out["speakers"])
+        self.assertEqual(
+            [{"entry_number": 5, "speaker": "ROSWAL",
+              "candidates": [{"speaker": "ROSWAAL", "similarity": 0.9231}]}],
+            out["review"],
+        )
+        self.assertIn(
+            {"type": "speaker_identity", "entry_number": 4,
+             "before": "RUDEUS", "after": "R UDEUS"},
+            out["changes"],
+        )
+        self.assertIn(
+            {"type": "speaker_spelling", "entry_number": 2,
+             "before": "R UDEUS", "after": "RUDEUS"},
+            out["changes"],
+        )
+        self.assertIn(
+            {"type": "speaker_spelling", "entry_number": 4,
+             "before": "R UDEUS", "after": "RUDEUS"},
+            out["changes"],
+        )
+
+    def test_consistency_report_entry_index_cap_and_suggestion_deduplication(self):
+        entries = [{"speaker": "ALICE"} for _ in range(7)]
+        review = [
+            {"entry_number": 2, "speaker": "ROSWAL",
+             "candidates": [{"speaker": "ROSWAAL", "similarity": 0.9231}]},
+            {"entry_number": 4, "speaker": "ROSWAL",
+             "candidates": [{"speaker": "ROSWAAL", "similarity": 0.9231}]},
+            {"entry_number": 5, "speaker": "ROSWAA",
+             "candidates": [{"speaker": "ROSWAAL", "similarity": 0.9231}]},
+            {"entry_number": 6, "speaker": "ROSWAL",
+             "candidates": [{"speaker": "ROSWEL", "similarity": 0.90}]},
+        ]
+        report = build_speaker_consistency_report(entries, review)
+        self.assertEqual(
+            [{"speaker": "ALICE", "entry_count": 7,
+              "first_entry_numbers": [1, 2, 3, 4, 5]}],
+            report["speakers"],
+        )
+        self.assertEqual(
+            [
+                {"speaker": "ROSWAL",
+                 "candidates": [{"speaker": "ROSWAAL", "similarity": 0.9231}],
+                 "example_entry_number": 2},
+                {"speaker": "ROSWAA",
+                 "candidates": [{"speaker": "ROSWAAL", "similarity": 0.9231}],
+                 "example_entry_number": 5},
+                {"speaker": "ROSWAL",
+                 "candidates": [{"speaker": "ROSWEL", "similarity": 0.90}],
+                 "example_entry_number": 6},
+            ],
+            report["review_suggestions"],
+        )
+
+
+class UnicodeScriptTableAndProtectionTests(unittest.TestCase):
+    def test_every_unicode_13_identity_mark_script_preserves_its_mark(self):
+        # One real Mn/Mc mark per script row in _IDENTITY_MARK_SCRIPTS that has
+        # combining marks in Unicode 13.0 (Python 3.10's unicodedata).
+        script_marks = [
+            ("KHOJKI", "\U0001122c"),
+            ("KHUDAWADI", "\U000112df"),
+            ("MASARAM GONDI", "\U00011d31"),
+            ("GUNJALA GONDI", "\U00011d8a"),
+            ("SOYOMBO", "\U00011a51"),
+            ("NANDINAGARI", "\U000119d1"),
+            ("MODI", "\U00011630"),
+            ("TAKRI", "\U000116ab"),
+            ("AHOM", "\U0001171d"),
+            ("DOGRA", "\U0001182c"),
+            ("SYLOTI NAGRI", "\ua802"),
+            ("MEETEI MAYEK", "\uaaeb"),
+            ("KHAROSHTHI", "\U00010a01"),
+            ("LEPCHA", "\u1c24"),
+            ("BUGINESE", "\u1a17"),
+            ("REJANG", "\ua947"),
+            ("MAKASAR", "\U00011ef3"),
+            ("BALINESE", "\u1b00"),
+            ("JAVANESE", "\ua980"),
+            ("SUNDANESE", "\u1b80"),
+            ("BATAK", "\u1be6"),
+            ("CHAM", "\uaa29"),
+            ("TAGALOG", "\u1712"),
+            ("HANUNOO", "\u1732"),
+            ("BUHID", "\u1752"),
+            ("TAGBANWA", "\u1772"),
+            ("TAI THAM", "\u1a55"),
+            ("TAI VIET", "\uaab0"),
+        ]
+        for script, mark in script_marks:
+            with self.subTest(script=script, cp=hex(ord(mark))):
+                self.assertTrue(_is_identity_mark(mark))
+                self.assertNotEqual(_identity_key("a" + mark), _identity_key("a"))
+
+    def test_extended_person_name_rejects_all_relation_words_and_digits(self):
+        for relation in ("mother", "father", "sister", "brother", "daughter", "son"):
+            with self.subTest(relation=relation):
+                self.assertFalse(_is_extended_person_name(f"SUBARU {relation.upper()}", "SUBARU"))
+        self.assertFalse(_is_extended_person_name("MAN 2", "MAN"))
+        self.assertTrue(_is_extended_person_name("SUBARU NATSUKI", "SUBARU"))
+
+        out = stabilize_speaker_identities(
+            [_entry("SUBARU MOTHER"), _entry("SUBARU SON"), _entry("MAN 2")],
+            ["SUBARU", "MAN"],
+        )
+        self.assertEqual([], out["review"])
+
+    def test_uncertain_candidates_threshold_rounding_and_tie_break_order(self):
+        # Default identity_keys=None path and 4-decimal rounding (12/13 -> 0.9231).
+        self.assertEqual(
+            [{"speaker": "ROSWAAL", "similarity": 0.9231}],
+            _uncertain_candidates("ROSWAL", ["ROSWAAL"]),
+        )
+        # Exact 0.90 boundary (18/20) is included; lower similarity is excluded;
+        # candidates are ordered by descending similarity then speaker name.
+        candidates = _uncertain_candidates(
+            "ABCDEFGHIJ",
+            ["ZBCDEFGHIJ", "XBCDEFGHIJ", "ABCDEFGHIJK", "ZZZZZZZZZZ"],
+        )
+        self.assertEqual(
+            [
+                {"speaker": "ABCDEFGHIJK", "similarity": 0.9524},
+                {"speaker": "XBCDEFGHIJ", "similarity": 0.9},
+                {"speaker": "ZBCDEFGHIJ", "similarity": 0.9},
+            ],
+            candidates,
+        )
+
+    def test_group_labels_and_protected_narration_merge_rules(self):
+        for label in ("ALICE/BOB", "ALICE & BOB", "ALICE + BOB",
+                      "RAM AND REM", "TWINS", "EMILIA (DUAL)", "CROWD"):
+            with self.subTest(group_label=label):
+                self.assertTrue(is_group_speaker_label(label))
+        for label in ("ALICE", "ANDREW", "", None):
+            with self.subTest(single_label=label):
+                self.assertFalse(is_group_speaker_label(label))
+
+        for protected in ("NARRATOR", "NARRATION", "NARRATIVE", "UNKNOWN"):
+            with self.subTest(protected=protected):
+                self.assertFalse(is_speaker_merge_allowed(protected, "ALICE"))
+                self.assertFalse(is_speaker_merge_allowed("ALICE", protected))
+
+        # Group-to-single is refused on both sides; same-group spelling/NFC/spacing
+        # variants are allowed; distinct group labels are refused.
+        self.assertFalse(is_speaker_merge_allowed("RAM AND REM", "RAM"))
+        self.assertFalse(is_speaker_merge_allowed("RAM", "RAM AND REM"))
+        self.assertTrue(is_speaker_merge_allowed("RAM  AND  REM", "ram and rem"))
+        self.assertTrue(is_speaker_merge_allowed("JOSÉ & ANA", "JOSE\u0301  &  ANA"))
+        self.assertFalse(is_speaker_merge_allowed("RAM AND REM", "EMILIA AND PUCK"))
+
+
+class AliasGraphAndProposalTests(unittest.TestCase):
+    def test_alias_roots_handles_chains_diamonds_cycles_self_aliases_and_refused_edges(self):
+        # Linear chain and reversed-order diamond hitting cached roots.
+        roots, cyclic = _get_alias_roots({"B": "C", "A": "B", "D": "B"})
+        self.assertEqual({"A": "C", "B": "C", "D": "C"}, roots)
+        self.assertEqual(set(), cyclic)
+
+        # Self-alias terminates without marking a cycle.
+        roots, cyclic = _get_alias_roots({"A": "a"})
+        self.assertEqual({"A": "a"}, roots)
+        self.assertEqual(set(), cyclic)
+
+        # Two-node cycle and tail leading into it (both orders).
+        roots, cyclic = _get_alias_roots({"A": "B", "B": "A", "T": "A"})
+        self.assertEqual({}, roots)
+        self.assertEqual({"A", "B", "T"}, cyclic)
+
+        # allowed_edge: allowed chain follows through; refused edge stops at terminal
+        # (including when `following` exists with different casing than `canonical`).
+        roots, cyclic = _get_alias_roots(
+            {"A": "B", "B": "C"}, allowed_edge=is_speaker_merge_allowed)
+        self.assertEqual({"A": "C", "B": "C"}, roots)
+        self.assertEqual(set(), cyclic)
+
+        roots, cyclic = _get_alias_roots(
+            {"A": "NARRATOR"}, allowed_edge=is_speaker_merge_allowed)
+        self.assertEqual({"A": "NARRATOR"}, roots)
+        self.assertEqual(set(), cyclic)
+
+        roots, cyclic = _get_alias_roots(
+            {"A": "b", "B": "C"},
+            allowed_edge=lambda u, v: (u, v) != ("A", "B"),
+        )
+        self.assertEqual({"A": "B", "B": "C"}, roots)
+        self.assertEqual(set(), cyclic)
+
+    def test_validated_and_saveable_alias_graph_rules(self):
+        self.assertEqual({"A": "B", "B": "C"},
+                         get_validated_alias_graph({" A ": " B ", "B": "C"}))
+        with self.assertRaisesRegex(ValueError, r"A, B"):
+            get_validated_alias_graph({"B": "A", "A": "B"})
+
+        self.assertEqual({"A": "B"}, get_saveable_alias_graph({"A": "B"}))
+        with self.assertRaises(ValueError):
+            get_saveable_alias_graph({"A": "NARRATOR"})
+        with self.assertRaises(ValueError):
+            get_saveable_alias_graph({"RAM AND REM": "RAM"})
+
+    def test_resolved_speaker_merge_map_flattens_chains_and_skips_cycles_and_protected_edges(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            # Cycle before valid chain still resolves the valid chain.
+            resolved = get_resolved_speaker_merge_map(
+                {"X": "Y", "Y": "X", "A": "B", "B": "C"})
+            self.assertEqual({"A": "C", "B": "C"}, resolved)
+
+            # Protected edge halts flattening while preserving the unprotected prefix.
+            self.assertEqual(
+                {"A": "B"},
+                get_resolved_speaker_merge_map({"A": "B", "B": "NARRATOR"}),
+            )
+
+            # Self-alias produces no merge entry.
+            self.assertEqual({}, get_resolved_speaker_merge_map({"ALICE": "ALICE"}))
+
+    def test_safe_alias_proposals_flatten_conflicts_protection_cycles_and_roster_bounds(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            # Default flatten=True vs flatten=False over a human alias chain.
+            self.assertEqual(
+                {"A": "C"},
+                get_safe_alias_proposals(
+                    [{"A": "B"}], roster=["C"], existing_aliases={"B": "C"}),
+            )
+            self.assertEqual(
+                {"A": "B"},
+                get_safe_alias_proposals(
+                    [{"A": "B"}], roster=["C"], existing_aliases={"B": "C"},
+                    flatten=False),
+            )
+
+            # existing_aliases=None works; human-owned key/root and protected edge
+            # are skipped without halting later valid proposals in the same map.
+            self.assertEqual(
+                {"NEW": "ROSTER"},
+                get_safe_alias_proposals(
+                    [{"H": "ROSTER", "NARRATOR": "ROSTER", "NEW": "ROSTER"}],
+                    roster=["ROSTER"],
+                    existing_aliases={"H": "OLD"},
+                ),
+            )
+            self.assertEqual(
+                {"NEW": "ROSTER"},
+                get_safe_alias_proposals(
+                    [{"NARRATOR": "ROSTER", "NEW": "ROSTER"}],
+                    roster=["ROSTER"],
+                ),
+            )
+
+            # Repeated same-target proposal is kept; conflicting target is dropped
+            # (and stays conflicted in a 3rd map) without stopping later keys.
+            self.assertEqual(
+                {"AGREE": "R1", "AFTER": "R2"},
+                get_safe_alias_proposals(
+                    [{"AGREE": "R1", "CLASH": "R1"},
+                     {"agree": "R1", "CLASH": "R2", "AFTER": "R2"},
+                     {"CLASH": "R1"}],
+                    roster=["R1", "R2"],
+                ),
+            )
+
+            # Cycles and off-roster targets are skipped without stopping later keys.
+            self.assertEqual(
+                {"VALID": "R1"},
+                get_safe_alias_proposals(
+                    [{"C1": "C2", "C2": "C1", "OFF": "NOT_IN_ROSTER", "VALID": "R1"}],
+                    roster=["R1"],
+                ),
+            )
+
+            # Self-alias onto roster spelling is omitted, and a legacy protected
+            # human edge cannot be laundered through an automatic proposal.
+            self.assertEqual(
+                {},
+                get_safe_alias_proposals([{"ALICE": "alice"}], roster=["ALICE"]),
+            )
+            self.assertEqual(
+                {},
+                get_safe_alias_proposals(
+                    [{"A": "B"}],
+                    roster=["NARRATOR"],
+                    existing_aliases={"B": "NARRATOR"},
+                ),
+            )
 
 
 if __name__ == "__main__":
