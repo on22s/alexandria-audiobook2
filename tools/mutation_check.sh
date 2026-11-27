@@ -21,12 +21,21 @@
 #
 # Environment:
 #   AA2_MUTATION_PYTHON    interpreter with mutmut installed (default: app/env
-#                          python, else python3)
+#                          python, else python3); bare names and relative paths
+#                          are resolved to absolute paths before cd into scratch
 #   AA2_MUTATION_TMP       parent for the scratch tree (default: $TMPDIR or /tmp)
-#   AA2_MUTATION_REPORT_DIR  where to copy report.txt, results.txt and
-#                          survivors.diff (default: $AA2_MUTATION_TMP/
-#                          aa2-mutation-reports/<module>)
+#   AA2_MUTATION_REPORT_DIR  where to copy report.txt, results.txt,
+#                          survivors.diff and run.log (default:
+#                          $AA2_MUTATION_TMP/aa2-mutation-reports/<module>)
 #   AA2_MUTATION_KEEP=1    keep the scratch tree (and .mutmut-cache) for debugging
+#
+# Limitations:
+#   - Inside a Git repository, only tracked top-level root files (`git ls-files`)
+#     are copied into the scratch tree; untracked root-level .py modules are not
+#     copied.
+#   - Normal exit, SIGINT and SIGTERM remove the scratch tree automatically, but
+#     SIGKILL cannot run traps and will leave $tmp_parent/aa2-mutation.* behind
+#     for manual cleanup.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -34,7 +43,24 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 die() { echo "mutation_check: $*" >&2; exit 2; }
 
 usage() {
-    sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    cat >&2 <<'EOF'
+Usage: tools/mutation_check.sh <module> <test_module> [test_module...]
+
+On-demand mutation testing (mutmut) for one app/ module and its test modules.
+
+Examples:
+  tools/mutation_check.sh app/dialogue_spans.py test_dialogue_spans test_pass_quality
+  tools/mutation_check.sh dialogue_spans tests.test_dialogue_spans
+
+Environment:
+  AA2_MUTATION_PYTHON      interpreter with mutmut installed (default: app/env
+                           python, else python3)
+  AA2_MUTATION_TMP         parent for the scratch tree (default: $TMPDIR or /tmp)
+  AA2_MUTATION_REPORT_DIR  where to copy report.txt, results.txt, survivors.diff
+                           and run.log (default: $AA2_MUTATION_TMP/
+                           aa2-mutation-reports/<module>)
+  AA2_MUTATION_KEEP=1      keep the scratch tree (and .mutmut-cache) for debugging
+EOF
     exit 2
 }
 
@@ -79,12 +105,20 @@ fi
 if [ -z "${PY:-}" ]; then
     PY=$(command -v python3 || true)
 fi
-# A bare command name (CI sets AA2_MUTATION_PYTHON=python) must become the
-# absolute path mutmut's runner will use; shlex.split does not expand PATH.
+# A bare command name (CI sets AA2_MUTATION_PYTHON=python) or a relative path
+# containing a slash (e.g. AA2_MUTATION_PYTHON=app/env/bin/python) must become
+# an absolute path before mutmut cd's into the scratch copy; avoid readlink -f
+# so a virtualenv symlink keeps its sys.prefix.
 if [ -n "${PY:-}" ] && [ "${PY#*/}" = "$PY" ]; then
     PY=$(command -v "$PY" || true)
+elif [ -n "${PY:-}" ] && [ "${PY#/}" = "$PY" ]; then
+    py_dir=$(dirname "$PY")
+    py_base=$(basename "$PY")
+    if [ -d "$py_dir" ]; then
+        PY="$(cd "$py_dir" && pwd)/$py_base"
+    fi
 fi
-[ -n "${PY:-}" ] && [ -x "$PY" ] || die "no interpreter; set AA2_MUTATION_PYTHON"
+[ -n "${PY:-}" ] && [ -f "$PY" ] && [ -x "$PY" ] || die "no interpreter; set AA2_MUTATION_PYTHON"
 if ! "$PY" -c 'import mutmut' >/dev/null 2>&1; then
     die "mutmut is not installed in $PY; run '$PY -m pip install -r app/requirements-mutation.txt'"
 fi
@@ -106,17 +140,40 @@ cleanup() {
         rm -rf "$WORK"
     fi
 }
+# Note: SIGKILL cannot run traps and will leave $WORK behind for manual removal.
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+publish_report() {
+    mkdir -p "$report_dir"
+    # Remove stale files from any earlier run so a failed run cannot leave
+    # previous results.txt or survivors.diff beside a new run.log.
+    rm -f "$report_dir/report.txt" "$report_dir/results.txt" \
+          "$report_dir/survivors.diff" "$report_dir/run.log"
+    cp -a "$WORK/report/." "$report_dir/"
+}
 
 REPO=$WORK/repo
-mkdir -p "$REPO"
+mkdir -p "$REPO/app"
 # app/ is the working tree (so a local edit under test is what runs), minus
-# caches that would only confuse mutmut.
-cp -a "$ROOT/app" "$REPO/app"
+# virtualenvs (app/env is ~15 GB in a live Pinokio checkout; the runner invokes
+# the absolute $PY directly) and caches that would only confuse mutmut.
+while IFS= read -r -d '' entry; do
+    name=${entry##*/}
+    case "$name" in
+        env|venv|.venv|__pycache__|.mutmut-cache|.pytest_cache) continue ;;
+    esac
+    if [ -d "$entry" ] && { [ -f "$entry/pyvenv.cfg" ] || [ -d "$entry/conda-meta" ]; }; then
+        continue
+    fi
+    cp -a "$entry" "$REPO/app/$name"
+done < <(find "$ROOT/app" -mindepth 1 -maxdepth 1 -print0)
 find "$REPO/app" -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true
 find "$REPO/app" \( -name '*.pyc' -o -name '.mutmut-cache' -o -name '.pytest_cache' \) -delete 2>/dev/null || true
 # Root-level modules (gpu_stats.py, alexandria_file_lock.py, ...) and the one
-# small package the app imports from the repo root.
+# small package the app imports from the repo root. In a Git repo only tracked
+# top-level files are copied; untracked root-level modules are not copied.
 if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
     while IFS= read -r -d '' f; do
         case "$f" in */*) continue ;; esac
@@ -131,7 +188,9 @@ fi
 
 # --- mutmut config. The runner is the same invocation GUIDE.md uses: from app/,
 #     `python -m unittest tests.test_x ...`, so tests keep their package import
-#     context. setup.cfg is written into the scratch copy only. ---
+#     context. setup.cfg is written into the scratch copy only, and the same
+#     options are also passed on the CLI because mutmut 2 reads pyproject.toml
+#     [tool.mutmut] before setup.cfg while CLI flags override both. ---
 runner="$PY -m unittest ${test_modules[*]}"
 cat > "$REPO/app/setup.cfg" <<EOF
 [mutmut]
@@ -165,7 +224,11 @@ echo "mutation_check: scratch copy at $REPO (checkout is not modified)" >&2
 
 start=$(date +%s)
 set +e
-( cd "$REPO/app" && "$PY" -m mutmut run --simple-output --no-progress ) > "$log" 2>&1
+( cd "$REPO/app" && "$PY" -m mutmut run \
+    --paths-to-mutate "$module.py" \
+    --tests-dir tests \
+    --runner "$runner" \
+    --simple-output --no-progress ) > "$log" 2>&1
 rc=$?
 set -e
 elapsed=$(( $(date +%s) - start ))
@@ -177,8 +240,7 @@ case "$rc" in
     0|2|4|6|8|10|12|14) ;;
     *) echo "mutation_check: mutmut failed (exit $rc); last 40 log lines:" >&2
        tail -40 "$log" >&2
-       mkdir -p "$report_dir"
-       cp -a "$WORK/report/." "$report_dir/"
+       publish_report
        echo "mutation_check: full log: $report_dir/run.log" >&2
        exit 1 ;;
 esac
@@ -240,8 +302,7 @@ else
     echo "no surviving mutants"
 fi
 
-mkdir -p "$report_dir"
-cp -a "$WORK/report/." "$report_dir/"
+publish_report
 echo "report copied to: $report_dir"
 
 # 0 = the run completed (survivors are a finding, not a failure), 1 = fatal.

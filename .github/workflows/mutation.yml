@@ -7,9 +7,10 @@ name: mutation
 #   gh workflow run mutation.yml -f module=dialogue_spans \
 #       -f tests="test_dialogue_spans test_pass_quality"
 #
-# The report (report.txt, results.txt, survivors.diff) is uploaded as an
-# artifact. tools/mutation_check.sh can be run locally with the same arguments;
-# it copies app/ to a scratch tree, so the checkout is never mutated in place.
+# The report (report.txt, results.txt, survivors.diff, run.log) is uploaded as
+# an artifact. tools/mutation_check.sh can be run locally with the same
+# arguments; it copies app/ to a scratch tree, so the checkout is never mutated
+# in place.
 on:
   workflow_dispatch:
     inputs:
@@ -22,13 +23,18 @@ on:
         required: true
         type: string
 
+run-name: mutation (${{ inputs.module }} / ${{ github.ref_name }})
+
+permissions:
+  contents: read
+
 concurrency:
   group: mutation-${{ github.ref }}-${{ inputs.module }}
   cancel-in-progress: false
 
 jobs:
   mutation:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # A pathological module can take longer; raise this per run if needed.
     timeout-minutes: 120
     steps:
@@ -40,16 +46,20 @@ jobs:
           cache: pip
           cache-dependency-path: |
             app/requirements.txt
+            app/requirements-test.txt
             app/requirements-mutation.txt
 
       # The mutated test imports real app modules (generate_script, project,
-      # routers, ...), so install the same runtime stack the unit shards use.
-      # Torch first and CPU-only, exactly as .github/workflows/tests.yml does.
+      # routers, ...) and unit-test helpers (e.g. httpx from requirements-test.txt),
+      # so install the same Python dependency set the unit shards use in
+      # .github/workflows/tests.yml (CPU Torch first, requirements.txt, and
+      # requirements-test.txt) plus requirements-mutation.txt.
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install 'torch==2.10.0+cpu' 'torchaudio==2.10.0+cpu' --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -r app/requirements.txt
+          python -m pip install -r app/requirements-test.txt
           python -m pip install -r app/requirements-mutation.txt
 
       - name: Run mutation check
@@ -71,5 +81,5 @@ jobs:
         with:
           name: mutation-report-${{ github.run_id }}
           path: ${{ runner.temp }}/mutation-report
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30

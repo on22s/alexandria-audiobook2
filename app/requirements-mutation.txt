@@ -10,10 +10,11 @@
 # Install into the interpreter used for the check, e.g. app/env:
 #   app/env/bin/python -m pip install -r app/requirements-mutation.txt
 #
-# 2.4.5 supports Python 3.7+ (CI and app/env are 3.10.20) and needs only pure
-# Python dependencies (click, parso, pony, toml, glob2, junit-xml).
+# mutmut 2.4.5 itself declares Python >=3.7, but the pinned click==8.4.1 and
+# transitive pony>=0.7.20 require Python >=3.10 (CI and app/env are 3.10.20).
+# All dependencies are pure Python (click, parso, pony, toml, glob2, junit-xml).
 mutmut==2.4.5
 
-# Pin the click major mutmut 2 was tested against so installing this file cannot
-# silently move a shared environment to an incompatible click.
+# Pin the exact click version tested with mutmut 2.4.5 so installing this file
+# cannot silently move a shared environment to an incompatible click.
 click==8.4.1

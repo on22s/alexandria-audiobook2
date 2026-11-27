@@ -69,6 +69,7 @@ tts_style_test*.json
 # Python cache
 __pycache__/
 *.pyc
+.mutmut-cache
 
 # User uploads
 app/uploads/
