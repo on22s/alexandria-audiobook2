@@ -765,6 +765,21 @@ _NUM_TEENS = {'ten':10,'eleven':11,'twelve':12,'thirteen':13,'fourteen':14,
 _NUM_TENS  = {'twenty':20,'thirty':30,'forty':40,'fifty':50,'sixty':60,
               'seventy':70,'eighty':80,'ninety':90}
 _NUM_TOKENS = set(_NUM_ONES) | set(_NUM_TEENS) | set(_NUM_TENS) | {'hundred','thousand','and'}
+_CARDINAL_NUMBER_TOKENS = set(_NUM_ONES) | set(_NUM_TEENS) | set(_NUM_TENS)
+
+
+def is_spelled_number(words) -> bool:
+    """True when these words could be one number written out instead of digits.
+
+    Used where a digit is missing from one side and a word sequence may be its
+    spoken form. Every word must be a number word and at least one must be a
+    cardinal, so a bare "and" or "hundred" is not a rendering of a number.
+    """
+    tokens = [str(word).lower() for word in words]
+    return (bool(tokens)
+            and all(token in _NUM_TOKENS for token in tokens)
+            and any(token in _CARDINAL_NUMBER_TOKENS for token in tokens))
+
 
 def _parse_number(words: list):
     """Parse a list of tokens as an integer 0–9999. Returns int or None.
@@ -833,6 +848,11 @@ def _num_eq(a_words: list, b_words: list) -> bool:
     a = _parse_number(a_words)
     b = _parse_number(b_words)
     return a is not None and b is not None and a == b
+
+
+# Public name for callers outside this module. The is_ prefix follows Rule 16's
+# verb-first naming for a predicate; callers must not reach for _num_eq.
+is_same_number = _num_eq
 
 
 def trim_span_to_alignment(

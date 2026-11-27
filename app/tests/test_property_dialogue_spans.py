@@ -280,18 +280,11 @@ class InvariantTests(unittest.TestCase):
         self.assertIs(True, validate_spoken_spans(
             [(match.start(2), match.end(2)) for match in LABEL_LINE.finditer(text)],
             text))
-        for start, end in get_other_speech_spans(text, "paired_quotes"):
-            if start == end:
-                # KNOWN LIMIT (#2360, found by this property, filed separately):
-                # an unclosed opener that is the last character, or is followed
-                # immediately by a blank line, comes back as a zero-length span
-                # instead of no span - get_other_speech_spans("“",
-                # "paired_quotes") == [(1, 1)]. It is inert downstream
-                # (mark_entries tests `start < end`), and
-                # validate_spoken_spans refuses exactly this shape, so it is
-                # excluded here rather than asserted.
-                continue
-            self.assertTrue(0 <= start < end <= len(text))
+        # #2360: an unclosed opener with no paragraph body used to come back as
+        # the zero-length (start, start) range this validator refuses. The
+        # property now covers that shape instead of excluding it.
+        self.assertIs(True, validate_spoken_spans(
+            get_other_speech_spans(text, "paired_quotes"), text))
 
     @given(st.text(alphabet=ALPHABET, max_size=120))
     def test_analyzer_regions_and_repairs_stay_inside_the_source(self, text):

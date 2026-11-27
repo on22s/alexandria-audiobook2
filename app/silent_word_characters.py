@@ -10,15 +10,27 @@ U+200B ZERO WIDTH SPACE is the opposite case: it *is* a word boundary. It is
 not deleted, because that would fuse the two words it separates. It is mapped
 to an ordinary space for tokenisation instead (``WORD_BOUNDARIES``).
 
-Deliberately in neither set: ZWNJ (U+200C) and ZWJ (U+200D) are lexical in
-Persian, Indic scripts and emoji sequences; a byte-order mark (U+FEFF) is
-dropped at import rather than inside a word; bidi controls (U+200E/F,
-U+202A-E, U+2066-9) carry direction; variation selectors change the glyph.
+Deliberately in neither set, because each has a lexical use:
+
+- ZWNJ (``ZERO_WIDTH_NON_JOINER``) is orthographic in Persian: "می" + ZWNJ +
+  "روم" is one word, so the word comparison keeps it inside the token. For
+  counting how many copies the book holds, though, it is an optional
+  separator: the same line may be written with a space or without it.
+- ZWJ (``ZERO_WIDTH_JOINER``) is a glyph-joining hint with no lexical value;
+  a Devanagari conjunct spelled with and without it is the same word, so
+  comparison deletes it. ``literal_fidelity`` keeps both inside a token
+  instead, because a literal word is verified byte for byte.
+
+A byte-order mark (U+FEFF) is dropped at import rather than inside a word;
+bidi controls (U+200E/F, U+202A-E, U+2066-9) carry direction; variation
+selectors change the glyph.
 """
 
 SOFT_HYPHEN = "\u00ad"
 WORD_JOINER = "\u2060"
 ZERO_WIDTH_SPACE = "\u200b"
+ZERO_WIDTH_NON_JOINER = "\u200c"
+ZERO_WIDTH_JOINER = "\u200d"
 SILENT_WORD_CHARACTERS = (SOFT_HYPHEN, WORD_JOINER)
 WORD_BOUNDARIES = (ZERO_WIDTH_SPACE,)
 

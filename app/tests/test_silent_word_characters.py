@@ -130,6 +130,24 @@ class SilentWordCharacterRuleTests(unittest.TestCase):
                 self.assertNotIn(char, SILENT_WORD_CHARACTERS)
                 self.assertNotIn(char, WORD_BOUNDARIES)
 
+    def test_the_comparison_key_keeps_zwnj_and_deletes_zwj(self):
+        # The classification lives here: ZWNJ is lexical (kept inside its word,
+        # #2316), ZWJ is a glyph-joining hint (deleted, so the Devanagari
+        # conjunct is one word). Both constants name the character the code is
+        # talking about.
+        from script_preflight import get_comparison_word_view
+        self.assertEqual("می\u200cروم".casefold(),
+                         get_comparison_word_view("می\u200cروم"))
+        self.assertEqual("gohome", get_comparison_word_view("Go\u200dhome"))
+
+    def test_literal_words_keep_a_joiner_inside_the_word(self):
+        # literal_fidelity verifies words character for character, so both
+        # joiners stay inside the literal token even though the comparison key
+        # deletes ZWJ. It keeps its own rule rather than sharing the comparison
+        # classification, which would change the word it reports.
+        self.assertEqual([("Go\u200dhome", 0, 7)],
+                         list(iter_literal_words("Go\u200dhome")))
+
     def test_a_soft_hyphen_at_a_hard_line_end_leaves_the_line_break(self):
         # A real newline is line structure, not an invisible character. Only the
         # SHY is deleted; the word the line break already split stays split.
