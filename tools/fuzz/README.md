@@ -19,7 +19,7 @@ Install the pinned fuzz dependency into `app/env` (never into `app/requirements.
 app/env/bin/python -m pip install -r app/requirements-fuzz.txt
 ```
 
-Run any harness directly with libFuzzer `-flag=value` options (space-separated forms like `-max_total_time 60` are rejected with an error). When no positional corpus directory is passed, the harness automatically writes newly discovered inputs into a fresh temporary scratch directory while reading the checked-in seeds under `tools/fuzz/corpus/` read-only:
+Run any harness directly with libFuzzer `-flag=value` options (space-separated forms like `-max_total_time 60` are rejected with an error). When no positional corpus directory is passed, the harness automatically writes newly discovered inputs into a fresh temporary scratch directory while reading the checked-in seeds under `tools/fuzz/corpus/` read-only. `atheris.Fuzz()` exits inside libFuzzer, so `atexit` handlers and `finally` blocks never run: the harness prints the scratch directory path on startup and leaves it behind for you to remove (CI passes an explicit corpus directory instead):
 
 ```bash
 PYTHONPATH=app:. app/env/bin/python tools/fuzz/fuzz_epub_structured.py \
@@ -45,6 +45,47 @@ To replay a single crash artifact:
 PYTHONPATH=app:. app/env/bin/python tools/fuzz/fuzz_epub_raw.py /path/to/crash-artifact
 ```
 
+## Exception filters
+
+The harnesses ignore only exceptions that the fuzzed production code documents
+as malformed-input refusals; everything else crashes the run:
+
+- **Known library bugs** (`#2367`, `#2368`, `#2370`, `#2371`, `#2375`) are
+  matched by the throwing function's source file and function name plus the
+  exception type. Each filtered function has one reachable failure site (or,
+  for `get_epub_xhtml_text`, the two decode statements documented in #2368),
+  so no bytecode/`tb_lasti` inspection is used. Opcode names and call layouts
+  differ across CPython versions (`LOAD_METHOD` is gone in 3.12, `CALL_METHOD`
+  in 3.13) and Atheris rewrites the code it instruments, so a bytecode window
+  would be a CPython-3.10-only assumption. The encoding-declaration filters
+  (`#2368`/`#2370`/`#2375`) cover every CPython 3.10 failure mode of those
+  bugs: `LookupError` for an unknown codec plus `ValueError` for
+  `multi-byte encodings are not supported` (`#2370`/`#2375`) and
+  `embedded null character` (`#2368`).
+- **`ValueError`** is never caught wholesale. The EPUB harnesses accept only
+  the documented message prefixes from `validate_epub_archive`,
+  `get_epub_package`, and `extract_epub_text` (`invalid XML: ...`,
+  `Malformed EPUB resource ...`, etc.); the parity harness does the same for
+  `load_epub`, whose documented refusals are the archive-admission messages
+  plus `EPUB has no readable spine documents` and
+  `EPUB spine references missing document: ...`. The stdlib `zipfile`
+  corrupt-offset `ValueError` (`negative seek value ...` / `seek out of
+  range`) is accepted only from the `zipfile` frame, as a malformed-archive
+  refusal. A `ValueError` with any other message fails the harness.
+- **ZIP/XML refusal exceptions** (`BadZipFile`, `ET.ParseError`, stdlib
+  ZIP `RuntimeError`/`KeyError`/`OSError`/`UnicodeError` paths) are scoped to
+  the exact stdlib `zipfile`/`ElementTree` frame; `UnicodeError` is always
+  caught before `ValueError`.
+
 ## Seed corpus
 
 `tools/fuzz/corpus/` contains small **synthetic** seed inputs only (including minimized synthetic regression seeds for bugs discovered by Atheris). Never place user data or copyrighted book text here.
+
+`tools/fuzz/corpus/epub_raw/` includes both #2375 arms
+(`regression_2375_opf_unknown_xml_encoding.epub`,
+`regression_2375_container_unknown_xml_encoding.epub`), the multi-byte variants
+`regression_2375_container_multibyte_xml_encoding.epub` (#2375) and
+`regression_2370_nav_multibyte_xml_encoding.epub` (#2370), plus
+`regression_2368_embedded_null_encoding.epub` (NUL inside the declared codec
+name) and `seed_corrupt_zip_central_directory.epub` (a ZIP member offset that
+makes stdlib `BytesIO.seek` refuse with `ValueError`).

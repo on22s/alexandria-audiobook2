@@ -20,6 +20,7 @@ from _common import (
     EPUB_INSTRUMENT_MODULES,
     configure_sys_path,
     default_fuzz_argv,
+    is_expected_epub_extract_value_error,
     is_expected_missing_member_key_error,
     is_expected_zip_bz2_error,
     is_expected_zip_filename_unicode_error,
@@ -48,7 +49,6 @@ _EXPECTED_REFUSALS = (
     lzma.LZMAError,
     NotImplementedError,
     ET.ParseError,
-    ValueError,
 )
 
 
@@ -66,6 +66,19 @@ def test_one_input(data: bytes) -> None:
         # Excluded: corrupt UTF-8 ZIP header filenames (stdlib zipfile refusal)
         # and #2368 (get_epub_xhtml_text non-ASCII/non-text XML encoding).
         if is_expected_zip_filename_unicode_error(exc) or is_known_xhtml_encoding_error(exc):
+            return
+        raise
+    except ValueError as exc:
+        # Only the documented malformed-archive/XML/HTML refusals (plus the
+        # tracked encoding-declaration bugs) are ignored; a ValueError from
+        # anywhere else must crash the harness instead of being silently
+        # treated as a refusal.
+        if (
+            is_expected_epub_extract_value_error(exc)
+            or is_known_xhtml_encoding_error(exc)
+            or is_known_xml_toc_encoding_error(exc)
+            or is_known_package_xml_encoding_error(exc)
+        ):
             return
         raise
     except _EXPECTED_REFUSALS:

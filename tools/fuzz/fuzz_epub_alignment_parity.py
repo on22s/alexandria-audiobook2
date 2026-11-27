@@ -9,7 +9,6 @@ on whether the navigation candidate is skipped as a navigation document
 """
 from __future__ import annotations
 
-import atexit
 from pathlib import Path
 import sys
 import tempfile
@@ -23,8 +22,12 @@ from _common import (
     PARITY_INSTRUMENT_MODULES,
     configure_sys_path,
     default_fuzz_argv,
+    is_expected_epub_extract_value_error,
+    is_expected_load_epub_value_error,
     is_expected_missing_member_key_error,
     is_known_ebooklib_parse_nav_index_error,
+    is_known_package_xml_encoding_error,
+    is_known_xml_toc_encoding_error,
     require_linux,
     set_headless_env,
 )
@@ -45,19 +48,20 @@ with atheris.instrument_imports(include=PARITY_INSTRUMENT_MODULES):
 if not alexandria_alignment.EPUB_AVAILABLE:
     raise SystemExit("alexandria_alignment.load_epub requires EbookLib and beautifulsoup4")
 
-_TMP_DIR = tempfile.TemporaryDirectory(prefix="aa2-fuzz-parity-")
-atexit.register(_TMP_DIR.cleanup)
-_TMP_EPUB = Path(_TMP_DIR.name) / "parity.epub"
+# atheris.Fuzz() terminates the process inside libFuzzer, so atexit handlers
+# and TemporaryDirectory finalizers never run. Use a plain scratch directory,
+# print its path, and leave removal to the caller.
+_TMP_DIR = tempfile.mkdtemp(prefix="aa2-fuzz-parity-")
+print(f"aa2-fuzz: parity scratch EPUB under {_TMP_DIR} (remove it when done)", file=sys.stderr)
+_TMP_EPUB = Path(_TMP_DIR) / "parity.epub"
 
 _EXPECTED_EXTRACT_REFUSALS = (
     zipfile.BadZipFile,
     ET.ParseError,
-    ValueError,
 )
 _EXPECTED_LOAD_REFUSALS = (
     zipfile.BadZipFile,
     ET.ParseError,
-    ValueError,
     ebooklib_epub.EpubException,
     lxml_etree.XMLSyntaxError,
 )
@@ -107,6 +111,18 @@ def test_one_input(data: bytes) -> None:
         # UnicodeError subclasses ValueError; never swallow unexpected codec
         # errors as refusal ValueErrors.
         raise
+    except ValueError as exc:
+        # Only the extractor's documented malformed-archive/XML/HTML refusals
+        # (plus the tracked encoding-declaration bugs) are ignorable; an
+        # unexpected ValueError must crash the harness.
+        if (
+            is_expected_epub_extract_value_error(exc)
+            or is_known_xml_toc_encoding_error(exc)
+            or is_known_package_xml_encoding_error(exc)
+        ):
+            extract_error = exc
+        else:
+            raise
     except _EXPECTED_EXTRACT_REFUSALS as exc:
         extract_error = exc
     except KeyError as exc:
@@ -125,6 +141,13 @@ def test_one_input(data: bytes) -> None:
         # UnicodeError subclasses ValueError; never swallow unexpected codec
         # errors as refusal ValueErrors.
         raise
+    except ValueError as exc:
+        # load_epub documents only its archive-admission and two spine
+        # refusals; anything else must crash the harness.
+        if is_expected_load_epub_value_error(exc):
+            load_error = exc
+        else:
+            raise
     except _EXPECTED_LOAD_REFUSALS as exc:
         load_error = exc
     except KeyError as exc:

@@ -71,4 +71,6 @@ docs/benchmarks/raw/cpu-speaker-windows-20261022/**    -text
 
 # Atheris fuzz corpus inputs (.bin, .epub, and intentional CRLF/encoding .txt
 # seeds) are byte-exact test inputs; never rewrite line endings on checkout.
-tools/fuzz/corpus/**                            -text
+# -diff marks them binary for diffs too: the cp1252/CRLF TXT seeds end lines
+# with CR, which `git diff --check` otherwise reports as trailing whitespace.
+tools/fuzz/corpus/**                            -text -diff
