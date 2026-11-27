@@ -184,6 +184,21 @@ class SourceTagTests(unittest.TestCase):
         self.assertIsNone(re.fullmatch(pq._REPORTING_VERBS, 'says'))
         self.assertIsNone(re.fullmatch(pq._REPORTING_VERBS, 'muttered'))
 
+    def test_object_pronoun_list_is_complete(self):
+        # _TAG_OBJECT's pronoun branch is behaviourally redundant because
+        # _TAG_NAME also matches every pronoun, so pin the list itself: a
+        # shrink to him|her must fail (#2388 gate 2 nit).
+        import pass_quality as pq
+        expected = {'him', 'her', 'them', 'me', 'us', 'you',
+                    'himself', 'herself'}
+        self.assertLessEqual(expected, pq._TAG_OBJECT_PRONOUNS)
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        for pronoun in sorted(expected):
+            with self.subTest(pronoun=pronoun):
+                self.assertEqual({0: 'ANNA'}, get_attribution_tag_evidence(
+                    entry, f'“Let us go,” Anna said to {pronoun}.',
+                    {'ANNA', 'BEN'}))
+
     def test_guillemets_and_low_high_quote_pairs(self):
         entry = [{'type': 'SPOKEN', 'text': 'Let us go'}]
         for source in (
@@ -215,6 +230,10 @@ class SourceTagTests(unittest.TestCase):
             ('Watch out!', '“Watch out!” Babs whispered, “Someone is coming.”'),
             ('Stay here.', '«Stay here.» Babs said, «I will return soon.»'),
             ('Stay here.', '„Stay here.“ Babs said, „I will return soon.“'),
+            # Gutenberg texts are hard-wrapped, and `‘` opens the next
+            # quotation in them without being a PAIRED convention (#2388 gate 2).
+            ('Are you in town?', '“Are you in town?” Babs said,\n“Have you got a match?”'),
+            ('Are you in town?', '“Are you in town?” Babs said, ‘Have you got a match?’'),
         ):
             with self.subTest(source=source):
                 self.assertEqual({}, get_attribution_tag_evidence(
@@ -250,10 +269,10 @@ class SourceTagTests(unittest.TestCase):
             known_names={'SHERLOCK HOLMES', 'MR HOLMES', 'WATSON'},
             tag_evidence={0: 'SHERLOCK HOLMES'},
             speaker_aliases={'Mr. Holmes': 'Sherlock Holmes'})['passed'])
-        # 3. Unestablished titled/partial tag naming same character does not contradict.
-        # The surname-only join is a deliberate trade-off: an unestablished
-        # "Miss Vale" is treated as the same family name for EITHER sister, so
-        # two real wrong-speaker flags on that shape are silenced (see Limits).
+        # 3. Deliberate duplicate-label join: the tag label SHERLOCK HOLMES is
+        # established, but it also names the same character as the established
+        # MR. SHERLOCK HOLMES. Unestablished titled/partial tags join by
+        # surname as well; that is the trade-off disclosed in Limits.
         for speaker, tag, roster in (
             ('MARY VALE', 'said Miss Vale.', {'MARY VALE', 'HENRY VALE', 'BEN'}),
             ('JOHN MIDDLETON', 'cried Sir John.', {'JOHN MIDDLETON', 'BEN'}),
@@ -319,6 +338,96 @@ class SourceTagTests(unittest.TestCase):
             entry, wife_source, roster, aliases))
         self.assertTrue(validate_attribution(
             entry, [{'n': 0, 'speaker': 'FANNY VALE'}], source_text=wife_source,
+            known_names=roster, speaker_aliases=aliases)['passed'])
+
+    def test_married_woman_title_prevents_same_words_label_join(self):
+        # Both labels are established and share the same personal words, but a
+        # married-woman title makes one of them the wife: neither can be
+        # predicted from the other's tag (#2388 gate 2). The duplicate-label
+        # join for a non-married title (MR. SHERLOCK HOLMES) stays.
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        for roster, wife in (
+            ({'JOHN VALE', 'MRS JOHN VALE', 'BEN'}, 'MRS JOHN VALE'),
+            ({'JOHN VALE', 'MRS. JOHN VALE', 'BEN'}, 'MRS. JOHN VALE'),
+        ):
+            source = '“Let us go,” said John Vale. Ben waited.'
+            with self.subTest(roster=roster, wife=wife):
+                report = validate_attribution(
+                    entry, [{'n': 0, 'speaker': wife}], source_text=source,
+                    known_names=roster)
+                self.assertFalse(report['passed'], report)
+                self.assertEqual('speaker_contradicts_source_tag',
+                                 report['findings'][0]['code'])
+        # The reverse direction: the husband is not the wife named by the tag.
+        report = validate_attribution(
+            entry, [{'n': 0, 'speaker': 'JOHN VALE'}],
+            source_text='“Let us go,” said Mrs John Vale. Ben waited.',
+            known_names={'JOHN VALE', 'MRS JOHN VALE', 'BEN'})
+        self.assertFalse(report['passed'], report)
+        self.assertEqual('speaker_contradicts_source_tag',
+                         report['findings'][0]['code'])
+
+    def test_same_words_distinct_labels_need_data_and_are_disclosed_joins(self):
+        # Disclosed in Limits, no code change: these pairs have the same
+        # personal words but may be different characters. Telling them apart
+        # needs gender or relationship data the check does not have, so the
+        # same-words join keeps them compatible. Each pair is pinned here in
+        # both directions so a change to the rule fails a test (#2388 gate 2).
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        for roster, first_label, second_label, first_tag, second_tag in (
+            ({'LADY BERTRAM', 'BERTRAM', 'BEN'},
+             'LADY BERTRAM', 'BERTRAM', 'said Bertram.', 'said Lady Bertram.'),
+            ({'DR JOHN VALE', 'JOHN VALE', 'BEN'},
+             'DR JOHN VALE', 'JOHN VALE', 'said John Vale.', 'said Dr John Vale.'),
+            ({'LADY MARY VALE', 'MARY VALE', 'BEN'},
+             'LADY MARY VALE', 'MARY VALE', 'said Mary Vale.', 'said Lady Mary Vale.'),
+            # LADY JOHN VALE here is the established spelling, not an alias.
+            ({'LADY JOHN VALE', 'JOHN VALE', 'BEN'},
+             'LADY JOHN VALE', 'JOHN VALE', 'said John Vale.', 'said Lady John Vale.'),
+        ):
+            for speaker, tag in ((first_label, first_tag), (second_label, second_tag)):
+                source = f'“Let us go,” {tag} Ben waited.'
+                with self.subTest(roster=roster, speaker=speaker, tag=tag):
+                    self.assertTrue(validate_attribution(
+                        entry, [{'n': 0, 'speaker': speaker}],
+                        source_text=source, known_names=roster)['passed'])
+
+    def test_married_woman_alias_stays_the_wife_without_the_husband_on_the_roster(self):
+        # Decision 2's own rule (_MARRIED_WOMAN_TITLES) with no collision to
+        # hide it: the husband is not on the roster, so only excluding the
+        # title-stripped form keeps "said John Vale." from resolving to the
+        # wife. Emptying _MARRIED_WOMAN_TITLES makes this case pass (#2388 gate 2).
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        roster = {'FANNY VALE', 'BEN'}
+        aliases = {'MRS. JOHN VALE': 'FANNY VALE'}
+        source = '“Let us go,” said John Vale. Ben waited.'
+        self.assertEqual({0: 'JOHN VALE'}, get_attribution_tag_evidence(
+            entry, source, roster, aliases))
+        report = validate_attribution(
+            entry, [{'n': 0, 'speaker': 'FANNY VALE'}], source_text=source,
+            known_names=roster, speaker_aliases=aliases)
+        self.assertFalse(report['passed'], report)
+        self.assertEqual('speaker_contradicts_source_tag',
+                         report['findings'][0]['code'])
+        self.assertEqual('JOHN VALE', report['findings'][0]['expected'])
+
+    def test_lady_husband_alias_targets_the_wife_without_the_husband_on_the_roster(self):
+        # Disclosed in Limits, no code change: "Lady" also precedes a woman's
+        # own first name ("Lady Mary Vale"), so it is not a married-woman title.
+        # With the husband absent from the roster, her alias still owns
+        # "John Vale": the tag points at the wife and a wrong husband
+        # prediction cannot be contradicted (#2388 gate 2).
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        roster = {'FANNY VALE', 'BEN'}
+        aliases = {'LADY JOHN VALE': 'FANNY VALE'}
+        source = '“Let us go,” said John Vale. Ben waited.'
+        self.assertEqual({0: 'FANNY VALE'}, get_attribution_tag_evidence(
+            entry, source, roster, aliases))
+        self.assertFalse(validate_attribution(
+            entry, [{'n': 0, 'speaker': 'BEN'}], source_text=source,
+            known_names=roster, speaker_aliases=aliases)['passed'])
+        self.assertTrue(validate_attribution(
+            entry, [{'n': 0, 'speaker': 'FANNY VALE'}], source_text=source,
             known_names=roster, speaker_aliases=aliases)['passed'])
 
     def test_lady_husband_name_alias_does_not_claim_the_husbands_name(self):

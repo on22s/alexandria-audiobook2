@@ -1098,6 +1098,13 @@ _SOURCE_SPEECH_TAG = re.compile(
     rf"(?:[ \t]+{_TAG_ADVERB})?(?:[ \t]+to[ \t]+(?P<obj_a>{_TAG_OBJECT}))?)"
     r"(?=[ \t]*[,.!?:;])", re.IGNORECASE)
 _TAG_QUOTE_PAIRS = frozenset(_PAIRED)
+# Openers the next-quote guard recognises after a subject-first tag. ‘ is not
+# a PAIRED convention (’ is also the apostrophe), but Gutenberg texts use it
+# for the next quotation.
+_TAG_NEXT_QUOTE_OPENERS = frozenset(QUOTE_MARKS) | {"‘"}
+# Gutenberg texts are hard-wrapped, so the tag's comma and the next quotation
+# can be separated by one line break.
+_TAG_SINGLE_LINE_WRAP = re.compile(r"[ \t]*\r?\n[ \t]*")
 
 
 def _is_valid_tag_name(value):
@@ -1157,7 +1164,12 @@ def _is_same_tag_identity(speaker, expected, established_pool):
     if sp_titles and exp_titles and sp_titles != exp_titles:
         return False
     if sp_words == exp_words:
-        return True
+        # "Mrs. John Vale" is the wife, not the man named after the title. When
+        # only one side carries a married-woman title, the same personal words
+        # do not make the two labels the same character (#2388 gate 2).
+        sp_married = bool(_MARRIED_WOMAN_TITLES.intersection(sp_titles))
+        exp_married = bool(_MARRIED_WOMAN_TITLES.intersection(exp_titles))
+        return sp_married == exp_married
     if resolve_speaker_label(expected, established_pool):
         return False
     if (exp_titles and len(exp_words) == 1 and not sp_titles
@@ -1328,9 +1340,15 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
             continue
         if (text and text[-1] in _SENTENCE_END and tag.group("before")
                 and not tail.lstrip(" \t").startswith((",", ";"))):
-            rest = tail[tag.end():].lstrip(" \t")
-            after_punct = rest[1:].lstrip(" \t") if rest and rest[0] in (",", ":") else ""
-            if after_punct and after_punct[0] in QUOTE_MARKS:
+            # Read past the tag from the source, not from the line-truncated
+            # tail, so a single hard line wrap can be seen (#2388 gate 2).
+            rest = after[1:][tag.end():].lstrip(" \t")
+            after_punct = (rest[1:].lstrip(" \t")
+                           if rest and rest[0] in (",", ":") else "")
+            wrap = _TAG_SINGLE_LINE_WRAP.match(after_punct)
+            if wrap:
+                after_punct = after_punct[wrap.end():]
+            if after_punct and after_punct[0] in _TAG_NEXT_QUOTE_OPENERS:
                 continue
         obj = tag.group("obj_b") or tag.group("obj_a") or tag.group("obj_t")
         if obj is not None:
