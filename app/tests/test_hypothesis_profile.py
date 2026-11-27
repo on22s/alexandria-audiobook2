@@ -16,10 +16,14 @@ behaviour that the property tests depend on are pinned here:
   window, and preservation of constants from modules scanned before the
   unreadable one are covered;
 * ``given_test_settings`` inspects per-convention ``@given`` properties as well
-  as class-level ``@given`` methods so a stray ``@settings`` cannot slip by.
+  as class-level ``@given`` methods so a stray ``@settings`` cannot slip by;
+* a property class can be loaded and run again in the same interpreter, which
+  unittest makes a "second executor" for Hypothesis unless the profile
+  suppresses ``differing_executors``.
 
 The generated text is synthetic; no book or person data is used.
 """
+import io
 import itertools
 import os
 import subprocess
@@ -30,7 +34,7 @@ import types
 import unittest
 from pathlib import Path
 
-from hypothesis import given, settings, strategies as st
+from hypothesis import HealthCheck, given, settings, strategies as st
 from hypothesis.internal.conjecture import providers
 
 from tests import hypothesis_profile
@@ -81,6 +85,10 @@ class ProfileTests(unittest.TestCase):
         self.assertTrue(settings.default.derandomize)
         self.assertIsNone(settings.default.database)
         self.assertIsNone(settings.default.deadline)
+        # An in-process rerun is legitimate here (the profile has no example
+        # database to replay from); the suppression is what makes it green.
+        self.assertIn(HealthCheck.differing_executors,
+                      settings.default.suppress_health_check)
 
     def test_the_local_constant_guard_is_installed(self):
         # If a Hypothesis version removes or renames the private collector, the
@@ -275,6 +283,34 @@ class ProfileTests(unittest.TestCase):
         only_settings = next(iter(detected.values()))
         self.assertIsNot(hypothesis_profile.ACTIVE_SETTINGS, only_settings)
         self.assertEqual(1, only_settings.max_examples)
+
+
+class InProcessRerunTests(unittest.TestCase):
+    """A property class must survive more than one run in one interpreter.
+
+    unittest builds a fresh ``TestCase`` instance for every load, and
+    Hypothesis's ``differing_executors`` health check compares the instance that
+    first ran a ``@given`` method with the one running now, so the second load of
+    the same class trips it. The check only protects replaying from the example
+    database, and the profile sets ``database=None``, so suppressing it cannot
+    hide a real failure. This test loads and runs a real property class twice:
+    remove ``HealthCheck.differing_executors`` from ``_BOUNDED`` and the second
+    pass errors, which is exactly the in-process flake the review found.
+    """
+
+    def test_a_property_test_class_runs_twice_in_one_process(self):
+        # A real property class (not a local stand-in), so the test pins the
+        # shape CI and review loops use: a fresh TestLoader per pass.
+        from tests.test_property_speaker_identity import RequiredMarkTests
+
+        for pass_number in (1, 2):
+            suite = unittest.TestLoader().loadTestsFromTestCase(RequiredMarkTests)
+            result = unittest.TextTestRunner(
+                stream=io.StringIO(), verbosity=0).run(suite)
+            self.assertTrue(
+                result.wasSuccessful(),
+                f"pass {pass_number} was not clean: "
+                f"errors={result.errors} failures={result.failures}")
 
 
 class LocalConstantGuardTests(unittest.TestCase):

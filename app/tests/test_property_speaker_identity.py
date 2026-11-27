@@ -3,10 +3,17 @@
 ``_identity_key`` is the single answer to "are these two spellings the same
 character?", so a wrong fold merges two voices into one or splits one character
 into two. The Unicode rules it implements are canonical equivalence (NFC/NFD),
-case-insensitivity, and keeping the combining marks that are part of a letter
-while folding the optional diacritics. Each of those is a property over every
-name, not a list of examples, and the hand-written list in
-``test_speaker_identity`` cannot cover the combinations.
+case-insensitivity, folding spacing and punctuation, and keeping the combining
+marks that are part of a letter while folding the optional diacritics that are
+still combining marks. Each of those is a property over every name, not a list
+of examples, and the hand-written list in ``test_speaker_identity`` cannot cover
+the combinations.
+
+Deliberately out of scope, tracked in #2378: a PRECOMPOSED accented letter is
+not folded (``_identity_key("José") == "josé"`` while
+``_identity_key("Jose") == "jose"``). NFC composes before the mark fold, so the
+optional-diacritic property here uses marks that stay decomposed after NFC;
+folding precomposed letters is a production change and not part of this PR.
 
 Deterministic and bounded for CI: ``tests/hypothesis_profile.py`` (30 examples,
 derandomized, no database, no deadline).
@@ -41,8 +48,20 @@ _NAME_WORDS = (
 # Spacing and punctuation fold, and so do the invisible characters that already
 # reached a speaker label (#2316).
 _SEPARATORS = (" ", "  ", "-", "'", "’", ".", "\u200b", "\u00ad", "")
-# Optional accents: Latin/Greek/Cyrillic diacritics are not part of the name.
+# Accents inserted into whole words for the canonical/case properties. Whether
+# the mark survives the fold depends on whether NFC composes it with its base
+# (#2378); those properties only compare re-encodings of one string, so either
+# outcome is fine there. The dedicated property below uses non-composing pairs.
 _ACCENTS = ("\u0301", "\u0300", "\u0308", "\u0327", "\u0342", "\u0483")
+
+# Optional diacritics that stay combining marks after NFC, so the fold actually
+# sees a mark to drop rather than a precomposed letter it keeps (#2378). A base
+# with a precomposed accented form (a+acute -> á, w+diaeresis -> ẅ) is excluded
+# on purpose.
+_NON_COMPOSING_DIACRITICS = (
+    ("q", "\u0301"), ("q", "\u0303"), ("x", "\u0300"), ("j", "\u0327"),
+    ("c", "\u0303"), ("ж", "\u0301"), ("θ", "\u0308"), ("ب", "\u064e"),
+)
 
 # A base letter plus ONE required mark: vowel signs and viramas of the
 # abugidas, plus the Thai tone marks (mai ek, mai tai khu) that the key keeps
@@ -55,7 +74,7 @@ _REQUIRED_SYLLABLES = (
     ("ด", "\u0e34"), ("ก", "\u0e47"),
     ("ក", "\u17b7"), ("ក", "\u17bb"), ("ཀ", "\u0f72"), ("ཀ", "\u0f74"),
     ("ກ", "\u0eb4"), ("ກ", "\u0eb5"), ("க", "\u0bbe"), ("க", "\u0bc6"),
-    ("క", "\u0c3f"), ("త", "\u0cbf"), ("ರ", "\u0ccd"), ("ಕ", "\u0cbe"),
+    ("క", "\u0c3f"), ("త", "\u0c3f"), ("ರ", "\u0ccd"), ("ಕ", "\u0cbe"),
 )
 
 
@@ -97,6 +116,43 @@ class CanonicalEquivalenceTests(unittest.TestCase):
             self.assertEqual(expected, _identity_key(variant), repr(variant))
 
 
+class SeparatorTests(unittest.TestCase):
+    @given(st.lists(st.sampled_from(_NAME_WORDS), min_size=2, max_size=3))
+    def test_spacing_and_punctuation_do_not_change_the_key(self, words):
+        # Every separator a speaker label has carried must fold: the same name
+        # typed `ada-bram`, `ada. bram`, `ada'bram` or with an invisible
+        # character is one identity. Comparing against the empty separator pins
+        # that none of them survives in the key (the S5 mutant, which keeps
+        # `-`, `.` and `'`, fails every separator but "" and " ").
+        expected = _identity_key("".join(words))
+        for separator in _SEPARATORS:
+            self.assertEqual(expected, _identity_key(separator.join(words)),
+                             repr(separator))
+
+
+class OptionalDiacriticTests(unittest.TestCase):
+    def test_fixture_diacritics_stay_decomposed_after_nfc(self):
+        # The property below is only about marks NFC cannot compose with their
+        # base. If a pair gained a precomposed form, the mark would turn into an
+        # accented letter that the fold keeps (#2378) and the test would stop
+        # exercising the optional-mark fold.
+        for base, mark in _NON_COMPOSING_DIACRITICS:
+            with self.subTest(base=base, mark=mark):
+                self.assertIn(mark, unicodedata.normalize("NFC", base + mark))
+
+    @given(st.sampled_from(_NON_COMPOSING_DIACRITICS),
+           st.lists(st.sampled_from(_NAME_WORDS), max_size=2))
+    def test_optional_diacritics_do_not_change_the_key(self, diacritic, others):
+        # A diacritic that is still a combining mark is optional for Latin,
+        # Greek, Cyrillic and Arabic names, so `q́` is the name `q`. The S4
+        # mutant (keep every Mn/Mc mark) makes the two keys differ here while
+        # every example-based test still passes.
+        base, mark = diacritic
+        without = " ".join(others + [base + "ra"])
+        with_mark = " ".join(others + [base + mark + "ra"])
+        self.assertEqual(_identity_key(without), _identity_key(with_mark))
+
+
 class RequiredMarkTests(unittest.TestCase):
     @given(st.sampled_from(_REQUIRED_SYLLABLES),
            st.lists(st.sampled_from(_NAME_WORDS), max_size=2))
@@ -117,6 +173,8 @@ class ProfileTests(unittest.TestCase):
         expected = {
             "CanonicalEquivalenceTests.test_canonical_re_encodings_share_one_key",
             "CanonicalEquivalenceTests.test_case_variants_share_one_key",
+            "SeparatorTests.test_spacing_and_punctuation_do_not_change_the_key",
+            "OptionalDiacriticTests.test_optional_diacritics_do_not_change_the_key",
             "RequiredMarkTests.test_removing_a_required_mark_changes_the_key",
         }
         self.assertEqual(expected, set(configured))

@@ -22,6 +22,17 @@ must cost a few seconds at most and must never flake. These settings buy that:
   renames it, rather than silently leaving storage in the checkout.
 * ``deadline=None``: a wall-clock deadline turns a paused CI runner into a
   failure that has nothing to do with the code under test.
+* ``suppress_health_check`` covers ``too_slow`` (a slow CI runner is not a bug
+  in the code under test) and ``differing_executors``. unittest builds a NEW
+  ``TestCase`` instance on every load, while Hypothesis remembers the first
+  ``self`` that ran a ``@given`` method and treats a second one as a second
+  executor. Any in-process rerun of a property class - a review loop, a shard
+  that runs a module twice, or ``test_hypothesis_profile``'s own two-pass test -
+  therefore trips that check. It exists to warn about replaying from the example
+  database, and this profile sets ``database=None`` (and ``derandomize=True``),
+  so there is nothing to replay and the warning cannot indicate a real problem
+  here. Without the suppression, passes 1..19 of a 20x in-process run each raise
+  ``FailedHealthCheck``.
 * ``max_examples`` is the cost knob (``DEFAULT_MAX_EXAMPLES`` for CI, roughly a
   few seconds for the whole set of property modules).
 
@@ -114,7 +125,15 @@ _BOUNDED = dict(
     print_blob=False,
     # Generating text and re-scanning it is microseconds; a slow CI runner is
     # not evidence of a bug in the code under test.
-    suppress_health_check=[HealthCheck.too_slow],
+    #
+    # differing_executors: unittest constructs a new TestCase instance for every
+    # load, so running one property class twice in one process looks like a
+    # second executor. The check only guards against replaying from the example
+    # database, and database is None above, so it cannot catch anything real
+    # here; without the suppression every in-process rerun after the first
+    # errors. Pinned by InProcessRerunTests in test_hypothesis_profile.
+    suppress_health_check=[HealthCheck.too_slow,
+                           HealthCheck.differing_executors],
 )
 
 CI_SETTINGS = settings(max_examples=DEFAULT_MAX_EXAMPLES, **_BOUNDED)
