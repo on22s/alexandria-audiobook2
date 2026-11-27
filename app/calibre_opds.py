@@ -621,7 +621,8 @@ def parse_feed(data, feed_url):
     if b"<!DOCTYPE" in bytes(data).upper():
         raise OpdsError("DOCTYPE is not allowed in OPDS feeds (entity-expansion defence)")
     try:
-        root = ET.fromstring(bytes(data), parser=ET.XMLParser(target=_FeedTreeBuilder()))
+        # feed cap + DOCTYPE rejected.
+        root = ET.fromstring(bytes(data), parser=ET.XMLParser(target=_FeedTreeBuilder()))  # nosec B314
     except (ET.ParseError, ValueError) as exc:
         raise OpdsError(f"invalid OPDS XML: {exc}") from exc
     if _local(root.tag) != "feed":

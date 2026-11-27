@@ -345,7 +345,11 @@ def run_macos_owner_broker(control, specification):
     received = []
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(sig, lambda value, frame: received.append(value))
-    with tempfile.TemporaryDirectory(prefix='alexandria-mac-', dir='/tmp') as directory:
+    with tempfile.TemporaryDirectory(
+            prefix='alexandria-mac-',
+            # mkdtemp, private.
+            dir='/tmp',  # nosec B108
+    ) as directory:
         address = str(Path(directory) / 'task.sock')
         label = 'org.alexandria.task.' + uuid.uuid4().hex
         owner = None

@@ -66,6 +66,9 @@ debug_raw_response.txt
 test.txt
 tts_style_test*.json
 
+# Security-lint report written by app/bandit_gate.py locally
+app/bandit-report.json
+
 # Python cache
 __pycache__/
 *.pyc

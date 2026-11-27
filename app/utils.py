@@ -388,7 +388,8 @@ def secure_filename(filename: str) -> str:
         filename = "_" + filename
     encoded = filename.encode("utf-8")
     if len(encoded) > 150:
-        suffix = hashlib.sha1(original.encode("utf-8")).hexdigest()[:8]
+        suffix = hashlib.sha1(
+            original.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
         filename = encoded[:150 - len(suffix) - 1].decode("utf-8", errors="ignore") + "_" + suffix
     if not filename:
         return ""

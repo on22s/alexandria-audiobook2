@@ -6430,15 +6430,73 @@ def _selection_source_digest(path, data_dir):
         return _source_digest(path)
 
 
+def _saved_book_origin_digest_locked(data_dir, saved_books_root, previous_path,
+                                     previous_digest, new_digest):
+    """Verified origin digest of the saved book the active script was loaded from.
+
+    Loading a saved book makes its own library copy the active source, so the
+    active binding's digest names that copy rather than the text the book was
+    generated from. ``resolve_saved_book_origin`` is the one place that walks a
+    saved binding chain: it confines every hop to the saved-book library, checks
+    each binding against the script bytes it describes and refuses cycles,
+    missing or changed sources with a structured code. Its origin counts as this
+    book only when it is exactly the incoming source and hop 0 is still the
+    exact bytes the active book was loaded from.
+
+    The terminal source file itself is optional (``require_terminal_file=False``):
+    the only digest trusted without it is the one the saved binding recorded, and
+    the caller still requires that recorded digest to equal the incoming file's
+    digest. A terminal file that is present with different bytes is still refused
+    as ``changed_source``.
+
+    Callers hold the book/state/chunks locks; the resolver takes none. Every
+    refusal falls back to the normal new-book path and is logged with its code.
+    """
+    if (not isinstance(saved_books_root, str) or not saved_books_root
+            or not isinstance(previous_path, str) or not previous_path):
+        return None
+    from script_selection_binding import (SavedSourceResolutionError,
+                                          _validate_saved_book_member,
+                                          resolve_saved_book_origin)
+    try:
+        _validate_saved_book_member(data_dir, previous_path,
+                                    saved_books_root=saved_books_root)
+    except SavedSourceResolutionError:
+        previous_is_saved_book = False
+    else:
+        previous_is_saved_book = True
+    try:
+        origin = resolve_saved_book_origin(
+            data_dir, previous_path, saved_books_root=saved_books_root,
+            expected_script_sha256=previous_digest, require_terminal_file=False)
+    except SavedSourceResolutionError as error:
+        # An ordinary upload source is not a saved book, so its outside_library
+        # refusal is expected. Every other refusal means a saved binding could
+        # not be trusted, which is security-relevant and belongs at WARNING.
+        expected_upload = error.code == 'outside_library' and not previous_is_saved_book
+        level = logging.INFO if expected_upload else logging.WARNING
+        logger.log(level, 'Saved book origin not used (%s); starting a new book',
+                   error.code)
+        return None
+    if origin['source_sha256'] != new_digest:
+        return None
+    return origin['source_sha256']
+
+
 def _published_binding_for_selection_locked(data_dir, state, previous_token, previous_path,
-                                            new_path, new_digest, new_token):
-    """Return (rebound binding bytes, previous source digest) or (None, digest).
+                                            new_path, new_digest, new_token, *,
+                                            saved_books_root=None):
+    """Return (rebound binding bytes, matched source digest) or (None, digest).
 
     Called with the book/state/chunks locks held, before the pending flag is
     set. A verified published binding for byte-identical source is rebound to
     the new generation in the same transaction; the published script itself is
-    unchanged. Anything unreadable or inconsistent yields no rebind, so the
-    normal pending-selection path stays authoritative.
+    unchanged. A loaded saved book keeps its origin digest in its saved binding,
+    so re-selecting the byte-identical source it came from is that same book,
+    not a new one; the chain is resolved only by
+    ``script_selection_binding.resolve_saved_book_origin``. Anything unreadable
+    or inconsistent yields no rebind, so the normal pending-selection path stays
+    authoritative.
     """
     from script_selection_binding import (BINDING_NAME, MAX_BINDING_BYTES,
         is_script_selection_pending, parse_script_binding, check_binding_source,
@@ -6455,8 +6513,13 @@ def _published_binding_for_selection_locked(data_dir, state, previous_token, pre
     try:
         binding = parse_script_binding(raw)
         previous_digest = binding['source_sha256']
-        if not isinstance(new_digest, str) or new_digest != previous_digest:
+        if not isinstance(new_digest, str):
             return None, previous_digest
+        if new_digest != previous_digest:
+            origin = _saved_book_origin_digest_locked(
+                data_dir, saved_books_root, previous_path, previous_digest, new_digest)
+            if origin is None:
+                return None, previous_digest
         check_binding_source(raw, previous_token, previous_digest,
                              source_path=previous_path)
         script_proof, script_bytes = capture_scope_file(
@@ -6471,7 +6534,7 @@ def _published_binding_for_selection_locked(data_dir, state, previous_token, pre
                                                  source_path=new_path)
         rebound = carry_scope_cut_evidence(raw, rebound)
         return (json.dumps(rebound, sort_keys=True, separators=(',', ':')).encode('utf-8'),
-                previous_digest)
+                new_digest)
 
     except (ValueError, RecursionError):
         # A validation failure leaves the pending-selection path authoritative;
@@ -6574,12 +6637,16 @@ def _plan_selection_chunk_snapshot_locked(data_dir, previous_identity, same_byte
     return replacements, removals
 
 
-def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, before_publication=None):
+def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, before_publication=None,
+                               saved_books_root=None):
     """Select an input under the same book-operation contract as load/jobs.
 
     `before_publication` notifies an upload owner after validation and before
     the first write. After that handoff, errors may have an unknown commit
     outcome; uploaded source/provenance must remain available for recovery.
+    `saved_books_root` is the saved-book library: a loaded saved script names
+    that copy as its source, but its saved binding still records the text it
+    was generated from, so a byte-identical re-selection is the same book.
     """
     from sound_design_registry import ACTIVE_CUES
     from sound_design_renditions import ACTIVE_RENDITIONS, capture_sound_design_companions
@@ -6621,7 +6688,7 @@ def apply_book_input_selection(data_dir, input_path, book_id, *, timeout=10, bef
             # same transaction; changed bytes under any name start a new book.
             rebound_binding, previous_digest = _published_binding_for_selection_locked(
                 data_dir, state, previous_token, previous_path, str(input_path),
-                new_digest, new_token)
+                new_digest, new_token, saved_books_root=saved_books_root)
             same_bytes = (new_digest is not None and new_digest == previous_digest)
             if rebound_binding is not None:
                 state.pop('script_selection_pending', None)

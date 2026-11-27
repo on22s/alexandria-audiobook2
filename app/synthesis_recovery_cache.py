@@ -380,7 +380,8 @@ class RecoveryCacheStorage:
             raise RecoveryCacheUnavailable('invalid_prepare_request')
         with self.write_transaction() as transaction:
             requests = transaction.data['requests']
-            request = requests.get(request_key)
+            # local dict, not the requests library.
+            request = requests.get(request_key)  # nosec B113
             changed = unlinked = False
             if request is not None:
                 if request['uid'] != uid:

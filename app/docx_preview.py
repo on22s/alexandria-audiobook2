@@ -168,7 +168,8 @@ def parse_xml(raw):
         encoding = re.search(r'encoding\s*=\s*[\'"]([^\'"]+)', declaration.group())
         if encoding and encoding[1].lower() not in ('utf-8', 'utf8'):
             raise ValueError('DOCX XML requires UTF-8 encoding')
-    return ET.fromstring(value, parser=ET.XMLParser(target=BoundedTree()))
+    # BoundedTree + MAX_XML cap.
+    return ET.fromstring(value, parser=ET.XMLParser(target=BoundedTree()))  # nosec B314
 
 
 def require_structure(node, tag, attributes=()):
