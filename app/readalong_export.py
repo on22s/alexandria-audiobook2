@@ -1102,14 +1102,26 @@ _SAVED_SOURCE_REFUSAL_REASONS = {
 }
 
 
-def _resolve_saved_book_retained_epub(data_dir, source_txt, cancel_check=None):
-    """Resolve a saved script, returning ``(canonical_path, state)``.
+def _is_saved_script_source(source_txt):
+    """True when the selected source is a saved script (the only kind with a chain)."""
+    return isinstance(source_txt, str) and source_txt.lower().endswith('.json')
 
-    ``state`` is ``'not_saved_script'`` for a non-script source, ``'verified'``
-    when the whole chain verifies (the canonical file may still be absent, and
-    finds the renamed fallback), or the resolver's refusal code. The refusal
-    code reaches the user-facing text so each message names the actual reason
-    and offers only a recovery that works for it (#2355 L1).
+
+def _resolve_saved_book_retained_epub(data_dir, source_txt, cancel_check=None):
+    """Locate a saved script's canonical retained EPUB: ``(path, state)``.
+
+    This walk requires the terminal source file (``require_terminal_file=True``)
+    because the retained ``<origin stem>.source.epub`` is only known from a real
+    origin path. ``state`` is ``'not_saved_script'`` for a non-script source,
+    ``'verified'`` when the whole chain verifies (the canonical file may still be
+    absent, and the bounded fallback scan decides), or the resolver's refusal
+    code.
+
+    The refusal code is **not** used for the recovery wording: a missing
+    terminal file here does not mean an identical re-upload cannot reattach the
+    saved book (the upload route trusts the recorded digest). Wording comes from
+    ``_saved_book_reattachment_state``, the same check the upload route runs
+    (#2355 gate 2).
     """
     try:
         source_name = os.fspath(source_txt)
@@ -1133,7 +1145,7 @@ def _resolve_saved_book_retained_epub(data_dir, source_txt, cancel_check=None):
                 'verified')
     except SavedSourceResolutionError as error:
         # An unverifiable chain is a fallback case, never a build failure; the
-        # code names why (missing_binding, changed_source, ...) for the message.
+        # code names why (missing_binding, changed_source, ...).
         logger.debug("retained EPUB: saved-source resolution refused (%s)", error.code)
         return None, error.code
     except (OSError, ValueError) as error:
@@ -1142,28 +1154,34 @@ def _resolve_saved_book_retained_epub(data_dir, source_txt, cancel_check=None):
         return None, 'unverifiable'
 
 
-def get_saved_book_retained_epub_path(data_dir, source_txt, cancel_check=None):
-    """Canonical retained EPUB for a saved script's verified origin chain.
+def _saved_book_reattachment_state(data_dir, source_txt, cancel_check=None):
+    """The upload route's answer: ``(state, source_file_missing)``.
 
-    A loaded saved script's ``input_file_path`` is the library JSON, not the
-    extracted TXT beside which the retained EPUB lives. The shared resolver
-    (#2356) walks that script's verified ``.selection_binding.json`` chain to
-    the original source and validates every hop, so the canonical
-    ``<origin stem>.source.epub`` can be tried directly instead of scanning
-    the upload folder and refusing an otherwise unambiguous duplicate (#2355).
-
-    ``cancel_check`` reaches every bounded resolver read, so a cancelled build
-    is observed during the walk instead of after it. Cancellation propagates
-    by its own type rather than becoming a fallback case.
-
-    Returns ``None`` for a chain the resolver refuses (missing, damaged,
-    changed, outside the library, looped, over the hop limit).
-    ``_resolve_saved_book_retained_epub`` keeps the refusal code for the
-    user-facing message; callers keep the bounded, hash-gated fallback.
+    Calls ``script_selection_binding.resolve_saved_book_reattachment``, the same
+    walk the upload route performs (``require_terminal_file=False``), so the
+    recovery text only ever offers a route that route accepts. ``state`` is
+    ``'verified'`` when the chain resolves to its recorded origin digest, else
+    the resolver's refusal code, so each message can name the actual reason
+    (#2355 gate 2). ``source_file_missing`` is true when that walk did not end
+    at a real terminal file, which is what makes a leftover companion force the
+    re-upload under a new name; it never decides whether the re-upload works.
     """
-    path, _state = _resolve_saved_book_retained_epub(
-        data_dir, source_txt, cancel_check)
-    return path
+    if not _is_saved_script_source(source_txt):
+        return 'not_saved_script', False
+    try:
+        from script_selection_binding import (SavedSourceResolutionError,
+                                              resolve_saved_book_reattachment)
+        origin = resolve_saved_book_reattachment(
+            data_dir, source_txt, cancel_check=cancel_check)
+        return 'verified', origin.get('source_path') is None
+    except SavedSourceResolutionError as error:
+        logger.debug("retained EPUB: saved-source reattachment refused (%s)",
+                     error.code)
+        return error.code, False
+    except (OSError, ValueError) as error:
+        logger.debug("retained EPUB: saved-source reattachment failed (%s)",
+                     type(error).__name__)
+        return 'unverifiable', False
 
 
 def get_retained_epub_receipt_sha256(receipt):
@@ -1189,10 +1207,13 @@ def _source_folder_is_uploads(source_txt, uploads_dir):
 
     ``uploads_dir`` is required and is the one directory the caller scanned
     with; it is not re-read from ``core`` here, so the message can never
-    compare against a different folder than the scan used (Rule 15). A caller
-    that forgets it fails loudly instead of silently getting the
-    "imports a new book" wording (#2355 N2).
+    compare against a different folder than the scan used (Rule 15). Passing
+    ``None`` raises instead of silently selecting the "imports a new book"
+    wording (#2355 N-a).
     """
+    if uploads_dir is None:
+        raise TypeError(
+            "uploads_dir is required to decide the saved-source recovery wording")
     try:
         folder = os.path.dirname(os.path.abspath(os.fspath(source_txt)))
         return (_retained_scan_key(folder)
@@ -1201,30 +1222,43 @@ def _source_folder_is_uploads(source_txt, uploads_dir):
         return False
 
 
-def _retained_epub_missing_message(source_txt, uploads_dir, saved_chain_state=None):
-    """The missing-bytes refusal, honest for every saved-book state (#2355 L1).
+def _retained_epub_missing_message(source_txt, uploads_dir, saved_chain_state=None, *,
+                                   source_file_missing=False):
+    """The missing-bytes refusal, honest for every saved-book state (#2355).
 
-    The upload route reattaches the retained file for byte-identical bytes
-    under the same book, so re-uploading the identical EPUB is valid recovery
-    only when the saved script's binding chain still verifies. When the
-    resolver refused (no binding, changed script/source, damaged or foreign
-    binding, loop, hop limit), the upload route refuses the same chain and
-    leaves the selection pending, so that advice would be false: the message
-    then names the actual reason and offers restoring the retained file only.
-    A direct caller that supplies no state gets the safe restore-only text.
+    The upload route reattaches the retained file for byte-identical bytes, so
+    re-uploading the identical EPUB is valid recovery exactly when the shared
+    upload-route check (``_saved_book_reattachment_state``) verifies. That holds
+    even when the terminal source file is gone: the upload route trusts the
+    saved binding's recorded digest, so ``missing_source`` from the
+    retained-locating walk is no longer worded as "cannot reattach". When the
+    chain itself is refused (no binding, changed script/source, damaged or
+    foreign binding, loop, hop limit), the upload route refuses the same chain
+    and leaves the selection pending, so the message names the actual reason
+    and offers restoring the retained file only.
+
+    ``source_file_missing`` records that the original source file is gone while
+    its stale companion may remain: the re-upload then keeps rendered audio but
+    can return the book under a new name (for example ``book_2``).
     """
-    saved_script = isinstance(source_txt, str) and source_txt.lower().endswith('.json')
-    if saved_script:
+    if _is_saved_script_source(source_txt):
         head = ("Retained EPUB bytes are missing for this book: no '.source.epub' "
                 "file matching its recorded EPUB origin was found in the source's "
                 "folder or the upload folder.")
         if saved_chain_state == 'verified':
+            tail = ("keeps rendered audio when the saved script is unchanged (the "
+                    "re-upload becomes the selected source instead of the saved "
+                    "script). ")
+            if source_file_missing:
+                tail += ("The book may return under a new name (for example "
+                         "'book_2') while a companion file left by the missing "
+                         "source is still in the upload folder. ")
+            else:
+                tail += "It is reattached under the same book. "
             return (head + " Restore the original EPUB there as a matching "
-                    "'.source.epub' file, or re-upload the byte-identical EPUB: it is "
-                    "reattached under the same book and keeps rendered audio when the "
-                    "saved script is unchanged (the re-upload becomes the selected "
-                    "source instead of the saved script). Re-uploading a different "
-                    "edition starts a new book and resets rendered audio.")
+                    "'.source.epub' file, or re-upload the byte-identical EPUB: it "
+                    + tail + "Re-uploading a different edition starts a new book and "
+                    "resets rendered audio.")
         reason = _SAVED_SOURCE_REFUSAL_REASONS.get(saved_chain_state)
         if reason is not None:
             return (head + " %s, so re-uploading the EPUB cannot reattach this saved "
@@ -1245,16 +1279,20 @@ def _retained_epub_missing_message(source_txt, uploads_dir, saved_chain_state=No
 
 def _stale_source_provenance_message(source_txt, uploads_dir, *,
                                      companion_present=False,
-                                     saved_chain_state=None):
+                                     saved_chain_state=None,
+                                     source_file_missing=False):
     """The stale-provenance refusal with a recovery that does not lie (#2355).
 
     A saved script can be stale because its ``.publication.json`` companion no
     longer matches the script (edited script), because the companion is
-    missing, or because it never had one (a pre-companion save). Only the
-    missing-companion case with a still-verifying binding can recover through
-    the byte-identical re-upload; the other cases say what actually helps.
+    missing, or because it never had one (a pre-companion save). The
+    missing-companion case recovers through the byte-identical re-upload exactly
+    when the shared upload-route check (``_saved_book_reattachment_state``)
+    verifies, including when the terminal source file is gone; the other cases
+    say what actually helps. ``source_file_missing`` adds the possible new book
+    name that a leftover companion causes.
     """
-    if isinstance(source_txt, str) and source_txt.lower().endswith('.json'):
+    if _is_saved_script_source(source_txt):
         if companion_present:
             return ("Source provenance is stale: the saved book's '.publication.json' "
                     "companion no longer matches the saved script (the script was "
@@ -1262,13 +1300,17 @@ def _stale_source_provenance_message(source_txt, uploads_dir, *,
                     "original bytes, or restore a companion that matches it, before "
                     "EPUB read-aloud export.")
         if saved_chain_state == 'verified':
+            placed = ("It may return under a new name (for example 'book_2') while "
+                      "a companion file left by the missing source is still in the "
+                      "upload folder. " if source_file_missing
+                      else "It is reattached under the same book. ")
             return ("Source provenance is stale: the saved book's '.publication.json' "
                     "companion is missing. Restore that companion file, or re-upload "
-                    "the byte-identical source book: it is reattached under the same "
-                    "book and keeps rendered audio when the saved script is unchanged "
-                    "(the re-upload becomes the selected source instead of the saved "
-                    "script). Re-uploading a changed source or a different edition "
-                    "starts a new book and resets rendered audio.")
+                    "the byte-identical source book: it keeps rendered audio when the "
+                    "saved script is unchanged (the re-upload becomes the selected "
+                    "source instead of the saved script). " + placed +
+                    "Re-uploading a changed source or a different edition starts a "
+                    "new book and resets rendered audio.")
         reason = _SAVED_SOURCE_REFUSAL_REASONS.get(saved_chain_state)
         if reason is not None:
             return ("Source provenance is stale: the saved book has no "
@@ -1317,7 +1359,7 @@ def _dedupe_retained_scan_dirs(primary_dir, extras, key=None):
 
 
 def get_verified_retained_epub(source_txt, expected_sha256, cancel_check=None, *,
-                               data_dir=None, uploads_dir=None,
+                               data_dir=None, uploads_dir,
                                read_bytes=False):
     """Return ``(path, bytes_or_None)`` whose bytes carry an expected sha.
 
@@ -1329,6 +1371,9 @@ def get_verified_retained_epub(source_txt, expected_sha256, cancel_check=None, *
     through to the origin-gated scan. ``read_bytes`` returns the exact verified
     bytes for the build, which must never re-read the retained file; the
     Editor streams the same version-fenced hash instead.
+
+    ``uploads_dir`` is required: it is the one folder the fallback scan and the
+    recovery wording use, so a caller that forgets it fails loudly (#2355 N-a).
 
     Raises ValueError (the caller-owned refusal, including the recovery
     message) when nothing verifies.
@@ -1346,9 +1391,9 @@ def get_verified_retained_epub(source_txt, expected_sha256, cancel_check=None, *
             return hashlib.sha256(content).hexdigest(), content
         return get_retained_epub_sha256(path, cancel_check), None
 
-    candidate, chain_state = (None, 'not_saved_script')
+    candidate, _locating_state = (None, 'not_saved_script')
     if data_dir:
-        candidate, chain_state = _resolve_saved_book_retained_epub(
+        candidate, _locating_state = _resolve_saved_book_retained_epub(
             data_dir, source_txt, cancel_check)
     if candidate is not None:
         try:
@@ -1357,49 +1402,52 @@ def get_verified_retained_epub(source_txt, expected_sha256, cancel_check=None, *
             digest, content = None, None
         if digest in wants:
             return candidate, content
+    # The recovery wording comes from the upload route's own check, not from
+    # the locating walk above: a missing terminal file does not stop an
+    # identical re-upload from reattaching the saved book (#2355 gate 2).
+    reattachment_state, source_file_missing = ('not_saved_script', False)
+    if data_dir:
+        reattachment_state, source_file_missing = _saved_book_reattachment_state(
+            data_dir, source_txt, cancel_check)
     retained_path = get_retained_epub_candidate_path(
         source_txt, cancel_check, origin_hashes=wants,
-        uploads_dir=uploads_dir, saved_chain_state=chain_state)
+        uploads_dir=uploads_dir, saved_chain_state=reattachment_state,
+        source_file_missing=source_file_missing)
     digest, content = verify(retained_path)
     if digest not in wants:
         raise ValueError("Retained EPUB bytes do not match the source provenance; refusing to export.")
     return retained_path, content
 
 
-def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_hashes=None,
-                                     uploads_dir=None, saved_chain_state=None):
+def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_hashes,
+                                     uploads_dir, saved_chain_state=None,
+                                     source_file_missing=False):
     """Locate a candidate; callers verify the actual bytes they consume.
 
     Canonical paths keep legacy download semantics. A renamed fallback
     requires current provenance and exhaustive, bounded ambiguity checks.
-    ``uploads_dir`` is the upload folder the caller's scan uses. For a loaded
-    saved script it is added as a scan directory, because the selected
-    ``input_file_path`` is the script rather than the extracted TXT beside which
-    the retained EPUB lives (#2349). The same directory decides the recovery
-    wording, so message and scan can never name two different folders (Rule 15).
-    A direct TXT already has its own folder as the primary directory, so extra
-    directories are ignored for it; otherwise an identical copy in uploads could
-    turn an unambiguous batch source into a false duplicate. ``saved_chain_state``
-    is the resolver outcome from the shared lookup, so a refusal can name its
-    real reason; the bytes still have to match the recorded origin hashes.
+    ``origin_hashes`` is always supplied by the shared lookup; the bytes still
+    have to match one of them. ``uploads_dir`` is required and is the upload
+    folder the caller's scan uses. For a loaded saved script it is added as a
+    scan directory, because the selected ``input_file_path`` is the script
+    rather than the extracted TXT beside which the retained EPUB lives
+    (#2349). The same directory decides the recovery wording, so message and
+    scan can never name two different folders (Rule 15). A direct TXT already
+    has its own folder as the primary directory, so extra directories are
+    ignored for it; otherwise an identical copy in uploads could turn an
+    unambiguous batch source into a false duplicate. ``saved_chain_state`` is
+    the upload route's reattachment answer from the shared lookup, so a refusal
+    can name its real reason; ``source_file_missing`` lets a verified chain say
+    the book may return under a new name.
     """
     import stat
     from archive_utils import MAX_ARCHIVE_MEMBERS, MAX_ARCHIVE_BYTES
-    from publication_source import get_publication_source_capture
     from source_upload_publication import get_retained_epub_path
     if cancel_check is not None:
         ensure_audio_export_active(cancel_check)
     retained_path = get_retained_epub_path(source_txt)
     if os.path.isfile(retained_path):
         return retained_path
-    if origin_hashes is None:
-        captured = get_publication_source_capture(source_txt)
-        if captured is None or captured.get("binding_status") != "current":
-            raise ValueError(_stale_source_provenance_message(
-                source_txt, uploads_dir,
-                companion_present=captured is not None,
-                saved_chain_state=saved_chain_state))
-        origin_hashes = {row["origin"]["sha256"] for row in captured["document"].get("candidates", [])}
     wants = frozenset(origin_hashes)
     if not wants:
         raise ValueError("This book has no retained EPUB provenance.")
@@ -1407,9 +1455,8 @@ def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_ha
     scanned = 0
     scanned_bytes = 0
     extras = []
-    if isinstance(source_txt, str) and source_txt.lower().endswith('.json'):
-        if uploads_dir:
-            extras.append(uploads_dir)
+    if _is_saved_script_source(source_txt):
+        extras.append(uploads_dir)
     directories = _dedupe_retained_scan_dirs(
         os.path.dirname(retained_path), extras)
     for directory in directories:
@@ -1446,10 +1493,11 @@ def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_ha
     if len(matches) > 1:
         raise ValueError("Multiple retained EPUB files match this source provenance; refusing to guess. Resolve the duplicate retained files first.")
     raise ValueError(_retained_epub_missing_message(
-        source_txt, uploads_dir, saved_chain_state))
+        source_txt, uploads_dir, saved_chain_state,
+        source_file_missing=source_file_missing))
 
 
-def _locate_retained_epub(manager, cancel_check, source_txt=None, *, uploads_dir=None):
+def _locate_retained_epub(manager, cancel_check, source_txt=None, *, uploads_dir):
     """Return (retained_bytes, source_txt_path) verifying provenance hashes.
 
     ``source_txt`` may be the snapshot-captured original for the build;
@@ -1460,10 +1508,11 @@ def _locate_retained_epub(manager, cancel_check, source_txt=None, *, uploads_dir
     later mutation of the retained file cannot change the built EPUB,
     and the snapshot separately guards the original TXT identity.
 
-    ``uploads_dir`` lets a loaded saved script reach the retained EPUB,
-    which lives in the upload folder rather than beside the script (#2349).
-    A verified saved-book binding is preferred first; the upload search is
-    the bounded fallback when that chain is missing or no longer current.
+    ``uploads_dir`` is required and lets a loaded saved script reach the
+    retained EPUB, which lives in the upload folder rather than beside the
+    script (#2349). A verified saved-book binding is preferred first; the upload
+    search is the bounded fallback when that chain is missing or no longer
+    current.
     """
     from publication_source import get_publication_source_capture
     if source_txt is None:
@@ -1474,12 +1523,16 @@ def _locate_retained_epub(manager, cancel_check, source_txt=None, *, uploads_dir
         raise ValueError("No source book is selected. Select a book that came from an EPUB upload.")
     captured = get_publication_source_capture(source_txt)
     if captured is None or captured.get("binding_status") != "current":
-        _, chain_state = _resolve_saved_book_retained_epub(
+        # Wording comes from the upload route's own check, not from a
+        # retained-locating walk: a missing terminal source still lets an
+        # identical re-upload reattach the saved book (#2355 gate 2).
+        reattachment_state, source_file_missing = _saved_book_reattachment_state(
             manager.root_dir, source_txt, cancel_check)
         raise ValueError(_stale_source_provenance_message(
             source_txt, uploads_dir,
             companion_present=captured is not None,
-            saved_chain_state=chain_state))
+            saved_chain_state=reattachment_state,
+            source_file_missing=source_file_missing))
     origins = captured["document"].get("candidates", [])
     if not origins:
         raise ValueError("This book did not come from an EPUB upload; EPUB read-aloud needs the retained source EPUB.")

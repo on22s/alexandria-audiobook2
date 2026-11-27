@@ -247,11 +247,11 @@ class RetainedReadResourceTests(_FixtureMixin):
         from readalong_export import _locate_retained_epub
         tmp = self._mkdtmp()
         _editor, manager = self._fixture(tmp)
-        expected, _source = _locate_retained_epub(manager, lambda: False)
+        expected, _source = _locate_retained_epub(manager, lambda: False, uploads_dir=tmp)
         retained = Path(tmp) / 'book.source.epub'
         os.link(retained, Path(tmp) / 'retained-backup.epub')
         self.assertEqual(2, retained.stat().st_nlink)
-        actual, _source = _locate_retained_epub(manager, lambda: False)
+        actual, _source = _locate_retained_epub(manager, lambda: False, uploads_dir=tmp)
         self.assertEqual(expected, actual)
         from readalong_export import get_retained_epub_sha256
         self.assertEqual(hashlib.sha256(expected).hexdigest(), get_retained_epub_sha256(retained))
@@ -295,11 +295,11 @@ class RetainedReadResourceTests(_FixtureMixin):
         import readalong_export as rexp
         tmp = self._mkdtmp()
         _editor, manager = self._fixture(tmp)
-        original, _source = rexp._locate_retained_epub(manager, lambda: False)
+        original, _source = rexp._locate_retained_epub(manager, lambda: False, uploads_dir=tmp)
         self.assertGreater(len(original), 64)
         with patch.object(rexp, "MAX_RETAINED_EPUB_BYTES", 64, create=True):
             with self.assertRaisesRegex(ValueError, "Retained EPUB.*bound"):
-                rexp._locate_retained_epub(manager, lambda: False)
+                rexp._locate_retained_epub(manager, lambda: False, uploads_dir=tmp)
             with self.assertRaisesRegex(ValueError, "Retained EPUB.*bound"):
                 rexp.get_retained_epub_sha256(Path(tmp) / 'book.source.epub')
 
@@ -2039,10 +2039,13 @@ class RetainedSourceResolutionTests(_FixtureMixin):
         tmp = self._mkdtmp()
         self._fixture(tmp)
         retained = Path(tmp) / 'book.source.epub'
+        origin = hashlib.sha256(retained.read_bytes()).hexdigest()
         retained.rename(Path(tmp) / 'renamed.source.epub')
         with patch.object(rexp, 'get_audio_file_sha256', side_effect=OSError('controlled unreadable file')):
             with self.assertRaisesRegex(ValueError, 'could not inspect'):
-                rexp.get_retained_epub_candidate_path(str(Path(tmp) / 'book.txt'))
+                rexp.get_retained_epub_candidate_path(
+                    str(Path(tmp) / 'book.txt'), origin_hashes={origin},
+                    uploads_dir=tmp)
 
     def test_source_text_currency_hash_does_not_materialize_text(self):
         import readalong_export as rexp
@@ -2055,7 +2058,8 @@ class RetainedSourceResolutionTests(_FixtureMixin):
                 raise AssertionError('source TXT must use bounded streaming capture')
             return original(path)
         with patch.object(Path, 'read_bytes', read_bytes):
-            retained, selected = rexp._locate_retained_epub(manager, lambda: False, source_txt=str(source))
+            retained, selected = rexp._locate_retained_epub(
+                manager, lambda: False, source_txt=str(source), uploads_dir=tmp)
         self.assertTrue(retained)
         self.assertEqual(str(source), selected)
 
@@ -2067,13 +2071,16 @@ class RetainedSourceResolutionTests(_FixtureMixin):
         self._fixture(tmp)
         source = str(Path(tmp) / "book.txt")
         retained = Path(tmp) / "book.source.epub"
+        origin = hashlib.sha256(retained.read_bytes()).hexdigest()
         retained.rename(retained.with_name("renamed.source.epub"))
         with patch.object(archive_utils, "MAX_ARCHIVE_MEMBERS", 1):
             with self.assertRaisesRegex(ValueError, "entry budget"):
-                rexp.get_retained_epub_candidate_path(source)
+                rexp.get_retained_epub_candidate_path(
+                    source, origin_hashes={origin}, uploads_dir=tmp)
         with patch.object(archive_utils, "MAX_ARCHIVE_BYTES", 1):
             with self.assertRaisesRegex(ValueError, "byte budget"):
-                rexp.get_retained_epub_candidate_path(source)
+                rexp.get_retained_epub_candidate_path(
+                    source, origin_hashes={origin}, uploads_dir=tmp)
         real = rexp.get_audio_file_sha256
         inside = False
         polls = 0
@@ -2092,7 +2099,9 @@ class RetainedSourceResolutionTests(_FixtureMixin):
                 inside = False
         with patch.object(rexp, "get_audio_file_sha256", side_effect=hashing):
             with self.assertRaises(ExportCancelled):
-                rexp.get_retained_epub_candidate_path(source, cancel_check=cancel)
+                rexp.get_retained_epub_candidate_path(
+                    source, cancel_check=cancel, origin_hashes={origin},
+                    uploads_dir=tmp)
         self.assertEqual(2, polls, "Cancellation must reach the actual streamed hash")
         with self.assertRaises(ValueError):
             real(str(Path(tmp) / "absent"), limit=-1)
@@ -2104,15 +2113,19 @@ class RetainedSourceResolutionTests(_FixtureMixin):
         source = str(Path(tmp) / "book.txt")
         retained = Path(tmp) / "book.source.epub"
         expected = retained.read_bytes()
+        origin = hashlib.sha256(expected).hexdigest()
         renamed = retained.with_name("renamed.source.epub")
         retained.rename(renamed)
-        self.assertEqual(str(renamed), get_retained_epub_candidate_path(source))
-        self.assertEqual((expected, source), _locate_retained_epub(manager, lambda: False))
+        self.assertEqual(str(renamed), get_retained_epub_candidate_path(
+            source, origin_hashes={origin}, uploads_dir=tmp))
+        self.assertEqual((expected, source), _locate_retained_epub(
+            manager, lambda: False, uploads_dir=tmp))
         renamed.with_name("duplicate.source.epub").write_bytes(expected)
         with self.assertRaisesRegex(ValueError, "Multiple retained"):
-            get_retained_epub_candidate_path(source)
+            get_retained_epub_candidate_path(
+                source, origin_hashes={origin}, uploads_dir=tmp)
         with self.assertRaisesRegex(ValueError, "Multiple retained"):
-            _locate_retained_epub(manager, lambda: False)
+            _locate_retained_epub(manager, lambda: False, uploads_dir=tmp)
 
     def test_language_uses_bounded_archive_reader(self):
         from epub_readaloud import get_epub_language_from_path

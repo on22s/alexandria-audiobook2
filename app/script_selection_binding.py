@@ -471,6 +471,36 @@ def resolve_saved_book_origin(
     raise SavedSourceResolutionError('hop_limit', 'Saved script binding chain exceeds hop limit.')
 
 
+def resolve_saved_book_reattachment(
+    data_dir: str,
+    saved_script_path: str,
+    *,
+    saved_books_root: str | None = None,
+    expected_script_sha256: str | None = None,
+    cancel_check=None,
+) -> dict:
+    """The origin an identical re-upload would reattach this saved book under.
+
+    This is the ONE check the upload route and the retained-EPUB recovery text
+    share (#2355). It is ``resolve_saved_book_origin`` with
+    ``require_terminal_file=False``: the upload route reattaches an identical
+    re-upload when this walk verifies and the incoming source digest equals the
+    returned ``source_sha256``, because the saved binding's recorded digest
+    stays authoritative after the terminal source file is gone. A terminal file
+    that is still present with different bytes is still refused as
+    ``changed_source``.
+
+    The recovery text asks this same function, so its advice ("re-upload the
+    byte-identical source") and the upload route can never disagree. Callers
+    that only need to locate the retained file use ``resolve_saved_book_origin``
+    with the terminal file required instead.
+    """
+    return resolve_saved_book_origin(
+        data_dir, saved_script_path, saved_books_root=saved_books_root,
+        expected_script_sha256=expected_script_sha256,
+        require_terminal_file=False, cancel_check=cancel_check)
+
+
 def _validated_script_entries(script_bytes, *, require_entries=True):
     if not isinstance(script_bytes, bytes) or len(script_bytes) > 512 * 1024**2:
         raise ValueError('Invalid script publication bytes')

@@ -14563,8 +14563,10 @@
     , "tests.test_saved_book_publication.SavedBookPublicationTests.test_saved_mutations_do_not_wait_for_saved_book_lock"
   ]
   , "test_saved_book_source_reselection": [
-    "tests.test_saved_book_source_reselection.ReporterFlowTests.test_missing_publication_companion_offers_the_reupload_that_keeps_rows"
+    "tests.test_saved_book_source_reselection.ReporterFlowTests.test_missing_companion_and_source_offers_the_reupload"
+    , "tests.test_saved_book_source_reselection.ReporterFlowTests.test_missing_publication_companion_offers_the_reupload_that_keeps_rows"
     , "tests.test_saved_book_source_reselection.ReporterFlowTests.test_missing_retained_epub_message_offers_the_reupload_that_keeps_rows"
+    , "tests.test_saved_book_source_reselection.ReporterFlowTests.test_missing_source_message_offers_the_reupload_that_keeps_rows"
     , "tests.test_saved_book_source_reselection.ReporterFlowTests.test_reporter_flow_keeps_rendered_rows_after_the_same_epub_is_reuploaded"
     , "tests.test_saved_book_source_reselection.ReporterFlowTests.test_two_hop_saved_chain_keeps_rendered_rows"
     , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_changed_origin_bytes_still_start_a_new_book"
@@ -14673,6 +14675,7 @@
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_stale_provenance_message_is_consistent_with_the_recovery_advice"
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_timing_missing_receipt_digest_does_not_repeat_rebuild"
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_timing_site_hash_gates_the_binding_candidate"
+    , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_uploads_dir_is_required_at_every_entry_point"
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_uploads_fallback_still_works_without_a_binding"
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_uploads_folder_wording_uses_the_scanned_directory"
   ]

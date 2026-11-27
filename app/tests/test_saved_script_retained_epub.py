@@ -319,9 +319,10 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
                        side_effect=SavedSourceResolutionError(
                            "missing_binding", "no binding")):
                 with self.assertLogs("readalong_export", level="DEBUG") as logs:
-                    self.assertIsNone(
-                        readalong_export.get_saved_book_retained_epub_path(
-                            str(root), saved))
+                    path, state = readalong_export._resolve_saved_book_retained_epub(
+                        str(root), saved)
+                    self.assertIsNone(path)
+                    self.assertEqual("missing_binding", state)
             self.assertIn("missing_binding", "\n".join(logs.output))
             self.render_chunks(root)
             ok, message = readalong_export.build_epub_export(
@@ -337,18 +338,20 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
             retained.write_bytes(b"retained bytes")
             digest = hashlib.sha256(b"retained bytes").hexdigest()
             path, content = readalong_export.get_verified_retained_epub(
-                str(source), digest, read_bytes=True)
+                str(source), digest, read_bytes=True, uploads_dir=str(root))
             self.assertEqual(str(retained), path)
             self.assertEqual(b"retained bytes", content)
             path, content = readalong_export.get_verified_retained_epub(
-                str(source), digest)
+                str(source), digest, uploads_dir=str(root))
             self.assertEqual(str(retained), path)
             self.assertIsNone(content)
             with self.assertRaisesRegex(ValueError, "do not match"):
                 readalong_export.get_verified_retained_epub(
-                    str(source), hashlib.sha256(b"other").hexdigest())
+                    str(source), hashlib.sha256(b"other").hexdigest(),
+                    uploads_dir=str(root))
             with self.assertRaisesRegex(ValueError, "no retained EPUB provenance"):
-                readalong_export.get_verified_retained_epub(str(source), ())
+                readalong_export.get_verified_retained_epub(
+                    str(source), (), uploads_dir=str(root))
 
     def test_stale_provenance_message_is_consistent_with_the_recovery_advice(self):
         with self.fixture() as (root, api, epub_bytes):
@@ -437,6 +440,24 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
                 self.assertFalse(readalong_export._source_folder_is_uploads(
                     str(txt), uploads_dir=str(other)))
 
+    def test_uploads_dir_is_required_at_every_entry_point(self):
+        """A caller that forgets the scanned folder fails loudly (#2355 N-a)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "book.txt"
+            source.write_bytes(b"synthetic source text")
+            digest = hashlib.sha256(b"retained bytes").hexdigest()
+            with self.assertRaises(TypeError):
+                readalong_export._source_folder_is_uploads(str(source), None)
+            with self.assertRaises(TypeError):
+                readalong_export.get_verified_retained_epub(str(source), digest)
+            with self.assertRaises(TypeError):
+                readalong_export.get_retained_epub_candidate_path(
+                    str(source), origin_hashes={digest})
+            with self.assertRaises(TypeError):
+                readalong_export._locate_retained_epub(
+                    None, lambda: False, source_txt=str(source))
+
     def test_saved_source_resolver_reads_poll_cancellation(self):
         """A cancelled build is observed during the walk, not after it."""
         from audio_generation_owner import AudioGenerationCancelled
@@ -451,7 +472,7 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
                 return len(polls) >= 2
 
             with self.assertRaises(AudioGenerationCancelled):
-                readalong_export.get_saved_book_retained_epub_path(
+                readalong_export._resolve_saved_book_retained_epub(
                     str(root), saved, cancel_check=cancel)
             self.assertGreaterEqual(len(polls), 2,
                                     "cancellation must be polled inside the read")
