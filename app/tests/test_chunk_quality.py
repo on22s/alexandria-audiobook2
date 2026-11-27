@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from chunk_quality import validate_chunk_quality
+from chunk_quality import get_chunk_schema_findings, validate_chunk_quality
 import generate_script
 from source_normalization import (normalize_extreme_phrase_repetitions,
                                   normalize_homoglyph_words,
@@ -445,6 +445,22 @@ class ChunkQualityTests(unittest.TestCase):
         self.assertIn("missing_fields", codes)
         self.assertIn("empty_text", codes)
         self.assertIn("invalid_entry", codes)
+
+    def test_missing_speaker_matches_the_final_audit_for_invisible_only_labels(self):
+        # The chunk gate and the book audit must share one emptiness rule: a
+        # silent-only speaker has to fail here too, where a retry is possible.
+        from script_preflight import audit_script
+
+        for label in ("   ", "\u00ad", "\u00ad \u00ad", "\u2060"):
+            with self.subTest(label=repr(label)):
+                entries = [_entry("Hello there.", speaker=label)]
+                chunk_finding = "missing_speaker" in {
+                    finding["code"] for finding in get_chunk_schema_findings(entries)}
+                audit_finding = "missing_speaker" in {
+                    finding["code"] for finding in audit_script(entries, "Hello there.")["findings"]
+                    if finding["severity"] == "blocking"}
+                self.assertEqual(chunk_finding, audit_finding)
+                self.assertTrue(chunk_finding)
 
     def test_cyrillic_case_changes_preserve_text_but_new_letters_and_transliteration_fail(self):
         for source, output in (('михаил', 'Михаил'), ('МИХАИЛ', 'михаил'),
