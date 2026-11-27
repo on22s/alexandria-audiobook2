@@ -1,0 +1,160 @@
+name: fuzz
+
+# On-demand and weekly coverage-guided fuzzing (Atheris / libFuzzer) for the
+# EPUB and TXT source importers. Deliberately Linux-only and outside the
+# required PR/merge-queue path: Atheris wraps libFuzzer (no Windows wheel) and
+# fuzzing is time-boxed rather than a deterministic unit gate.
+#
+# Trigger manually from the Actions tab or:
+#   gh workflow run fuzz.yml -f duration_seconds=300 -f target=all
+on:
+  workflow_dispatch:
+    inputs:
+      duration_seconds:
+        description: "Fuzzing duration per harness in seconds (default 180)"
+        required: false
+        default: "180"
+        type: string
+      target:
+        description: "Harness to run"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - epub_raw
+          - epub_structured
+          - txt_import
+          - epub_alignment_parity
+  schedule:
+    # Weekly Sunday 07:17 UTC
+    - cron: "17 7 * * 0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    name: fuzz (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - epub_raw
+          - epub_structured
+          - txt_import
+          - epub_alignment_parity
+    steps:
+      - name: Check target filter
+        id: filter
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_TARGET: ${{ inputs.target }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] \
+             && [ "$REQUESTED_TARGET" != "all" ] \
+             && [ "$REQUESTED_TARGET" != "${{ matrix.target }}" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v6
+        if: steps.filter.outputs.run == 'true'
+
+      - uses: actions/setup-python@v6
+        if: steps.filter.outputs.run == 'true'
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: |
+            app/requirements.txt
+            app/requirements-test.txt
+            app/requirements-fuzz.txt
+
+      # Install only the non-ML runtime dependencies needed to import
+      # routers.script, three_pass_generate, and alexandria_alignment, taking
+      # exact pins from app/requirements.txt (single source of truth), plus
+      # app/requirements-test.txt (EbookLib, beautifulsoup4) and
+      # app/requirements-fuzz.txt (atheris==2.3.0 cp310 manylinux wheel).
+      - name: Install Python dependencies
+        if: steps.filter.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          names = {
+              'fastapi', 'starlette', 'uvicorn', 'pydantic', 'pydub', 'Pillow',
+              'requests', 'openai', 'httpx2', 'soundfile', 'numpy', 'rapidfuzz',
+              'python-multipart', 'aiofiles', 'urllib3', 'anyio', 'multidict',
+              'keyring',
+          }
+          selected = [
+              line for line in Path('app/requirements.txt').read_text(encoding='utf-8').splitlines()
+              if line and not line.lstrip().startswith('#')
+              and re.split(r'[<>=!~\[]', line, maxsplit=1)[0].strip() in names
+          ]
+          found = {re.split(r'[<>=!~\[]', line, maxsplit=1)[0].strip() for line in selected}
+          assert found == names, f"Missing requirement pins: {sorted(names - found)}"
+          Path('fuzz-runtime-requirements.txt').write_text('\n'.join(selected) + '\n', encoding='utf-8')
+          PY
+          python -m pip install -r fuzz-runtime-requirements.txt
+          python -m pip install -r app/requirements-test.txt
+          python -m pip install --only-binary=:all: -r app/requirements-fuzz.txt
+          rm -f fuzz-runtime-requirements.txt
+
+      - name: Run Atheris harness (${{ matrix.target }})
+        if: steps.filter.outputs.run == 'true'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          DURATION: ${{ inputs.duration_seconds || '180' }}
+          OUT_DIR: ${{ runner.temp }}/fuzz-artifacts/${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          case "$DURATION" in
+            ''|*[!0-9]*)
+              echo "::error::duration_seconds must be a positive integer, got '$DURATION'"
+              exit 2
+              ;;
+          esac
+          if [ "$DURATION" -lt 1 ] || [ "$DURATION" -gt 1800 ]; then
+            echo "::error::duration_seconds must be between 1 and 1800, got '$DURATION'"
+            exit 2
+          fi
+          case "$TARGET" in
+            epub_raw) SEED_DIR="tools/fuzz/corpus/epub_raw" ;;
+            epub_structured) SEED_DIR="tools/fuzz/corpus/epub_structured" ;;
+            txt_import) SEED_DIR="tools/fuzz/corpus/txt_import" ;;
+            epub_alignment_parity) SEED_DIR="tools/fuzz/corpus/epub_parity" ;;
+            *) echo "::error::unknown fuzz target: $TARGET"; exit 2 ;;
+          esac
+          WORK_CORPUS="${RUNNER_TEMP}/fuzz-corpus/${TARGET}"
+          mkdir -p "$OUT_DIR" "$WORK_CORPUS"
+          cp "$SEED_DIR"/* "$WORK_CORPUS/"
+          python "tools/fuzz/fuzz_${TARGET}.py" \
+            -max_total_time="$DURATION" \
+            -timeout=5 \
+            -rss_limit_mb=2048 \
+            -print_final_stats=1 \
+            -artifact_prefix="${OUT_DIR}/" \
+            "$WORK_CORPUS" 2>&1 | tee "${OUT_DIR}/fuzz.log"
+
+      - name: Upload fuzz logs and crashes
+        if: always() && steps.filter.outputs.run == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/fuzz-artifacts/${{ matrix.target }}
+          if-no-files-found: warn
+          retention-days: 30
