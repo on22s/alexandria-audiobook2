@@ -2109,37 +2109,17 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
     # diagnosed live (2026-07-19): a chunk hit 86% recall on its final
     # attempt (one attempt away from the 90% pass threshold), then the
     # retry budget was already exhausted. See _is_near_miss_recall.
-    # Three properties are deliberate, not oversights: this call passes no
+    # Two properties are deliberate, not oversights: this call passes no
     # retry_feedback (a fresh call_llm_for_entries, same as the first
     # attempt) - fresh samples measured 3/3 where feedback-looped retries
-    # looped instead; it can never trigger an early split, since
+    # looped instead; and it can never trigger an early split, since
     # retry_decider is only wired up when `retries` is truthy above, and
-    # this call always passes max_retries=0; and it is granted only above
-    # temperature 0, because at 0 it would re-send the first request's exact
-    # prompt and budget - the identical repeat the guard in
-    # call_llm_for_entries exists to reject. The near-miss retention is the
-    # safety net at 0, not this request.
+    # this call always passes max_retries=0.
     if not entries and local_attempts and _is_near_miss_recall(
             local_attempts[-1].get("quality_metrics")):
-        if not params.temperature:
-            # The bonus call is a fresh call_llm_for_entries: same user prompt,
-            # same budget, no feedback. At temperature 0 that is byte-identical
-            # to the first request this chunk already sent, which the
-            # deterministic repeat guard exists to prevent. Skipping it follows
-            # the same temperature-0 policy as the in-loop guard (which treats
-            # temperature 0 as deterministic for every client path; hosted,
-            # MoE or reasoning models that ignore temperature are treated the
-            # same way by that existing policy, not by anything new here). The
-            # near-miss retention above is unaffected: near_miss_sink still
-            # carries the entries to the exhaustion-only fallback, so no
-            # salvage is lost by not spending the request.
-            print(f"  CHUNK {chunk_num}/{total_chunks} near-miss on final attempt; "
-                  "no bonus retry at temperature 0 (its identical request was "
-                  "already rejected)")
-        else:
-            print(f"  CHUNK {chunk_num}/{total_chunks} near-miss on final attempt; "
-                  "granting one bonus retry")
-            entries = call(0)
+        print(f"  CHUNK {chunk_num}/{total_chunks} near-miss on final attempt; "
+              "granting one bonus retry")
+        entries = call(0)
     return entries
 
 

@@ -699,12 +699,13 @@ class TrigramNearMissAcceptanceTests(unittest.TestCase):
         self.assertEqual([], entries)
 
     @staticmethod
-    def _counting_client(reply):
+    def _sequence_client(replies):
         from types import SimpleNamespace
         calls = []
 
         def create(**_kwargs):
-            calls.append(1)
+            reply = replies[min(len(calls), len(replies) - 1)]
+            calls.append(reply)
             return SimpleNamespace(choices=[SimpleNamespace(
                 message=SimpleNamespace(content=reply),
                 finish_reason="stop")], usage=None)
@@ -713,59 +714,32 @@ class TrigramNearMissAcceptanceTests(unittest.TestCase):
             completions=SimpleNamespace(create=create)))
         return client, calls
 
-    def test_temperature_zero_salvaged_near_miss_makes_one_call_and_is_retained(self):
-        """#2336: retain the salvaged near miss without buying an identical call.
+    def test_temperature_zero_still_grants_the_near_miss_bonus_request(self):
+        """#2376 gate 2: the bonus near-miss request stays at temperature 0.
 
-        A missing payload whose raw-array salvage is a trigram-only near miss is
-        captured for the exhaustion-only fallback, but at temperature 0 the
-        near-miss bonus call is a fresh call_llm_for_entries with the same
-        prompt and budget - the byte-identical request the deterministic repeat
-        guard exists to prevent. One request; the chunk is still accepted by
-        retention rather than forfeited.
+        Main sent a fresh bonus request at 0.0, and that is a real retry on the
+        client paths where a temperature-0 request is not deterministic: OpenAI
+        reasoning models strip the sampling controls in
+        `adapt_request_for_reasoning_model` (llm_provider.py), and the manual
+        transport is answered by a human. #2336 does not need the removal, so
+        main's request is restored. Stub replies: near miss, near miss, pass.
+        At 0.0 that is three calls (the feedback retry, then the bonus call)
+        and the passing reply is accepted.
         """
         import json
-        from chunk_quality import is_trigram_only_near_miss
 
         source, near_miss = _trigram_near_miss_text()
-        # A bracketed non-array note before a bare object: clean_json_string
-        # finds no array payload (the missing-payload path), while raw-array
-        # repair still extracts the object.
-        client, calls = self._counting_client(
-            "[0] " + json.dumps(_entry(near_miss)))
+        near_miss_reply = json.dumps([_entry(near_miss)])
+        passing_reply = json.dumps([_entry(source)])
+        client, calls = self._sequence_client(
+            [near_miss_reply, near_miss_reply, passing_reply])
         params = generate_script.LLMGenParams("system", "{chunk}", 200, 0.0, 1)
 
-        entries, adaptively_split = generate_script.process_chunk_adaptively(
-            client, "model", source, 1, 1, params)
+        result = generate_script.process_chunk(
+            client, "model", source, 1, 1, params, max_retries=1)
 
-        self.assertEqual(1, len(calls))
-        self.assertFalse(adaptively_split)
-        self.assertTrue(entries)
-        self.assertTrue(is_trigram_only_near_miss(
-            validate_chunk_quality(source, entries)))
-
-    def test_temperature_zero_parsable_near_miss_also_skips_the_bonus_call(self):
-        """The parsable near miss reached the bonus call on main at 0.0 too.
-
-        The feedback retry before it is legitimate (its prompt changed), so at
-        0.0 the budget spends two requests, not three: the third would be the
-        byte-identical bonus request. Above 0 the bonus call is a fresh sample
-        and is still granted.
-        """
-        import json
-
-        source, near_miss = _trigram_near_miss_text()
-        for temperature, expected_calls in ((0.0, 2), (0.7, 3)):
-            with self.subTest(temperature=temperature):
-                client, calls = self._counting_client(
-                    json.dumps([_entry(near_miss)]))
-                params = generate_script.LLMGenParams(
-                    "system", "{chunk}", 200, temperature, 1)
-
-                result = generate_script.process_chunk(
-                    client, "model", source, 1, 1, params, max_retries=1)
-
-                self.assertEqual([], result)
-                self.assertEqual(expected_calls, len(calls))
+        self.assertEqual(3, len(calls))
+        self.assertEqual([_entry(source)], result)
 
 
 

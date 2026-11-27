@@ -500,27 +500,42 @@ class LlmReviewTests(unittest.TestCase):
         second span after the control-character escape.
 
         Two copies of one array, one with a literal newline inside its text.
-        Main's strict adjacent parse returned None before the overlap check, so
-        its raw salvage returned the duplicated entries (1 call). Head parses
-        both spans, their boundary words match, and AdjacentArrayOverlapError is
-        raised: no entries after 2 calls at 0.0 (the feedback retry is then
-        blocked by the deterministic guard) and all 4 at 0.7.
+        Head parses both spans, their boundary words match, and
+        AdjacentArrayOverlapError is raised: no entries after 2 calls at 0.0
+        (the second is the feedback retry, whose prompt changed; a third would
+        be blocked by the deterministic guard) and all 4 at 0.7.
+
+        Main's outcome depends on which copy holds the newline, and neither was
+        the duplicate acceptance the earlier wording claimed:
+        - newline in the SECOND copy: main's strict adjacent parse returned
+          None, the missing-payload path found no array, and it returned 0
+          entries after 1 call at 0.0 and 4 at 0.7 (ending malformed_json).
+        - newline in the FIRST copy: main's leading span parse failed, the
+          combined span still reached raw salvage, and it accepted the
+          duplicated entries (2 entries, 1 call at both temperatures).
+        Both placements are pinned below, at both temperatures.
         """
         entries = [{"speaker": "NARRATOR", "text": "alpha beta gamma delta",
                     "instruct": "neutral"}]
-        doubled = (json.dumps(entries)
-                   + json.dumps(entries).replace(
-                       "alpha beta gamma delta", "alpha beta gamma\ndelta"))
+        second_newline = (json.dumps(entries)
+                          + json.dumps(entries).replace(
+                              "alpha beta gamma delta",
+                              "alpha beta gamma\ndelta"))
+        first_newline = (json.dumps(entries).replace(
+            "alpha beta gamma delta", "alpha beta gamma\ndelta")
+            + json.dumps(entries))
 
-        for temperature, expected_calls in ((0.0, 2), (0.7, 4)):
-            with self.subTest(temperature=temperature):
-                attempts = []
-                calls, result = self._run_reply(doubled, temperature, attempts)
+        for placement, reply in (("second copy", second_newline),
+                                 ("first copy", first_newline)):
+            for temperature, expected_calls in ((0.0, 2), (0.7, 4)):
+                with self.subTest(placement=placement, temperature=temperature):
+                    attempts = []
+                    calls, result = self._run_reply(reply, temperature, attempts)
 
-                self.assertEqual([], result)
-                self.assertEqual(expected_calls, len(calls))
-                self.assertEqual(["adjacent_array_overlap"],
-                                 attempts[-1]["failure_codes"])
+                    self.assertEqual([], result)
+                    self.assertEqual(expected_calls, len(calls))
+                    self.assertEqual(["adjacent_array_overlap"],
+                                     attempts[-1]["failure_codes"])
 
     def test_notes_main_already_tolerated_stay_tolerated(self):
         """Non-regression only: these preambles already produced the answer on
