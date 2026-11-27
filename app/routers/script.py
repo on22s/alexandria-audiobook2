@@ -110,6 +110,7 @@ from utils import file_lock, is_path_inside
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from alexandria_alignment import (
     cut_xml_subtrees,
+    decode_epub_markup,
     html_hidden_handling_applies,
     is_well_formed_xml,
     validate_epub_archive,
@@ -667,14 +668,16 @@ class _HTMLTextExtractor(HTMLParser):
 _POTENTIAL_SKIP_OPEN_RE = re.compile(
     r'<(?:' + '|'.join(sorted(_HTMLTextExtractor.SKIP_TAGS)) +
     r')(?=[\t\n\r\f />]|$)', re.IGNORECASE | re.ASCII)
-# Conservative hint for the exact XML `hidden="..."` attribute (lowercase, no
-# namespace) inside a start tag; quoted attribute values may contain `>`, while
-# prose mentions of the word "hidden", `HIDDEN`/`Hidden`, prefixed `h:hidden`
-# and attributes like `aria-hidden`/`class="hidden"` do not trigger the strict
-# XML pass. XML attribute names are case-sensitive and the HTML attribute is
-# the null-namespace lowercase name (see is_html_hidden_attrs).
-_POTENTIAL_HIDDEN_ATTR_RE = re.compile(
-    r'<(?:[^<>"\']|"[^"]*"|\'[^\']*\')*[\t\n\r\f ]hidden[\t\n\r\f ]*=')
+# Conservative linear hint for possible HTML `hidden` markup. Any occurrence of
+# the exact bytes `hidden` engages the strict pass, which then decides with the
+# one attribute predicate. This covers a literal `hidden="..."` attribute and a
+# DTD internal-subset `<!ATTLIST ... hidden ...>` that defaults it onto every
+# element: Expat applies that default exactly as browsers do, so the walker -
+# not this hint - must make the hidden decision. False positives (prose,
+# `class="hidden"`, `aria-hidden`) simply take the XML path, whose output is
+# unchanged when nothing is hidden. A plain substring test is linear and has
+# none of the backtracking memory a start-tag regex needs on a huge tag.
+_HIDDEN_MARKUP_HINT = 'hidden'
 # HTML void elements omit no text of their own, so a hidden void element is
 # not counted as an omitted element in the extraction report.
 _XML_VOID_TAGS = frozenset({
@@ -713,16 +716,16 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
     and a DOCTYPE whose internal subset or identifiers could carry literal
     skip markup makes the whole nonspoken prolog be omitted at the root
     element (its lexical start is not directly reported by Expat).
-    Resources with no possible skip opening (or hidden attribute, when hidden
+    Resources with no possible skip opening (or hidden markup, when hidden
     handling applies) skip the copy and the XML pass entirely (see
-    _POTENTIAL_SKIP_OPEN_RE and _POTENTIAL_HIDDEN_ATTR_RE).
+    _POTENTIAL_SKIP_OPEN_RE and _HIDDEN_MARKUP_HINT).
     This helper is invoked only for application/xhtml+xml resources (see
     extract_epub_text): if the resource is not XML well-formed, a genuine
     ExpatError rejects actionably with the pending ignored element named
     when one is open. No partial transformed output is ever fed on XML
     failure.
     """
-    has_hidden_attr = omit_hidden and _POTENTIAL_HIDDEN_ATTR_RE.search(html_content)
+    has_hidden_attr = omit_hidden and _HIDDEN_MARKUP_HINT in html_content
     if not _POTENTIAL_SKIP_OPEN_RE.search(html_content) and not has_hidden_attr:
         return html_content
 
@@ -971,16 +974,7 @@ def _insert_epub_toc_titles(text, anchor_positions, toc_targets, *, decisions=No
 
 def get_epub_xhtml_text(data: bytes) -> str:
     """Decode XHTML using its Unicode byte order or XML encoding declaration."""
-    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
-        encoding = "utf-16"
-    elif data.startswith(b"<\0"):
-        encoding = "utf-16-le"
-    elif data.startswith(b"\0<"):
-        encoding = "utf-16-be"
-    else:
-        declaration = re.match(br"\s*<\?xml\b[^>]*\bencoding\s*=\s*['\"]([^'\"]+)['\"]", data[:256])
-        encoding = declaration.group(1).decode("ascii") if declaration else "utf-8-sig"
-    return data.decode(encoding, errors="replace")
+    return decode_epub_markup(data)
 
 
 def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, include_report=False,
@@ -1137,7 +1131,7 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                 # report hashes) is unchanged by this.
                 apply_hidden = False
                 if media_type == 'application/xhtml+xml':
-                    if _POTENTIAL_HIDDEN_ATTR_RE.search(html_content):
+                    if _HIDDEN_MARKUP_HINT in html_content:
                         apply_hidden = html_hidden_handling_applies(
                             media_type,
                             xml_well_formed=is_well_formed_xml(html_content))

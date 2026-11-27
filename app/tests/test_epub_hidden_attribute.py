@@ -11,6 +11,7 @@ shared predicates (``alexandria_alignment.is_html_hidden_attrs`` and
 ``epub_readaloud`` (chunk-timed and Qwen modes), and
 ``alexandria_alignment.load_epub``.
 """
+import contextlib
 import io
 import json
 import tempfile
@@ -33,7 +34,7 @@ from epub_readaloud import (
 from routers import script
 from routers.script import (
     _HTMLTextExtractor,
-    _POTENTIAL_HIDDEN_ATTR_RE,
+    _HIDDEN_MARKUP_HINT,
     _get_anchor_id,
     _omit_xml_ignored_subtrees,
     extract_epub_text,
@@ -1384,19 +1385,121 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             epub_path.write_bytes(raw_empty)
             self.assertFalse(alignment.load_epub(str(epub_path)).strip())
 
-    def test_hidden_hint_regex_matches_only_the_browser_attribute(self):
-        # The conservative pre-parse hint must engage the strict pass only for
-        # the exact lowercase null-namespace attribute, never for uppercase,
-        # prefixed or CSS/aria lookalikes.
+    def test_hidden_markup_hint_is_a_linear_conservative_superset(self):
+        # One linear substring check engages the strict pass; the walker then
+        # makes the hidden decision. It must fire for the exact browser
+        # attribute AND for a DTD internal-subset `ATTLIST` that defaults
+        # `hidden` onto elements. False positives (prose, class, aria) are
+        # harmless: the walk finds nothing hidden and keeps the document.
         for source in ('<p hidden="">', '<p class="x" hidden="">',
-                       "<p\nhidden='x'>", '<p hidden = "x">'):
-            with self.subTest(matches=source):
-                self.assertIsNotNone(_POTENTIAL_HIDDEN_ATTR_RE.search(source))
-        for source in ('<p HIDDEN="">', '<p Hidden="">', '<p h:hidden="">',
-                       '<p aria-hidden="true">', '<p data-hidden="x">',
-                       '<p class="hidden">', '<p title="hidden = 5">'):
-            with self.subTest(no_match=source):
-                self.assertIsNone(_POTENTIAL_HIDDEN_ATTR_RE.search(source))
+                       "<p\nhidden='x'>", '<p hidden = "x">',
+                       '<!DOCTYPE html [<!ATTLIST p hidden CDATA "x">]>',
+                       '<!DOCTYPE html [<!ENTITY h "hidden">]>'):
+            with self.subTest(fires=source):
+                self.assertIn(_HIDDEN_MARKUP_HINT, source)
+        # A document without the word takes the unchanged fast path; the
+        # false-positive shapes above still narrate their visible text.
+        self.assertNotIn(_HIDDEN_MARKUP_HINT, '<p>Plain.</p>')
+        for source, expected in (
+            ('<p class="hidden">Visible one.</p>', 'Visible one.'),
+            ('<p title="hidden = 5">Visible two.</p>', 'Visible two.'),
+            ('<p aria-hidden="true">Visible three.</p>', 'Visible three.'),
+        ):
+            with self.subTest(kept=source):
+                raw = make_epub(source, toc_links=[])
+                self.assertEqual(expected,
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+
+    def test_other_dtd_attribute_default_is_unchanged(self):
+        # A DTD that declares some OTHER attribute is not hidden handling:
+        # every path matches the same document under a DTD that declares an
+        # attribute on a different element, and the walker reports no hidden
+        # subtree. (The cross-tree probe compares both to origin/main.)
+        body = ('<html xmlns="' + XHTML_NS + '"><head><title>T</title></head>'
+                '<body><p>Same one.</p><div>Same two.</div></body></html>')
+        other_attribute = (
+            '<?xml version="1.0"?>'
+            '<!DOCTYPE html [<!ATTLIST p class CDATA "default-class">]>'
+            + body)
+        control = (
+            '<?xml version="1.0"?>'
+            '<!DOCTYPE html [<!ATTLIST div class CDATA "default-class">]>'
+            + body)
+        self.assertFalse(alignment.strip_hidden_xml(other_attribute).saw_hidden)
+        other_extract, other_segments, other_load = _three_paths(
+            make_epub('', raw_document=other_attribute, toc_links=[]))
+        control_extract, control_segments, control_load = _three_paths(
+            make_epub('', raw_document=control, toc_links=[]))
+        self.assertEqual('Same one.\n\nSame two.', other_extract)
+        self.assertEqual(control_extract, other_extract)
+        self.assertEqual(control_segments, other_segments)
+        self.assertEqual(_normalised(control_load), _normalised(other_load))
+
+    def test_dtd_default_hidden_is_omitted_on_all_paths(self):
+        # Merge gate 2 finding 1: an internal-subset ATTLIST can default
+        # `hidden` onto every <p>. Both browsers hide those elements and so
+        # must every path; the body has no literal `hidden=` anywhere. The
+        # second document has no skip-tag opening, so the only reason the
+        # extraction walk runs is the hidden hint itself.
+        for head in ('<head><title>T</title></head>', '<head></head>'):
+            with self.subTest(head=head):
+                dtd_hidden = (
+                    '<?xml version="1.0" encoding="utf-8"?>\n'
+                    '<!DOCTYPE html [<!ATTLIST p hidden CDATA "x">]>\n'
+                    f'<html xmlns="{XHTML_NS}">{head}'
+                    '<body><p>VISA</p><div>VISB</div></body></html>')
+                scan = alignment.strip_hidden_xml(dtd_hidden)
+                self.assertIsNotNone(scan)
+                self.assertTrue(scan.saw_hidden)
+                self.assertNotIn('VISA', scan.visible)
+                self.assertIn('VISB', scan.visible)
+                extracted, segments, loaded = _three_paths(
+                    make_epub('', raw_document=dtd_hidden, toc_links=[]))
+                self.assertEqual('VISB', extracted)
+                self.assertEqual(['VISB'], segments)
+                self.assertNotIn('VISA', loaded)
+                self.assertIn('VISB', loaded)
+
+    def test_hidden_root_with_markup_like_prolog_text_is_not_reparsed(self):
+        # Merge gate 2 finding 5: a prolog comment or PI containing `<p` made
+        # the old text hint try to parse the element-less remainder, so lxml
+        # logged a decode warning. The walker's own answer decides instead.
+        visible = (
+            f'<?xml version="1.0"?>'
+            f'<html xmlns="{XHTML_NS}"><head><title>V</title></head>'
+            '<body><p>VISCH2</p></body></html>')
+        cases = {
+            'comment_lt': (
+                f'<?xml version="1.0"?>\n<!-- <p a comment -->'
+                f'<html xmlns="{XHTML_NS}" hidden=""><head><title>T</title>'
+                '</head><body><p>SEC</p></body></html>'),
+            'pi_lt': (
+                f'<?xml version="1.0"?>\n<?foo <p?>'
+                f'<html xmlns="{XHTML_NS}" hidden=""><body><p>SEC</p>'
+                '</body></html>'),
+            'trailing_comment': (
+                f'<?xml version="1.0"?>'
+                f'<html xmlns="{XHTML_NS}" hidden=""><body><p>SEC</p>'
+                '</body></html><!-- <b -->'),
+        }
+        for name, document in cases.items():
+            with self.subTest(case=name):
+                scan = alignment.strip_hidden_xml(document)
+                self.assertIsNotNone(scan)
+                self.assertFalse(scan.saw_visible_element)
+                raw = make_multi_epub([('ch1.xhtml', document),
+                                       ('ch2.xhtml', visible)])
+                captured = io.StringIO()
+                with contextlib.redirect_stderr(captured):
+                    loaded = _load_bytes(raw)
+                self.assertEqual('VISCH2', _normalised(loaded))
+                self.assertNotIn('could not be decoded', captured.getvalue())
+        # A hidden body beside a visible root still has an element left, so
+        # its visible remainder is parsed (the flag is not "nothing hidden").
+        scan = alignment.strip_hidden_xml(
+            f'<html xmlns="{XHTML_NS}"><head><title>T</title></head>'
+            '<body hidden=""><p>SEC</p></body></html>')
+        self.assertTrue(scan.saw_visible_element)
 
     def test_hidden_load_agrees_on_declared_single_byte_and_utf16_encodings(self):
         # Review gate 1: extraction, read-aloud and load must agree for the
@@ -1693,6 +1796,59 @@ class HtmlHiddenReadaloudParityTests(unittest.TestCase):
         _root, segs, _full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
         self.assertEqual(['Visible item'], [s['text'] for s in segs])
         self.assertEqual('li1', segs[0]['fragment'])
+
+    def test_block_descendant_inside_script_counts_like_origin_main(self):
+        # Merge gate 2 finding 2: origin/main counted a block inside an XHTML
+        # <script>/<style> element when deciding whether a block is a segment
+        # root. Only hidden subtrees are newly skipped. These documents are
+        # hidden-free, so segments and ids must match origin/main exactly.
+        cases = [
+            ('<blockquote id="q"><div id="d1">Quote here.</div>'
+             '<div id="d2">More quote.</div><script><h2>s</h2></script>'
+             '</blockquote>',
+             [('d1', 'Quote here.'), ('d2', 'More quote.')]),
+            ('<li id="li1"><div id="d3">Text one here.</div>'
+             '<script><p>x</p></script></li><p id="p2">Second para.</p>',
+             [('d3', 'Text one here.'), ('p2', 'Second para.')]),
+        ]
+        for body, expected in cases:
+            with self.subTest(body=body):
+                raw = make_epub(body, toc_links=[])
+                _root, segs, _full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+                self.assertEqual(expected,
+                                 [(s['fragment'], s['text']) for s in segs])
+        # The blockquote shape builds exactly as origin/main's did: the
+        # script stays in the document and is not segmented.
+        raw = make_epub(cases[0][0])
+        _text, built, _report = self._build_from_extracted_script(raw, qwen=False)
+        with zipfile.ZipFile(io.BytesIO(built)) as zf:
+            ch1_xml = zf.read('OEBPS/ch1.xhtml').decode('utf-8')
+        self.assertIn('<script>', ch1_xml)
+        self.assertIn('Quote here.', ch1_xml)
+        self.assertIn('More quote.', ch1_xml)
+
+    def test_dtd_default_hidden_builds_without_the_sync_refusal(self):
+        # Merge gate 2 finding 1: extraction now omits DTD-defaulted hidden
+        # elements, so the read-aloud build gets the same visible text and no
+        # longer refuses a book origin/main built.
+        document = (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<!DOCTYPE html [<!ATTLIST p hidden CDATA "x">]>\n'
+            f'<html xmlns="{XHTML_NS}"><head><title>T</title></head>'
+            '<body><p>Visible para one.</p><div>Div text two.</div>'
+            '<p>Para three.</p></body></html>')
+        raw = make_epub('', raw_document=document)
+        for qwen in (False, True):
+            with self.subTest(qwen=qwen):
+                text, built, _report = self._build_from_extracted_script(
+                    raw, qwen=qwen)
+                self.assertIn('Div text two.', text)
+                self.assertNotIn('Visible para one.', text)
+                with zipfile.ZipFile(io.BytesIO(built)) as zf:
+                    ch1_xml = zf.read('OEBPS/ch1.xhtml').decode('utf-8')
+                self.assertIn('hidden="x"', ch1_xml)
+        _root, segments, _full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+        self.assertEqual(['Div text two.'], [s['text'] for s in segments])
 
     def test_optional_titles_keep_ids_inside_script_and_style_as_origin_main(self):
         # Review 7 finding 4: hidden handling's scope is hidden subtrees only.

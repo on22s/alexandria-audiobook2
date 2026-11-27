@@ -413,8 +413,12 @@ def _has_direct_text(node):
 
 
 def _has_block_descendant(node):
+    # origin/main counted any block descendant, including one inside
+    # script/style (those subtrees are only skipped when narrating, not when
+    # deciding whether a block is a segment root). The one change here is that
+    # a hidden subtree and everything inside it does not count.
     for child in node:
-        if _local(child.tag) in _EXCLUDE or _is_hidden_element(child):
+        if _is_hidden_element(child):
             continue
         if _local(child.tag) in _BLOCK or _has_block_descendant(child):
             return True

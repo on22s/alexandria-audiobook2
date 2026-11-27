@@ -29,7 +29,10 @@ or a document with no `xmlns` at all) is not an HTML element. Attribute values
 do not matter: `hidden=""`, `hidden="false"` and `hidden="until-found"` all hide
 (`until-found` hides content from linear reading until interactive
 find-in-page reveal). Hidden elements and all their descendants are omitted
-from narration. Read-aloud's segment root is the first `<body>` that has no
+from narration. An internal DTD subset that defaults `hidden` onto elements
+(for example `<!ATTLIST p hidden CDATA "x">`) hides them too: Expat and both
+browsers apply that default, and extraction engages the same XML walk for such
+a document. Read-aloud's segment root is the first `<body>` that has no
 hidden ancestor (a hidden `<body>` is not itself visible either); if bodies
 exist but all sit inside hidden subtrees, no segments are emitted.
 Because `hidden` is an HTML-only global attribute, it is not
@@ -90,7 +93,9 @@ navigation entry that targets the hidden document still contributes its
 visible table-of-contents label, exactly as it already did for an
 otherwise-empty chapter), read-aloud returns no segments,
 and `alexandria_alignment.load_epub` raises a `ValueError` naming hidden
-elements.
+elements when **every** considered spine document is entirely hidden. One
+entirely hidden chapter in an otherwise visible book contributes no text and
+does not refuse the book.
 A document whose only hidden elements are void elements (for example
 `<br hidden=""/><img hidden=""/>`) removed no text, so it behaves as before the
 feature. An EPUB with one entirely hidden chapter and one empty visible chapter

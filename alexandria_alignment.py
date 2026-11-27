@@ -281,12 +281,13 @@ def _decode_head_encoding(raw: bytes) -> str:
     return match.group(1).decode('ascii') if match else 'utf-8-sig'
 
 
-def _decode_epub_markup(raw):
+def decode_epub_markup(raw):
     """Decode an item's bytes exactly as extraction's ``get_epub_xhtml_text``.
 
     Same BOM/declaration detection and ``errors='replace'``, so
     ``load_epub`` and ``extract_epub_text`` judge well-formedness on the same
-    decoded string. A ``str`` item is returned unchanged.
+    decoded string. This is the one encoding sniff both paths use (Rule 15);
+    a ``str`` item is returned unchanged.
     """
     if isinstance(raw, str):
         return raw
@@ -296,9 +297,6 @@ def _decode_epub_markup(raw):
 
 _XML_DECL_ENCODING_RE = re.compile(
     r'^(\s*<\?xml\b[^>]*?\bencoding\s*=\s*[\'"])([^\'"]*)([\'"])', re.ASCII)
-# A cut document with no start tag left has no element and therefore no
-# visible text; parsing it only makes lxml log a decode warning.
-_XML_ELEMENT_HINT_RE = re.compile(r'<[A-Za-z_:]')
 
 
 def _utf8_markup(visible: str) -> bytes:
@@ -333,19 +331,13 @@ def _xml_start_tag_end(data: bytes, start: int) -> tuple[int, bool]:
     raise ValueError('invalid XML: start tag terminator unavailable')
 
 
-class _XmlHiddenScan(NamedTuple):
-    visible: str
-    saw_hidden: bool
-    hidden_text_removed: bool
-    visible_text_remains: bool
-
-
 class XmlSubtreeCut(NamedTuple):
     visible: str
     omitted: bool
     saw_hidden: bool
     hidden_text_removed: bool
     visible_text_remains: bool
+    saw_visible_element: bool
 
 
 _NONSPOKEN_TAGS = frozenset({'script', 'style'})
@@ -392,6 +384,11 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
     document ``<head>``. ``load_epub`` uses it to decide "entirely hidden"
     from the substituted XML - including flow content outside ``<body>`` that
     ``ebooklib``'s body-only parse cannot see - rather than from that parse.
+    ``saw_visible_element`` is True when at least one start tag survives
+    outside every ignored subtree. ``load_epub`` uses the walker's own answer,
+    not a text search of the substituted string (a prolog comment or PI can
+    contain markup-like text), to decide whether there is anything left to
+    parse.
 
     Expat runs with ``DefaultHandler`` (no entity expansion, no external
     fetch). Raises ``ValueError`` for malformed XML; the message names the
@@ -419,6 +416,7 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
     saw_hidden = False
     hidden_text_removed = False
     visible_text_remains = False
+    saw_visible_element = False
     ns_stack = [{}]
     seen_root = False
     doctype_hazard_found = False
@@ -450,6 +448,7 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
         nonlocal cursor, ignored_depth, ignored_self_closing, in_hidden
         nonlocal non_spoken_depth, head_depth, head_title_depth
         nonlocal omitted, saw_hidden, seen_root, pending_ignored
+        nonlocal saw_visible_element
         start = parser.CurrentByteIndex
         if start < 0:
             raise ValueError('invalid XML: element position unavailable')
@@ -491,6 +490,7 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
         if on_element is not None and is_hidden:
             on_element(name, attrs, parser.CurrentLineNumber, False, True, True)
         if not (is_skip or is_hidden):
+            saw_visible_element = True
             return
         candidate.extend(view[cursor:start])
         cursor = start
@@ -577,19 +577,21 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
         parser.DefaultHandler = None
     if not omitted:
         return XmlSubtreeCut(content, False, False, False,
-                             visible_text_remains)
+                             visible_text_remains, saw_visible_element)
     candidate.extend(view[cursor:])
     visible = candidate.decode('utf-8')
     return XmlSubtreeCut(visible, True, saw_hidden, hidden_text_removed,
-                         visible_text_remains)
+                         visible_text_remains, saw_visible_element)
 
 
 def strip_hidden_xml(content):
-    """Return the document with XML-hidden subtrees cut out, or ``None``.
+    """Return the walker's :class:`XmlSubtreeCut` for ``content``, or ``None``.
 
-    ``None`` means the content is not well-formed under the extraction pass's
-    own Expat configuration, so the shared predicate
-    (:func:`html_hidden_handling_applies`) declines hidden handling.
+    The cut carries the substituted document text and the hidden/skip answers
+    (``saw_hidden``, ``hidden_text_removed``, ``visible_text_remains``,
+    ``saw_visible_element``). ``None`` means the content is not well-formed
+    under the extraction pass's own Expat configuration, so the shared
+    predicate (:func:`html_hidden_handling_applies`) declines hidden handling.
 
     A thin load-facing wrapper over :func:`cut_xml_subtrees`, the one XML
     walk shared with script extraction (Rule 15). It adds only the EPUB byte
@@ -597,20 +599,16 @@ def strip_hidden_xml(content):
     """
     if not isinstance(content, str):
         try:
-            content = _decode_epub_markup(content)
+            content = decode_epub_markup(content)
         except LookupError:
             # Unknown declared encoding: extraction's decoder also declines
             # this document, so hidden handling must not apply.
             return None
     try:
-        cut = cut_xml_subtrees(content)
+        return cut_xml_subtrees(content)
     except (UnicodeEncodeError, UnicodeDecodeError, ValueError, TypeError,
             LookupError):
         return None
-    if not cut.omitted:
-        return _XmlHiddenScan(content, False, False, cut.visible_text_remains)
-    return _XmlHiddenScan(cut.visible, cut.saw_hidden, cut.hidden_text_removed,
-                          cut.visible_text_remains)
 
 
 def _extract_bs4_visible_text(soup) -> str:
@@ -738,7 +736,7 @@ def load_epub(path: str) -> str:
             # walk already cut it, so parse the substituted document and keep
             # whatever visible text remains. A browser renders those visible
             # siblings, and origin/main narrated them.
-            if _XML_ELEMENT_HINT_RE.search(hidden_scan.visible):
+            if hidden_scan.saw_visible_element:
                 # Feed ebooklib's own pipeline the hidden-free document so it
                 # sees exactly what a browser's XML tree shows. The
                 # declaration is normalized to UTF-8 because the substituted
@@ -751,10 +749,12 @@ def load_epub(path: str) -> str:
                     item.content = original_content
                 text = _extract_bs4_visible_text(soup)
             else:
-                # Nothing is left outside hidden subtrees (a hidden root, or
-                # a document that was empty apart from them). Parsing the
-                # empty substituted value would only make lxml log a decode
-                # warning, so take the empty text directly.
+                # The walker found no start tag outside the hidden subtrees (a
+                # hidden root, or a document that was empty apart from them).
+                # Its own answer, not a text search of the substituted string
+                # (a prolog comment or PI can contain markup-like text), says
+                # there is nothing left; parsing the empty remainder would only
+                # make lxml log a decode warning.
                 text = ''
         else:
             soup = BeautifulSoup(item.get_content(), 'html.parser')
