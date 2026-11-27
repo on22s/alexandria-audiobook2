@@ -26,6 +26,15 @@ compare = load_script("alexandria_compare")
 
 
 class AlignmentCliRegressionTests(unittest.TestCase):
+    def test_spelled_number_words_are_recognized(self):
+        self.assertTrue(alignment.is_spelled_number(["twenty", "one"]))
+        self.assertTrue(alignment.is_spelled_number(["one", "hundred", "and", "five"]))
+        self.assertTrue(alignment.is_spelled_number(["Twelve"]))
+        self.assertFalse(alignment.is_spelled_number(["and"]))
+        self.assertFalse(alignment.is_spelled_number(["hundred"]))
+        self.assertFalse(alignment.is_spelled_number(["Where", "is", "the", "train"]))
+        self.assertFalse(alignment.is_spelled_number([]))
+
     def test_proper_noun_boundary_policy_is_per_call(self):
         chunk = ["coodo", "anchor"]
         source = ["kudou", "anchor"]
@@ -377,6 +386,15 @@ class SpokenYearAlignmentTests(unittest.TestCase):
                 self.assertEqual(value,alignment._parse_number(words))
         self.assertIsNone(alignment._parse_number(['nineteen','bananas']))
         self.assertFalse(alignment._num_eq(['twenty','five'],['2005']))
+
+    def test_public_is_same_number_names_the_predicate(self):
+        # script_preflight uses the public alias; test it directly so it cannot
+        # drift away from _num_eq (review 17, N3).
+        self.assertIs(alignment.is_same_number, alignment._num_eq)
+        self.assertTrue(alignment.is_same_number(['twenty'], ['20']))
+        self.assertTrue(alignment.is_same_number(['twenty', 'five'], ['25']))
+        self.assertFalse(alignment.is_same_number(['twenty'], ['21']))
+        self.assertFalse(alignment.is_same_number(['twenty'], ['not a number']))
 
 
 class CheckpointLocaleTests(unittest.TestCase):
