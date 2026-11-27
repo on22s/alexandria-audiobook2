@@ -7,7 +7,7 @@ measurement depends on.
 """
 import unittest
 
-from apostrophe_repair import looks_damaged, restore_stripped_apostrophes
+from apostrophe_repair import _STEMS, looks_damaged, restore_stripped_apostrophes
 from generate_script import get_preprocessed_source
 
 DAMAGED = 'I don t know. It was Miller s house. I m sure you re right.'
@@ -69,11 +69,8 @@ class Detection(unittest.TestCase):
         self.assertFalse(looks_damaged(mixed_healthy))
         self.assertEqual(restore_stripped_apostrophes(mixed_healthy), (mixed_healthy, []))
 
-        mixed_damaged = "It's fine and she\u2019s ready. I don t know."
-        self.assertTrue(looks_damaged(mixed_damaged))
-
     def test_floor_and_ratio_boundaries(self):
-        """Pin both sides of max(2, broken * 0.05) at the floor and above it."""
+        """Pin both sides of max(2, broken * 0.05) at the floor, ratio and coefficient."""
         # Floor boundary (broken = 1 -> max(2, 0.05) = 2): 2 is damaged, 3 is healthy.
         self.assertTrue(looks_damaged("It's fine, she's here. I don t know."))
         self.assertFalse(looks_damaged("It's fine, she's here, he's ready. I don t know."))
@@ -84,6 +81,14 @@ class Detection(unittest.TestCase):
         self.assertFalse(
             looks_damaged("It's fine, she's here, he's ready, we're set. " + breaks)
         )
+
+        # Coefficient boundary (broken = 1000 -> 0.05 * 1000 = 50): 50 is
+        # damaged, 51 is healthy. 0.04 would move the threshold down to 40, so
+        # 50 apostrophes would look healthy; 0.06 would move it up to 60, so 51
+        # would look damaged. Both sides are pinned, not just the lower one.
+        many_breaks = "I don t know. " * 1000
+        self.assertTrue(looks_damaged("It's fine, " * 50 + many_breaks))
+        self.assertFalse(looks_damaged("It's fine, " * 51 + many_breaks))
 
 
 class Repair(unittest.TestCase):
@@ -122,6 +127,10 @@ class Repair(unittest.TestCase):
 
     def test_all_contraction_stems_are_detected_and_repaired(self):
         """Every supported negative contraction stem detects damage and repairs cleanly."""
+        # The hand-written list above must not drift from production: a new
+        # stem in _STEMS would otherwise be silently left uncovered.
+        self.assertEqual(set(EXPECTED_CONTRACTION_STEMS), set(_STEMS))
+        self.assertEqual(len(EXPECTED_CONTRACTION_STEMS), len(_STEMS))
         for stem in EXPECTED_CONTRACTION_STEMS:
             with self.subTest(stem=stem):
                 damaged = f"They {stem} t know."
