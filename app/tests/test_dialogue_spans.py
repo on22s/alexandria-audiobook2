@@ -10,6 +10,7 @@ while its generated entries kept 16.
 import json
 import random
 import re
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -19,6 +20,34 @@ from dialogue_spans import (apply_dialogue_map, apply_source_narration, apply_so
                             detect_convention, get_other_speech_spans, mark_entries,
                             speaker_labels, spoken_spans, uses_speaker_labels,
                             validate_spoken_spans)
+
+
+def _call_with_deadline(call, label, timeout=5.0):
+    """-> call(), failing within `timeout` instead of hanging if it never returns.
+
+    CI runs the unit shard without a per-test timeout, so a mutation that makes
+    a scanner loop forever holds the whole shard instead of failing it. That is
+    how `_paired_spans`' reverse scan used to behave once the empty-pair case
+    joined the suite. Run the call on a daemon thread and join with a deadline:
+    portable to Windows, where SIGALRM does not exist. A call that is still
+    running fails the test here; the orphaned daemon thread dies with the shard.
+    """
+    outcome = {}
+
+    def target():
+        try:
+            outcome["value"] = call()
+        except BaseException as error:  # re-raised on the calling thread
+            outcome["error"] = error
+
+    worker = threading.Thread(target=target, name=f"deadline:{label}", daemon=True)
+    worker.start()
+    worker.join(timeout)
+    if worker.is_alive():
+        raise AssertionError(f"{label} did not return within {timeout:g}s")
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome["value"]
 
 
 def _main_get_other_speech_spans(text, convention):
@@ -1684,23 +1713,25 @@ class QuoteConventionTableAndRegexTests(unittest.TestCase):
     """Cover every paired, secondary, unclosed and dash/label convention."""
 
     def test_every_paired_convention_detects_and_returns_exact_offsets(self):
-        paired = [
-            ('"', '"'),
-            ("“", "”"),
-            ("„", "“"),
-            ("„", "”"),
-            ("「", "」"),
-            ("『", "』"),
-            ("＂", "＂"),
-            ("«", "»"),
-            ("»", "«"),
-        ]
-        for opener, closer in paired:
+        # Iterate the module table so a newly added convention is tested without
+        # editing this test; the literal pins the table so a REMOVED entry fails
+        # here instead of silently narrowing coverage.
+        self.assertEqual(
+            [('"', '"'), ("“", "”"), ("„", "“"), ("„", "”"), ("「", "」"),
+             ("『", "』"), ("＂", "＂"), ("«", "»"), ("»", "«")],
+            dialogue_spans.PAIRED,
+        )
+        for opener, closer in dialogue_spans.PAIRED:
             with self.subTest(opener=opener, closer=closer):
                 lines = [f"Line {i} spoken." for i in range(6)]
                 source = "\n\n".join(f"Intro {i}. {opener}{line}{closer} tail." for i, line in enumerate(lines))
-                self.assertEqual("paired_quotes", detect_convention(source))
-                spans = spoken_spans(source)
+                self.assertEqual(
+                    "paired_quotes",
+                    _call_with_deadline(lambda: detect_convention(source),
+                                        f"detect_convention {opener}{closer}"),
+                )
+                spans = _call_with_deadline(lambda: spoken_spans(source),
+                                            f"spoken_spans {opener}{closer}")
                 self.assertEqual(lines, [source[a:b] for a, b in spans])
                 for (start, end), line in zip(spans, lines):
                     self.assertEqual(source.index(line), start)
@@ -1709,17 +1740,33 @@ class QuoteConventionTableAndRegexTests(unittest.TestCase):
     def test_every_other_paired_entry_returns_exact_span_and_refuses_blank_lines(self):
         english_pad = "\n\n".join(f"“English {i}.”" for i in range(6))
         reverse_guillemet_pad = "\n\n".join(f"»Danish {i}.«" for i in range(6))
-        cases = [
-            ("single_curly", "He said ‘I don’t know, X’ softly.", "I don’t know, X"),
-            ("forward_guillemet_in_reverse", reverse_guillemet_pad + "\n\nNote «French note» end.", "French note"),
-            ("single_guillemet", "She whispered ‹Bonjour› softly.", "Bonjour"),
-            ("low_high_single", "Er las ‚Komm her!‘ leise.", "Komm her!"),
-            ("german_in_english", english_pad + "\n\nThe sign read „Ausgang“ and he left.", "Ausgang"),
-            ("polish_in_english", english_pad + "\n\nThe sign read „Wyjście” and he left.", "Wyjście"),
-        ]
-        for label, source, expected in cases:
+        # Keyed by the regex source so the loop below iterates the module table:
+        # a removed or added pattern fails the equality check, and an addition
+        # also needs a sample here, so no entry can stay untested.
+        cases = {
+            r"‘((?:[^‘’\n]|’(?=\w))+)’(?!\w)":
+                ("single_curly", "He said ‘I don’t know, X’ softly.", "I don’t know, X"),
+            r"«([^«»]+)»":
+                # A fix for #2399 must keep «…» inside a »…« book as other
+                # speech, or change this case deliberately: a direction-only
+                # fix that drops forward guillemets fails here.
+                ("forward_guillemet_in_reverse",
+                 reverse_guillemet_pad + "\n\nNote «French note» end.", "French note"),
+            r"‹([^‹›\n]+)›":
+                ("single_guillemet", "She whispered ‹Bonjour› softly.", "Bonjour"),
+            r"‚([^‚‘\n]+)‘":
+                ("low_high_single", "Er las ‚Komm her!‘ leise.", "Komm her!"),
+            r"„([^„“\n]+)“":
+                ("german_in_english", english_pad + "\n\nThe sign read „Ausgang“ and he left.", "Ausgang"),
+            r"„([^„”\n]+)”":
+                ("polish_in_english", english_pad + "\n\nThe sign read „Wyjście” and he left.", "Wyjście"),
+        }
+        self.assertEqual([pattern.pattern for pattern in dialogue_spans.OTHER_PAIRED], list(cases))
+        for pattern in dialogue_spans.OTHER_PAIRED:
+            label, source, expected = cases[pattern.pattern]
             with self.subTest(label=label):
-                spans = get_other_speech_spans(source, "paired_quotes")
+                spans = _call_with_deadline(lambda: get_other_speech_spans(source, "paired_quotes"),
+                                            f"other speech {label}")
                 rendered = [source[a:b] for a, b in spans]
                 self.assertIn(expected, rendered)
                 start = source.index(expected)
@@ -1735,13 +1782,22 @@ class QuoteConventionTableAndRegexTests(unittest.TestCase):
                          [cross[a:b] for a, b in get_other_speech_spans(cross, "label_lines")])
 
     def test_every_unclosed_opener_skips_empty_closed_pairs_and_closed_partners(self):
-        for opener, closer in (("“", "”"), ("「", "」"), ("『", "』"), ("„", "“")):
+        # Iterate the module table so a new unclosed opener is tested, and pin it
+        # literally so a removed one fails rather than shrinking coverage.
+        self.assertEqual({"“": "”", "「": "」", "『": "』", "„": "“"}, dialogue_spans.UNCLOSED_OPENERS)
+        for opener, closer in dialogue_spans.UNCLOSED_OPENERS.items():
             with self.subTest(opener=opener, closer=closer):
-                self.assertEqual([], get_other_speech_spans(opener + closer, "paired_quotes"))
+                self.assertEqual(
+                    [], _call_with_deadline(lambda: get_other_speech_spans(opener + closer, "paired_quotes"),
+                                            f"empty pair {opener}{closer}"))
                 if opener != "„":
-                    self.assertEqual([], get_other_speech_spans(f"Before {opener}{closer} after.", "paired_quotes"))
+                    self.assertEqual(
+                        [], _call_with_deadline(lambda: get_other_speech_spans(f"Before {opener}{closer} after.",
+                                                                              "paired_quotes"),
+                                                f"closed pair {opener}{closer}"))
                 unclosed = f"Before {opener}Open tail\n\nNext paragraph."
-                spans = get_other_speech_spans(unclosed, "paired_quotes")
+                spans = _call_with_deadline(lambda: get_other_speech_spans(unclosed, "paired_quotes"),
+                                            f"unclosed {opener}")
                 self.assertEqual(["Open tail"], [unclosed[a:b] for a, b in spans])
                 expected_start = unclosed.index("Open tail")
                 self.assertEqual([(expected_start, expected_start + len("Open tail"))], spans)
@@ -1833,22 +1889,34 @@ class ScannerBoundaryAndMeasurementTests(unittest.TestCase):
         ]
         for label, text, expected in cases:
             with self.subTest(label=label):
-                self.assertEqual(expected, spoken_spans(text, "paired_quotes"))
+                # Deadline: `empty_pair` is the case that turns a reverse-scan
+                # off-by-one on `_paired_spans` into an infinite loop, and CI
+                # has no per-test timeout. Every case runs under it so such a
+                # regression fails instead of hanging the shard.
+                self.assertEqual(
+                    expected,
+                    _call_with_deadline(lambda: spoken_spans(text, "paired_quotes"),
+                                        f"scanner boundary {label}"),
+                )
         # Touching mixed primary spans must merge so an OTHER_PAIRED span crossing the seam stays inside primary.
-        self.assertEqual([], get_other_speech_spans('"‘a“"b’”', "paired_quotes"))
+        self.assertEqual([], _call_with_deadline(lambda: get_other_speech_spans('"‘a“"b’”', "paired_quotes"),
+                                                 "touching mixed quote spans"))
 
     def test_ambiguous_german_english_boundary_roles(self):
+        def spans_of(src, label):
+            return _call_with_deadline(lambda: spoken_spans(src, "paired_quotes"), label)
+
         # Stray `„` followed by space, with no space before `“` (tests opener = de_stack[-1] + 1).
         src_space_after_de = "„ stray“Real English.”"
         self.assertEqual(["Real English."],
-                         [src_space_after_de[a:b] for a, b in spoken_spans(src_space_after_de, "paired_quotes")])
+                         [src_space_after_de[a:b] for a, b in spans_of(src_space_after_de, "stray space after de")])
         # Later English quote in same segment with padded closer gap (left-only and right-only).
         src_left_pad = "„German.“ narration” and “English two”"
         self.assertEqual(["German.", "English two"],
-                         [src_left_pad[a:b] for a, b in spoken_spans(src_left_pad, "paired_quotes")])
+                         [src_left_pad[a:b] for a, b in spans_of(src_left_pad, "padded left")])
         src_right_pad = "„German.“narration ” and “English two”"
         self.assertEqual(["German.", "English two"],
-                         [src_right_pad[a:b] for a, b in spoken_spans(src_right_pad, "paired_quotes")])
+                         [src_right_pad[a:b] for a, b in spans_of(src_right_pad, "padded right")])
         # One-char and space-at-offset-2 English quotes after stray `„` with a later English quote.
         for src, expected in (
             ("„stray “A” and “B”", ["A", "B"]),
@@ -1864,15 +1932,42 @@ class ScannerBoundaryAndMeasurementTests(unittest.TestCase):
             ("„stray “Hi” „Polish”", ["Hi", "Polish"]),
         ):
             with self.subTest(src=src):
-                self.assertEqual(expected, [src[a:b] for a, b in spoken_spans(src, "paired_quotes")])
+                self.assertEqual(expected, [src[a:b] for a, b in spans_of(src, src)])
         # Used German openers must not be double-counted by the second German closer pass.
-        self.assertIsNone(detect_convention("\n\n".join("„Hi” there.“" for _ in range(3))))
+        self.assertIsNone(_call_with_deadline(
+            lambda: detect_convention("\n\n".join("„Hi” there.“" for _ in range(3))), "double counted openers"))
         # German density threshold boundaries: 4 English + 1 German drops German; 5 English + 5 German keeps both.
         eng4_de1 = "\n\n".join(f"“E{i}.”" for i in range(4)) + "\n\n„D0.“"
         self.assertEqual([f"E{i}." for i in range(4)],
-                         [eng4_de1[a:b] for a, b in spoken_spans(eng4_de1, "paired_quotes")])
+                         [eng4_de1[a:b] for a, b in spans_of(eng4_de1, "eng4_de1")])
         eng5_de5 = "\n\n".join(f"“E{i}.”" for i in range(5)) + "\n\n" + "\n\n".join(f"„D{i}.“" for i in range(5))
-        self.assertEqual(10, len(spoken_spans(eng5_de5, "paired_quotes")))
+        self.assertEqual(10, len(spans_of(eng5_de5, "eng5_de5")))
+
+    def test_shared_mark_scan_returns_the_whole_german_pair_without_looping(self):
+        # Mutant #94 (`in ('"', '＂')` -> `not in` in next_english_mark) skips the
+        # curly marks it exists to find and truncates this pair to `He said `.
+        # The assertion, run with a deadline, is the detection: the pre-existing
+        # linearity tests only catch the mutant by spinning.
+        source = "„He said “Hi” to me.“"
+        self.assertEqual(
+            [(1, len(source) - 1)],
+            _call_with_deadline(lambda: spoken_spans(source, "paired_quotes"),
+                                "shared mark scan"),
+        )
+
+    def test_straight_pair_scan_skips_stray_openers_without_rescanning(self):
+        # Mutant #671 (`index += 1` -> `index = 1` when no closer remains)
+        # restarts the straight-quote scan at the second mark and invents a span
+        # inside every gap between the real pairs, which also flips detection
+        # from None to "paired_quotes". Asserted by output, not by a hang.
+        source = '"A" "B" "C" "D" A""x,,'
+        self.assertEqual(
+            [(1, 2), (5, 6), (9, 10), (13, 14)],
+            _call_with_deadline(lambda: spoken_spans(source, "paired_quotes"),
+                                "straight pair scan"),
+        )
+        self.assertIsNone(_call_with_deadline(lambda: detect_convention(source),
+                                              "straight pair detection"))
 
     def test_paragraph_start_and_odd_earlier_marks_boundaries(self):
         # 2 earlier plain marks (even) -> inch mark; 3 earlier plain marks (odd) -> reprise closer.
@@ -1941,6 +2036,9 @@ class ScannerBoundaryAndMeasurementTests(unittest.TestCase):
             "pounds", "lb", "lbs", "oz", "kg", "gram", "grams", "g", "litre",
             "liter", "litres", "liters", "gallon", "gallons",
         )
+        # This deliberately pins the private table: set equality kills every
+        # constant mutant that drops or reorders a unit. Update this tuple (and
+        # this comment) whenever a unit is legitimately added to _MEASURE_UNITS.
         self.assertEqual(set(units), set(dialogue_spans._MEASURE_UNITS))
         for unit in units:
             with self.subTest(unit=unit):
@@ -2087,11 +2185,13 @@ class OutputContractThresholdAndNullDefaultTests(unittest.TestCase):
         self.assertEqual("other_convention", dash_result["entries"][2]["dialogue_ambiguity"])
         self.assertNotIn("spoken", dash_result["entries"][1])
         self.assertNotIn("source_span", dash_result["entries"][4])
-        self.assertEqual(
-            "WARNING:dialogue_spans:Dialogue map: 2 entries need review "
-            "(1 interior_dash_turn, 1 other_convention); spoken status is unestablished.",
-            logs.output[0],
-        )
+        # Counts and kinds are the contract; the sentence's wording is not
+        # (#2364 does not action message prose). The prefix pins the literal as a
+        # whole (a wrapped or replaced literal changes it) and the parenthetical
+        # pins the counts/kinds; the trailing sentence can be reworded freely.
+        self.assertEqual(1, len(logs.output))
+        self.assertTrue(logs.output[0].startswith("WARNING:dialogue_spans:Dialogue map: "))
+        self.assertIn("(1 interior_dash_turn, 1 other_convention)", logs.output[0])
 
         paired_source = (
             "\n\n".join(f"Alice “Spoken {i}.”" for i in range(5))

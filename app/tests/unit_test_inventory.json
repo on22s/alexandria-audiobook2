@@ -5256,6 +5256,8 @@
     , "tests.test_dialogue_spans.ScannerBoundaryAndMeasurementTests.test_inch_mark_with_both_german_closers_is_hashseed_independent"
     , "tests.test_dialogue_spans.ScannerBoundaryAndMeasurementTests.test_paragraph_start_and_odd_earlier_marks_boundaries"
     , "tests.test_dialogue_spans.ScannerBoundaryAndMeasurementTests.test_scanner_boundary_matrix_exact_spans"
+    , "tests.test_dialogue_spans.ScannerBoundaryAndMeasurementTests.test_shared_mark_scan_returns_the_whole_german_pair_without_looping"
+    , "tests.test_dialogue_spans.ScannerBoundaryAndMeasurementTests.test_straight_pair_scan_skips_stray_openers_without_rescanning"
     , "tests.test_dialogue_spans.SourceNarrationTest.test_narration_given_a_character_is_returned_to_the_narrator"
     , "tests.test_dialogue_spans.SourceNarrationTest.test_review_guard_reads_the_same_fact"
     , "tests.test_dialogue_spans.SourceNarrationTest.test_unestablished_and_printed_lines_are_left_alone"
