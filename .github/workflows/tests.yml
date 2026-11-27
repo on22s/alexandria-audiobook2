@@ -34,6 +34,7 @@ jobs:
   unit:
     name: unit (${{ matrix.shard }})
     runs-on: ${{ inputs.linux_runner || 'ubuntu-24.04' }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -253,6 +254,7 @@ jobs:
     needs: [unit, derived-files, windows-portability]
     if: always()
     runs-on: ${{ inputs.linux_runner || 'ubuntu-24.04' }}
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: app

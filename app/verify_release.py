@@ -6,6 +6,7 @@ from collections import Counter
 from contextlib import ExitStack
 import io
 import json
+import math
 import os
 import py_compile
 import queue
@@ -25,6 +26,10 @@ from subprocess_ownership import (get_owned_exit_result,
                                  run_owned_capture)
 
 GIT_PROBE_TIMEOUT_SECONDS = 20
+# Below the 45-minute CI `unit` job timeout so a hung shard fails loudly with
+# its shard named and its owned subprocess tree stopped, rather than GitHub
+# cancelling silently.
+CI_UNIT_SHARD_TIMEOUT_SECONDS = 40 * 60
 
 
 def stop_process_group(process, interrupt=False, timeout=5):
@@ -38,7 +43,10 @@ def stop_process_group(process, interrupt=False, timeout=5):
         process.wait(timeout=timeout)
 
 
-def run_command(label, command, cwd, reject_unittest_skips=False, capture_output=True):
+def run_command(label, command, cwd, reject_unittest_skips=False, capture_output=True, timeout=None):
+    if timeout is not None and (not isinstance(timeout, (int, float)) or isinstance(timeout, bool)
+                                or not math.isfinite(timeout) or timeout <= 0):
+        raise ValueError(f"{label} timeout must be finite and positive")
     print(f"\n== {label} ==", flush=True)
     # errors="backslashreplace": this stream is displayed and searched for
     # text markers, never parsed as data, so a stray non-UTF-8 byte from a
@@ -56,6 +64,7 @@ def run_command(label, command, cwd, reject_unittest_skips=False, capture_output
             creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
             exit_notice_path=notice, termination_grace=5,
         )
+        deadline = None if timeout is None else time.monotonic() + timeout
         output = [] if capture_output else None
         summary_stream = (stack.enter_context(tempfile.TemporaryFile(mode="w+", encoding="utf-8"))
                           if reject_unittest_skips and not capture_output else None)
@@ -73,12 +82,15 @@ def run_command(label, command, cwd, reject_unittest_skips=False, capture_output
             reader.start()
             failure_stopped = False
             while True:
+                if deadline is not None and time.monotonic() >= deadline:
+                    raise TimeoutError(f"{label} timed out after {timeout}s")
                 root_result = get_owned_exit_result(notice)
                 if root_result is not None and root_result != 0 and not failure_stopped:
                     stop_process_group(process)
                     failure_stopped = True
+                wait = .05 if deadline is None else max(0.0, min(.05, deadline - time.monotonic()))
                 try:
-                    kind, value = events.get(timeout=.05)
+                    kind, value = events.get(timeout=wait)
                 except queue.Empty:
                     continue
                 if kind == 'done':
@@ -90,7 +102,13 @@ def run_command(label, command, cwd, reject_unittest_skips=False, capture_output
                     output.append(value)
                 if summary_stream is not None:
                     summary_stream.write(value)
-            return_code = process.wait()
+            if deadline is None:
+                return_code = process.wait()
+            else:
+                try:
+                    return_code = process.wait(timeout=max(0.0, deadline - time.monotonic()))
+                except subprocess.TimeoutExpired as exc:
+                    raise TimeoutError(f"{label} timed out after {timeout}s") from exc
             if return_code and not failure_stopped:
                 stop_process_group(process)
             root_result = get_owned_exit_result(notice)
@@ -146,8 +164,11 @@ def run_unit_test_report(label, command, app_dir, *, workers=None, report_dir=No
         return result
     with tempfile.TemporaryDirectory(prefix="alexandria-unit-receipt-") as directory:
         receipt = Path(directory) / "tests.json"
+        report_kwargs = {"reject_unittest_skips": True}
+        if timeout is not None:
+            report_kwargs["timeout"] = timeout
         count = run_report_command(label, command + ["--test-report", str(receipt)],
-                                   app_dir, reject_unittest_skips=True)
+                                   app_dir, **report_kwargs)
         ids = json.loads(receipt.read_text(encoding="utf-8")).get("test_ids")
         if (not isinstance(ids, list) or len(ids) != count
                 or any(not isinstance(identifier, str) or not identifier for identifier in ids)
@@ -371,6 +392,8 @@ def main(argv=None):
                    else get_default_workers() if sys.platform == 'win32' else 0)
         unit_options = dict(workers=workers, report_dir=args.unit_report_dir,
                             timeout=args.unit_shard_timeout, serial_on_low_disk=args.serial_on_low_disk)
+    elif shard is not None:
+        unit_options = dict(timeout=CI_UNIT_SHARD_TIMEOUT_SECONDS)
     runs_other_gates = shard is None or shard[0] == 1
     app_dir = Path(__file__).resolve().parent
     repo_dir = app_dir.parent
