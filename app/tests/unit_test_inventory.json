@@ -1266,6 +1266,7 @@
   , "test_background_speakers": [
     "tests.test_background_speakers.AbScoringTest.test_cast_alias_credits_full_name_strict_does_not"
     , "tests.test_background_speakers.AbScoringTest.test_incomplete_pass_two_is_refused"
+    , "tests.test_background_speakers.BackgroundSpeakingArmGateTest.test_admit_descriptive_arm_differs_from_control_at_both_gates"
     , "tests.test_background_speakers.DescriptiveLabelTest.test_descriptive_forms"
     , "tests.test_background_speakers.DescriptiveLabelTest.test_names_and_titled_names_are_not_descriptive"
     , "tests.test_background_speakers.GoldClassTest.test_bare_role_alias_does_not_make_an_extra_named"
@@ -19165,6 +19166,16 @@
     , "tests.test_unattested_speakers.RejectUnattestedSpeakerTest.test_real_character_passes"
     , "tests.test_unattested_speakers.RejectUnattestedSpeakerTest.test_unknown_placeholder_still_allowed"
     , "tests.test_unattested_speakers.RejectUnattestedSpeakerTest.test_without_source_nothing_is_rejected"
+    , "tests.test_unattested_speakers.UncasedScriptAttestationTest.test_absent_uncased_name_rejected_at_both_gates"
+    , "tests.test_unattested_speakers.UncasedScriptAttestationTest.test_cased_mixed_script_and_letterless_controls_unchanged"
+    , "tests.test_unattested_speakers.UncasedScriptAttestationTest.test_cjk_name_in_unspaced_prose_and_inside_longer_word"
+    , "tests.test_unattested_speakers.UncasedScriptAttestationTest.test_issue_2330_attribute_batch_stub_rows"
+    , "tests.test_unattested_speakers.UncasedScriptAttestationTest.test_issue_2330_uncased_and_cased_attestation_table"
+    , "tests.test_unattested_speakers.UncasedScriptAttestationTest.test_korean_honorific_suffixes_are_attested"
+    , "tests.test_unattested_speakers.UncasedScriptAttestationTest.test_one_letter_uncased_names_are_never_attested"
+    , "tests.test_unattested_speakers.UncasedScriptAttestationTest.test_spaced_script_known_residuals_are_pinned"
+    , "tests.test_unattested_speakers.UncasedScriptAttestationTest.test_spaced_uncased_scripts_boundaries_and_clitics"
+    , "tests.test_unattested_speakers.UncasedScriptAttestationTest.test_unverifiable_band_at_both_gates"
   ]
   , "test_unicode_format_policy": [
     "tests.test_unicode_format_policy.UnicodeFormatPolicyTests.test_each_script_field_reports_overrides_without_mutating_entries"
