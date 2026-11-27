@@ -31,6 +31,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import core
+import readalong_export
 from book_state_transaction import apply_book_input_selection, get_book_operation_token
 from project import ProjectManager
 from routers import editor, script, scripts_library
@@ -410,6 +411,48 @@ class ReporterFlowTests(SelectionFixture):
         self.assertEqual(200, response.status_code, response.text)
         self.assertTrue(response.json()['reused'])
         self.assert_rendered_book_kept(uids, source)
+
+    def test_missing_retained_epub_message_offers_the_reupload_that_keeps_rows(self):
+        """The saved-script recovery text now names #2354's actual behaviour.
+
+        A loaded saved book with rendered audio loses only the retained EPUB.
+        The read-aloud build must offer the byte-identical re-upload, and that
+        re-upload must reattach the file under the same book while keeping every
+        rendered row (it becomes the selected source instead of the script).
+        """
+        source = self.publish_book()
+        self.save_and_load('Synthetic Saved')
+        uids = self.render_chunks()
+        retained = next(self.uploads.glob('*.source.epub'))
+        retained_bytes = retained.read_bytes()
+        retained.unlink()
+        ok, message = readalong_export.build_epub_export(
+            ProjectManager(str(self.root)), lambda: False)
+        self.assertFalse(ok)
+        self.assertIn('Retained EPUB bytes are missing', message)
+        self.assertIn('re-upload the byte-identical EPUB', message)
+        self.assertNotIn('Do not re-import the book', message)
+        response = self.upload()
+        self.assertEqual(200, response.status_code, response.text)
+        self.assertTrue(response.json()['reused'])
+        self.assertEqual('book.source.epub', response.json()['retained_epub'])
+        state = self.state()
+        self.assertNotIn('script_selection_pending', state)
+        self.assertEqual('book', state['active_book_id'])
+        self.assertEqual(str(source), state['input_file_path'])
+        self.assertEqual(retained_bytes, retained.read_bytes())
+        status = self.chunk_status()
+        self.assertEqual(uids, [row['uid'] for row in status['chunks']])
+        self.assertTrue(all(row['status'] == 'done' for row in status['chunks']))
+        self.assertEqual([], self.stale_chunks())
+        # The read-aloud lookup reaches the restored retained bytes again
+        # (this fixture's synthetic publication text legitimately does not match
+        # the EPUB, so the full package build is not the assertion here).
+        located_bytes, located_source = readalong_export._locate_retained_epub(
+            ProjectManager(str(self.root)), lambda: False,
+            source_txt=state['input_file_path'])
+        self.assertEqual(retained_bytes, located_bytes)
+        self.assertEqual(str(source), located_source)
 
     def test_two_hop_saved_chain_keeps_rendered_rows(self):
         """Saved B, loaded while A was active, still resolves to A's origin text."""

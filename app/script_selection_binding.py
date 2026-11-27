@@ -93,7 +93,7 @@ def _finite_float(value):
     return number
 
 
-def _capture_raw_source(path, *, owning_root=None, include_bytes=True):
+def _capture_raw_source(path, *, owning_root=None, include_bytes=True, cancel_check=None):
     """One raw-source authority decision shared by both raw readers.
 
     Resolves the owning root (known book data directory where the HTTP
@@ -118,11 +118,12 @@ def _capture_raw_source(path, *, owning_root=None, include_bytes=True):
         root_abs = source_abs.parent
         relative = Path(source_abs.name)
     return capture_scope_file(root_abs, relative.as_posix(),
-                              limit=512 * 1024**2, include_bytes=include_bytes)
+                              limit=512 * 1024**2, include_bytes=include_bytes,
+                              cancel_check=cancel_check)
 
 
 def _read_source_snapshot(path, *, include_bytes=False, owning_root=None,
-                          missing_as_fnf=False):
+                          missing_as_fnf=False, cancel_check=None):
     """Read a raw selected source through the shared confined capture seam.
 
     A plain missing source raises ValueError by default (existing
@@ -130,11 +131,13 @@ def _read_source_snapshot(path, *, include_bytes=False, owning_root=None,
     explicitly via missing_as_fnf=True.
     """
     from docx_publication import capture_docx_group
-    group = capture_docx_group(path, owning_root=owning_root)
+    group = capture_docx_group(path, owning_root=owning_root,
+                               cancel_check=cancel_check)
     if group is not None:
         return group['proofs']['text']['sha256'], group['text_bytes'] if include_bytes else None
     proof, raw = _capture_raw_source(path, owning_root=owning_root,
-                                     include_bytes=include_bytes)
+                                     include_bytes=include_bytes,
+                                     cancel_check=cancel_check)
     if not proof.get('exists'):
         if missing_as_fnf:
             raise FileNotFoundError(str(path))
@@ -142,8 +145,9 @@ def _read_source_snapshot(path, *, include_bytes=False, owning_root=None,
     return proof['sha256'], raw
 
 
-def _source_digest(path, *, owning_root=None):
-    return _read_source_snapshot(path, owning_root=owning_root)[0]
+def _source_digest(path, *, owning_root=None, cancel_check=None):
+    return _read_source_snapshot(path, owning_root=owning_root,
+                                 cancel_check=cancel_check)[0]
 
 
 def require_unchanged_source(source_path, expected_sha256, *, owning_root=None):
@@ -335,6 +339,7 @@ def resolve_saved_book_origin(
     saved_books_root: str | None = None,
     expected_script_sha256: str | None = None,
     require_terminal_file: bool = True,
+    cancel_check=None,
 ) -> dict:
     """Walk a saved library script's verified binding chain to its origin source.
 
@@ -346,6 +351,11 @@ def resolve_saved_book_origin(
     EVERY hop (intermediate .json AND terminal prose), enforces cycle and
     MAX_SOURCE_BINDING_HOPS guards, and raises a structured
     SavedSourceResolutionError(code, message) on failure.
+
+    ``cancel_check`` is polled by every bounded read the walk performs (each
+    hop's script and binding, and the terminal source), keeping the 512 MiB
+    per-hop bound while making a cancelled build observed during the walk
+    instead of after it. Cancellation propagates by its own type.
     """
     from project_scope_files import capture_scope_file, MAX_SCRIPT_BYTES
 
@@ -375,7 +385,8 @@ def resolve_saved_book_origin(
         seen.add(os.path.normcase(str(member_path)))
         try:
             script_proof, script_raw = capture_scope_file(
-                data_root, member_rel, limit=MAX_SCRIPT_BYTES, include_bytes=True)
+                data_root, member_rel, limit=MAX_SCRIPT_BYTES, include_bytes=True,
+                cancel_check=cancel_check)
         except (OSError, ValueError) as error:
             raise SavedSourceResolutionError('damaged_binding', 'Saved script cannot be read safely.') from error
         if not script_proof.get('exists') or script_raw is None:
@@ -385,7 +396,8 @@ def resolve_saved_book_origin(
             raise SavedSourceResolutionError('changed_source', 'Saved script bytes changed since it was linked.')
         try:
             binding_proof, raw_binding = capture_scope_file(
-                data_root, binding_rel, limit=MAX_BINDING_BYTES, include_bytes=True)
+                data_root, binding_rel, limit=MAX_BINDING_BYTES, include_bytes=True,
+                cancel_check=cancel_check)
         except (OSError, ValueError) as error:
             raise SavedSourceResolutionError('damaged_binding', 'Saved script binding cannot be read safely.') from error
         if not binding_proof.get('exists') or raw_binding is None:
@@ -424,7 +436,8 @@ def resolve_saved_book_origin(
         if Path(source_path).suffix.lower() != '.json':
             try:
                 digest, _ = _read_source_snapshot(
-                    source_path, owning_root=data_dir, missing_as_fnf=True)
+                    source_path, owning_root=data_dir, missing_as_fnf=True,
+                    cancel_check=cancel_check)
             except FileNotFoundError as error:
                 if not require_terminal_file:
                     hops.append({'script_path': str(member_path), 'binding_path': binding_path,

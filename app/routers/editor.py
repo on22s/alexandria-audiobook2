@@ -2274,6 +2274,18 @@ def _save_readaloud_timing_preference(preference):
     return save_readaloud_timing_preference(preference, DATA_DIR)
 
 
+def _timing_language_unavailable(error):
+    """One 409 detail for a timing-language lookup failure (#2355).
+
+    Some shared refusals already end with their own rebuild advice; appending
+    it again produced "rebuild it. Rebuild it." Keep exactly one.
+    """
+    detail = "EPUB read-aloud timing language is unavailable: %s" % error
+    if "rebuild it" not in detail.lower():
+        detail += " Rebuild it."
+    return detail
+
+
 def _require_readaloud_timing_current(receipt):
     """Fail closed unless the receipt's timing identity is still current.
 
@@ -2359,7 +2371,7 @@ def _require_readaloud_timing_current(receipt):
                 # re-checks book state afterwards and fails closed on a change.
                 retained_path, _retained_bytes = get_verified_retained_epub(
                     input_path, get_retained_epub_receipt_sha256(receipt),
-                    data_dir=DATA_DIR, search_dirs=(UPLOADS_DIR,))
+                    data_dir=DATA_DIR, uploads_dir=UPLOADS_DIR)
                 from epub_readaloud import get_epub_language_from_path
                 try:
                     tag = get_epub_language_from_path(retained_path)
@@ -2367,13 +2379,13 @@ def _require_readaloud_timing_current(receipt):
                         raise ValueError("EPUB has no usable dc:language")
                     want_language = get_aligner_language_name(tag, capability.get("languages"))
                 except (ValueError, OSError) as error:
-                    raise HTTPException(status_code=409, detail=(
-                        "EPUB read-aloud timing language is unavailable: %s Rebuild it." % error)) from error
+                    raise HTTPException(
+                        status_code=409, detail=_timing_language_unavailable(error)) from error
         except HTTPException:
             raise
         except (ValueError, OSError) as error:
-            raise HTTPException(status_code=409, detail=(
-                "EPUB read-aloud timing language is unavailable: %s Rebuild it." % error)) from error
+            raise HTTPException(
+                status_code=409, detail=_timing_language_unavailable(error)) from error
         if receipt.get("timing_language") != want_language:
             raise HTTPException(status_code=409, detail=(
                 "EPUB read-aloud timing language is no longer current. Rebuild it."))
@@ -3135,7 +3147,7 @@ def _validated_epub_bytes():
     try:
         get_verified_retained_epub(
             input_path, get_retained_epub_receipt_sha256(receipt),
-            data_dir=DATA_DIR, search_dirs=(UPLOADS_DIR,))
+            data_dir=DATA_DIR, uploads_dir=UPLOADS_DIR)
     except (ValueError, OSError) as error:
         raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is unavailable: %s" % error) from error
     with ensure_book_state(DATA_DIR):

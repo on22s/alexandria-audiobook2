@@ -51,6 +51,12 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
                              receipt["retained_epub_sha256"])
 
     def test_missing_retained_bytes_names_the_non_resetting_recovery(self):
+        """The saved-script advice is true on the merged tree (#2354).
+
+        The identical re-upload is reattached under the same book and keeps
+        rendered audio; the behaviour itself is pinned end to end by
+        test_saved_book_source_reselection's reporter flow.
+        """
         with self.fixture() as (root, api, epub_bytes):
             self.upload_and_load(api, root, epub_bytes)
             for path in Path(core.UPLOADS_DIR).glob("*.source.epub"):
@@ -63,9 +69,14 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
             self.assertIn(".source.epub", message)
             self.assertIn("recorded EPUB origin", message)
             self.assertIn("source's folder or the upload folder", message)
-            self.assertIn("Do not re-import the book", message)
-            self.assertIn("replaces the script as the selected source", message)
-            self.assertIn("resets rendered audio", message)
+            self.assertIn("re-upload the byte-identical EPUB", message)
+            self.assertIn("keeps rendered audio when the saved script is unchanged",
+                          message)
+            self.assertIn("becomes the selected source instead of the saved script",
+                          message)
+            self.assertIn("different edition starts a new book and resets rendered audio",
+                          message)
+            self.assertNotIn("Do not re-import the book", message)
             self.assertNotIn("retained-upload list", message)
 
     def test_different_retained_epub_is_not_mistaken_for_this_origin(self):
@@ -345,8 +356,58 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
                 ProjectManager(str(root)), lambda: False)
             self.assertFalse(ok)
             self.assertIn("Source provenance is stale", message)
-            self.assertIn("re-upload the source book", message)
-            self.assertIn("replaces the script as the selected source", message)
+            self.assertIn("restore the saved book's missing '.publication.json' companion",
+                          message)
+            self.assertIn("re-upload the byte-identical source book", message)
+            self.assertIn("keeps rendered audio when the saved script is unchanged",
+                          message)
+            self.assertIn("becomes the selected source instead of the saved script",
+                          message)
+            self.assertIn("a changed source or a different edition starts a new book "
+                          "and resets rendered audio", message)
+            self.assertNotIn("replaces the script as the selected source", message)
+
+    def test_uploads_folder_wording_uses_the_scanned_directory(self):
+        """Message and scan share one uploads dir, never a re-imported global."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            uploads = root / "uploads"; uploads.mkdir()
+            other = root / "other"; other.mkdir()
+            txt = uploads / "book.txt"; txt.write_bytes(b"synthetic source text")
+            digest = hashlib.sha256(b"an unrelated retained file").hexdigest()
+            # The global points elsewhere; only the scanned dir may decide the
+            # wording (Rule 15).
+            with patch.object(core, "UPLOADS_DIR", str(other)):
+                with self.assertRaises(ValueError) as caught:
+                    readalong_export.get_retained_epub_candidate_path(
+                        str(txt), origin_hashes={digest},
+                        uploads_dir=str(uploads))
+                self.assertIn("re-upload the byte-identical EPUB",
+                              str(caught.exception))
+                self.assertNotIn("imports a new book", str(caught.exception))
+                self.assertTrue(readalong_export._source_folder_is_uploads(
+                    str(txt), uploads_dir=str(uploads)))
+                self.assertFalse(readalong_export._source_folder_is_uploads(
+                    str(txt), uploads_dir=str(other)))
+
+    def test_saved_source_resolver_reads_poll_cancellation(self):
+        """A cancelled build is observed during the walk, not after it."""
+        from audio_generation_owner import AudioGenerationCancelled
+        with self.fixture() as (root, api, epub_bytes):
+            self.upload_and_load(api, root, epub_bytes)
+            self.bind_saved_script(root)
+            saved = json.loads((root / "state.json").read_text())["input_file_path"]
+            polls = []
+
+            def cancel():
+                polls.append(None)
+                return len(polls) >= 2
+
+            with self.assertRaises(AudioGenerationCancelled):
+                readalong_export.get_saved_book_retained_epub_path(
+                    str(root), saved, cancel_check=cancel)
+            self.assertGreaterEqual(len(polls), 2,
+                                    "cancellation must be polled inside the read")
 
     # --- Editor call sites (#2355 L2/L5) ---------------------------------
 
@@ -436,6 +497,36 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
                 self.assertNotIn("malformed", caught.exception.detail)
                 self.assertEqual([str(uploads / "renamed.source.epub")], reads)
 
+    def test_timing_missing_receipt_digest_does_not_repeat_rebuild(self):
+        """A receipt without the digest gets one rebuild instruction, not two."""
+        with self.fixture() as (root, api, epub_bytes):
+            self.upload_and_load(api, root, epub_bytes)
+            self.bind_saved_script(root)
+            self.render_chunks(root)
+            receipt = dict(self.build_readaloud(root), timing_mode="qwen",
+                           timing_device="cpu", timing_language="English")
+            receipt.pop("retained_epub_sha256", None)
+            capability = {"devices": [{"device": "cpu"}], "device": "cpu",
+                          "dtype": "float16", "languages": ["English"]}
+            policy = {"timing_mode": "qwen", "device": "cpu"}
+            with self.editor_data_dir(root), \
+                    patch.object(editor, "_get_readaloud_timing_preference",
+                                 return_value={"timing_mode": "auto",
+                                               "timing_device": "auto",
+                                               "timing_language": None}), \
+                    patch("qwen_runtime.get_qwen_capability",
+                          return_value=capability), \
+                    patch("qwen_runtime.get_qwen_device_policy",
+                          return_value=policy), \
+                    patch("qwen_runtime.get_qwen_model_candidates",
+                          return_value=[]):
+                with self.assertRaises(HTTPException) as caught:
+                    editor._require_readaloud_timing_current(receipt)
+            self.assertEqual(409, caught.exception.status_code)
+            detail = caught.exception.detail
+            self.assertIn("has no retained EPUB digest", detail)
+            self.assertEqual(1, detail.lower().count("rebuild it."), detail)
+
     def test_download_missing_message_names_a_usable_recovery(self):
         with self.fixture() as (root, api, epub_bytes):
             self.upload_and_load(api, root, epub_bytes)
@@ -449,8 +540,11 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
                     editor._validated_epub_bytes()
             self.assertEqual(409, caught.exception.status_code)
             self.assertIn("Retained EPUB bytes are missing", caught.exception.detail)
-            self.assertIn("replaces the script as the selected source",
+            self.assertIn("re-upload the byte-identical EPUB",
                           caught.exception.detail)
+            self.assertIn("starts a new book and resets rendered audio",
+                          caught.exception.detail)
+            self.assertNotIn("Do not re-import the book", caught.exception.detail)
             self.assertNotIn("retained-upload list", caught.exception.detail)
             self.assertNotIn("Re-upload the EPUB and rebuild", caught.exception.detail)
 

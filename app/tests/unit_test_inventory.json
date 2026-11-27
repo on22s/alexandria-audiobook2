@@ -14502,6 +14502,20 @@
     , "tests.test_saved_book_publication.SavedBookPublicationTests.test_saved_mutations_do_not_wait_for_book_while_holding_task_mutex"
     , "tests.test_saved_book_publication.SavedBookPublicationTests.test_saved_mutations_do_not_wait_for_saved_book_lock"
   ]
+  , "test_saved_book_source_reselection": [
+    "tests.test_saved_book_source_reselection.ReporterFlowTests.test_missing_retained_epub_message_offers_the_reupload_that_keeps_rows"
+    , "tests.test_saved_book_source_reselection.ReporterFlowTests.test_reporter_flow_keeps_rendered_rows_after_the_same_epub_is_reuploaded"
+    , "tests.test_saved_book_source_reselection.ReporterFlowTests.test_two_hop_saved_chain_keeps_rendered_rows"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_changed_origin_bytes_still_start_a_new_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_changed_saved_script_bytes_start_a_new_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_cycle_in_the_saved_binding_chain_starts_a_new_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_deleted_origin_with_identical_incoming_bytes_keeps_the_rendered_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_different_epub_starts_a_new_book_and_retains_the_old_rows"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_identical_epub_reupload_keeps_the_rendered_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_origin_binding_outside_the_library_directory_is_not_trusted"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_saved_binding_pointing_outside_the_library_logs_at_warning"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_sibling_binding_outside_the_library_is_not_trusted"
+  ]
   , "test_saved_destination_ownership": [
     "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_claim_scope_is_copied_canonical_and_retired_with_its_exact_owner"
     , "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_foreign_save_observes_active_review_file_lock"
@@ -14589,12 +14603,15 @@
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_loaded_saved_script_reaches_the_uploaded_retained_epub"
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_missing_retained_bytes_names_the_non_resetting_recovery"
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_saved_source_resolution_refusal_logs_the_code_and_falls_back"
+    , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_saved_source_resolver_reads_poll_cancellation"
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_scan_directory_aliases_are_deduped"
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_scan_key_folds_case_and_realpath"
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_shared_lookup_never_returns_unverified_bytes"
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_stale_provenance_message_is_consistent_with_the_recovery_advice"
+    , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_timing_missing_receipt_digest_does_not_repeat_rebuild"
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_timing_site_hash_gates_the_binding_candidate"
     , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_uploads_fallback_still_works_without_a_binding"
+    , "tests.test_saved_script_retained_epub.SavedScriptRetainedEpubTests.test_uploads_folder_wording_uses_the_scanned_directory"
   ]
   , "test_scene_context_listening": [
     "tests.test_scene_context_listening.ArmInstructionTests.test_each_arm_sends_exactly_its_stated_instruction"
