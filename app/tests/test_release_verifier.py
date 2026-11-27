@@ -154,8 +154,12 @@ class CiEnvParityTests(unittest.TestCase):
         self.assertNotIsInstance(gate_timeout_seconds, bool)
         self.assertTrue(math.isfinite(gate_timeout_seconds))
         self.assertGreater(gate_timeout_seconds, 0)
-        self.assertGreaterEqual(unit_timeout_minutes * 60, gate_timeout_seconds)
-        self.assertGreater(unit_timeout_minutes * 60, gate_timeout_seconds)
+        # The gate clock starts only after the job's pre-gate setup (checkout,
+        # Python and ffmpeg install, pip install: measured 1.5 min warm, more
+        # with a cold pip cache), so the job must leave at least 10 minutes
+        # beyond the gate or GitHub's own cancel can pre-empt the loud,
+        # shard-named TimeoutError.
+        self.assertGreaterEqual(unit_timeout_minutes * 60 - gate_timeout_seconds, 10 * 60)
 
     def test_timeout_probe_rejects_short_grace_and_fake_cleanup(self):
         cooperative = {"probe": "cooperative_int", "returncode": 124,
@@ -781,7 +785,7 @@ class ReleaseVerifierTests(unittest.TestCase):
                 return real_run_report_command(label, command, cwd, **kwargs)
 
             started = time.monotonic()
-            with patch.object(verify_release, "CI_UNIT_SHARD_TIMEOUT_SECONDS", 1.0, create=True), \
+            with patch.object(verify_release, "CI_UNIT_SHARD_TIMEOUT_SECONDS", 2.0, create=True), \
                  patch.object(verify_release, "run_report_command", side_effect=swap_unit_command), \
                  contextlib.redirect_stdout(io.StringIO()), \
                  contextlib.redirect_stderr(io.StringIO()) as stderr:

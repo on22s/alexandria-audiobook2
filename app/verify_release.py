@@ -26,9 +26,10 @@ from subprocess_ownership import (get_owned_exit_result,
                                  run_owned_capture)
 
 GIT_PROBE_TIMEOUT_SECONDS = 20
-# Below the 45-minute CI `unit` job timeout so a hung shard fails loudly with
+# Below the 50-minute CI `unit` job timeout so a hung shard fails loudly with
 # its shard named and its owned subprocess tree stopped, rather than GitHub
-# cancelling silently.
+# cancelling silently. The 10-minute margin covers the pre-gate job steps
+# (measured 1.5 min with a warm pip cache) plus a cold-cache pip install.
 CI_UNIT_SHARD_TIMEOUT_SECONDS = 40 * 60
 
 
@@ -82,6 +83,9 @@ def run_command(label, command, cwd, reject_unittest_skips=False, capture_output
             reader.start()
             failure_stopped = False
             while True:
+                # Wall-clock is checked before draining a queued 'done': once
+                # the deadline passes the shard is reported as timed out even
+                # if its child exited microseconds earlier (fail-closed).
                 if deadline is not None and time.monotonic() >= deadline:
                     raise TimeoutError(f"{label} timed out after {timeout}s")
                 root_result = get_owned_exit_result(notice)

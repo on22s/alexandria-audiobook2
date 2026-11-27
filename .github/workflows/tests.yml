@@ -34,7 +34,7 @@ jobs:
   unit:
     name: unit (${{ matrix.shard }})
     runs-on: ${{ inputs.linux_runner || 'ubuntu-24.04' }}
-    timeout-minutes: 45
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
