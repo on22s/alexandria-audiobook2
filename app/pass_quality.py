@@ -519,18 +519,20 @@ def _contiguous_spoken_groups(entries):
 def _entry_in_unverified_tail(entry_text, source_text, ranges):
     """Is this entry inside text the segmenter could not vouch for?
 
-    The comparison is normalized-word containment in either direction: a model
-    may split an unverified tail into sentences (entry inside the tail) or
-    merge it with adjacent vouched speech (tail inside the entry). Both are
-    left to the model, as decided for #2329 finding 5; the tail's own tag text
-    is not what this gate is about.
+    Only containment of the ENTRY inside the tail is left to the model: a
+    model may sentence-split an unverified tail, and each piece is unchecked.
+    A tail inside the entry is not skipped (#2390 review 4 finding 1): an
+    entry that merges a confident line with an unverified tail still contains
+    vouched text, so the quote-region gate must validate it, or a confident
+    tag in the merged entry would escape validation. That is the same class as
+    the rev3 chunk-wide downgrade, one entry narrower.
     """
     needle = normalize_text(entry_text)
     if not needle:
         return True
     for start, end in ranges:
         tail = normalize_text(source_text[start:end])
-        if tail and (needle in tail or tail in needle):
+        if tail and needle in tail:
             return True
     return False
 

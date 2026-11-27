@@ -148,7 +148,7 @@ _DASH_TAG_STOPWORDS = frozenset(
     "porque aunque mientras si et mais ou car donc or ni ce cet cette ces mon "
     "ton son notre votre des du autrement tout tous toute toutes comme comment "
     "quand lorsque lorsqu puisque parce afin tandis pendant depuis ainsi alors "
-    "enfin pourtant cependant voilà voici ensuite puis malgré selon".split())
+    "enfin pourtant cependant voilà voici ensuite puis malgré selon según".split())
 # Subject pronouns a tag may carry. First and second person are speech.
 _DASH_THIRD_PERSON = frozenset(
     "he she it they one il elle on ils elles él ella ellos ellas".split())
@@ -168,7 +168,8 @@ _DASH_TAG_COMPLEMENTIZERS = frozenset(
     "que that si como cuando porque puisque car aunque mientras pero sino "
     "because while although".split())
 _DASH_TAG_OBJECTS = frozenset(
-    "nothing something anything everything todo nada algo".split())
+    "nothing something anything everything todo nada algo verdad mentira eso "
+    "esto cosas cela ça ceci".split())
 # First-person reporting forms are the character speaking, never the narrator
 # (`— No, dije, es tarde.`). They are absent from the table, and this guard
 # also refuses them if one is tabled later (#2390 review 6).
@@ -1100,11 +1101,14 @@ def _dash_inverted_is_tag(tail):
     """Is the text after an inverted reporting verb a subject, not speech?
 
     Inverted tags (`dijo Ana`, `répondit-il`, `said he`) may be followed by a
-    name, a pronoun or a determiner+noun. A complementizer inside the subject
-    window (the first three words after the verb) starts a reported clause, so
-    `dice Pepe que sea yo franco` and `dijo que sí` are speech. A relative
-    clause after the subject (`replicó un viejo ladino que montaba…`) is not
-    in that window and does not reject (#2390 review 3).
+    name, a pronoun or a determiner+noun SUBJECT. A complementizer inside the
+    subject window (the first three words after the verb) starts a reported
+    clause, so `dice Pepe que sea yo franco` and `dijo que sí` are speech. An
+    object noun in that window (`ha dicho la verdad`, `il faisait cela`) is
+    speech too: a tag names a subject, never an object (#2390 review 4
+    findings 2 and 3). A relative clause after the subject (`replicó un viejo
+    ladino que montaba…`) is not in that window and does not reject (#2390
+    review 3).
     """
     lowered = [word.lower() for word in tail]
     if any(word in _DASH_TAG_COMPLEMENTIZERS for word in lowered[:3]):

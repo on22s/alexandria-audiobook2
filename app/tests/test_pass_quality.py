@@ -2120,6 +2120,44 @@ class DashDialogueTagSegmenterTests(unittest.TestCase):
         self.assertIn("quote_region_misclassified",
                       [finding["code"] for finding in report["findings"]])
 
+    def test_a_merged_confident_and_ambiguous_entry_is_still_validated(self):
+        """Only an entry INSIDE an unverified tail is left to the model.
+
+        (#2390 review 4 finding 1.) A model that merges a confident line and
+        the ambiguous line into one SPOKEN entry contains vouched text, so the
+        per-line skip must not apply and the confident tag is caught.
+        """
+        confident = "— Oui, répondit-il."
+        ambiguous = "— Wait — I forgot the keys."
+        chunk = confident + "\n\n" + ambiguous
+        analysis = analyze_outer_quote_regions(chunk)
+        self.assertTrue(analysis.get("unverified_dash"))
+        merged = [{"type": "SPOKEN",
+                   "text": "Oui, répondit-il. Wait — I forgot the keys."}]
+        report = validate_segment_quality(chunk, merged, quote_analysis=analysis)
+        self.assertFalse(report["passed"])
+        self.assertIn("crosses_quote_boundary",
+                      [finding["code"] for finding in report["findings"]])
+        # An entry that lies inside the unverified tail (a model sentence
+        # split of the ambiguous line) is still left to the model.
+        inside = [
+            {"type": "SPOKEN", "text": "Oui,"},
+            {"type": "NARRATOR", "text": "répondit-il."},
+            {"type": "SPOKEN", "text": "Wait"},
+            {"type": "NARRATOR", "text": "I forgot the keys."},
+        ]
+        report = validate_segment_quality(chunk, inside, quote_analysis=analysis)
+        self.assertTrue(report["passed"], report["findings"])
+        # The ambiguous line kept whole as one entry is still accepted: it is
+        # the model's own line, which the segmenter routes rather than labels.
+        whole = [
+            {"type": "SPOKEN", "text": "Oui,"},
+            {"type": "NARRATOR", "text": "répondit-il."},
+            {"type": "SPOKEN", "text": "Wait — I forgot the keys."},
+        ]
+        report = validate_segment_quality(chunk, whole, quote_analysis=analysis)
+        self.assertTrue(report["passed"], report["findings"])
+
     def test_opening_speech_across_a_narrator_entry_still_rejects(self):
         chunk = "She smiled.\n— It is late. The road is long — I forgot the keys."
         analysis = analyze_outer_quote_regions(chunk)

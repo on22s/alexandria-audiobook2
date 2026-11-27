@@ -2113,6 +2113,71 @@ class DashDialogueTagTests(unittest.TestCase):
             "Vuestra Majestad a Madrid».")
         self.assertNotIn("NARRATOR", [kind for kind, _text in parts])
 
+    def test_object_complements_are_speech_not_subjects(self):
+        """A tag names a subject; `ha dicho la verdad` names an object.
+
+        The compound shape has to pass the same subject gate as a simple verb
+        (#2390 review 4 finding 2). A determiner + object noun (`la verdad`,
+        `una mentira`), a bare object (`eso`, `esto`, `cosas`) and the French
+        equivalents (`cela`, `ça`, `ceci`) are speech, so the line is routed
+        whole instead of confidently splitting at a non-tag. The real tag
+        `ha dicho Ana` still splits.
+        """
+        for line in (
+            "— Sí, ha dicho la verdad.",
+            "— Sí, ha dicho eso.",
+            "— Sí, ha dicho esto.",
+            "— Sí, ha dicho cosas.",
+            "— Sí, ha dicho una mentira.",
+            "— Sí, dijo la verdad.",
+            "— Sí, había contestado la verdad.",
+            "— Sí, han respondido eso.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        ambiguous, parts = self._parts("— Sí, ha dicho Ana.")
+        self.assertFalse(ambiguous)
+        self.assertEqual(
+            [("SPOKEN", "Sí,"), ("NARRATOR", "ha dicho Ana.")], parts)
+
+    def test_plain_verb_clauses_with_an_object_stay_speech(self):
+        """`faisait`/`firent` reading a plain clause as a tag is refused.
+
+        The widened table must not table ordinary speech: a third-person
+        pronoun + `faisait`/`firent`/`fit` + `cela` is a clause, not a tag
+        (#2390 review 4 finding 3). The two measured Flaubert lines still
+        split, because their subject is a name.
+        """
+        for line in (
+            "— Oui, il faisait cela pour moi.",
+            "— Oui, elle faisait cela souvent.",
+            "— Oui, ils firent cela.",
+            "— Oui, il fit cela pour moi.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        ambiguous, parts = self._parts(
+            "— Oh! c'est vrai! faisait l'autre en caressant sa mâchoire, "
+            "avec un air de dédain mêlé de satisfaction.")
+        self.assertFalse(ambiguous)
+        self.assertIn(("NARRATOR", "faisait l'autre en caressant sa mâchoire,"),
+                      parts)
+
+    def test_segun_and_a_relative_clause_are_not_subjects(self):
+        """`según me dijo` is speech inside the line, not a narrator tag.
+
+        The measured Galdós line kept `según me dijo` in `NARRATOR`, because
+        `según` was missing from the pre-verb stopwords and `me` is a clitic
+        (#2390 review 4 finding 4).
+        """
+        ambiguous, parts = self._parts("— Era, según me dijo, amigo.")
+        self.assertTrue(ambiguous)
+        self.assertEqual([("SPOKEN", "Era, según me dijo, amigo.")], parts)
+
     def test_a_later_evidenced_tag_is_not_swallowed_by_an_unverified_range(self):
         """The unverified range stops at the next evidenced split.
 
