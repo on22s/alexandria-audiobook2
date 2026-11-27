@@ -2397,6 +2397,57 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual(1, finding["details"]["source_occurrences"])
         self.assertEqual(2, finding["details"]["all_text_occurrences"])
 
+    # (spelled line, digit spelling, credited, severity with 3 word emissions)
+    _WHOLE_NUMBER_SHAPES = (
+        ("Five minutes", "5 minutes", True, "blocking"),
+        ("Zero minutes", "1,000 minutes", False, "blocking"),
+        ("Zero minutes", "1 000 minutes", False, "blocking"),
+        ("Zero minutes", "1\u00a0000 minutes", False, "blocking"),
+        ("Zero minutes", "1\u2009000 minutes", False, "blocking"),
+        ("Twenty five", "twenty 5.", True, "manual_review"),
+        ("Twenty five", "twenty 5, and more", True, "manual_review"),
+        ("Five minutes", "5th minutes", False, "blocking"),
+        ("Five percent of it", "5% of it", False, "blocking"),
+        ("Five dollars", "$5 dollars", True, "blocking"),
+        ("Five dollars each", "$5 each", False, "blocking"),
+        ("Six minutes", "5-6 minutes", False, "blocking"),
+        ("Five minutes", "5-6 minutes", False, "blocking"),
+        ("Thirty exactly", "5:30 exactly", False, "blocking"),
+        ("Five minutes", "\u0665 minutes", True, "blocking"),
+        ("Five minutes", "\uff15 minutes", True, "blocking"),
+    )
+
+    def test_a_whole_source_number_is_one_undivided_numeral(self):
+        # One table for every whole-number shape the rule defines. Credited
+        # means the source digit copy is capacity for the word spelling: two
+        # word emissions are clean and the third blocks (blocking, or
+        # manual_review when the digit spelling was not emitted and the needle
+        # is a number word). Not credited means the digit spelling is not
+        # capacity for the line (a fragment of a longer numeral, or a shape the
+        # rule does not cover): the spelled word emissions block at src=1/out=2,
+        # and a third emission also blocks.
+        for spelled, digits, credited, severity in self._WHOLE_NUMBER_SHAPES:
+            with self.subTest(shape=spelled, digits=digits):
+                source = '"%s," she said. "%s," he said.' % (spelled, digits)
+                entries = [_entry(spelled, "C0"), _entry(spelled, "C1")]
+
+                findings = self._duplicate_findings(entries, source)
+                if credited:
+                    self.assertEqual([], findings)
+                else:
+                    self.assertEqual(1, len(findings))
+                    self.assertEqual("blocking", findings[0]["severity"])
+                    self.assertEqual(1, findings[0]["details"]["source_occurrences"])
+                    self.assertEqual(2, findings[0]["details"]["all_text_occurrences"])
+
+                third = self._duplicate_findings(
+                    entries + [_entry(spelled, "C2")], source)
+                self.assertEqual(1, len(third))
+                self.assertEqual(severity, third[0]["severity"])
+                self.assertEqual(2 if credited else 1,
+                                 third[0]["details"]["source_occurrences"])
+                self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
+
     def test_a_digit_used_as_an_identifier_is_a_known_limit(self):
         # The second F2 repro, kept and documented. "Route 1 more often" holds
         # the whole number "1" beside "more", one token different from "One
@@ -2497,9 +2548,11 @@ class NumberSpellingDigitIndexTests(unittest.TestCase):
         # P1: candidates come from digits beside the needle's own words instead
         # of every position of its first word. Each case plants a digit window
         # at the first, an interior or the last needle position, then pads it
-        # with random words; non-fusable gaps and digits that are not whole
-        # numbers are mixed in. The accepted set must equal the full scan's,
-        # with the same non-overlap order.
+        # with random words. Two decoy windows of the same needle follow it:
+        # one behind a digit that is not a whole number (excluded from the
+        # index) and one behind a non-fusable gap (rejected by the caller).
+        # Both are otherwise acceptable, so the accepted set equals the full
+        # scan's only if both filters survive, with the same non-overlap order.
         rng = random.Random(2293)
         spellings = {"1": "one", "2": "two", "5": "five",
                      "20": "twenty", "90": "ninety"}
@@ -2522,9 +2575,17 @@ class NumberSpellingDigitIndexTests(unittest.TestCase):
             else:
                 tokens = lead + [before, digit] + tail
                 words = [before, spelled]
-            digit_index = tokens.index(digit)
+            # Decoy windows: same shape as the needle, so only the whole-number
+            # flag and the gap rule can stop the full scan accepting them.
+            fragment_start = len(tokens)
+            tokens += [before, digit, after]
+            gap_start = len(tokens)
+            tokens += [before, digit, after]
             fusable = [True] * len(tokens)
             whole_number = [True] * len(tokens)
+            whole_number[fragment_start + 1] = False
+            fusable[gap_start + 1] = False
+            fusable[gap_start + 2] = False
             index = _build_number_spelling_digit_index(tokens, whole_number)
             expected = self._brute_force(tokens, fusable, words, whole_number)
             actual = _number_spelling_digit_lines(tokens, fusable, words, index)
@@ -2532,9 +2593,10 @@ class NumberSpellingDigitIndexTests(unittest.TestCase):
                 expected, actual,
                 "tokens=%r words=%r fusable=%r whole=%r"
                 % (tokens, words, fusable, whole_number))
-            # The lead and tail hold no digit, so the planted window is the
-            # only one a full scan can accept; a candidate set that misses a
-            # first/interior/last digit must show up as a difference.
+            # The lead and tail hold no digit, and both decoys are filtered, so
+            # the planted window is the only one a full scan can accept; a
+            # candidate set that misses a first/interior/last digit, or an
+            # index that credits a fragment or ignores a gap, differs here.
             self.assertEqual(1, sum(expected.values()),
                              "planted window was not accepted: %r %r"
                              % (tokens, words))

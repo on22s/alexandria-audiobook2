@@ -531,9 +531,11 @@ def _build_number_spelling_digit_index(tokens, whole_number):
     token: every other token matches. So its start is the digit's position
     minus the needle's offset, and the digit sits beside the needle words that
     surround it. Keyed by one neighbour (a digit at the window's first or last
-    position) or both (an interior digit), this derives candidates in time
+    position) or both (an interior digit), this derives candidate starts in time
     proportional to the needle's spelled positions instead of scanning every
-    position of its first word (#2304 P1). The candidate set is identical to
+    position of its first word (#2304 P1). Acceptance still walks every indexed
+    digit beside a matching needle word, so it also grows with how common that
+    neighbour word is in the book. The candidate set is identical to
     "every source start plus every digit": an accepted window contains exactly
     one digit, at a needle word that ``is_spelled_number`` accepts, so the
     index yields it and adds nothing that can pass the exact-window check.
@@ -1289,10 +1291,13 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         parse as one token here and still block (documented under Limits).
 
         The digit must be a WHOLE source number. A tokenizer turns "3.5" into
-        "3", "5" and "1,000" into "1", "000"; crediting the "5" of "3.5" would
-        let it spell "Five minutes" and accept a genuine duplicate, so a digit
-        glued to another digit by a numeral separator is not capacity. A
-        sentence's "5." or a list's "5," is a whole number, not a fragment.
+        "3", "5", "1,000" into "1", "000", "1 000" into "1", "000", and "5-6"
+        or "5:30" into two digit tokens; crediting the "5" of "3.5" would let
+        it spell "Five minutes" and accept a genuine duplicate, so a digit
+        joined to another digit by a numeral separator is not capacity. That
+        covers `.`/`,` glued to a far digit, any all-whitespace gap (space,
+        NBSP, thin space), and a `-`/en dash/`:` between digits. A sentence's
+        "5." or a list's "5," is a whole number, not a fragment.
 
         A digit copy the script also emits as digits is already that digit
         needle's own capacity, so only copies beyond the digit line's emissions
@@ -1332,12 +1337,32 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                 before_before = comparison_source[start - 2] if start > 1 else ""
                 after_after = (comparison_source[end + 1]
                                if end + 1 < len(comparison_source) else "")
-                # "3.5" and "1,000" are one numeral per side: the separator has
-                # a digit on its far side. A trailing "5." or "5," does not.
+                # A numeral can also split into two digit TOKENS when the
+                # separator is not glued to both digits: "1 000" (also NBSP and
+                # thin space), "5-6" and "5:30". Either token is a fragment of
+                # one numeral, so neither is whole. A separator with a digit on
+                # its far side ("3.5", "1,000") is the same case one character
+                # in; a trailing "5." or "5," has no far digit and stays whole.
+                joined = False
+                for other in (index - 1, index + 1):
+                    if not (0 <= other < len(tokens)):
+                        continue
+                    if not tokens[other].isdigit():
+                        continue
+                    if other < index:
+                        gap = comparison_source[spans[other][1]:start]
+                    else:
+                        gap = comparison_source[end:spans[other][0]]
+                    # All-whitespace (space, NBSP, thin and figure spaces), or
+                    # a range/clock mark, joins the two digit tokens.
+                    if not gap.strip() or gap.strip() in ("-", "\u2013", ":"):
+                        joined = True
+                        break
                 whole_number[index] = not (
                     before.isdigit() or after.isdigit()
                     or (before in ".," and before_before.isdigit())
-                    or (after in ".," and after_after.isdigit()))
+                    or (after in ".," and after_after.isdigit())
+                    or joined)
             number_line_view = (tokens, fusable, _build_number_spelling_digit_index(
                 tokens, whole_number))
         tokens, fusable, digit_index = number_line_view
