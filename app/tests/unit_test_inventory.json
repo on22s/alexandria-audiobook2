@@ -7769,6 +7769,23 @@
     "tests.test_hosted_llm_endpoints.HostedLlmEndpointTests.test_lookalikes_insecure_origins_and_untrusted_networks_remain_blocked"
     , "tests.test_hosted_llm_endpoints.HostedLlmEndpointTests.test_save_preview_diagnostics_and_cached_client_accept_official_origins"
   ]
+  , "test_hypothesis_profile": [
+    "tests.test_hypothesis_profile.InProcessRerunTests.test_a_property_test_class_runs_twice_in_one_process"
+    , "tests.test_hypothesis_profile.LocalConstantGuardTests.test_a_raising_module_added_after_the_profile_is_imported"
+    , "tests.test_hypothesis_profile.LocalConstantGuardTests.test_a_raising_module_present_before_the_profile_is_imported"
+    , "tests.test_hypothesis_profile.LocalConstantGuardTests.test_base_exception_from_module_getattr_is_hidden_while_interrupts_propagate"
+    , "tests.test_hypothesis_profile.LocalConstantGuardTests.test_keyboard_interrupt_during_collector_pass_is_not_hidden"
+    , "tests.test_hypothesis_profile.LocalConstantGuardTests.test_keyboard_interrupt_mid_scan_leaves_sys_modules_identical_with_no_pop_window"
+    , "tests.test_hypothesis_profile.LocalConstantGuardTests.test_retry_preserves_local_constants_from_modules_before_unreadable_one"
+    , "tests.test_hypothesis_profile.ProfileTests.test_given_test_settings_covers_per_convention_properties_and_catches_stray_settings"
+    , "tests.test_hypothesis_profile.ProfileTests.test_hypothesis_storage_is_outside_the_checkout"
+    , "tests.test_hypothesis_profile.ProfileTests.test_owned_temp_storage_directory_is_removed_at_exit"
+    , "tests.test_hypothesis_profile.ProfileTests.test_preset_storage_directory_is_used_without_creating_temp_dir"
+    , "tests.test_hypothesis_profile.ProfileTests.test_storage_is_redirected_even_if_resolved_before_profile_import"
+    , "tests.test_hypothesis_profile.ProfileTests.test_storage_redirect_guard_fails_loudly_if_the_api_disappears"
+    , "tests.test_hypothesis_profile.ProfileTests.test_the_ci_profile_is_active"
+    , "tests.test_hypothesis_profile.ProfileTests.test_the_local_constant_guard_is_installed"
+  ]
   , "test_ideal_settings_endpoint": [
     "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_llama_cpp_endpoint_is_left_alone"
     , "tests.test_ideal_settings_endpoint.IdealSettingsEndpointTest.test_a_real_lm_studio_endpoint_still_gets_configured"
@@ -11682,6 +11699,24 @@
     , "tests.test_pronunciation_panel_js.PronunciationPanelJsTests.test_literal_keys_counts_no_auto_generation_and_explicit_shared_save"
     , "tests.test_pronunciation_panel_js.PronunciationPanelJsTests.test_multiline_native_value_normalization_preserves_unedited_raw_rules"
     , "tests.test_pronunciation_panel_js.PronunciationPanelJsTests.test_replacement_audition_sends_original_and_draft_rule_together"
+  ]
+  , "test_property_dialogue_spans": [
+    "tests.test_property_dialogue_spans.InvariantTests.test_analyzer_regions_and_repairs_stay_inside_the_source"
+    , "tests.test_property_dialogue_spans.InvariantTests.test_spans_stay_inside_the_source_in_order_and_disjoint"
+    , "tests.test_property_dialogue_spans.ProfileTests.test_this_modules_property_tests_use_the_bounded_profile"
+    , "tests.test_property_dialogue_spans.WellFormedDialogueTests.test_a_single_newline_is_a_soft_wrap"
+    , "tests.test_property_dialogue_spans.WellFormedDialogueTests.test_every_supported_convention_yields_exactly_its_speeches"
+    , "tests.test_property_dialogue_spans.WellFormedDialogueTests.test_inch_marks_are_text_in_speech_and_narration"
+    , "tests.test_property_dialogue_spans.WellFormedDialogueTests.test_the_two_functions_agree_which_text_is_spoken"
+  ]
+  , "test_property_speaker_identity": [
+    "tests.test_property_speaker_identity.CanonicalEquivalenceTests.test_canonical_re_encodings_share_one_key"
+    , "tests.test_property_speaker_identity.CanonicalEquivalenceTests.test_case_variants_share_one_key"
+    , "tests.test_property_speaker_identity.OptionalDiacriticTests.test_fixture_diacritics_stay_decomposed_after_nfc"
+    , "tests.test_property_speaker_identity.OptionalDiacriticTests.test_optional_diacritics_do_not_change_the_key"
+    , "tests.test_property_speaker_identity.ProfileTests.test_this_modules_property_tests_use_the_bounded_profile"
+    , "tests.test_property_speaker_identity.RequiredMarkTests.test_removing_a_required_mark_changes_the_key"
+    , "tests.test_property_speaker_identity.SeparatorTests.test_spacing_and_punctuation_do_not_change_the_key"
   ]
   , "test_prune_chain": [
     "tests.test_prune_chain.PruneChainTests.test_cached_report_without_metadata_fails_package_and_blocks_training"
