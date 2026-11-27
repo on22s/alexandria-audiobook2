@@ -1306,15 +1306,54 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
               f"rejected at temperature 0; further retries cannot "
               f"differ", flush=True)
 
-    def _identical_retry_would_be_blocked():
-        """True when re-sending now would trip the temperature-0 guard.
+    base_messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_prompt}
+    ]
 
-        A non-length reply leaves the prompt and the completion budget as they
-        were, so the next attempt is the same request and the guard would stop
-        it before sending. A length reply may have raised requested_max, and
-        that retry is a different request.
+    def _attempt_prompt(feedback):
+        """The user prompt the next attempt would send, feedback included."""
+        prompt = user_prompt
+        if feedback:
+            prompt += ("\n\nYour previous response was rejected by deterministic "
+                       "quality checks. Return the complete result in the required output format. "
+                       f"Failures: {feedback}")
+        return prompt
+
+    def _prepare_attempt(prompt, feedback, max_tokens):
+        """The messages, completion budget and temperature-0 guard key.
+
+        One function so the loop and the pre-retry check cannot disagree about
+        what "the same request" means (Rule 15). The key is the prompt AND the
+        completion budget: a truncated response raises requested_max for the
+        retry, and that retry is a different request even though its prompt is
+        byte-identical. The key is returned here so both call sites use this
+        one construction.
         """
-        return not params.temperature and finish_reason != "length"
+        prepared = base_messages if not feedback else [
+            base_messages[0], {"role": "user", "content": prompt}
+        ]
+        effective = get_effective_max_tokens(
+            max_tokens, params.context_length, prepared,
+            params.hard_max_tokens, scale_to_context=False,
+            max_input_tokens=params.max_input_tokens)
+        return prepared, effective, (prompt, effective)
+
+    def _identical_retry_would_be_blocked():
+        """True when the retry the loop would send now was already rejected.
+
+        Re-sending is useless only when the exact (prompt, budget) pair the
+        next attempt would carry is already in attempted_prompts. Feedback can
+        change the prompt and a truncation can raise the budget; either makes
+        the retry a different question that must still go out. This is a
+        membership test on the same key the guard at the top of the loop uses.
+        """
+        if params.temperature:
+            return False
+        prompt = _attempt_prompt(retry_feedback)
+        _messages, _effective, key = _prepare_attempt(
+            prompt, retry_feedback, requested_max)
+        return key in attempted_prompts
 
     attempt = resume_state.get("quality_attempt", 0) - 1
     advance_quality = True
@@ -1337,22 +1376,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         effective_max = None
         request_id = None
         try:
-            base_messages = [
-                {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            attempt_prompt = user_prompt
-            if retry_feedback:
-                attempt_prompt += ("\n\nYour previous response was rejected by deterministic "
-                                   "quality checks. Return the complete result in the required output format. "
-                                   f"Failures: {retry_feedback}")
-            messages = base_messages if not retry_feedback else [
-                base_messages[0], {"role": "user", "content": attempt_prompt}
-            ]
-            effective_max = get_effective_max_tokens(
-                requested_max, params.context_length, messages,
-                params.hard_max_tokens, scale_to_context=False,
-                max_input_tokens=params.max_input_tokens)
+            attempt_prompt = _attempt_prompt(retry_feedback)
+            messages, effective_max, attempt_key = _prepare_attempt(
+                attempt_prompt, retry_feedback, requested_max)
             # Only when the sampler is deterministic. Above 0 a repeated prompt
             # is a legitimate second sample and must still be sent. The key is
             # the prompt AND the completion budget: a truncated response raises
@@ -1361,7 +1387,6 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             # prompt alone, this guard cancelled every budget escalation at
             # temperature 0 - measured 2026-09-12 on Muse at batch 25, where
             # 70% of windows hit max_tokens and none was ever re-sent larger.
-            attempt_key = (attempt_prompt, effective_max)
             if not params.temperature:
                 if attempt_key in attempted_prompts:
                     _stop_identical_retry()
@@ -1803,15 +1828,8 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         print(f"JSON preview: {json_text[:300]}...")
 
         if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
-            if _identical_retry_would_be_blocked():
-                # Same rule as the missing-payload branch: the guard would
-                # stop the retry, so spend no request and let the last-resort
-                # quality-gated salvage below decide.
-                _stop_identical_retry()
-                attempt = max_retries
-            else:
-                print(retry_line(attempt, max_retries))
-                continue
+            print(retry_line(attempt, max_retries))
+            continue
         if finish_reason == "length":
             return []
 
