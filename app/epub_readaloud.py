@@ -49,7 +49,10 @@ import unicodedata
 import xml.etree.ElementTree as ET
 
 import utils  # inserts the repo root on sys.path for alexandria_alignment users
-from alexandria_alignment import is_html_hidden_attrs
+from alexandria_alignment import (
+    html_hidden_handling_applies,
+    is_html_hidden_attrs,
+)
 from epub_package import get_epub_package, is_navigation_document
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from qwen_align import (get_normalized_stream, get_stream_chars,
@@ -415,10 +418,36 @@ def _has_block_descendant(node):
     return False
 
 
-def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML_BYTES):
-    """Return (root_element, segments[{fragment, text}]) for one spine file."""
+def _spine_document_media_type(archive_bytes, path):
+    """Return the OPF media type for ``path``, or None when it is not a spine item."""
+    try:
+        _opf, _package, _namespace, _manifest, spine, _meta = get_spine_documents(archive_bytes)
+    except (ValueError, KeyError, ET.ParseError, zipfile.BadZipFile):
+        return None
+    for item in spine:
+        if item['path'] == path:
+            return item['media_type']
+    return None
+
+
+def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML_BYTES,
+                       *, media_type=None):
+    """Return (root_element, segments[{fragment, text}]) for one spine file.
+
+    Hidden handling is scoped by the one shared predicate
+    (:func:`alexandria_alignment.html_hidden_handling_applies`): it applies
+    only to a well-formed ``application/xhtml+xml`` spine item. The media type
+    comes from the OPF unless the caller (the read-aloud builder, which
+    already has it) passes ``media_type``. Every other media type gets its
+    hidden attributes stripped before the walk, so the text is narrated
+    exactly as ``origin/main`` narrated it. Well-formedness is guaranteed
+    here: the document has already parsed as XML or this function raised.
+    """
     if path.startswith("../") or "\\" in path:
         raise ValueError("Spine path escapes the archive.")
+    if media_type is None:
+        media_type = _spine_document_media_type(archive_bytes, path)
+    apply_hidden = html_hidden_handling_applies(media_type, xml_well_formed=True)
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
         member_index = _get_archive_member_index(archive.infolist())
         if path not in member_index:
@@ -431,6 +460,16 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
         raise ValueError(f"Spine document is malformed: {path}") from error
     if _namespace(root.tag) != XHTML_NS:
         raise ValueError(f"Spine document is not in the XHTML namespace: {path}")
+    if not apply_hidden:
+        # No hidden handling for this document: drop the attributes so every
+        # downstream walker (segments, sentence spans, optional titles)
+        # narrates the text exactly as origin/main did.
+        for element in root.iter():
+            if not isinstance(element.tag, str):
+                continue
+            for key in [key for key in element.attrib
+                        if key.rsplit(':', 1)[-1].rsplit('}', 1)[-1].lower() == 'hidden']:
+                del element.attrib[key]
     seen_ids = set()
     for element in root.iter():
         element_ids = {element.get('id'),
@@ -2219,7 +2258,8 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
                 raise ValueError(f"Retained EPUB spine item has no media type: {spine_item['path']}")
             # Cover / non-content spine items keep no overlay.
             continue
-        root, segments, _full = get_xhtml_segments(retained_epub_bytes, spine_item["path"])
+        root, segments, _full = get_xhtml_segments(
+            retained_epub_bytes, spine_item["path"], media_type=mtype)
         if not segments:
             # Image-only / empty XHTML (cover, title page): no narration
             # required and no chunks consumed; real visible text still maps.

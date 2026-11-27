@@ -110,6 +110,7 @@ from generate_script import LLMGenParams
 from utils import file_lock, is_path_inside
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from alexandria_alignment import (
+    html_hidden_handling_applies,
     is_html_hidden_attrs,
     validate_epub_archive,
 )
@@ -481,6 +482,14 @@ def normalize_extracted_text(text):
 
 
 def _get_anchor_id(tag, attrs):
+    """Return the anchor id an XHTML element contributes to navigation lookup.
+
+    MUST match the inline lookup in ``_HTMLTextExtractor.handle_starttag``
+    exactly (``id``, then ``xml:id``, then ``name`` on ``<a>``), because the
+    extraction report compares this helper's XML-path results with that
+    extractor's ``anchor_counts``/``anchor_positions`` for
+    ``target_in_hidden_subtree``.
+    """
     attributes = attrs if isinstance(attrs, dict) else dict(attrs)
     return (attributes.get('id') or attributes.get('xml:id')
             or (attributes.get('name') if tag == 'a' else None))
@@ -686,7 +695,8 @@ def _xml_start_tag_end(data: bytes, start: int) -> tuple[int, bool]:
     raise ValueError('invalid XML: start tag terminator unavailable')
 
 
-def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None) -> str:
+def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None,
+                              omit_hidden: bool = True) -> str:
     """Omit true XML ignored subtrees, preserving everything outside them.
 
     Well-formed XHTML can carry literal skipped-element markup inside CDATA
@@ -695,33 +705,35 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
     end the skipped element at the literal close and reinterpret a literal
     open as a phantom element, falsely rejecting the book or silently
     swallowing following chapters. Expat (stdlib, no fetch, no entity
-    expansion) locates the real ignored elements (``SKIP_TAGS`` and elements
-    matched by :func:`is_html_hidden_attrs`) in a UTF-8 copy of the
+    expansion) locates the real ignored elements in a UTF-8 copy of the
     already-decoded resource; the untouched outside slices - CRLF,
     whitespace, anchors and all - are fed to the HTML extractor instead.
     Ignored tag names match the HTML extractor's exact lowercased SKIP_TAGS:
     prefixed names such as <x:script> are ordinary elements and are never
-    omitted. Nonspoken PIs outside ignored elements are omitted likewise,
+    omitted. ``omit_hidden`` additionally omits subtrees whose attributes
+    match :func:`is_html_hidden_attrs`; the shared predicate
+    :func:`html_hidden_handling_applies` answers it for the caller, and it is
+    True only for well-formed ``application/xhtml+xml`` resources.
+    Nonspoken PIs outside ignored elements are omitted likewise,
     and a DOCTYPE whose internal subset or identifiers could carry literal
     skip markup makes the whole nonspoken prolog be omitted at the root
     element (its lexical start is not directly reported by Expat).
-    Resources with no possible skip opening or hidden attribute skip the copy
-    and the XML pass entirely (see _POTENTIAL_SKIP_OPEN_RE and
-    _POTENTIAL_HIDDEN_ATTR_RE).
+    Resources with no possible skip opening (or hidden attribute, when hidden
+    handling applies) skip the copy and the XML pass entirely (see
+    _POTENTIAL_SKIP_OPEN_RE and _POTENTIAL_HIDDEN_ATTR_RE).
     Outside bytes accumulate in a single bytearray candidate (bounded by
     the input size) rather than a per-element record list, and only
     cursor/depth/omission-flag state is retained. Only ignored elements
     are counted, so no per-tag retained records accumulate for ordinary
     elements (transient name strings from the parser callbacks aside).
-    This helper is invoked for application/xhtml+xml resources (see
+    This helper is invoked only for application/xhtml+xml resources (see
     extract_epub_text): if the resource is not XML well-formed, a genuine
     ExpatError rejects actionably with the pending ignored element named
-    when one is open. Non-XHTML media types also call it, but only as a
-    well-formedness probe: ``_omit_xml_hidden_for_non_xhtml`` catches the
-    error and keeps the legacy tolerant HTML path untouched. No partial
-    transformed output is ever fed on XML failure.
+    when one is open. No partial transformed output is ever fed on XML
+    failure.
     """
-    if not _POTENTIAL_SKIP_OPEN_RE.search(html_content) and not _POTENTIAL_HIDDEN_ATTR_RE.search(html_content):
+    has_hidden_attr = omit_hidden and _POTENTIAL_HIDDEN_ATTR_RE.search(html_content)
+    if not _POTENTIAL_SKIP_OPEN_RE.search(html_content) and not has_hidden_attr:
         return html_content
     try:
         data = html_content.encode('utf-8')
@@ -820,8 +832,8 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
         is_skip = is_skipped(name)
         elem_ns = (current_ns.get(name.partition(':')[0], '')
                    if ':' in name else current_ns.get('', ''))
-        is_hidden = not is_skip and is_html_hidden_attrs(
-            attrs, xml_namespaces=current_ns, element_namespace=elem_ns)
+        is_hidden = (omit_hidden and not is_skip and is_html_hidden_attrs(
+            attrs, xml_namespaces=current_ns, element_namespace=elem_ns))
         if is_skip or is_hidden:
             candidate.extend(view[cursor:start])
             omitted = True
@@ -915,43 +927,6 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
         raise ValueError(
             'invalid Unicode: transformed resource cannot be decoded '
             'as UTF-8') from error
-
-
-def _omit_xml_hidden_for_non_xhtml(html_content, *, anchor_ids=None, stats=None):
-    """Omit hidden subtrees from a non-XHTML resource only when it is well-formed XML.
-
-    Standards EPUB3 spine items declare ``application/xhtml+xml`` and take the
-    strict XML path. Legacy or nonstandard HTML media types take the tolerant
-    ``_HTMLTextExtractor`` path, which has no hidden handling of its own: this
-    helper first tries the same strict XML parse the XHTML path uses.
-
-    * Well-formed XML: the XML hidden path omits hidden subtrees exactly as it
-      does for XHTML, and the tolerant extractor then formats the remainder.
-    * Not well-formed XML: the resource is returned unchanged, so extraction is
-      byte-identical to the code before this feature. Hidden content in such a
-      document is narrated; this is a documented leak, never a visible drop.
-
-    The call is skipped when no ``hidden="..."`` attribute can be present.
-    Because the XML pass also omits skipped subtrees, a run that omits no
-    hidden element returns the input unchanged, keeping hidden-free output
-    identical to the tolerant path.
-    """
-    if not _POTENTIAL_HIDDEN_ATTR_RE.search(html_content):
-        return html_content
-    try:
-        candidate = _omit_xml_ignored_subtrees(
-            html_content, anchor_ids=anchor_ids, stats=stats)
-    except ValueError:
-        # The strict pass can update stats before failing. Nothing was
-        # omitted from the output, so the report must not claim otherwise.
-        if stats is not None:
-            stats['hidden_elements'] = 0
-            stats['first_hidden_location'] = None
-            stats['hidden_anchors'].clear()
-        return html_content
-    if stats is None or stats['hidden_elements']:
-        return candidate
-    return html_content
 
 
 def _resolve_epub_href(base_path, href):
@@ -1288,19 +1263,21 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
             try:
                 # XHTML resources are XML: omit true ignored subtrees via
                 # the strict XML path (a malformed XHTML resource rejects
-                # actionably). Other HTML media types first try the same
-                # strict XML parse: a well-formed document gets the same
-                # hidden handling, while a malformed one keeps the legacy
-                # tolerant HTML output byte for byte (a documented leak).
+                # actionably). Hidden omission is gated by the one shared
+                # predicate (Rule 15), whose well-formedness half is the
+                # strict parse itself here: it rejects malformed XHTML before
+                # any output exists. Every other HTML media type keeps the
+                # legacy tolerant extractor and is byte-identical to
+                # origin/main: hidden content there is narrated (a documented
+                # leak), never omitted.
                 # Rebind so the original string is released before the
                 # HTML parser accumulates its parts; html_bytes (used for
                 # report hashes) is unchanged by this.
                 if media_type == 'application/xhtml+xml':
                     html_content = _omit_xml_ignored_subtrees(
-                        html_content, anchor_ids=anchor_ids, stats=xml_stats)
-                else:
-                    html_content = _omit_xml_hidden_for_non_xhtml(
-                        html_content, anchor_ids=anchor_ids, stats=xml_stats)
+                        html_content, anchor_ids=anchor_ids, stats=xml_stats,
+                        omit_hidden=html_hidden_handling_applies(
+                            media_type, xml_well_formed=True))
                 extractor.feed(html_content)
                 # The text accessor validates skipped-element balance.
                 # close() is deliberately not called here: it would flush

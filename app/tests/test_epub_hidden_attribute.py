@@ -1,13 +1,12 @@
 """EPUB elements marked with the HTML ``hidden`` attribute are not narrated (#2326).
 
-Synthetic EPUB/XHTML fixtures only. Hidden handling lives on the strict XML
-paths: ``application/xhtml+xml`` always uses them, and every other HTML media
-type first tries the same strict XML parse. A well-formed ``text/html``
-document therefore gets the XML hidden path; a malformed one gets no hidden
-handling and keeps the legacy tolerant output byte for byte (a documented
-leak). Covers the shared predicate
-(``alexandria_alignment.is_html_hidden_attrs``),
-``_omit_xml_ignored_subtrees``, ``_omit_xml_hidden_for_non_xhtml``,
+Synthetic EPUB/XHTML fixtures only. Hidden handling applies only where the
+browser itself parses the document as XML: a well-formed
+``application/xhtml+xml`` resource. Every other HTML media type - and
+malformed XHTML - keeps ``origin/main``'s output byte for byte, so hidden
+content there is narrated (a documented leak) and never dropped. Covers the
+shared predicates (``alexandria_alignment.is_html_hidden_attrs`` and
+``html_hidden_handling_applies``), ``_omit_xml_ignored_subtrees``,
 ``extract_epub_text`` (with extraction report and navigation targets),
 ``epub_readaloud`` (chunk-timed and Qwen modes), and
 ``alexandria_alignment.load_epub``.
@@ -33,7 +32,7 @@ from epub_readaloud import (
 from routers import script
 from routers.script import (
     _HTMLTextExtractor,
-    _omit_xml_hidden_for_non_xhtml,
+    _get_anchor_id,
     _omit_xml_ignored_subtrees,
     extract_epub_text,
 )
@@ -211,10 +210,10 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         self.assertEqual('Seen first.\n\nSeen last.',
                          extract_epub_text('synthetic.epub', archive_bytes=raw))
 
-        # Full text/html EPUB extraction: the document is well-formed XML, so
-        # it takes the same XML hidden path.
+        # Full text/html EPUB extraction: every non-XHTML media type keeps
+        # origin/main's tolerant output byte for byte (hidden narrated).
         raw_html = make_epub(ISSUE_SNIPPET, media_type='text/html', toc_links=[])
-        self.assertEqual('Seen first.\n\nSeen last.',
+        self.assertEqual('Seen first.\n\nNever shown.\n\nNever shown either.\n\nSeen last.',
                          extract_epub_text('synthetic.epub', archive_bytes=raw_html))
 
         # Read-aloud segmentation
@@ -228,7 +227,7 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
         self.assertEqual('Seen first. Seen last.', loaded)
 
-    def test_well_formed_text_html_hidden_is_omitted_like_xhtml(self):
+    def test_well_formed_xhtml_hidden_is_omitted(self):
         doc_cases = [
             ('empty', '<p>Start.</p><p hidden="">Secret.</p><p>End.</p>'),
             ('canonical', '<p>Start.</p><p hidden="hidden">Secret.</p><p>End.</p>'),
@@ -239,32 +238,25 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             ('false_still_hidden', '<p>Start.</p><p hidden="false">Secret.</p><p>End.</p>'),
         ]
         for name, body in doc_cases:
-            for media_type in ('application/xhtml+xml', 'text/html'):
-                with self.subTest(case=name, media_type=media_type):
-                    raw = make_epub(body, media_type=media_type, toc_links=[])
-                    self.assertEqual(
-                        'Start.\n\nEnd.',
-                        extract_epub_text('synthetic.epub', archive_bytes=raw))
+            with self.subTest(case=name):
+                raw = make_epub(body, toc_links=[])
+                self.assertEqual(
+                    'Start.\n\nEnd.',
+                    extract_epub_text('synthetic.epub', archive_bytes=raw))
 
-        # XHTML-namespaced prefixed form applies on both paths: a well-formed
-        # text/html document is parsed as XML too.
+        # XHTML-namespaced prefixed form applies on the XHTML path.
         prefixed = '<p>Start.</p><p h:hidden="hidden">Secret.</p><p>End.</p>'
         extra = ' xmlns:h="http://www.w3.org/1999/xhtml"'
-        for media_type in ('application/xhtml+xml', 'text/html'):
-            with self.subTest(case='prefixed', media_type=media_type):
-                raw = make_epub(prefixed, media_type=media_type,
-                                extra_html_attrs=extra, toc_links=[])
-                self.assertEqual('Start.\n\nEnd.',
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+        raw = make_epub(prefixed, extra_html_attrs=extra, toc_links=[])
+        self.assertEqual('Start.\n\nEnd.',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
 
         # Nested hidden elements and hidden descendants.
         nested = ('<p>Before.</p><div hidden=""><p hidden="">Double hidden</p>'
                   '<p>Still inside outer hidden.</p></div><p>After.</p>')
-        for media_type in ('application/xhtml+xml', 'text/html'):
-            with self.subTest(case='nested', media_type=media_type):
-                raw = make_epub(nested, media_type=media_type, toc_links=[])
-                self.assertEqual('Before.\n\nAfter.',
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+        raw = make_epub(nested, toc_links=[])
+        self.assertEqual('Before.\n\nAfter.',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
 
         # Unnamespaced XHTML root document
         raw_unns = make_epub(
@@ -334,31 +326,140 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         self.assertEqual('One.\n\nTwo bold',
                          extract_epub_text('synthetic.epub', archive_bytes=raw))
 
-    def test_well_formed_routing_helper_contract(self):
-        # Well-formed XML with hidden content: stripped and counted.
-        stats = {'hidden_elements': 0, 'first_hidden_location': None,
-                 'hidden_anchors': set()}
-        stripped = _omit_xml_hidden_for_non_xhtml(
-            '<div><p hidden="">Secret.</p><p>Visible.</p></div>', stats=stats)
-        self.assertNotIn('Secret.', stripped)
-        self.assertIn('Visible.', stripped)
-        self.assertEqual(1, stats['hidden_elements'])
+    def test_text_html_rev6_rows_are_byte_identical_to_origin_main(self):
+        # Every row is well-formed XML *and* text/html. Review 6 showed the
+        # r5 XML-first route omitted text a browser renders outside the hidden
+        # region; the final scope removes that route, so each row must match
+        # origin/main's tolerant output byte for byte (hidden narrated, never
+        # dropped). Expected strings were captured from origin/main.
+        rows = [
+            ('hidden_p_div',
+             '<p>PRE.</p><p hidden="hidden">SEC<div>VIS</div></p><p>POST.</p>',
+             'PRE.\n\nSEC\n\nVIS\n\nPOST.'),
+            ('hidden_p_table',
+             '<p>PRE.</p><p hidden="hidden">SEC<table><tr><td>VIS</td></tr></table></p><p>POST.</p>',
+             'PRE.\n\nSEC\n\nVIS\n\nPOST.'),
+            ('hidden_p_ul',
+             '<p>PRE.</p><p hidden="hidden">SEC<ul><li>VIS</li></ul></p><p>POST.</p>',
+             'PRE.\n\nSEC\n\nVIS\n\nPOST.'),
+            ('hidden_p_h2',
+             '<p>PRE.</p><p hidden="hidden">SEC<h2>VIS</h2></p><p>POST.</p>',
+             'PRE.\n\nSEC\n\nVIS\n\nPOST.'),
+            ('hidden_p_blockquote',
+             '<p>PRE.</p><p hidden="hidden">SEC<blockquote>VIS</blockquote></p><p>POST.</p>',
+             'PRE.\n\nSEC\n\nVIS\n\nPOST.'),
+            ('hidden_p_p',
+             '<p>PRE.</p><p hidden="hidden">SEC<p>VIS</p></p><p>POST.</p>',
+             'PRE.\n\nSEC\n\nVIS\n\nPOST.'),
+            ('hidden_td_caption',
+             '<p>PRE.</p><table><tr><td hidden="hidden">SEC<caption>VIS</caption></td></tr></table><p>POST.</p>',
+             'PRE.\n\nSECVIS\n\nPOST.'),
+            ('hidden_th_caption',
+             '<p>PRE.</p><table><tr><th hidden="hidden">SEC<caption>VIS</caption></th></tr></table><p>POST.</p>',
+             'PRE.\n\nSECVIS\n\nPOST.'),
+            ('hidden_td_colgroup',
+             '<p>PRE.</p><table><tr><td hidden="hidden">SEC<colgroup><col/></colgroup>VIS</td></tr></table><p>POST.</p>',
+             'PRE.\n\nSECVIS\n\nPOST.'),
+            ('foster_p_from_table',
+             '<p>PRE.</p><table hidden="hidden"><tr><td>SEC</td></tr><p>VIS</p></table><p>POST.</p>',
+             'PRE.\n\nSEC\n\nVIS\n\nPOST.'),
+            ('foster_div_from_table',
+             '<p>PRE.</p><table hidden="hidden"><div>VIS</div><tr><td>SEC</td></tr></table><p>POST.</p>',
+             'PRE.\n\nVIS\n\nSEC\n\nPOST.'),
+            ('foster_from_tr',
+             '<p>PRE.</p><table><tr hidden="hidden">SEC<p>VIS</p><td>X1</td></tr></table><p>POST.</p>',
+             'PRE.\n\nSEC\n\nVIS\nX1\n\nPOST.'),
+            ('nested_a',
+             '<p>PRE.</p><a hidden="hidden">SEC<a>VIS</a></a><p>POST.</p>',
+             'PRE.SECVIS\n\nPOST.'),
+            ('nested_button',
+             '<p>PRE.</p><button hidden="hidden">SEC<button>VIS</button></button><p>POST.</p>',
+             'PRE.SECVIS\n\nPOST.'),
+            ('nested_nobr',
+             '<p>PRE.</p><nobr hidden="hidden">SEC<nobr>VIS</nobr></nobr><p>POST.</p>',
+             'PRE.SECVIS\n\nPOST.'),
+            ('nested_select',
+             '<p>PRE.</p><select hidden="hidden"><option>SEC</option><select><option>VIS</option></select></select><p>POST.</p>',
+             'PRE.SECVIS\n\nPOST.'),
+            ('h1_h2',
+             '<p>PRE.</p><h1 hidden="hidden">SEC<h2>VIS</h2></h1><p>POST.</p>',
+             'PRE.\n\nSEC\n\nVIS\n\nPOST.'),
+            ('select_input_p',
+             '<p>PRE.</p><select hidden="hidden"><option>SEC</option><input value="i"/><p>VIS</p></select><p>POST.</p>',
+             'PRE.SEC\n\nVIS\n\nPOST.'),
+            ('bare_svg',
+             '<p>PRE.</p><svg><text hidden="hidden">SEC</text></svg><p>VIS</p>',
+             'PRE.SEC\n\nVIS'),
+            ('bare_math',
+             '<p>PRE.</p><math><mi hidden="hidden">SEC</mi></math><p>VIS</p>',
+             'PRE.SEC\n\nVIS'),
+        ]
+        self.assertEqual(20, len(rows))
+        for name, body, expected in rows:
+            with self.subTest(case=name):
+                raw = make_epub(body, media_type='text/html', toc_links=[])
+                text, report = extract_epub_text(
+                    'synthetic.epub', archive_bytes=raw, include_report=True)
+                self.assertEqual(expected, text)
+                self.assertEqual([], [row for row in report['rows']
+                                      if row['kind'] == 'hidden_content'])
 
-        # Malformed XML: returned unchanged and no report claim survives a
-        # partial parse.
-        stats = {'hidden_elements': 0, 'first_hidden_location': None,
-                 'hidden_anchors': set()}
-        malformed = '<p hidden="">Secret.<p>Visible.'
-        self.assertEqual(
-            malformed, _omit_xml_hidden_for_non_xhtml(malformed, stats=stats))
-        self.assertEqual(0, stats['hidden_elements'])
-        self.assertIsNone(stats['first_hidden_location'])
-        self.assertEqual(set(), stats['hidden_anchors'])
+    def test_text_html_hidden_never_gets_hidden_handling(self):
+        # Well-formed text/html shapes that r5 omitted through the XML route
+        # now keep origin/main's narrated output exactly.
+        cases = [
+            ('issue', ISSUE_SNIPPET,
+             'Seen first.\n\nNever shown.\n\nNever shown either.\n\nSeen last.'),
+            ('prefixed',
+             '<p>Start.</p><p h:hidden="hidden">Secret.</p><p>End.</p>',
+             'Start.\n\nSecret.\n\nEnd.'),
+            ('all_hidden_html', None, 'Secret.'),
+            ('all_hidden_body', None, 'Secret.'),
+            ('voids', '<p>Visible.</p><br hidden=""/><img hidden="" src="x.png"/>',
+             'Visible.'),
+        ]
+        extra = ' xmlns:h="http://www.w3.org/1999/xhtml"'
+        for name, body, expected in cases:
+            with self.subTest(case=name):
+                if name == 'all_hidden_html':
+                    raw_doc = ('<?xml version="1.0" encoding="utf-8"?>\n<html '
+                               'xmlns="http://www.w3.org/1999/xhtml" hidden="hidden">'
+                               '<head><title>T</title></head><body><p>Secret.</p></body></html>')
+                    raw = make_epub('', media_type='text/html', raw_document=raw_doc,
+                                    toc_links=[])
+                elif name == 'all_hidden_body':
+                    raw_doc = ('<?xml version="1.0" encoding="utf-8"?>\n<html '
+                               'xmlns="http://www.w3.org/1999/xhtml">'
+                               '<head><title>T</title></head><body hidden=""><p>Secret.</p></body></html>')
+                    raw = make_epub('', media_type='text/html', raw_document=raw_doc,
+                                    toc_links=[])
+                else:
+                    raw = make_epub(body, media_type='text/html', toc_links=[],
+                                    extra_html_attrs=extra if name == 'prefixed' else '')
+                self.assertEqual(expected,
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
 
-        # No possible hidden attribute: no XML pass at all.
-        self.assertEqual(
-            '<p>Visible.</p>',
-            _omit_xml_hidden_for_non_xhtml('<p>Visible.</p>', stats={}))
+    def test_hidden_handling_predicate_is_xhtml_and_well_formed_only(self):
+        # The one predicate (Rule 15) both paths call: XHTML media type AND
+        # well-formed XML. Parameters/case are normalized as RFC 6838 says.
+        for media_type in ('application/xhtml+xml', 'application/xhtml+xml; charset=utf-8',
+                           'Application/XHTML+XML'):
+            with self.subTest(media_type=media_type):
+                self.assertTrue(alignment.html_hidden_handling_applies(
+                    media_type, xml_well_formed=True))
+                self.assertFalse(alignment.html_hidden_handling_applies(
+                    media_type, xml_well_formed=False))
+        for media_type in ('text/html', 'TEXT/HTML; charset=utf-8', '',
+                           'application/xhtml', 'text/xhtml'):
+            with self.subTest(media_type=media_type):
+                self.assertFalse(alignment.html_hidden_handling_applies(
+                    media_type, xml_well_formed=True))
+        self.assertTrue(alignment.is_well_formed_xml(b'<html><body><p>x</p></body></html>'))
+        for malformed in (b'<html><body><p hidden>x</p></body></html>',
+                          b'<html><body><p>A&nbsp;B</p></body></html>',
+                          b'<html><body><div><p>x</body></html>'):
+            with self.subTest(malformed=malformed):
+                self.assertFalse(alignment.is_well_formed_xml(malformed))
 
     def test_xml_pass_handles_cdata_and_same_tag_self_closing_hidden_elements(self):
         # Literal </p> inside CDATA inside a hidden element would prematurely
@@ -403,18 +504,16 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                 self.assertIn('After.', extract_epub_text('synthetic.epub', archive_bytes=raw_case))
 
     def test_hidden_void_nested_and_malformed_markup_paths(self):
-        # Well-formed hidden void elements on both XML-backed paths.
+        # Well-formed hidden void elements on the XHTML path.
         html_void = (
             '<p>First.</p>'
             '<br hidden=""/><img hidden="" src="a.png"/><hr hidden=""/>'
             '<input hidden="" type="text"/><p hidden=""/>'
             '<p>Second.</p>'
         )
-        for media_type in ('application/xhtml+xml', 'text/html'):
-            with self.subTest(case='void', media_type=media_type):
-                raw = make_epub(html_void, media_type=media_type, toc_links=[])
-                self.assertEqual('First.\n\nSecond.',
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+        raw = make_epub(html_void, toc_links=[])
+        self.assertEqual('First.\n\nSecond.',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
 
         # Nested hidden inside hidden and nested same-tag elements inside hidden.
         nested = (
@@ -425,11 +524,9 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             '</div>'
             '<p>After.</p>'
         )
-        for media_type in ('application/xhtml+xml', 'text/html'):
-            with self.subTest(case='nested', media_type=media_type):
-                raw = make_epub(nested, media_type=media_type, toc_links=[])
-                self.assertEqual('Before.\n\nAfter.',
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+        raw = make_epub(nested, toc_links=[])
+        self.assertEqual('Before.\n\nAfter.',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
 
         # Malformed unclosed hidden element in strict XHTML rejects actionably
         # without leaking hidden content.
@@ -494,25 +591,32 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             f'<div hidden=""><p hidden="">Nested {secret}</p></div>\n'
             '<p>Seen last.</p>'
         )
-        for media_type in ('application/xhtml+xml', 'text/html'):
-            with self.subTest(media_type=media_type):
-                raw = make_epub(body, media_type=media_type, toc_links=[])
-                plain = extract_epub_text('synthetic.epub', archive_bytes=raw)
-                reported, report = extract_epub_text('synthetic.epub', archive_bytes=raw, include_report=True)
-                self.assertEqual(plain, reported)
-                self.assertEqual('Seen first.\n\nSeen last.', reported)
-                self.assertIn('html_hidden_not_spoken', report['content_policy'])
-                hidden_rows = [r for r in report['rows'] if r['kind'] == 'hidden_content']
-                self.assertEqual(1, len(hidden_rows))
-                row = hidden_rows[0]
-                self.assertEqual('OEBPS/ch1.xhtml', row['resource'])
-                self.assertEqual(0, row['spine_index'])
-                self.assertEqual('html_hidden_attribute', row['reason'])
-                # Outermost hidden elements only: <p hidden> + <div hidden> = 2
-                # (the nested <p hidden> inside <div hidden> is not double-counted).
-                self.assertEqual(2, row['omitted_elements'])
-                self.assertEqual('line 5, <p>', row['first_location'])
-                self.assertNotIn(secret, json.dumps(report, ensure_ascii=False))
+        raw = make_epub(body, toc_links=[])
+        plain = extract_epub_text('synthetic.epub', archive_bytes=raw)
+        reported, report = extract_epub_text('synthetic.epub', archive_bytes=raw, include_report=True)
+        self.assertEqual(plain, reported)
+        self.assertEqual('Seen first.\n\nSeen last.', reported)
+        self.assertIn('html_hidden_not_spoken', report['content_policy'])
+        hidden_rows = [r for r in report['rows'] if r['kind'] == 'hidden_content']
+        self.assertEqual(1, len(hidden_rows))
+        row = hidden_rows[0]
+        self.assertEqual('OEBPS/ch1.xhtml', row['resource'])
+        self.assertEqual(0, row['spine_index'])
+        self.assertEqual('html_hidden_attribute', row['reason'])
+        # Outermost hidden elements only: <p hidden> + <div hidden> = 2
+        # (the nested <p hidden> inside <div hidden> is not double-counted).
+        self.assertEqual(2, row['omitted_elements'])
+        self.assertEqual('line 5, <p>', row['first_location'])
+        self.assertNotIn(secret, json.dumps(report, ensure_ascii=False))
+
+        # Non-XHTML: no hidden handling and no report claim; the secret is
+        # narrated byte for byte as origin/main did.
+        raw_html = make_epub(body, media_type='text/html', toc_links=[])
+        text_html, report_html = extract_epub_text(
+            'synthetic.epub', archive_bytes=raw_html, include_report=True)
+        self.assertIn(secret, text_html)
+        self.assertEqual([], [r for r in report_html['rows']
+                              if r['kind'] == 'hidden_content'])
 
     def test_navigation_targets_inside_hidden_subtree_are_reported_and_not_inserted(self):
         body = (
@@ -531,32 +635,43 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             ('ch1.xhtml#vis', 'Visible Section Title'),
             ('ch1.xhtml#missing', 'Missing Title'),
         ]
-        for media_type in ('application/xhtml+xml', 'text/html'):
-            with self.subTest(media_type=media_type):
-                raw = make_epub(body, media_type=media_type, toc_links=toc_links)
-                text, report = extract_epub_text('synthetic.epub', archive_bytes=raw, include_report=True)
-                self.assertEqual(extract_epub_text('synthetic.epub', archive_bytes=raw), text)
-                self.assertNotIn('Hidden Self Title', text)
-                self.assertNotIn('Hidden Desc Title', text)
-                self.assertNotIn('Hidden Name Title', text)
-                self.assertNotIn('Missing Title', text)
-                self.assertIn('Visible Dup Title', text)
-                self.assertIn('Visible Section Title', text)
-                self.assertIn('Visible duplicate.', text)
-                self.assertIn('Visible paragraph.', text)
+        raw = make_epub(body, toc_links=toc_links)
+        text, report = extract_epub_text('synthetic.epub', archive_bytes=raw, include_report=True)
+        self.assertEqual(extract_epub_text('synthetic.epub', archive_bytes=raw), text)
+        self.assertNotIn('Hidden Self Title', text)
+        self.assertNotIn('Hidden Desc Title', text)
+        self.assertNotIn('Hidden Name Title', text)
+        self.assertNotIn('Missing Title', text)
+        self.assertIn('Visible Dup Title', text)
+        self.assertIn('Visible Section Title', text)
+        self.assertIn('Visible duplicate.', text)
+        self.assertIn('Visible paragraph.', text)
 
-                by_frag = {
-                    r['fragment']: r
-                    for r in report['rows']
-                    if r['kind'] == 'navigation_target'
-                }
-                for hidden_frag in ('h-self', 'h-desc', 'h-name'):
-                    self.assertEqual('target_in_hidden_subtree', by_frag[hidden_frag]['reason'])
-                    self.assertIsNone(by_frag[hidden_frag]['position'])
-                self.assertEqual('unresolved_anchor', by_frag['missing']['reason'])
-                self.assertIsNone(by_frag['missing']['position'])
-                self.assertEqual('insert_navigation_label', by_frag['dup']['reason'])
-                self.assertEqual('insert_navigation_label', by_frag['vis']['reason'])
+        by_frag = {
+            r['fragment']: r
+            for r in report['rows']
+            if r['kind'] == 'navigation_target'
+        }
+        for hidden_frag in ('h-self', 'h-desc', 'h-name'):
+            self.assertEqual('target_in_hidden_subtree', by_frag[hidden_frag]['reason'])
+            self.assertIsNone(by_frag[hidden_frag]['position'])
+        self.assertEqual('unresolved_anchor', by_frag['missing']['reason'])
+        self.assertIsNone(by_frag['missing']['position'])
+        self.assertEqual('insert_navigation_label', by_frag['dup']['reason'])
+        self.assertEqual('insert_navigation_label', by_frag['vis']['reason'])
+
+        # Non-XHTML narrates the same document, so every target resolves into
+        # visible text exactly as origin/main resolved it.
+        raw_html = make_epub(body, media_type='text/html', toc_links=toc_links)
+        text_html, report_html = extract_epub_text(
+            'synthetic.epub', archive_bytes=raw_html, include_report=True)
+        self.assertIn('Hidden body.', text_html)
+        self.assertIn('Hidden duplicate.', text_html)
+        by_frag_html = {r['fragment']: r for r in report_html['rows']
+                        if r['kind'] == 'navigation_target'}
+        for fragment in ('h-self', 'h-desc', 'h-name'):
+            self.assertNotEqual('target_in_hidden_subtree',
+                                by_frag_html[fragment]['reason'])
 
     def test_root_context_skips_template_doctype_subset_and_noscript(self):
         class _FakeItem:
@@ -614,50 +729,54 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
 
     def test_bare_svg_and_math_without_xmlns_use_the_xhtml_namespace(self):
         # XHTML is XML: a bare <svg>/<math> without xmlns stays in the
-        # inherited XHTML namespace, so hidden applies. A well-formed
-        # text/html document takes the same XML path, so every path agrees.
+        # inherited XHTML namespace, exactly as a browser's XML parser reads
+        # it, so hidden applies. text/html gets no hidden handling at all and
+        # narrates both tokens byte for byte as origin/main did.
         bodies = [
-            ('bare_svg', '<p>Before.</p><svg><text hidden="">SVG</text></svg><p>After.</p>'),
-            ('bare_math', '<p>Before.</p><math hidden=""><mi>x</mi></math><p>After.</p>'),
+            ('bare_svg', '<p>PRE.</p><svg><text hidden="">SEC</text></svg><p>VIS</p>'),
+            ('bare_math', '<p>PRE.</p><math><mi hidden="">SEC</mi></math><p>VIS</p>'),
         ]
         for name, body in bodies:
             with self.subTest(case=name):
-                for media_type in ('application/xhtml+xml', 'text/html'):
-                    raw = make_epub(body, media_type=media_type, toc_links=[])
-                    self.assertEqual(
-                        'Before.\n\nAfter.',
-                        extract_epub_text('synthetic.epub', archive_bytes=raw))
                 raw_x = make_epub(body, toc_links=[])
+                self.assertEqual(
+                    'PRE.\n\nVIS',
+                    extract_epub_text('synthetic.epub', archive_bytes=raw_x))
                 _root, segs, _full = get_xhtml_segments(raw_x, 'OEBPS/ch1.xhtml')
-                self.assertEqual(['Before.', 'After.'], [s['text'] for s in segs])
+                self.assertEqual(['PRE.', 'VIS'], [s['text'] for s in segs])
                 with tempfile.TemporaryDirectory() as tmp:
                     epub_path = Path(tmp) / f'{name}.epub'
                     epub_path.write_bytes(raw_x)
                     loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
-                self.assertEqual('Before. After.', loaded)
+                self.assertEqual('PRE. VIS', loaded)
+
+                raw_html = make_epub(body, media_type='text/html', toc_links=[])
+                self.assertEqual(
+                    'PRE.SEC\n\nVIS',
+                    extract_epub_text('synthetic.epub', archive_bytes=raw_html))
 
     def test_mathml_annotation_xml_html_integration_point(self):
         # annotation-xml with encoding text/html or application/xhtml+xml is
         # an HTML integration point. Because these test documents put <math>
         # in the inherited XHTML namespace, the strict XML path applies to the
-        # hidden <p> for all three encodings and both media types; the XML
-        # paths agree.
+        # hidden <p>, so the XHTML paths agree. text/html narrates it.
         for encoding in ('text/html', 'application/xhtml+xml', 'application/xml'):
             body = (
                 '<p>Before.</p><math><annotation-xml encoding="' + encoding + '">'
                 '<p hidden="">Note</p></annotation-xml><mi>x</mi></math>'
                 '<p>After.</p>')
-            for media_type in ('text/html', 'application/xhtml+xml'):
-                with self.subTest(encoding=encoding, media_type=media_type):
-                    raw = make_epub(body, media_type=media_type, toc_links=[])
-                    self.assertEqual('Before.x\n\nAfter.',
-                                     extract_epub_text('synthetic.epub', archive_bytes=raw))
-            raw_x = make_epub(body, media_type='application/xhtml+xml', toc_links=[])
-            with tempfile.TemporaryDirectory() as tmp:
-                epub_path = Path(tmp) / 'annotation.epub'
-                epub_path.write_bytes(raw_x)
-                loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
-            self.assertEqual('Before. x After.', loaded)
+            with self.subTest(encoding=encoding):
+                raw = make_epub(body, toc_links=[])
+                self.assertEqual('Before.x\n\nAfter.',
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+                with tempfile.TemporaryDirectory() as tmp:
+                    epub_path = Path(tmp) / 'annotation.epub'
+                    epub_path.write_bytes(raw)
+                    loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
+                self.assertEqual('Before. x After.', loaded)
+                raw_html = make_epub(body, media_type='text/html', toc_links=[])
+                self.assertEqual('Before.\n\nNotex\n\nAfter.',
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw_html))
 
     def test_hidden_void_elements_are_not_counted_as_omitted_elements(self):
         body = (
@@ -665,25 +784,21 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             '<p hidden=""><br hidden=""/><img hidden="" src="x.png"/>Secret.</p>'
             '<hr hidden=""/><br hidden=""/>'
         )
-        for media_type in ('application/xhtml+xml', 'text/html'):
-            with self.subTest(media_type=media_type):
-                raw = make_epub(body, media_type=media_type, toc_links=[])
-                text, report = extract_epub_text('synthetic.epub', archive_bytes=raw,
-                                                 include_report=True)
-                self.assertEqual('Visible.', text)
-                rows = [row for row in report['rows'] if row['kind'] == 'hidden_content']
-                self.assertEqual(1, len(rows))
-                self.assertEqual(1, rows[0]['omitted_elements'])
+        raw = make_epub(body, toc_links=[])
+        text, report = extract_epub_text('synthetic.epub', archive_bytes=raw,
+                                         include_report=True)
+        self.assertEqual('Visible.', text)
+        rows = [row for row in report['rows'] if row['kind'] == 'hidden_content']
+        self.assertEqual(1, len(rows))
+        self.assertEqual(1, rows[0]['omitted_elements'])
         # Only hidden void elements: nothing omits text, so no hidden row.
-        for media_type in ('application/xhtml+xml', 'text/html'):
-            with self.subTest(case='voids', media_type=media_type):
-                raw_voids = make_epub(
-                    '<p>Visible.</p><br hidden=""/><img hidden="" src="x.png"/>',
-                    media_type=media_type, toc_links=[])
-                _text, report_voids = extract_epub_text(
-                    'synthetic.epub', archive_bytes=raw_voids, include_report=True)
-                self.assertEqual([], [row for row in report_voids['rows']
-                                      if row['kind'] == 'hidden_content'])
+        raw_voids = make_epub(
+            '<p>Visible.</p><br hidden=""/><img hidden="" src="x.png"/>',
+            toc_links=[])
+        _text, report_voids = extract_epub_text(
+            'synthetic.epub', archive_bytes=raw_voids, include_report=True)
+        self.assertEqual([], [row for row in report_voids['rows']
+                              if row['kind'] == 'hidden_content'])
 
     def test_svg_and_mathml_hidden_attributes_are_not_dropped_across_all_paths(self):
         cases = [
@@ -736,11 +851,9 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             '</foreignObject></svg>'
             '<p>After.</p>'
         )
-        for media_type in ('application/xhtml+xml', 'text/html'):
-            raw = make_epub(html_wrapped, media_type=media_type, toc_links=[])
-            text = extract_epub_text('synthetic.epub', archive_bytes=raw)
-            self.assertEqual('Before.\n\nAfter.', text)
         raw_x = make_epub(html_wrapped, toc_links=[])
+        self.assertEqual('Before.\n\nAfter.',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw_x))
         _root, segs, _full = get_xhtml_segments(raw_x, 'OEBPS/ch1.xhtml')
         self.assertEqual(['Before.', 'After.'], [s['text'] for s in segs])
         with tempfile.TemporaryDirectory() as tmp:
@@ -748,24 +861,29 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             epub_path.write_bytes(raw_x)
             loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
         self.assertEqual('Before. After.', loaded)
+        # Non-XHTML: no hidden handling, both tokens narrated as origin/main.
+        raw_html = make_epub(html_wrapped, media_type='text/html', toc_links=[])
+        text_html = extract_epub_text('synthetic.epub', archive_bytes=raw_html)
+        self.assertIn('Omitted SVG', text_html)
+        self.assertIn('Omitted foreign HTML', text_html)
 
     def test_prefixed_xhtml_hidden_applies_on_every_xml_path(self):
-        # A well-formed text/html document is parsed as XML, so the
-        # XHTML-namespaced prefixed form applies there too.
         body = '<p h:hidden="hidden">Prefixed secret.</p><p>Visible.</p>'
         extra = ' xmlns:h="http://www.w3.org/1999/xhtml"'
-        for media_type in ('application/xhtml+xml', 'text/html'):
-            with self.subTest(media_type=media_type):
-                raw = make_epub(body, media_type=media_type, extra_html_attrs=extra, toc_links=[])
-                self.assertEqual('Visible.', extract_epub_text('synthetic.epub', archive_bytes=raw))
-        raw_x = make_epub(body, extra_html_attrs=extra, toc_links=[])
-        _root, segs, _full = get_xhtml_segments(raw_x, 'OEBPS/ch1.xhtml')
+        raw = make_epub(body, extra_html_attrs=extra, toc_links=[])
+        self.assertEqual('Visible.', extract_epub_text('synthetic.epub', archive_bytes=raw))
+        _root, segs, _full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
         self.assertEqual(['Visible.'], [s['text'] for s in segs])
         with tempfile.TemporaryDirectory() as tmp:
             epub_path = Path(tmp) / 'prefixed.epub'
-            epub_path.write_bytes(raw_x)
+            epub_path.write_bytes(raw)
             loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
         self.assertEqual('Visible.', loaded)
+        # Non-XHTML narrates it, exactly as origin/main did.
+        raw_html = make_epub(body, media_type='text/html', extra_html_attrs=extra,
+                             toc_links=[])
+        self.assertEqual('Prefixed secret.\n\nVisible.',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw_html))
 
     def test_hidden_on_html_and_body_across_all_paths_and_all_hidden_epub_consistency(self):
         doc_tpl = '<?xml version="1.0" encoding="utf-8"?>\n<html xmlns="http://www.w3.org/1999/xhtml"{extra}>{inner}</html>'
@@ -777,10 +895,8 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         ]
         for name, raw_doc in all_hidden_shapes:
             with self.subTest(shape=name):
-                for media_type in ('application/xhtml+xml', 'text/html'):
-                    raw = make_epub('', raw_document=raw_doc, media_type=media_type, toc_links=[])
-                    self.assertEqual('', extract_epub_text('synthetic.epub', archive_bytes=raw))
                 raw_x = make_epub('', raw_document=raw_doc, toc_links=[])
+                self.assertEqual('', extract_epub_text('synthetic.epub', archive_bytes=raw_x))
                 _root, segs, full = get_xhtml_segments(raw_x, 'OEBPS/ch1.xhtml')
                 self.assertEqual([], segs)
                 self.assertEqual('', full)
@@ -789,6 +905,11 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                     epub_path.write_bytes(raw_x)
                     with self.assertRaisesRegex(ValueError, r'no readable text after omitting HTML hidden elements'):
                         alignment.load_epub(str(epub_path))
+                # Non-XHTML narrates the secret exactly as origin/main did.
+                raw_html = make_epub('', raw_document=raw_doc, media_type='text/html',
+                                     toc_links=[])
+                self.assertEqual('Secret.',
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw_html))
 
         # Nav-only EPUB (no hidden elements) keeps the original spine-documents message.
         nav_only = make_multi_epub([])
@@ -868,6 +989,63 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         self.assertFalse(hidden_flag)
         self.assertEqual('http://www.w3.org/1999/xhtml', ns.get('h'))
 
+    def test_malformed_xhtml_load_epub_narrates_hidden_like_origin_main(self):
+        # Review 6 finding 2: load_epub must apply hidden handling only when
+        # the shared predicate says the XHTML document is well-formed XML;
+        # extraction deliberately narrates these same documents. Both now
+        # behave as origin/main (hidden narrated, no hidden-specific refusal).
+        bodies = [
+            ('bare_boolean', '<p hidden>OnlyText</p>', 'OnlyText'),
+            ('unclosed', '<div hidden=""><p>OnlyText', 'OnlyText'),
+        ]
+        for name, body, token in bodies:
+            with self.subTest(case=name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    raw = make_epub(body, toc_links=[])
+                    epub_path = Path(tmp) / f'{name}.epub'
+                    epub_path.write_bytes(raw)
+                    loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
+                self.assertIn(token, loaded)
+
+    def test_load_epub_hidden_void_only_document_is_not_entirely_hidden(self):
+        # Review 6 finding 3: a document whose only hidden elements are void
+        # elements ('<br hidden/>', '<img hidden/>') omitted no text, so it is
+        # not "entirely hidden" and keeps origin/main's empty result. A hidden
+        # element that does remove words still triggers the refusal.
+        raw = make_epub('<br hidden=""/><img hidden="" src="x.png"/>', toc_links=[])
+        with tempfile.TemporaryDirectory() as tmp:
+            epub_path = Path(tmp) / 'voids.epub'
+            epub_path.write_bytes(raw)
+            self.assertFalse(alignment.load_epub(str(epub_path)).strip())
+        raw_words = make_epub('<p hidden="">Words.</p>', toc_links=[])
+        with tempfile.TemporaryDirectory() as tmp:
+            epub_path = Path(tmp) / 'words.epub'
+            epub_path.write_bytes(raw_words)
+            with self.assertRaisesRegex(
+                    ValueError, r'no readable text after omitting HTML hidden elements'):
+                alignment.load_epub(str(epub_path))
+
+    def test_anchor_id_helper_matches_the_tolerant_extractor_lookup(self):
+        # Item 6: the XML-path helper must agree with the inline lookup in
+        # _HTMLTextExtractor.handle_starttag on id / xml:id / a@name / none.
+        cases = [
+            ('<p id="a1">x</p>', 'a1'),
+            ('<p xml:id="b1">x</p>', 'b1'),
+            ('<a name="c1">x</a>', 'c1'),
+            ('<a name="d1" id="d2">x</a>', 'd2'),
+        ]
+        for markup, anchor_id in cases:
+            with self.subTest(markup=markup):
+                extractor = _HTMLTextExtractor(anchor_ids={anchor_id})
+                extractor.feed(markup)
+                self.assertEqual(1, extractor.anchor_counts.get(anchor_id))
+        self.assertIsNone(_get_anchor_id('div', [('name', 'n1')]))
+        self.assertIsNone(_get_anchor_id('p', []))
+        self.assertEqual('e1', _get_anchor_id('p', {'id': 'e1'}))
+        self.assertEqual('f1', _get_anchor_id('p', {'xml:id': 'f1'}))
+        self.assertEqual('g1', _get_anchor_id('a', {'name': 'g1'}))
+        self.assertIsNone(_get_anchor_id('a', {'id': None}))
+
 
 class HtmlHiddenReadaloudParityTests(unittest.TestCase):
     def _build_from_extracted_script(self, epub_bytes, *, qwen):
@@ -895,6 +1073,22 @@ class HtmlHiddenReadaloudParityTests(unittest.TestCase):
         )
         validate_epub_readaloud(result)
         return text, result, report
+
+    def test_text_html_readaloud_narrates_hidden_like_origin_main(self):
+        # The read-aloud segmentation uses the same document-scope predicate:
+        # a text/html spine item is not XHTML, so hidden attributes are
+        # stripped before the walk and the hidden text is narrated exactly as
+        # origin/main. The same body as XHTML omits it.
+        body = ('<p>Seen first.</p><p hidden="hidden">Never shown.</p>'
+                '<p>Seen last.</p>')
+        raw_html = make_epub(body, media_type='text/html', toc_links=[])
+        _root, _segments, full = get_xhtml_segments(raw_html, 'OEBPS/ch1.xhtml')
+        self.assertIn('Never shown.', full)
+        raw_xhtml = make_epub(body, toc_links=[])
+        _root, _segments, hidden_applied = get_xhtml_segments(
+            raw_xhtml, 'OEBPS/ch1.xhtml')
+        self.assertNotIn('Never shown.', hidden_applied)
+        self.assertIn('Seen first.', hidden_applied)
 
     def test_end_to_end_script_and_readaloud_stay_in_sync_with_hidden_elements(self):
         body = (

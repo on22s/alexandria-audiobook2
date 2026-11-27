@@ -32,6 +32,7 @@ import sys
 import os
 import zipfile
 import unicodedata
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from collections import Counter
 from typing import NamedTuple
@@ -179,7 +180,7 @@ def is_html_hidden_attrs(attrs, *, xml_namespaces=None, element_namespace=None) 
     ``hidden="hidden"``, uppercase/mixed-case spellings, and explicit XHTML-
     namespaced spellings (``{http://www.w3.org/1999/xhtml}hidden`` or a prefix
     bound to that URI via ``xml_namespaces``, used wherever the document is
-    parsed as XML — including a ``text/html`` document that is well-formed XML)
+    parsed as XML — that is, well-formed ``application/xhtml+xml`` only)
     all return True.
     ``hidden="until-found"`` is treated as hidden: in HTML it suppresses
     rendering (``content-visibility: hidden``) until interactive find-in-page
@@ -209,6 +210,42 @@ def is_html_hidden_attrs(attrs, *, xml_namespaces=None, element_namespace=None) 
         elif name.isascii() and name.lower() == 'hidden':
             return True
     return False
+
+
+_XHTML_MEDIA_TYPE = 'application/xhtml+xml'
+
+
+def _normalized_media_type(media_type) -> str:
+    """Return the media type without parameters, lowercased (RFC 6838 §4.2)."""
+    return (media_type or '').split(';', 1)[0].strip().lower()
+
+
+def is_well_formed_xml(content) -> bool:
+    """Return whether ``content`` (bytes, or text without an XML declaration) is XML.
+
+    Uses the same Expat-backed parser family as the extraction route. Anything
+    the parser rejects - malformed nesting, bare HTML boolean attributes such
+    as ``<p hidden>``, HTML-only entities such as ``&nbsp;`` - returns False.
+    """
+    try:
+        ET.fromstring(content)
+    except (ET.ParseError, ValueError, TypeError):
+        return False
+    return True
+
+
+def html_hidden_handling_applies(media_type, *, xml_well_formed: bool) -> bool:
+    """One predicate (Rule 15): does this document get ``hidden`` handling?
+
+    True only for an ``application/xhtml+xml`` resource that is well-formed
+    XML, where the browser itself parses the document as XML and XML
+    containment *is* the rendering. Every other HTML media type - and
+    malformed XHTML - gets no hidden handling: hidden content is narrated
+    exactly as ``origin/main`` narrated it (a documented leak, never a visible
+    drop). :func:`extract_epub_text` and :func:`load_epub` both call this.
+    """
+    return (_normalized_media_type(media_type) == _XHTML_MEDIA_TYPE
+            and bool(xml_well_formed))
 
 
 class _RootContextParser(HTMLParser):
@@ -342,23 +379,19 @@ def _epub_item_root_context(item):
 _HTML_INTEGRATION_ENCODINGS = frozenset({'text/html', 'application/xhtml+xml'})
 
 
-def resolve_html_element_namespace(tag: str, attrs, inherited_ns: str, ns_map: dict,
-                                   *, html_name_heuristic: bool = False):
-    """Return ``(element_ns, child_default_ns, updated_ns_map)`` for an HTML/XHTML tag.
+def resolve_html_element_namespace(tag: str, attrs, inherited_ns: str, ns_map: dict):
+    """Return ``(element_ns, child_default_ns, updated_ns_map)`` for an XHTML tag.
 
-    ``html_name_heuristic`` selects how a *bare* ``<svg>``/``<math>`` is read:
-    in ``text/html`` the tag name itself creates the foreign namespace, while
-    XHTML (``application/xhtml+xml``) is XML, so without ``xmlns`` the element
-    stays in the inherited XHTML namespace and ``hidden`` still applies.
-    ``_extract_bs4_visible_text`` passes it for non-XHTML media so it agrees
-    with the real XML paths.
+    This walk is XHTML-only (see :func:`_extract_bs4_visible_text`): a bare
+    ``<svg>``/``<math>`` without ``xmlns`` therefore stays in the inherited
+    XHTML namespace, exactly as a browser's XML parser reads it, so ``hidden``
+    applies to it. Only an explicit ``xmlns`` moves an element out of XHTML.
 
     The child namespace re-enters HTML at the HTML integration points:
     SVG ``foreignObject`` and MathML ``annotation-xml`` whose ``encoding`` is
     ``text/html`` or ``application/xhtml+xml``.
     """
-    if (not attrs and ':' not in tag and inherited_ns in ('', _XHTML_NS)
-            and not (html_name_heuristic and tag in ('svg', 'math'))):
+    if (not attrs and ':' not in tag and inherited_ns in ('', _XHTML_NS)):
         # Fast path: an unprefixed HTML element with no attributes inherits
         # the HTML namespace; nothing below can change that.
         return inherited_ns, inherited_ns, ns_map
@@ -378,10 +411,6 @@ def resolve_html_element_namespace(tag: str, attrs, inherited_ns: str, ns_map: d
         elem_ns = elem_ns_map.get(tag.partition(':')[0], inherited_ns)
     elif explicit_xmlns is not None:
         elem_ns = explicit_xmlns
-    elif html_name_heuristic and tag == 'svg':
-        elem_ns = _SVG_NS
-    elif html_name_heuristic and tag == 'math':
-        elem_ns = _MATHML_NS
     else:
         elem_ns = inherited_ns
     child_ns = elem_ns
@@ -397,31 +426,60 @@ def resolve_html_element_namespace(tag: str, attrs, inherited_ns: str, ns_map: d
     return elem_ns, child_ns, elem_ns_map
 
 
+def _hidden_subtree_has_text(node, string_types) -> bool:
+    """Return whether ``node`` contains narrated text hidden by omission.
+
+    Only string types the soup counts as content (not comments etc.) and not
+    inside ``script``/``style`` (which ``origin/main`` removed before reading)
+    count: omitting them never removed narrated text.
+    """
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        for child in getattr(current, 'contents', None) or ():
+            if isinstance(child, NavigableString):
+                if type(child) in string_types and str(child).strip():
+                    return True
+            elif getattr(child, 'name', None) not in ('script', 'style'):
+                stack.append(child)
+    return False
+
+
 def _extract_bs4_visible_text(soup, *, root_namespaces=None,
-                              html_name_heuristic=True) -> tuple[str, bool]:
-    """Return ``(visible_text, saw_hidden)`` in one linear pass without ``decompose()``.
+                              root_hidden=False, apply_hidden=True):
+    """Return ``(visible_text, saw_hidden, hidden_text_removed)`` in one pass.
 
-    ``html_name_heuristic`` is passed through to
-    :func:`resolve_html_element_namespace` (True only for ``text/html`` media).
+    Without ``decompose()``, so large chapters are walked linearly. The walk is
+    XHTML-only: ``load_epub``'s items come from ebooklib, which builds
+    ``EpubHtml``/``ITEM_DOCUMENT`` only for ``application/xhtml+xml``
+    resources, and a bare ``<svg>``/``<math>`` without ``xmlns`` stays in the
+    inherited XHTML namespace, exactly as a browser's XML parser reads it.
 
-    This walker runs over ``load_epub``'s items, and ebooklib only builds
-    ``EpubHtml``/``ITEM_DOCUMENT`` items for ``application/xhtml+xml``
-    resources, so the walk sees XML/XHTML here. It applies the
-    element-namespace and ``hidden`` rules only.
+    ``apply_hidden`` is the shared document-scope predicate's answer
+    (:func:`html_hidden_handling_applies`). When False the walk reproduces
+    ``origin/main``'s text exactly: hidden attributes are ignored and the
+    content is narrated. ``hidden_text_removed`` is True only when hidden
+    omission actually suppressed a non-whitespace narrated string; a document
+    with nothing but hidden void elements therefore removed no text.
     """
     string_types = soup.interesting_string_types or soup.MAIN_CONTENT_STRING_TYPES
     base_ns = dict(root_namespaces) if root_namespaces else {}
     initial_ns = base_ns.get('', '')
     chunks = []
     saw_hidden = False
+    hidden_text_removed = False
     # (node, ns_map, inherited_ns, hidden)
-    stack = [(child, base_ns, initial_ns, False)
+    stack = [(child, base_ns, initial_ns, bool(root_hidden and apply_hidden))
              for child in reversed(soup.contents)]
     while stack:
         node, ns_map, inherited_ns, hidden = stack.pop()
         if isinstance(node, NavigableString):
-            if type(node) in string_types and not hidden:
-                chunks.append(str(node))
+            if type(node) in string_types:
+                if hidden:
+                    if str(node).strip():
+                        hidden_text_removed = True
+                else:
+                    chunks.append(str(node))
             continue
         name = getattr(node, 'name', None)
         if not isinstance(name, str):
@@ -429,17 +487,24 @@ def _extract_bs4_visible_text(soup, *, root_namespaces=None,
         tag = name.lower()
         if tag in ('script', 'style'):
             continue
+        if hidden:
+            saw_hidden = True
+            if not hidden_text_removed and _hidden_subtree_has_text(node, string_types):
+                hidden_text_removed = True
+            continue
         attrs = getattr(node, 'attrs', None)
         elem_ns, child_ns, elem_ns_map = resolve_html_element_namespace(
-            tag, attrs, inherited_ns, ns_map, html_name_heuristic=html_name_heuristic)
-        node_hidden = hidden or bool(attrs and is_html_hidden_attrs(
+            tag, attrs, inherited_ns, ns_map)
+        node_hidden = apply_hidden and bool(attrs and is_html_hidden_attrs(
             attrs, xml_namespaces=elem_ns_map, element_namespace=elem_ns))
         if node_hidden:
             saw_hidden = True
-        else:
-            for child in reversed(getattr(node, 'contents', None) or ()):
-                stack.append((child, elem_ns_map, child_ns, False))
-    return ' '.join(chunks), saw_hidden
+            if not hidden_text_removed and _hidden_subtree_has_text(node, string_types):
+                hidden_text_removed = True
+            continue
+        for child in reversed(getattr(node, 'contents', None) or ()):
+            stack.append((child, elem_ns_map, child_ns, False))
+    return ' '.join(chunks), saw_hidden, hidden_text_removed
 
 
 # ── Source loaders ─────────────────────────────────────────────────────────────
@@ -516,20 +581,25 @@ def load_epub(path: str) -> str:
             continue
         doc_hidden, root_namespaces = _epub_item_root_context(item)
         considered_documents += 1
-        if doc_hidden:
-            continue
-        media_type = (getattr(item, 'media_type', '') or '').split(';', 1)[0].strip().lower()
+        # One predicate (Rule 15) decides hidden handling for every path:
+        # application/xhtml+xml AND well-formed XML. Malformed XHTML and every
+        # other media type keep origin/main's narrated output exactly.
+        hidden_applies = html_hidden_handling_applies(
+            getattr(item, 'media_type', ''),
+            xml_well_formed=is_well_formed_xml(getattr(item, 'content', b'') or b''))
         soup = BeautifulSoup(item.get_content(), 'html.parser')
-        text, item_hidden = _extract_bs4_visible_text(
+        text, item_hidden, hidden_text_removed = _extract_bs4_visible_text(
             soup, root_namespaces=root_namespaces,
-            html_name_heuristic=media_type != 'application/xhtml+xml')
-        if not (item_hidden and not text.strip()):
-            # A document with no readable text and no hidden content (an empty
-            # visible chapter) is not entirely hidden; it keeps origin/main's
-            # behavior below instead of being folded into the hidden-specific
-            # refusal.
+            root_hidden=doc_hidden, apply_hidden=hidden_applies)
+        if not (item_hidden and hidden_text_removed and not text.strip()):
+            # A document is entirely hidden only when hidden omission actually
+            # removed non-whitespace text. An empty visible chapter, or a
+            # document with only hidden void elements (<br hidden/>, <img
+            # hidden/>), keeps origin/main's behavior below instead of being
+            # folded into the hidden-specific refusal.
             every_document_entirely_hidden = False
-        parts.append(text)
+        if not (doc_hidden and hidden_applies):
+            parts.append(text)
     if not considered_documents:
         raise ValueError('EPUB has no readable spine documents')
     if every_document_entirely_hidden:
