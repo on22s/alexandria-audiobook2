@@ -28,10 +28,26 @@ say the name properly and the ASR then transcribes it as "Soo bah roo", WER
 gets WORSE while the audio gets BETTER. A lexicon is judged by listening, or by
 an ASR comparison that normalises the name on both sides. Optimising it against
 raw WER would select for names that are easy to transcribe rather than right.
+
+MATCHING LIMIT IN UNSPACED SCRIPTS. A key written in a script that does not
+separate words with spaces (Han, kana, Thai, Lao, Khmer, Myanmar, Tibetan) has
+no letter boundary to consult, so a MULTI-CHARACTER key can still fire inside
+a longer, unrelated word: a two-character Katakana key hits the first two
+characters of a longer Katakana name. Protect the word by adding it as its own
+identity entry (the word on both sides of the map). Keys are tried longest
+first, so the identity entry absorbs the match instead of the shorter key.
+SINGLE-character keys are stricter: one fires only when neither neighbour is a
+character of the same script class, because one character carries no evidence
+that it is a whole word. Every identity entry is a deliberate exception, so
+adding one is always a decision about this book's text.
+
+Script classification is read from the running interpreter's Unicode database
+(`unicodedata`), so it depends on the Unicode version that ships with Python.
+Characters unassigned in that database classify as ordinary (spaced) text.
 """
-from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
+from functools import lru_cache
 import hashlib
 import io
 import json
@@ -39,6 +55,7 @@ import logging
 import os
 import re
 import threading
+import unicodedata
 
 from silent_word_characters import remove_silent_word_characters
 
@@ -79,18 +96,238 @@ logger = logging.getLogger(__name__)
 _audition_matcher = ContextVar("pronunciation_audition_matcher", default=None)
 
 
-def _compile(entries):
-    """One regex over all keys, longest first.
+_HAN = frozenset(("Han",))
+_HIRAGANA = frozenset(("Hiragana",))
+_KATAKANA = frozenset(("Katakana",))
+_KANA = frozenset(("Hiragana", "Katakana"))
+_THAI = frozenset(("Thai",))
+_LAO = frozenset(("Lao",))
+_KHMER = frozenset(("Khmer",))
+_MYANMAR = frozenset(("Myanmar",))
+_TIBETAN = frozenset(("Tibetan",))
+
+# Unicode scripts that do not separate words with spaces. Classification reads
+# the character name, which is the only script-property data `unicodedata`
+# exposes; the value is the script class used for the single-character rule.
+_UNSPACED_SCRIPT_NAME_PREFIXES = (
+    ("CJK UNIFIED IDEOGRAPH", _HAN),
+    ("CJK COMPATIBILITY IDEOGRAPH", _HAN),
+    ("HIRAGANA", _HIRAGANA),
+    ("HALFWIDTH KATAKANA", _KATAKANA),
+    ("KATAKANA", _KATAKANA),
+    ("THAI", _THAI),
+    ("LAO", _LAO),
+    ("KHMER", _KHMER),
+    ("MYANMAR", _MYANMAR),
+    ("TIBETAN", _TIBETAN),
+)
+
+# Characters whose Script property is Han/Common or Common in a CJK run and
+# whose English name does not name that script. Checked against the Unicode
+# script property, not just the name: 々, 〆, 〇, 〼, 𖿣 and 〻 are Han; the
+# vertical kana repeat marks and spacing voiced marks occur in both kana runs;
+# ー is Script=Common but prolongs the syllable in both kana. They occur inside
+# the same unspaced run, so a single-character key must not fire next to them.
+# Separators (CJK punctuation, ・, ゠) are deliberately absent: they end a word,
+# so a single-character key may match beside them. Kangxi/CJK radicals
+# (U+2E80–U+2FDF) are symbols, not Han: they are deliberately absent, so a
+# single-character key may match beside them.
+_CJK_SCRIPT_OVERRIDES = {
+    "\u3005": _HAN,        # 々 IDEOGRAPHIC ITERATION MARK (Script=Han)
+    "\u3006": _HAN,        # 〆 IDEOGRAPHIC CLOSING MARK (Script=Han)
+    "\u3007": _HAN,        # 〇 IDEOGRAPHIC NUMBER ZERO (Script=Han, category Nl)
+    "\u303b": _HAN,        # 〻 VERTICAL IDEOGRAPHIC ITERATION MARK (Script=Han)
+    "\u303c": _HAN,        # 〼 MASU MARK (Script=Han)
+    "\U00016fe3": _HAN,    # 𖿣 OLD CHINESE ITERATION MARK (Script=Han)
+    "\u3031": _KANA,       # 〱 VERTICAL KANA REPEAT MARK (Script=Hiragana; runs)
+    "\u3032": _KANA,       # 〲 VERTICAL KANA REPEAT MARK WITH VOICED SOUND
+    "\u3033": _KANA,       # 〳 VERTICAL KANA REPEAT MARK UPPER HALF
+    "\u3034": _KANA,       # 〴 ... WITH VOICED SOUND
+    "\u3035": _KANA,       # 〵 VERTICAL KANA REPEAT MARK LOWER HALF
+    "\u309b": _KANA,       # ゛ KATAKANA-HIRAGANA VOICED SOUND MARK (Common)
+    "\u309c": _KANA,       # ゜ KATAKANA-HIRAGANA SEMI-VOICED SOUND MARK (Common)
+    "\u30fc": _KANA,       # ー KATAKANA-HIRAGANA PROLONGED SOUND MARK (Common)
+}
+
+_STRAIGHT_AND_TYPOGRAPHIC_APOSTROPHES = "'\u2019\u02bc"
+_LEADING_APOSTROPHES = _STRAIGHT_AND_TYPOGRAPHIC_APOSTROPHES + "\u2018"
+_COMBINING_CATEGORIES = frozenset(("Mn", "Mc", "Me"))
+_VARIATION_SELECTORS = frozenset(
+    tuple(chr(codepoint) for codepoint in range(0xFE00, 0xFE10))
+    + tuple(chr(codepoint) for codepoint in range(0xE0100, 0xE01F0))
+)
+
+
+@lru_cache(maxsize=4096)
+def _unspaced_script_classes(char):
+    """-> frozenset of unspaced script classes `char` belongs to (empty if none).
+
+    Pure, so it is memoised per character. `ー` and the CJK marks above belong
+    to more than one class; an empty result means an ordinary (spaced) script.
+    """
+    override = _CJK_SCRIPT_OVERRIDES.get(char)
+    if override is not None:
+        return override
+    category = unicodedata.category(char)
+    if not (category.startswith("L") or category.startswith("M")
+            or category in ("Nd", "Nl")):
+        return frozenset()   # punctuation/separators end a word; not a script neighbour
+    name = unicodedata.name(char, "")
+    for prefix, classes in _UNSPACED_SCRIPT_NAME_PREFIXES:
+        if name.startswith(prefix):
+            return classes
+    return frozenset()
+
+
+@lru_cache(maxsize=4096)
+def is_unspaced_key(key):
+    """Whether a key is written in a script that does not separate words with spaces.
+
+    Decided from the Unicode script class of the key's LETTERS (see
+    _unspaced_script_classes); digits and punctuation are neutral, so `3月`
+    is unspaced while `3rd` is not. Letter Numbers count as letters here, so
+    one `〇` (category Nl) is unspaced on its own. A key with any spaced-script
+    letter, no letters at all (a digit-only key), or whitespace keeps the
+    normal word bounds. The input is a string key, so the result is memoised.
+    """
+    letters = [char for char in key
+               if unicodedata.category(char).startswith("L")
+               or unicodedata.category(char) == "Nl"]
+    return (bool(letters) and not any(char.isspace() for char in key)
+            and all(_unspaced_script_classes(char) for char in letters))
+
+
+def _blocks_following(following, *, combining_only=False):
+    """Whether `following` belongs to the key rather than the next word.
+
+    A variation selector never blocks: it modifies the preceding character
+    (葛 + IVS is still 葛), so it must not make an otherwise valid key miss.
+    """
+    if not following or following in _VARIATION_SELECTORS:
+        return False
+    if unicodedata.category(following) in _COMBINING_CATEGORIES:
+        return True
+    return not combining_only and (following.isalnum() or following == "_")
+
+
+def is_key_match(text, start, end, key):
+    """THE ONE DECISION: may `key` match this exact span of `text`?
+
+    Every caller reaches this through _compile, so no second copy of the
+    boundary rules can drift from this one.
+
+    A leading apostrophe always blocks (a name inside O'Brien is not the name;
+    U+2018 is treated as a quote used as one). A trailing apostrophe never
+    blocks (Mara's is the same name), and a following combining mark blocks
+    (राम is not the word रामा) unless it is a variation selector.
+
+    An unspaced key drops the word bound. A SINGLE-character unspaced key is
+    stricter: it also refuses a neighbour in its own script class, so 中 does
+    not fire in 中国 and ロ does not fire in ローマ. A multi-character key may
+    still fire inside a longer word; add that word as an identity entry to
+    protect it (longest-first). A key that is not unspaced keeps normal bounds,
+    and so does every key with any spaced-script letter.
+    """
+    previous = text[start - 1] if start else ""
+    following = text[end] if end < len(text) else ""
+    if previous and previous in _LEADING_APOSTROPHES:
+        return False
+    if is_unspaced_key(key):
+        if len(key) == 1:
+            classes = _unspaced_script_classes(key)
+            if classes and previous and (_unspaced_script_classes(previous) & classes):
+                return False
+            if classes and following and (_unspaced_script_classes(following) & classes):
+                return False
+        return not _blocks_following(following, combining_only=True)
+    if previous and (previous.isalnum() or previous == "_"):
+        return False
+    # Before the combining-mark test on purpose: a possessive apostrophe is not
+    # part of the following word, so it is allowed even if a mark follows it
+    # (Mara'́). Tightening that rule later means moving this check.
+    if following and following in _STRAIGHT_AND_TYPOGRAPHIC_APOSTROPHES:
+        return True
+    return not _blocks_following(following)
+
+
+class _PronunciationMatcher:
+    """One alternation scan whose every candidate is adjudicated by is_key_match."""
+
+    def __init__(self, keys, ignore_case=False):
+        flags = re.IGNORECASE if ignore_case else 0
+        self._regex = re.compile(
+            "(" + "|".join(re.escape(key) for key in keys) + ")", flags)
+        # One alternation per key length, longest first. When the longest key at
+        # a position is rejected, the next-longest key starting at the SAME
+        # position is tried before the scan advances. Without this a rejected
+        # "Mara Jade" would hide "Mara" in "Mara Jadeite" (main's lookahead let
+        # the regex backtrack into the shorter alternative). A shorter key still
+        # never fires where a longer key matched.
+        by_length = {}
+        for key in keys:
+            by_length.setdefault(len(key), []).append(key)
+        self._by_length = tuple(
+            (length, re.compile(
+                "(" + "|".join(re.escape(key) for key in bucket) + ")", flags))
+            for length, bucket in sorted(by_length.items(), reverse=True))
+
+    def _shorter_match(self, text, start, longest):
+        """The next-longest key at `start` that is_key_match accepts, if any."""
+        for length, pattern in self._by_length:
+            if length >= longest:
+                continue
+            match = pattern.match(text, start)
+            if match is not None and is_key_match(
+                    text, start, start + length, match.group(1)):
+                return match
+        return None
+
+    def finditer(self, text):
+        position = 0
+        while position < len(text):
+            match = self._regex.search(text, position)
+            if match is None:
+                return
+            start, end = match.span()
+            if is_key_match(text, start, end, match.group(1)):
+                yield match
+                position = end
+                continue
+            fallback = self._shorter_match(text, start, end - start)
+            if fallback is None:
+                position = start + 1
+            else:
+                yield fallback
+                position = fallback.end()
+
+    def sub(self, replacement, text):
+        pieces, last = [], 0
+        for match in self.finditer(text):
+            pieces.append(text[last:match.start()])
+            pieces.append(replacement(match))
+            last = match.end()
+        pieces.append(text[last:])
+        return "".join(pieces)
+
+
+def _compile(entries, ignore_case=False):
+    """One matcher over all keys, longest first.
 
     Longest-first matters: with both "Natsuki" and "Natsuki Subaru" present,
     alternation would otherwise match the shorter key inside the longer name
-    and leave a half-substituted phrase.
+    and leave a half-substituted phrase. Sorting the alternation by length is
+    also what keeps a shorter key from firing inside a longer key THAT IS ALSO
+    AN ENTRY in a script without word spaces; a longer word with no entry of
+    its own is not protected (see the module docstring's matching limit). If a
+    candidate span is rejected by is_key_match, the next-longest key anchored
+    at the same position is tried, so a rejected longer key never hides a
+    shorter legal one ("Mara Jade" rejected in "Mara Jadeite" still applies
+    "Mara").
     """
-    keys = sorted((k for k in entries if k), key=len, reverse=True)
+    keys = sorted((k for k in entries if k), key=lambda key: (-len(key), key))
     if not keys:
         return None
-    return re.compile(r"(?<![\w'])(" + "|".join(re.escape(k) for k in keys)
-                      + r")(?![\w'])")
+    return _PronunciationMatcher(keys, ignore_case=ignore_case)
 
 
 def load_lexicon(path=None, force=False):
@@ -217,99 +454,6 @@ def ensure_pronunciation_audition(entries):
         yield
     finally:
         _audition_matcher.reset(token)
-
-
-# ── keeping the name list honest ─────────────────────────────────────────
-
-def character_forms(script_path=None, aliases_path=None, voice_config_path=None):
-    """Every written form of every character that ACTUALLY OCCURS in the text.
-
-    WHY DERIVED RATHER THAN LISTED. The first version of this file carried a
-    hardcoded list of thirteen names typed from memory. It included Ram and
-    Rem, who do not appear in this book at all, and it would silently have no
-    entry for a character it forgot or for any other book. The roster already
-    exists in character_aliases.json and voice_config.json; a second list
-    beside them is the parallel-maintenance problem this repo has been bitten
-    by before.
-
-    ALIASES ARE USED FOR DISCOVERY, NEVER FOR SUBSTITUTION. The alias map
-    records IDENTITY - 'BETTY' -> 'BEATRICE' is one character - while a
-    lexicon records SOUND, and those come apart. Speaking "Betty" as
-    "Beatrice" would put a word in the audio that is not in the book, which is
-    worse than mispronouncing it. So every written form gets its own entry and
-    the canonical name confers nothing on its variants.
-
-    CASE IS LOAD-BEARING. `Felt` is a character here and `felt` is a verb:
-    242 and 65 occurrences in the same book. Matching case-insensitively would
-    rewrite the verb. Only forms that occur with their own capitalisation are
-    returned.
-    """
-    import json as _json
-    from utils import get_runtime_data_dir
-    root = get_runtime_data_dir(REPO)
-    script_path = script_path or os.path.join(root, "chunks.json")
-    aliases_path = aliases_path or os.path.join(root, "character_aliases.json")
-    voice_config_path = voice_config_path or os.path.join(root,
-                                                          "voice_config.json")
-
-    def _read(path):
-        try:
-            with open(path, encoding="utf-8") as fh:
-                return _json.load(fh)
-        except (OSError, ValueError):
-            return None
-
-    candidates = set()
-    aliases = _read(aliases_path)
-    if isinstance(aliases, dict):
-        for variant, canonical in aliases.items():
-            candidates.add(str(variant))
-            candidates.add(str(canonical))
-    vc = _read(voice_config_path)
-    if isinstance(vc, dict):
-        chars = vc.get("characters") if isinstance(vc.get("characters"), dict) else vc
-        candidates.update(str(k) for k in chars)
-
-    chunks = _read(script_path)
-    if not isinstance(chunks, list):
-        return {}
-    text = "\n".join(str(c.get("text") or "") for c in chunks
-                      if isinstance(c, dict))
-    if isinstance(chunks, list):
-        candidates.update(str(c.get("speaker")) for c in chunks
-                          if isinstance(c, dict) and c.get("speaker"))
-
-    # A speaker label is usually upper case while prose uses natural case, so
-    # try the label AND its title-cased form - but count each spelling
-    # separately, because that is what the substitution will match.
-    token_counts = Counter(re.findall(r"[\w']+", text))
-
-    def count_occurrences(form):
-        if re.fullmatch(r"\w+", form):
-            return token_counts[form]
-        return len(re.findall(r"(?<![\w'])" + re.escape(form) + r"(?![\w'])", text))
-
-    forms = {}
-    for name in candidates:
-        name = name.strip()
-        if len(name) < 2:
-            continue
-        for form in {name, name.title()}:
-            n = count_occurrences(form)
-            if not n:
-                continue
-            # A form whose LOWERCASE also occurs is a name that collides with
-            # an ordinary word: Felt/felt (242/65), Man/man (11/95), Cat/cat
-            # (1/22). Case-sensitive matching already protects the verb, but
-            # an editor filling this file in deserves to be warned before
-            # giving "Man" a respelling.
-            lower = count_occurrences(form.lower())
-            forms[form] = {"occurrences": n,
-                           "collides_with_common_word": bool(lower and
-                                                             form != form.lower()),
-                           "lowercase_occurrences": lower}
-    return dict(sorted(forms.items(),
-                       key=lambda kv: -kv[1]["occurrences"]))
 
 
 MAX_OCCURRENCE_RULES = 32
@@ -567,9 +711,7 @@ def get_occurrence_pronunciation_candidates(prepared, uid, text, query, *, ignor
         raise ValueError('Choose an exact spelling of 1–128 characters.')
     if len(text) > 131072:
         raise ValueError('This line exceeds the occurrence editor text limit.')
-    pattern = _compile({query: query})
-    if ignore_case:
-        pattern = re.compile(pattern.pattern, pattern.flags | re.IGNORECASE)
+    pattern = _compile({query: query}, ignore_case=ignore_case)
     anchors = {'coordinate_space': OCCURRENCE_COORDINATE_SPACE,
                'offset_unit': 'unicode_codepoint', 'uid': uid,
                'text_sha256': get_pronunciation_text_digest(text),

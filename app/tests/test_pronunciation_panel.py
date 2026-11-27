@@ -112,7 +112,7 @@ class PronunciationPanelTests(unittest.TestCase):
 
         response = self.client.post('/api/pronunciation/preview', json={'names': self.document['names'], 'expected_book_token': self.token})
         self.assertEqual(200, response.status_code, response.text)
-        self.assertEqual({'Rom Vale': 1, 'Rom': 1}, response.json()['counts'])
+        self.assertEqual({'Rom Vale': 1, 'Rom': 2}, response.json()['counts'])
         self.assertEqual('Hero', response.json()['lines'][0]['speaker'])
         self.assertEqual(409, self.client.post('/api/pronunciation/preview', json={'names': {}, 'expected_book_token': 'f'*64}).status_code)
         self.assertEqual(before, self.path.read_bytes())

@@ -7,6 +7,7 @@ leaves no trace, so the listener hears one thing and the script says another.
 """
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -59,6 +60,37 @@ class LexiconTest(unittest.TestCase):
         out, _ = apply_pronunciation("Natsuki Subaru arrived", p)
         self.assertEqual(out, "Nat-ski Soo-bah-roo arrived")
 
+    def test_a_rejected_longest_key_falls_back_to_a_shorter_key_at_the_same_start(self):
+        """A rejected longer entry must not hide a shorter entry that starts at
+        the same position. Main's lookahead made the regex backtrack into the
+        shorter alternative, so dropping the fallback lost real substitutions
+        in ordinary text (`Mara Jadeite`, `Dr Whoever`)."""
+        for entries, text, expected, shorter in (
+                ({"Mara": "Mahra", "Mara Jade": "Mahra Jayde"},
+                 "Mara Jadeite came.", "Mahra Jadeite came.", "Mara"),
+                ({"Dr": "Doctor", "Dr Who": "Doctor Who"},
+                 "Dr Whoever came.", "Doctor Whoever came.", "Dr"),
+                ({"Anne": "Ann", "Anne Marie": "Ann Marie"},
+                 "Anne Mariel left.", "Ann Mariel left.", "Anne")):
+            with self.subTest(text=text):
+                p = self.write(entries)
+                out, applied = apply_pronunciation(text, p)
+                self.assertEqual(expected, out)
+                self.assertEqual([shorter], [entry["name"] for entry in applied])
+
+    def test_a_rejected_longer_unspaced_key_falls_back_to_a_shorter_one(self):
+        """太郎丸 is rejected by the following combining mark, while 太郎 at the
+        same position is legal: a multi-character key may match inside a run."""
+        p = self.write({"太郎": "Taro", "太郎丸": "Taromaru"})
+        self.assertEqual("Taro丸\u0301は",
+                         apply_pronunciation("太郎丸\u0301は", p)[0])
+
+    def test_a_position_where_every_key_is_rejected_stays_unchanged(self):
+        """रामाि rejects रामा (the following ि is a combining mark) and राम at
+        the same start (the following ा is one too), so no fallback fires."""
+        p = self.write({"राम": "Raam", "रामा": "Raamaa"})
+        self.assertEqual(("रामाि x", []), apply_pronunciation("रामाि x", p))
+
     # ── where it must NOT fire ───────────────────────────────────────────
 
     def test_it_does_not_fire_inside_a_longer_word(self):
@@ -67,14 +99,231 @@ class LexiconTest(unittest.TestCase):
         out, applied = apply_pronunciation("a Romance from Rome", p)
         self.assertEqual(out, "a Romance from Rome")
         self.assertEqual(applied, [])
+        p = self.write({"Dr": "Doctor"})
+        self.assertEqual("Drake saw Doctor Who", apply_pronunciation("Drake saw Dr Who", p)[0])
 
-    def test_it_does_not_fire_across_an_apostrophe(self):
-        """`Subaru's` is the same name and would be broken by a naive swap
-        that ignored the trailing possessive."""
-        p = self.write({"Subaru": "Soo-bah-roo"})
-        out, applied = apply_pronunciation("Subaru's hand", p)
-        self.assertEqual(out, "Subaru's hand")
-        self.assertEqual(applied, [])
+    def test_a_unspaced_script_key_matches_inside_a_run(self):
+        """In Han/kana/Thai text the next letter cannot be a boundary: it is
+        almost always the next word. Longest-first keeps a shorter key from
+        splitting a longer one."""
+        p = self.write({"太郎": "Taro"})
+        for text in ("太郎は来た", "太郎が来た", "太郎。来た"):
+            with self.subTest(text=text):
+                self.assertEqual(text.replace("太郎", "Taro"),
+                                 apply_pronunciation(text, p)[0])
+        p = self.write({"王明": "Wang Ming"})
+        self.assertEqual("Wang Ming走了", apply_pronunciation("王明走了", p)[0])
+        p = self.write({"王": "W", "王明": "Wang Ming"})
+        self.assertEqual("Wang Ming走了", apply_pronunciation("王明走了", p)[0])
+        p = self.write({"太郎": "Taro", "郎": "Rou"})
+        self.assertEqual("Taroは", apply_pronunciation("太郎は", p)[0])
+        p = self.write({"ไทย": "Thai"})
+        self.assertEqual("ประเทศThai", apply_pronunciation("ประเทศไทย", p)[0])
+
+    def test_a_combining_mark_after_a_key_blocks_it(self):
+        """A vowel sign belongs to the word: राम must not fire in रामा."""
+        for key, blocked, allowed in (("राम", "रामा ने", "राम ने"),
+                                      ("রাম", "রামা", "রাম "),
+                                      ("ராம", "ராமா", "ராம ")):
+            with self.subTest(key=key):
+                p = self.write({key: "Raam"})
+                self.assertEqual(blocked, apply_pronunciation(blocked, p)[0])
+                self.assertEqual(allowed.replace(key, "Raam"),
+                                 apply_pronunciation(allowed, p)[0])
+        p = self.write({"राम": "Raam"})
+        self.assertEqual("Raam। ने", apply_pronunciation("राम। ने", p)[0])
+
+    def test_a_single_character_unspaced_key_needs_same_script_neighbours(self):
+        """One character is not evidence of a whole word: a single-character
+        key must not fire inside a run of its own script. Longer keys still
+        match inside a run (the next test); the issue's 太郎/王明 rows survive."""
+        p = self.write({"中": "Naka", "王": "Oh"})
+        self.assertEqual(("中国の王国", []), apply_pronunciation("中国の王国", p))
+        self.assertEqual("Ohは来た", apply_pronunciation("王は来た", p)[0])
+        self.assertEqual("Naka。", apply_pronunciation("中。", p)[0])
+        self.assertEqual("Naka 国", apply_pronunciation("中 国", p)[0])
+        p = self.write({"ロ": "Ro", "ヒ": "Hi"})
+        self.assertEqual(("ローマとヒーロー", []),
+                         apply_pronunciation("ローマとヒーロー", p))
+        p = self.write({"ท": "T"})
+        self.assertEqual(("ประเทศไทย", []), apply_pronunciation("ประเทศไทย", p))
+        self.assertEqual("T", apply_pronunciation("ท", p)[0])
+
+    def test_a_multi_character_unspaced_key_matches_inside_a_run(self):
+        """The documented remaining false-match class: a longer, unrelated
+        word is not protected unless it is itself an entry. An identity entry
+        wins longest-first and absorbs the match."""
+        p = self.write({"タイ": "Tai"})
+        self.assertEqual("Taiトル", apply_pronunciation("タイトル", p)[0])
+        p = self.write({"タイ": "Tai", "タイトル": "タイトル"})
+        self.assertEqual(("タイトル", [{"name": "タイトル", "spoken": "タイトル"}]),
+                         apply_pronunciation("タイトル", p))
+
+    def test_iteration_and_ideographic_marks_count_as_unspaced(self):
+        """々/〆/〻/〼/𖿣 are Script=Han and 〇 is Han although its category is
+        Nl, so a key containing them must not keep word bounds. The vertical
+        kana repeat marks join both kana classes."""
+        for key in ("〆", "〻", "〼", "\U00016fe3", "〇", "〱"):
+            with self.subTest(key=key):
+                self.assertTrue(pronunciation.is_unspaced_key(key))
+        for key, text in (("時々", "時々は"), ("〆香", "〆香は"),
+                          ("〼香", "〼香は"), ("\U00016fe3香", "\U00016fe3香は"),
+                          ("〇", "〇は"), ("〇〇", "〇〇は")):
+            with self.subTest(key=key):
+                p = self.write({key: "Spoken"})
+                self.assertEqual("Spokenは", apply_pronunciation(text, p)[0])
+        p = self.write({"中": "Naka"})
+        self.assertEqual("中々", apply_pronunciation("中々", p)[0])
+
+    def test_han_marks_block_as_neighbours_of_a_single_character_key(self):
+        """The Han marks classify the same way as a neighbour as they do in a
+        key: 〇 (Nl), 〼 and 𖿣 each block a one-character Han key."""
+        p = self.write({"中": "Naka"})
+        for mark in ("〇", "〼", "\U00016fe3"):
+            with self.subTest(mark=mark):
+                self.assertEqual(("中" + mark, []),
+                                 apply_pronunciation("中" + mark, p))
+
+    def test_kana_run_marks_block_but_radicals_do_not(self):
+        """Vertical repeat marks and spacing voiced marks continue a kana run,
+        so a one-character kana key must not fire beside them. Kangxi/CJK
+        radicals are symbols, not Han, so they do not block (documented in
+        Limits)."""
+        p = self.write({"カ": "ka", "き": "ki"})
+        for mark in tuple(chr(codepoint) for codepoint in range(0x3031, 0x3036)) + (
+                "\u309b", "\u309c"):
+            with self.subTest(mark=mark):
+                self.assertEqual(("カ" + mark, []),
+                                 apply_pronunciation("カ" + mark, p))
+        self.assertEqual(("き〱", []), apply_pronunciation("き〱", p))
+        p = self.write({"中": "Naka"})
+        self.assertEqual("Naka⼀", apply_pronunciation("中⼀", p)[0])
+        self.assertEqual("Naka⺀", apply_pronunciation("中⺀", p)[0])
+
+    def test_script_native_digits_block_while_ascii_and_fullwidth_are_neutral(self):
+        """Digits are neutral when classifying a KEY (so 3月 and ３月 are
+        unspaced), but a script-native digit continues its own run and blocks a
+        one-character key beside it; ASCII and fullwidth digits do not."""
+        self.assertTrue(pronunciation.is_unspaced_key("3月"))
+        self.assertTrue(pronunciation.is_unspaced_key("３月"))
+        for key, digit in (("ก", "\u0e51"), ("ກ", "\u0ed1"), ("က", "\u1041")):
+            with self.subTest(key=key):
+                p = self.write({key: "X"})
+                self.assertEqual((key + digit, []),
+                                 apply_pronunciation(key + digit, p))
+                self.assertEqual("X1", apply_pronunciation(key + "1", p)[0])
+                self.assertEqual("X１", apply_pronunciation(key + "１", p)[0])
+
+    def test_digits_are_neutral_when_classifying_an_unspaced_key(self):
+        """Letters decide: 3月 is unspaced because 月 is Han, while 3rd is not
+        and a digit-only key is not. The neutral digit is deliberate, so 3月
+        also fires between Latin characters (the documented cost)."""
+        self.assertTrue(pronunciation.is_unspaced_key("3月"))
+        self.assertFalse(pronunciation.is_unspaced_key("3rd"))
+        self.assertFalse(pronunciation.is_unspaced_key("3"))
+        p = self.write({"3月": "Sangatsu"})
+        self.assertEqual("Sangatsuは", apply_pronunciation("3月は", p)[0])
+        self.assertEqual("Sangatsu", apply_pronunciation("3月", p)[0])
+
+    def test_a_variation_selector_after_a_key_does_not_block(self):
+        """An ideographic/emoji variation selector modifies the preceding
+        character, so 葛+IVS is still 葛 and must not be refused as a mark."""
+        p = self.write({"葛": "Kuzu"})
+        self.assertEqual("Kuzu\U000E0100は",
+                         apply_pronunciation("葛\U000E0100は", p)[0])
+        p = self.write({"絵": "E"})
+        self.assertEqual("E\uFE0F", apply_pronunciation("絵\uFE0F", p)[0])
+
+    def test_a_leading_left_quote_blocks_like_an_apostrophe(self):
+        """Some texts use U+2018 as an apostrophe: ‘tis must stay unchanged,
+        exactly as ’tis and 'tis do for a key for tis."""
+        p = self.write({"tis": "tiz"})
+        self.assertEqual(("‘tis", []), apply_pronunciation("‘tis", p))
+        self.assertEqual("tiz", apply_pronunciation("tis", p)[0])
+
+    def test_halfwidth_katakana_and_the_prolonged_sound_mark_inside_a_run(self):
+        p = self.write({"ﾀﾝ": "Tan"})
+        self.assertEqual("Tanが来た", apply_pronunciation("ﾀﾝが来た", p)[0])
+        p = self.write({"コー": "Koh"})
+        self.assertEqual("Kohヒー", apply_pronunciation("コーヒー", p)[0])
+
+    def test_latin_combining_accents_block_in_nfc_and_nfd(self):
+        """A precomposed é is a word letter and é as e+U+0301 is a combining
+        mark: neither may let a key for Cafe fire inside Café."""
+        p = self.write({"Cafe": "Kafay"})
+        self.assertEqual("Café", apply_pronunciation("Café", p)[0])
+        self.assertEqual("Cafe\u0301", apply_pronunciation("Cafe\u0301", p)[0])
+        p = self.write({"Café": "Kafay"})
+        self.assertEqual("Kafay", apply_pronunciation("Café", p)[0])
+
+    def test_korean_keeps_word_bounds(self):
+        """Hangul is written with spaces between words, so a single-character
+        key must not fire inside a Hangul word."""
+        p = self.write({"김": "Kim"})
+        self.assertEqual("김밥", apply_pronunciation("김밥", p)[0])
+        self.assertEqual("Kim 밥", apply_pronunciation("김 밥", p)[0])
+
+    def test_a_mixed_latin_and_han_key_keeps_word_bounds(self):
+        """One spaced-script letter is enough: A太郎 is not unspaced."""
+        p = self.write({"A太郎": "Ataro"})
+        self.assertEqual("A太郎は", apply_pronunciation("A太郎は", p)[0])
+        self.assertEqual("Ataro", apply_pronunciation("A太郎", p)[0])
+
+    def test_a_changed_match_changes_render_identity_only_on_affected_lines(self):
+        """This pins the PRONUNCIATION COMPONENT of render identity, not a take.
+
+        A take publication stores get_recovery_digest(preparation) as
+        pronunciation_sha256, and this test proves that digest changes for the
+        straight-apostrophe possessive line and not for the already-matching
+        curly control. It stores no take. The serving fingerprint also hashes
+        the pronunciation module code, so every older take becomes audition-only
+        after this change regardless of whether its line's preparation changed;
+        that is the same behaviour as any pronunciation.py update."""
+        from speech_text import get_speech_normalization
+        from synthesis_recovery_identity import get_recovery_digest
+        p = self.write({"Mara": "Mahra"})
+        legacy = re.compile(r"(?<![\w'])(Mara)(?![\w'])")
+        original_path = pronunciation.DEFAULT_PATH
+        original_resolver = pronunciation.get_pronunciation_path
+        pronunciation.DEFAULT_PATH = p
+        pronunciation.get_pronunciation_path = lambda path=None: p
+        reset = dict(path=None, fingerprint=None, entries={}, pattern=None)
+        try:
+            for text, affected in (("Mara's hat", True), ("Mara\u2019s hat", False)):
+                with self.subTest(text=text):
+                    pronunciation._cache.update(reset)
+                    after = get_recovery_digest(get_speech_normalization(text))
+                    pronunciation._cache.update(reset)
+                    with patch.object(pronunciation, "_compile", return_value=legacy):
+                        before = get_recovery_digest(get_speech_normalization(text))
+                    if affected:
+                        self.assertNotEqual(before, after)
+                    else:
+                        self.assertEqual(before, after)
+        finally:
+            pronunciation.DEFAULT_PATH = original_path
+            pronunciation.get_pronunciation_path = original_resolver
+            pronunciation._cache.update(reset)
+
+    def test_it_fires_on_a_possessive_but_not_across_a_leading_apostrophe(self):
+        """`Subaru's` is the same name: the trailing possessive is kept rather
+        than blocking the substitution, and both apostrophes behave the same.
+        A LEADING apostrophe still blocks, so a name inside O'Brien is never
+        split by an entry for Brien."""
+        p = self.write({"Subaru": "Soo-bah-roo", "Brien": "Bry-en"})
+        for apostrophe in ("'", "\u2019", "\u02bc"):
+            with self.subTest(apostrophe=apostrophe):
+                out, applied = apply_pronunciation("Subaru" + apostrophe + "s hand", p)
+                self.assertEqual("Soo-bah-roo" + apostrophe + "s hand", out)
+                self.assertEqual([{"name": "Subaru", "spoken": "Soo-bah-roo"}], applied)
+                leading = "O" + apostrophe + "Brien"
+                self.assertEqual((leading, []), apply_pronunciation(leading, p))
+
+    def test_a_plural_s_still_blocks_a_shorter_key_but_not_its_own_key(self):
+        p = self.write({"Mara": "Mahra"})
+        self.assertEqual(("Maras' hat", []), apply_pronunciation("Maras' hat", p))
+        p = self.write({"Maras": "Mahras"})
+        self.assertEqual("Mahras' hat", apply_pronunciation("Maras' hat", p)[0])
 
     def test_an_empty_respelling_is_ignored(self):
         """The shipped file lists every name with an empty value, so the
@@ -144,9 +393,9 @@ class ShippedLexiconTest(unittest.TestCase):
         self.assertIsInstance(doc["names"], dict)
 
 
-class RosterDerivationTest(unittest.TestCase):
-    """The name list comes from the roster, and aliases inform it WITHOUT
-    leaking one character's pronunciation onto another's spelling."""
+class RosterSpellingTest(unittest.TestCase):
+    """A roster alias and a lowercase twin are different written forms: a
+    respelling applies to the form it names and to no other spelling."""
 
     def test_a_nickname_does_not_inherit_the_canonical_pronunciation(self):
         """THE TRAP. character_aliases maps 'BETTY' -> 'BEATRICE' because they
@@ -161,84 +410,6 @@ class RosterDerivationTest(unittest.TestCase):
         out, applied = apply_pronunciation("Betty smiled at Beatrice", p)
         self.assertEqual(out, "Betty smiled at Bee-ah-tree-chay")
         self.assertEqual([a["name"] for a in applied], ["Beatrice"])
-
-    def _fixture(self, chunks, aliases=None, voice_config=None):
-        """Drive character_forms from files this test owns.
-
-        These two tests used to call character_forms() bare, against whatever
-        book happened to be checked out. That made them skip in CI - where no
-        script is committed - and the release verifier counts a skip as a
-        failure. It also meant the Felt assertion only ran when the loaded
-        book contained Felt, so the collision logic went unexercised exactly
-        when someone changed books.
-        """
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        paths = {}
-        for key, data in (("script_path", chunks),
-                          ("aliases_path", aliases or {}),
-                          ("voice_config_path", voice_config or {})):
-            p = os.path.join(tmp.name, key + ".json")
-            with open(p, "w", encoding="utf-8") as fh:
-                json.dump(data, fh)
-            paths[key] = p
-        from pronunciation import character_forms
-        return character_forms(**paths)
-
-    def test_forms_are_derived_from_the_roster_and_the_text(self):
-        """A roster name that never appears in the text gets no entry: the
-        lexicon describes what will be spoken, not who was cast."""
-        forms = self._fixture(
-            [{"speaker": "BEATRICE", "text": "Beatrice waited by the door."},
-             {"speaker": "SUBARU", "text": "Subaru said nothing."}],
-            voice_config={"characters": {"BEATRICE": {}, "SUBARU": {},
-                                         "NEVER_SPOKEN": {}}})
-        self.assertIn("Beatrice", forms)
-        self.assertNotIn("NEVER_SPOKEN", forms)
-        self.assertNotIn("Never_Spoken", forms)
-        for name, info in forms.items():
-            self.assertGreater(info["occurrences"], 0,
-                               f"{name} listed but never occurs")
-
-    def test_a_name_colliding_with_a_common_word_is_flagged(self):
-        """`Felt` is a character and `felt` is a verb. Case-sensitivity
-        protects the verb; the flag warns whoever fills the file in."""
-        forms = self._fixture(
-            [{"speaker": "FELT", "text": "Felt felt the cold, and Felt ran."}],
-            voice_config={"characters": {"FELT": {}}})
-        self.assertIn("Felt", forms)
-        self.assertTrue(forms["Felt"]["collides_with_common_word"])
-        self.assertEqual(forms["Felt"]["occurrences"], 2)
-        self.assertEqual(forms["Felt"]["lowercase_occurrences"], 1)
-
-    def test_roster_counts_preserve_unicode_apostrophes_and_complex_names(self):
-        text = ("Felt felt Felt's 'Felt Felt’ Felt_ FeltX 2Felt Café café "
-                "東京 東京's O'Neil O'Neil's Jean-Luc Jean Luc Jean\nLuc")
-        names = ["Felt", "Café", "東京", "O'Neil", "Jean-Luc", "Jean Luc"]
-        forms = self._fixture([{"text": text}], aliases={name: name for name in names})
-        expected = {"Felt": (2, True, 1), "Café": (1, True, 1),
-                    "東京": (1, False, 1), "O'Neil": (1, False, 0),
-                    "Jean-Luc": (1, False, 0), "Jean Luc": (1, False, 0)}
-        self.assertEqual(set(expected), set(forms))
-        for name, (count, collision, lower) in expected.items():
-            with self.subTest(name=name):
-                self.assertEqual({"occurrences": count,
-                                  "collides_with_common_word": collision,
-                                  "lowercase_occurrences": lower}, forms[name])
-
-    def test_roster_counts_do_not_reuse_a_previous_book(self):
-        first = self._fixture([{"text": "Felt Felt felt"}], aliases={"Felt": "Felt"})
-        second = self._fixture([{"text": "Felt"}], aliases={"Felt": "Felt"})
-        self.assertEqual(2, first["Felt"]["occurrences"])
-        self.assertEqual(1, second["Felt"]["occurrences"])
-        self.assertFalse(second["Felt"]["collides_with_common_word"])
-
-    def test_a_name_with_no_lowercase_twin_is_not_flagged(self):
-        """The counterpart: flagging every name would make the flag useless."""
-        forms = self._fixture(
-            [{"speaker": "SUBARU", "text": "Subaru felt the cold."}],
-            voice_config={"characters": {"SUBARU": {}}})
-        self.assertFalse(forms["Subaru"]["collides_with_common_word"])
 
     def test_a_respelled_name_does_not_touch_its_lowercase_word(self):
         tmp = tempfile.TemporaryDirectory()
@@ -338,36 +509,6 @@ class LexiconFileFingerprintTests(unittest.TestCase):
             self.assertEqual("Valid", apply_pronunciation("Subaru", str(path))[0])
             path.unlink()
             self.assertEqual(("Subaru", []), apply_pronunciation("Subaru", str(path)))
-
-
-class CharacterFormsRuntimeTests(unittest.TestCase):
-    def test_default_roster_paths_follow_runtime_root_and_explicit_paths_still_override(self):
-        from pathlib import Path
-        from unittest.mock import patch
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            legacy = root / "legacy"
-            runtime = root / "runtime"
-            for folder, chunks, aliases, voices in (
-                    (legacy, [{"speaker": "LEGACY", "text": "Legacy waited."}], {}, {"LEGACY": {}}),
-                    (runtime, [{"speaker": "NARRATOR", "text": "Rina sees Mina."}], {"MINA": "RINA"}, {"RINA": {}})):
-                folder.mkdir()
-                for name, value in (("chunks.json", chunks), ("character_aliases.json", aliases), ("voice_config.json", voices)):
-                    (folder / name).write_text(json.dumps(value))
-            before = {p: p.read_bytes() for p in root.rglob("*.json")}
-            with patch.object(pronunciation, "REPO", str(legacy)), \
-                 patch.dict(os.environ, {"ALEXANDRIA_DATA_DIR": str(runtime)}):
-                forms = pronunciation.character_forms()
-                self.assertEqual({"Rina", "Mina"}, set(forms))
-                self.assertEqual(1, forms["Rina"]["occurrences"])
-                self.assertEqual(1, forms["Mina"]["occurrences"])
-                self.assertEqual({"Legacy"}, set(pronunciation.character_forms(
-                    script_path=str(legacy / "chunks.json"), aliases_path=str(legacy / "character_aliases.json"),
-                    voice_config_path=str(legacy / "voice_config.json"))))
-            with patch.object(pronunciation, "REPO", str(legacy)), patch.dict(os.environ, {"ALEXANDRIA_DATA_DIR": ""}):
-                self.assertEqual({"Legacy"}, set(pronunciation.character_forms()))
-            for path, data in before.items():
-                self.assertEqual(data, path.read_bytes())
 
 
 class LexiconFailureDiagnosticsTests(unittest.TestCase):
