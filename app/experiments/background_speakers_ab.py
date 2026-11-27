@@ -5,12 +5,12 @@ six three-pass books, while the models proposed them (THE MARINER, rejected
 30 times). Both gates that judge a speaker - the output check
 `speaker_not_in_source` in pass_quality.validate_attribution and the roster
 admission in three_pass_generate.attested_new_speakers - ask
-`is_attested_name`, which requires the label to be written capitalised in the
-book. "the mariner" never is.
+`get_name_attestation_verdict`, which requires the label to be written
+capitalised in the book. "the mariner" never is.
 
 ARMS, everything else identical:
   base               the gates as shipped.
-  admit_descriptive  `is_attested_name` additionally accepts a label that is
+  admit_descriptive  the verdict additionally says "attested" for a label that is
                      descriptive in form (background_speakers.is_descriptive_label)
                      and whose description occurs in the book, e.g. THE MARINER
                      when the text says "the mariner". Invented names (FUTURE_ME,
@@ -67,7 +67,7 @@ def is_common_phrase_in_source(name, source_text):
     MAN, PROPRIETOR - DeepSeek drops the article that is_descriptive_label
     looks for, so admit_descriptive rejected all three on the first book.
     A pronoun anywhere rules it out (FUTURE ME); a name is capitalised in the
-    text and stays with is_attested_name."""
+    text and stays with get_name_attestation_verdict."""
     form = _NUMBERED.sub("", get_loose_form(name)).strip()
     words = re.findall(r"[A-Za-z']+", form)
     if not words or any(w.lower() in _PRONOUNS for w in words):
@@ -80,21 +80,28 @@ def is_common_phrase_in_source(name, source_text):
 
 def get_admitting_gate(original, admits=is_described_in_source):
     def gate(name, source_text, *args, **kwargs):
-        return (original(name, source_text, *args, **kwargs)
-                or admits(name, source_text))
+        verdict = original(name, source_text, *args, **kwargs)
+        if verdict == pass_quality.NAME_ATTESTATION_ATTESTED:
+            return verdict
+        if admits(name, source_text):
+            return pass_quality.NAME_ATTESTATION_ATTESTED
+        return verdict
     return gate
 
 
 def install_arm(arm):
     if arm in ("admit_descriptive", "admit_described"):
+        # Patch the function the gates actually call (#2330 review F2). Both
+        # gates resolve a module global: pass_quality's own name is used by
+        # validate_attribution and is_attested_name, and three_pass_generate
+        # imported the name for attested_new_speakers. Patching is_attested_name
+        # alone (as this did before) reached neither.
         gate = get_admitting_gate(
-            pass_quality.is_attested_name,
+            pass_quality.get_name_attestation_verdict,
             is_described_in_source if arm == "admit_descriptive"
             else is_common_phrase_in_source)
-        # Both references: pass_quality's own module global (output gate) and
-        # the name three_pass_generate imported (roster gate).
-        pass_quality.is_attested_name = gate
-        three_pass_generate.is_attested_name = gate
+        pass_quality.get_name_attestation_verdict = gate
+        three_pass_generate.get_name_attestation_verdict = gate
 
 
 def install_restamp(record_path):

@@ -132,6 +132,14 @@ class OccurrenceResolverTests(unittest.TestCase):
             self.assertEqual(1,self.resolve(raw,[rule])['text'].count('Ah-n'))
 
 
+    def test_candidates_use_the_same_boundaries_as_substitution(self):
+        self.assertEqual([], p.get_occurrence_pronunciation_candidates(
+            "O'Brien", 'uid-A', "O'Brien", 'Brien')['candidates'])
+        found = p.get_occurrence_pronunciation_candidates(
+            '王明走了', 'uid-A', '王明走了', '王明')['candidates']
+        self.assertEqual([('王明', 0, 2)],
+                         [(row['original'], row['start'], row['end']) for row in found])
+
     def test_canonical_hook_applies_after_cleanup_and_keeps_insertions_literal(self):
         from speech_text import get_speech_normalization
         raw='Ann © Ann'
