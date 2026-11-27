@@ -71,8 +71,8 @@ old serialization need one update across this format migration.
 
 ## Workflow/event audit and check names
 
-There are ten workflow files, but **nine** have a `pull_request` trigger. All
-nine now also have an unfiltered `merge_group` trigger. The tenth,
+There are eleven workflow files, but **ten** have a `pull_request` trigger. All
+ten now also have an unfiltered `merge_group` trigger. The eleventh,
 `windows-export-staging-evidence.yml`, explicitly runs manual-only hardware
 qualification; it remains workflow_dispatch-only and is not a PR/queue check.
 
@@ -88,6 +88,7 @@ Exact job/check names (expand every listed matrix value):
 | Workflow | Check names |
 |---|---|
 | tests | `unit (1/6)` through `unit (6/6)`; `derived-files`; `test`; `windows-owner`; `windows-portability` |
+| security lint | `bandit` |
 | external TTS lifetime | `external-tts (ubuntu-latest)`; `external-tts (windows-latest)`; `external-tts (macos-latest)` |
 | source upload publication | `source-upload (ubuntu-latest)`; `source-upload (windows-latest)`; `source-upload (macos-latest)` |
 | qwen read-aloud | `qwen-readalong (ubuntu-latest)`; `qwen-readalong (windows-latest)`; `qwen-readalong (macos-latest)` |
