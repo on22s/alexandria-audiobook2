@@ -57,8 +57,8 @@ def get_canonical_name(name, aliases, label_index):
     """Return the readable uppercase target using a prepared alias context."""
     if not name:
         return ""
-    from speaker_identity import _identity_key
-    matched = label_index.get(_identity_key(name))
+    from speaker_identity import get_speaker_identity_key
+    matched = label_index.get(get_speaker_identity_key(name))
     return (aliases[matched] if matched is not None else name).upper()
 
 
@@ -108,7 +108,7 @@ def find_splits(config, aliases, line_counts):
     spellings sharing one voice are harmless duplication, not a defect, and
     flagging them would bury the eight that matter.
     """
-    from speaker_identity import _identity_key
+    from speaker_identity import get_speaker_identity_key
     groups = collections.defaultdict(list)
     displays = {}
     validated, label_index = get_canonical_alias_context(aliases)
@@ -116,7 +116,7 @@ def find_splits(config, aliases, line_counts):
         if isinstance(config.get(key), dict):
             display = get_canonical_name(key, validated, label_index)
             displays[key] = display
-            identity = _identity_key(display)
+            identity = get_speaker_identity_key(display)
             group = ("identity", identity) if identity else ("empty", display)
             groups[group].append(key)
 
