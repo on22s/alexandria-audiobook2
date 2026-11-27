@@ -57,6 +57,7 @@ from core import (
     _validate_voicelab_path,
     SCRIPTS_DIR,
     SCRIPT_PATH,
+    UPLOADS_DIR,
     _load_voicelab_config, _llm_summarize_report, _is_evidence_bound_summary,
     _save_upload_limited,
     _warn_corrupted_json,
@@ -2273,6 +2274,18 @@ def _save_readaloud_timing_preference(preference):
     return save_readaloud_timing_preference(preference, DATA_DIR)
 
 
+def get_timing_language_unavailable_detail(error):
+    """One 409 detail for a timing-language lookup failure (#2355).
+
+    Some shared refusals already end with their own rebuild advice; appending
+    it again produced "rebuild it. Rebuild it." Keep exactly one.
+    """
+    detail = "EPUB read-aloud timing language is unavailable: %s" % error
+    if "rebuild it" not in detail.lower():
+        detail += " Rebuild it."
+    return detail
+
+
 def _require_readaloud_timing_current(receipt):
     """Fail closed unless the receipt's timing identity is still current.
 
@@ -2351,8 +2364,14 @@ def _require_readaloud_timing_current(receipt):
                 if not isinstance(input_path, str) or not input_path:
                     raise HTTPException(status_code=409, detail=(
                         "EPUB read-aloud source is unavailable. Rebuild it."))
-                from readalong_export import get_retained_epub_candidate_path
-                retained_path = get_retained_epub_candidate_path(input_path)
+                from readalong_export import (get_retained_epub_receipt_sha256,
+                                              get_verified_retained_epub)
+                # resolve_saved_book_origin is lock-free; this runs outside the
+                # book lock. The download caller's identity/provenance fence
+                # re-checks book state afterwards and fails closed on a change.
+                retained_path, _retained_bytes = get_verified_retained_epub(
+                    input_path, get_retained_epub_receipt_sha256(receipt),
+                    data_dir=DATA_DIR, uploads_dir=UPLOADS_DIR)
                 from epub_readaloud import get_epub_language_from_path
                 try:
                     tag = get_epub_language_from_path(retained_path)
@@ -2360,13 +2379,13 @@ def _require_readaloud_timing_current(receipt):
                         raise ValueError("EPUB has no usable dc:language")
                     want_language = get_aligner_language_name(tag, capability.get("languages"))
                 except (ValueError, OSError) as error:
-                    raise HTTPException(status_code=409, detail=(
-                        "EPUB read-aloud timing language is unavailable: %s Rebuild it." % error)) from error
+                    raise HTTPException(
+                        status_code=409, detail=get_timing_language_unavailable_detail(error)) from error
         except HTTPException:
             raise
         except (ValueError, OSError) as error:
-            raise HTTPException(status_code=409, detail=(
-                "EPUB read-aloud timing language is unavailable: %s Rebuild it." % error)) from error
+            raise HTTPException(
+                status_code=409, detail=get_timing_language_unavailable_detail(error)) from error
         if receipt.get("timing_language") != want_language:
             raise HTTPException(status_code=409, detail=(
                 "EPUB read-aloud timing language is no longer current. Rebuild it."))
@@ -3120,19 +3139,17 @@ def _validated_epub_bytes():
             "EPUB read-aloud timing settings changed during download; rebuild it."))
     # Resolve/hash outside the book lock; the final identity and provenance
     # fence below rejects concurrent book or source-publication changes.
-    from readalong_export import get_retained_epub_candidate_path, get_retained_epub_sha256
+    # resolve_saved_book_origin is lock-free; the receipt hash, not the binding,
+    # remains the authority (the binding only supplies a candidate), and a
+    # mismatch falls back to the bounded scan inside the shared lookup.
+    from readalong_export import (get_retained_epub_receipt_sha256,
+                                  get_verified_retained_epub)
     try:
-        retained_path = get_retained_epub_candidate_path(input_path)
+        get_verified_retained_epub(
+            input_path, get_retained_epub_receipt_sha256(receipt),
+            data_dir=DATA_DIR, uploads_dir=UPLOADS_DIR)
     except (ValueError, OSError) as error:
         raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is unavailable: %s" % error) from error
-    if not os.path.isfile(retained_path):
-        raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is missing. Re-upload the EPUB and rebuild.")
-    try:
-        retained_sha = get_retained_epub_sha256(retained_path)
-    except (ValueError, OSError) as error:
-        raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is unavailable.") from error
-    if retained_sha != receipt["retained_epub_sha256"]:
-        raise HTTPException(status_code=409, detail="EPUB read-aloud does not match its retained source. Re-upload the EPUB and rebuild.")
     with ensure_book_state(DATA_DIR):
         _require_readalong_identity_current(receipt, "EPUB read-aloud")
         if _get_readaloud_timing_preference() != _timing_preference_after:
