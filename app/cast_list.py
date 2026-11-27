@@ -224,7 +224,8 @@ def merge_cast_window(previous, contribution):
 
 def request_incremental_cast(client, model, text, source_chars, max_tokens, *, limits=None,
                              report=lambda message: None, instruction=INCREMENTAL_PROMPT):
-    from llm_request_budget import get_prompt_token_estimate
+    from llm_request_budget import (get_prompt_token_estimate, get_suspect_prompt_tokens,
+                                    get_suspect_prompt_tokens_message, get_usage_count)
     from cast_list_settings import get_cast_list_settings
     get_cast_list_settings({}, incremental=True, source_chars=source_chars, max_tokens=max_tokens)
     cast, windows, dropped = [], [], []
@@ -255,13 +256,19 @@ def request_incremental_cast(client, model, text, source_chars, max_tokens, *, l
         for alias, name, reason in refused:
             report(f"Dropped alias {alias} from {name}: {reason}.")
         usage = getattr(response, "usage", None)
+        suspect = get_suspect_prompt_tokens(messages, usage)
+        if suspect:
+            report(get_suspect_prompt_tokens_message(suspect))
         windows.append({"start": start, "end": end, "status": "completed", "attempts": attempts,
                         "discarded_finish_reasons": ["length"] * (attempts - 1),
                         "source_sha256": hashlib.sha256(part.encode()).hexdigest(),
                         "request_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
                         "finish_reason": response.choices[0].finish_reason,
-                        "usage": {"prompt_tokens": getattr(usage, "prompt_tokens", None),
-                                  "completion_tokens": getattr(usage, "completion_tokens", None)}})
+                        "usage": {"prompt_tokens": get_usage_count(usage, "prompt_tokens"),
+                                  "completion_tokens": get_usage_count(usage, "completion_tokens")},
+                        **({"prompt_tokens_suspect": True,
+                            "prompt_tokens_estimate": suspect["prompt_tokens_estimate"]}
+                           if suspect else {})})
     return cast, windows, dropped
 
 
@@ -359,8 +366,10 @@ def main(argv=None):
     windows, dropped = [], []
     response = None
     attempts = 0
+    whole_book_prompt = None
     try:
-        from llm_request_budget import get_request_limits
+        from llm_request_budget import (get_request_limits, get_suspect_prompt_tokens,
+                                        get_suspect_prompt_tokens_message, get_usage_count)
         limits = get_request_limits(llm)
         if settings["incremental"]:
             cast, windows, dropped = request_incremental_cast(
@@ -368,9 +377,10 @@ def main(argv=None):
                 limits=limits, report=lambda message: print(message, flush=True),
                 instruction=prompt_settings["incremental_prompt"])
         else:
+            whole_book_prompt = prompt_settings["whole_book_prompt"] + text
             cast, response, attempts = request_cast_list(
                 client, llm.get("model_name"), text, settings["max_tokens"],
-                prompt=prompt_settings["whole_book_prompt"] + text, limits=limits)
+                prompt=whole_book_prompt, limits=limits)
     except KeyboardInterrupt:
         print("Cast build cancelled. Previous complete cast preserved.")
         return 1
@@ -381,6 +391,12 @@ def main(argv=None):
         print(f"Error: cast build refused: {exc}. Nothing was saved.")
         return 1
     usage = getattr(response, "usage", None)
+    suspect = None
+    if whole_book_prompt is not None:
+        suspect = get_suspect_prompt_tokens(
+            [{"role": "user", "content": whole_book_prompt}], usage)
+        if suspect:
+            print(get_suspect_prompt_tokens_message(suspect), flush=True)
     usage_totals = {}
     for field in ("prompt_tokens", "completion_tokens"):
         values = [window["usage"][field] for window in windows]
@@ -405,9 +421,12 @@ def main(argv=None):
         "finish_reason": response.choices[0].finish_reason if response else None,
         "attempts": sum(w["attempts"] for w in windows) if windows else attempts,
         **({"usage_scope": "accepted_window_responses_only", "usage": usage_totals}
-           if settings["incremental"] else {"usage": {
-               "prompt_tokens": getattr(usage, "prompt_tokens", None),
-               "completion_tokens": getattr(usage, "completion_tokens", None)}}),
+           if settings["incremental"] else {
+               "usage": {"prompt_tokens": get_usage_count(usage, "prompt_tokens"),
+                         "completion_tokens": get_usage_count(usage, "completion_tokens")},
+               **({"prompt_tokens_suspect": True,
+                   "prompt_tokens_estimate": suspect["prompt_tokens_estimate"]}
+                  if suspect else {})}),
         "elapsed_s": round(time.time() - started, 1)}
     cast, legacy_dropped = get_cast_without_refused_aliases(cast)
     dropped.extend(legacy_dropped)
