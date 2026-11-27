@@ -373,8 +373,25 @@ def _get_boundary_overlap(left_entries, right_entries, minimum_words=3):
 
 
 def clean_json_string(text):
-    """Clean and combine adjacent complete JSON arrays from an LLM response."""
+    """Clean and combine adjacent complete JSON arrays from an LLM response,
+    skipping bracketed preamble notes that cannot hold the answer."""
+    def fix_control_chars(match):
+        s = match.group(0)
+        # Replace unescaped control characters
+        s = s.replace('\n', '\\n')
+        s = s.replace('\r', '\\r')
+        s = s.replace('\t', '\\t')
+        return s
+
+    def escape_control_characters(value):
+        # Escape literal newlines/tabs inside JSON strings (common LLM issue).
+        return re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"', fix_control_chars, value)
+
     def parse_array_span(value):
+        # Judge the span the same way the final payload is parsed: control
+        # characters inside strings are escaped below, so a reply that only
+        # needs that repair must not be mistaken for a bracketed note.
+        value = escape_control_characters(value)
         try:
             parsed = json.loads(value)
         except json.JSONDecodeError:
@@ -409,6 +426,25 @@ def clean_json_string(text):
         # keeps it only if every object in it is complete (#1111); cutting
         # back to the last "}," here silently dropped the final entry.
         return text[start:]
+
+    # A preamble may carry a bracketed note - "[Note]", "Labels [0]:",
+    # "Entry [0] is ANNA." - that is not the answer. A span that does not
+    # parse as an array holding at least one object cannot be the payload, so
+    # skip it and the prose around it (#2336). Only arrays that hold objects
+    # can make the reply ambiguous.
+    def holds_answer_objects(value):
+        return value is not None and any(isinstance(item, dict) for item in value)
+
+    while not holds_answer_objects(parse_array_span(span)):
+        next_start = text.find('[', start + len(span))
+        if next_start == -1:
+            return None
+        next_span = extract_balanced(text, '[', ']', next_start)
+        if next_span is None:
+            # Same rule as the leading span: let the parser judge a remainder
+            # that never closes instead of discarding a complete answer in it.
+            return text[next_start:]
+        start, span = next_start, next_span
 
     spans = [span]
     cursor = start + len(span)
@@ -446,17 +482,7 @@ def clean_json_string(text):
         item.strip()[1:-1] for item in spans) + "]"
 
     # Clean control characters inside strings (common LLM issue)
-    # Replace literal newlines/tabs inside JSON strings with escaped versions
-    def fix_control_chars(match):
-        s = match.group(0)
-        # Replace unescaped control characters
-        s = s.replace('\n', '\\n')
-        s = s.replace('\r', '\\r')
-        s = s.replace('\t', '\\t')
-        return s
-
-    # Fix control characters inside string values
-    json_text = re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"', fix_control_chars, json_text)
+    json_text = escape_control_characters(json_text)
 
     return json_text
 
@@ -1275,6 +1301,21 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             retry_decider=retry_decider, near_miss_sink=near_miss_sink, codec=codec,
             _resume_state=state, _schema_rejected_by=schema_rejected_by)
 
+    def _stop_identical_retry():
+        print(f"  {label}: identical prompt and budget already "
+              f"rejected at temperature 0; further retries cannot "
+              f"differ", flush=True)
+
+    def _identical_retry_would_be_blocked():
+        """True when re-sending now would trip the temperature-0 guard.
+
+        A non-length reply leaves the prompt and the completion budget as they
+        were, so the next attempt is the same request and the guard would stop
+        it before sending. A length reply may have raised requested_max, and
+        that retry is a different request.
+        """
+        return not params.temperature and finish_reason != "length"
+
     attempt = resume_state.get("quality_attempt", 0) - 1
     advance_quality = True
     api_failures = 0
@@ -1323,9 +1364,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             attempt_key = (attempt_prompt, effective_max)
             if not params.temperature:
                 if attempt_key in attempted_prompts:
-                    print(f"  {label}: identical prompt and budget already "
-                          f"rejected at temperature 0; further retries cannot "
-                          f"differ", flush=True)
+                    _stop_identical_retry()
                     break
             # Close the prepared request block before provider work, so a
             # timeout or terminated worker does not erase what was asked.
@@ -1629,8 +1668,15 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             print(f"Warning: Could not find {codec.name} payload in {label} "
                   f"response (attempt {attempt_number})")
             if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
-                print(retry_line(attempt, max_retries))
-                continue
+                if _identical_retry_would_be_blocked():
+                    # The guard would stop this retry before sending it. Stop
+                    # it here instead, but keep the reply: the last-attempt
+                    # raw-array salvage below is still allowed to run.
+                    _stop_identical_retry()
+                    attempt = max_retries
+                else:
+                    print(retry_line(attempt, max_retries))
+                    continue
             # Last-attempt recovery: clean_json_string deliberately rejects
             # ambiguous multi-array structure, but repair_json_array can still
             # extract complete objects from the raw array region. It remains
@@ -1757,8 +1803,15 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         print(f"JSON preview: {json_text[:300]}...")
 
         if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
-            print(retry_line(attempt, max_retries))
-            continue
+            if _identical_retry_would_be_blocked():
+                # Same rule as the missing-payload branch: the guard would
+                # stop the retry, so spend no request and let the last-resort
+                # quality-gated salvage below decide.
+                _stop_identical_retry()
+                attempt = max_retries
+            else:
+                print(retry_line(attempt, max_retries))
+                continue
         if finish_reason == "length":
             return []
 

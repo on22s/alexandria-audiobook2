@@ -371,6 +371,82 @@ class LlmReviewTests(unittest.TestCase):
 
         self.assertIsNone(cleaned)
 
+    def test_bracketed_preamble_before_the_answer_is_accepted(self):
+        """#2336: a note like "[0]" or "[Note]" is not the answer array."""
+        entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+        answer = json.dumps(entries)
+        preambles = (
+            "Here it is: ",
+            "[Note] ",
+            "Here [as asked] it is: ",
+            "Labels [0]:\n",
+            "Entry [0] is ANNA. ",
+        )
+        for preamble in preambles:
+            with self.subTest(preamble=preamble):
+                cleaned = generate_script.clean_json_string(preamble + answer)
+                self.assertEqual(entries, generate_script.repair_json_array(cleaned))
+
+    def test_preamble_spans_that_cannot_hold_objects_are_skipped(self):
+        """Only an array of objects can be the answer; anything else is a note."""
+        entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+        answer = json.dumps(entries)
+        preambles = (
+            "[{not json}] ",
+            "[] ",
+            "[0, 1] ",
+            "[true, false] ",
+            "[注記] ",
+            "［0］ ",
+            "[] Here it is: ",
+            "[0, 1] Here it is: ",
+            "[{not json}] Here it is: ",
+            "[注記] Here it is: ",
+        )
+        for preamble in preambles:
+            with self.subTest(preamble=preamble):
+                cleaned = generate_script.clean_json_string(preamble + answer)
+                self.assertEqual(entries, generate_script.repair_json_array(cleaned))
+
+    def test_two_object_arrays_behind_prose_are_still_ambiguous(self):
+        first = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+        second = [{"speaker": "TWO", "text": "two", "instruct": "quiet"}]
+
+        cleaned = generate_script.clean_json_string(
+            "[Note] " + json.dumps(first) + " commentary " + json.dumps(second))
+
+        self.assertIsNone(cleaned)
+        self.assertIsNone(generate_script.repair_json_array(cleaned))
+
+    def test_brackets_inside_strings_do_not_split_the_answer_span(self):
+        entries = [{"speaker": "NARRATOR", "text": "[aside] one [two]",
+                    "instruct": "neutral"}]
+
+        cleaned = generate_script.clean_json_string(
+            "[Note] " + json.dumps(entries))
+
+        self.assertEqual(entries, generate_script.repair_json_array(cleaned))
+
+    def test_fenced_preamble_and_trailing_prose_keep_the_answer(self):
+        entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+
+        cleaned = generate_script.clean_json_string(
+            "```json\n[as asked] " + json.dumps(entries)
+            + "\n```\nDone; [0] entries." )
+
+        self.assertEqual(entries, generate_script.repair_json_array(cleaned))
+
+    def test_review_accepts_a_bracketed_preamble_before_the_answer(self):
+        """A non-attribution caller of clean_json_string benefits too."""
+        original = [{"speaker": "NARRATOR", "text": "He answered.",
+                     "instruct": "Neutral."}]
+        client = self._client_with_responses([
+            "Labels [0]:\n" + json.dumps(original)])
+        params = generate_script.LLMGenParams(max_tokens=100, temperature=0.1)
+
+        self.assertEqual(original, review_script.review_batch(
+            client, "m", original, 1, 1, params, max_retries=0))
+
     def test_retry_budget_only_increases_for_incomplete_output(self):
         self.assertEqual(6144, get_next_retry_max_tokens(
             4096, "token_truncated", 16384))
