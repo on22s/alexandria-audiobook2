@@ -387,6 +387,15 @@ class SpokenYearAlignmentTests(unittest.TestCase):
         self.assertIsNone(alignment._parse_number(['nineteen','bananas']))
         self.assertFalse(alignment._num_eq(['twenty','five'],['2005']))
 
+    def test_public_is_same_number_names_the_predicate(self):
+        # script_preflight uses the public alias; test it directly so it cannot
+        # drift away from _num_eq (review 17, N3).
+        self.assertIs(alignment.is_same_number, alignment._num_eq)
+        self.assertTrue(alignment.is_same_number(['twenty'], ['20']))
+        self.assertTrue(alignment.is_same_number(['twenty', 'five'], ['25']))
+        self.assertFalse(alignment.is_same_number(['twenty'], ['21']))
+        self.assertFalse(alignment.is_same_number(['twenty'], ['not a number']))
+
 
 class CheckpointLocaleTests(unittest.TestCase):
     def test_checkpoint_reconstructs_exact_utf8_edits_under_non_utf8_default_locale(self):

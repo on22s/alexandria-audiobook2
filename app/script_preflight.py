@@ -271,8 +271,12 @@ def _gap_is_one_paragraph(gap):
 
 
 def get_comparison_tokens_and_gaps(text, *, word_boundaries="space",
-                                   comparison_text=None):
+                                   comparison_text=None, token_spans=None):
     """Comparison-key tokens and whether each gap may fuse its two neighbours.
+
+    ``token_spans``, when given, receives each token's ``(start, end)`` offset
+    in the comparison text, so a caller can ask what characters sit beside a
+    token (the number rule's whole-numeral test needs exactly that).
 
     A gap is fusable only when it holds whitespace (or a ZWNJ, treated as an
     optional separator) and no paragraph break: punctuation keeps two lines
@@ -299,6 +303,8 @@ def get_comparison_tokens_and_gaps(text, *, word_boundaries="space",
         else:
             fusable.append(False)
         tokens.append(match.group())
+        if token_spans is not None:
+            token_spans.append(match.span())
         previous_end = match.end()
     return tokens, fusable
 
@@ -516,6 +522,84 @@ def get_source_block_occurrences(source_normalized, block, *, count_phrase=None)
             source_normalized, _normalize_words(text), count_phrase=count_phrase)
                     for text in block), default=0)
     return contiguous
+
+
+def _build_number_spelling_digit_index(tokens, whole_number):
+    """Index whole digit tokens by the words beside them.
+
+    A source window that spells a needle with one digit differs at exactly that
+    token: every other token matches. So its start is the digit's position
+    minus the needle's offset, and the digit sits beside the needle words that
+    surround it. Keyed by one neighbour (a digit at the window's first or last
+    position) or both (an interior digit), this derives candidates in time
+    proportional to the needle's spelled positions instead of scanning every
+    position of its first word (#2304 P1). The candidate set is identical to
+    "every source start plus every digit": an accepted window contains exactly
+    one digit, at a needle word that ``is_spelled_number`` accepts, so the
+    index yields it and adds nothing that can pass the exact-window check.
+    """
+    by_next, by_previous, by_pair = {}, {}, {}
+    for index, token in enumerate(tokens):
+        if not token.isdigit() or not whole_number[index]:
+            continue
+        previous = tokens[index - 1] if index else None
+        following = tokens[index + 1] if index + 1 < len(tokens) else None
+        if following is not None:
+            by_next.setdefault(following, []).append(index)
+        if previous is not None:
+            by_previous.setdefault(previous, []).append(index)
+        if previous is not None and following is not None:
+            by_pair.setdefault((previous, following), []).append(index)
+    return by_next, by_previous, by_pair
+
+
+def _number_spelling_digit_lines(tokens, fusable, words, digit_index):
+    """Non-overlapping source windows that spell ``words`` with one whole digit.
+
+    ``words`` must carry no digit: the number rule only asks for a digit-free
+    needle, so the one difference is always the source digit. Ordering and the
+    non-overlap rule are the caller's: starts are taken in source order, and an
+    accepted window consumes its span so copies cannot overlap.
+    """
+    lines = Counter()
+    if len(words) < 2:
+        return lines
+    last = len(words) - 1
+    by_next, by_previous, by_pair = digit_index
+    starts = set()
+    # Only a spelled-number word can be the one difference. Asking for its
+    # neighbours' digit positions keeps the work independent of how often the
+    # needle's first word occurs in the book.
+    for position, word in enumerate(words):
+        if not is_spelled_number([word]):
+            continue
+        if position == 0:
+            starts.update(by_next.get(words[1], ()))
+        elif position == last:
+            starts.update(index - position for index
+                          in by_previous.get(words[position - 1], ()))
+        else:
+            starts.update(index - position for index in by_pair.get(
+                (words[position - 1], words[position + 1]), ()))
+    next_free = 0
+    span = len(words)
+    for start in sorted(starts):
+        if start < next_free or start + span > len(tokens):
+            continue
+        window = tokens[start:start + span]
+        differences = [index for index, (left, right)
+                       in enumerate(zip(words, window)) if left != right]
+        if (len(differences) != 1
+                or not all(fusable[position]
+                           for position in range(start + 1, start + span))):
+            continue
+        digits = window[differences[0]]
+        spelled = words[differences[0]]
+        if (digits.isdigit() and is_spelled_number([spelled])
+                and is_same_number([spelled], [digits])):
+            next_free = start + span
+            lines[" ".join(window)] += 1
+    return lines
 
 
 def find_contained_source_duplicates(entries, source_text, *, source_normalized=None):
@@ -1204,69 +1288,69 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         ordinals, Roman numerals, decimals and non-English spellings do not
         parse as one token here and still block (documented under Limits).
 
+        The digit must be a WHOLE source number. A tokenizer turns "3.5" into
+        "3", "5" and "1,000" into "1", "000"; crediting the "5" of "3.5" would
+        let it spell "Five minutes" and accept a genuine duplicate, so a digit
+        glued to another digit by a numeral separator is not capacity. A
+        sentence's "5." or a list's "5," is a whole number, not a fragment.
+
         A digit copy the script also emits as digits is already that digit
         needle's own capacity, so only copies beyond the digit line's emissions
         are surplus capacity for the spelled line. Without that, one source copy
         could serve a digit emission and a spelled emission at once and a
-        genuine extra copy would be hidden.
+        genuine extra copy would be hidden. Per digit line that subtraction is
+        clamped at zero: an over-emitted digit line must not erase the spelled
+        finding (capacity 0 skips it) or produce a negative count.
         """
         nonlocal number_line_view
         words = needle.split()
         if len(words) < 2:
             return 0
+        if not any(is_spelled_number([word]) for word in words):
+            # An accepted window needs a needle word that is a spelled number,
+            # so a needle without one has no digit spelling at all.
+            return 0
         if number_line_view is None:
+            # Tokens and gaps come from one comparison view; the spans let the
+            # whole-numeral test look at the characters beside each digit.
+            comparison_source = (
+                source_comparison_text if source_comparison_text is not None
+                else _comparison_text(source_text,
+                                      word_boundaries=output_boundaries))
+            spans = []
             tokens, fusable = get_comparison_tokens_and_gaps(
                 source_text, word_boundaries=output_boundaries,
-                comparison_text=source_comparison_text)
-            starts_by_word = {}
+                comparison_text=comparison_source, token_spans=spans)
+            whole_number = [True] * len(tokens)
             for index, token in enumerate(tokens):
-                starts_by_word.setdefault(token, []).append(index)
-            # Index the one shape a window may start on without its first word:
-            # a digit token followed by an exact match. Keyed by the following
-            # word, this is O(1) per needle instead of a scan of every digit in
-            # the book or of every position of a common second word.
-            digit_before_word = {}
-            for index in range(1, len(tokens)):
-                if tokens[index - 1].isdigit():
-                    digit_before_word.setdefault(tokens[index], []).append(index)
-            number_line_view = (tokens, fusable, starts_by_word,
-                                digit_before_word)
-        tokens, fusable, starts_by_word, digit_before_word = number_line_view
-        # A window either starts on the needle's first word (so the one
-        # difference is at a later position), or its first token is the ONE
-        # digit that replaces that word. In the second case every remaining word
-        # matches exactly, so the token after the digit is words[1]: those
-        # starts are words[1]'s positions minus one, filtered to digits. Deriving
-        # them this way keeps the cost proportional to the needle's own token
-        # positions instead of every digit in the book (which made this rule
-        # cost needles x digits and dominated the whole gate on large books).
-        starts = list(starts_by_word.get(words[0], ()))
-        starts.extend(index - 1 for index in digit_before_word.get(words[1], ()))
-        starts.sort()
-        next_free = 0
-        digit_lines = Counter()
-        for start in starts:
-            if start < next_free or start + len(words) > len(tokens):
-                continue
-            differences = [index for index, (left, right)
-                           in enumerate(zip(words, tokens[start:start + len(words)]))
-                           if left != right]
-            if (len(differences) == 1
-                    and all(fusable[position]
-                            for position in range(start + 1, start + len(words)))):
-                mine, theirs = words[differences[0]], tokens[start + differences[0]]
-                digits, spelled = ((mine, theirs) if mine.isdigit()
-                                   else (theirs, mine))
-                if (digits.isdigit() and is_spelled_number([spelled])
-                        and is_same_number([spelled], [digits])):
-                    next_free = start + len(words)
-                    digit_lines[" ".join(tokens[start:start + len(words)])] += 1
+                if not token.isdigit():
+                    continue
+                start, end = spans[index]
+                before = comparison_source[start - 1] if start else ""
+                after = (comparison_source[end]
+                         if end < len(comparison_source) else "")
+                before_before = comparison_source[start - 2] if start > 1 else ""
+                after_after = (comparison_source[end + 1]
+                               if end + 1 < len(comparison_source) else "")
+                # "3.5" and "1,000" are one numeral per side: the separator has
+                # a digit on its far side. A trailing "5." or "5," does not.
+                whole_number[index] = not (
+                    before.isdigit() or after.isdigit()
+                    or (before in ".," and before_before.isdigit())
+                    or (after in ".," and after_after.isdigit()))
+            number_line_view = (tokens, fusable, _build_number_spelling_digit_index(
+                tokens, whole_number))
+        tokens, fusable, digit_index = number_line_view
+        digit_lines = _number_spelling_digit_lines(
+            tokens, fusable, words, digit_index)
         # A digit copy the script also emits as digits is already capacity for
         # that digit spelling (the digit needle counts its own source copies).
         # Only the copies beyond those emissions can carry a spelled emission;
         # otherwise one source copy serves both a digit and a spelled emission,
-        # and a genuine extra copy is hidden.
-        return sum(copies - output_counts[needle_ids[line]]
+        # and a genuine extra copy is hidden. Clamp each line at zero: more
+        # emissions than copies is not negative capacity, and letting it reduce
+        # the sum would drop the spelled finding or report an impossible count.
+        return sum(max(0, copies - output_counts[needle_ids[line]])
                    if line in needle_ids else copies
                    for line, copies in digit_lines.items())
 

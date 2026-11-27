@@ -1,6 +1,8 @@
 import asyncio
 import json
+from collections import Counter
 from pathlib import Path
+import random
 import sys
 import tempfile
 import unittest
@@ -8,12 +10,15 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 
+from alexandria_alignment import is_same_number, is_spelled_number
 from chunk_quality import validate_chunk_quality
 import generate_script
 from routers import scripts_library
 from script_preflight import (audit_script, audit_unicode_text,
                               find_contained_source_duplicates,
-                              get_boundary_insensitive_counter)
+                              get_boundary_insensitive_counter,
+                              _build_number_spelling_digit_index,
+                              _number_spelling_digit_lines)
 from script_repair import build_deterministic_repair
 from speaker_repair import apply_speaker_selections, build_speaker_review
 from content_repair import apply_content_selections, build_content_review
@@ -2307,6 +2312,149 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual("manual_review", findings[0]["severity"])
         self.assertTrue(findings[0]["details"]["rendering_capacity_unknown"])
 
+    def test_an_over_emitted_digit_line_cannot_erase_the_spelled_finding(self):
+        # An over-emitted digit line must not reduce the spelled line's
+        # capacity below zero. Before the clamp, capacity landed on exactly 0
+        # and `if not capacity: continue` dropped the finding entirely, even
+        # though four emissions stand against two source copies.
+        source = '"Twenty minutes!" she cried. "20 minutes," he said. Chapter 2.'
+        entries = [_entry("Twenty minutes", "C0"), _entry("Twenty minutes", "C1"),
+                   _entry("20 minutes", "C2"), _entry("20 minutes", "C3")]
+
+        findings = self._duplicate_findings(entries, source)
+
+        spelled = next(finding for finding in findings
+                       if finding["details"]["phrase"] == "twenty minutes")
+        self.assertEqual("blocking", spelled["severity"])
+        self.assertEqual(1, spelled["details"]["source_occurrences"])
+        self.assertEqual(2, spelled["details"]["all_text_occurrences"])
+        self.assertTrue(all(finding["details"]["source_occurrences"] >= 0
+                            for finding in findings))
+
+    def test_a_fused_digit_spelling_cannot_erase_the_spelled_finding(self):
+        # The source carries three copies (spelled, spaced digit, fused digit)
+        # and the script emits two of each. The spaced digit line is emitted
+        # beyond its one copy, which used to zero the spelled capacity and
+        # silently accept the duplicate.
+        source = ('"Twenty minutes!" she cried. "20 minutes," he said. '
+                  '"20minutes," she said. Chapter 2.')
+        entries = [_entry("Twenty minutes", "C0"), _entry("Twenty minutes", "C1"),
+                   _entry("20 minutes", "C2"), _entry("20 minutes", "C3")]
+
+        findings = self._duplicate_findings(entries, source)
+
+        spelled = next(finding for finding in findings
+                       if finding["details"]["phrase"] == "twenty minutes")
+        self.assertEqual("blocking", spelled["severity"])
+        self.assertEqual(1, spelled["details"]["source_occurrences"])
+        self.assertEqual(2, spelled["details"]["all_text_occurrences"])
+        self.assertTrue(all(finding["details"]["source_occurrences"] >= 0
+                            for finding in findings))
+
+    def test_an_over_emitted_digit_line_never_reports_a_negative_count(self):
+        # Two spelled emissions and three digit emissions against one copy of
+        # each. The unclamped subtraction reported source_occurrences=-1.
+        source = '"Twenty minutes," she said. "20 minutes," he said. Chapter 2.'
+        entries = ([_entry("Twenty minutes", "C0"), _entry("Twenty minutes", "C1")]
+                   + [_entry("20 minutes", "C%d" % index) for index in range(2, 5)])
+
+        findings = self._duplicate_findings(entries, source)
+        spelled = next(finding for finding in findings
+                       if finding["details"]["phrase"] == "twenty minutes")
+
+        self.assertEqual("blocking", spelled["severity"])
+        self.assertEqual(1, spelled["details"]["source_occurrences"])
+        self.assertTrue(all(finding["details"]["source_occurrences"] >= 0
+                            for finding in findings))
+
+        # Three spelled copies plus one digit copy: the true source count is
+        # three, so the clamp also stops the reported count sinking below it
+        # when the digit line is over-emitted.
+        source = ('"Twenty minutes!" a. "Twenty minutes!" b. '
+                  '"Twenty minutes!" c. "20 minutes," d. Chapter 2.')
+        entries = ([_entry("Twenty minutes", "C%d" % index) for index in range(4)]
+                   + [_entry("20 minutes", "C%d" % index) for index in range(4, 7)])
+
+        findings = self._duplicate_findings(entries, source)
+        spelled = next(finding for finding in findings
+                       if finding["details"]["phrase"] == "twenty minutes")
+
+        self.assertEqual(3, spelled["details"]["source_occurrences"])
+        self.assertEqual(4, spelled["details"]["all_text_occurrences"])
+        self.assertTrue(all(finding["details"]["source_occurrences"] >= 0
+                            for finding in findings))
+
+    def test_a_decimal_fragment_is_not_a_whole_source_number(self):
+        # "3.5" tokenizes as "3", "5". The "5" is part of one numeral, not a
+        # whole source number, so it must not spell "Five minutes" and accept
+        # a real duplicate of the line that the source carries once.
+        source = '"Five minutes!" she cried. He waited. "3.5 minutes," he said.'
+        finding = self._duplicate_findings(
+            [_entry("Five minutes", "C0"), _entry("Five minutes", "C1")],
+            source)[0]
+
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+        self.assertEqual(2, finding["details"]["all_text_occurrences"])
+
+    def test_a_digit_used_as_an_identifier_is_a_known_limit(self):
+        # The second F2 repro, kept and documented. "Route 1 more often" holds
+        # the whole number "1" beside "more", one token different from "One
+        # more", so the source is credited with two spellings and two word
+        # emissions stay clean. Nothing in the text says whether "1" is a count
+        # or a route number; separating them needs provenance, not a token rule.
+        source = '"One more!" she cried. He waited. "Route 1 more often," he said.'
+
+        self.assertEqual([], self._duplicate_findings(
+            [_entry("One more", "C0"), _entry("One more", "C1")], source))
+
+    _DOCUMENTED_BLOCK_SHAPES = (
+        ("Twenty-one minutes", "21 minutes"),
+        ("One hundred men", "100 men"),
+        ("Second floor", "2nd floor"),
+        ("Nineteen ninety, it was", "1990, it was"),
+        ("Chapter four begins", "Chapter IV begins"),
+        ("Three point five miles", "3.5 miles"),
+        ("Zwanzig Minuten", "20 Minuten"),
+        ("The nineties were loud", "The 1990s were loud"),
+        ("Five percent of it", "5% of it"),
+        ("Five dollars each", "$5 each"),
+        ("One half of it", "0.5 of it"),
+        ("Half past three exactly", "3:30 exactly"),
+    )
+
+    def test_documented_number_shapes_outside_the_table_still_block(self):
+        # These shapes need variable-length number phrases, ordinals, decimals,
+        # a fused digit spelling or another language's tables. Each is a
+        # documented false block: a faithful 1 spelled + 1 digit source with the
+        # word form emitted twice blocks at src=1/out=2, and a real third copy
+        # still blocks. Pinned so a future widening cannot silently accept them.
+        for spelled, digits in self._DOCUMENTED_BLOCK_SHAPES:
+            with self.subTest(shape=spelled):
+                source = '"%s," she said. "%s," he said.' % (spelled, digits)
+                entries = [_entry(spelled, "C0"), _entry(spelled, "C1")]
+
+                finding = self._duplicate_findings(entries, source)[0]
+                self.assertEqual("blocking", finding["severity"])
+                self.assertEqual(1, finding["details"]["source_occurrences"])
+                self.assertEqual(2, finding["details"]["all_text_occurrences"])
+
+                duplicate = self._duplicate_findings(
+                    entries + [_entry(spelled, "C2")], source)[0]
+                self.assertEqual("blocking", duplicate["severity"])
+                self.assertEqual(3, duplicate["details"]["all_text_occurrences"])
+
+    def test_a_fused_digit_spelling_still_blocks(self):
+        # "20minutes" is one token, not a digit line, so it cannot be capacity
+        # for "Twenty minutes"; the duplicate still blocks.
+        source = '"Twenty minutes!" she cried. "20minutes," he said.'
+        finding = self._duplicate_findings(
+            [_entry("Twenty minutes", "C0"), _entry("Twenty minutes", "C1")],
+            source)[0]
+
+        self.assertEqual("blocking", finding["severity"])
+        self.assertEqual(1, finding["details"]["source_occurrences"])
+
     def test_audit_script_surfaces_the_separate_duplicate_as_blocking(self):
         report = audit_script(self._entries(), self._source())
 
@@ -2315,6 +2463,81 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         self.assertEqual("blocking", duplicate["severity"])
         self.assertFalse(report["can_apply_repairs"])
         self.assertEqual(1, report["counts"]["blocking"])
+
+
+class NumberSpellingDigitIndexTests(unittest.TestCase):
+    """The digit-context index must select exactly the full scan's windows."""
+
+    @staticmethod
+    def _brute_force(tokens, fusable, words, whole_number):
+        accepted = Counter()
+        next_free = 0
+        for start in range(len(tokens) - len(words) + 1):
+            if start < next_free:
+                continue
+            window = tokens[start:start + len(words)]
+            differences = [index for index, (left, right)
+                           in enumerate(zip(words, window)) if left != right]
+            if len(differences) != 1:
+                continue
+            if not all(fusable[position]
+                       for position in range(start + 1, start + len(words))):
+                continue
+            position = differences[0]
+            digits = window[position]
+            if not (digits.isdigit() and whole_number[start + position]
+                    and is_spelled_number([words[position]])
+                    and is_same_number([words[position]], [digits])):
+                continue
+            next_free = start + len(words)
+            accepted[" ".join(window)] += 1
+        return accepted
+
+    def test_the_digit_context_index_selects_the_full_scan_windows(self):
+        # P1: candidates come from digits beside the needle's own words instead
+        # of every position of its first word. Each case plants a digit window
+        # at the first, an interior or the last needle position, then pads it
+        # with random words; non-fusable gaps and digits that are not whole
+        # numbers are mixed in. The accepted set must equal the full scan's,
+        # with the same non-overlap order.
+        rng = random.Random(2293)
+        spellings = {"1": "one", "2": "two", "5": "five",
+                     "20": "twenty", "90": "ninety"}
+        words_vocabulary = ["the", "she", "said", "minutes", "one",
+                            "two", "five", "twenty", "ninety"]
+        for case in range(300):
+            mode = case % 3
+            digit = rng.choice(sorted(spellings))
+            spelled = spellings[digit]
+            before = rng.choice(words_vocabulary)
+            after = rng.choice(words_vocabulary)
+            lead = [rng.choice(words_vocabulary) for _ in range(rng.randint(0, 3))]
+            tail = [rng.choice(words_vocabulary) for _ in range(rng.randint(0, 3))]
+            if mode == 0:
+                tokens = lead + [before, digit, after] + tail
+                words = [before, spelled, after]
+            elif mode == 1:
+                tokens = lead + [digit, after] + tail
+                words = [spelled, after]
+            else:
+                tokens = lead + [before, digit] + tail
+                words = [before, spelled]
+            digit_index = tokens.index(digit)
+            fusable = [True] * len(tokens)
+            whole_number = [True] * len(tokens)
+            index = _build_number_spelling_digit_index(tokens, whole_number)
+            expected = self._brute_force(tokens, fusable, words, whole_number)
+            actual = _number_spelling_digit_lines(tokens, fusable, words, index)
+            self.assertEqual(
+                expected, actual,
+                "tokens=%r words=%r fusable=%r whole=%r"
+                % (tokens, words, fusable, whole_number))
+            # The lead and tail hold no digit, so the planted window is the
+            # only one a full scan can accept; a candidate set that misses a
+            # first/interior/last digit must show up as a difference.
+            self.assertEqual(1, sum(expected.values()),
+                             "planted window was not accepted: %r %r"
+                             % (tokens, words))
 
 
 if __name__ == "__main__":
