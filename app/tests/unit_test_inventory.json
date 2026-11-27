@@ -1279,6 +1279,31 @@
     , "tests.test_background_speakers.SameSpeakerTest.test_wrong_people_stay_wrong"
     , "tests.test_background_speakers.VolumeTest.test_repeat_generations_group_into_one_volume"
   ]
+  , "test_bandit_gate": [
+    "tests.test_bandit_gate.BanditGateTests.test_command_pins_the_full_bandit_argv"
+    , "tests.test_bandit_gate.BanditGateTests.test_command_stays_within_windows_argv_limit"
+    , "tests.test_bandit_gate.BanditGateTests.test_excludes_match_bandit_walked_paths"
+    , "tests.test_bandit_gate.BanditGateTests.test_gate_fails_on_findings_scan_errors_blanket_nosec_and_dropped_targets"
+    , "tests.test_bandit_gate.BanditGateTests.test_gate_reads_pep263_latin1_files_for_nosec_checks"
+    , "tests.test_bandit_gate.BanditGateTests.test_gate_rejects_unknown_nosec_id_and_non_conforming_comments"
+    , "tests.test_bandit_gate.BanditGateTests.test_known_bandit_ids_covers_repo_and_matches_installed_bandit"
+    , "tests.test_bandit_gate.BanditGateTests.test_low_findings_do_not_gate"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_bandit_crashes"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_bandit_is_missing"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_report_is_not_json"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_report_is_unreadable"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_targets_are_empty"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_prints_the_scanned_file_count"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_runs_multiple_batches_and_writes_merged_report"
+    , "tests.test_bandit_gate.BanditGateTests.test_missing_or_uninterpolatable_excludes_fail_the_gate"
+    , "tests.test_bandit_gate.BanditGateTests.test_nosec_comments_name_a_test_and_a_reason"
+    , "tests.test_bandit_gate.BanditGateTests.test_nosec_regex_matches_bandit_without_a_word_boundary"
+    , "tests.test_bandit_gate.BanditGateTests.test_report_artifact_is_not_tracked"
+    , "tests.test_bandit_gate.BanditGateTests.test_targets_are_derived_from_the_filesystem"
+    , "tests.test_bandit_gate.BanditGateTests.test_targets_share_source_sweep_helper"
+    , "tests.test_bandit_gate.BanditGateTests.test_targets_skip_virtualenvs"
+    , "tests.test_bandit_gate.BanditGateTests.test_workflow_runs_the_gate_on_the_linux_pin"
+  ]
   , "test_basic_auth_scheme_case": [
     "tests.test_basic_auth_scheme_case.BasicAuthSchemeTests.test_all_basic_scheme_cases_accept_same_exact_unicode_credentials"
     , "tests.test_basic_auth_scheme_case.BasicAuthSchemeTests.test_wrong_scheme_and_malformed_payload_still_reject"
@@ -16138,7 +16163,9 @@
     "tests.test_source_sweep_scope.AppPythonFilesTest.test_a_bare_rglob_would_have_returned_the_venv"
     , "tests.test_source_sweep_scope.AppPythonFilesTest.test_a_tree_with_no_venv_is_unaffected"
     , "tests.test_source_sweep_scope.AppPythonFilesTest.test_the_venv_is_excluded_and_our_modules_are_not"
-    , "tests.test_source_sweep_scope.SweepScopeInventoryTest.test_no_test_rglobs_python_files_by_hand"
+    , "tests.test_source_sweep_scope.SweepScopeInventoryTest.test_inventory_includes_repo_root_scripts"
+    , "tests.test_source_sweep_scope.SweepScopeInventoryTest.test_no_module_rglobs_python_files_by_hand"
+    , "tests.test_source_sweep_scope.SweepScopeInventoryTest.test_test_support_delegates_to_shared_helper"
   ]
   , "test_source_upload_held_routes": [
     "tests.test_source_upload_held_routes.UploadHeldRouteTests.test_docx_publish_held_is_503_keeps_partial_group_and_retries"
