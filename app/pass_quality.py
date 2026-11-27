@@ -1103,8 +1103,8 @@ _TAG_QUOTE_PAIRS = frozenset(_PAIRED)
 # for the next quotation.
 _TAG_NEXT_QUOTE_OPENERS = frozenset(QUOTE_MARKS) | {"‘"}
 # Gutenberg texts are hard-wrapped, so the tag's comma and the next quotation
-# can be separated by one line break.
-_TAG_SINGLE_LINE_WRAP = re.compile(r"[ \t]*\r?\n[ \t]*")
+# can be separated by one line break or by one blank line (#2388 gate 3).
+_TAG_NEXT_QUOTE_WRAP = re.compile(r"[ \t]*\r?\n(?:[ \t]*\r?\n)?[ \t]*")
 
 
 def _is_valid_tag_name(value):
@@ -1178,6 +1178,16 @@ def _is_same_tag_identity(speaker, expected, established_pool):
         # the surname may belong to any character of that family. Abstain
         # rather than call the two different characters (#2388).
         return True
+    if len(exp_words) > len(sp_words):
+        # exp_words are the tag's personal words and sp_words the prediction's
+        # (validate_attribution passes the predicted label first). A tag that
+        # carries MORE name words than the prediction is a different or more
+        # specific label - a wife's foreign title ("Frau John Vale"), a
+        # generational word ("John Vale Junior", "Young John Vale") or a
+        # first name plus surname against a bare first name - not the same
+        # identity (#2388 gate 3). The shorter-tag join below still lets an
+        # unestablished "Miss Vale" label join a predicted "LUCY VALE".
+        return False
     short, full = ((exp_words, sp_words) if len(exp_words) <= len(sp_words)
                    else (sp_words, exp_words))
     return full[:len(short)] == short or full[-len(short):] == short
@@ -1345,7 +1355,7 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
             rest = after[1:][tag.end():].lstrip(" \t")
             after_punct = (rest[1:].lstrip(" \t")
                            if rest and rest[0] in (",", ":") else "")
-            wrap = _TAG_SINGLE_LINE_WRAP.match(after_punct)
+            wrap = _TAG_NEXT_QUOTE_WRAP.match(after_punct)
             if wrap:
                 after_punct = after_punct[wrap.end():]
             if after_punct and after_punct[0] in _TAG_NEXT_QUOTE_OPENERS:

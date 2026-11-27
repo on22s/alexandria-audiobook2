@@ -223,21 +223,31 @@ class SourceTagTests(unittest.TestCase):
         # quotation or continue this one. The guard abstains instead of guessing,
         # and these subtests pin that ambiguity rather than discriminate it.
         for text, source in (
-            ('Are you in town?', '“Are you in town?” Babs said, “Have you got a match?”'),
-            ('Are you in town?', '"Are you in town?" Babs said, "Have you got a match?"'),
-            ('Do you think so?', '“Do you think so?” Anna said, “I doubt it.”'),
-            ('Stay here.', '“Stay here.” Babs said: “I will return soon.”'),
-            ('Watch out!', '“Watch out!” Babs whispered, “Someone is coming.”'),
-            ('Stay here.', '«Stay here.» Babs said, «I will return soon.»'),
-            ('Stay here.', '„Stay here.“ Babs said, „I will return soon.“'),
+            ('Will you walk back?', '“Will you walk back?” Zella said, “I have the key.”'),
+            ('Will you walk back?', '"Will you walk back?" Zella said, "I have the key."'),
+            ('Do you hear that?', '“Do you hear that?” Anna said, “It came from the hall.”'),
+            ('Mind the step.', '“Mind the step.” Zella said: “The lamp is lit.”'),
+            ('Look out!', '“Look out!” Zella whispered, “The floor is wet.”'),
+            ('Keep the gate shut.', '«Keep the gate shut.» Zella said, «The wind is rising.»'),
+            ('Keep the gate shut.', '„Keep the gate shut.“ Zella said, „The wind is rising.“'),
             # Gutenberg texts are hard-wrapped, and `‘` opens the next
             # quotation in them without being a PAIRED convention (#2388 gate 2).
-            ('Are you in town?', '“Are you in town?” Babs said,\n“Have you got a match?”'),
-            ('Are you in town?', '“Are you in town?” Babs said, ‘Have you got a match?’'),
+            ('Will you walk back?', '“Will you walk back?” Zella said,\n“I have the key.”'),
+            # One blank line between the comma/colon and the next quotation is
+            # still the same guard shape (#2388 gate 3).
+            ('Will you walk back?', '“Will you walk back?” Zella said,\n\n“I have the key.”'),
+            ('Mind the step.', '“Mind the step.” Zella said:\n\n“The lamp is lit.”'),
+            ('Will you walk back?', '“Will you walk back?” Zella said, ‘I have the key.’'),
         ):
             with self.subTest(source=source):
                 self.assertEqual({}, get_attribution_tag_evidence(
-                    [{'type': 'SPOKEN', 'text': text}], source, {'MILLY', 'BABS'}))
+                    [{'type': 'SPOKEN', 'text': text}], source, {'ZELLA', 'BRAM'}))
+        # A period-ending tag is the disclosed unguarded shape: a blank line
+        # after it changes nothing (#2388 gate 3).
+        self.assertEqual({0: 'ZELLA'}, get_attribution_tag_evidence(
+            [{'type': 'SPOKEN', 'text': 'Will you walk back?'}],
+            '“Will you walk back?” Zella said.\n\n“I have the key.”',
+            {'ZELLA', 'BRAM'}))
         # Split quotations by the same speaker must still yield evidence.
         for text, source in (
             ('Let us go,', '“Let us go,” Anna said, “before dark.”'),
@@ -429,6 +439,60 @@ class SourceTagTests(unittest.TestCase):
         self.assertTrue(validate_attribution(
             entry, [{'n': 0, 'speaker': 'FANNY VALE'}], source_text=source,
             known_names=roster, speaker_aliases=aliases)['passed'])
+
+    def test_tag_with_more_name_words_than_the_prediction_is_not_joined(self):
+        # The prefix/suffix join is one-directional: an unestablished SHORTER
+        # tag may join a prediction ("Miss Vale" -> LUCY VALE), but a tag that
+        # carries more name words than the prediction is a different or more
+        # specific label. Main contradicts every shape below; #2388 gate 3
+        # found the head had started accepting them.
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        roster = {'JOHN VALE', 'BEN'}
+        for tag in (
+            'said Frau John Vale.',
+            'said Madame John Vale.',
+            'said Mme John Vale.',
+            'said Señora John Vale.',
+            'said John Vale Junior.',
+            'said Young John Vale.',
+        ):
+            source = f'“Let us go,” {tag} Ben waited.'
+            with self.subTest(tag=tag):
+                report = validate_attribution(
+                    entry, [{'n': 0, 'speaker': 'JOHN VALE'}],
+                    source_text=source, known_names=roster)
+                self.assertFalse(report['passed'], report)
+                self.assertEqual('speaker_contradicts_source_tag',
+                                 report['findings'][0]['code'])
+        # A first name plus surname against a bare predicted first name.
+        report = validate_attribution(
+            entry, [{'n': 0, 'speaker': 'JOHN'}],
+            source_text='“Let us go,” said John Vale. Ben waited.',
+            known_names={'JOHN', 'JOHN SMITH', 'BEN'})
+        self.assertFalse(report['passed'], report)
+        self.assertEqual('speaker_contradicts_source_tag',
+                         report['findings'][0]['code'])
+        # "Lady" is a title, so this unrostered tag joins the same personal
+        # words. That is the disclosed Lady join (Limits), pinned here.
+        self.assertTrue(validate_attribution(
+            entry, [{'n': 0, 'speaker': 'JOHN VALE'}],
+            source_text='“Let us go,” said Lady John Vale. Ben waited.',
+            known_names={'JOHN VALE', 'BEN'})['passed'])
+        # The shorter-tag join is unchanged.
+        self.assertTrue(validate_attribution(
+            entry, [{'n': 0, 'speaker': 'LUCY VALE'}],
+            source_text='“Let us go,” said Miss Vale. Ben waited.',
+            known_names={'LUCY VALE', 'BEN'})['passed'])
+
+    def test_non_manner_ly_word_fills_the_adverb_slot(self):
+        # _TAG_ADVERB accepts any lowercase -ly word ("Anna family said.").
+        # Kept as a disclosed limit: on PDNC it produced no false flag, and a
+        # noun list would be a second guess (#2388 gate 3 nit). Pinned so a
+        # narrower rule is a deliberate change.
+        self.assertEqual({0: 'ANNA'}, get_attribution_tag_evidence(
+            [{'type': 'SPOKEN', 'text': 'Let us go,'}],
+            '“Let us go,” Anna family said. Ben waited.',
+            {'ANNA', 'BEN'}))
 
     def test_lady_husband_name_alias_does_not_claim_the_husbands_name(self):
         # "Lady John Vale" is John's wife, the same convention decision 2 fixed
