@@ -5307,6 +5307,12 @@
     , "tests.test_dialogue_spans.SpanTest.test_the_inch_mark_predicate_matches_the_pairing_rule"
     , "tests.test_dialogue_spans.SpanTest.test_the_number_test_covers_unicode_numbers_but_not_cjk_numerals"
     , "tests.test_dialogue_spans.SpanTest.test_when_every_later_closer_is_digit_preceded_the_continuation_decides"
+    , "tests.test_dialogue_spans.UnclosedOpenerTest.test_a_line_straddling_a_no_body_opener_keeps_mains_verdict"
+    , "tests.test_dialogue_spans.UnclosedOpenerTest.test_an_opener_before_a_whitespace_only_paragraph_yields_no_span"
+    , "tests.test_dialogue_spans.UnclosedOpenerTest.test_an_unclosed_opener_with_a_body_still_yields_its_span"
+    , "tests.test_dialogue_spans.UnclosedOpenerTest.test_every_unclosed_opener_with_no_body_yields_no_span"
+    , "tests.test_dialogue_spans.UnclosedOpenerTest.test_mark_entries_matches_origin_main_on_straddling_lines"
+    , "tests.test_dialogue_spans.UnclosedOpenerTest.test_non_empty_spans_are_byte_identical_to_origin_main"
   ]
   , "test_direct_path_admission": [
     "tests.test_direct_path_admission.AdministratorAliasTests.test_administrator_alias_chain_is_followed"
