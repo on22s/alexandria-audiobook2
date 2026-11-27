@@ -371,6 +371,307 @@ class LlmReviewTests(unittest.TestCase):
 
         self.assertIsNone(cleaned)
 
+    def test_bracketed_preamble_before_the_answer_is_accepted(self):
+        """#2336: a note like "[as asked]" or "[0]" before the answer.
+
+        Only the replies that failed on main are here; the notes main already
+        tolerated are pinned separately as non-regression coverage.
+        """
+        entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+        answer = json.dumps(entries)
+        preambles = (
+            "Here [as asked] it is: ",
+            "Labels [0]:\n",
+            "Entry [0] is ANNA. ",
+        )
+        for preamble in preambles:
+            with self.subTest(preamble=preamble):
+                cleaned = generate_script.clean_json_string(preamble + answer)
+                self.assertEqual(entries, generate_script.repair_json_array(cleaned))
+
+    def test_preamble_spans_that_cannot_hold_objects_are_skipped(self):
+        """Only an array of objects can be the answer; anything else is a note.
+
+        These are the non-object notes that failed on main. The adjacent-only
+        forms that main already repaired are in the non-regression test below.
+        """
+        entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+        answer = json.dumps(entries)
+        preambles = (
+            "[{not json}] ",
+            "[] Here it is: ",
+            "[0, 1] Here it is: ",
+            "[{not json}] Here it is: ",
+            "[注記] Here it is: ",
+        )
+        for preamble in preambles:
+            with self.subTest(preamble=preamble):
+                cleaned = generate_script.clean_json_string(preamble + answer)
+                self.assertEqual(entries, generate_script.repair_json_array(cleaned))
+
+    def test_corrupted_leading_array_is_discarded_not_refused(self):
+        """#2336 behaviour change (pinned): a span that cannot parse is skipped.
+
+        `[{"speaker":}]` cannot be the answer, so the valid array after it is
+        accepted on the first call at both temperatures. On main the guard
+        returns [] at 0.0 and the all-or-nothing raw salvage returns [] at 0.7
+        after four calls (the malformed object poisons it). The caller's
+        coverage/quality gate still decides whether the entries are committed.
+        """
+        entries = [{"speaker": "NARRATOR", "text": "one two three",
+                    "instruct": "neutral"}]
+        reply = '[{"speaker":}] ' + json.dumps(entries)
+        for temperature in (0.0, 0.7):
+            with self.subTest(temperature=temperature):
+                calls = []
+
+                def create(**_kwargs):
+                    calls.append(1)
+                    return SimpleNamespace(choices=[SimpleNamespace(
+                        message=SimpleNamespace(content=reply),
+                        finish_reason="stop")], usage=None)
+
+                client = SimpleNamespace(chat=SimpleNamespace(
+                    completions=SimpleNamespace(create=create)))
+                params = generate_script.LLMGenParams(
+                    temperature=temperature, max_tokens=256)
+                with tempfile.TemporaryDirectory() as tmp, patch.object(
+                        generate_script, "get_response_log_path",
+                        return_value=str(Path(tmp, "response.log"))):
+                    result = generate_script.call_llm_for_entries(
+                        client, "model", "system", "user", params,
+                        "response.log", "TEST", max_retries=3,
+                        validate_entries=lambda _entries: {"passed": True,
+                                                           "findings": []})
+
+                self.assertEqual(entries, result)
+                self.assertEqual(1, len(calls))
+
+    def _run_reply(self, reply, temperature, attempts=None):
+        calls = []
+
+        def create(**_kwargs):
+            calls.append(1)
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=reply),
+                finish_reason="stop")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        params = generate_script.LLMGenParams(
+            temperature=temperature, max_tokens=256)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+                generate_script, "get_response_log_path",
+                return_value=str(Path(tmp, "response.log"))):
+            result = generate_script.call_llm_for_entries(
+                client, "model", "system", "user", params,
+                "response.log", "TEST", max_retries=3,
+                validate_entries=lambda _entries: {"passed": True,
+                                                   "findings": []},
+                attempt_observer=(attempts if attempts is not None else []).append)
+        return calls, result
+
+    def test_adjacent_array_with_literal_newline_is_combined(self):
+        """#2336 behaviour change (pinned): adjacent spans are judged with the
+        same control-character escape as the final payload.
+
+        The second array holds a literal newline inside its text, so its span
+        only parses after that repair. Main kept the strict parse for adjacent
+        spans: it returned None and the passing validator saw 0 entries (1 call
+        at 0.0, 4 at 0.7). Head combines both arrays and accepts on the first
+        call at both temperatures.
+        """
+        first = [{"speaker": "NARRATOR", "text": "one two", "instruct": "neutral"}]
+        second = [{"speaker": "ELENA", "text": "three four", "instruct": "firm"}]
+        reply = json.dumps(first) + json.dumps(second).replace(
+            "three four", "three\nfour")
+        expected = first + [{"speaker": "ELENA", "text": "three\nfour",
+                             "instruct": "firm"}]
+
+        for temperature in (0.0, 0.7):
+            with self.subTest(temperature=temperature):
+                calls, result = self._run_reply(reply, temperature)
+
+                self.assertEqual(expected, result)
+                self.assertEqual(1, len(calls))
+
+    def test_adjacent_duplicate_array_with_literal_newline_still_overlaps(self):
+        """#2336 behaviour change (pinned): the overlap check also judges the
+        second span after the control-character escape.
+
+        Two copies of one array, one with a literal newline inside its text.
+        Head parses both spans, their boundary words match, and
+        AdjacentArrayOverlapError is raised: no entries after 2 calls at 0.0
+        (the second is the feedback retry, whose prompt changed; a third would
+        be blocked by the deterministic guard) and all 4 at 0.7.
+
+        Main's outcome depends on which copy holds the newline, and neither was
+        the duplicate acceptance the earlier wording claimed:
+        - newline in the SECOND copy: main's strict adjacent parse returned
+          None, the missing-payload path found no array, and it returned 0
+          entries after 1 call at 0.0 and 4 at 0.7 (ending malformed_json).
+        - newline in the FIRST copy: main's leading span parse failed, the
+          combined span still reached raw salvage, and it accepted the
+          duplicated entries (2 entries, 1 call at both temperatures).
+        Both placements are pinned below, at both temperatures.
+        """
+        entries = [{"speaker": "NARRATOR", "text": "alpha beta gamma delta",
+                    "instruct": "neutral"}]
+        second_newline = (json.dumps(entries)
+                          + json.dumps(entries).replace(
+                              "alpha beta gamma delta",
+                              "alpha beta gamma\ndelta"))
+        first_newline = (json.dumps(entries).replace(
+            "alpha beta gamma delta", "alpha beta gamma\ndelta")
+            + json.dumps(entries))
+
+        for placement, reply in (("second copy", second_newline),
+                                 ("first copy", first_newline)):
+            for temperature, expected_calls in ((0.0, 2), (0.7, 4)):
+                with self.subTest(placement=placement, temperature=temperature):
+                    attempts = []
+                    calls, result = self._run_reply(reply, temperature, attempts)
+
+                    self.assertEqual([], result)
+                    self.assertEqual(expected_calls, len(calls))
+                    self.assertEqual(["adjacent_array_overlap"],
+                                     attempts[-1]["failure_codes"])
+
+    def test_notes_main_already_tolerated_stay_tolerated(self):
+        """Non-regression only: these preambles already produced the answer on
+        main (json repair dropped the note), so they do not discriminate the
+        fix. They are kept to pin that the skip loop did not narrow what was
+        accepted before it (#2336)."""
+        entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+        answer = json.dumps(entries)
+        preambles = (
+            "Here it is: ",
+            "[Note] ",
+            "[] ",
+            "[0, 1] ",
+            "[true, false] ",
+            "[注記] ",
+            "［0］ ",
+        )
+        for preamble in preambles:
+            with self.subTest(preamble=preamble):
+                cleaned = generate_script.clean_json_string(preamble + answer)
+                self.assertEqual(entries, generate_script.repair_json_array(cleaned))
+
+    def test_note_then_unclosed_array_is_judged_by_the_parser(self):
+        """The skip loop's unclosed-remainder branch must not discard the note's
+        successor: with no closing "]" the remainder goes to the parser, which
+        keeps every complete object (#1111). Returning None here would reject a
+        recoverable answer."""
+        cleaned = generate_script.clean_json_string(
+            '[0] [{"speaker": "N", "text": "one"}')
+
+        self.assertEqual([{"speaker": "N", "text": "one"}],
+                         generate_script.repair_json_array(cleaned))
+
+    def test_two_object_arrays_behind_prose_are_still_ambiguous(self):
+        first = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+        second = [{"speaker": "TWO", "text": "two", "instruct": "quiet"}]
+
+        cleaned = generate_script.clean_json_string(
+            "[Note] " + json.dumps(first) + " commentary " + json.dumps(second))
+
+        self.assertIsNone(cleaned)
+        self.assertIsNone(generate_script.repair_json_array(cleaned))
+
+    def test_note_before_adjacent_duplicate_arrays_still_overlaps(self):
+        """#2336 behaviour change: once the note is skipped, the two answer
+        arrays are adjacent and the overlap guard applies. Main kept the note
+        in the combined span, its parse failed, and the overlap check was
+        skipped - so it returned the duplicated entries instead of raising."""
+        entries = [{"speaker": "NARRATOR", "text": "one two three four",
+                    "instruct": "neutral"}]
+
+        doubled = ("[Note]" + json.dumps(entries) + json.dumps(entries)
+                   + " commentary")
+
+        with self.assertRaises(generate_script.AdjacentArrayOverlapError):
+            generate_script.clean_json_string(doubled)
+
+    def test_brackets_inside_strings_do_not_split_the_answer_span(self):
+        """Non-regression only: main's json repair already dropped the note, so
+        this passes on main too. It pins that the skip loop does not split the
+        answer on a bracket inside a string value (#2336)."""
+        entries = [{"speaker": "NARRATOR", "text": "[aside] one [two]",
+                    "instruct": "neutral"}]
+
+        cleaned = generate_script.clean_json_string(
+            "[Note] " + json.dumps(entries))
+
+        self.assertEqual(entries, generate_script.repair_json_array(cleaned))
+
+    def test_fenced_preamble_and_trailing_prose_keep_the_answer(self):
+        """Non-regression only: main already accepted this reply (its json
+        repair dropped the note). Pinned so the skip loop keeps a fenced answer
+        with trailing bracketed prose intact (#2336)."""
+        entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
+
+        cleaned = generate_script.clean_json_string(
+            "```json\n[as asked] " + json.dumps(entries)
+            + "\n```\nDone; [0] entries." )
+
+        self.assertEqual(entries, generate_script.repair_json_array(cleaned))
+
+    def test_process_chunk_still_rejects_a_stray_object_array_before_the_answer(self):
+        """The wider acceptance stops at the payload region, not the gate.
+
+        call_llm_for_entries can now return both objects from
+        `[{"a": 1}] commentary [{real}]`, but process_chunk runs
+        build_deterministic_repair, which refuses the leading object with no
+        speaker/text ("empty_first_entry"). The chunk is therefore still
+        rejected: the skip loop does not let a stray object become narration.
+        """
+        reply = ('[{"a": 1}] commentary '
+                 + json.dumps([{"speaker": "NARRATOR", "text": "one",
+                                "instruct": "neutral"}]))
+        client = self._client_with_responses([reply])
+        params = generate_script.LLMGenParams("system", "{chunk}", 100, 0.0, 1)
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+                generate_script, "get_response_log_path",
+                return_value=str(Path(tmp, "response.log"))):
+            result = generate_script.process_chunk(
+                client, "model", "one", 1, 1, params, max_retries=0)
+
+        self.assertEqual([], result)
+
+    def test_review_accepts_a_bracketed_preamble_before_the_answer(self):
+        """A non-attribution caller needs one call, not a rejected retry loop.
+
+        Main cannot see through "Labels [0]:" and sends the same reply
+        max_retries times (3 calls here) before the last-attempt raw-array
+        salvage accepts it; the skip loop accepts on the first call.
+        """
+        original = [{"speaker": "NARRATOR", "text": "He answered.",
+                     "instruct": "Neutral."}]
+        calls = []
+        responses = iter(["Labels [0]:\n" + json.dumps(original)] * 4)
+
+        def create(**_kwargs):
+            calls.append(1)
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=next(responses)),
+                finish_reason="stop")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        params = generate_script.LLMGenParams(max_tokens=100, temperature=0.1)
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+                generate_script, "get_response_log_path",
+                return_value=str(Path(tmp, "response.log"))):
+            result = review_script.review_batch(
+                client, "m", original, 1, 1, params, max_retries=2)
+
+        self.assertEqual(original, result)
+        self.assertEqual(1, len(calls),
+                         "a complete reply must be accepted on the first call")
+
     def test_retry_budget_only_increases_for_incomplete_output(self):
         self.assertEqual(6144, get_next_retry_max_tokens(
             4096, "token_truncated", 16384))

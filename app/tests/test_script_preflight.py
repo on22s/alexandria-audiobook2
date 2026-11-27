@@ -18,7 +18,9 @@ from script_preflight import (audit_script, audit_unicode_text,
                               find_contained_source_duplicates,
                               get_boundary_insensitive_counter,
                               _build_number_spelling_digit_index,
-                              _number_spelling_digit_lines)
+                              _comparison_offset_map, _comparison_text,
+                              _number_spelling_digit_lines,
+                              _raw_number_gap)
 from script_repair import build_deterministic_repair
 from speaker_repair import apply_speaker_selections, build_speaker_review
 from content_repair import apply_content_selections, build_content_review
@@ -2639,6 +2641,30 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
                     self.assertEqual(2, third[0]["details"]["source_occurrences"])
                     self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
 
+    def test_a_c0_information_separator_is_spacing_not_a_glued_mark(self):
+        # Gate 6 L1: Python's str.strip() removes U+001C-U+001F as whitespace,
+        # but they were in neither spacing list, so a mark beside one looked
+        # glued: the faithful "12-<separator>5" source blocked at src=1/out=2.
+        # U+001C-U+001E are line endings (str.splitlines breaks on them) and
+        # U+001F is horizontal spacing, so the "5" is whole and carries the
+        # digit copy: two emissions clean, a third blocks, as on any other
+        # break or space.
+        entries = [_entry("Five men died", "C0"),
+                   _entry("Five men died", "C1")]
+        for separator in ("\x1c", "\x1d", "\x1e", "\x1f"):
+            with self.subTest(separator=hex(ord(separator))):
+                source = ('"Five men died," she said. 12-%s'
+                          '5 men died that day.' % separator)
+
+                self.assertEqual([], self._duplicate_findings(entries, source))
+
+                third = self._duplicate_findings(
+                    entries + [_entry("Five men died", "C2")], source)
+                self.assertEqual(1, len(third))
+                self.assertEqual("blocking", third[0]["severity"])
+                self.assertEqual(2, third[0]["details"]["source_occurrences"])
+                self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
+
     def test_a_spaced_slash_is_sentence_punctuation(self):
         # Gate 5 L3: a slash follows the same glued-only rule as every other
         # mark. Glued "5/6" is one numeral, but the spaced "12 / 5" of a ratio
@@ -2767,9 +2793,13 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         # drift from source offsets. The rescue maps the positions back instead
         # of requiring equal lengths, so a fold BEFORE or AFTER the range cannot
         # turn it off. Each fold is tested on both sides of the same range.
+        # "Don't wait…" is the input whose apostrophe _comparison_text removes
+        # AFTER folding, so _comparison_offset_map has to reconcile that
+        # removal as well; without it the rescue is off for the most common
+        # English contraction (gate 6 L2).
         base = '"Six men," she said. "5\u200b\u20136\u200b men," he said.'
         folds = ("Wait\u2026", "Stra\u00dfe", "\ufb01ne", "\u0130stanbul",
-                 "cafe\u0301")
+                 "cafe\u0301", "Don't wait\u2026")
         entries = [_entry("Six men", "C0"), _entry("Six men", "C1")]
         for fold in folds:
             for source in (fold + ". " + base, base + " " + fold + "."):
@@ -2779,6 +2809,26 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
                     self.assertEqual("blocking", findings[0]["severity"])
                     self.assertEqual(1, findings[0]["details"]["source_occurrences"])
                     self.assertEqual(2, findings[0]["details"]["all_text_occurrences"])
+
+    def test_the_raw_gap_rescue_refuses_a_slice_the_map_put_one_off(self):
+        # Gate 6 N1: _comparison_offset_map can be accepted yet land one
+        # character off when a fold composes across the cluster walk (here a
+        # halfwidth katakana voiced pair before the gap and an apostrophe plus
+        # combining halfwidth mark after it). The re-fold check in
+        # _raw_number_gap is what refuses the wrong slice; without it the caller
+        # reads the digit "5" as the gap and can join a faithful range.
+        source = "\uff8a\uff9f5-6'\u0345\uff9f"
+        comparison = _comparison_text(source, word_boundaries="fused")
+        start = comparison.index("5") + 1
+        stop = comparison.index("6")
+        gap = comparison[start:stop]
+        offsets = _comparison_offset_map(source, comparison, "fused")
+
+        self.assertIsNotNone(offsets)
+        self.assertEqual("-", gap)
+        self.assertEqual("5", source[offsets[start]:offsets[stop]])
+        self.assertIsNone(_raw_number_gap(
+            source, comparison, start, stop, gap, "fused", offsets))
 
     def test_a_digit_used_as_an_identifier_is_a_known_limit(self):
         # The second F2 repro, kept and documented. "Route 1 more often" holds
