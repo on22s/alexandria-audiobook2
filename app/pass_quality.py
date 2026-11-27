@@ -132,7 +132,7 @@ def _record_single_quote_closer(text, index, limit=None, opener=None,
         # `rock ’n’ roll`: this apostrophe closes the elision, not the speech.
         return False
     if (previous.lower() == "s" and following.isspace() and limit is not None
-            and _is_possessive_continuing_span(
+            and _record_possessive_continuation(
                 text, index, opener, limit, ambiguous)):
         # `The dogs’ “bones” are here,’`, `'The dogs' "bones",'` and
         # `… “run”, and the dogs’ bones are here,’`: the apostrophe is a plural
@@ -143,6 +143,9 @@ def _record_single_quote_closer(text, index, limit=None, opener=None,
 
 def _find_single_quote_closer(text, start, limit, closer, ambiguous=None):
     """-> the first mark at or after `start` that can really close a span.
+
+    Records in `ambiguous` a mark whose two readings the closer predicate
+    cannot settle (it forwards the list to `_record_single_quote_closer`).
 
     A letter after the mark makes it an apostrophe (`it’s`, `don’t`), and an
     elision apostrophe does too, so neither can be the `later` closer the
@@ -174,7 +177,9 @@ def _record_single_quote_opener_between(text, start, end, ambiguous=None,
     possessive because `‘fort’` has its own closer. Only an opener with no
     closer of its own starts a new speech (#2331 review 4). Since `end` is the
     earliest closer that could close the continuing span, the candidate's own
-    closer can only be `end` itself.
+    closer is `end` when it uses the SAME single-quote character. When it uses
+    the other convention (`'` inside `‘…’`, or the reverse) its closer lies
+    before `end`, so it is a closed nested quotation, not a sibling.
 
     That case supports both readings: a nested quotation inside the continuing
     speech, or a sibling speech whose closer is the same mark. A sentence
@@ -203,17 +208,23 @@ def _record_single_quote_opener_between(text, start, end, ambiguous=None,
             _SINGLE_QUOTE_OPEN_CLOSE[text[position]], ambiguous)
         if own == -1:
             return True  # an opener with no closer of its own: a sibling
-        # `own` is `end` (the earliest plausible closer after the possessive
-        # mark), so the candidate is closed at the same mark that could close
-        # the continuing span. A sentence terminator before it selects the
-        # sibling reading; otherwise it is a nested quotation.
+        # `own == end` means the candidate is closed at the same mark that
+        # could close the continuing span. A candidate of the other convention
+        # closes before `end` and is handled as a nested quotation above. A
+        # sentence terminator before it selects the sibling reading; otherwise
+        # it is a nested quotation.
         sentence_end = _has_sentence_end_between(text, start, position)
         if sentence_end and ambiguous is not None:
             ambiguous.append(position)
         if sentence_end:
             return True
-        if (limit is not None and closer is not None
+        if (limit is not None and closer is not None and own == end
                 and _contains_paired_quote(text, position + 1, own)
+                # The later-closer lookahead deliberately takes no `ambiguous`:
+                # every mark it sees lies past `end` and outside this span, so
+                # recording one only demotes mixed-convention chunks (198 of
+                # 50,000 in the gate's fuzz) without changing any
+                # single-convention chunk.
                 and _find_single_quote_closer(
                     text, end + 1, limit, closer) == -1):
             # No later mark can close the continuing span, so the nested
@@ -234,8 +245,11 @@ def _record_single_quote_opener_between(text, start, end, ambiguous=None,
     return False
 
 
-def _is_possessive_continuing_span(text, index, opener, limit, ambiguous=None):
+def _record_possessive_continuation(text, index, opener, limit, ambiguous=None):
     """Is the `…s’`/`…s'` mark at `index` a possessive with a later closer?
+
+    Records in `ambiguous` a candidate the sibling lookahead cannot settle (the
+    `record` verb signals that side effect, Rule 16).
 
     The span keeps going when a paired quote sits anywhere between the opener
     and the next closer, including a pair that straddles this mark

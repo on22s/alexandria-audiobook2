@@ -87,6 +87,15 @@ speech whose candidate nests a pair:
     `quote_presegmented`, truthful row passes, the split-at-the-possessive row
     rejected;
   - the helpers that record ambiguity are named `_record_…` (Rule 16).
+
+The gate review of rev6 added the cross-convention case:
+  - the forced branch also fired when the candidate used the OTHER single-quote
+    convention, because its own closer is not `end`; `own == end` now keeps that
+    mark a possessive and `quotes` certifies the truthful split again;
+  - the later-closer lookahead deliberately records nothing, which is what
+    keeps the two-sentence mixed family certified (`mixed_sib_after`);
+  - the second M30 chunk (same convention, closed at the later closer) is
+    pinned, and `_record_possessive_continuation` is the Rule 16 rename.
 """
 import hashlib
 import io
@@ -592,6 +601,61 @@ CLOSED_SIBLING_WITH_LATER_CLOSER_WRONG_SPLIT = [
     {"type": "SPOKEN", "text": "\u2018walk \u201cnow\u201d\u2019"},
     {"type": "NARRATOR", "text": "is the order,\u2019 she said."},
 ]
+
+# gate review 1's second M30 chunk: the candidate uses the SAME single-quote
+# convention and is closed exactly at the later closer, so `own == end` holds.
+# One span; `quotes` certifies the truthful split.
+SAME_CONVENTION_CLOSED_SIBLING = (
+    "\u2018The dogs\u2019 \u2018game \u201cfetch\u201d\u2019 is fun,\u2019 she said.")
+SAME_CONVENTION_CLOSED_SIBLING_TRUTHFUL = [
+    {"type": "SPOKEN",
+     "text": "The dogs\u2019 \u2018game \u201cfetch\u201d\u2019 is fun,"},
+    {"type": "NARRATOR", "text": "she said."},
+]
+
+# gate review 2 finding 1 / round 7 item 1: a `…s’` mark before a candidate that
+# uses the OTHER single-quote convention and closes BEFORE the speech's real
+# closer is a plural possessive, not a sibling. The forced branch assumed the
+# candidate's own closer was `end`, which is false across conventions, so it
+# split at `dogs’`. With `own == end` the span continues and `quotes` certifies
+# the truthful split, as r5 did (the two-sentence form already did on r6's
+# dropped-argument change).
+MIXED_SIB_AFTER_CASES = {
+    # outer and candidate use different conventions, one sentence
+    "curly outer, straight candidate": (
+        "\u2018The dogs\u2019 'game \u201cfetch\u201d' was fun,\u2019 Anna said.",
+        [{"type": "SPOKEN",
+          "text": "The dogs\u2019 'game \u201cfetch\u201d' was fun,"},
+         {"type": "NARRATOR", "text": "Anna said."}],
+        [(0, 1, 34, 34)]),
+    "straight outer, curly candidate": (
+        "'The dogs' \u2018game \u201cfetch\u201d\u2019 was fun,' Anna said.",
+        [{"type": "SPOKEN",
+          "text": "The dogs' \u2018game \u201cfetch\u201d\u2019 was fun,"},
+         {"type": "NARRATOR", "text": "Anna said."}],
+        [(0, 1, 34, 34)]),
+    # the gate's two-sentence family (mixed_sib_after), both conventions
+    "curly outer, two sentences": (
+        "\u2018The dogs\u2019 'game \u201cfetch\u201d' was fun,\u2019 Anna said. "
+        "The boys\u2019 toys broke. \u2018He said \u201cstop\u201d,\u2019 Ben said.",
+        [{"type": "SPOKEN",
+          "text": "The dogs\u2019 'game \u201cfetch\u201d' was fun,"},
+         {"type": "NARRATOR",
+          "text": "Anna said. The boys\u2019 toys broke."},
+         {"type": "SPOKEN", "text": "He said \u201cstop\u201d,"},
+         {"type": "NARRATOR", "text": "Ben said."}],
+        [(0, 1, 34, 34), (69, 70, 85, 85)]),
+    "straight outer, two sentences": (
+        "'The dogs' \u2018game \u201cfetch\u201d\u2019 was fun,' Anna said. "
+        "The boys' toys broke. 'He said \u201cstop\u201d,' Ben said.",
+        [{"type": "SPOKEN",
+          "text": "The dogs' \u2018game \u201cfetch\u201d\u2019 was fun,"},
+         {"type": "NARRATOR",
+          "text": "Anna said. The boys' toys broke."},
+         {"type": "SPOKEN", "text": "He said \u201cstop\u201d,"},
+         {"type": "NARRATOR", "text": "Ben said."}],
+        [(0, 1, 34, 34), (69, 70, 85, 85)]),
+}
 
 # rev5 nit 3: a mixed-convention sibling whose straight opener has no closer of
 # its own. The `own == -1` branch makes it a sibling, so `Yes’` closes and the
@@ -1663,6 +1727,65 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                         chunk, CLOSED_SIBLING_WITH_LATER_CLOSER_WRONG_SPLIT,
                         **kwargs)["passed"],
                     "certifies the split at the possessive")
+        # Gate review 1's second M30 chunk. Same convention, so the candidate's
+        # own closer is exactly the later closer: one span covering the inner
+        # quotation, and `quotes` certifies the truthful split.
+        chunk = SAME_CONVENTION_CLOSED_SIBLING
+        analysis = analyze_outer_quote_regions(chunk)
+        self.assertEqual([(0, 1, 33, 33)],
+                         analysis.get("adopted_single_quote_spans"))
+        self.assertEqual([], analysis.get("unadopted_single_quote_spans"))
+        self.assertFalse(analysis.get("uncertain_single_quoted_speech"))
+        entries, resolution = tp.quote_regions_decision(
+            "quotes", chunk, analysis)
+        self.assertEqual("quote_presegmented", resolution)
+        self.assertEqual(
+            [{"type": "SPOKEN", "text": "The dogs\u2019 \u2018game fetch\u2019 is fun,"},
+             {"type": "NARRATOR", "text": "she said."}], entries)
+        for gate_label, kwargs in (
+                ("analysis-backed", {"quote_analysis": analysis}),
+                ("analysis-free", {})):
+            with self.subTest(gate=gate_label):
+                report = validate_segment_quality(
+                    chunk, SAME_CONVENTION_CLOSED_SIBLING_TRUTHFUL, **kwargs)
+                self.assertTrue(report["passed"], report["findings"])
+
+    def test_a_mixed_convention_closed_candidate_is_not_a_sibling(self):
+        # Gate review 2 finding 1 / round 7 item 1: the forced branch's `own`
+        # is `end` only when the candidate uses the same single-quote character.
+        # A candidate of the other convention is a CLOSED nested quotation
+        # (`… 'game “fetch”' …`), so `dogs’` is a plural possessive, the span
+        # continues to the real closer, and `quotes` certifies the truthful
+        # split. Removing `own == end` splits at `dogs’`, so the single-sentence
+        # cases fail on spans and on the truthful gate row (mutation check).
+        # The two-sentence family also pins round 7 item 3: r6's dropped
+        # `ambiguous` argument in the later-closer lookahead must keep the
+        # truthful split certified.
+        for label, (chunk, truthful, spans) in \
+                MIXED_SIB_AFTER_CASES.items():
+            with self.subTest(case=label):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertEqual(spans,
+                                 analysis.get("adopted_single_quote_spans"))
+                self.assertEqual([], analysis.get("unadopted_single_quote_spans"))
+                self.assertTrue(analysis.get("nested_single_quoted_speech"))
+                self.assertFalse(
+                    analysis.get("uncertain_single_quoted_speech"))
+                for mode in ("auto", "lexical"):
+                    self.assertEqual(
+                        (None, None),
+                        tp.quote_regions_decision(mode, chunk, analysis))
+                entries, resolution = tp.quote_regions_decision(
+                    "quotes", chunk, analysis)
+                self.assertEqual("quote_presegmented", resolution)
+                self.assertEqual(analysis["regions"], entries)
+                for gate_label, kwargs in (
+                        ("analysis-backed", {"quote_analysis": analysis}),
+                        ("analysis-free", {})):
+                    with self.subTest(gate=gate_label):
+                        report = validate_segment_quality(
+                            chunk, truthful, **kwargs)
+                        self.assertTrue(report["passed"], report["findings"])
 
     def test_a_no_terminator_nested_quotation_still_abstains(self):
         # The forced sibling reading above must not fire when the candidate
