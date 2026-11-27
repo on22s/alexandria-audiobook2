@@ -8103,6 +8103,7 @@
   , "test_issue_2331_single_quote_nesting": [
     "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_a_double_quoted_book_with_nested_single_quotes_is_unchanged"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_a_quoted_title_in_narration_is_not_adopted_as_speech"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_a_title_in_a_non_targeted_chunk_stays_rejection_safe"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_an_inch_mark_inside_an_adopted_span_stays_content"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_an_unclosed_opener_does_not_run_past_its_paragraph_or_500_chars"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_apostrophes_elisions_and_wrong_direction_do_not_open_speech"
@@ -8111,12 +8112,19 @@
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_first_issue_example_is_not_presegmented_inside_out"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_gate_allows_nested_marks_by_position_not_by_character"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_guillemets_and_corner_brackets_nested_in_single_quotes"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_inch_marks_are_measurements_not_nested_quotes"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_narration_quotation_in_a_double_quoted_book_is_unchanged"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_nested_single_quoted_span_inside_the_adopted_span"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_possessive_after_the_nested_quote_does_not_close_the_span"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_possessive_and_elision_before_the_real_closer"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_second_issue_example_is_not_presegmented_inside_out"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_straight_elision_guard_without_an_outside_pair"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_straight_quote_version_is_not_presegmented_inside_out"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_the_paragraph_search_is_bounded"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_the_same_text_without_nested_quotes_is_unchanged"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_tis_and_twas_straight_openers_keep_main_behaviour"
     , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_unanadopted_span_does_not_whitelist_a_double_quoted_chunk"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_unresolved_nested_single_quote_abstains_from_adoption"
   ]
   , "test_issue_628_whitespace_entries": [
     "tests.test_issue_628_whitespace_entries.DropWhitespaceEntries.test_an_empty_unit_standing_for_real_text_is_kept_for_the_gate"

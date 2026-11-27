@@ -18,10 +18,24 @@ The narrow decision is deliberate (rev1 review):
     single span, so a double-quoted book keeps main's analysis byte for byte;
   - the gate allows a nested quote mark by POSITION inside an adopted span, not
     by character, so a row that keeps the real outer delimiters still fails.
+
+The rev2 review narrowed it further:
+  - in a targeted chunk the gate also accepts a SPOKEN row equal to a complete
+    single-quoted span the analysis did not adopt, so the model's correct split
+    of sibling speeches passes; "quotes" then abstains from certifying the
+    analysis split (`quote_forced`) because it has no model to ask;
+  - a possessive after the nested quote (`… the dogs’ bones are here,’`) is not
+    the closer;
+  - a single-quoted quotation nested inside the speech (`… to ‘Bob’ then …`)
+    does not end the outer span; unresolved nesting abstains from adoption;
+  - inch marks are measurements, not nested quotes, in both directions;
+  - the paragraph search is bounded, and the straight elision guard is tested
+    without a second outside double pair.
 """
 import hashlib
 import json
 import unittest
+from unittest import mock
 
 from pass_quality import (analyze_outer_quote_regions, validate_segment_quality)
 try:  # Importable on the pre-fix tree, so the differential digest can be checked there.
@@ -49,7 +63,8 @@ SECOND = ("\u2018She told me \u201crun\u201d and I ran, and then I hid by the ri
           "\u2018Were you afraid?\u2019 asked Ben.\n\n"
           "\u2018A little,\u2019 said Anna. She looked at the door.")
 # Only one span nests a double quote, so only it is adopted; the later plain
-# single-quoted speeches keep main's narration (Limits).
+# single-quoted speeches stay in the analyzer's narration, but the gate accepts
+# the model's correct split of them (rev2 finding 1).
 SECOND_NARROW = [
     {"type": "SPOKEN",
      "text": "She told me run and I ran, and then I hid by the river until the morning came,"},
@@ -57,6 +72,16 @@ SECOND_NARROW = [
      "text": ("said Anna.\n\n"
               "\u2018Were you afraid?\u2019 asked Ben.\n\n"
               "\u2018A little,\u2019 said Anna. She looked at the door.")},
+]
+SECOND_CORRECT = [
+    {"type": "SPOKEN",
+     "text": ("She told me \u201crun\u201d and I ran, and then I hid by the river "
+              "until the morning came,")},
+    {"type": "NARRATOR", "text": "said Anna."},
+    {"type": "SPOKEN", "text": "Were you afraid?"},
+    {"type": "NARRATOR", "text": "asked Ben."},
+    {"type": "SPOKEN", "text": "A little,"},
+    {"type": "NARRATOR", "text": "said Anna. She looked at the door."},
 ]
 
 STRAIGHT = "'She told me \"run\" and I ran,' said Anna. Ben left."
@@ -148,6 +173,87 @@ INCH_REGIONS = [
 INCH_TRUTHFUL = [
     {"type": "SPOKEN", "text": "He is 6\" wide and said \u201chi\u201d,"},
     {"type": "NARRATOR", "text": "she said."},
+]
+
+# rev2 finding 2: a possessive AFTER the nested quote is not the closer.
+POSSESSIVE_AFTER = "\u2018He said \u201crun\u201d, and the dogs\u2019 bones are here,\u2019 she said."
+POSSESSIVE_AFTER_STRAIGHT = "'He said \"run\", and the dogs' bones are here,' she said."
+POSSESSIVE_AFTER_CASES = {
+    "curly": (POSSESSIVE_AFTER,
+              "He said \u201crun\u201d, and the dogs\u2019 bones are here,",
+              "He said run, and the dogs\u2019 bones are here,",
+              "He said run, and the dogs",
+              "bones are here,\u2019 she said."),
+    "straight": (POSSESSIVE_AFTER_STRAIGHT,
+                 "He said \"run\", and the dogs' bones are here,",
+                 "He said run, and the dogs' bones are here,",
+                 "He said run, and the dogs",
+                 "bones are here,' she said."),
+}
+
+# rev2 finding 3: a single-quoted quotation nested inside the speech.
+NESTED_SINGLE_A = "\u2018He said \u201crun\u201d to \u2018Bob\u2019 then left,\u2019 she said."
+NESTED_SINGLE_A_TRUTHFUL = [
+    {"type": "SPOKEN",
+     "text": "He said \u201crun\u201d to \u2018Bob\u2019 then left,"},
+    {"type": "NARRATOR", "text": "she said."},
+]
+NESTED_SINGLE_B = "\u2018The word \u2018run\u2019 means \u201cmove fast\u201d,\u2019 she said."
+NESTED_SINGLE_B_TRUTHFUL = [
+    {"type": "SPOKEN",
+     "text": "The word \u2018run\u2019 means \u201cmove fast\u201d,"},
+    {"type": "NARRATOR", "text": "she said."},
+]
+# One inner opener, so the depth cannot be resolved; no adoption (abstain).
+NESTED_SINGLE_AMBIGUOUS = "\u2018He said \u201crun\u201d to \u2018Bob then left,\u2019 she said."
+AMBIGUOUS_CASES = {
+    "inner speech": (
+        NESTED_SINGLE_AMBIGUOUS,
+        [{"type": "NARRATOR", "text": "\u2018He said"},
+         {"type": "SPOKEN", "text": "run"},
+         {"type": "NARRATOR", "text": "to \u2018Bob then left,\u2019 she said."}]),
+    # An inner span that DOES nest a double quote must not be promoted to
+    # top-level speech just because the outer opener never closed.
+    "inner nesting a double quote": (
+        "\u2018He said \u2018did she say \u201cyes\u201d\u2019 then left, she said.",
+        [{"type": "NARRATOR", "text": "\u2018He said \u2018did she say"},
+         {"type": "SPOKEN", "text": "yes"},
+         {"type": "NARRATOR", "text": "\u2019 then left, she said."}]),
+}
+
+# rev2 finding 4: an inch mark is a measurement, not a nested quote.
+INCH_OUTSIDE = ("\u2018She said \u201crun\u201d,\u2019 Anna said. "
+                "The sign is 6\" wide and the post 8\" tall.")
+INCH_OUTSIDE_REGIONS = [
+    {"type": "SPOKEN", "text": "She said run,"},
+    {"type": "NARRATOR",
+     "text": "Anna said. The sign is 6\" wide and the post 8\" tall."},
+]
+INCH_ONLY = "He noted \u20186\" by 8\"\u2019 on the card."
+INCH_ONLY_REGIONS = [{"type": "NARRATOR", "text": INCH_ONLY}]
+
+# rev2 finding 6: a straight elision with no second outside double pair.
+# Without the guard `'tis` opens a span that closes at a later apostrophe-shaped
+# mark either way; with it, both keep main's split.
+STRAIGHT_ELISION_ALONE_CASES = {
+    "word before closer": (
+        "He said 'tis \u201clate\u201d now, and James' book came.",
+        [{"type": "NARRATOR", "text": "He said 'tis"},
+         {"type": "SPOKEN", "text": "late"},
+         {"type": "NARRATOR", "text": "now, and James' book came."}]),
+    "review sentence": (
+        "He said 'tis \u201clate\u201d now, and 'Hello,' she said.",
+        [{"type": "NARRATOR", "text": "He said 'tis"},
+         {"type": "SPOKEN", "text": "late"},
+         {"type": "NARRATOR", "text": "now, and 'Hello,' she said."}]),
+}
+
+# rev2 finding 7: `'Tis`/`'Twas` are ambiguous with the elision apostrophe, so
+# main's behaviour is kept (Limits).
+STRAIGHT_TIS_REGIONS = [
+    {"type": "NARRATOR", "text": "'Tis"},
+    {"type": "SPOKEN", "text": "fine"},
+    {"type": "NARRATOR", "text": ",' she said."},
 ]
 
 # rev1 finding 6: paragraph-bounded single quotes are a decided limitation.
@@ -324,17 +430,183 @@ class SingleQuotedSpeechTests(unittest.TestCase):
              {"type": "NARRATOR", "text": "said Anna. Ben left."}])
 
     def test_second_issue_example_is_not_presegmented_inside_out(self):
-        # Only the span that nests a double quote is adopted (finding 2), so
-        # the later plain single-quoted speeches stay narration as on main.
+        # Rev2 finding 1: only the span that nests a double quote is adopted,
+        # so the analyzer's own split is narrow. The issue's correct three-
+        # speech split must pass the gate, and "quotes" must not certify the
+        # narrow split as quote_presegmented.
         analysis = analyze_outer_quote_regions(SECOND)
         self.assertTrue(analysis.get("nested_single_quoted_speech"))
         self.assertEqual(SECOND_NARROW, analysis["regions"])
+        self.assertEqual(
+            ["Were you afraid?", "A little,"],
+            [SECOND[start:end]
+             for _opener, start, end, _closer in
+             analysis.get("unadopted_single_quote_spans") or ()])
         for mode in ("auto", "lexical"):
             self.assertEqual((None, None),
                              tp.quote_regions_decision(mode, SECOND, analysis))
+        quote_entries, quote_resolution = tp.quote_regions_decision(
+            "quotes", SECOND, analysis)
+        self.assertEqual("quote_forced", quote_resolution)
+        self.assertEqual(analysis["regions"], quote_entries)
+        # The correct split passes both gate paths. Before the rev2 fix the
+        # two sibling speeches failed quote_region_misclassified.
+        for label, kwargs in (
+                ("analysis-backed", {"quote_analysis": analysis}),
+                ("analysis-free", {})):
+            with self.subTest(gate=label):
+                report = validate_segment_quality(SECOND, SECOND_CORRECT, **kwargs)
+                self.assertTrue(report["passed"], report["findings"])
+        # The analyzer's narrow split is incomplete, not wrong, and still
+        # passes; "quotes" merely refuses to vouch for it now.
         report = validate_segment_quality(SECOND, SECOND_NARROW,
                                           quote_analysis=analysis)
         self.assertTrue(report["passed"], report["findings"])
+
+    def test_possessive_after_the_nested_quote_does_not_close_the_span(self):
+        # Rev2 finding 2: the possessive guard must also look back at the
+        # nested quote, not only forward to a later one.
+        for label, (chunk, speech, analysis_speech,
+                    wrong_speech, wrong_narration) in POSSESSIVE_AFTER_CASES.items():
+            with self.subTest(label=label):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertTrue(analysis.get("nested_single_quoted_speech"))
+                self.assertEqual(1, len(analysis.get("adopted_single_quote_spans")))
+                self.assertEqual(
+                    [{"type": "SPOKEN", "text": analysis_speech},
+                     {"type": "NARRATOR", "text": "she said."}],
+                    analysis["regions"])
+                report = validate_segment_quality(
+                    chunk, [{"type": "SPOKEN", "text": speech},
+                            {"type": "NARRATOR", "text": "she said."}],
+                    quote_analysis=analysis)
+                self.assertTrue(report["passed"], report["findings"])
+                # The old split at the possessive close is now wrong.
+                wrong = [
+                    {"type": "SPOKEN", "text": wrong_speech},
+                    {"type": "NARRATOR", "text": wrong_narration},
+                ]
+                bad = validate_segment_quality(chunk, wrong,
+                                               quote_analysis=analysis)
+                self.assertFalse(bad["passed"], "certifies a truncated span")
+
+    def test_nested_single_quoted_span_inside_the_adopted_span(self):
+        # Rev2 finding 3: `‘…‘…’…’` must adopt the OUTER span, not stop at the
+        # inner closer.
+        for label, chunk, truthful, analysis_speech in (
+                ("nested speech", NESTED_SINGLE_A, NESTED_SINGLE_A_TRUTHFUL,
+                 "He said run to \u2018Bob\u2019 then left,"),
+                ("quoted word", NESTED_SINGLE_B, NESTED_SINGLE_B_TRUTHFUL,
+                 "The word \u2018run\u2019 means move fast,")):
+            with self.subTest(label=label):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertTrue(analysis.get("nested_single_quoted_speech"))
+                self.assertEqual(1, len(analysis.get("adopted_single_quote_spans")))
+                self.assertEqual(
+                    [{"type": "SPOKEN", "text": analysis_speech},
+                     {"type": "NARRATOR", "text": "she said."}],
+                    analysis["regions"])
+                report = validate_segment_quality(chunk, truthful,
+                                                  quote_analysis=analysis)
+                self.assertTrue(report["passed"], report["findings"])
+
+    def test_unresolved_nested_single_quote_abstains_from_adoption(self):
+        # Rev2 finding 3: one inner opener and no outer closer after it cannot
+        # be resolved, so nothing is adopted and the chunk keeps main's split.
+        for label, (chunk, regions) in AMBIGUOUS_CASES.items():
+            with self.subTest(label=label):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertFalse(analysis.get("nested_single_quoted_speech"))
+                self.assertEqual([], analysis.get("adopted_single_quote_spans"))
+                self.assertEqual([], analysis.get("unadopted_single_quote_spans") or [])
+                self.assertEqual(regions, analysis["regions"])
+                self.assertEqual(
+                    (regions, "quote_presegmented"),
+                    tp.quote_regions_decision("quotes", chunk, analysis))
+
+    def test_inch_marks_are_measurements_not_nested_quotes(self):
+        # Rev2 finding 4, both directions: the inch rule decides a pair.
+        self.assertFalse(pq._contains_paired_quote('6" by 8"'))
+        self.assertTrue(pq._contains_paired_quote('6" wide and said \u201chi\u201d'))
+        # (a) outside the span: two inch marks must not disable the fix.
+        analysis = analyze_outer_quote_regions(INCH_OUTSIDE)
+        self.assertTrue(analysis.get("nested_single_quoted_speech"))
+        self.assertEqual(1, len(analysis.get("adopted_single_quote_spans")))
+        self.assertEqual(INCH_OUTSIDE_REGIONS, analysis["regions"])
+        report = validate_segment_quality(
+            INCH_OUTSIDE,
+            [{"type": "SPOKEN", "text": "She said \u201crun\u201d,"},
+             {"type": "NARRATOR",
+              "text": "Anna said. The sign is 6\" wide and the post 8\" tall."}],
+            quote_analysis=analysis)
+        self.assertTrue(report["passed"], report["findings"])
+        self.assertEqual(
+            (INCH_OUTSIDE_REGIONS, "quote_presegmented"),
+            tp.quote_regions_decision("quotes", INCH_OUTSIDE, analysis))
+        # (b) inside the span: inch marks alone are not a nested quote, so a
+        # narration-only chunk is not adopted as speech.
+        analysis = analyze_outer_quote_regions(INCH_ONLY)
+        self.assertFalse(analysis.get("nested_single_quoted_speech"))
+        self.assertEqual([], analysis.get("adopted_single_quote_spans"))
+        self.assertEqual(INCH_ONLY_REGIONS, analysis["regions"])
+        entries, resolution = tp.quote_regions_decision("quotes", INCH_ONLY,
+                                                        analysis)
+        self.assertEqual("quote_forced", resolution)
+        self.assertEqual(INCH_ONLY_REGIONS, entries)
+        report = validate_segment_quality(INCH_ONLY, INCH_ONLY_REGIONS,
+                                          quote_analysis=analysis)
+        self.assertTrue(report["passed"], report["findings"])
+
+    def test_the_paragraph_search_is_bounded(self):
+        # Rev2 finding 5: each opener's paragraph search must stop at the
+        # 500-character span bound instead of rescanning the rest of the chunk
+        # (0.97 s for a 100 KB quote-heavy chunk before the bound).
+        chunk = "\u2018Hello,\u2019 she said. " * 400
+        bounded = []
+
+        class Spy:
+            def __init__(self, pattern):
+                self.pattern = pattern
+
+            def search(self, text, pos=0, endpos=None):
+                bounded.append((pos, endpos))
+                if endpos is None:
+                    return self.pattern.search(text, pos)
+                return self.pattern.search(text, pos, endpos)
+
+        with mock.patch.object(pq, "_BLANK_LINE", Spy(pq._BLANK_LINE)):
+            spans = get_single_quoted_speech_spans(chunk)
+        self.assertTrue(spans)
+        self.assertTrue(bounded)
+        for pos, endpos in bounded:
+            self.assertIsNotNone(endpos, "unbounded paragraph search")
+            self.assertLessEqual(endpos, pos + pq._SINGLE_QUOTE_MAX_SPAN)
+
+    def test_straight_elision_guard_without_an_outside_pair(self):
+        # Rev2 finding 6: the earlier straight-elision cases all had a second
+        # outside double pair, which masked the elision regex.
+        for label, (chunk, regions) in STRAIGHT_ELISION_ALONE_CASES.items():
+            with self.subTest(label=label):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertFalse(analysis.get("nested_single_quoted_speech"))
+                self.assertEqual([], analysis.get("adopted_single_quote_spans"))
+                self.assertEqual(regions, analysis["regions"])
+
+    def test_tis_and_twas_straight_openers_keep_main_behaviour(self):
+        # Rev2 finding 7: a straight `'Tis`/`'Twas` is indistinguishable from
+        # the elision apostrophe, so main's behaviour is pinned (Limits).
+        for label, chunk, narration in (
+                ("tis", "'Tis \"fine\",' she said.", "'Tis"),
+                ("twas", "'Twas \"fine\",' she said.", "'Twas")):
+            with self.subTest(label=label):
+                analysis = analyze_outer_quote_regions(chunk)
+                self.assertFalse(analysis.get("nested_single_quoted_speech"))
+                self.assertEqual([], analysis.get("adopted_single_quote_spans"))
+                self.assertEqual(
+                    [{"type": "NARRATOR", "text": narration},
+                     {"type": "SPOKEN", "text": "fine"},
+                     {"type": "NARRATOR", "text": ",' she said."}],
+                    analysis["regions"])
 
     def test_straight_quote_version_is_not_presegmented_inside_out(self):
         self.assertions_for_issue_chunk(
@@ -405,6 +677,31 @@ class SingleQuotedSpeechTests(unittest.TestCase):
         report = validate_segment_quality(TITLE, TITLE_TRUTHFUL,
                                           quote_analysis=analysis)
         self.assertTrue(report["passed"], report["findings"])
+
+    def test_a_title_in_a_non_targeted_chunk_stays_rejection_safe(self):
+        # Rev2 finding 1's boundary: the unadopted-span gate allowance applies
+        # only to a targeted chunk. Here the single-quoted title is narration
+        # in a double-quoted book (no single span is adopted), so a model row
+        # that calls it SPOKEN is still rejected.
+        chunk = "He said \u201crun.\u201d Later \u2018Hamlet\u2019 was banned."
+        analysis = analyze_outer_quote_regions(chunk)
+        self.assertFalse(analysis.get("nested_single_quoted_speech"))
+        self.assertEqual([], analysis.get("adopted_single_quote_spans"))
+        self.assertEqual([], analysis.get("unadopted_single_quote_spans") or [])
+        for label, entries in (
+                ("split around the title",
+                 [{"type": "NARRATOR", "text": "He said run. Later"},
+                  {"type": "SPOKEN", "text": "Hamlet"},
+                  {"type": "NARRATOR", "text": "was banned."}]),
+                ("title merged into speech",
+                 [{"type": "SPOKEN", "text": "Hamlet"},
+                  {"type": "NARRATOR", "text": "He said run. Later was banned."}])):
+            with self.subTest(label=label):
+                report = validate_segment_quality(chunk, entries,
+                                                  quote_analysis=analysis)
+                self.assertFalse(report["passed"])
+                self.assertIn("quote_region_misclassified",
+                              {finding["code"] for finding in report["findings"]})
 
     def test_gate_allows_nested_marks_by_position_not_by_character(self):
         analysis = analyze_outer_quote_regions(FIRST)

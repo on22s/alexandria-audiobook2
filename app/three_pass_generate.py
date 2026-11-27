@@ -1690,7 +1690,10 @@ def quote_regions_decision(mode, chunk, analysis, quoted_must_be_spoken=True,
     any other chunk is what its marks say - the regions if there are any, else
     the whole chunk as one entry typed by whether a quote was open when the
     chunk began - and is recorded as `quote_forced` so the manifest says the
-    gate did not vouch for it. "llm": never."""
+    gate did not vouch for it. A targeted chunk that also holds complete
+    single-quoted speeches the analysis did not adopt is never certified: there
+    is no model to ask, so its regions stay `quote_forced` (#2331 review 2).
+    "llm": never."""
     if mode == "llm" or (mode == "auto" and not (
             quoted_must_be_spoken and unquoted_must_be_narrator)):
         return None, None
@@ -1698,9 +1701,19 @@ def quote_regions_decision(mode, chunk, analysis, quoted_must_be_spoken=True,
         # Speech in another convention sits inside matched single-quoted
         # speech (#2331): those marks are inner speech, not this chunk's outer
         # convention, so they do not settle pass 1. Ask the model. In "quotes"
-        # mode there is no model to ask, and the analysis regions are the
-        # correct single-quote split, so they are used below.
+        # mode there is no model to ask; below it keeps the analysis split but
+        # does not certify a chunk that holds speeches it did not adopt.
         return None, None
+    if mode == "quotes" and analysis.get("unadopted_single_quote_spans"):
+        # The analysis can certify only the spans that nest a paired quote; it
+        # leaves sibling single-quoted speeches in its NARRATOR text. Returning
+        # those regions as `quote_presegmented` would certify a split that calls
+        # real speech narration. "quotes" cannot ask a model, so keep what the
+        # marks say and record it uncertified: abstain from certification
+        # (#2331 review 2).
+        regions = analysis["regions"]
+        if regions:
+            return regions, "quote_forced"
     if mode == "lexical":
         analysis = classify_lexical_quote_regions(chunk, analysis)
     regions = analysis["regions"]
