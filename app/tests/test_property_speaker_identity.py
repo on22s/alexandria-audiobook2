@@ -123,7 +123,7 @@ class SeparatorTests(unittest.TestCase):
         # typed `ada-bram`, `ada. bram`, `ada'bram` or with an invisible
         # character is one identity. Comparing against the empty separator pins
         # that none of them survives in the key (the S5 mutant, which keeps
-        # `-`, `.` and `'`, fails every separator but "" and " ").
+        # `-`, `.` and `'`, fails only those three separators).
         expected = _identity_key("".join(words))
         for separator in _SEPARATORS:
             self.assertEqual(expected, _identity_key(separator.join(words)),
@@ -145,8 +145,8 @@ class OptionalDiacriticTests(unittest.TestCase):
     def test_optional_diacritics_do_not_change_the_key(self, diacritic, others):
         # A diacritic that is still a combining mark is optional for Latin,
         # Greek, Cyrillic and Arabic names, so `q́` is the name `q`. The S4
-        # mutant (keep every Mn/Mc mark) makes the two keys differ here while
-        # every example-based test still passes.
+        # mutant (keep every Mn/Mc mark) makes the two keys differ here, while
+        # the example-based `test_speaker_identity` cases do not cover it.
         base, mark = diacritic
         without = " ".join(others + [base + "ra"])
         with_mark = " ".join(others + [base + mark + "ra"])
