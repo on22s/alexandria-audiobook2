@@ -394,15 +394,22 @@ class ExactShiftTests(unittest.TestCase):
             {'type': 'NARRATOR', 'text': 'Alice waited.'},
         ]
         names = ('ALICE', 'BOB')
-        proofs = pq.get_attribution_tag_proofs(frozen, source, names)
+        continuations = {}
+        proofs = pq.get_attribution_tag_proofs(
+            frozen, source, names, continuation_evidence=continuations)
         self.assertEqual({0}, set(proofs))
         self.assertEqual(
             {'speaker', 'source_sha256', 'entry_identity_sha256', 'quote_bounds',
              'opener_offset', 'closing_offset', 'reporting_tag_bounds',
              'name_bounds', 'resolver_context_sha256'},
             set(proofs[0]))
-        self.assertEqual({0: 'ALICE', 2: 'ALICE'},
-                         pq.get_attribution_tag_evidence(frozen, source, names))
+        # Pin: a continuation is a bare speaker name, never a full proof, and
+        # is kept out of `proofs` so the exact-shift repair cannot consume it.
+        self.assertEqual({2: 'ALICE'}, continuations)
+        self.assertTrue(all(isinstance(value, str) for value in continuations.values()))
+        evidence = pq.get_attribution_tag_evidence(frozen, source, names)
+        self.assertEqual({0: 'ALICE', 2: 'ALICE'}, evidence)
+        self.assertTrue(all(isinstance(value, str) for value in evidence.values()))
 
         cont_shift = [
             {'n': 0, 'speaker': 'ALICE'},

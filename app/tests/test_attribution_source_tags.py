@@ -176,6 +176,38 @@ class SourceTagTests(unittest.TestCase):
                 self.assertEqual({0: expected}, get_attribution_tag_evidence(
                     [{'type': 'SPOKEN', 'text': 'Now.'}], cont_source, tag_names))
 
+    def test_continuation_own_tag_verbs_and_tag_outside_the_closing_quote(self):
+        names = {'NITA', 'KIT'}
+        frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'No,'},
+        ]
+        # L1: the own-tag guard must know more than the nine base verbs, and a
+        # following clause belongs to the tag, not to the continuation speaker.
+        for source in (
+                '“Go,” Nita said. “No,” Kit muttered.',
+                '“Go,” Nita said. “No,” Kit began.',
+                '“Go,” Nita said. “No,” Kit added, without looking up.',
+                '“Go,” Nita said. “No,” Kit said, shaking his head.'):
+            with self.subTest(source=source):
+                self.assertEqual({0: 'NITA', 2: 'KIT'},
+                                 get_attribution_tag_evidence(frozen, source, names))
+        # L2: the tag may sit outside the closing quote, introduced by a dash.
+        uncommaed = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'No'},
+        ]
+        for source in (
+                '“Go,” Nita said. “No”—Kit said.',
+                '“Go,” Nita said. “No” — Kit said.',
+                '“Go,” Nita said. “No”-Kit said.',
+                '“Go,” Nita said. “No”, Kit said.'):
+            with self.subTest(source=source):
+                self.assertEqual({0: 'NITA', 2: 'KIT'},
+                                 get_attribution_tag_evidence(uncommaed, source, names))
+
     def test_continuation_abstains_on_action_other_name_paragraph_own_tag_and_uncertain_quotes(self):
         frozen_cont = [{'type': 'SPOKEN', 'text': 'Now.'}]
         names = {'NITA', 'KIT', 'MARA JONES', 'MARA SMITH'}

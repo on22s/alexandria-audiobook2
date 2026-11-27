@@ -46,6 +46,21 @@ _SELF_PAIRED = {'"', '＂'}
 _REPORTING_VERBS = (
     r"(?:murmured|whispered|said|replied|answered|asked|cried|shouted|exclaimed)"
 )
+# Speech-tag verbs for the source speech-tag / quotation-continuation guards
+# (#2333). A separate list so quote recovery, lexical quotes and weak-name
+# attestation keep using _REPORTING_VERBS unchanged; #2388 widens
+# muttered/added/retorted independently and merges cleanly on top. Covers the
+# nine base verbs plus the common extended reporting verbs and clause tags.
+_SPEECH_TAG_VERBS = (
+    r"(?:murmured|whispered|said|replied|answered|asked|cried|shouted|exclaimed|"
+    r"muttered|added|retorted|continued|resumed|repeated|remarked|observed|"
+    r"declared|insisted|responded|interrupted|inquired|enquired|protested|"
+    r"urged|pleaded|begged|stammered|faltered|murmurs|whispers|says|replies|"
+    r"answers|asks|cries|shouts|exclaims|mutters|adds|retorts|continues|"
+    r"resumes|repeats|remarks|observes|declares|insists|responds|interrupts|"
+    r"inquires|enquires|protests|urges|pleads|begs|stammers|falters|"
+    r"began|begun)"
+)
 _REPORTING_VERB_TAIL = re.compile(
     rf"\b{_REPORTING_VERBS},?\s+([^\n]{{1,120}})$", re.IGNORECASE)
 _SOURCE_LABEL_TAIL = re.compile(r"(?:^|\n\n)([^\n]{1,60})$")
@@ -1063,20 +1078,22 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
 _SILENT_IN_WORD = "".join(SILENT_WORD_CHARACTERS)
 _TAG_NAME = (r"[^\W\d_][\w’'" + _SILENT_IN_WORD + r"-]*"
              r"(?:[ \t]+[^\W\d_][\w’'" + _SILENT_IN_WORD + r"-]*){0,3}")
+_TAG_ADVERB = r"(?-i:[a-z][\w’'" + _SILENT_IN_WORD + r"-]*ly)"
+# A tag sits after the closing quote here, so it may be introduced by an em
+# dash, en dash or hyphen as well as a comma/semicolon: “No”—Kit said. (#2391 L2)
 _SOURCE_SPEECH_TAG = re.compile(
-    rf"^[ \t]*(?:[,;][ \t]*)?(?:"
-    rf"(?P<before>{_TAG_NAME})[ \t]+{_REPORTING_VERBS}|"
-    rf"{_REPORTING_VERBS}[ \t]+(?P<after>{_TAG_NAME}))"
+    rf"^[ \t]*(?:[,;—–-][ \t]*)?(?:"
+    rf"(?P<before>{_TAG_NAME})[ \t]+{_SPEECH_TAG_VERBS}|"
+    rf"{_SPEECH_TAG_VERBS}[ \t]+(?P<after>{_TAG_NAME}))"
     r"(?=[ \t]*[,.!?:;])", re.IGNORECASE)
 _TAG_WORD = r"[^\W\d_][\w’'" + _SILENT_IN_WORD + r"-]*"
 _TAG_NAME_LAZY = rf"{_TAG_WORD}(?:[ \t]+{_TAG_WORD}){{0,3}}?"
-_TAG_ADVERB = r"(?-i:[a-z][\w’'" + _SILENT_IN_WORD + r"-]*ly)"
 _CONTINUATION_TAG_CORE = (
     rf"^[ \t]*(?:[,;][ \t]*)?(?:"
     rf"(?P<before>{_TAG_NAME_LAZY})"
-    rf"(?:[ \t]+{_TAG_ADVERB}[ \t]+{_REPORTING_VERBS}|"
-    rf"[ \t]+{_REPORTING_VERBS}(?:[ \t]+{_TAG_ADVERB})?)|"
-    rf"{_REPORTING_VERBS}[ \t]+(?P<after>{_TAG_NAME_LAZY})(?:[ \t]+{_TAG_ADVERB})?)"
+    rf"(?:[ \t]+{_TAG_ADVERB}[ \t]+{_SPEECH_TAG_VERBS}|"
+    rf"[ \t]+{_SPEECH_TAG_VERBS}(?:[ \t]+{_TAG_ADVERB})?)|"
+    rf"{_SPEECH_TAG_VERBS}[ \t]+(?P<after>{_TAG_NAME_LAZY})(?:[ \t]+{_TAG_ADVERB})?)"
 )
 _BARE_CONTINUATION_TAG = re.compile(
     _CONTINUATION_TAG_CORE + r"[ \t]*[,.!?:;][ \t]*$", re.IGNORECASE)
@@ -1152,11 +1169,17 @@ def _get_silent_folded_source_spans(source_text, needle_text):
 
 def get_attribution_tag_proofs(entries, source_text, established_names=(),
                                  speaker_aliases=None, *,
-                                 _continuation_evidence=None):
+                                 continuation_evidence=None):
     """Map batch indexes to uniquely resolved, immediately following tags.
 
     Repeated text and incomplete quotation spans are deliberately uncheckable.
     Source matching is one shared traversal per batch, outside the retry loop.
+
+    `continuation_evidence`, when supplied, receives only the speaker name for a
+    quotation that continues a paragraph's bare speech tag (``“Go,” Nita said.
+    “Now.”``). Continuations never produce a full proof: they cannot feed the
+    exact-shift repair, which needs reporting-tag/name offsets. Callers that
+    need them pass a dict and merge it into the legacy name evidence.
     """
     if not source_text:
         return {}
@@ -1259,7 +1282,11 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
                 "resolver_context_sha256": context_digest,
             }
             continue
-        if _continuation_evidence is None or _CONTINUATION_TAG_PREFIX.match(tail):
+        # No own tag after this quotation. A bare tag between it and the
+        # previous quotation in the same paragraph (``“Go,” Nita said. “Now.”``)
+        # names this continuation's speaker. An uncertain own tag abstains
+        # rather than falling back to the previous quotation's speaker.
+        if continuation_evidence is None or _CONTINUATION_TAG_PREFIX.match(tail):
             continue
         span_pos = span_index.get((start, end))
         if not span_pos:
@@ -1277,7 +1304,7 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
             continue
         speaker = resolve_tag_speaker(cont_tag)
         if speaker is not None:
-            _continuation_evidence[index] = speaker
+            continuation_evidence[index] = speaker
     return evidence
 
 
@@ -1287,7 +1314,7 @@ def get_attribution_tag_evidence(entries, source_text, established_names=(),
     continuations = {}
     proofs = get_attribution_tag_proofs(
         entries, source_text, established_names, speaker_aliases,
-        _continuation_evidence=continuations)
+        continuation_evidence=continuations)
     return {**continuations, **{index: proof["speaker"] for index, proof in proofs.items()}}
 
 

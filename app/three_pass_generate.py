@@ -1031,7 +1031,7 @@ def attribute_batch(client, model_name, frozen_batch, params, roster,
         continuations = {}
         proofs = get_attribution_tag_proofs(
             frozen_batch, source_text, established_names | known_names, aliases,
-            _continuation_evidence=continuations)
+            continuation_evidence=continuations)
         tag_evidence = {**continuations, **{index: proof["speaker"] for index, proof in proofs.items()}}
         snapshot = get_attribution_snapshot_digest([
             frozen_batch, sorted(established_names), sorted(known_names), aliases])
