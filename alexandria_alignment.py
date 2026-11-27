@@ -441,24 +441,23 @@ def _extract_bs4_visible_text(soup, *, root_namespaces=None,
     ``html_name_heuristic`` is passed through to
     :func:`resolve_html_element_namespace` (True only for ``text/html`` media).
 
-    Table foster-parenting: HTML5 renders non-table content found directly in
-    a table, table section or table row *before* the table, so a hidden table
-    does not hide it. BeautifulSoup's ``html.parser`` keeps that content in
-    place, so this walker models the rendered tree itself: a table-mode child
-    that is not table structure is emitted with the hidden state of the
-    table's parent context, and character data directly in a table mode is
-    treated the same way.
+    This walker runs over ``load_epub``'s items, and ebooklib only builds
+    ``EpubHtml``/``ITEM_DOCUMENT`` items for ``application/xhtml+xml``
+    resources, so the walk sees XML/XHTML here. It therefore applies the
+    element-namespace and ``hidden`` rules only; the HTML table
+    foster-parenting model lives in the ``text/html`` extractor
+    (``routers/script.py:_HTMLTextExtractor``), where it is reachable.
     """
     string_types = soup.interesting_string_types or soup.MAIN_CONTENT_STRING_TYPES
     base_ns = dict(root_namespaces) if root_namespaces else {}
     initial_ns = base_ns.get('', '')
     chunks = []
     saw_hidden = False
-    # (node, ns_map, inherited_ns, hidden, table_env_hidden)
-    stack = [(child, base_ns, initial_ns, False, None)
+    # (node, ns_map, inherited_ns, hidden)
+    stack = [(child, base_ns, initial_ns, False)
              for child in reversed(soup.contents)]
     while stack:
-        node, ns_map, inherited_ns, hidden, table_env = stack.pop()
+        node, ns_map, inherited_ns, hidden = stack.pop()
         if isinstance(node, NavigableString):
             if type(node) in string_types and not hidden:
                 chunks.append(str(node))
@@ -476,34 +475,9 @@ def _extract_bs4_visible_text(soup, *, root_namespaces=None,
             attrs, xml_namespaces=elem_ns_map, element_namespace=elem_ns))
         if node_hidden:
             saw_hidden = True
-        contents = getattr(node, 'contents', None) or ()
-        if tag in _TABLE_SECTIONS and html_name_heuristic:
-            env = table_env if table_env is not None else hidden
-            children = list(contents)
-            # A nested <table> start tag closes the enclosing table in HTML5,
-            # so everything from that token on is outside it in the rendered
-            # tree (BeautifulSoup keeps it nested).
-            nested_table_at = None
-            for position, child in enumerate(children):
-                child_name = getattr(child, 'name', None)
-                if isinstance(child_name, str) and child_name.lower() == 'table':
-                    nested_table_at = position
-                    break
-            for position in reversed(range(len(children))):
-                child = children[position]
-                if nested_table_at is not None and position > nested_table_at:
-                    stack.append((child, elem_ns_map, child_ns, env, None))
-                    continue
-                child_name = getattr(child, 'name', None)
-                child_tag = child_name.lower() if isinstance(child_name, str) else None
-                fostered = _is_fostered_table_child(tag, child_tag)
-                child_in_table = child_tag in _TABLE_SECTIONS
-                stack.append((child, elem_ns_map, child_ns,
-                              env if fostered else node_hidden,
-                              env if child_in_table else None))
-        elif not node_hidden:
-            for child in reversed(contents):
-                stack.append((child, elem_ns_map, child_ns, False, None))
+        else:
+            for child in reversed(getattr(node, 'contents', None) or ()):
+                stack.append((child, elem_ns_map, child_ns, False))
     return ' '.join(chunks), saw_hidden
 
 

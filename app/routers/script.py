@@ -1,3 +1,13 @@
+"""Script generation and EPUB text extraction routes.
+
+Governing rule for the tolerant ``text/html`` extractor (``_HTMLTextExtractor``):
+this is an audiobook, so losing visible text is worse than narrating hidden
+text. When the extractor meets structure it does not model, it must FAIL OPEN -
+the hidden region ends no later than the browser would end it, and it never
+silences text the browser would show. A hidden leak in invalid markup is a
+documented limit; a visible drop is a bug.
+"""
+
 from book_state_transaction import ensure_saved_book_state, reuse_book_state
 from script_recovery_guard import RECOVERY_CAST_INVALIDATED, get_fenced_recovery_status
 from script_recovery_facts import get_saved_script_recovery_manifest
@@ -110,6 +120,8 @@ from generate_script import LLMGenParams
 from utils import file_lock, is_path_inside
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from alexandria_alignment import (
+    # Shared with this module's tolerant text/html extractor; a single
+    # implementation is preferred over a copy (repo precedent for `_` imports).
     _TABLE_SECTIONS,
     _XHTML_NS,
     _is_fostered_table_child,
@@ -569,9 +581,25 @@ class _HTMLTextExtractor(HTMLParser):
     })
     _TSEC_RULE = (frozenset({'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption', 'colgroup'}), _TABLE_SCOPE)
     _LI_RULE = (frozenset({'li'}), _LIST_ITEM_SCOPE, frozenset({'address', 'div', 'p'}))
-    _DD_DT_RULE = (frozenset({'dd', 'dt'}), _IN_SCOPE, frozenset({'address', 'div'}))
-    _CELL_RULE = (frozenset({'td', 'th'}), _TABLE_SCOPE)
+    _DD_DT_RULE = (frozenset({'dd', 'dt'}), _IN_SCOPE, frozenset({'address', 'div', 'p'}))
+    # In caption/column-group insertion modes a cell or row start tag closes
+    # the open caption/colgroup in table scope and is reprocessed in table
+    # mode, so those elements must be close targets too.
+    _CELL_RULE = (frozenset({'td', 'th', 'caption', 'colgroup'}), _TABLE_SCOPE)
+    _ROW_RULE = (frozenset({'tr', 'td', 'th', 'caption', 'colgroup'}), _TABLE_SCOPE)
     _RUBY_RULE = (frozenset({'rt', 'rp'}), _RUBY_SCOPE)
+    _HEADING_TAGS = frozenset({'h1', 'h2', 'h3', 'h4', 'h5', 'h6'})
+    # HTML5 body-mode tokens with no element in the tree at that point: the
+    # table-structure tags are only inserted in a table context, and a nested
+    # <form> start tag is ignored while a form element is open. The browser
+    # processes no token, so the extractor neither opens a hidden root from
+    # their `hidden` attribute, nor runs their implied end tags, nor pushes a
+    # frame (a pushed frame would later stop an implied-close scan at a special
+    # element the browser never created).
+    _TABLE_CONTEXT_ONLY_TAGS = frozenset({
+        'caption', 'col', 'colgroup', 'td', 'th', 'tbody', 'tfoot', 'thead',
+        'tr',
+    })
     # Implied end-tag rules for tolerant HTML: start tag -> (tags_to_close,
     # scope_boundaries[, special-stop exceptions]).
     _IMPLIED_CLOSE_RULES = {
@@ -579,7 +607,7 @@ class _HTMLTextExtractor(HTMLParser):
         'li': _LI_RULE,
         'dd': _DD_DT_RULE, 'dt': _DD_DT_RULE,
         'td': _CELL_RULE, 'th': _CELL_RULE,
-        'tr': (frozenset({'tr', 'td', 'th'}), _TABLE_SCOPE),
+        'tr': _ROW_RULE,
         'thead': _TSEC_RULE, 'tbody': _TSEC_RULE, 'tfoot': _TSEC_RULE,
         'caption': (frozenset({'caption'}), _TABLE_SCOPE),
         'colgroup': (frozenset({'colgroup'}), _TABLE_SCOPE),
@@ -711,6 +739,17 @@ class _HTMLTextExtractor(HTMLParser):
         frame = self._open_stack[-1]
         return frame[2], frame[3]
 
+    def _table_env_outside(self):
+        """Hidden-root depth of the nearest open table's parent context.
+
+        Falls back to the current hidden-root depth when no table is open,
+        which is the context a new table is created in.
+        """
+        for frame in reversed(self._open_stack):
+            if frame[0] == 'table':
+                return frame[4]
+        return self._hidden_root_depth
+
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
         # Bind unconditionally: an ignored subtree short-circuits every later
@@ -724,11 +763,33 @@ class _HTMLTextExtractor(HTMLParser):
         in_skip = is_skip or bool(self._skip_stack)
         foster_restore = self._NO_RESTORE
         table_env_hidden = None
+        ignored_start_tag = False
         if not in_skip:
             inherited_ns, _ = self._inherited_namespace()
-            if not inherited_ns or inherited_ns == _XHTML_NS:
+            html_context = not inherited_ns or inherited_ns == _XHTML_NS
+            # HTML5 ignores these start tags in the body insertion mode when
+            # they cannot be inserted (table structure outside a table, a
+            # nested form). An ignored token creates no element, so its
+            # `hidden` attribute must not open a hidden root, and it must not
+            # trigger an implied end tag either - the browser processes no
+            # token at all. Both omissions previously silenced the rest of the
+            # chapter (`<caption hidden>`/`<td hidden>` outside a table).
+            if (self._html_name_heuristic and html_context
+                    and ((tag in self._TABLE_CONTEXT_ONLY_TAGS
+                          and not self._open_counts.get('table'))
+                         or (tag == 'form' and self._open_counts.get('form')))):
+                ignored_start_tag = True
+            if html_context and not ignored_start_tag:
                 if self._open_counts.get('p') and tag in self._P_AUTO_CLOSE_TAGS:
                     self._close_implied_targets(self._P_TARGETS, self._P_SCOPE_BOUNDARIES)
+                if (tag in self._HEADING_TAGS and self._open_stack
+                        and self._open_stack[-1][0] in self._HEADING_TAGS):
+                    # HTML5 heading start tag: pop the current node when it is
+                    # a heading (only the current node, not a scope scan).
+                    # Omitting </h2> before another heading is valid HTML5, so
+                    # an unmodelled close used to silence the rest of a
+                    # chapter after `<h2 hidden>Draft<h2>Chapter 2`.
+                    self._pop_open_from(len(self._open_stack) - 1)
                 rule = self._IMPLIED_CLOSE_RULES.get(tag)
                 if rule is not None:
                     self._close_implied_targets(*rule)
@@ -762,10 +823,15 @@ class _HTMLTextExtractor(HTMLParser):
                 self._hidden_root_depth = table_ctx[4]
                 table_env_hidden = table_ctx[4]
             elif tag in _TABLE_SECTIONS:
+                # The table's own hidden state must not reach a row whose
+                # parent context is outside the table. When the current node
+                # is a foster-parented element rather than the table itself,
+                # the nearest open table still owns the environment.
                 table_env_hidden = (table_ctx[4] if table_ctx is not None
-                                    else self._hidden_root_depth)
+                                    else self._table_env_outside())
         is_hidden = self._hidden_root_depth is not None
-        if not is_hidden and not in_skip and is_html_hidden_attrs(attrs, element_namespace=elem_ns):
+        if (not is_hidden and not in_skip and not ignored_start_tag
+                and is_html_hidden_attrs(attrs, element_namespace=elem_ns)):
             is_hidden = True
             if tag not in self.VOID_TAGS:
                 # A hidden void element (br/img/...) omits no text, so it is
@@ -774,7 +840,7 @@ class _HTMLTextExtractor(HTMLParser):
                 if self.first_hidden_location is None:
                     self.first_hidden_location = f'line {self.getpos()[0]}, <{tag}>'
                 self._hidden_root_depth = len(self._open_stack)
-        if not in_skip and tag not in self.VOID_TAGS:
+        if not in_skip and tag not in self.VOID_TAGS and not ignored_start_tag:
             self._open_stack.append((tag, elem_ns, child_ns, ns_map,
                                      table_env_hidden, foster_restore))
             self._open_counts[tag] = self._open_counts.get(tag, 0) + 1
@@ -788,7 +854,7 @@ class _HTMLTextExtractor(HTMLParser):
             if tag in self.BLOCK_TAGS:
                 self._pending_newline = max(
                     self._pending_newline, 2 if tag in self.PARAGRAPH_TAGS else 1)
-        if self._anchor_ids:
+        if self._anchor_ids and not ignored_start_tag:
             anchor_id = _get_anchor_id(tag, attrs)
             if anchor_id in self._anchor_ids:
                 if is_hidden:
@@ -876,6 +942,16 @@ class _HTMLTextExtractor(HTMLParser):
             self.handle_data(pending)
         self.cdata_elem = None
 
+    def _finalize_pending_ruby(self):
+        # RubyCollector emits only on </ruby>. An unclosed <ruby> at EOF would
+        # silently lose its base text, which the browser shows, so flush it
+        # (fail open) instead of dropping visible text.
+        if self._ruby is not None:
+            spoken, self._ruby = self._ruby.get_spoken_text(), None
+            self._ruby_fallback_depth = 0
+            if spoken:
+                self._append_text(spoken)
+
     def _ensure_skipped_elements_closed(self):
         # Balance is validated here, in the text accessors, rather than by
         # flushing the parser with close(): feed() alone leaves any skipped
@@ -890,12 +966,14 @@ class _HTMLTextExtractor(HTMLParser):
 
     def get_text(self):
         self._finalize_pending_rcdata()
+        self._finalize_pending_ruby()
         self._ensure_skipped_elements_closed()
         return ''.join(part for part in self.parts if isinstance(part, str))
 
     def get_text_with_anchor_positions(self):
         """Return extracted text and character offsets for requested anchors."""
         self._finalize_pending_rcdata()
+        self._finalize_pending_ruby()
         self._ensure_skipped_elements_closed()
         text_parts = []
         positions = {}

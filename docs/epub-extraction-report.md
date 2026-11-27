@@ -22,17 +22,32 @@ read-aloud, and `load_epub` — whereas `text/html` attributes have no XML
 namespaces so prefixed names are distinct attributes) and all their descendants
 are omitted from narration. Because `hidden` is an HTML-only global attribute,
 it is not applied to SVG or MathML elements; CSS `display:none` and
-`aria-hidden` are not inferred or dropped. In tolerant `text/html` resources,
-self-closing syntax on non-void elements (such as `<div hidden=""/>`) is
-treated as self-closing by Python's `HTMLParser`, preserving following text
-rather than over-dropping prose. Tolerant `text/html` also models the HTML5
+`aria-hidden` are not inferred or dropped. Tolerant `text/html` processing
+follows one governing rule: this is an audiobook, so losing visible text is
+worse than narrating hidden text. When it meets structure it does not model, it
+fails open - the hidden region ends no later than the browser would end it, and
+it never silences text the browser would show. `hidden` leaks in invalid markup
+are documented limits; a visible drop is a bug.
+In tolerant `text/html` resources, self-closing syntax on non-void elements
+(such as `<div hidden=""/>`) is treated as self-closing by Python's
+`HTMLParser`, so the following text is narrated. This is a deliberate
+divergence *from* browsers, not parity: HTML ignores the slash on non-void
+elements, so a browser hides that following text. It is kept because the cost
+of the divergence is narrating hidden text (the safe direction for an
+audiobook), not losing visible text. Tolerant `text/html` also models the HTML5
 tree-construction rules that decide whether a hidden element still wraps later
 prose: the complete `<p>`-closing start-tag set (including `center`, `dir`,
-`listing`, `summary`, `xmp` and `plaintext`), the `li`/`dd`/`dt` implied
-closes (which stop at the spec's special elements except `address`/`div`/`p`),
-table cells/rows/sections/`caption`/`colgroup`, select options, ruby
-annotations, and `head`/`body`. End tags the browser ignores (a stray `</span>`
-above a `<p>`, `</ruby>` above `<ol>`) never close a hidden ancestor. Content
+`listing`, `summary`, `xmp` and `plaintext`), the heading rule (a heading start
+tag closes an open `p` and pops a current heading, so an omitted `</h2>` before
+`<h2>Chapter 2` never drops the chapter), the `li`/`dd`/`dt` implied closes
+(which stop at the spec's special elements except `address`/`div`/`p`),
+table cells/rows/sections/`caption`/`colgroup` (a cell or row start tag closes
+an open `caption`/`colgroup` in table scope), select options, ruby
+annotations, and `head`/`body`. Start tags the browser ignores in body mode
+(table structure outside a table, a nested `form`) create no element, so their
+`hidden` attribute never opens a hidden root; end tags the browser ignores (a
+stray `</span>` above a `<p>`, `</ruby>` above `<ol>`) never close a hidden
+ancestor. Content
 the HTML5 parser foster-parents out of a table (character data, prose or an
 unexpected element directly inside a table, table section or row) is rendered
 before the table, so a hidden table does not hide it and it is narrated; XHTML
@@ -47,9 +62,11 @@ text in any of them is not mistaken for the document body. `load_epub`'s
 existing `BeautifulSoup` text path still returns `''` for a UTF-16 chapter
 (unchanged from before this feature); this is pre-existing and out of scope,
 so encoding support is not claimed end-to-end. When every spine document in an
-EPUB is hidden, script extraction returns empty text, read-aloud returns no
-segments, and `alexandria_alignment.load_epub` raises a `ValueError` naming
-hidden elements.
+EPUB is hidden, script extraction returns no chapter text (with no navigation
+target it returns `''`; a navigation entry that targets the hidden document
+still contributes its visible table-of-contents label, exactly as it already
+did for an otherwise-empty chapter), read-aloud returns no segments, and
+`alexandria_alignment.load_epub` raises a `ValueError` naming hidden elements.
 Navigation targets pointing only to
 anchors inside a hidden subtree do not resolve into visible text and do not
 insert navigation labels; they are reported with reason
