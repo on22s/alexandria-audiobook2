@@ -698,6 +698,49 @@ class TrigramNearMissAcceptanceTests(unittest.TestCase):
 
         self.assertEqual([], entries)
 
+    @staticmethod
+    def _sequence_client(replies):
+        from types import SimpleNamespace
+        calls = []
+
+        def create(**_kwargs):
+            reply = replies[min(len(calls), len(replies) - 1)]
+            calls.append(reply)
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=reply),
+                finish_reason="stop")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        return client, calls
+
+    def test_temperature_zero_still_grants_the_near_miss_bonus_request(self):
+        """#2376 gate 2: the bonus near-miss request stays at temperature 0.
+
+        Main sent a fresh bonus request at 0.0, and that is a real retry on the
+        client paths where a temperature-0 request is not deterministic: OpenAI
+        reasoning models strip the sampling controls in
+        `adapt_request_for_reasoning_model` (llm_provider.py), and the manual
+        transport is answered by a human. #2336 does not need the removal, so
+        main's request is restored. Stub replies: near miss, near miss, pass.
+        At 0.0 that is three calls (the feedback retry, then the bonus call)
+        and the passing reply is accepted.
+        """
+        import json
+
+        source, near_miss = _trigram_near_miss_text()
+        near_miss_reply = json.dumps([_entry(near_miss)])
+        passing_reply = json.dumps([_entry(source)])
+        client, calls = self._sequence_client(
+            [near_miss_reply, near_miss_reply, passing_reply])
+        params = generate_script.LLMGenParams("system", "{chunk}", 200, 0.0, 1)
+
+        result = generate_script.process_chunk(
+            client, "model", source, 1, 1, params, max_retries=1)
+
+        self.assertEqual(3, len(calls))
+        self.assertEqual([_entry(source)], result)
+
 
 
 
