@@ -162,8 +162,9 @@ def get_next_retry_max_tokens(current, retry_reason, hard_max, multiplier=1.5):
     increased = max(current + 1, int(current * multiplier + 0.5))
     return min(increased, hard_max)
 
-# host allowlist, never bind().
-_LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "::1", "")  # nosec B104
+# host allowlist and netstat output, never bind().
+_ANY_IPV4_HOST = "0.0.0.0"  # nosec B104
+_LOCAL_HOSTS = ("localhost", "127.0.0.1", _ANY_IPV4_HOST, "::1", "")
 
 
 def is_local_llm_endpoint(base_url):
@@ -875,8 +876,7 @@ def _remote_server_bound(ssh_alias, port, timeout=10):
             continue
         host, separator, listener_port = fields[3].rpartition(":")
         if (separator and listener_port == str(port)
-                # netstat output, never bind().
-                and host in ("0.0.0.0", "*", "::", "[::]")):  # nosec B104
+                and host in (_ANY_IPV4_HOST, "*", "::", "[::]")):
             return True
     return False
 

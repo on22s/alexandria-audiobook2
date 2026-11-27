@@ -1,24 +1,30 @@
 """Pin the Bandit gate: derived scope, explicit excludes, no baseline.
 
-``app/bandit_gate.py`` scans all of ``app/`` (minus virtualenvs) plus the
-repo-root ``*.py`` scripts with the exclusions in ``app/bandit.ini``, and fails
-when the JSON report still holds a medium-or-higher finding, any file Bandit
-could not parse or read, or a nosec comment that names more than one test id.
-These tests pin those properties without importing bandit: the required test
-job never installs it.
+``app/bandit_gate.py`` scans non-excluded ``app/`` modules (derived via the
+shared ``source_sweep.app_python_files`` helper, skipping virtualenvs and the
+exclusions in ``app/bandit.ini``) plus the repo-root ``*.py`` scripts, and
+fails when the JSON report still holds a medium-or-higher finding, any file
+Bandit could not parse or read, any blanket ``nosec`` suppression, any dropped
+target, or any ``nosec`` comment that does not name a single known Bandit test
+id. These tests run in the Bandit-free test job without requiring bandit to be
+installed.
 """
 
+import configparser
 import contextlib
-import fnmatch
+import importlib.util
 import io
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
+import tokenize
 import unittest
 from unittest import mock
 
 import bandit_gate
+import source_sweep
 from tests.test_support import app_python_files
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,25 +55,50 @@ def read_ini_option(name):
     return None
 
 
-def normalise(path):
-    """Posix separators, the form the gate passes to bandit on every OS."""
-    return str(path).replace("\\", "/")
-
-
-def is_excluded(path, patterns):
-    """Mirror bandit's path exclusion: glob match or literal substring."""
-    path = normalise(path)
-    return (any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
-            or any(pattern in path for pattern in patterns))
+def check_nosec_convention(path, valid_ids):
+    """Return (marked_count, violations) for nosec comments in ``path``."""
+    violations = []
+    marked = 0
+    with tokenize.open(path) as handle:
+        source_text = handle.read()
+    lines = source_text.splitlines()
+    for token in tokenize.generate_tokens(io.StringIO(source_text).readline):
+        if token.type != tokenize.COMMENT:
+            continue
+        comment = token.string
+        if not bandit_gate.NOSEC_LINE.search(comment):
+            continue
+        line_number = token.start[0]
+        match = bandit_gate.VALID_NOSEC_LINE.match(comment)
+        if not match:
+            violations.append(
+                f"{path.name}:{line_number} non-conforming nosec: {comment}")
+            continue
+        test_id = match.group("id")
+        if test_id not in valid_ids:
+            violations.append(
+                f"{path.name}:{line_number} unknown bandit id: {test_id}")
+            continue
+        if line_number <= 1 or not lines[line_number - 2].strip().startswith("# "):
+            violations.append(
+                f"{path.name}:{line_number} missing reason comment on line above")
+            continue
+        marked += 1
+    return marked, violations
 
 
 class BanditGateTests(unittest.TestCase):
     def test_targets_are_derived_from_the_filesystem(self):
         self.assertIsNone(read_ini_option("targets"))
-        targets = bandit_gate.get_targets()
-        self.assertIn("app/bandit_gate.py", targets)
-        self.assertIn("alexandria_compare.py", targets)
-        for target in targets:
+        included, excluded = bandit_gate.collect_targets()
+        self.assertTrue(included)
+        self.assertTrue(excluded)
+        self.assertIn("app/bandit_gate.py", included)
+        self.assertIn("app/source_sweep.py", included)
+        self.assertIn("alexandria_compare.py", included)
+        self.assertIn("app/tests/test_bandit_gate.py", excluded)
+        self.assertNotIn("app/tests/test_bandit_gate.py", included)
+        for target in (*included, *excluded):
             with self.subTest(target=target):
                 self.assertNotIn("\\", target)
 
@@ -79,9 +110,10 @@ class BanditGateTests(unittest.TestCase):
             (root / "app" / "tests" / "test_x.py").write_text(
                 "", encoding="utf-8")
             (root / "a_script.py").write_text("", encoding="utf-8")
-            self.assertEqual(
-                ["a_script.py", "app/new_module.py", "app/tests/test_x.py"],
-                bandit_gate.get_targets(root))
+            inc, exc = bandit_gate.collect_targets(root)
+            self.assertEqual(["a_script.py", "app/new_module.py"], inc)
+            self.assertEqual(["app/tests/test_x.py"], exc)
+            self.assertEqual(inc, bandit_gate.get_targets(root))
 
     def test_targets_skip_virtualenvs(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -112,11 +144,70 @@ class BanditGateTests(unittest.TestCase):
                 self.assertNotIn("env", Path(target).parts)
                 self.assertNotIn("site-packages", Path(target).parts)
 
+    def test_targets_share_source_sweep_helper(self):
+        self.assertIs(bandit_gate.app_python_files, source_sweep.app_python_files)
+        sentinel = [Path("sentinel.py")]
+        with mock.patch.object(source_sweep, "app_python_files",
+                               return_value=sentinel) as shared:
+            self.assertEqual(sentinel, app_python_files(ROOT / "app"))
+        shared.assert_called_once_with(ROOT / "app")
+
+    def test_command_stays_within_windows_argv_limit(self):
+        targets = bandit_gate.get_targets()
+        cmd = bandit_gate.get_command(targets)
+        cmd_len = len(subprocess.list2cmdline(cmd))
+        self.assertLess(cmd_len, bandit_gate.WINDOWS_CREATEPROCESS_LIMIT)
+        self.assertLessEqual(cmd_len, bandit_gate.MAX_COMMAND_LINE_CHARS)
+
+        # Even if the target set grows beyond MAX_COMMAND_LINE_CHARS, batching
+        # keeps every invocation within budget without dropping any target.
+        synthetic = [f"app/module_{index:04d}.py" for index in range(120)]
+        max_chars = 600
+        batches = bandit_gate.batch_targets(synthetic, max_chars=max_chars)
+        self.assertGreater(len(batches), 1)
+        flattened = [item for batch in batches for item in batch]
+        self.assertEqual(synthetic, flattened)
+        for batch in batches:
+            batch_len = len(subprocess.list2cmdline(bandit_gate.get_command(batch)))
+            self.assertLessEqual(batch_len, max_chars)
+
+        merged = bandit_gate.merge_reports([
+            {
+                "errors": [],
+                "generated_at": "t1",
+                "results": [],
+                "metrics": {
+                    "_totals": {"SEVERITY.LOW": 3, "loc": 100, "nosec": 0, "skipped_tests": 1},
+                    "app/a.py": {"loc": 100},
+                },
+            },
+            {
+                "errors": [{"filename": "app/bad.py", "reason": "syntax error"}],
+                "generated_at": "t2",
+                "results": [{"filename": "app/b.py", "line_number": 2,
+                             "test_id": "B602", "issue_severity": "HIGH",
+                             "issue_text": "shell=True"}],
+                "metrics": {
+                    "_totals": {"SEVERITY.LOW": 2, "loc": 50, "nosec": 1, "skipped_tests": 2},
+                    "app/b.py": {"loc": 50},
+                },
+            },
+        ])
+        self.assertEqual(1, len(merged["errors"]))
+        self.assertEqual(1, len(merged["results"]))
+        self.assertEqual(5, merged["metrics"]["_totals"]["SEVERITY.LOW"])
+        self.assertEqual(150, merged["metrics"]["_totals"]["loc"])
+        self.assertEqual(1, merged["metrics"]["_totals"]["nosec"])
+        self.assertEqual(3, merged["metrics"]["_totals"]["skipped_tests"])
+        self.assertIn("app/a.py", merged["metrics"])
+        self.assertIn("app/b.py", merged["metrics"])
+
     def test_excludes_match_bandit_walked_paths(self):
         value = read_ini_option("exclude")
         self.assertIsNotNone(value)
-        patterns = value.split(",")
+        patterns = bandit_gate.get_exclude_patterns()
         self.assertEqual(EXPECTED_EXCLUDES, patterns)
+        self.assertEqual(EXPECTED_EXCLUDES, value.split(","))
         for path in ("app/tests/test_x.py",
                      "app/tests/nested/test_x.py",
                      "app/experiments/run.py",
@@ -124,7 +215,7 @@ class BanditGateTests(unittest.TestCase):
                      "app/benchmark_runner.py",
                      "app/run_isolated_api_tests.py"):
             with self.subTest(path=path):
-                self.assertTrue(is_excluded(path, patterns))
+                self.assertTrue(bandit_gate.is_excluded(path, patterns))
         for path in ("app\\tests\\test_x.py",
                      "app\\tests\\nested\\test_x.py",
                      "app\\experiments\\run.py",
@@ -132,7 +223,7 @@ class BanditGateTests(unittest.TestCase):
                      "app\\benchmark_runner.py",
                      "app\\run_isolated_api_tests.py"):
             with self.subTest(path=path):
-                self.assertTrue(is_excluded(path, patterns))
+                self.assertTrue(bandit_gate.is_excluded(path, patterns))
         for path in ("app/utils.py",
                      "app/hf_utils.py",
                      "app/routers/script.py",
@@ -140,7 +231,14 @@ class BanditGateTests(unittest.TestCase):
                      "new_root_script.py",
                      "./new_root_script.py"):
             with self.subTest(path=path):
-                self.assertFalse(is_excluded(path, patterns))
+                self.assertFalse(bandit_gate.is_excluded(path, patterns))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            bad_ini = Path(temporary) / "bandit.ini"
+            bad_ini.write_text("[bandit]\nexclude = a\n[bandit]\nexclude = b\n",
+                               encoding="utf-8")
+            with self.assertRaises(configparser.DuplicateSectionError):
+                bandit_gate.get_exclude_patterns(bad_ini)
 
     def test_workflow_runs_the_gate_on_the_linux_pin(self):
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -155,9 +253,8 @@ class BanditGateTests(unittest.TestCase):
         command = bandit_gate.get_command(["app/x.py", "probe_root.py"])
         self.assertEqual(sys.executable, command[0])
         self.assertEqual(["-m", "bandit"], command[1:3])
-        self.assertIn("-r", command)
+        self.assertNotIn("-r", command)
         self.assertIn("--exit-zero", command)
-        self.assertEqual(1, command.count("-r"))
         self.assertEqual(1, command.count("--exit-zero"))
         ini_index = command.index("--ini")
         self.assertEqual(str(INI_PATH), command[ini_index + 1])
@@ -170,7 +267,7 @@ class BanditGateTests(unittest.TestCase):
         self.assertEqual("medium", command[severity_index + 1])
         self.assertEqual(["app/x.py", "probe_root.py"], command[-2:])
 
-    def test_gate_fails_on_findings_and_on_scan_errors(self):
+    def test_gate_fails_on_findings_scan_errors_blanket_nosec_and_dropped_targets(self):
         self.assertEqual([], bandit_gate.get_problems({"errors": [],
                                                        "results": []}))
         errors = bandit_gate.get_problems({
@@ -181,6 +278,7 @@ class BanditGateTests(unittest.TestCase):
         self.assertEqual(1, len(errors))
         self.assertIn("app/archive_utils.py", errors[0])
         self.assertIn("syntax error", errors[0])
+
         findings = bandit_gate.get_problems({
             "errors": [],
             "results": [{"filename": "app/new_module.py", "line_number": 7,
@@ -190,9 +288,57 @@ class BanditGateTests(unittest.TestCase):
         self.assertEqual(1, len(findings))
         self.assertIn("B602", findings[0])
 
-    def test_gate_rejects_non_conforming_nosec_comments(self):
+        blanket = bandit_gate.get_problems({
+            "errors": [],
+            "results": [],
+            "metrics": {"_totals": {"nosec": 1, "SEVERITY.LOW": 0}},
+        })
+        self.assertEqual(1, len(blanket))
+        self.assertIn("blanket nosec", blanket[0])
+
+        empty_targets = bandit_gate.get_problems(
+            {"errors": [], "results": [], "metrics": {"_totals": {}}},
+            expected_targets=[],
+        )
+        self.assertEqual(1, len(empty_targets))
+        self.assertIn("empty", empty_targets[0])
+
+        dropped = bandit_gate.get_problems(
+            {
+                "errors": [],
+                "results": [],
+                "metrics": {"_totals": {"nosec": 0}, "app/a.py": {}},
+            },
+            expected_targets=["app/a.py", "app/b.py"],
+        )
+        self.assertEqual(["target not reported by bandit: app/b.py"], dropped)
+
+        errored_only = bandit_gate.get_problems(
+            {
+                "errors": [{"filename": "app/a.py", "reason": "syntax error"}],
+                "results": [],
+                "metrics": {"_totals": {"nosec": 0}},
+            },
+            expected_targets=["app/a.py"],
+        )
+        self.assertEqual(1, len(errored_only))
+        self.assertIn("could not scan app/a.py", errored_only[0])
+
+    def test_gate_rejects_unknown_nosec_id_and_non_conforming_comments(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            (root / "unknown_id.py").write_text(
+                "# reviewed: typo\nx = 1  # nosec B999\n", encoding="utf-8")
+            (root / "zero_id.py").write_text(
+                "# reviewed: typo\nx = 1  # nosec B0\n", encoding="utf-8")
+            (root / "bare.py").write_text(
+                "# reviewed: bare\nx = 1  # nosec\n", encoding="utf-8")
+            (root / "nospace.py").write_text(
+                "# reviewed: no space\nx = 1  #nosec B314\n", encoding="utf-8")
+            (root / "tabbed.py").write_text(
+                "# reviewed: tab\nx = 1  #\tnosec\tB314\n", encoding="utf-8")
+            (root / "colon.py").write_text(
+                "# reviewed: colon\nx = 1  # nosec: B314\n", encoding="utf-8")
             (root / "other_id.py").write_text(
                 "x = 1  # nosec B314 - also hides B602\n", encoding="utf-8")
             (root / "plugin_name.py").write_text(
@@ -201,39 +347,111 @@ class BanditGateTests(unittest.TestCase):
                 "# reviewed: bounded input\nx = 1  # nosec B314\n",
                 encoding="utf-8")
             (root / "string_only.py").write_text(
-                'EXAMPLE = "x = 1  # nosec B314 - also hides B602"\n',
-                encoding="utf-8")
+                'EXAMPLE = "x = 1  # nosec B999"\n', encoding="utf-8")
 
-            other_id = bandit_gate.get_nosec_problems(["other_id.py"], root)
-            self.assertEqual(1, len(other_id))
-            self.assertIn("other_id.py:1", other_id[0])
-            plugin = bandit_gate.get_nosec_problems(["plugin_name.py"], root)
-            self.assertEqual(1, len(plugin))
-            self.assertIn("plugin_name.py:1", plugin[0])
+            unknown = bandit_gate.get_nosec_problems(["unknown_id.py"], root)
+            self.assertEqual(1, len(unknown))
+            self.assertIn("unknown_id.py:2", unknown[0])
+            self.assertIn("B999", unknown[0])
+
+            zero = bandit_gate.get_nosec_problems(["zero_id.py"], root)
+            self.assertEqual(1, len(zero))
+            self.assertIn("B0", zero[0])
+
+            for name in ("bare.py", "nospace.py", "tabbed.py", "colon.py",
+                         "other_id.py", "plugin_name.py"):
+                with self.subTest(name=name):
+                    found = bandit_gate.get_nosec_problems([name], root)
+                    self.assertEqual(1, len(found))
+                    self.assertIn(name, found[0])
+
             self.assertEqual(
                 [], bandit_gate.get_nosec_problems(["clean.py"], root))
             self.assertEqual(
                 [], bandit_gate.get_nosec_problems(["string_only.py"], root))
+
+            # The convention helper must also reject both unknown ids and
+            # #nosec without a space (with or without a reason line above).
+            valid_ids = bandit_gate.get_known_test_ids()
+            _, unknown_violations = check_nosec_convention(
+                root / "unknown_id.py", valid_ids)
+            self.assertEqual(1, len(unknown_violations))
+            _, nospace_violations = check_nosec_convention(
+                root / "nospace.py", valid_ids)
+            self.assertEqual(1, len(nospace_violations))
+            (root / "nospace_no_reason.py").write_text(
+                "x = 1  #nosec B314\n", encoding="utf-8")
+            _, nospace_no_reason_violations = check_nosec_convention(
+                root / "nospace_no_reason.py", valid_ids)
+            self.assertEqual(1, len(nospace_no_reason_violations))
+
+    def test_gate_reads_pep263_latin1_files_for_nosec_checks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bad_unknown = (
+                "# -*- coding: latin-1 -*-\n"
+                "# caf\u00e9\n"
+                "x = 1  # nosec B999\n"
+            ).encode("latin-1")
+            (root / "latin1_unknown.py").write_bytes(bad_unknown)
+
+            bad_shape = (
+                "# -*- coding: latin-1 -*-\n"
+                "# caf\u00e9\n"
+                "x = 1  #nosec B314\n"
+            ).encode("latin-1")
+            (root / "latin1_nospace.py").write_bytes(bad_shape)
+
+            clean_latin1 = (
+                "# -*- coding: latin-1 -*-\n"
+                "# caf\u00e9\n"
+                "x = 1  # nosec B314\n"
+            ).encode("latin-1")
+            (root / "latin1_clean.py").write_bytes(clean_latin1)
+
+            unknown = bandit_gate.get_nosec_problems(["latin1_unknown.py"], root)
+            self.assertEqual(1, len(unknown))
+            self.assertIn("latin1_unknown.py:3", unknown[0])
+            self.assertIn("B999", unknown[0])
+
+            nospace = bandit_gate.get_nosec_problems(["latin1_nospace.py"], root)
+            self.assertEqual(1, len(nospace))
+            self.assertIn("latin1_nospace.py:3", nospace[0])
+
+            self.assertEqual(
+                [], bandit_gate.get_nosec_problems(["latin1_clean.py"], root))
+
+    def test_known_bandit_ids_covers_repo_and_matches_installed_bandit(self):
+        for test_id in ("B104", "B108", "B113", "B301", "B314", "B602", "B615"):
+            self.assertIn(test_id, bandit_gate.KNOWN_BANDIT_IDS)
+        self.assertNotIn("B999", bandit_gate.KNOWN_BANDIT_IDS)
+        self.assertNotIn("B0", bandit_gate.KNOWN_BANDIT_IDS)
+        if importlib.util.find_spec("bandit") is not None:
+            self.assertEqual(
+                bandit_gate.KNOWN_BANDIT_IDS,
+                bandit_gate.get_known_test_ids(require_bandit=True),
+            )
 
     def test_low_findings_do_not_gate(self):
         self.assertEqual("medium", bandit_gate.SEVERITY_LEVEL)
         # LOW findings survive only as counted metrics; they are not in
         # results because bandit's severity filter removes them.
         report = {"errors": [], "results": [],
-                  "metrics": {"_totals": {"SEVERITY.LOW": 253}}}
+                  "metrics": {"_totals": {"SEVERITY.LOW": 253, "nosec": 0}}}
         self.assertEqual([], bandit_gate.get_problems(report))
-        # The gate lists whatever reaches results; it never consults metrics,
-        # so a LOW entry that did reach results would still be visible.
+        # The gate lists whatever reaches results; it never gates on LOW
+        # metrics, so a LOW entry that did reach results would still be visible.
         low = {"filename": "app/new_module.py", "line_number": 3,
                "test_id": "B101", "issue_severity": "LOW",
                "issue_text": "assert_used"}
         self.assertEqual(1, len(bandit_gate.get_problems({"results": [low]})))
 
-    def _main_patches(self, report_path, targets=("app/x.py",)):
+    def _main_patches(self, report_path, targets=("app/x.py",),
+                      excluded=("app/tests/test_x.py",)):
         return (
             mock.patch.object(bandit_gate, "REPORT_PATH", report_path),
-            mock.patch.object(bandit_gate, "get_targets",
-                              return_value=list(targets)),
+            mock.patch.object(bandit_gate, "collect_targets",
+                              return_value=(list(targets), list(excluded))),
             mock.patch.object(bandit_gate, "get_nosec_problems",
                               return_value=[]),
         )
@@ -285,12 +503,22 @@ class BanditGateTests(unittest.TestCase):
                                       side_effect=write_bad_report):
                 self.assertEqual(2, bandit_gate.main())
 
+    def test_main_exits_2_when_targets_are_empty(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / "report.json"
+            report_patch, targets_patch, nosec_patch = self._main_patches(
+                report, targets=(), excluded=())
+            with report_patch, targets_patch, nosec_patch, \
+                    mock.patch.object(bandit_gate.subprocess, "run") as run_mock:
+                self.assertEqual(2, bandit_gate.main())
+                run_mock.assert_not_called()
+
     def test_main_prints_the_scanned_file_count(self):
         report_data = {
             "errors": [],
             "results": [],
             "metrics": {
-                "_totals": {"SEVERITY.LOW": 2},
+                "_totals": {"SEVERITY.LOW": 2, "nosec": 0},
                 "app/module.py": {},
                 "./root_script.py": {},
             },
@@ -303,7 +531,10 @@ class BanditGateTests(unittest.TestCase):
                 return mock.Mock(returncode=0)
 
             report_patch, targets_patch, nosec_patch = self._main_patches(
-                report)
+                report,
+                targets=("app/module.py", "root_script.py"),
+                excluded=("app/tests/test_x.py",),
+            )
             stdout = io.StringIO()
             with report_patch, targets_patch, nosec_patch, \
                     mock.patch.object(bandit_gate.subprocess, "run",
@@ -311,25 +542,59 @@ class BanditGateTests(unittest.TestCase):
                     contextlib.redirect_stdout(stdout):
                 self.assertEqual(0, bandit_gate.main())
             self.assertIn(
-                "bandit scanned 2 files: 1 app files, 1 root scripts",
+                "bandit scanned 2 of 3 python files: 1 app files, "
+                "1 root scripts (1 excluded)",
                 stdout.getvalue())
 
+    def test_main_runs_multiple_batches_and_writes_merged_report(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / "report.json"
+            calls = []
+
+            def write_batch_report(command, cwd=None):
+                calls.append(command)
+                out_path = Path(command[command.index("-o") + 1])
+                target = command[-1]
+                data = {
+                    "errors": [],
+                    "results": [],
+                    "metrics": {
+                        "_totals": {"SEVERITY.LOW": 1, "nosec": 0, "loc": 10},
+                        target: {"loc": 10},
+                    },
+                }
+                out_path.write_text(json.dumps(data), encoding="utf-8")
+                return mock.Mock(returncode=0)
+
+            report_patch, targets_patch, nosec_patch = self._main_patches(
+                report,
+                targets=("app/a.py", "app/b.py"),
+                excluded=("app/tests/test_x.py",),
+            )
+            with report_patch, targets_patch, nosec_patch, \
+                    mock.patch.object(bandit_gate, "batch_targets",
+                                      return_value=[["app/a.py"], ["app/b.py"]]), \
+                    mock.patch.object(bandit_gate.subprocess, "run",
+                                      side_effect=write_batch_report):
+                self.assertEqual(0, bandit_gate.main())
+
+            self.assertEqual(2, len(calls))
+            merged = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual(2, merged["metrics"]["_totals"]["SEVERITY.LOW"])
+            self.assertEqual(20, merged["metrics"]["_totals"]["loc"])
+            self.assertIn("app/a.py", merged["metrics"])
+            self.assertIn("app/b.py", merged["metrics"])
+
     def test_nosec_comments_name_a_test_and_a_reason(self):
-        production = [path for path in
-                      [*ROOT.glob("*.py"), *app_python_files(ROOT / "app")]
-                      if not {"tests", "experiments", "tools"}
-                      & set(path.relative_to(ROOT).parts)]
+        valid_ids = bandit_gate.get_known_test_ids()
+        production = [ROOT / rel for rel in bandit_gate.get_targets()]
         marked = 0
+        all_violations = []
         for path in production:
-            lines = path.read_text(encoding="utf-8").splitlines()
-            for number, line in enumerate(lines, 1):
-                if "# nosec" not in line:
-                    continue
-                with self.subTest(file=path.name, line=number):
-                    self.assertRegex(line, r"# nosec B\d+\s*$")
-                    self.assertGreater(number, 1)
-                    self.assertRegex(lines[number - 2].strip(), r"^# \S")
-                marked += 1
+            count, violations = check_nosec_convention(path, valid_ids)
+            marked += count
+            all_violations.extend(violations)
+        self.assertEqual([], all_violations)
         self.assertTrue(marked)
 
     def test_report_artifact_is_not_tracked(self):

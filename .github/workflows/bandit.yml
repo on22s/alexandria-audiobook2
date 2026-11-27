@@ -24,11 +24,12 @@ jobs:
       - name: Install pinned Bandit
         run: python -m pip install -r requirements-security.txt
       - name: Fail on findings or unscannable files
-        # Scans all of app/ (skipping virtualenvs) plus the repo-root scripts,
-        # with no baseline file, and fails on any medium-or-higher finding, any
-        # file bandit could not parse or read, or any non-conforming nosec
-        # comment. LOW findings are counted in the report metrics only, not
-        # gated.
+        # Scans non-excluded app/ modules (skipping virtualenvs and the paths
+        # excluded in app/bandit.ini) plus the repo-root scripts, with no
+        # baseline file. Fails on any medium-or-higher finding, any file bandit
+        # could not parse or read, any blanket nosec suppression, or any nosec
+        # comment that does not name a single known Bandit test id. LOW findings
+        # are counted in the report metrics only, not gated.
         run: python bandit_gate.py
       - name: Upload Bandit report
         if: always()

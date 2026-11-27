@@ -1279,18 +1279,24 @@
   ]
   , "test_bandit_gate": [
     "tests.test_bandit_gate.BanditGateTests.test_command_pins_the_full_bandit_argv"
+    , "tests.test_bandit_gate.BanditGateTests.test_command_stays_within_windows_argv_limit"
     , "tests.test_bandit_gate.BanditGateTests.test_excludes_match_bandit_walked_paths"
-    , "tests.test_bandit_gate.BanditGateTests.test_gate_fails_on_findings_and_on_scan_errors"
-    , "tests.test_bandit_gate.BanditGateTests.test_gate_rejects_non_conforming_nosec_comments"
+    , "tests.test_bandit_gate.BanditGateTests.test_gate_fails_on_findings_scan_errors_blanket_nosec_and_dropped_targets"
+    , "tests.test_bandit_gate.BanditGateTests.test_gate_reads_pep263_latin1_files_for_nosec_checks"
+    , "tests.test_bandit_gate.BanditGateTests.test_gate_rejects_unknown_nosec_id_and_non_conforming_comments"
+    , "tests.test_bandit_gate.BanditGateTests.test_known_bandit_ids_covers_repo_and_matches_installed_bandit"
     , "tests.test_bandit_gate.BanditGateTests.test_low_findings_do_not_gate"
     , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_bandit_crashes"
     , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_bandit_is_missing"
     , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_report_is_not_json"
     , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_report_is_unreadable"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_exits_2_when_targets_are_empty"
     , "tests.test_bandit_gate.BanditGateTests.test_main_prints_the_scanned_file_count"
+    , "tests.test_bandit_gate.BanditGateTests.test_main_runs_multiple_batches_and_writes_merged_report"
     , "tests.test_bandit_gate.BanditGateTests.test_nosec_comments_name_a_test_and_a_reason"
     , "tests.test_bandit_gate.BanditGateTests.test_report_artifact_is_not_tracked"
     , "tests.test_bandit_gate.BanditGateTests.test_targets_are_derived_from_the_filesystem"
+    , "tests.test_bandit_gate.BanditGateTests.test_targets_share_source_sweep_helper"
     , "tests.test_bandit_gate.BanditGateTests.test_targets_skip_virtualenvs"
     , "tests.test_bandit_gate.BanditGateTests.test_workflow_runs_the_gate_on_the_linux_pin"
   ]
@@ -11568,6 +11574,26 @@
     , "tests.test_prompt_reset_defaults_js.PromptResetDefaultTests.test_failed_or_incomplete_defaults_response_leaves_every_editor_value_unchanged"
     , "tests.test_prompt_reset_defaults_js.PromptResetDefaultTests.test_native_factory_defaults_reset_all_visible_generation_fields_and_persist"
   ]
+  , "test_prompt_token_truncation": [
+    "tests.test_prompt_token_truncation.AttributeBatchTruncationWarningTest.test_dict_usage_is_recorded_like_an_object"
+    , "tests.test_prompt_token_truncation.AttributeBatchTruncationWarningTest.test_exhausted_retries_are_unchanged"
+    , "tests.test_prompt_token_truncation.AttributeBatchTruncationWarningTest.test_missing_usage_warns_nothing"
+    , "tests.test_prompt_token_truncation.AttributeBatchTruncationWarningTest.test_repro_warns_and_records_the_fact"
+    , "tests.test_prompt_token_truncation.AttributeBatchTruncationWarningTest.test_retry_and_acceptance_are_unchanged"
+    , "tests.test_prompt_token_truncation.AttributeBatchTruncationWarningTest.test_warn_only_across_usage_shapes"
+    , "tests.test_prompt_token_truncation.CastListTruncationTest.test_incremental_window_warns_and_records_the_fact"
+    , "tests.test_prompt_token_truncation.CastListTruncationTest.test_whole_book_cast_records_the_fact"
+    , "tests.test_prompt_token_truncation.SuspectPromptTokensTest.test_compressible_prompts_with_faithful_counts_are_not_suspect"
+    , "tests.test_prompt_token_truncation.SuspectPromptTokensTest.test_dense_scripts_with_honest_counts_are_not_suspect"
+    , "tests.test_prompt_token_truncation.SuspectPromptTokensTest.test_honest_latin_count_is_not_suspect"
+    , "tests.test_prompt_token_truncation.SuspectPromptTokensTest.test_integral_float_report_is_evidence"
+    , "tests.test_prompt_token_truncation.SuspectPromptTokensTest.test_issue_report_is_suspect"
+    , "tests.test_prompt_token_truncation.SuspectPromptTokensTest.test_missing_or_malformed_usage_is_no_evidence"
+    , "tests.test_prompt_token_truncation.SuspectPromptTokensTest.test_reports_between_half_and_a_sixth_of_the_estimate_warn"
+    , "tests.test_prompt_token_truncation.SuspectPromptTokensTest.test_separate_anthropic_cache_is_added_back"
+    , "tests.test_prompt_token_truncation.SuspectPromptTokensTest.test_subset_cache_tokens_do_not_suppress_a_true_warning"
+    , "tests.test_prompt_token_truncation.SuspectPromptTokensTest.test_zero_separate_cache_does_not_hide_a_low_report"
+  ]
   , "test_prompt_variant": [
     "tests.test_prompt_variant.PromptVariantTest.test_an_unknown_variant_is_refused_not_silently_treated_as_control"
     , "tests.test_prompt_variant.PromptVariantTest.test_control_is_the_default_and_adds_nothing"
@@ -15977,7 +16003,8 @@
     "tests.test_source_sweep_scope.AppPythonFilesTest.test_a_bare_rglob_would_have_returned_the_venv"
     , "tests.test_source_sweep_scope.AppPythonFilesTest.test_a_tree_with_no_venv_is_unaffected"
     , "tests.test_source_sweep_scope.AppPythonFilesTest.test_the_venv_is_excluded_and_our_modules_are_not"
-    , "tests.test_source_sweep_scope.SweepScopeInventoryTest.test_no_test_rglobs_python_files_by_hand"
+    , "tests.test_source_sweep_scope.SweepScopeInventoryTest.test_no_module_rglobs_python_files_by_hand"
+    , "tests.test_source_sweep_scope.SweepScopeInventoryTest.test_test_support_delegates_to_shared_helper"
   ]
   , "test_source_upload_held_routes": [
     "tests.test_source_upload_held_routes.UploadHeldRouteTests.test_docx_publish_held_is_503_keeps_partial_group_and_retries"

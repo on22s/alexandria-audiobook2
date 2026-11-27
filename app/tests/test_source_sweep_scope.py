@@ -18,7 +18,9 @@ import tempfile
 import unittest
 
 from tests.test_support import app_python_files
+import source_sweep
 
+APP_DIR = pathlib.Path(__file__).resolve().parent.parent
 TESTS = pathlib.Path(__file__).parent
 BARE_RGLOB = re.compile(r'rglob\(\s*["\']\*\.py["\']\s*\)')
 
@@ -61,24 +63,35 @@ class AppPythonFilesTest(unittest.TestCase):
 
 
 class SweepScopeInventoryTest(unittest.TestCase):
-    """No test may go back to walking app/ without the helper."""
+    """No production module or test may walk app/ without the shared helper."""
 
     ALLOWED = {
         # Walks a temp fixture, and asserts the bare form still fails it.
-        "test_source_sweep_scope.py",
+        "app/tests/test_source_sweep_scope.py",
         # Defines the helper; its rglob is the one this rule points everyone at.
-        "test_support.py",
+        "app/source_sweep.py",
     }
 
-    def test_no_test_rglobs_python_files_by_hand(self):
+    def test_test_support_delegates_to_shared_helper(self):
+        from unittest import mock
+        sentinel = [pathlib.Path("sentinel.py")]
+        with mock.patch.object(source_sweep, "app_python_files",
+                               return_value=sentinel) as shared:
+            self.assertEqual(sentinel, app_python_files(APP_DIR))
+        shared.assert_called_once_with(APP_DIR)
+
+    def test_no_module_rglobs_python_files_by_hand(self):
+        repo_root = APP_DIR.parent
+        candidates = sorted(set(app_python_files(APP_DIR)))
         offenders = []
-        for path in sorted(TESTS.glob("test_*.py")):
-            if path.name in self.ALLOWED:
+        for path in candidates:
+            rel = path.relative_to(repo_root).as_posix()
+            if rel in self.ALLOWED:
                 continue
             source = path.read_text(encoding="utf-8", errors="replace")
             if BARE_RGLOB.search(source):
-                offenders.append(path.name)
+                offenders.append(rel)
         self.assertEqual(
             [], offenders,
             "these walk for .py by hand and will pick up app/env in the live "
-            "checkout; call tests.test_support.app_python_files instead")
+            "checkout; call source_sweep.app_python_files instead")
