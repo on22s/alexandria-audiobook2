@@ -1,0 +1,17 @@
+# On-demand coverage-guided fuzzing (tools/fuzz/, .github/workflows/fuzz.yml).
+#
+# NOT installed by app/requirements.txt (Pinokio runtime) or app/requirements-test.txt
+# (required CI unit shards). Linux-only: Atheris wraps libFuzzer and does not publish
+# Windows wheels.
+#
+# Pinned to 2.3.0 on purpose: CI and app/env run Python 3.10.20.
+# - atheris==3.1.0 ships wheels only for cp312/cp313/cp314 (no cp310 wheel or sdist).
+# - atheris==3.0.0 ships wheels only for cp311/cp312/cp313; building its sdist on
+#   Python 3.10 requires clang and libFuzzer headers.
+# - atheris==2.3.0 ships a prebuilt Python 3.10 Linux wheel
+#   (atheris-2.3.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl)
+#   with zero runtime dependencies.
+#
+# Install into the local interpreter via GUIDE.md's aa2py, or directly into app/env:
+#   app/env/bin/python -m pip install -r app/requirements-fuzz.txt
+atheris==2.3.0
