@@ -7,11 +7,16 @@ measurement depends on.
 """
 import unittest
 
-from apostrophe_repair import looks_damaged, restore_stripped_apostrophes
+from apostrophe_repair import _STEMS, looks_damaged, restore_stripped_apostrophes
 from generate_script import get_preprocessed_source
 
 DAMAGED = 'I don t know. It was Miller s house. I m sure you re right.'
 HEALTHY = "I don't know. It was Miller's house."
+EXPECTED_CONTRACTION_STEMS = (
+    "don", "isn", "didn", "doesn", "wasn", "weren", "hasn", "haven",
+    "hadn", "couldn", "wouldn", "shouldn", "mustn", "needn", "aren",
+    "can", "won", "ain", "shan", "mightn", "daren", "oughtn", "mayn",
+)
 
 
 class Detection(unittest.TestCase):
@@ -47,6 +52,44 @@ class Detection(unittest.TestCase):
     def test_empty_input(self):
         self.assertFalse(looks_damaged(""))
 
+    def test_curly_and_mixed_apostrophe_counts(self):
+        """Curly apostrophes count alongside straight ones toward the healthy ratio."""
+        curly_healthy = "She didn\u2019t know it\u2019s late, and he wasn\u2019t sure. I don t mind."
+        self.assertFalse(looks_damaged(curly_healthy))
+        self.assertEqual(restore_stripped_apostrophes(curly_healthy), (curly_healthy, []))
+
+        curly_damaged = "He said it\u2019s fine, she\u2019s here. I don t know."
+        self.assertTrue(looks_damaged(curly_damaged))
+        repaired_curly, curly_changes = restore_stripped_apostrophes(curly_damaged)
+        self.assertEqual(repaired_curly, "He said it\u2019s fine, she\u2019s here. I don't know.")
+        self.assertEqual(len(curly_changes), 1)
+
+        # Two straight + one curly exceeds the floor of 2 only when summed (not subtracted).
+        mixed_healthy = "It's fine and she's ready, though he wasn\u2019t sure. I don t know."
+        self.assertFalse(looks_damaged(mixed_healthy))
+        self.assertEqual(restore_stripped_apostrophes(mixed_healthy), (mixed_healthy, []))
+
+    def test_floor_and_ratio_boundaries(self):
+        """Pin both sides of max(2, broken * 0.05) at the floor, ratio and coefficient."""
+        # Floor boundary (broken = 1 -> max(2, 0.05) = 2): 2 is damaged, 3 is healthy.
+        self.assertTrue(looks_damaged("It's fine, she's here. I don t know."))
+        self.assertFalse(looks_damaged("It's fine, she's here, he's ready. I don t know."))
+
+        # Ratio boundary (broken = 60 -> max(2, 3.0) = 3.0): 3 is damaged, 4 is healthy.
+        breaks = "I don t know. " * 60
+        self.assertTrue(looks_damaged("It's fine, she's here, he's ready. " + breaks))
+        self.assertFalse(
+            looks_damaged("It's fine, she's here, he's ready, we're set. " + breaks)
+        )
+
+        # Coefficient boundary (broken = 1000 -> 0.05 * 1000 = 50): 50 is
+        # damaged, 51 is healthy. 0.04 would move the threshold down to 40, so
+        # 50 apostrophes would look healthy; 0.06 would move it up to 60, so 51
+        # would look damaged. Both sides are pinned, not just the lower one.
+        many_breaks = "I don t know. " * 1000
+        self.assertTrue(looks_damaged("It's fine, " * 50 + many_breaks))
+        self.assertFalse(looks_damaged("It's fine, " * 51 + many_breaks))
+
 
 class Repair(unittest.TestCase):
     def test_contractions_and_clitics(self):
@@ -81,6 +124,51 @@ class Repair(unittest.TestCase):
         self.assertTrue(changes)
         self.assertEqual(changes[0]["rule"], "stripped_apostrophe")
         self.assertIn("line", changes[0])
+
+    def test_all_contraction_stems_are_detected_and_repaired(self):
+        """Every supported negative contraction stem detects damage and repairs cleanly."""
+        # The hand-written list above must not drift from production: a new
+        # stem in _STEMS would otherwise be silently left uncovered.
+        self.assertEqual(set(EXPECTED_CONTRACTION_STEMS), set(_STEMS))
+        self.assertEqual(len(EXPECTED_CONTRACTION_STEMS), len(_STEMS))
+        for stem in EXPECTED_CONTRACTION_STEMS:
+            with self.subTest(stem=stem):
+                damaged = f"They {stem} t know."
+                expected = f"They {stem}'t know."
+                self.assertTrue(looks_damaged(damaged))
+                repaired, changes = restore_stripped_apostrophes(damaged)
+                self.assertEqual(repaired, expected)
+                self.assertEqual(len(changes), 1)
+                self.assertEqual(changes[0]["before"], f"{stem} t")
+                self.assertEqual(changes[0]["after"], f"{stem}'t")
+                self.assertEqual(changes[0]["rule"], "stripped_apostrophe")
+                self.assertFalse(looks_damaged(expected))
+                self.assertEqual(restore_stripped_apostrophes(expected), (expected, []))
+
+    def test_leading_newline_offsets_and_line_numbers(self):
+        """A leading newline must be counted when computing 1-based line numbers."""
+        raw = "\nI don t know.\nShe s here."
+        repaired, changes = restore_stripped_apostrophes(raw)
+        self.assertEqual(repaired, "\nI don't know.\nShe's here.")
+        self.assertEqual(
+            changes,
+            [
+                {
+                    "offset": raw.index("don t"),
+                    "line": 2,
+                    "before": "don t",
+                    "after": "don't",
+                    "rule": "stripped_apostrophe",
+                },
+                {
+                    "offset": raw.index("She s"),
+                    "line": 3,
+                    "before": "She s",
+                    "after": "She's",
+                    "rule": "stripped_apostrophe",
+                },
+            ],
+        )
 
 
 class Pipeline(unittest.TestCase):
