@@ -821,6 +821,11 @@ NAME_TITLE_PREFIXES = frozenset({
     "mother", "brother", "sister", "officer", "sergeant", "general", "colonel",
     "major", "lieutenant", "reverend", "pastor", "bishop", "saint", "the", "his", "her",
 })
+# A married-woman title names the wife, not the man whose name follows it:
+# "Mrs. John Vale" is Fanny, so the title-stripped "John Vale" must not become
+# an identity key for John. These are the married-woman entries of the title
+# data above; add a title here when it joins the same convention.
+_MARRIED_WOMAN_TITLES = frozenset({"mrs"})
 
 
 # These words are routinely capitalised by sentence position alone. They may
@@ -929,8 +934,7 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
     # still fails.
     words = name.split()
     if len(words) > 1 and capitalized >= 1:
-        while words and words[0].casefold().rstrip(".") in NAME_TITLE_PREFIXES:
-            words = words[1:]
+        words = _get_speaker_title_and_words(name)[1]
         return bool(words and is_attested_name(words[0], source_text, min_attestations))
     return False
 
@@ -959,9 +963,9 @@ _SOURCE_TAG_VERBS = (
 )
 _SOURCE_SPEECH_TAG = re.compile(
     rf"^[ \t]*(?:[,;][ \t]*)?(?:"
-    rf"(?P<before>{_TAG_NAME})(?:[ \t]+{_TAG_ADVERB})?[ \t]+"
-    rf"(?:{_SOURCE_TAG_VERBS}(?:[ \t]+{_TAG_ADVERB})?(?:[ \t]+to[ \t]+(?P<obj_b>{_TAG_OBJECT}))?|"
-    rf"(?:told|tells)[ \t]+(?P<obj_t>{_TAG_OBJECT})(?:[ \t]+{_TAG_ADVERB})?)|"
+    rf"(?P<before>{_TAG_NAME})(?:[ \t]+(?P<adv_before>{_TAG_ADVERB}))?[ \t]+"
+    rf"(?:{_SOURCE_TAG_VERBS}(?:[ \t]+(?P<adv_after>{_TAG_ADVERB}))?(?:[ \t]+to[ \t]+(?P<obj_b>{_TAG_OBJECT}))?|"
+    rf"(?:told|tells)[ \t]+(?P<obj_t>{_TAG_OBJECT})(?:[ \t]+(?P<adv_after_t>{_TAG_ADVERB}))?)|"
     rf"{_SOURCE_TAG_VERBS}[ \t]+(?P<after>{_TAG_NAME})"
     rf"(?:[ \t]+{_TAG_ADVERB})?(?:[ \t]+to[ \t]+(?P<obj_a>{_TAG_OBJECT}))?)"
     r"(?=[ \t]*[,.!?:;])", re.IGNORECASE)
@@ -983,25 +987,25 @@ def _resolve_alias_canonical(name, aliases, alias_index=None):
     """Follow speaker_aliases using speaker_identity's normalized key."""
     if not aliases or not name:
         return name
-    from speaker_identity import _identity_key, get_speaker_label_index
+    from speaker_identity import get_speaker_identity_key, get_speaker_label_index
     index = get_speaker_label_index(aliases.keys()) if alias_index is None else alias_index
     current, seen = name, set()
-    key = _identity_key(current)
+    key = get_speaker_identity_key(current)
     while key and key not in seen and key in index:
         seen.add(key)
         current = aliases[index[key]]
-        key = _identity_key(current)
+        key = get_speaker_identity_key(current)
     return current
 
 
-def _split_speaker_title_and_words(label):
-    from speaker_identity import _identity_key
+def _get_speaker_title_and_words(label):
+    """Split a label into its leading titles and the remaining words."""
     words = remove_silent_word_characters(str(label or "")).split()
     titles = []
     while words and words[0].casefold().rstrip(".") in NAME_TITLE_PREFIXES:
         titles.append(words[0].casefold().rstrip("."))
         words = words[1:]
-    return titles, [key for key in (_identity_key(word) for word in words) if key]
+    return titles, words
 
 
 def _is_same_tag_identity(speaker, expected, established_pool):
@@ -1011,11 +1015,15 @@ def _is_same_tag_identity(speaker, expected, established_pool):
     MARY MUSGROVE vs MRS MUSGROVE) and labels with conflicting titles (MR. vs
     MRS.) still contradict.
     """
-    from speaker_identity import resolve_speaker_label
+    from speaker_identity import get_speaker_identity_key, resolve_speaker_label
     if resolve_speaker_label(speaker, [expected]):
         return True
-    sp_titles, sp_words = _split_speaker_title_and_words(speaker)
-    exp_titles, exp_words = _split_speaker_title_and_words(expected)
+    sp_titles, sp_raw_words = _get_speaker_title_and_words(speaker)
+    exp_titles, exp_raw_words = _get_speaker_title_and_words(expected)
+    sp_words = [key for key in (get_speaker_identity_key(word)
+                                for word in sp_raw_words) if key]
+    exp_words = [key for key in (get_speaker_identity_key(word)
+                                 for word in exp_raw_words) if key]
     if not sp_words or not exp_words:
         return False
     if sp_titles and exp_titles and sp_titles != exp_titles:
@@ -1024,6 +1032,12 @@ def _is_same_tag_identity(speaker, expected, established_pool):
         return True
     if resolve_speaker_label(expected, established_pool):
         return False
+    if (exp_titles and len(exp_words) == 1 and not sp_titles
+            and len(sp_words) == 1):
+        # A title plus a bare surname cannot name a predicted bare first name:
+        # the surname may belong to any character of that family. Abstain
+        # rather than call the two different characters (#2388).
+        return True
     short, full = ((exp_words, sp_words) if len(exp_words) <= len(sp_words)
                    else (sp_words, exp_words))
     return full[:len(short)] == short or full[-len(short):] == short
@@ -1112,13 +1126,12 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
     identities = {}
     for label in set(established_names) | set(aliases):
         canonical = _resolve_alias_canonical(label, aliases, alias_index)
-        words = label.split()
-        while words and words[0].casefold().rstrip(".") in NAME_TITLE_PREFIXES:
-            words = words[1:]
+        titles, words = _get_speaker_title_and_words(label)
         forms = [label]
         if words:
             forms.extend([words[0], words[-1]])
-            if len(words) > 1:
+            if (len(words) > 1
+                    and not _MARRIED_WOMAN_TITLES.intersection(titles)):
                 forms.append(" ".join(words))
             # Keep the title with the first personal component (Lord Henry),
             # but never treat a title alone as a character identity.
@@ -1163,6 +1176,10 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         tail = after[1:].split("\n", 1)[0]
         tag = _SOURCE_SPEECH_TAG.match(tail)
         if not tag:
+            continue
+        # At most one optional -ly adverb, before or after the verb.
+        if tag.group("adv_before") and (tag.group("adv_after")
+                                        or tag.group("adv_after_t")):
             continue
         if (text and text[-1] in _SENTENCE_END and tag.group("before")
                 and not tail.lstrip(" \t").startswith((",", ";"))):

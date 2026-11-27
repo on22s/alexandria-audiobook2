@@ -772,10 +772,12 @@
     , "tests.test_attribution_source_tags.SourceTagTests.test_guillemets_and_low_high_quote_pairs"
     , "tests.test_attribution_source_tags.SourceTagTests.test_issue_2332_rows_and_w1_tag_forms"
     , "tests.test_attribution_source_tags.SourceTagTests.test_keep_exhaustion_is_flagged_and_cannot_seed_roster"
+    , "tests.test_attribution_source_tags.SourceTagTests.test_married_woman_alias_does_not_claim_the_husbands_name"
     , "tests.test_attribution_source_tags.SourceTagTests.test_matching_is_shared_across_the_batch"
-    , "tests.test_attribution_source_tags.SourceTagTests.test_next_quote_introducer_abstains_while_split_quotes_fire"
+    , "tests.test_attribution_source_tags.SourceTagTests.test_next_quote_guard_pins_ambiguous_split_quotes_and_keeps_clear_ones"
     , "tests.test_attribution_source_tags.SourceTagTests.test_real_retry_corrects_the_label_without_changing_text"
     , "tests.test_attribution_source_tags.SourceTagTests.test_uncertain_sources_abstain"
+    , "tests.test_attribution_source_tags.SourceTagTests.test_unestablished_title_surname_abstains_against_a_first_name"
     , "tests.test_attribution_source_tags.SourceTagTests.test_unresolved_proposed_name_and_unknown_abstain"
     , "tests.test_attribution_source_tags.SourceTagTests.test_w1_names_ending_in_ly_unicode_and_abstentions"
   ]
