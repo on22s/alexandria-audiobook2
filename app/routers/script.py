@@ -37,7 +37,6 @@ from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 import xml.etree.ElementTree as ET
-from xml.parsers import expat
 from math import ceil
 from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import unquote, urlsplit
@@ -110,9 +109,8 @@ from generate_script import LLMGenParams
 from utils import file_lock, is_path_inside
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from alexandria_alignment import (
-    _xml_start_tag_end,
+    cut_xml_subtrees,
     html_hidden_handling_applies,
-    is_hidden_xml_element,
     is_well_formed_xml,
     validate_epub_archive,
 )
@@ -490,9 +488,14 @@ def _get_anchor_id(tag, attrs):
     exactly (``id``, then ``xml:id``, then ``name`` on ``<a>``), because the
     extraction report compares this helper's XML-path results with that
     extractor's ``anchor_counts``/``anchor_positions`` for
-    ``target_in_hidden_subtree``.
+    ``target_in_hidden_subtree``. Expat reports attribute names as written,
+    while HTMLParser lowercases them, so the attribute names are lowercased
+    here (``<p ID="x">`` contributes the same anchor as ``id="x"``).
     """
-    attributes = attrs if isinstance(attrs, dict) else dict(attrs)
+    attributes = {
+        str(name).lower(): value
+        for name, value in (attrs.items() if isinstance(attrs, dict) else attrs)
+    }
     return (attributes.get('id') or attributes.get('xml:id')
             or (attributes.get('name') if tag == 'a' else None))
 
@@ -684,14 +687,21 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
                               omit_hidden: bool = True) -> str:
     """Omit true XML ignored subtrees, preserving everything outside them.
 
-    Well-formed XHTML can carry literal skipped-element markup inside CDATA
-    sections, comments and processing instructions (only the CDATA/comment
-    terminator ends those constructs). HTMLParser's raw-text scanning would
-    end the skipped element at the literal close and reinterpret a literal
-    open as a phantom element, falsely rejecting the book or silently
-    swallowing following chapters. Expat (stdlib, no fetch, no entity
-    expansion) locates the real ignored elements in a UTF-8 copy of the
-    already-decoded resource; the untouched outside slices - CRLF,
+    The walk itself is :func:`alexandria_alignment.cut_xml_subtrees`, shared
+    with ``load_epub``'s hidden scan (Rule 15): ``xmlns`` stack, self-closing
+    detection, subtree cut and the one hidden predicate. This function keeps
+    only extraction's extra work - its exact lowercased ``SKIP_TAGS``, PI
+    omission, the DOCTYPE prolog hazard, and the anchor / hidden-content
+    report - and the actionable error messages.
+
+    WHY THE WALK MATTERS. Well-formed XHTML can carry literal skipped-element
+    markup inside CDATA sections, comments and processing instructions (only
+    the CDATA/comment terminator ends those constructs). HTMLParser's raw-text
+    scanning would end the skipped element at the literal close and
+    reinterpret a literal open as a phantom element, falsely rejecting the
+    book or silently swallowing following chapters. Expat (stdlib, no fetch,
+    no entity expansion) locates the real ignored elements in a UTF-8 copy of
+    the already-decoded resource; the untouched outside slices - CRLF,
     whitespace, anchors and all - are fed to the HTML extractor instead.
     Ignored tag names match the HTML extractor's exact lowercased SKIP_TAGS:
     prefixed names such as <x:script> are ordinary elements and are never
@@ -706,11 +716,6 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
     Resources with no possible skip opening (or hidden attribute, when hidden
     handling applies) skip the copy and the XML pass entirely (see
     _POTENTIAL_SKIP_OPEN_RE and _POTENTIAL_HIDDEN_ATTR_RE).
-    Outside bytes accumulate in a single bytearray candidate (bounded by
-    the input size) rather than a per-element record list, and only
-    cursor/depth/omission-flag state is retained. Only ignored elements
-    are counted, so no per-tag retained records accumulate for ordinary
-    elements (transient name strings from the parser callbacks aside).
     This helper is invoked only for application/xhtml+xml resources (see
     extract_epub_text): if the resource is not XML well-formed, a genuine
     ExpatError rejects actionably with the pending ignored element named
@@ -720,8 +725,46 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
     has_hidden_attr = omit_hidden and _POTENTIAL_HIDDEN_ATTR_RE.search(html_content)
     if not _POTENTIAL_SKIP_OPEN_RE.search(html_content) and not has_hidden_attr:
         return html_content
+
+    def track_hidden(name, attrs, line, inside_ignored, in_hidden, hidden_start):
+        # Extraction's own extra work: anchors inside a hidden subtree and the
+        # hidden_content report. The shared walker owns the cut and the state.
+        if not in_hidden:
+            return
+        lower_name = name.lower()
+        if inside_ignored:
+            if anchor_ids:
+                anchor_id = _get_anchor_id(lower_name, attrs)
+                if anchor_id in anchor_ids:
+                    stats['hidden_anchors'].add(anchor_id)
+            return
+        # hidden_start: the outermost hidden element, the one that can omit
+        # text and is counted in the report.
+        if lower_name not in _XML_VOID_TAGS:
+            # A hidden void element (br/img/...) omits no text, so it is not
+            # an omitted element in the report.
+            stats['hidden_elements'] += 1
+            if stats['first_hidden_location'] is None:
+                stats['first_hidden_location'] = f'line {line}, <{lower_name}>'
+        anchor_id = _get_anchor_id(lower_name, attrs)
+        if anchor_ids and anchor_id in anchor_ids:
+            stats['hidden_anchors'].add(anchor_id)
+
+    def doctype_hazard(name, system_id, public_id, has_internal_subset):
+        return (has_internal_subset
+                or bool(_POTENTIAL_SKIP_OPEN_RE.search(name or ''))
+                or bool(_POTENTIAL_SKIP_OPEN_RE.search(system_id or ''))
+                or bool(_POTENTIAL_SKIP_OPEN_RE.search(public_id or '')))
+
     try:
-        data = html_content.encode('utf-8')
+        cut = cut_xml_subtrees(
+            html_content,
+            skip_tags=_HTMLTextExtractor.SKIP_TAGS,
+            omit_hidden=omit_hidden,
+            omit_processing_instructions=True,
+            doctype_hazard=doctype_hazard,
+            on_element=track_hidden if stats is not None else None,
+        )
     except UnicodeEncodeError as error:
         # A declared nonstandard codec can decode to lone surrogates
         # (e.g. unicode_escape with a literal \ud800), which cannot be
@@ -732,184 +775,13 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
         raise ValueError(
             'invalid Unicode: decoded resource cannot be encoded as UTF-8'
         ) from error
-    view = memoryview(data)
-    skip_tags = _HTMLTextExtractor.SKIP_TAGS
-
-    def is_skipped(name):
-        # Identical semantics to _HTMLTextExtractor.handle_starttag:
-        # exact lowercased tag names only. Prefixed names are ordinary.
-        return name.lower() in skip_tags
-
-    candidate = bytearray()
-    cursor = 0
-    ignored_depth = 0
-    ignored_self_closing = False
-    in_hidden = False
-    ns_stack = [{}]
-    omitted = False
-    seen_root = False
-    doctype_hazard = False
-    pending_ignored = None
-    parser = expat.ParserCreate(encoding='utf-8')
-    # DefaultHandler (not DefaultHandlerExpand) inhibits entity expansion
-    # and reporting in character content; attribute values still undergo
-    # Expat's standard entity normalization. No external entity/DTD
-    # handler is registered, so no external fetching occurs; Expat's
-    # default amplification protection is left at its default.
-    parser.DefaultHandler = lambda _data: None
-
-    def start_doctype(name, system_id, public_id, has_internal_subset):
-        nonlocal doctype_hazard
-        if has_internal_subset or _POTENTIAL_SKIP_OPEN_RE.search(
-                name or '') or _POTENTIAL_SKIP_OPEN_RE.search(
-                    system_id or '') or _POTENTIAL_SKIP_OPEN_RE.search(
-                        public_id or ''):
-            doctype_hazard = True
-
-    def processing_instruction(_target, _data):
-        nonlocal cursor, omitted
-        if ignored_depth:
-            return
-        start = parser.CurrentByteIndex
-        if start < 0:
-            raise ValueError(
-                'invalid XML: processing instruction position unavailable')
-        end = data.find(b'?>', start)
-        if end < 0:
-            raise ValueError(
-                'invalid XML: processing instruction terminator unavailable')
-        candidate.extend(view[cursor:start])
-        cursor = end + 2
-        omitted = True
-
-    def start_element(name, attrs):
-        nonlocal ignored_depth, ignored_self_closing, in_hidden, omitted, seen_root, cursor, pending_ignored
-        start = parser.CurrentByteIndex
-        if start < 0:
-            raise ValueError('invalid XML: element position unavailable')
-        current_ns = ns_stack[-1]
-        if 'xmlns' in attrs or any(key.startswith('xmlns:') for key in attrs):
-            updated = dict(current_ns)
-            for key, value in attrs.items():
-                if key == 'xmlns':
-                    updated[''] = value
-                elif key.startswith('xmlns:'):
-                    updated[key[6:]] = value
-            current_ns = updated
-        ns_stack.append(current_ns)
-        if not seen_root:
-            seen_root = True
-            if doctype_hazard:
-                # Omit the whole nonspoken prolog (declaration, DOCTYPE,
-                # comments, PIs, whitespace): Expat does not report the
-                # DOCTYPE's lexical start, and any of it could carry the
-                # literal markup. Discard anything accumulated so far.
-                candidate.clear()
-                cursor = start
-                omitted = True
-        if ignored_depth:
-            ignored_depth += 1
-            if in_hidden and anchor_ids and stats is not None:
-                anchor_id = _get_anchor_id(name.lower(), attrs)
-                if anchor_id in anchor_ids:
-                    stats['hidden_anchors'].add(anchor_id)
-            return
-        is_skip = is_skipped(name)
-        is_hidden = (omit_hidden and not is_skip
-                     and is_hidden_xml_element(name, attrs, current_ns))
-        if is_skip or is_hidden:
-            candidate.extend(view[cursor:start])
-            omitted = True
-            pending_ignored = name.lower()
-            _, ignored_self_closing = _xml_start_tag_end(data, start)
-            ignored_depth = 1
-            if is_hidden:
-                in_hidden = True
-                if stats is not None:
-                    if name.lower() not in _XML_VOID_TAGS:
-                        # A hidden void element (br/img/...) omits no text,
-                        # so it is not an omitted element in the report.
-                        stats['hidden_elements'] += 1
-                        if stats['first_hidden_location'] is None:
-                            stats['first_hidden_location'] = (
-                                f'line {parser.CurrentLineNumber}, <{name.lower()}>')
-                    if anchor_ids:
-                        anchor_id = _get_anchor_id(name.lower(), attrs)
-                        if anchor_id in anchor_ids:
-                            stats['hidden_anchors'].add(anchor_id)
-
-    def end_element(name):
-        nonlocal ignored_depth, ignored_self_closing, in_hidden, cursor, pending_ignored
-        if len(ns_stack) > 1:
-            ns_stack.pop()
-        if ignored_depth == 0:
-            return
-        ignored_depth -= 1
-        if ignored_depth:
-            return
-        was_self_closing = ignored_self_closing
-        ignored_self_closing = False
-        in_hidden = False
-        pending_ignored = None
-        end = parser.CurrentByteIndex
-        if end < 0:
-            raise ValueError('invalid XML: end element position unavailable')
-        if not was_self_closing:
-            # Paired start tag: consume its matching closing tag starting at end.
-            # Self-closing elements (e.g. <div hidden=""/> inside <div>...</div>)
-            # already have CurrentByteIndex just past '/>' and must not consume
-            # a following parent end tag even when the parent shares the tag name.
-            close_end = data.find(b'>', end)
-            if close_end < 0:
-                raise ValueError(
-                    'invalid XML: end tag terminator unavailable')
-            end = close_end + 1
-        cursor = end
-
-    parser.StartElementHandler = start_element
-    parser.EndElementHandler = end_element
-    parser.StartDoctypeDeclHandler = start_doctype
-    parser.ProcessingInstructionHandler = processing_instruction
-    try:
-        try:
-            parser.Parse(data, True)
-        except expat.ExpatError as error:
-            # This helper is only invoked for XHTML resources (see the
-            # caller): with possible ignored content present, a genuine
-            # XML error must reject actionably rather than fall back to
-            # the raw-HTML path, which can silently drop chapters. One
-            # static construction: the real Expat reason
-            # (expat.ErrorString - never body/attribute snippets) with the
-            # pending ignored element as context when one is open, plus
-            # parser location. Pending state alone does not prove an end
-            # tag is missing (e.g. a closed title with an undefined
-            # entity, or a closed script with raw ampersands).
-            reason = expat.ErrorString(error.code) or 'parse error'
-            location = (f'(line {parser.ErrorLineNumber}, '
-                        f'column {parser.ErrorColumnNumber})')
-            if pending_ignored is not None:
-                raise ValueError(
-                    f'invalid XML while <{pending_ignored}> element is '
-                    f'open: {reason} {location}') from error
-            raise ValueError(
-                f'invalid XML: {reason} {location}') from error
-    finally:
-        # Break the parser->handler->closure->parser cycle so completed
-        # chapter buffers release deterministically, success or failure.
-        parser.StartElementHandler = None
-        parser.EndElementHandler = None
-        parser.StartDoctypeDeclHandler = None
-        parser.ProcessingInstructionHandler = None
-        parser.DefaultHandler = None
-    if not omitted:
-        return html_content
-    candidate.extend(view[cursor:])
-    try:
-        return candidate.decode('utf-8')
     except UnicodeDecodeError as error:
         raise ValueError(
             'invalid Unicode: transformed resource cannot be decoded '
             'as UTF-8') from error
+    if not cut.omitted:
+        return html_content
+    return cut.visible
 
 
 def _resolve_epub_href(base_path, href):

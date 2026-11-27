@@ -61,21 +61,29 @@ regions from the same raw-XML Expat walk the extraction pass uses, never from
 `ebooklib`'s HTML reserialization (which lowercases attribute names and applies
 HTML implied-end rules). Extraction and `load_epub` therefore agree on which
 text is omitted; a hidden subtree is cut from the XML before the HTML parser
-runs, so text cannot be moved out of it. The document root's own start tag and
-the document `<body>` (the direct child of the root `<html>`) are recognized
-through the XML tree, so a `<body hidden>` nested in `<template>`, `noscript`
-or `textarea` is not mistaken for the document body. `load_epub`'s existing
-`BeautifulSoup` text path still returns `''` for a hidden-free UTF-16 chapter
-(unchanged from before this feature); a hidden-bearing accepted document is
-substituted as UTF-8 and does load, so encoding support is not claimed
-end-to-end. When every spine document in an
-EPUB is entirely hidden (hidden omission actually removed non-whitespace text,
-whether the document root carries `hidden` or all of its text is inside hidden
-elements), script extraction returns no chapter text (with no
+runs, so text cannot be moved out of it. A hidden element is only a subtree:
+`load_epub` parses what remains visible around it, so a hidden `<body>` beside
+visible content keeps that visible content (the hidden body is not by itself
+"the document is hidden"). The document root's own start tag and the document
+`<body>` (the direct child of the root `<html>`) are recognized through the
+XML tree, so a `<body hidden>` nested in `<template>`, `noscript` or `textarea`
+is not mistaken for the document body. The walk Expat-parses each
+`application/xhtml+xml` spine item, which `load_epub` did not do before this
+feature; it uses the extraction pass's own configuration (no entity
+expansion, no external fetch) and is bounded by Expat's amplification limit.
+`load_epub`'s existing `BeautifulSoup` text path still returns `''` for a
+hidden-free UTF-16 chapter (unchanged from before this feature); a
+hidden-bearing accepted document is substituted as UTF-8 and does load, so
+encoding support is not claimed end-to-end. A spine document is entirely
+hidden only when hidden omission actually removed non-whitespace text **and no
+visible text remains after the cut** (whatever its shape: a hidden root, a
+hidden body with nothing visible beside it, or all text inside hidden
+elements). In that case script extraction returns no chapter text (with no
 navigation target it returns `''`; a navigation entry that targets the hidden
 document still contributes its visible table-of-contents label, exactly as it
-already did for an otherwise-empty chapter), read-aloud returns no segments, and
-`alexandria_alignment.load_epub` raises a `ValueError` naming hidden elements.
+already did for an otherwise-empty chapter), read-aloud returns no segments,
+and `alexandria_alignment.load_epub` raises a `ValueError` naming hidden
+elements.
 A document whose only hidden elements are void elements (for example
 `<br hidden=""/><img hidden=""/>`) removed no text, so it behaves as before the
 feature. An EPUB with one entirely hidden chapter and one empty visible chapter

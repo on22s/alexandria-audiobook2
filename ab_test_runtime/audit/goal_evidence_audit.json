@@ -1050,21 +1050,21 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-27T05:26:20",
+  "written": "2026-11-27T06:56:57",
   "host": "mitch-linux",
   "git": {
-   "commit": "a94343e2262a322e62fb6ec9f91de215b5055b8d",
-   "branch": "t3/pr2389-r1",
+   "commit": "cb548f38a2dc87e07eddae8ff80767cbf0035599",
+   "branch": "t3/implement-2372-r9",
    "dirty": true,
-   "source_state": "dirty:1dc1e4438218",
+   "source_state": "dirty:aae78ebbfbc6",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/experiments/background_speakers_ab.py",
-    "M  app/pass_quality.py",
-    "M  app/tests/test_background_speakers.py",
-    "M  app/tests/test_unattested_speakers.py",
+    "M  alexandria_alignment.py",
+    "M  app/epub_readaloud.py",
+    "M  app/routers/script.py",
+    "M  app/tests/test_epub_hidden_attribute.py",
     "M  app/tests/unit_test_inventory.json",
-    "M  app/three_pass_generate.py"
+    "M  docs/epub-extraction-report.md"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "44e4a8845963cd3ce8edf61ee2489f16976974dd3726a39a8d75f63a90cb2249",

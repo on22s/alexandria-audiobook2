@@ -441,7 +441,12 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
     (:func:`alexandria_alignment.html_hidden_handling_applies`): it applies
     only to a well-formed ``application/xhtml+xml`` spine item. The media type
     comes from the OPF unless the caller (the read-aloud builder, which
-    already has it) passes ``media_type``. Every other media type gets its
+    already has it) passes ``media_type``. Every production caller passes it;
+    only tests go through the ``media_type=None`` path, where
+    ``_spine_document_media_type`` reparses the whole OPF (package and nav)
+    for each segment call. That is O(spine) in production and O(n^2) only for
+    a test or other caller that asks for every spine file without a media
+    type. Every other media type gets its
     hidden attributes stripped before the walk, so the text is narrated
     exactly as ``origin/main`` narrated it. Well-formedness is guaranteed
     here: the document has already parsed as XML or this function raised.
@@ -1201,17 +1206,35 @@ def _inline_events(element):
     malformed book. Textless inline elements (img/br, empty <em>, and
     script/style) surface as atoms so they survive redistribution
     exactly once; their tails remain separate text events.
+
+    A hidden element is skipped exactly like ``_EXCLUDE``, so it emits no
+    atom and no clone. Adjacent text events are coalesced: removing the
+    hidden element leaves its text node's tail next to the preceding text,
+    where the same document with the hidden subtrees physically deleted has
+    one text node. Coalescing makes the event stream match that document
+    event for event, without changing any emitted span.
     """
     events = []
 
+    def add_text(value):
+        if events and events[-1][0] == "text":
+            events[-1] = ("text", events[-1][1] + value)
+        else:
+            events.append(("text", value))
+
     def walk(node):
         if node.text:
-            events.append(("text", node.text))
+            add_text(node.text)
         for child in node:
             tag = _local(child.tag)
-            if tag in _INLINE_SKIP or not isinstance(child.tag, str) \
-                    or _is_hidden_element(child):
+            if tag in _INLINE_SKIP or not isinstance(child.tag, str):
                 events.append(("atom", child))
+            elif _is_hidden_element(child):
+                # A hidden subtree carries no spoken text. Skip it exactly
+                # like _EXCLUDE in _visible_pieces: no atom and no clone, so
+                # the span output matches origin/main on the tree with the
+                # hidden subtrees physically removed (only the tail stays).
+                pass
             elif tag in _BLOCK or tag in _CONTAINER:
                 raise ValueError(
                     "Sentence spans are unsupported inside a coarsened "
@@ -1223,7 +1246,7 @@ def _inline_events(element):
                 walk(child)
                 events.append(("close", child))
             if child.tail:
-                events.append(("text", child.tail))
+                add_text(child.tail)
 
     walk(element)
     return events

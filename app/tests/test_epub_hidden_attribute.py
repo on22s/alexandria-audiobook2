@@ -24,6 +24,7 @@ import alexandria_alignment as alignment
 from epub_readaloud import (
     _get_optional_titles,
     _inline_events,
+    _local,
     build_epub_readaloud,
     get_spoken_text,
     get_xhtml_segments,
@@ -945,6 +946,69 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         raw_subset = make_epub('', raw_document=doctype_subset, toc_links=[])
         self.assertEqual('Visible.', _normalised(_load_bytes(raw_subset)))
 
+    def test_hidden_body_is_a_subtree_and_keeps_visible_siblings(self):
+        # Review 8 finding 1: a hidden <body> (or any hidden element) cuts
+        # only that subtree. Visible text around it is browser-rendered and
+        # origin/main narrated it, so load_epub must keep it instead of
+        # blanking the item or failing the book.
+        single = (
+            '<?xml version="1.0"?>'
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+            '</head><p>OUTBEFORE</p><body hidden=""><p>SEC</p></body></html>')
+        raw = make_epub('', raw_document=single, toc_links=[])
+        self.assertEqual('OUTBEFORE',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+        _root, segs, _full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+        self.assertEqual([], segs)
+        self.assertEqual('OUTBEFORE', _normalised(_load_bytes(raw)))
+
+        # Silent multi-chapter variant: a visible body beside a hidden body in
+        # the same document must keep the visible chapter text.
+        two_bodies = (
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+            '</head><body><p>VISCH1</p></body>'
+            '<body hidden=""><p>SECCH1</p></body></html>')
+        visible_chapter = (
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+            '</head><body><p>VISCH2</p></body></html>')
+        raw_multi = make_multi_epub([('ch1.xhtml', two_bodies),
+                                     ('ch2.xhtml', visible_chapter)])
+        self.assertEqual('VISCH1\n\nVISCH2',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw_multi))
+        _root, segs1, _full = get_xhtml_segments(raw_multi, 'OEBPS/ch1.xhtml')
+        self.assertEqual(['VISCH1'], [segment['text'] for segment in segs1])
+        self.assertEqual('VISCH1 VISCH2', _normalised(_load_bytes(raw_multi)))
+
+        # A body whose parent is any <html> element, not only the root, is
+        # still just a subtree: the visible sibling after it survives.
+        nested = (
+            '<foo><html xmlns="http://www.w3.org/1999/xhtml"><body hidden="">'
+            '<p>SEC</p></body></html><p>VIS</p></foo>')
+        raw_nested = make_epub('', raw_document=nested, toc_links=[])
+        self.assertEqual('VIS',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw_nested))
+        self.assertEqual('VIS', _normalised(_load_bytes(raw_nested)))
+
+        # Every decided refusal still fires when no visible text remains.
+        hidden_body_only = (
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+            '</head><body hidden=""><p>SEC</p></body></html>')
+        hidden_root = (
+            '<html xmlns="http://www.w3.org/1999/xhtml" hidden=""><body>'
+            '<p>SEC</p></body></html>')
+        for name, document in (('hidden_body_only', hidden_body_only),
+                               ('hidden_root', hidden_root)):
+            with self.subTest(refusal=name):
+                with self.assertRaisesRegex(
+                        ValueError,
+                        r'no readable text after omitting HTML hidden elements'):
+                    _load_bytes(make_epub('', raw_document=document, toc_links=[]))
+        raw_all_hidden = make_multi_epub(
+            [('ch1.xhtml', hidden_body_only), ('ch2.xhtml', hidden_body_only)])
+        with self.assertRaisesRegex(
+                ValueError, r'no readable text after omitting HTML hidden elements'):
+            _load_bytes(raw_all_hidden)
+
     def test_bare_svg_and_math_without_xmlns_use_the_xhtml_namespace(self):
         # XHTML is XML: a bare <svg>/<math> without xmlns stays in the
         # inherited XHTML namespace, exactly as a browser's XML parser reads
@@ -1364,6 +1428,40 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         self.assertEqual('f1', _get_anchor_id('p', {'xml:id': 'f1'}))
         self.assertEqual('g1', _get_anchor_id('a', {'name': 'g1'}))
         self.assertIsNone(_get_anchor_id('a', {'id': None}))
+        # Expat reports raw attribute names while HTMLParser lowercases them.
+        # Lowercasing here is what makes the two lookups agree on <p ID="x">.
+        self.assertEqual('h1', _get_anchor_id('p', {'ID': 'h1'}))
+        self.assertEqual('i1', _get_anchor_id('p', {'XML:ID': 'i1'}))
+        self.assertEqual('j1', _get_anchor_id('a', {'NAME': 'j1'}))
+
+    def test_uppercase_id_on_a_hidden_element_resolves_as_a_hidden_target(self):
+        # Review 8 finding 4: the extractor lowercases attribute names, so a
+        # TOC target #x on <p ID="x" hidden=""> must be reported as
+        # target_in_hidden_subtree, not unresolved_anchor.
+        body = '<p ID="x" hidden="">Secret.</p><p>Visible.</p>'
+        raw = make_epub(body, toc_links=[('ch1.xhtml#x', 'Upper ID')])
+        text, report = extract_epub_text(
+            'synthetic.epub', archive_bytes=raw, include_report=True)
+        self.assertEqual('Visible.', text)
+        row = next(r for r in report['rows']
+                   if r['kind'] == 'navigation_target' and r['fragment'] == 'x')
+        self.assertEqual('target_in_hidden_subtree', row['reason'])
+        self.assertIsNone(row['position'])
+
+    def test_extraction_and_load_share_one_hidden_subtree_walk(self):
+        # Review 8 finding 3 (Rule 15): both callers use the one
+        # alexandria_alignment walker, so for a document with only hidden
+        # subtrees their substitutions are byte-identical.
+        document = (
+            '<?xml version="1.0"?>'
+            '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>VIS</p>'
+            '<div hidden=""><p>SEC</p></div><p>TAIL</p></body></html>')
+        expected = (
+            '<?xml version="1.0"?>'
+            '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>VIS</p>'
+            '<p>TAIL</p></body></html>')
+        self.assertEqual(expected, alignment.cut_xml_subtrees(document).visible)
+        self.assertEqual(expected, _omit_xml_ignored_subtrees(document))
 
 
 class HtmlHiddenReadaloudParityTests(unittest.TestCase):
@@ -1472,11 +1570,14 @@ class HtmlHiddenReadaloudParityTests(unittest.TestCase):
                     # Inline hidden span in p-inline still allows sentence-level
                     # splitting of "First sentence." and "Second sentence."
                     # (emitting two generated span clips instead of falling back
-                    # to whole-paragraph clip 'p-inline') and preserves the
-                    # hidden span verbatim in the output XHTML.
+                    # to whole-paragraph clip 'p-inline'). A hidden element is
+                    # skipped exactly like _EXCLUDE, never cloned as an atom,
+                    # so no hidden markup survives in the output XHTML.
                     with zipfile.ZipFile(io.BytesIO(built)) as zf:
                         ch1_xml = zf.read('OEBPS/ch1.xhtml').decode('utf-8')
-                    self.assertIn('Hidden aside.', ch1_xml)
+                    self.assertNotIn('Hidden aside.', ch1_xml)
+                    self.assertNotIn('hidden=""', ch1_xml.split('p-inline')[1]
+                                     .split('</p>')[0])
                     self.assertNotIn('p-inline', clip_ids)
                     self.assertEqual(9, len(clips), clips)
                 else:
@@ -1559,6 +1660,31 @@ class HtmlHiddenReadaloudParityTests(unittest.TestCase):
             'ch1.xhtml',
         )
         self.assertEqual({0: ['Visible Title']}, titles)
+
+    def test_hidden_inline_element_is_skipped_not_atomised_in_spans(self):
+        # Review 8 finding 2: a hidden element is skipped exactly like
+        # _EXCLUDE. It emits no atom and no clone, and the coalesced text
+        # events equal the document with the hidden subtree deleted.
+        body = ('<p id="p1">Before <span hidden=""><em>Hidden</em></span>'
+                'after.</p>')
+        raw = make_epub(body, toc_links=[])
+        _root, segs, _full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+        segment = next(s for s in segs if s['text'].startswith('Before'))
+        events = _inline_events(segment['element'])
+        self.assertEqual(['text'], [kind for kind, _ in events])
+        self.assertEqual('Before after.',
+                         ''.join(value for _, value in events))
+        self.assertEqual('Before after.', segment['text'])
+
+        minus = make_epub('<p id="p1">Before after.</p>', toc_links=[])
+        _root, segs_minus, _full = get_xhtml_segments(minus, 'OEBPS/ch1.xhtml')
+        segment_minus = next(s for s in segs_minus
+                             if s['text'].startswith('Before'))
+        self.assertEqual(
+            [(kind, value if isinstance(value, str) else _local(value.tag))
+             for kind, value in events],
+            [(kind, value if isinstance(value, str) else _local(value.tag))
+             for kind, value in _inline_events(segment_minus['element'])])
 
 
 if __name__ == '__main__':
