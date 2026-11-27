@@ -1695,11 +1695,11 @@ def quote_regions_decision(mode, chunk, analysis, quoted_must_be_spoken=True,
             quoted_must_be_spoken and unquoted_must_be_narrator)):
         return None, None
     if mode != "quotes" and analysis.get("nested_single_quoted_speech"):
-        # The double-quoted speech sits inside matched single-quoted speech
-        # (#2331): the double quotes are inner speech, not this chunk's outer
-        # convention, so the marks do not settle pass 1. Ask the model. In
-        # "quotes" mode there is no model to ask, and the analysis regions are
-        # now the correct single-quote split, so they are used below.
+        # Speech in another convention sits inside matched single-quoted
+        # speech (#2331): those marks are inner speech, not this chunk's outer
+        # convention, so they do not settle pass 1. Ask the model. In "quotes"
+        # mode there is no model to ask, and the analysis regions are the
+        # correct single-quote split, so they are used below.
         return None, None
     if mode == "lexical":
         analysis = classify_lexical_quote_regions(chunk, analysis)
