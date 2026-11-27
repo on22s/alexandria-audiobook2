@@ -1072,7 +1072,9 @@ _TAG_ADVERB = r"(?-i:[a-z][\w’'" + _SILENT_IN_WORD + r"-]*ly)"
 _TAG_OBJECT_PRONOUNS = frozenset({
     "him", "her", "them", "me", "us", "you", "himself", "herself",
 })
-_TAG_OBJECT = rf"(?:(?-i:him|her|them|me|us|you|himself|herself)|{_TAG_NAME})"
+# One source for the object-pronoun alternation (Rule 15).
+_TAG_OBJECT = (rf"(?:(?-i:{'|'.join(sorted(_TAG_OBJECT_PRONOUNS))})"
+               rf"|{_TAG_NAME})")
 # Dedicated verb list for the speech-tag check (#2332): do not widen
 # _REPORTING_VERBS, which drives quote recovery, lexical quotes and weak-name
 # attestation context.
@@ -1245,20 +1247,37 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
     if not source_text:
         return {}
     from dialogue_spans import get_source_match_positions, spoken_spans
-    from speaker_identity import get_speaker_label_index
+    from speaker_identity import get_speaker_identity_key, get_speaker_label_index
     aliases = speaker_aliases or {}
     alias_index = get_speaker_label_index(aliases.keys())
     established_names = set(established_names)
+    # Identity keys already owned by another label or alias target. A
+    # title-stripped form is indexed only when it does not claim a different
+    # character's key: "Lady John Vale" is John's wife, so indexing "JOHN VALE"
+    # for her would make his own tag abstain (#2388 gate 1). The comparison is
+    # by resolved identity, so another spelling of the same character is safe.
+    claimed_keys = {}
+    for other in sorted(set(established_names) | set(aliases)
+                        | set(aliases.values()), key=str):
+        other_key = get_speaker_identity_key(other)
+        if other_key:
+            claimed_keys.setdefault(
+                other_key,
+                get_speaker_identity_key(
+                    _resolve_alias_canonical(other, aliases, alias_index)))
     identities = {}
     for label in set(established_names) | set(aliases):
         canonical = _resolve_alias_canonical(label, aliases, alias_index)
+        canonical_key = get_speaker_identity_key(canonical)
         titles, words = _get_speaker_title_and_words(label)
         forms = [label]
         if words:
             forms.extend([words[0], words[-1]])
-            if (len(words) > 1
-                    and not _MARRIED_WOMAN_TITLES.intersection(titles)):
-                forms.append(" ".join(words))
+            if len(words) > 1 and not _MARRIED_WOMAN_TITLES.intersection(titles):
+                stripped = " ".join(words)
+                claimed = claimed_keys.get(get_speaker_identity_key(stripped))
+                if claimed is None or claimed == canonical_key:
+                    forms.append(stripped)
             # Keep the title with the first personal component (Lord Henry),
             # but never treat a title alone as a character identity.
             title_count = len(label.split()) - len(words)

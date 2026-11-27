@@ -258,6 +258,11 @@ class SourceTagTests(unittest.TestCase):
             ('MARY VALE', 'said Miss Vale.', {'MARY VALE', 'HENRY VALE', 'BEN'}),
             ('JOHN MIDDLETON', 'cried Sir John.', {'JOHN MIDDLETON', 'BEN'}),
             ('MR. SHERLOCK HOLMES', 'said Sherlock Holmes.', {'MR. SHERLOCK HOLMES', 'SHERLOCK HOLMES', 'BEN'}),
+            # The join also covers a parent/child pair and a title whose gender
+            # conflicts with the predicted first name; both are disclosed in
+            # Limits, and pinned here so a change to the join fails a test.
+            ('TOM VALE', 'said Colonel Vale.', {'TOM VALE', 'BEN'}),
+            ('LUCY VALE', 'said Mr Vale.', {'LUCY VALE', 'BEN'}),
         ):
             source = f'“Let us go,” {tag} Ben watched.'
             with self.subTest(speaker=speaker, tag=tag):
@@ -315,6 +320,58 @@ class SourceTagTests(unittest.TestCase):
         self.assertTrue(validate_attribution(
             entry, [{'n': 0, 'speaker': 'FANNY VALE'}], source_text=wife_source,
             known_names=roster, speaker_aliases=aliases)['passed'])
+
+    def test_lady_husband_name_alias_does_not_claim_the_husbands_name(self):
+        # "Lady John Vale" is John's wife, the same convention decision 2 fixed
+        # for "Mrs. John Vale". Her title-stripped JOHN VALE must not become an
+        # identity key for her husband.
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        roster = {'JOHN VALE', 'FANNY VALE', 'BEN'}
+        aliases = {'LADY JOHN VALE': 'FANNY VALE'}
+        husband_source = '“Let us go,” said John Vale. Ben waited.'
+        self.assertEqual({0: 'JOHN VALE'}, get_attribution_tag_evidence(
+            entry, husband_source, roster, aliases))
+        report = validate_attribution(
+            entry, [{'n': 0, 'speaker': 'BEN'}], source_text=husband_source,
+            known_names=roster, speaker_aliases=aliases)
+        self.assertFalse(report['passed'], report)
+        self.assertEqual('speaker_contradicts_source_tag', report['findings'][0]['code'])
+        self.assertEqual('JOHN VALE', report['findings'][0]['expected'])
+        # A Lady bearing her own first name keeps the stripped form when no
+        # other established character owns "Mary Vale".
+        self.assertEqual({0: 'LADY MARY VALE'}, get_attribution_tag_evidence(
+            entry, '“Let us go,” said Mary Vale. Ben waited.',
+            {'LADY MARY VALE', 'BEN'}))
+        # The wife's own tag still resolves through the alias.
+        self.assertEqual({0: 'FANNY VALE'}, get_attribution_tag_evidence(
+            entry, '“Let us go,” said Lady John Vale. Ben waited.',
+            roster, aliases))
+
+    def test_alias_chains_follow_to_the_final_label_and_cycles_terminate(self):
+        import pass_quality as pq
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        source = '“Let us go,” said Miss Vale. Ben waited.'
+        # A -> B -> C: the tag resolves to the final label, not the middle hop.
+        self.assertEqual({0: 'MARY VALE'}, get_attribution_tag_evidence(
+            entry, source, {'MARY VALE', 'BEN'},
+            {'Miss Vale': 'Mistress Vale', 'Mistress Vale': 'MARY VALE'}))
+        # A cycle stops instead of recursing forever.
+        cycle = {'Miss Vale': 'Mary Vale', 'Mary Vale': 'Miss Vale'}
+        self.assertIn(pq._resolve_alias_canonical('Miss Vale', cycle),
+                      {'Miss Vale', 'Mary Vale'})
+
+    def test_caller_supplied_tag_evidence_is_canonicalised(self):
+        # A caller may supply the raw tag label instead of the proof's
+        # canonical label; the alias must be resolved before comparing.
+        aliases = {'AUNT VALE': 'MARY VALE'}
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        report = validate_attribution(
+            entry, [{'n': 0, 'speaker': 'MARY VALE'}],
+            source_text='“Let us go,” said Mary Vale. Ben waited.',
+            known_names={'MARY VALE', 'BEN'},
+            tag_evidence={0: 'AUNT VALE'},
+            speaker_aliases=aliases)
+        self.assertTrue(report['passed'], report)
 
     def test_unestablished_title_surname_abstains_against_a_first_name(self):
         # A predicted bare first name cannot be compared with a title+surname

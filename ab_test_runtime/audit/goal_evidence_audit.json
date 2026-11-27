@@ -1050,25 +1050,19 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-27T06:24:13",
+  "written": "2026-11-27T06:47:09",
   "host": "mitch-linux",
   "git": {
-   "commit": "197fe7087648625fe5d62de10932219d7dc07dfc",
+   "commit": "8072ec08ff0f4a7da1a035df88e625f16ed89a20",
    "branch": "aa2-2388-r2",
    "dirty": true,
-   "source_state": "dirty:196aac2b59be",
+   "source_state": "dirty:f525d6e75637",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  AUDIT_COVERAGE.tsv",
-    "M  app/experiments/background_speakers_ab.py",
     "M  app/pass_quality.py",
-    "M  app/pronunciation.py",
-    "M  app/tests/test_background_speakers.py",
-    "M  app/tests/test_occurrence_pronunciation.py",
-    "M  app/tests/test_pronunciation.py",
-    "M  app/tests/test_pronunciation_panel.py",
-    "M  app/tests/test_unattested_speakers.py",
-    "M  app/three_pass_generate.py"
+    "M  app/tests/test_attribution_source_tags.py",
+    "M  app/tests/test_exact_attribution_shift.py",
+    "M  app/tests/unit_test_inventory.json"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "44e4a8845963cd3ce8edf61ee2489f16976974dd3726a39a8d75f63a90cb2249",
