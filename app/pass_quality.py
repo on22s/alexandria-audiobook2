@@ -1068,6 +1068,20 @@ _SOURCE_SPEECH_TAG = re.compile(
     rf"(?P<before>{_TAG_NAME})[ \t]+{_REPORTING_VERBS}|"
     rf"{_REPORTING_VERBS}[ \t]+(?P<after>{_TAG_NAME}))"
     r"(?=[ \t]*[,.!?:;])", re.IGNORECASE)
+_TAG_WORD = r"[^\W\d_][\w’'" + _SILENT_IN_WORD + r"-]*"
+_TAG_NAME_LAZY = rf"{_TAG_WORD}(?:[ \t]+{_TAG_WORD}){{0,3}}?"
+_TAG_ADVERB = r"(?-i:[a-z][\w’'" + _SILENT_IN_WORD + r"-]*ly)"
+_CONTINUATION_TAG_CORE = (
+    rf"^[ \t]*(?:[,;][ \t]*)?(?:"
+    rf"(?P<before>{_TAG_NAME_LAZY})"
+    rf"(?:[ \t]+{_TAG_ADVERB}[ \t]+{_REPORTING_VERBS}|"
+    rf"[ \t]+{_REPORTING_VERBS}(?:[ \t]+{_TAG_ADVERB})?)|"
+    rf"{_REPORTING_VERBS}[ \t]+(?P<after>{_TAG_NAME_LAZY})(?:[ \t]+{_TAG_ADVERB})?)"
+)
+_BARE_CONTINUATION_TAG = re.compile(
+    _CONTINUATION_TAG_CORE + r"[ \t]*[,.!?:;][ \t]*$", re.IGNORECASE)
+_CONTINUATION_TAG_PREFIX = re.compile(
+    _CONTINUATION_TAG_CORE + r"(?=[ \t]*[,.!?:;])", re.IGNORECASE)
 
 
 def get_attribution_source_digest(source_text):
@@ -1137,7 +1151,8 @@ def _get_silent_folded_source_spans(source_text, needle_text):
 
 
 def get_attribution_tag_proofs(entries, source_text, established_names=(),
-                                 speaker_aliases=None):
+                                 speaker_aliases=None, *,
+                                 _continuation_evidence=None):
     """Map batch indexes to uniquely resolved, immediately following tags.
 
     Repeated text and incomplete quotation spans are deliberately uncheckable.
@@ -1165,13 +1180,16 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
                 forms.append(" ".join(label.split()[:title_count + 1]))
         for key in get_speaker_label_index(forms):
             identities.setdefault(key, set()).add(canonical)
+    spans = spoken_spans(source_text, "paired_quotes")
     quote_bounds = {}
-    for start, end in spoken_spans(source_text, "paired_quotes"):
+    span_index = {}
+    for span_pos, (start, end) in enumerate(spans):
         content = source_text[start:end]
         content_start = start + len(content) - len(content.lstrip(" \t"))
         content_end = end - len(content) + len(content.rstrip(" \t"))
         quote_bounds[remove_silent_word_characters(
             source_text[content_start:content_end])] = (content_start, content_end)
+        span_index[(content_start, content_end)] = span_pos
     # One folded traversal for the whole batch (#2316), so repeated retries do
     # not rescan the source and an occurrence count still spans every entry.
     folded_source, source_offsets = remove_silent_word_characters_with_offsets(source_text)
@@ -1181,7 +1199,27 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
         folded_source, [needle for needle in folded_needles if needle])
     source_digest = get_attribution_source_digest(source_text)
     context_digest = get_attribution_snapshot_digest([sorted(established_names), aliases])
+
+    def resolve_tag_speaker(match):
+        name = remove_silent_word_characters(match.group("before") or match.group("after"))
+        if (name.casefold() in _NON_PERSON_NAME_WORDS or
+                name.casefold().rstrip(".") in NAME_TITLE_PREFIXES or
+                any(word.casefold().endswith(("'s", "’s", "'", "’"))
+                    for word in name.split()) or
+                not all(word[:1].isupper() for word in name.split())):
+            return None
+        key = next(iter(get_speaker_label_index([name])), None)
+        candidates = identities.get(key, set())
+        if len(candidates) == 1:
+            return next(iter(candidates))
+        if not candidates and is_attested_name(name, source_text):
+            # A source-attested character need not have spoken in an earlier
+            # batch. Ambiguous existing identities must still abstain.
+            return name.upper()
+        return None
+
     evidence = {}
+    pairs = {'"': '"', '“': '”', '「': '」', '『': '』'}
     for index, entry in enumerate(entries):
         if entry.get("type") != "SPOKEN":
             continue
@@ -1196,22 +1234,14 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
             continue
         before = source_text[max(0, start - 8):start].rstrip(" \t")
         after = source_text[end:end + 160].lstrip(" \t")
-        pairs = {'"': '"', '“': '”', '「': '」', '『': '』'}
         if not before or not after or pairs.get(before[-1]) != after[0]:
             continue
-        tag = _SOURCE_SPEECH_TAG.match(after[1:].split("\n", 1)[0])
-        if not tag:
-            continue
-        name = remove_silent_word_characters(tag.group("before") or tag.group("after"))
-        if (name.casefold() in _NON_PERSON_NAME_WORDS or
-                name.casefold().rstrip(".") in NAME_TITLE_PREFIXES or
-                any(word.casefold().endswith(("'s", "’s", "'", "’"))
-                    for word in name.split()) or
-                not all(word[:1].isupper() for word in name.split())):
-            continue
-        key = next(iter(get_speaker_label_index([name])), None)
-        candidates = identities.get(key, set())
-        def get_proof(speaker):
+        tail = after[1:].split("\n", 1)[0]
+        tag = _SOURCE_SPEECH_TAG.match(tail)
+        if tag:
+            speaker = resolve_tag_speaker(tag)
+            if speaker is None:
+                continue
             # Identity uses only fields the original evidence decision reads.
             # Opaque unrelated row metadata must not break the legacy projection.
             opener = max(0, start - 8) + len(before) - 1
@@ -1219,27 +1249,46 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
             close = end + len(suffix) - len(after)
             base = close + 1
             group = "before" if tag.group("before") else "after"
-            return {"speaker": speaker, "source_sha256": source_digest,
-                    "entry_identity_sha256": get_attribution_identity_digest(entry),
-                    "quote_bounds": [start, end], "opener_offset": opener,
-                    "closing_offset": close,
-                    "reporting_tag_bounds": [base + tag.start(), base + tag.end()],
-                    "name_bounds": [base + tag.start(group), base + tag.end(group)],
-                    "resolver_context_sha256": context_digest}
-        if len(candidates) == 1:
-            evidence[index] = get_proof(next(iter(candidates)))
-        elif not candidates and is_attested_name(name, source_text):
-            # A source-attested character need not have spoken in an earlier
-            # batch. Ambiguous existing identities must still abstain.
-            evidence[index] = get_proof(name.upper())
+            evidence[index] = {
+                "speaker": speaker, "source_sha256": source_digest,
+                "entry_identity_sha256": get_attribution_identity_digest(entry),
+                "quote_bounds": [start, end], "opener_offset": opener,
+                "closing_offset": close,
+                "reporting_tag_bounds": [base + tag.start(), base + tag.end()],
+                "name_bounds": [base + tag.start(group), base + tag.end(group)],
+                "resolver_context_sha256": context_digest,
+            }
+            continue
+        if _continuation_evidence is None or _CONTINUATION_TAG_PREFIX.match(tail):
+            continue
+        span_pos = span_index.get((start, end))
+        if not span_pos:
+            continue
+        prev_start, prev_end = spans[span_pos - 1]
+        cur_start = spans[span_pos][0]
+        if (prev_start <= 0 or prev_end >= len(source_text) or cur_start <= 0
+                or pairs.get(source_text[prev_start - 1]) != source_text[prev_end]):
+            continue
+        between = source_text[prev_end + 1:cur_start - 1]
+        if "\n" in between or "\r" in between:
+            continue
+        cont_tag = _BARE_CONTINUATION_TAG.match(between)
+        if not cont_tag:
+            continue
+        speaker = resolve_tag_speaker(cont_tag)
+        if speaker is not None:
+            _continuation_evidence[index] = speaker
     return evidence
 
 
 def get_attribution_tag_evidence(entries, source_text, established_names=(),
                                  speaker_aliases=None):
     """Legacy name evidence, projected from the shared source proof."""
-    return {index: proof["speaker"] for index, proof in get_attribution_tag_proofs(
-        entries, source_text, established_names, speaker_aliases).items()}
+    continuations = {}
+    proofs = get_attribution_tag_proofs(
+        entries, source_text, established_names, speaker_aliases,
+        _continuation_evidence=continuations)
+    return {**continuations, **{index: proof["speaker"] for index, proof in proofs.items()}}
 
 
 _ATTRIBUTION_REPAIR_UNSAFE_FIELDS = frozenset({
@@ -1406,7 +1455,7 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
                                      "entry_number": i, "value": speaker,
                                      "source_line": source_line,
                                      "expected": expected_speaker,
-                                     "message": "The immediately following source speech tag "
+                                     "message": "The source speech tag "
                                                 f"names {expected_speaker}, not {speaker}."})
             if not speaker or speaker.upper() == "NARRATOR":
                 findings.append({"code": "spoken_not_named", "entry_number": i,

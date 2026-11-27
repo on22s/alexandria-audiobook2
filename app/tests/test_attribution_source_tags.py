@@ -117,3 +117,116 @@ class SourceTagTests(unittest.TestCase):
         result = self.run_batch([wrong] * 10, 'fallback', 1)
         self.assertEqual(self.TEXT, result[0]['text'])
         self.assertNotEqual('ELENA', result[0]['speaker'])
+
+    def test_continuation_after_bare_tag_catches_wrong_speaker(self):
+        source = '“Go,” Nita said. “Now.” Kit looked at Nita. Kit left with Nita.'
+        frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'Now.'},
+        ]
+        names = {'NITA', 'KIT'}
+        first_wrong = validate_attribution(
+            frozen,
+            [{'n': 0, 'speaker': 'KIT'}, {'n': 1, 'speaker': 'NARRATOR'}, {'n': 2, 'speaker': 'NITA'}],
+            source_text=source, known_names=names)
+        self.assertFalse(first_wrong['passed'])
+        self.assertEqual('speaker_contradicts_source_tag', first_wrong['findings'][0]['code'])
+        self.assertEqual(1, first_wrong['findings'][0]['entry_number'])
+        self.assertEqual('NITA', first_wrong['findings'][0]['expected'])
+
+        second_wrong = validate_attribution(
+            frozen,
+            [{'n': 0, 'speaker': 'NITA'}, {'n': 1, 'speaker': 'NARRATOR'}, {'n': 2, 'speaker': 'KIT'}],
+            source_text=source, known_names=names)
+        self.assertFalse(second_wrong['passed'])
+        self.assertEqual('speaker_contradicts_source_tag', second_wrong['findings'][0]['code'])
+        self.assertEqual(3, second_wrong['findings'][0]['entry_number'])
+        self.assertEqual('NITA', second_wrong['findings'][0]['expected'])
+
+        both_right = validate_attribution(
+            frozen,
+            [{'n': 0, 'speaker': 'NITA'}, {'n': 1, 'speaker': 'NARRATOR'}, {'n': 2, 'speaker': 'NITA'}],
+            source_text=source, known_names=names)
+        self.assertTrue(both_right['passed'])
+        self.assertEqual({0: 'NITA', 2: 'NITA'},
+                         get_attribution_tag_evidence(frozen, source, names))
+
+        longer_source = '“Go,” Anna said. “Now we leave.”'
+        longer_frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Anna said.'},
+            {'type': 'SPOKEN', 'text': 'Now we leave.'},
+        ]
+        self.assertEqual({0: 'ANNA', 2: 'ANNA'},
+                         get_attribution_tag_evidence(longer_frozen, longer_source, {'ANNA'}))
+        self.assertEqual({0: 'ANNA'},
+                         get_attribution_tag_evidence([longer_frozen[2]], longer_source, {'ANNA'}))
+
+        for tag_text, expected, tag_names in (
+            ('said Nita,', 'NITA', {'NITA', 'KIT'}),
+            ('Nita quietly said.', 'NITA', {'NITA', 'KIT'}),
+            ('Nita said quietly.', 'NITA', {'NITA', 'KIT'}),
+            ('said Nita quietly,', 'NITA', {'NITA', 'KIT'}),
+            ('Anna Billy said.', 'ANNA BILLY', {'ANNA BILLY', 'ANNA SMITH', 'KIT'}),
+            ('Son\u00adya said.', 'SONYA', {'SONYA', 'KIT'}),
+        ):
+            with self.subTest(tag_text=tag_text):
+                cont_source = f'“Go,” {tag_text} “Now.”'
+                self.assertEqual({0: expected}, get_attribution_tag_evidence(
+                    [{'type': 'SPOKEN', 'text': 'Now.'}], cont_source, tag_names))
+
+    def test_continuation_abstains_on_action_other_name_paragraph_own_tag_and_uncertain_quotes(self):
+        frozen_cont = [{'type': 'SPOKEN', 'text': 'Now.'}]
+        names = {'NITA', 'KIT', 'MARA JONES', 'MARA SMITH'}
+        abstaining_sources = (
+            '“Go,” Kit said. Nita shook her head. “Now.”',
+            '“Go,” Nita said. She paused. “Now.”',
+            '“Go,” Nita said, looking away. “Now.”',
+            '“Go,” Nita said to Kit. “Now.”',
+            '“Go,” Nita said, facing Kit. “Now.”',
+            '“Go,” Nita said. Kit waited. “Now.”',
+            '“Go,” Nita said Billy. “Now.”',
+            '“Go,” Nita said.\n\n“Now.”',
+            '“Go,” Nita said.\n“Now.”',
+            '“Go,” Nita quietly said softly. “Now.”',
+            '“Go,” she said. “Now.”',
+            '“Go,” Nita’s said. “Now.”',
+            '“Go,” Lord said. “Now.”',
+            '“Go,” Nita said. “Now.” “Wait,” Kit said. “Now.”',
+            '“Go,” Nita said. “Now."',
+            '“Go, Nita said. “Now.”',
+            '“Go,” Nita said. “Kit recalled "Now."”',
+            '“Kit recalled "Go," Nita said.” “Now.”',
+        )
+        for source in abstaining_sources:
+            with self.subTest(source=source):
+                self.assertEqual({}, get_attribution_tag_evidence(
+                    frozen_cont, source, names | {'LORD HENRY'}))
+
+        # Continuation with its own tag keeps its own (or abstains if its own tag is uncertain).
+        own_tag_frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'Now,'},
+        ]
+        self.assertEqual({0: 'NITA', 2: 'KIT'}, get_attribution_tag_evidence(
+            own_tag_frozen, '“Go,” Nita said. “Now,” Kit replied.', names))
+        for own_uncertain in (
+            '“Go,” Nita said. “Now,” Mara said.',
+            '“Go,” Nita said. “Now,” he said.',
+            '“Go,” Nita said. “Now,” Kit replied quietly.',
+        ):
+            with self.subTest(own_uncertain=own_uncertain):
+                self.assertEqual({0: 'NITA'}, get_attribution_tag_evidence(
+                    own_tag_frozen, own_uncertain, names))
+
+        # A third quotation in the same paragraph does not inherit A's tag.
+        three_frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Nita said.'},
+            {'type': 'SPOKEN', 'text': 'Now.'},
+            {'type': 'SPOKEN', 'text': 'Later.'},
+        ]
+        self.assertEqual({0: 'NITA', 2: 'NITA'}, get_attribution_tag_evidence(
+            three_frozen, '“Go,” Nita said. “Now.” “Later.”', names))

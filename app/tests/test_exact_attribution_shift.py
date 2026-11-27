@@ -384,3 +384,54 @@ class ExactShiftTests(unittest.TestCase):
                 result,_,_=self.batch([GOOD],frozen=frozen)
                 self.assertEqual('old attribution metadata',result[index][field])
                 self.assertEqual(['ALICE','NARRATOR'],[row['speaker'] for row in result])
+
+    def test_continuation_evidence_is_validation_only_and_not_fed_to_exact_shift_repair(self):
+        source = '“Go,” Alice said. “Now.” Alice waited.'
+        frozen = [
+            {'type': 'SPOKEN', 'text': 'Go,'},
+            {'type': 'NARRATOR', 'text': 'Alice said.'},
+            {'type': 'SPOKEN', 'text': 'Now.'},
+            {'type': 'NARRATOR', 'text': 'Alice waited.'},
+        ]
+        names = ('ALICE', 'BOB')
+        proofs = pq.get_attribution_tag_proofs(frozen, source, names)
+        self.assertEqual({0}, set(proofs))
+        self.assertEqual(
+            {'speaker', 'source_sha256', 'entry_identity_sha256', 'quote_bounds',
+             'opener_offset', 'closing_offset', 'reporting_tag_bounds',
+             'name_bounds', 'resolver_context_sha256'},
+            set(proofs[0]))
+        self.assertEqual({0: 'ALICE', 2: 'ALICE'},
+                         pq.get_attribution_tag_evidence(frozen, source, names))
+
+        cont_shift = [
+            {'n': 0, 'speaker': 'ALICE'},
+            {'n': 1, 'speaker': 'NARRATOR'},
+            {'n': 2, 'speaker': 'NARRATOR'},
+            {'n': 3, 'speaker': 'ALICE'},
+        ]
+        self.assertNotIn('accepted_metadata',
+                         self.repair(frozen=frozen, answer=cont_shift, source=source, names=names))
+
+        # With repair_exact_shift enabled, a repaired first pair still fails
+        # validation when the continuation line carries the wrong speaker.
+        first_shift_bad_cont = [
+            {'n': 0, 'speaker': 'NARRATOR'},
+            {'n': 1, 'speaker': 'ALICE'},
+            {'n': 2, 'speaker': 'BOB'},
+            {'n': 3, 'speaker': 'NARRATOR'},
+        ]
+        with self.assertRaises(tp.PassExhausted):
+            self.batch([first_shift_bad_cont], frozen=frozen, source=source,
+                       cast={'known_names': set(names)})
+
+        first_shift_good_cont = [
+            {'n': 0, 'speaker': 'NARRATOR'},
+            {'n': 1, 'speaker': 'ALICE'},
+            {'n': 2, 'speaker': 'ALICE'},
+            {'n': 3, 'speaker': 'NARRATOR'},
+        ]
+        result, attempts, _ = self.batch([first_shift_good_cont], frozen=frozen, source=source,
+                                         cast={'known_names': set(names)})
+        self.assertEqual(['ALICE', 'NARRATOR', 'ALICE', 'NARRATOR'], [r['speaker'] for r in result])
+        self.assertEqual([[0, 1]], [r['indexes'] for r in attempts[-1]['accepted_entry_transform']['repairs']])
