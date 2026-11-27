@@ -1676,6 +1676,12 @@ PASS1_FORMATS = ("ordinary", "compact")
 LEXICAL_QUOTE_CLASSIFIER_VERSION = 2
 
 
+def _report_quote_gate_not_met(quality):
+    """The one "quotes" telemetry line for a gate that did not vouch (#2331)."""
+    print("  quote marks only: segment gate not met, keeping the quote regions "
+          f"unverified ({sorted({f.get('code') for f in quality['findings']})})")
+
+
 def quote_regions_decision(mode, chunk, analysis, quoted_must_be_spoken=True,
                            unquoted_must_be_narrator=True):
     """-> (entries, resolution) when the chunk's quote marks settle pass 1
@@ -1692,27 +1698,42 @@ def quote_regions_decision(mode, chunk, analysis, quoted_must_be_spoken=True,
     chunk began - and is recorded as `quote_forced` so the manifest says the
     gate did not vouch for it. A targeted chunk that also holds complete
     single-quoted speeches the analysis did not adopt is never certified: there
-    is no model to ask, so its regions stay `quote_forced` (#2331 review 2).
+    is no model to ask, so its regions stay `quote_forced` (#2331 review 2). A
+    chunk whose single-quote range could not be resolved while a paired quote
+    sits inside it is uncertain for the same reason (#2331 review 3).
     "llm": never."""
     if mode == "llm" or (mode == "auto" and not (
             quoted_must_be_spoken and unquoted_must_be_narrator)):
         return None, None
-    if mode != "quotes" and analysis.get("nested_single_quoted_speech"):
+    if mode != "quotes" and (analysis.get("nested_single_quoted_speech")
+                             or analysis.get("uncertain_single_quoted_speech")):
         # Speech in another convention sits inside matched single-quoted
         # speech (#2331): those marks are inner speech, not this chunk's outer
-        # convention, so they do not settle pass 1. Ask the model. In "quotes"
+        # convention, so they do not settle pass 1. Ask the model. The same is
+        # true when the single-quote span could not be resolved at all: main's
+        # inside-out split must not be certified (#2331 review 3). In "quotes"
         # mode there is no model to ask; below it keeps the analysis split but
-        # does not certify a chunk that holds speeches it did not adopt.
+        # does not certify a chunk it cannot vouch for.
         return None, None
-    if mode == "quotes" and analysis.get("unadopted_single_quote_spans"):
+    if mode == "quotes" and (analysis.get("unadopted_single_quote_spans")
+                             or analysis.get("uncertain_single_quoted_speech")):
         # The analysis can certify only the spans that nest a paired quote; it
         # leaves sibling single-quoted speeches in its NARRATOR text. Returning
         # those regions as `quote_presegmented` would certify a split that calls
-        # real speech narration. "quotes" cannot ask a model, so keep what the
-        # marks say and record it uncertified: abstain from certification
-        # (#2331 review 2).
+        # real speech narration, and an unresolved range is equally unvouched
+        # for. "quotes" cannot ask a model, so keep what the marks say and
+        # record it uncertified: abstain from certification (#2331 review 2/3).
         regions = analysis["regions"]
         if regions:
+            # The fall-through would have run the gate and, when it failed,
+            # logged why. Keep that telemetry even though the resolution is
+            # already `quote_forced` (#2331 review 3).
+            quality = validate_segment_quality(
+                chunk, regions, quote_analysis=analysis,
+                quoted_must_be_spoken=quoted_must_be_spoken,
+                unquoted_must_be_narrator=unquoted_must_be_narrator)
+            if not quality["passed"]:
+                _report_quote_gate_not_met(quality)
             return regions, "quote_forced"
     if mode == "lexical":
         analysis = classify_lexical_quote_regions(chunk, analysis)
@@ -1732,8 +1753,7 @@ def quote_regions_decision(mode, chunk, analysis, quoted_must_be_spoken=True,
                              if (analysis.get("initial_depth") or analysis.get("final_depth"))
                              else "quote_presegmented")
         if mode == "quotes":
-            print("  quote marks only: segment gate not met, keeping the quote regions "
-                  f"unverified ({sorted({f.get('code') for f in quality['findings']})})")
+            _report_quote_gate_not_met(quality)
     if mode != "quotes":
         return None, None
     if regions:

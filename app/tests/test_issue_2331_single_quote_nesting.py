@@ -31,8 +31,22 @@ The rev2 review narrowed it further:
   - inch marks are measurements, not nested quotes, in both directions;
   - the paragraph search is bounded, and the straight elision guard is tested
     without a second outside double pair.
+
+The rev3 review closed the issue's own `…s’` case and bounded the scan:
+  - the possessive lookahead stops at a candidate sibling speech opener, so
+    `‘Yes’ she said. ‘He said “run”,’ he said.` finds both spans, abstains, and
+    the truthful four-entry split passes the gate on both paths;
+  - a failed range that nests a paired quote marks the chunk uncertain:
+    `auto`/`lexical` abstain and `quotes` returns `quote_forced`, never
+    `quote_presegmented` (the dropped-closer repro, and the British
+    multi-paragraph limit);
+  - an adversarial all-opener input resumes after a failed range instead of
+    rescanning every opener inside it;
+  - the three guards that a single removal left green now have their own
+    decision/predicate cases without an outside double pair.
 """
 import hashlib
+import io
 import json
 import unittest
 from unittest import mock
@@ -83,6 +97,74 @@ SECOND_CORRECT = [
     {"type": "SPOKEN", "text": "A little,"},
     {"type": "NARRATOR", "text": "said Anna. She looked at the door."},
 ]
+
+# rev3 finding 1: an s-final closer before a targeted sibling speech. The
+# lookahead used to see the nested pair before the sibling's closer and treat
+# `Yes’` as a possessive, then lose both spans, so main's inside-out split was
+# certified.
+SIBLING_AFTER_S = "\u2018Yes\u2019 she said. \u2018He said \u201crun\u201d,\u2019 he said."
+SIBLING_AFTER_S_STRAIGHT = "'Yes' she said. 'He said \"run\",' he said."
+SIBLING_AFTER_S_TRUTHFUL = [
+    {"type": "SPOKEN", "text": "Yes"},
+    {"type": "NARRATOR", "text": "she said."},
+    {"type": "SPOKEN", "text": "He said \u201crun\u201d,"},
+    {"type": "NARRATOR", "text": "he said."},
+]
+SIBLING_AFTER_S_STRAIGHT_TRUTHFUL = [
+    {"type": "SPOKEN", "text": "Yes"},
+    {"type": "NARRATOR", "text": "she said."},
+    {"type": "SPOKEN", "text": "He said \"run\","},
+    {"type": "NARRATOR", "text": "he said."},
+]
+SIBLING_AFTER_S_REGIONS = [
+    {"type": "NARRATOR", "text": "\u2018Yes\u2019 she said."},
+    {"type": "SPOKEN", "text": "He said run,"},
+    {"type": "NARRATOR", "text": "he said."},
+]
+SIBLING_AFTER_S_INVERTED = [
+    {"type": "NARRATOR", "text": "\u2018Yes\u2019 she said. \u2018He said"},
+    {"type": "SPOKEN", "text": "run"},
+    {"type": "NARRATOR", "text": ",\u2019 he said."},
+]
+SIBLING_AFTER_S_STRAIGHT_INVERTED = [
+    {"type": "NARRATOR", "text": "'Yes' she said. 'He said \""},
+    {"type": "SPOKEN", "text": "run"},
+    {"type": "NARRATOR", "text": "\",' he said."},
+]
+
+# rev3 finding 1(b): a dropped closer before a targeted sibling leaves an
+# unresolvable range that nests a paired quote. Nothing is adopted, so the gate
+# stays main's, but the chunk must no longer be certified as presegmented.
+DROPPED_CLOSER = "\u2018Hello, she said. \u2018He said \u201crun\u201d,\u2019 he said."
+DROPPED_CLOSER_REGIONS = [
+    {"type": "NARRATOR", "text": "\u2018Hello, she said. \u2018He said"},
+    {"type": "SPOKEN", "text": "run"},
+    {"type": "NARRATOR", "text": ",\u2019 he said."},
+]
+
+# rev3 finding 3: a narration quotation whose only double quotes are nested
+# inside it is treated as speech by the decided heuristic. Both the head split
+# and main's split are wrong for narration; the truthful whole-NARRATOR row is
+# still rejected. Kept, pinned, and listed in Limits.
+NARRATION_ONLY_NESTED = "He read \u2018the sign said \u201cclosed\u201d\u2019 twice."
+NARRATION_ONLY_NESTED_REGIONS = [
+    {"type": "NARRATOR", "text": "He read"},
+    {"type": "SPOKEN", "text": "the sign said closed"},
+    {"type": "NARRATOR", "text": "twice."},
+]
+# What origin/main produces for the same chunk (documented in Limits, not
+# asserted: the split is wrong too).
+MAIN_NARRATION_ONLY_NESTED_REGIONS = [
+    {"type": "NARRATOR", "text": "He read \u2018the sign said"},
+    {"type": "SPOKEN", "text": "closed"},
+    {"type": "NARRATOR", "text": "\u2019 twice."},
+]
+
+# rev3 finding 2: guards whose earlier cases were masked by a second outside
+# double pair. Each case is a decision difference from its single mutant.
+APOSTROPHE_OPENER_GUARD = "He said Anna's \u201cbook\u201d was here, and James' too."
+TRAILING_SPACE_OPENER_GUARD = "He said \u2018 \u201crun\u201d and left,\u2019 she said."
+INCH_OPENER_PROBE = '6" x"'
 
 STRAIGHT = "'She told me \"run\" and I ran,' said Anna. Ben left."
 STRAIGHT_CORRECT = [
@@ -361,8 +443,6 @@ def _differential_corpus():
         "He read \u2018the sign said \u201cclosed\u201d\u2019 twice. \u201c{first}\u201d {verb} {name}.",
         # single span inside double speech (finding 1)
         "\u201cHe asked \u2018did she say \u201cyes\u201d?\u2019 loudly,\u201d {verb} {name}.",
-        # British multi-paragraph single quotes (finding 6)
-        "\u2018She told me \u201crun\u201d and I ran,\n\nand I kept running,\u2019 {verb} {name}.",
     )
     index = 0
     while len(corpus) < 260:
@@ -379,8 +459,12 @@ def _differential_corpus():
             number=index % 13 + 2,
             pair=guillemet_pairs[index % len(guillemet_pairs)]))
         index += 1
-    # Chunks split at a source boundary (finding 6): neither half is targeted.
-    corpus.extend([SPLIT_HEAD, SPLIT_TAIL, BRITISH, NARRATION_IN_DOUBLE_BOOK])
+    # British multi-paragraph single quotes and a head split at the paragraph
+    # bound are NOT here: their unresolvable range nests a paired quote, so the
+    # rev3 safety net deliberately abstains on them (pinned in
+    # test_british_multiparagraph_and_split_chunks_are_pinned_limits). The two
+    # shapes below stay byte-identical to main.
+    corpus.extend([SPLIT_TAIL, NARRATION_IN_DOUBLE_BOOK])
     return corpus
 
 
@@ -395,15 +479,22 @@ class SingleQuotedSpeechTests(unittest.TestCase):
     def assertions_for_issue_chunk(self, chunk, correct, inverted,
                                    expected_regions=None):
         analysis = analyze_outer_quote_regions(chunk)
-        self.assertTrue(analysis.get("nested_single_quoted_speech"))
-        self.assertEqual(len(analysis.get("adopted_single_quote_spans") or ()), 1)
-        if expected_regions is not None:
-            self.assertEqual(expected_regions, analysis["regions"])
+        # Behaviour first: on origin/main these decisions are the inverted
+        # presegmentation, so the test fails on the behaviour rather than on a
+        # missing analysis key (#2331 review 3).
         for mode in ("auto", "lexical"):
             with self.subTest(mode=mode):
                 entries, resolution = tp.quote_regions_decision(mode, chunk, analysis)
                 self.assertIsNone(entries)
                 self.assertIsNone(resolution)
+        report = validate_segment_quality(chunk, correct, quote_analysis=analysis)
+        self.assertTrue(report["passed"], report["findings"])
+        self.assertNotIn("mixed_quote_region",
+                         {finding["code"] for finding in report["findings"]})
+        bad = validate_segment_quality(chunk, inverted, quote_analysis=analysis)
+        self.assertFalse(bad["passed"])
+        self.assertIn("quote_region_misclassified",
+                      {finding["code"] for finding in bad["findings"]})
         quote_entries, quote_resolution = tp.quote_regions_decision(
             "quotes", chunk, analysis)
         self.assertEqual("quote_presegmented", quote_resolution)
@@ -414,14 +505,10 @@ class SingleQuotedSpeechTests(unittest.TestCase):
         self.assertEqual(analysis["regions"], quote_entries)
         self.assertEqual("SPOKEN", quote_entries[0]["type"])
         self.assertEqual("NARRATOR", quote_entries[-1]["type"])
-        report = validate_segment_quality(chunk, correct, quote_analysis=analysis)
-        self.assertTrue(report["passed"], report["findings"])
-        self.assertNotIn("mixed_quote_region",
-                         {finding["code"] for finding in report["findings"]})
-        bad = validate_segment_quality(chunk, inverted, quote_analysis=analysis)
-        self.assertFalse(bad["passed"])
-        self.assertIn("quote_region_misclassified",
-                      {finding["code"] for finding in bad["findings"]})
+        self.assertTrue(analysis.get("nested_single_quoted_speech"))
+        self.assertEqual(len(analysis.get("adopted_single_quote_spans") or ()), 1)
+        if expected_regions is not None:
+            self.assertEqual(expected_regions, analysis["regions"])
 
     def test_first_issue_example_is_not_presegmented_inside_out(self):
         self.assertions_for_issue_chunk(
@@ -435,20 +522,13 @@ class SingleQuotedSpeechTests(unittest.TestCase):
         # speech split must pass the gate, and "quotes" must not certify the
         # narrow split as quote_presegmented.
         analysis = analyze_outer_quote_regions(SECOND)
-        self.assertTrue(analysis.get("nested_single_quoted_speech"))
-        self.assertEqual(SECOND_NARROW, analysis["regions"])
-        self.assertEqual(
-            ["Were you afraid?", "A little,"],
-            [SECOND[start:end]
-             for _opener, start, end, _closer in
-             analysis.get("unadopted_single_quote_spans") or ()])
+        # Behaviour before the new analysis keys (#2331 review 3).
         for mode in ("auto", "lexical"):
             self.assertEqual((None, None),
                              tp.quote_regions_decision(mode, SECOND, analysis))
         quote_entries, quote_resolution = tp.quote_regions_decision(
             "quotes", SECOND, analysis)
         self.assertEqual("quote_forced", quote_resolution)
-        self.assertEqual(analysis["regions"], quote_entries)
         # The correct split passes both gate paths. Before the rev2 fix the
         # two sibling speeches failed quote_region_misclassified.
         for label, kwargs in (
@@ -462,6 +542,180 @@ class SingleQuotedSpeechTests(unittest.TestCase):
         report = validate_segment_quality(SECOND, SECOND_NARROW,
                                           quote_analysis=analysis)
         self.assertTrue(report["passed"], report["findings"])
+        self.assertTrue(analysis.get("nested_single_quoted_speech"))
+        self.assertEqual(SECOND_NARROW, analysis["regions"])
+        self.assertEqual(
+            ["Were you afraid?", "A little,"],
+            [SECOND[start:end]
+             for _opener, start, end, _closer in
+             analysis.get("unadopted_single_quote_spans") or ()])
+        self.assertEqual(analysis["regions"], quote_entries)
+
+    def test_a_sibling_speech_after_an_s_final_closer(self):
+        # Rev3 finding 1(a): `Yes’` before `‘He said “run”,’` is the closer, not
+        # a possessive: the possessive lookahead must stop at the sibling
+        # opener. Before the fix both spans were lost and the inverted split
+        # was certified. Behaviour is asserted before the new keys (#2331
+        # review 3).
+        for label, chunk, truthful, inverted in (
+                ("curly", SIBLING_AFTER_S, SIBLING_AFTER_S_TRUTHFUL,
+                 SIBLING_AFTER_S_INVERTED),
+                ("straight", SIBLING_AFTER_S_STRAIGHT,
+                 SIBLING_AFTER_S_STRAIGHT_TRUTHFUL,
+                 SIBLING_AFTER_S_STRAIGHT_INVERTED)):
+            with self.subTest(label=label):
+                analysis = analyze_outer_quote_regions(chunk)
+                for mode in ("auto", "lexical"):
+                    self.assertEqual(
+                        (None, None),
+                        tp.quote_regions_decision(mode, chunk, analysis))
+                self.assertFalse(
+                    validate_segment_quality(chunk, inverted,
+                                             quote_analysis=analysis)["passed"])
+                for gate_label, kwargs in (
+                        ("analysis-backed", {"quote_analysis": analysis}),
+                        ("analysis-free", {})):
+                    with self.subTest(gate=gate_label):
+                        report = validate_segment_quality(chunk, truthful, **kwargs)
+                        self.assertTrue(report["passed"], report["findings"])
+                entries, resolution = tp.quote_regions_decision(
+                    "quotes", chunk, analysis)
+                self.assertEqual("quote_forced", resolution)
+                self.assertEqual(analysis["regions"], entries)
+                # Now the analysis keys: both spans exist, only the one that
+                # nests the double quote is adopted, the sibling is unadopted.
+                spans = get_single_quoted_speech_spans(chunk)
+                self.assertEqual(2, len(spans))
+                self.assertTrue(analysis.get("nested_single_quoted_speech"))
+                adopted = analysis.get("adopted_single_quote_spans") or ()
+                self.assertEqual(1, len(adopted))
+                self.assertEqual(spans[1], adopted[0])
+                self.assertEqual(1, len(analysis.get("unadopted_single_quote_spans")))
+                self.assertEqual(spans[0],
+                                 (analysis.get("unadopted_single_quote_spans")
+                                  or ())[0])
+                self.assertEqual("Yes", chunk[spans[0][1]:spans[0][2]])
+
+    def test_a_dropped_closer_with_a_nested_quote_is_uncertain(self):
+        # Rev3 finding 1(b): the unresolvable range contains a paired double
+        # quote, so the chunk is uncertain. Nothing is adopted and the gate
+        # stays main's, but auto/lexical abstain and quotes never certifies it.
+        analysis = analyze_outer_quote_regions(DROPPED_CLOSER)
+        for mode in ("auto", "lexical"):
+            self.assertEqual((None, None),
+                             tp.quote_regions_decision(mode, DROPPED_CLOSER,
+                                                       analysis))
+        entries, resolution = tp.quote_regions_decision(
+            "quotes", DROPPED_CLOSER, analysis)
+        self.assertEqual("quote_forced", resolution)
+        self.assertNotEqual("quote_presegmented", resolution)
+        self.assertEqual(DROPPED_CLOSER_REGIONS, entries)
+        self.assertTrue(analysis.get("uncertain_single_quoted_speech"))
+        self.assertFalse(analysis.get("nested_single_quoted_speech"))
+        self.assertEqual([], analysis.get("adopted_single_quote_spans"))
+        # The gate result is main's: the analysis split still passes, and the
+        # unresolved chunk is not made gate-uncertain.
+        self.assertTrue(validate_segment_quality(
+            DROPPED_CLOSER, DROPPED_CLOSER_REGIONS,
+            quote_analysis=analysis)["passed"])
+
+    def test_a_narration_quotation_with_only_nested_quotes_is_a_limit(self):
+        # Rev3 finding 3: kept deliberately. The single span nests a paired
+        # quote, so the decided heuristic calls it speech. Head's split is
+        # NARRATOR / SPOKEN / NARRATOR (main's is NARRATOR / SPOKEN / NARRATOR
+        # with the inverted middle); both are wrong for a narration quotation,
+        # and the truthful whole-NARRATOR row is still rejected.
+        analysis = analyze_outer_quote_regions(NARRATION_ONLY_NESTED)
+        self.assertEqual(NARRATION_ONLY_NESTED_REGIONS, analysis["regions"])
+        self.assertNotEqual(MAIN_NARRATION_ONLY_NESTED_REGIONS,
+                            analysis["regions"])
+        for mode in ("auto", "lexical"):
+            self.assertEqual(
+                (None, None),
+                tp.quote_regions_decision(mode, NARRATION_ONLY_NESTED,
+                                          analysis))
+        entries, resolution = tp.quote_regions_decision(
+            "quotes", NARRATION_ONLY_NESTED, analysis)
+        self.assertEqual("quote_presegmented", resolution)
+        self.assertEqual(NARRATION_ONLY_NESTED_REGIONS, entries)
+        whole_narration = [{"type": "NARRATOR",
+                            "text": NARRATION_ONLY_NESTED}]
+        for gate_label, kwargs in (
+                ("analysis-backed", {"quote_analysis": analysis}),
+                ("analysis-free", {})):
+            with self.subTest(gate=gate_label):
+                report = validate_segment_quality(
+                    NARRATION_ONLY_NESTED, whole_narration, **kwargs)
+                self.assertFalse(report["passed"])
+                self.assertIn(
+                    "crosses_quote_boundary",
+                    {finding["code"] for finding in report["findings"]})
+        self.assertTrue(analysis.get("nested_single_quoted_speech"))
+
+    def test_the_masked_opener_guards_are_discriminated(self):
+        # Rev3 finding 2: each of these cases has no outside double pair, so a
+        # single guard removal changes the decision or the predicate.
+        analysis = analyze_outer_quote_regions(APOSTROPHE_OPENER_GUARD)
+        self.assertEqual([], get_single_quoted_speech_spans(
+            APOSTROPHE_OPENER_GUARD))
+        self.assertFalse(analysis.get("nested_single_quoted_speech"))
+        self.assertEqual(
+            (analysis["regions"], "quote_presegmented"),
+            tp.quote_regions_decision("auto", APOSTROPHE_OPENER_GUARD, analysis))
+
+        analysis = analyze_outer_quote_regions(TRAILING_SPACE_OPENER_GUARD)
+        self.assertEqual([], get_single_quoted_speech_spans(
+            TRAILING_SPACE_OPENER_GUARD))
+        self.assertFalse(analysis.get("nested_single_quoted_speech"))
+        self.assertEqual(
+            (analysis["regions"], "quote_presegmented"),
+            tp.quote_regions_decision("auto", TRAILING_SPACE_OPENER_GUARD,
+                                      analysis))
+
+        # Opener-side inch check only: the closer-side check would mask its
+        # removal on `6" by 8"`, so probe a pair the closer cannot settle.
+        self.assertFalse(pq._contains_paired_quote(INCH_OPENER_PROBE))
+
+    def test_openers_inside_a_failed_range_are_skipped(self):
+        # Rev3 finding 4: after a failed range the scan resumes past it instead
+        # of testing every opener inside it (O(n * 500) on all-opener input).
+        # Count the paragraph search, which only an outer opener performs:
+        # skipping yields one per failed range, not one per opener.
+        searched = []
+
+        class Spy:
+            def __init__(self, pattern):
+                self.pattern = pattern
+
+            def search(self, text, pos=0, endpos=None):
+                searched.append(pos)
+                if endpos is None:
+                    return self.pattern.search(text, pos)
+                return self.pattern.search(text, pos, endpos)
+
+        with mock.patch.object(pq, "_BLANK_LINE", Spy(pq._BLANK_LINE)):
+            spans = get_single_quoted_speech_spans("\u2018a " * 2000)
+        self.assertEqual([], spans)
+        self.assertLess(len(searched), 50,
+                        "every opener inside a failed range was rescanned")
+
+    def test_quotes_forced_keeps_the_gate_log_line(self):
+        # Rev3 finding 9: the early return skipped the gate and its telemetry.
+        # The resolution and regions stay `quote_forced`, but a gate that does
+        # not pass must still print the same warning the fall-through prints.
+        analysis = analyze_outer_quote_regions(SECOND)
+        failed = {"passed": False,
+                  "findings": [{"code": "mixed_quote_region"}]}
+        with mock.patch.object(tp, "validate_segment_quality",
+                               return_value=failed):
+            output = io.StringIO()
+            with mock.patch("sys.stdout", output):
+                entries, resolution = tp.quote_regions_decision(
+                    "quotes", SECOND, analysis)
+        self.assertEqual("quote_forced", resolution)
+        self.assertEqual(SECOND_NARROW, entries)
+        self.assertIn("segment gate not met", output.getvalue())
+        self.assertIn("mixed_quote_region", output.getvalue())
 
     def test_possessive_after_the_nested_quote_does_not_close_the_span(self):
         # Rev2 finding 2: the possessive guard must also look back at the
@@ -470,12 +724,7 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                     wrong_speech, wrong_narration) in POSSESSIVE_AFTER_CASES.items():
             with self.subTest(label=label):
                 analysis = analyze_outer_quote_regions(chunk)
-                self.assertTrue(analysis.get("nested_single_quoted_speech"))
-                self.assertEqual(1, len(analysis.get("adopted_single_quote_spans")))
-                self.assertEqual(
-                    [{"type": "SPOKEN", "text": analysis_speech},
-                     {"type": "NARRATOR", "text": "she said."}],
-                    analysis["regions"])
+                # Behaviour first (#2331 review 3).
                 report = validate_segment_quality(
                     chunk, [{"type": "SPOKEN", "text": speech},
                             {"type": "NARRATOR", "text": "she said."}],
@@ -489,6 +738,12 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                 bad = validate_segment_quality(chunk, wrong,
                                                quote_analysis=analysis)
                 self.assertFalse(bad["passed"], "certifies a truncated span")
+                self.assertTrue(analysis.get("nested_single_quoted_speech"))
+                self.assertEqual(1, len(analysis.get("adopted_single_quote_spans")))
+                self.assertEqual(
+                    [{"type": "SPOKEN", "text": analysis_speech},
+                     {"type": "NARRATOR", "text": "she said."}],
+                    analysis["regions"])
 
     def test_nested_single_quoted_span_inside_the_adopted_span(self):
         # Rev2 finding 3: `‘…‘…’…’` must adopt the OUTER span, not stop at the
@@ -500,19 +755,22 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                  "The word \u2018run\u2019 means move fast,")):
             with self.subTest(label=label):
                 analysis = analyze_outer_quote_regions(chunk)
+                # Behaviour first (#2331 review 3).
+                report = validate_segment_quality(chunk, truthful,
+                                                  quote_analysis=analysis)
+                self.assertTrue(report["passed"], report["findings"])
                 self.assertTrue(analysis.get("nested_single_quoted_speech"))
                 self.assertEqual(1, len(analysis.get("adopted_single_quote_spans")))
                 self.assertEqual(
                     [{"type": "SPOKEN", "text": analysis_speech},
                      {"type": "NARRATOR", "text": "she said."}],
                     analysis["regions"])
-                report = validate_segment_quality(chunk, truthful,
-                                                  quote_analysis=analysis)
-                self.assertTrue(report["passed"], report["findings"])
 
     def test_unresolved_nested_single_quote_abstains_from_adoption(self):
         # Rev2 finding 3: one inner opener and no outer closer after it cannot
         # be resolved, so nothing is adopted and the chunk keeps main's split.
+        # Rev3: the failed range nests a paired double quote in both cases, so
+        # the chunk is uncertain and quotes no longer certifies it.
         for label, (chunk, regions) in AMBIGUOUS_CASES.items():
             with self.subTest(label=label):
                 analysis = analyze_outer_quote_regions(chunk)
@@ -520,9 +778,14 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                 self.assertEqual([], analysis.get("adopted_single_quote_spans"))
                 self.assertEqual([], analysis.get("unadopted_single_quote_spans") or [])
                 self.assertEqual(regions, analysis["regions"])
+                for mode in ("auto", "lexical"):
+                    self.assertEqual((None, None),
+                                     tp.quote_regions_decision(mode, chunk,
+                                                               analysis))
                 self.assertEqual(
-                    (regions, "quote_presegmented"),
+                    (regions, "quote_forced"),
                     tp.quote_regions_decision("quotes", chunk, analysis))
+                self.assertTrue(analysis.get("uncertain_single_quoted_speech"))
 
     def test_inch_marks_are_measurements_not_nested_quotes(self):
         # Rev2 finding 4, both directions: the inch rule decides a pair.
@@ -801,7 +1064,11 @@ class SingleQuotedSpeechTests(unittest.TestCase):
 
     def test_british_multiparagraph_and_split_chunks_are_pinned_limits(self):
         # Finding 6: both are standard typography this decided fix does not
-        # reach. Pin main's behaviour so a future change is deliberate.
+        # reach. Pin the behaviour so a future change is deliberate. Since rev3
+        # the paragraph-bound failure records an uncertain range when a paired
+        # quote nests inside it, so auto/lexical abstain and quotes returns the
+        # analysis regions as quote_forced: main's inverted split is no longer
+        # certified. The analysis regions themselves stay main's.
         for chunk, regions in ((BRITISH, BRITISH_REGIONS),
                                (SPLIT_HEAD, SPLIT_HEAD_REGIONS),
                                (SPLIT_TAIL, SPLIT_TAIL_REGIONS)):
@@ -810,6 +1077,17 @@ class SingleQuotedSpeechTests(unittest.TestCase):
                 self.assertFalse(analysis.get("nested_single_quoted_speech"))
                 self.assertEqual([], analysis.get("adopted_single_quote_spans"))
                 self.assertEqual(regions, analysis["regions"])
+                if chunk in (BRITISH, SPLIT_HEAD):
+                    self.assertTrue(analysis.get("uncertain_single_quoted_speech"))
+                    for mode in ("auto", "lexical"):
+                        self.assertEqual(
+                            (None, None),
+                            tp.quote_regions_decision(mode, chunk, analysis))
+                    self.assertEqual(
+                        (regions, "quote_forced"),
+                        tp.quote_regions_decision("quotes", chunk, analysis))
+                else:
+                    self.assertFalse(analysis.get("uncertain_single_quoted_speech"))
 
     def test_apostrophes_elisions_and_wrong_direction_do_not_open_speech(self):
         cases = {
@@ -856,11 +1134,12 @@ class SingleQuotedSpeechTests(unittest.TestCase):
     def test_double_quoted_decisions_and_gate_are_unchanged(self):
         # Differential guard: 260 synthetic chunks plus the quote shapes the
         # repository already tests must produce byte-identical decisions and
-        # gate reports to origin/main b5989368e (the digest was produced from
-        # that tree). Both the analysis-backed gate and the analysis-free gate
-        # are hashed.
+        # gate reports to origin/main 0dcb4b95a (the digest was produced from
+        # that tree, with the British/split-head family held out because rev3
+        # deliberately makes it abstain). Both the analysis-backed gate and the
+        # analysis-free gate are hashed.
         self.assertEqual(
-            "6fe1feffb008b342fa340825893c2235b298fd3562c03408bc4a7a5c1a75ab8a",
+            "755aab93213e4edd375e288d6d9ff01f61ce1567a39197a0e3b5dc560ace6a53",
             _differential_digest())
 
 
