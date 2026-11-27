@@ -40,6 +40,21 @@ _NARRATION_RE = re.compile(
 _SCRIPT_PREFIXES = ("LATIN", "CYRILLIC", "HIRAGANA", "KATAKANA", "CJK",
                     "ARABIC", "HEBREW", "HANGUL", "GREEK", "THAI")
 
+# Two digit TOKENS can be two fragments of ONE numeral ("1 000", "5-6"), and
+# the duplicate gate must not credit either fragment. Crossing a line is not
+# joining a numeral, though: a digit that opens a line after a line that ended
+# in a number is a new line, not the far half of a number (#2304 gate 3).
+# \n, \r, U+2028 and U+2029 are the project's line endings; \x0b, \x0c and
+# \x85 break lines in every reader although the paragraph iterator treats them
+# as horizontal space, so no numeral joins across any of the seven.
+_NUMBER_GAP_LINE_BREAKS = "\n\r\u2028\u2029\x0b\x0c\x85"
+# Range and clock marks join two digit tokens into one numeral whatever their
+# lengths: hyphen, en dash, em dash, figure dash and minus for ranges, colon
+# and slash for clocks, ratios and dates. A thousands SPACE is narrower than
+# that - see the whole-number test in find_contained_source_duplicates.
+_NUMERAL_GAP_MARKS = frozenset(("-", "\u2013", "\u2014", "\u2012",
+                                "\u2212", ":", "/"))
+
 _COMBINING_MARK_WORD_PATTERN = None
 # Apostrophe-like characters that are the same typography to a reader: ASCII
 # apostrophe, curly single quotes, grave/acute accents and a modifier letter.
@@ -1295,9 +1310,18 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         or "5:30" into two digit tokens; crediting the "5" of "3.5" would let
         it spell "Five minutes" and accept a genuine duplicate, so a digit
         joined to another digit by a numeral separator is not capacity. That
-        covers `.`/`,` glued to a far digit, any all-whitespace gap (space,
-        NBSP, thin space), and a `-`/en dash/`:` between digits. A sentence's
-        "5." or a list's "5," is a whole number, not a fragment.
+        covers `.`/`,` glued to a far digit, a thousands SPACE (space, NBSP,
+        thin or figure space - joined only when the far group is exactly three
+        digits, so "1999 5" is a year and a separate number), and a range or
+        clock mark between digits: `-`, en dash, em dash, figure dash, minus,
+        `:` and `/`. A sentence's "5." or a list's "5," is a whole number, not
+        a fragment.
+
+        A LINE BREAK IS NEVER A NUMERAL SEPARATOR. A digit that starts a line
+        after a line ending in a number opens a new line, not the far half of
+        a number, so a gap containing `\\n`, `\\r`, U+2028, U+2029, `\\x0b`,
+        `\\x0c` or `\\x85` does not join (#2304 gate 3: a faithful book with
+        "Chapter 12" above "5 minutes later" must stay clean).
 
         A digit copy the script also emits as digits is already that digit
         needle's own capacity, so only copies beyond the digit line's emissions
@@ -1351,11 +1375,22 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
                         continue
                     if other < index:
                         gap = comparison_source[spans[other][1]:start]
+                        right = index
                     else:
                         gap = comparison_source[end:spans[other][0]]
-                    # All-whitespace (space, NBSP, thin and figure spaces), or
-                    # a range/clock mark, joins the two digit tokens.
-                    if not gap.strip() or gap.strip() in ("-", "\u2013", ":"):
+                        right = other
+                    # A gap that opens a new line never joins: a digit at the
+                    # start of a line is a new number even when the line above
+                    # ended in one (#2304 gate 3).
+                    if any(break_ in gap for break_ in _NUMBER_GAP_LINE_BREAKS):
+                        continue
+                    stripped = gap.strip()
+                    # A range/clock mark always joins. Whitespace joins only a
+                    # thousands group, whose far half is exactly three digits
+                    # ("1 000", "12 345 678"); "In 1999 5 minutes later" is a
+                    # year and a separate number, not a numeral.
+                    if stripped in _NUMERAL_GAP_MARKS or (
+                            not stripped and len(tokens[right]) == 3):
                         joined = True
                         break
                 whole_number[index] = not (

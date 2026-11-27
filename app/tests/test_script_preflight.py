@@ -2404,6 +2404,8 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         ("Zero minutes", "1 000 minutes", False, "blocking"),
         ("Zero minutes", "1\u00a0000 minutes", False, "blocking"),
         ("Zero minutes", "1\u2009000 minutes", False, "blocking"),
+        ("Zero minutes", "1\u2007000 minutes", False, "blocking"),
+        ("Zero minutes", "1 000 000 minutes", False, "blocking"),
         ("Twenty five", "twenty 5.", True, "manual_review"),
         ("Twenty five", "twenty 5, and more", True, "manual_review"),
         ("Five minutes", "5th minutes", False, "blocking"),
@@ -2412,6 +2414,11 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
         ("Five dollars each", "$5 each", False, "blocking"),
         ("Six minutes", "5-6 minutes", False, "blocking"),
         ("Five minutes", "5-6 minutes", False, "blocking"),
+        ("Six minutes", "5\u20136 minutes", False, "blocking"),
+        ("Six minutes", "5\u20146 minutes", False, "blocking"),
+        ("Six minutes", "5\u20126 minutes", False, "blocking"),
+        ("Six minutes", "5\u22126 minutes", False, "blocking"),
+        ("Six minutes", "5/6 minutes", False, "blocking"),
         ("Thirty exactly", "5:30 exactly", False, "blocking"),
         ("Five minutes", "\u0665 minutes", True, "blocking"),
         ("Five minutes", "\uff15 minutes", True, "blocking"),
@@ -2447,6 +2454,85 @@ class ContainedSeparateDuplicateTests(unittest.TestCase):
                 self.assertEqual(2 if credited else 1,
                                  third[0]["details"]["source_occurrences"])
                 self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
+
+    def test_a_line_break_is_never_a_numeral_separator(self):
+        # Gate 3 B1: a digit that opens a line after a line ending in a number
+        # opens a NEW line, not the far half of one numeral. Every line ending
+        # and every vertical whitespace that readers treat as a break keeps
+        # the digit whole, so a faithful book with a chapter number or a year
+        # above "5 minutes later" stays clean.
+        entries = [_entry("Five minutes later", "C0"),
+                   _entry("Five minutes later", "C1")]
+        for line_break in ("\n", "\r", "\r\n", "\u2028", "\u2029",
+                           "\x0b", "\x0c", "\x85"):
+            with self.subTest(line_break=repr(line_break)):
+                source = ('"Five minutes later," she said.'
+                          '%s12%s5 minutes later, he left.'
+                          % (line_break, line_break))
+
+                self.assertEqual([], self._duplicate_findings(entries, source))
+
+                third = self._duplicate_findings(
+                    entries + [_entry("Five minutes later", "C2")], source)
+                self.assertEqual(1, len(third))
+                self.assertEqual("blocking", third[0]["severity"])
+                self.assertEqual(2, third[0]["details"]["source_occurrences"])
+                self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
+
+    def test_the_reviewed_line_break_sources_stay_clean(self):
+        # The gate 3 B1 repro and the shapes the review named beside it: a
+        # chapter heading, a year line, a numbered line, a "- 12 -" page
+        # number and a hard-wrapped Gutenberg line. The source is faithful, so
+        # two word emissions are clean and only a third blocks.
+        entries = [_entry("Five minutes later", "C0"),
+                   _entry("Five minutes later", "C1")]
+        sources = (
+            '"Five minutes later," she said.\n\nChapter 12\n\n'
+            '5 minutes later, he left.',                      # the B1 repro
+            '"Five minutes later," she said.\n\n1945\n\n'
+            '5 minutes later, he left.',                      # year line
+            '"Five minutes later," she said.\n\n3\n\n'
+            '5 minutes later, he left.',                      # numbered line
+            '"Five minutes later," she said.\n\n- 12 -\n\n'
+            '5 minutes later, he left.',                      # page number
+            '"Five minutes later," she said. It was room 12\n'
+            '5 minutes later, he left.',                      # soft wrap
+        )
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertEqual([], self._duplicate_findings(entries, source))
+
+                third = self._duplicate_findings(
+                    entries + [_entry("Five minutes later", "C2")], source)
+                self.assertEqual(1, len(third))
+                self.assertEqual("blocking", third[0]["severity"])
+                self.assertEqual(2, third[0]["details"]["source_occurrences"])
+                self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
+
+    def test_a_thousands_space_joins_only_a_three_digit_group(self):
+        # Gate 3 L1: a space groups thousands only when the group after it is
+        # exactly three digits. "1 000" is one numeral, so neither the "1" nor
+        # the "000" can spell a word number ("1 000 000" joins all three
+        # groups), while "In 1999 5 minutes later" is a year and a separate
+        # number: the "5" is whole and carries the digit copy.
+        for digits in ("1 000 minutes", "1\u00a0000 minutes",
+                       "1\u2009000 minutes", "1 000 000 minutes"):
+            with self.subTest(digits=digits):
+                source = '"Zero minutes," she said. "%s," he said.' % digits
+                self.assertEqual(1, len(self._duplicate_findings(
+                    [_entry("Zero minutes", "C0"),
+                     _entry("Zero minutes", "C1")], source)))
+
+        source = ('"Five minutes later," she said. In 1999 5 minutes later, '
+                  'he left.')
+        entries = [_entry("Five minutes later", "C0"),
+                   _entry("Five minutes later", "C1")]
+        self.assertEqual([], self._duplicate_findings(entries, source))
+        third = self._duplicate_findings(
+            entries + [_entry("Five minutes later", "C2")], source)
+        self.assertEqual(1, len(third))
+        self.assertEqual(2, third[0]["details"]["source_occurrences"])
+        self.assertEqual(3, third[0]["details"]["all_text_occurrences"])
 
     def test_a_digit_used_as_an_identifier_is_a_known_limit(self):
         # The second F2 repro, kept and documented. "Route 1 more often" holds
