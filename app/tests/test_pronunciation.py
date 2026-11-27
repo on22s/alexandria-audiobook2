@@ -60,6 +60,37 @@ class LexiconTest(unittest.TestCase):
         out, _ = apply_pronunciation("Natsuki Subaru arrived", p)
         self.assertEqual(out, "Nat-ski Soo-bah-roo arrived")
 
+    def test_a_rejected_longest_key_falls_back_to_a_shorter_key_at_the_same_start(self):
+        """A rejected longer entry must not hide a shorter entry that starts at
+        the same position. Main's lookahead made the regex backtrack into the
+        shorter alternative, so dropping the fallback lost real substitutions
+        in ordinary text (`Mara Jadeite`, `Dr Whoever`)."""
+        for entries, text, expected, shorter in (
+                ({"Mara": "Mahra", "Mara Jade": "Mahra Jayde"},
+                 "Mara Jadeite came.", "Mahra Jadeite came.", "Mara"),
+                ({"Dr": "Doctor", "Dr Who": "Doctor Who"},
+                 "Dr Whoever came.", "Doctor Whoever came.", "Dr"),
+                ({"Anne": "Ann", "Anne Marie": "Ann Marie"},
+                 "Anne Mariel left.", "Ann Mariel left.", "Anne")):
+            with self.subTest(text=text):
+                p = self.write(entries)
+                out, applied = apply_pronunciation(text, p)
+                self.assertEqual(expected, out)
+                self.assertEqual([shorter], [entry["name"] for entry in applied])
+
+    def test_a_rejected_longer_unspaced_key_falls_back_to_a_shorter_one(self):
+        """太郎丸 is rejected by the following combining mark, while 太郎 at the
+        same position is legal: a multi-character key may match inside a run."""
+        p = self.write({"太郎": "Taro", "太郎丸": "Taromaru"})
+        self.assertEqual("Taro丸\u0301は",
+                         apply_pronunciation("太郎丸\u0301は", p)[0])
+
+    def test_a_position_where_every_key_is_rejected_stays_unchanged(self):
+        """रामाि rejects रामा (the following ि is a combining mark) and राम at
+        the same start (the following ा is one too), so no fallback fires."""
+        p = self.write({"राम": "Raam", "रामा": "Raamaa"})
+        self.assertEqual(("रामाि x", []), apply_pronunciation("रामाि x", p))
+
     # ── where it must NOT fire ───────────────────────────────────────────
 
     def test_it_does_not_fire_inside_a_longer_word(self):

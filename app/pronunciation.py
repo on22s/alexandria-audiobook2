@@ -254,8 +254,33 @@ class _PronunciationMatcher:
     """One alternation scan whose every candidate is adjudicated by is_key_match."""
 
     def __init__(self, keys, ignore_case=False):
-        self._regex = re.compile("(" + "|".join(re.escape(key) for key in keys) + ")",
-                                 re.IGNORECASE if ignore_case else 0)
+        flags = re.IGNORECASE if ignore_case else 0
+        self._regex = re.compile(
+            "(" + "|".join(re.escape(key) for key in keys) + ")", flags)
+        # One alternation per key length, longest first. When the longest key at
+        # a position is rejected, the next-longest key starting at the SAME
+        # position is tried before the scan advances. Without this a rejected
+        # "Mara Jade" would hide "Mara" in "Mara Jadeite" (main's lookahead let
+        # the regex backtrack into the shorter alternative). A shorter key still
+        # never fires where a longer key matched.
+        by_length = {}
+        for key in keys:
+            by_length.setdefault(len(key), []).append(key)
+        self._by_length = tuple(
+            (length, re.compile(
+                "(" + "|".join(re.escape(key) for key in bucket) + ")", flags))
+            for length, bucket in sorted(by_length.items(), reverse=True))
+
+    def _shorter_match(self, text, start, longest):
+        """The next-longest key at `start` that is_key_match accepts, if any."""
+        for length, pattern in self._by_length:
+            if length >= longest:
+                continue
+            match = pattern.match(text, start)
+            if match is not None and is_key_match(
+                    text, start, start + length, match.group(1)):
+                return match
+        return None
 
     def finditer(self, text):
         position = 0
@@ -264,11 +289,16 @@ class _PronunciationMatcher:
             if match is None:
                 return
             start, end = match.span()
-            if is_key_match(text, start, end, match.group(0)):
+            if is_key_match(text, start, end, match.group(1)):
                 yield match
                 position = end
-            else:
+                continue
+            fallback = self._shorter_match(text, start, end - start)
+            if fallback is None:
                 position = start + 1
+            else:
+                yield fallback
+                position = fallback.end()
 
     def sub(self, replacement, text):
         pieces, last = [], 0
@@ -288,7 +318,11 @@ def _compile(entries, ignore_case=False):
     and leave a half-substituted phrase. Sorting the alternation by length is
     also what keeps a shorter key from firing inside a longer key THAT IS ALSO
     AN ENTRY in a script without word spaces; a longer word with no entry of
-    its own is not protected (see the module docstring's matching limit).
+    its own is not protected (see the module docstring's matching limit). If a
+    candidate span is rejected by is_key_match, the next-longest key anchored
+    at the same position is tried, so a rejected longer key never hides a
+    shorter legal one ("Mara Jade" rejected in "Mara Jadeite" still applies
+    "Mara").
     """
     keys = sorted((k for k in entries if k), key=lambda key: (-len(key), key))
     if not keys:
