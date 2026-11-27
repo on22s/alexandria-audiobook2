@@ -228,7 +228,10 @@ def is_well_formed_xml(content) -> bool:
     as ``<p hidden>``, HTML-only entities such as ``&nbsp;`` - returns False.
     """
     try:
-        ET.fromstring(content)
+        # Reviewed: EPUB text is untrusted, but ElementTree's parser runs
+        # without external entity/DTD resolution or network access; this call
+        # only probes well-formedness and never returns a tree.
+        ET.fromstring(content)  # nosec B314
     except (ET.ParseError, ValueError, TypeError):
         return False
     return True
