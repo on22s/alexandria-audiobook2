@@ -409,6 +409,44 @@ class LlmReviewTests(unittest.TestCase):
                 cleaned = generate_script.clean_json_string(preamble + answer)
                 self.assertEqual(entries, generate_script.repair_json_array(cleaned))
 
+    def test_corrupted_leading_array_is_discarded_not_refused(self):
+        """#2336 behaviour change (pinned): a span that cannot parse is skipped.
+
+        `[{"speaker":}]` cannot be the answer, so the valid array after it is
+        accepted on the first call at both temperatures. On main the guard
+        returns [] at 0.0 and the all-or-nothing raw salvage returns [] at 0.7
+        after four calls (the malformed object poisons it). The caller's
+        coverage/quality gate still decides whether the entries are committed.
+        """
+        entries = [{"speaker": "NARRATOR", "text": "one two three",
+                    "instruct": "neutral"}]
+        reply = '[{"speaker":}] ' + json.dumps(entries)
+        for temperature in (0.0, 0.7):
+            with self.subTest(temperature=temperature):
+                calls = []
+
+                def create(**_kwargs):
+                    calls.append(1)
+                    return SimpleNamespace(choices=[SimpleNamespace(
+                        message=SimpleNamespace(content=reply),
+                        finish_reason="stop")], usage=None)
+
+                client = SimpleNamespace(chat=SimpleNamespace(
+                    completions=SimpleNamespace(create=create)))
+                params = generate_script.LLMGenParams(
+                    temperature=temperature, max_tokens=256)
+                with tempfile.TemporaryDirectory() as tmp, patch.object(
+                        generate_script, "get_response_log_path",
+                        return_value=str(Path(tmp, "response.log"))):
+                    result = generate_script.call_llm_for_entries(
+                        client, "model", "system", "user", params,
+                        "response.log", "TEST", max_retries=3,
+                        validate_entries=lambda _entries: {"passed": True,
+                                                           "findings": []})
+
+                self.assertEqual(entries, result)
+                self.assertEqual(1, len(calls))
+
     def test_notes_main_already_tolerated_stay_tolerated(self):
         """Non-regression only: these preambles already produced the answer on
         main (json repair dropped the note), so they do not discriminate the
@@ -466,6 +504,9 @@ class LlmReviewTests(unittest.TestCase):
             generate_script.clean_json_string(doubled)
 
     def test_brackets_inside_strings_do_not_split_the_answer_span(self):
+        """Non-regression only: main's json repair already dropped the note, so
+        this passes on main too. It pins that the skip loop does not split the
+        answer on a bracket inside a string value (#2336)."""
         entries = [{"speaker": "NARRATOR", "text": "[aside] one [two]",
                     "instruct": "neutral"}]
 
@@ -475,6 +516,9 @@ class LlmReviewTests(unittest.TestCase):
         self.assertEqual(entries, generate_script.repair_json_array(cleaned))
 
     def test_fenced_preamble_and_trailing_prose_keep_the_answer(self):
+        """Non-regression only: main already accepted this reply (its json
+        repair dropped the note). Pinned so the skip loop keeps a fenced answer
+        with trailing bracketed prose intact (#2336)."""
         entries = [{"speaker": "NARRATOR", "text": "one", "instruct": "neutral"}]
 
         cleaned = generate_script.clean_json_string(

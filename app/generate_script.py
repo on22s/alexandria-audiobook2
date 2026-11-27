@@ -1320,16 +1320,18 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                        f"Failures: {feedback}")
         return prompt
 
-    def _prepare_attempt(prompt, feedback, max_tokens):
-        """The messages, completion budget and temperature-0 guard key.
+    def _prepare_attempt(feedback, max_tokens):
+        """The prompt, messages, completion budget and temperature-0 guard key.
 
-        One function so the loop and the pre-retry check cannot disagree about
-        what "the same request" means (Rule 15). The key is the prompt AND the
-        completion budget: a truncated response raises requested_max for the
-        retry, and that retry is a different request even though its prompt is
-        byte-identical. The key is returned here so both call sites use this
-        one construction.
+        The prompt is derived HERE from `feedback`, so the messages, the guard
+        key and the prompt a caller logs cannot disagree about what was sent
+        (Rule 15). One function so the loop and the pre-retry check cannot
+        disagree about what "the same request" means either: the key is the
+        prompt AND the completion budget, because a truncated response raises
+        requested_max for the retry and that retry is a different request even
+        though its prompt is byte-identical.
         """
+        prompt = _attempt_prompt(feedback)
         prepared = base_messages if not feedback else [
             base_messages[0], {"role": "user", "content": prompt}
         ]
@@ -1337,7 +1339,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             max_tokens, params.context_length, prepared,
             params.hard_max_tokens, scale_to_context=False,
             max_input_tokens=params.max_input_tokens)
-        return prepared, effective, (prompt, effective)
+        return prompt, prepared, effective, (prompt, effective)
 
     def _identical_retry_would_be_blocked():
         """True when the retry the loop would send now was already rejected.
@@ -1350,15 +1352,28 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         """
         if params.temperature:
             return False
-        prompt = _attempt_prompt(retry_feedback)
-        _messages, _effective, key = _prepare_attempt(
-            prompt, retry_feedback, requested_max)
+        _prompt, _messages, _effective, key = _prepare_attempt(
+            retry_feedback, requested_max)
         return key in attempted_prompts
 
     attempt = resume_state.get("quality_attempt", 0) - 1
     advance_quality = True
     api_failures = 0
     request_attempt = 0
+    retry_blocked = False
+
+    def _may_retry():
+        """Whether this reply may still spend a retry request.
+
+        False when the loop's own budget is spent, and also when the
+        missing-payload branch stopped the retry because the deterministic
+        repeat guard would block the identical request one iteration later.
+        The reply is still parsed, transformed and quality-gated - and the
+        last-attempt salvage still runs - but no second identical request is
+        sent, and the log does not pretend this attempt was a retry.
+        """
+        return attempt < max_retries and not retry_blocked
+
     while True:
         if advance_quality:
             attempt += 1
@@ -1370,15 +1385,16 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         attempt_number = attempt_offset + request_attempt
         t0 = time.time()
         truncation_retry_available = False
+        retry_blocked = False
         # The budget this attempt was sent with, before any truncation bump.
         attempt_requested_max = requested_max
         attempt_record = None
         effective_max = None
         request_id = None
+        attempt_prompt = None
         try:
-            attempt_prompt = _attempt_prompt(retry_feedback)
-            messages, effective_max, attempt_key = _prepare_attempt(
-                attempt_prompt, retry_feedback, requested_max)
+            attempt_prompt, messages, effective_max, attempt_key = _prepare_attempt(
+                retry_feedback, requested_max)
             # Only when the sampler is deterministic. Above 0 a repeated prompt
             # is a legitimate second sample and must still be sent. The key is
             # the prompt AND the completion budget: a truncated response raises
@@ -1627,7 +1643,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                                   "request": {
                                       "model": model_name,
                                       "system_prompt": sys_prompt,
-                                      "user_prompt": attempt_prompt,
+                                      "user_prompt": (attempt_prompt
+                                                      if attempt_prompt is not None
+                                                      else _attempt_prompt(retry_feedback)),
                                       "temperature": params.temperature,
                                       "top_p": params.top_p,
                                       "presence_penalty": params.presence_penalty,
@@ -1696,9 +1714,11 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 if _identical_retry_would_be_blocked():
                     # The guard would stop this retry before sending it. Stop
                     # it here instead, but keep the reply: the last-attempt
-                    # raw-array salvage below is still allowed to run.
+                    # raw-array salvage below is still allowed to run. Do not
+                    # fake the loop index - the acceptance log must not claim
+                    # this was a retry.
                     _stop_identical_retry()
-                    attempt = max_retries
+                    retry_blocked = True
                 else:
                     print(retry_line(attempt, max_retries))
                     continue
@@ -1740,7 +1760,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     retry_feedback = "unresolved_safe_repair"
                     print(f"Warning: {label} has unresolved deterministic repairs "
                           f"(attempt {attempt_number}): {transformed['unresolved']}")
-                    if attempt < max_retries:
+                    if _may_retry():
                         print(retry_line(attempt, max_retries))
                         continue
                     return []
@@ -1777,14 +1797,14 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         consecutive_severe += 1
                     else:
                         consecutive_severe = 0
-                    if attempt < max_retries and retry_policy == "increase_tokens":
+                    if _may_retry() and retry_policy == "increase_tokens":
                         next_max = get_next_retry_max_tokens(
                             requested_max, "incomplete_output", params.hard_max_tokens)
                         if next_max != requested_max:
                             print(f"  Increasing token budget after incomplete output: "
                                   f"{requested_max} -> {next_max}")
                             requested_max = next_max
-                    elif attempt < max_retries:
+                    elif _may_retry():
                         if is_overlong_index_response(quality):
                             # The length finish above already raised the budget;
                             # an overlong answer was not cut short, so undo it.
@@ -1798,7 +1818,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                             and retry_decider(quality, retry_evidence) == "split"):
                         print("  Repeated unproductive response; switching to adaptive split")
                         return []
-                    if attempt < max_retries:
+                    if _may_retry():
                         print(retry_line(attempt, max_retries))
                         continue
                     return []
@@ -1806,7 +1826,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 if attempt_record is not None:
                     attempt_record["outcome"] = "response_rejected"
                     attempt_record["failure_codes"] = ["token_truncated"]
-                if attempt < max_retries and truncation_retry_available:
+                if _may_retry() and truncation_retry_available:
                     print("Retrying truncated response with a larger token budget...")
                     continue
                 return []
@@ -1827,7 +1847,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             attempt_record["failure_codes"] = ["malformed_json"]
         print(f"JSON preview: {json_text[:300]}...")
 
-        if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
+        if _may_retry() and (finish_reason != "length" or truncation_retry_available):
             print(retry_line(attempt, max_retries))
             continue
         if finish_reason == "length":
@@ -2090,17 +2110,34 @@ def process_chunk(client, model_name, chunk, chunk_num, total_chunks, params,
     # diagnosed live (2026-07-19): a chunk hit 86% recall on its final
     # attempt (one attempt away from the 90% pass threshold), then the
     # retry budget was already exhausted. See _is_near_miss_recall.
-    # Two properties are deliberate, not oversights: this call passes no
+    # Three properties are deliberate, not oversights: this call passes no
     # retry_feedback (a fresh call_llm_for_entries, same as the first
     # attempt) - fresh samples measured 3/3 where feedback-looped retries
-    # looped instead; and it can never trigger an early split, since
+    # looped instead; it can never trigger an early split, since
     # retry_decider is only wired up when `retries` is truthy above, and
-    # this call always passes max_retries=0.
+    # this call always passes max_retries=0; and it is granted only above
+    # temperature 0, because at 0 it would re-send the first request's exact
+    # prompt and budget - the identical repeat the guard in
+    # call_llm_for_entries exists to reject. The near-miss retention is the
+    # safety net at 0, not this request.
     if not entries and local_attempts and _is_near_miss_recall(
             local_attempts[-1].get("quality_metrics")):
-        print(f"  CHUNK {chunk_num}/{total_chunks} near-miss on final attempt; "
-              "granting one bonus retry")
-        entries = call(0)
+        if not params.temperature:
+            # The bonus call is a fresh call_llm_for_entries: same user prompt,
+            # same budget, no feedback. At temperature 0 that is byte-identical
+            # to the first request this chunk already sent, which the
+            # deterministic repeat guard exists to prevent - a repeated
+            # deterministic prompt cannot return a different sample. The
+            # near-miss retention above is unaffected: near_miss_sink still
+            # carries the entries to the exhaustion-only fallback, so no
+            # salvage is lost by not spending the request.
+            print(f"  CHUNK {chunk_num}/{total_chunks} near-miss on final attempt; "
+                  "no bonus retry at temperature 0 (its identical request was "
+                  "already rejected)")
+        else:
+            print(f"  CHUNK {chunk_num}/{total_chunks} near-miss on final attempt; "
+                  "granting one bonus retry")
+            entries = call(0)
     return entries
 
 

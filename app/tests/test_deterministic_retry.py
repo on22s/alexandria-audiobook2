@@ -180,6 +180,20 @@ class RepeatGuardSalvageTest(unittest.TestCase):
         self.assertIn("further retries cannot differ", output)
         self.assertIn("Trying quality-gated raw-array salvage", output)
 
+    def test_salvaged_first_attempt_does_not_claim_to_be_a_retry(self):
+        """#2336: the blocked retry must not fake the loop index.
+
+        The salvage accepts on the first request. Faking `attempt` as the retry
+        limit made the accept path print "Succeeded on retry 1"; the log must
+        report the salvage instead, not a retry that never happened.
+        """
+        prompts, result, output = self._run(self.SPLIT)
+
+        self.assertEqual(1, len(prompts))
+        self.assertEqual(2, len(result))
+        self.assertIn("Trying quality-gated raw-array salvage", output)
+        self.assertNotIn("Succeeded on retry", output)
+
     def test_salvage_that_fails_the_quality_gate_still_stops(self):
         def reject(entries):
             return {"passed": False,

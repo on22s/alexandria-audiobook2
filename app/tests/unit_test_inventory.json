@@ -3610,6 +3610,8 @@
     , "tests.test_chunk_quality.TrigramNearMissAcceptanceTests.test_predicate_accepts_only_trigram_only_failure_at_or_above_floor"
     , "tests.test_chunk_quality.TrigramNearMissAcceptanceTests.test_real_validator_produces_a_trigram_only_near_miss"
     , "tests.test_chunk_quality.TrigramNearMissAcceptanceTests.test_split_recombination_accepted_as_near_miss"
+    , "tests.test_chunk_quality.TrigramNearMissAcceptanceTests.test_temperature_zero_parsable_near_miss_also_skips_the_bonus_call"
+    , "tests.test_chunk_quality.TrigramNearMissAcceptanceTests.test_temperature_zero_salvaged_near_miss_makes_one_call_and_is_retained"
   ]
   , "test_chunk_refresh_js": [
     "tests.test_chunk_refresh_js.ChunkRefreshJsTests.test_actual_batch_poll_fetches_and_renders_once_without_second_timer"
@@ -5059,6 +5061,7 @@
     , "tests.test_deterministic_retry.RepeatGuardSalvageTest.test_bare_object_after_a_note_is_accepted_at_both_temperatures"
     , "tests.test_deterministic_retry.RepeatGuardSalvageTest.test_nonzero_temperature_still_retries_before_salvaging"
     , "tests.test_deterministic_retry.RepeatGuardSalvageTest.test_salvage_that_fails_the_quality_gate_still_stops"
+    , "tests.test_deterministic_retry.RepeatGuardSalvageTest.test_salvaged_first_attempt_does_not_claim_to_be_a_retry"
     , "tests.test_deterministic_retry.RepeatGuardSalvageTest.test_temperature_zero_salvages_before_the_guard_stops"
   ]
   , "test_diagnostic_constructor_contracts": [
@@ -8728,6 +8731,7 @@
     , "tests.test_llm_review_regressions.LlmReviewTests.test_chunk_quality_failure_retries_then_accepts_complete_response"
     , "tests.test_llm_review_regressions.LlmReviewTests.test_context_budget_failure_keeps_its_recovery_record"
     , "tests.test_llm_review_regressions.LlmReviewTests.test_context_clamped_truncation_does_not_retry"
+    , "tests.test_llm_review_regressions.LlmReviewTests.test_corrupted_leading_array_is_discarded_not_refused"
     , "tests.test_llm_review_regressions.LlmReviewTests.test_early_split_decider_stops_full_chunk_after_second_severe_failure"
     , "tests.test_llm_review_regressions.LlmReviewTests.test_empty_object_runs_validation_and_does_not_allow_empty_entry_arrays"
     , "tests.test_llm_review_regressions.LlmReviewTests.test_exhausted_ambiguous_arrays_use_quality_gated_raw_salvage"

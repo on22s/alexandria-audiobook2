@@ -698,6 +698,75 @@ class TrigramNearMissAcceptanceTests(unittest.TestCase):
 
         self.assertEqual([], entries)
 
+    @staticmethod
+    def _counting_client(reply):
+        from types import SimpleNamespace
+        calls = []
+
+        def create(**_kwargs):
+            calls.append(1)
+            return SimpleNamespace(choices=[SimpleNamespace(
+                message=SimpleNamespace(content=reply),
+                finish_reason="stop")], usage=None)
+
+        client = SimpleNamespace(chat=SimpleNamespace(
+            completions=SimpleNamespace(create=create)))
+        return client, calls
+
+    def test_temperature_zero_salvaged_near_miss_makes_one_call_and_is_retained(self):
+        """#2336: retain the salvaged near miss without buying an identical call.
+
+        A missing payload whose raw-array salvage is a trigram-only near miss is
+        captured for the exhaustion-only fallback, but at temperature 0 the
+        near-miss bonus call is a fresh call_llm_for_entries with the same
+        prompt and budget - the byte-identical request the deterministic repeat
+        guard exists to prevent. One request; the chunk is still accepted by
+        retention rather than forfeited.
+        """
+        import json
+        from chunk_quality import is_trigram_only_near_miss
+
+        source, near_miss = _trigram_near_miss_text()
+        # A bracketed non-array note before a bare object: clean_json_string
+        # finds no array payload (the missing-payload path), while raw-array
+        # repair still extracts the object.
+        client, calls = self._counting_client(
+            "[0] " + json.dumps(_entry(near_miss)))
+        params = generate_script.LLMGenParams("system", "{chunk}", 200, 0.0, 1)
+
+        entries, adaptively_split = generate_script.process_chunk_adaptively(
+            client, "model", source, 1, 1, params)
+
+        self.assertEqual(1, len(calls))
+        self.assertFalse(adaptively_split)
+        self.assertTrue(entries)
+        self.assertTrue(is_trigram_only_near_miss(
+            validate_chunk_quality(source, entries)))
+
+    def test_temperature_zero_parsable_near_miss_also_skips_the_bonus_call(self):
+        """The parsable near miss reached the bonus call on main at 0.0 too.
+
+        The feedback retry before it is legitimate (its prompt changed), so at
+        0.0 the budget spends two requests, not three: the third would be the
+        byte-identical bonus request. Above 0 the bonus call is a fresh sample
+        and is still granted.
+        """
+        import json
+
+        source, near_miss = _trigram_near_miss_text()
+        for temperature, expected_calls in ((0.0, 2), (0.7, 3)):
+            with self.subTest(temperature=temperature):
+                client, calls = self._counting_client(
+                    json.dumps([_entry(near_miss)]))
+                params = generate_script.LLMGenParams(
+                    "system", "{chunk}", 200, temperature, 1)
+
+                result = generate_script.process_chunk(
+                    client, "model", source, 1, 1, params, max_retries=1)
+
+                self.assertEqual([], result)
+                self.assertEqual(expected_calls, len(calls))
+
 
 
 
