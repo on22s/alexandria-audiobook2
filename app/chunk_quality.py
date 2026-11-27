@@ -7,6 +7,7 @@ from difflib import SequenceMatcher
 from recall_core import tokens as _tokens, ngrams as _ngrams, counter_recall as _counter_recall
 from script_preflight import (find_adjacent_duplicate_blocks, find_contained_source_duplicates,
                               get_invalid_entry_fields)
+from speaker_identity import get_normalized_speaker_label
 
 
 MIN_SOURCE_TOKEN_RECALL = 0.90
@@ -78,7 +79,11 @@ def get_chunk_schema_findings(entries):
         if not isinstance(entry.get("text"), str) or not entry["text"].strip():
             findings.append({"code": "empty_text", "entry_number": number,
                              "message": "Entry contains no speakable text."})
-        if not isinstance(entry.get("speaker"), str) or not entry["speaker"].strip():
+        # One emptiness rule with `audit_script` and
+        # `stabilize_speaker_identities`: a label made only of whitespace
+        # and/or silent word characters is missing.
+        if (not isinstance(entry.get("speaker"), str)
+                or not get_normalized_speaker_label(entry["speaker"])):
             findings.append({"code": "missing_speaker", "entry_number": number,
                              "message": "Entry has no speaker."})
     return findings

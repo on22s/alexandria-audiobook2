@@ -856,6 +856,26 @@ NAME_TITLE_PREFIXES = frozenset({
     "mother", "brother", "sister", "officer", "sergeant", "general", "colonel",
     "major", "lieutenant", "reverend", "pastor", "bishop", "saint", "the", "his", "her",
 })
+# A married-woman title names the wife, not the man whose name follows it:
+# "Mrs. John Vale" is Fanny, so the title-stripped "John Vale" must not become
+# an identity key for John. These are the married-woman entries of the title
+# data above; add a title here when it joins the same convention.
+_MARRIED_WOMAN_TITLES = frozenset({"mrs"})
+# Prediction words the tag does not carry that name a DIFFERENT person from the
+# tag's plain name, so the prefix/suffix identity join must refuse them
+# (#2388 gate 5, variant V6):
+#   - generational words: junior, senior, young, old, little distinguish a son,
+#     an elder or a child from the bare name ("John Vale Junior" is not the
+#     father "John Vale");
+#   - foreign married-woman titles: frau, madame, mme, señora/senora, signora
+#     name the wife, like the English "mrs" handled by _MARRIED_WOMAN_TITLES.
+# An extra title that only qualifies the SAME person is deliberately absent:
+# "MARQIS DE GRIERS" against a "De Griers" tag is measured and must keep
+# joining. Keys are compared through _get_title_key (casefold, trailing ".").
+_DIFFERENT_PERSON_EXTRA_WORDS = frozenset({
+    "junior", "senior", "young", "old", "little",
+    "frau", "madame", "mme", "señora", "senora", "signora",
+})
 
 
 # These words are routinely capitalised by sentence position alone. They may
@@ -1047,8 +1067,8 @@ def get_name_attestation_verdict(name, source_text, min_attestations=MIN_NAME_AT
     # still fails.
     words = name.split()
     if len(words) > 1 and capitalized >= 1:
-        while words and words[0].casefold().rstrip(".") in NAME_TITLE_PREFIXES:
-            words = words[1:]
+        # One title-stripping helper (Rule 15), shared with the tag checks.
+        words = _get_speaker_title_and_words(name)[1]
         if words and _has_cased_letter(words[0]):
             return get_name_attestation_verdict(words[0], source_text, min_attestations)
     return NAME_ATTESTATION_UNATTESTED
@@ -1061,13 +1081,148 @@ def is_attested_name(name, source_text, min_attestations=MIN_NAME_ATTESTATIONS):
 
 
 _SILENT_IN_WORD = "".join(SILENT_WORD_CHARACTERS)
-_TAG_NAME = (r"[^\W\d_][\w’'" + _SILENT_IN_WORD + r"-]*"
-             r"(?:[ \t]+[^\W\d_][\w’'" + _SILENT_IN_WORD + r"-]*){0,3}")
+_TAG_WORD = r"[^\W\d_][\w’'" + _SILENT_IN_WORD + r"-]*"
+_TAG_NAME = rf"{_TAG_WORD}(?:[ \t]+{_TAG_WORD}){{0,3}}?"
+_TAG_ADVERB = r"(?-i:[a-z][\w’'" + _SILENT_IN_WORD + r"-]*ly)"
+_TAG_OBJECT_PRONOUNS = frozenset({
+    "him", "her", "them", "me", "us", "you", "himself", "herself",
+})
+# One source for the object-pronoun alternation (Rule 15).
+_TAG_OBJECT = (rf"(?:(?-i:{'|'.join(sorted(_TAG_OBJECT_PRONOUNS))})"
+               rf"|{_TAG_NAME})")
+# Dedicated verb list for the speech-tag check (#2332): do not widen
+# _REPORTING_VERBS, which drives quote recovery, lexical quotes and weak-name
+# attestation context.
+_SOURCE_TAG_VERBS = (
+    r"(?:murmured|murmurs|whispered|whispers|said|says|replied|replies|"
+    r"answered|answers|asked|asks|cried|cries|shouted|shouts|exclaimed|exclaims|"
+    r"called|calls|muttered|mutters|added|adds|continued|continues|"
+    r"observed|observes|remarked|remarks|rejoined|rejoins|"
+    r"returned|returns|retorted|retorts|repeated|repeats|resumed|resumes|"
+    r"interrupted|interrupts|inquired|inquires|enquired|enquires|"
+    r"protested|protests|declared|declares|insisted|insists|"
+    r"demanded|demands|explained|explains|faltered|falters|"
+    r"stammered|stammers|responded|responds|urged|urges|pleaded|pleads|begged|begs)"
+)
 _SOURCE_SPEECH_TAG = re.compile(
     rf"^[ \t]*(?:[,;][ \t]*)?(?:"
-    rf"(?P<before>{_TAG_NAME})[ \t]+{_REPORTING_VERBS}|"
-    rf"{_REPORTING_VERBS}[ \t]+(?P<after>{_TAG_NAME}))"
+    rf"(?P<before>{_TAG_NAME})(?:[ \t]+(?P<adv_before>{_TAG_ADVERB}))?[ \t]+"
+    rf"(?:{_SOURCE_TAG_VERBS}(?:[ \t]+(?P<adv_after>{_TAG_ADVERB}))?(?:[ \t]+to[ \t]+(?P<obj_b>{_TAG_OBJECT}))?|"
+    rf"(?:told|tells)[ \t]+(?P<obj_t>{_TAG_OBJECT})(?:[ \t]+(?P<adv_after_t>{_TAG_ADVERB}))?)|"
+    rf"{_SOURCE_TAG_VERBS}[ \t]+(?P<after>{_TAG_NAME})"
+    rf"(?:[ \t]+{_TAG_ADVERB})?(?:[ \t]+to[ \t]+(?P<obj_a>{_TAG_OBJECT}))?)"
     r"(?=[ \t]*[,.!?:;])", re.IGNORECASE)
+_TAG_QUOTE_PAIRS = frozenset(_PAIRED)
+# Openers the next-quote guard recognises after a subject-first tag. ‘ is not
+# a PAIRED convention (’ is also the apostrophe), but Gutenberg texts use it
+# for the next quotation.
+_TAG_NEXT_QUOTE_OPENERS = frozenset(QUOTE_MARKS) | {"‘"}
+# Gutenberg texts are hard-wrapped, so the tag's comma and the next quotation
+# can be separated by one line break or by one blank line (#2388 gate 3).
+_TAG_NEXT_QUOTE_WRAP = re.compile(r"[ \t]*\r?\n(?:[ \t]*\r?\n)?[ \t]*")
+
+
+def _get_title_key(word):
+    """One title-token normalizer, shared by tag-name rejection and stripping."""
+    return word.casefold().rstrip(".")
+
+
+def _is_valid_tag_name(value):
+    return bool(
+        value
+        and value.casefold() not in _NON_PERSON_NAME_WORDS
+        and _get_title_key(value) not in NAME_TITLE_PREFIXES
+        and not any(word.casefold().endswith(("'s", "’s", "'", "’"))
+                    for word in value.split())
+        and all(word[:1].isupper() for word in value.split())
+    )
+
+
+def _resolve_alias_canonical(name, aliases, alias_index=None):
+    """Follow speaker_aliases using speaker_identity's normalized key."""
+    if not aliases or not name:
+        return name
+    from speaker_identity import get_speaker_identity_key, get_speaker_label_index
+    index = get_speaker_label_index(aliases.keys()) if alias_index is None else alias_index
+    current, seen = name, set()
+    key = get_speaker_identity_key(current)
+    while key and key not in seen and key in index:
+        seen.add(key)
+        current = aliases[index[key]]
+        key = get_speaker_identity_key(current)
+    return current
+
+
+def _get_speaker_title_and_words(label):
+    """Split a label into its leading titles and the remaining words."""
+    words = remove_silent_word_characters(str(label or "")).split()
+    titles = []
+    while words and _get_title_key(words[0]) in NAME_TITLE_PREFIXES:
+        titles.append(_get_title_key(words[0]))
+        words = words[1:]
+    return titles, words
+
+
+def _is_same_tag_identity(speaker, expected, established_pool):
+    """True when speaker and expected are compatible forms of the same character.
+
+    Distinct established roster labels with different personal words (e.g.
+    MARY MUSGROVE vs MRS MUSGROVE) and labels with conflicting titles (MR. vs
+    MRS.) still contradict, as does a prediction whose extra word is a
+    generational or foreign married-woman marker (JOHN VALE JUNIOR, FRAU JOHN
+    VALE) against the tag's plain name.
+    """
+    from speaker_identity import get_speaker_identity_key, resolve_speaker_label
+    if resolve_speaker_label(speaker, [expected]):
+        return True
+    sp_titles, sp_raw_words = _get_speaker_title_and_words(speaker)
+    exp_titles, exp_raw_words = _get_speaker_title_and_words(expected)
+    sp_words = [key for key in (get_speaker_identity_key(word)
+                                for word in sp_raw_words) if key]
+    exp_words = [key for key in (get_speaker_identity_key(word)
+                                 for word in exp_raw_words) if key]
+    if not sp_words or not exp_words:
+        return False
+    if sp_titles and exp_titles and sp_titles != exp_titles:
+        return False
+    if sp_words == exp_words:
+        # "Mrs. John Vale" is the wife, not the man named after the title. When
+        # only one side carries a married-woman title, the same personal words
+        # do not make the two labels the same character (#2388 gate 2).
+        sp_married = bool(_MARRIED_WOMAN_TITLES.intersection(sp_titles))
+        exp_married = bool(_MARRIED_WOMAN_TITLES.intersection(exp_titles))
+        return sp_married == exp_married
+    if resolve_speaker_label(expected, established_pool):
+        return False
+    if (exp_titles and len(exp_words) == 1 and not sp_titles
+            and len(sp_words) == 1):
+        # A title plus a bare surname cannot name a predicted bare first name:
+        # the surname may belong to any character of that family. Abstain
+        # rather than call the two different characters (#2388).
+        return True
+    if len(exp_words) > len(sp_words):
+        # exp_words are the tag's personal words and sp_words the prediction's
+        # (validate_attribution passes the predicted label first). A tag that
+        # carries MORE name words than the prediction is a different or more
+        # specific label - a wife's foreign title ("Frau John Vale"), a
+        # generational word ("John Vale Junior", "Young John Vale") or a
+        # first name plus surname against a bare first name - not the same
+        # identity (#2388 gate 3). The shorter-tag join below still lets an
+        # unestablished "Miss Vale" label join a predicted "LUCY VALE".
+        return False
+    if any(_get_title_key(word) in _DIFFERENT_PERSON_EXTRA_WORDS
+           for word in sp_words if word not in exp_words):
+        # The prediction carries a word the tag's name does not. A generational
+        # word ("JOHN VALE JUNIOR", "YOUNG JOHN VALE") or a foreign married-
+        # woman title ("FRAU JOHN VALE") makes it a different person from the
+        # tag's plain name; the shorter-tag join below would otherwise accept
+        # it as a suffix/prefix match (#2388 gate 5, variant V6). An extra
+        # honorific ("MARQIS DE GRIERS" vs "De Griers") is not listed and
+        # keeps joining.
+        return False
+    short, full = ((exp_words, sp_words) if len(exp_words) <= len(sp_words)
+                   else (sp_words, exp_words))
+    return full[:len(short)] == short or full[-len(short):] == short
 
 
 def get_attribution_source_digest(source_text):
@@ -1146,18 +1301,37 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
     if not source_text:
         return {}
     from dialogue_spans import get_source_match_positions, spoken_spans
-    from speaker_identity import get_speaker_label_index
+    from speaker_identity import get_speaker_identity_key, get_speaker_label_index
     aliases = speaker_aliases or {}
+    alias_index = get_speaker_label_index(aliases.keys())
     established_names = set(established_names)
+    # Identity keys already owned by another label or alias target. A
+    # title-stripped form is indexed only when it does not claim a different
+    # character's key: "Lady John Vale" is John's wife, so indexing "JOHN VALE"
+    # for her would make his own tag abstain (#2388 gate 1). The comparison is
+    # by resolved identity, so another spelling of the same character is safe.
+    claimed_keys = {}
+    for other in sorted(set(established_names) | set(aliases)
+                        | set(aliases.values()), key=str):
+        other_key = get_speaker_identity_key(other)
+        if other_key:
+            claimed_keys.setdefault(
+                other_key,
+                get_speaker_identity_key(
+                    _resolve_alias_canonical(other, aliases, alias_index)))
     identities = {}
     for label in set(established_names) | set(aliases):
-        canonical = aliases.get(label, label)
-        words = label.split()
-        while words and words[0].casefold().rstrip(".") in NAME_TITLE_PREFIXES:
-            words = words[1:]
+        canonical = _resolve_alias_canonical(label, aliases, alias_index)
+        canonical_key = get_speaker_identity_key(canonical)
+        titles, words = _get_speaker_title_and_words(label)
         forms = [label]
         if words:
             forms.extend([words[0], words[-1]])
+            if len(words) > 1 and not _MARRIED_WOMAN_TITLES.intersection(titles):
+                stripped = " ".join(words)
+                claimed = claimed_keys.get(get_speaker_identity_key(stripped))
+                if claimed is None or claimed == canonical_key:
+                    forms.append(stripped)
             # Keep the title with the first personal component (Lord Henry),
             # but never treat a title alone as a character identity.
             title_count = len(label.split()) - len(words)
@@ -1196,18 +1370,35 @@ def get_attribution_tag_proofs(entries, source_text, established_names=(),
             continue
         before = source_text[max(0, start - 8):start].rstrip(" \t")
         after = source_text[end:end + 160].lstrip(" \t")
-        pairs = {'"': '"', '“': '”', '「': '」', '『': '』'}
-        if not before or not after or pairs.get(before[-1]) != after[0]:
+        if not before or not after or (before[-1], after[0]) not in _TAG_QUOTE_PAIRS:
             continue
-        tag = _SOURCE_SPEECH_TAG.match(after[1:].split("\n", 1)[0])
+        tail = after[1:].split("\n", 1)[0]
+        tag = _SOURCE_SPEECH_TAG.match(tail)
         if not tag:
             continue
+        # At most one optional -ly adverb, before or after the verb.
+        if tag.group("adv_before") and (tag.group("adv_after")
+                                        or tag.group("adv_after_t")):
+            continue
+        if (text and text[-1] in _SENTENCE_END and tag.group("before")
+                and not tail.lstrip(" \t").startswith((",", ";"))):
+            # Read past the tag from the source, not from the line-truncated
+            # tail, so a single hard line wrap can be seen (#2388 gate 2).
+            rest = after[1:][tag.end():].lstrip(" \t")
+            after_punct = (rest[1:].lstrip(" \t")
+                           if rest and rest[0] in (",", ":") else "")
+            wrap = _TAG_NEXT_QUOTE_WRAP.match(after_punct)
+            if wrap:
+                after_punct = after_punct[wrap.end():]
+            if after_punct and after_punct[0] in _TAG_NEXT_QUOTE_OPENERS:
+                continue
+        obj = tag.group("obj_b") or tag.group("obj_a") or tag.group("obj_t")
+        if obj is not None:
+            obj_clean = remove_silent_word_characters(obj)
+            if obj_clean not in _TAG_OBJECT_PRONOUNS and not _is_valid_tag_name(obj_clean):
+                continue
         name = remove_silent_word_characters(tag.group("before") or tag.group("after"))
-        if (name.casefold() in _NON_PERSON_NAME_WORDS or
-                name.casefold().rstrip(".") in NAME_TITLE_PREFIXES or
-                any(word.casefold().endswith(("'s", "’s", "'", "’"))
-                    for word in name.split()) or
-                not all(word[:1].isupper() for word in name.split())):
+        if not _is_valid_tag_name(name):
             continue
         key = next(iter(get_speaker_label_index([name])), None)
         candidates = identities.get(key, set())
@@ -1267,10 +1458,11 @@ def get_exact_attribution_shift_repair(frozen_entries, response_entries, source_
     ok, _reason, ordered = index_head_check(frozen_entries, response_entries)
     if not ok or get_attribution_snapshot_digest(response_entries) is None:
         return unchanged
-    from speaker_identity import resolve_speaker_label
+    from speaker_identity import get_speaker_label_index, resolve_speaker_label
     source_digest = get_attribution_source_digest(source_text)
     if source_digest is None:
         return unchanged
+    alias_index = get_speaker_label_index(aliases.keys())
     resolver_digest = get_attribution_snapshot_digest([
         sorted(set(established_names) | set(known_names)), aliases])
     proposed = copy.deepcopy(ordered)
@@ -1290,9 +1482,10 @@ def get_exact_attribution_shift_repair(frozen_entries, response_entries, source_
                 or proof.get("resolver_context_sha256") != resolver_digest):
             continue
         name = right["speaker"].strip().upper()
-        expected = proof["speaker"]
+        expected = _resolve_alias_canonical(proof["speaker"], aliases, alias_index)
         if (name in ("", "UNKNOWN", "NARRATOR")
-                or not resolve_speaker_label(aliases.get(name, name), [expected])):
+                or not resolve_speaker_label(
+                    _resolve_alias_canonical(name, aliases, alias_index), [expected])):
             continue
         text = frozen_entries[index + 1].get("text", "")
         if not isinstance(text, str) or not text or text != text.strip(" \t"):
@@ -1348,6 +1541,8 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
         tag_evidence = get_attribution_tag_evidence(
             frozen_entries, source_text, established_names, speaker_aliases)
     aliases = speaker_aliases or {}
+    alias_index = None
+    established_pool = None
     findings = []
     for i, (frozen, item) in enumerate(zip(frozen_entries, ordered), 1):
         source_line = frozen.get("text", "")
@@ -1398,10 +1593,14 @@ def validate_attribution(frozen_entries, response_entries, source_text=None,
                 continue
             expected_speaker = tag_evidence.get(i - 1)
             if expected_speaker and speaker.upper() not in ("UNKNOWN", "NARRATOR", ""):
-                from speaker_identity import resolve_speaker_label
-                canonical = aliases.get(speaker.upper(), speaker.upper())
-                if (resolve_speaker_label(canonical, established_names | set(aliases.values()))
-                        and not resolve_speaker_label(canonical, [expected_speaker])):
+                from speaker_identity import get_speaker_label_index, resolve_speaker_label
+                if alias_index is None:
+                    alias_index = get_speaker_label_index(aliases.keys())
+                    established_pool = established_names | set(aliases.values())
+                canonical = _resolve_alias_canonical(speaker.upper(), aliases, alias_index)
+                expected_canonical = _resolve_alias_canonical(expected_speaker, aliases, alias_index)
+                if (resolve_speaker_label(canonical, established_pool)
+                        and not _is_same_tag_identity(canonical, expected_canonical, established_pool)):
                     findings.append({"code": "speaker_contradicts_source_tag",
                                      "entry_number": i, "value": speaker,
                                      "source_line": source_line,
