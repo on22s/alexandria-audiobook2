@@ -10,8 +10,11 @@ being unable to run the suite costs the most. On 2026-08-21
 Two other sweeps already excluded the venv, each with its own hand-rolled
 spelling. That is the drift Rule 15 describes: one question, three answers, and
 the third was wrong. `app_python_files` is now the only answer.
+
+The inventory below covers every app/ module plus every repo-root script (the
+same files the Bandit gate scans); tools/ and app/experiments/ are excluded
+from that gate and from this rule.
 """
-import os
 import pathlib
 import re
 import tempfile
@@ -21,8 +24,13 @@ from tests.test_support import app_python_files
 import source_sweep
 
 APP_DIR = pathlib.Path(__file__).resolve().parent.parent
-TESTS = pathlib.Path(__file__).parent
 BARE_RGLOB = re.compile(r'rglob\(\s*["\']\*\.py["\']\s*\)')
+
+
+def inventory_candidates(repo_root):
+    """Every app/ module plus every repo-root script, as the rule walks them."""
+    return sorted(set(app_python_files(repo_root / "app"))
+                  | set(repo_root.glob("*.py")))
 
 
 class AppPythonFilesTest(unittest.TestCase):
@@ -80,9 +88,19 @@ class SweepScopeInventoryTest(unittest.TestCase):
             self.assertEqual(sentinel, app_python_files(APP_DIR))
         shared.assert_called_once_with(APP_DIR)
 
+    def test_inventory_includes_repo_root_scripts(self):
+        root = pathlib.Path(tempfile.mkdtemp())
+        (root / "app").mkdir()
+        (root / "app" / "module.py").write_text("x = 1\n", encoding="utf-8")
+        (root / "script.py").write_text(
+            'X = list(Path(".").rglob("*.py"))\n', encoding="utf-8")
+        self.assertEqual(
+            {"module.py", "script.py"},
+            {path.name for path in inventory_candidates(root)})
+
     def test_no_module_rglobs_python_files_by_hand(self):
         repo_root = APP_DIR.parent
-        candidates = sorted(set(app_python_files(APP_DIR)))
+        candidates = inventory_candidates(repo_root)
         offenders = []
         for path in candidates:
             rel = path.relative_to(repo_root).as_posix()

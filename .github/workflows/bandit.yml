@@ -31,6 +31,12 @@ jobs:
         # comment that does not name a single known Bandit test id. LOW findings
         # are counted in the report metrics only, not gated.
         run: python bandit_gate.py
+      - name: Check the known-id fallback against the installed Bandit
+        # The unit jobs install no Bandit, so test_bandit_gate skips this exact
+        # equality assertion there. This is the only job with the pinned
+        # Bandit; running it here means a stale KNOWN_BANDIT_IDS fails CI
+        # instead of drifting silently with a requirements-security bump.
+        run: python -m unittest -v tests.test_bandit_gate.BanditGateTests.test_known_bandit_ids_covers_repo_and_matches_installed_bandit
       - name: Upload Bandit report
         if: always()
         uses: actions/upload-artifact@v6

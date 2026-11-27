@@ -66,7 +66,7 @@ def check_nosec_convention(path, valid_ids):
         if token.type != tokenize.COMMENT:
             continue
         comment = token.string
-        if not bandit_gate.NOSEC_LINE.search(comment):
+        if not bandit_gate.NOSEC_ANY_CASE.search(comment):
             continue
         line_number = token.start[0]
         match = bandit_gate.VALID_NOSEC_LINE.match(comment)
@@ -240,10 +240,43 @@ class BanditGateTests(unittest.TestCase):
             with self.assertRaises(configparser.DuplicateSectionError):
                 bandit_gate.get_exclude_patterns(bad_ini)
 
+    def test_missing_or_uninterpolatable_excludes_fail_the_gate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            missing_option = root / "missing_option.ini"
+            missing_option.write_text("[bandit]\n", encoding="utf-8")
+            with self.assertRaises(configparser.Error):
+                bandit_gate.get_exclude_patterns(missing_option)
+            missing_section = root / "missing_section.ini"
+            missing_section.write_text("[other]\nkey = 1\n", encoding="utf-8")
+            with self.assertRaises(configparser.Error):
+                bandit_gate.get_exclude_patterns(missing_section)
+            # ConfigParser keeps its default interpolation, so a bare "%" raises
+            # instead of being passed through to a pattern that cannot match.
+            percent = root / "percent.ini"
+            percent.write_text("[bandit]\nexclude = app/100%/x.py\n",
+                               encoding="utf-8")
+            with self.assertRaises(configparser.Error):
+                bandit_gate.get_exclude_patterns(percent)
+
+            stderr = io.StringIO()
+            with mock.patch.object(
+                    bandit_gate, "collect_targets",
+                    side_effect=configparser.NoSectionError("bandit")), \
+                    mock.patch.object(bandit_gate.subprocess, "run") as run_mock, \
+                    contextlib.redirect_stderr(stderr):
+                self.assertEqual(2, bandit_gate.main())
+            run_mock.assert_not_called()
+            self.assertIn("bandit did not run", stderr.getvalue())
+
     def test_workflow_runs_the_gate_on_the_linux_pin(self):
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         self.assertIn("runs-on: ubuntu-24.04", workflow)
         self.assertIn("python bandit_gate.py", workflow)
+        self.assertIn(
+            "python -m unittest -v tests.test_bandit_gate.BanditGateTests."
+            "test_known_bandit_ids_covers_repo_and_matches_installed_bandit",
+            workflow)
         self.assertNotIn("bandit-baseline", workflow)
         self.assertNotIn("--baseline", workflow)
         self.assertNotIn("continue-on-error", workflow)
@@ -287,6 +320,17 @@ class BanditGateTests(unittest.TestCase):
         })
         self.assertEqual(1, len(findings))
         self.assertIn("B602", findings[0])
+
+        prefixed = bandit_gate.get_problems({
+            "errors": [{"filename": "./app/bad.py", "reason": "syntax error"}],
+            "results": [{"filename": "./app/new_module.py", "line_number": 4,
+                         "test_id": "B602", "issue_severity": "HIGH",
+                         "issue_text": "subprocess call with shell=True"}],
+        })
+        self.assertEqual(
+            ["could not scan app/bad.py: syntax error",
+             "app/new_module.py:4 B602 HIGH: subprocess call with shell=True"],
+            prefixed)
 
         blanket = bandit_gate.get_problems({
             "errors": [],
@@ -335,6 +379,18 @@ class BanditGateTests(unittest.TestCase):
                 "# reviewed: bare\nx = 1  # nosec\n", encoding="utf-8")
             (root / "nospace.py").write_text(
                 "# reviewed: no space\nx = 1  #nosec B314\n", encoding="utf-8")
+            (root / "no_separator.py").write_text(
+                "# reviewed: no separator\nx = 1  # nosecB314\n",
+                encoding="utf-8")
+            (root / "no_separator_no_space.py").write_text(
+                "# reviewed: no separator or space\nx = 1  #nosecB314\n",
+                encoding="utf-8")
+            (root / "no_separator_two_ids.py").write_text(
+                "# reviewed: bandit keeps only the last id\n"
+                "x = 1  # nosecB314B602\n", encoding="utf-8")
+            (root / "uppercase.py").write_text(
+                "# reviewed: case typo\nx = 1  # NOSEC B314\n",
+                encoding="utf-8")
             (root / "tabbed.py").write_text(
                 "# reviewed: tab\nx = 1  #\tnosec\tB314\n", encoding="utf-8")
             (root / "colon.py").write_text(
@@ -346,6 +402,9 @@ class BanditGateTests(unittest.TestCase):
             (root / "clean.py").write_text(
                 "# reviewed: bounded input\nx = 1  # nosec B314\n",
                 encoding="utf-8")
+            (root / "builtin_id.py").write_text(
+                "# reviewed: B001 is Bandit's builtin id\n"
+                "x = 1  # nosec B001\n", encoding="utf-8")
             (root / "string_only.py").write_text(
                 'EXAMPLE = "x = 1  # nosec B999"\n', encoding="utf-8")
 
@@ -358,7 +417,10 @@ class BanditGateTests(unittest.TestCase):
             self.assertEqual(1, len(zero))
             self.assertIn("B0", zero[0])
 
-            for name in ("bare.py", "nospace.py", "tabbed.py", "colon.py",
+            for name in ("bare.py", "nospace.py", "no_separator.py",
+                         "no_separator_no_space.py",
+                         "no_separator_two_ids.py", "uppercase.py",
+                         "tabbed.py", "colon.py",
                          "other_id.py", "plugin_name.py"):
                 with self.subTest(name=name):
                     found = bandit_gate.get_nosec_problems([name], root)
@@ -367,6 +429,8 @@ class BanditGateTests(unittest.TestCase):
 
             self.assertEqual(
                 [], bandit_gate.get_nosec_problems(["clean.py"], root))
+            self.assertEqual(
+                [], bandit_gate.get_nosec_problems(["builtin_id.py"], root))
             self.assertEqual(
                 [], bandit_gate.get_nosec_problems(["string_only.py"], root))
 
@@ -384,6 +448,31 @@ class BanditGateTests(unittest.TestCase):
             _, nospace_no_reason_violations = check_nosec_convention(
                 root / "nospace_no_reason.py", valid_ids)
             self.assertEqual(1, len(nospace_no_reason_violations))
+
+            # Every spelling Bandit honours as a per-id suppression without the
+            # exact "# nosec BXXX" shape must fail the convention helper too.
+            for name in ("no_separator.py", "no_separator_no_space.py",
+                         "no_separator_two_ids.py", "uppercase.py"):
+                with self.subTest(convention=name):
+                    _, violations = check_nosec_convention(
+                        root / name, valid_ids)
+                    self.assertEqual(1, len(violations))
+                    self.assertIn(name, violations[0])
+
+    def test_nosec_regex_matches_bandit_without_a_word_boundary(self):
+        # bandit.core.manager.NOSEC_COMMENT is r"#\s*nosec:?\s*..." with no
+        # word boundary, and _parse_nosec_comment turns "# nosecB314" into
+        # {'B314'} (the last id wins). A \b in the gate let those spellings
+        # bypass both the id check and the reason-on-the-line-above rule.
+        for comment in ("# nosec B314", "# nosecB314", "#nosecB314",
+                        "# nosec:B314", "# nosec_B314", "# nosecB314B602"):
+            with self.subTest(comment=comment):
+                self.assertTrue(bandit_gate.NOSEC_LINE.search(comment))
+                self.assertTrue(bandit_gate.NOSEC_ANY_CASE.search(comment))
+        # Bandit's regex is case-sensitive, so "# NOSEC B314" suppresses
+        # nothing; the gate still rejects it as a non-conforming spelling.
+        self.assertIsNone(bandit_gate.NOSEC_LINE.search("# NOSEC B314"))
+        self.assertTrue(bandit_gate.NOSEC_ANY_CASE.search("# NOSEC B314"))
 
     def test_gate_reads_pep263_latin1_files_for_nosec_checks(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -422,15 +511,18 @@ class BanditGateTests(unittest.TestCase):
                 [], bandit_gate.get_nosec_problems(["latin1_clean.py"], root))
 
     def test_known_bandit_ids_covers_repo_and_matches_installed_bandit(self):
+        self.assertIn("B001", bandit_gate.KNOWN_BANDIT_IDS)
         for test_id in ("B104", "B108", "B113", "B301", "B314", "B602", "B615"):
             self.assertIn(test_id, bandit_gate.KNOWN_BANDIT_IDS)
         self.assertNotIn("B999", bandit_gate.KNOWN_BANDIT_IDS)
         self.assertNotIn("B0", bandit_gate.KNOWN_BANDIT_IDS)
         if importlib.util.find_spec("bandit") is not None:
+            installed = bandit_gate.get_known_test_ids(require_bandit=True)
             self.assertEqual(
                 bandit_gate.KNOWN_BANDIT_IDS,
-                bandit_gate.get_known_test_ids(require_bandit=True),
+                installed,
             )
+            self.assertIn("B001", installed)
 
     def test_low_findings_do_not_gate(self):
         self.assertEqual("medium", bandit_gate.SEVERITY_LEVEL)

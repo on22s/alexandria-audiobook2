@@ -49,13 +49,24 @@ MAX_COMMAND_LINE_CHARS = 24000
 # set, which Bandit treats as a BLANKET suppression hiding every finding on the
 # line. The convention is an id-only nosec comment with one known test id and
 # the reason on the line above.
-NOSEC_LINE = re.compile(r"#\s*nosec\b[^#\n]*")
+#
+# The prefix mirrors bandit.core.manager.NOSEC_COMMENT
+# (r"#\s*nosec:?\s*(?P<tests>[^#]+)?#?"): there is NO word boundary after
+# "nosec", so a comment spelling it with no separator (nosecB314) is a per-id
+# suppression, and the last id in the comment wins (nosecB314B602 suppresses
+# only B602). A \b here previously let those spellings skip both the id check
+# and the reason rule.
+NOSEC_LINE = re.compile(r"#\s*nosec[^#\n]*")
+# Bandit's own regex is case-sensitive, so an upper-case spelling suppresses
+# nothing. It is still rejected as a likely typo rather than silently ignored.
+NOSEC_ANY_CASE = re.compile(r"#\s*nosec[^#\n]*", re.IGNORECASE)
 VALID_NOSEC_LINE = re.compile(r"^# nosec (?P<id>B\d+)\s*$")
 
 # Pinned to bandit==1.8.6 (app/requirements-security.txt) as fallback when
 # Bandit is not installed (e.g. the Bandit-free unit test job). Whenever Bandit
 # is installed, get_known_test_ids() queries Bandit's own extension registry.
 KNOWN_BANDIT_IDS = frozenset({
+    "B001",
     "B101", "B102", "B103", "B104", "B105", "B106", "B107", "B108", "B110",
     "B112", "B113", "B201", "B202", "B301", "B302", "B303", "B304", "B305",
     "B306", "B307", "B308", "B310", "B311", "B312", "B313", "B314", "B315",
@@ -71,7 +82,9 @@ KNOWN_BANDIT_IDS = frozenset({
 def get_known_test_ids(require_bandit=False):
     """Return every known Bandit test id from Bandit's own registry.
 
-    Falls back to ``KNOWN_BANDIT_IDS`` only when Bandit is not installed and
+    The registry is Bandit's plugin, blacklist, and builtin ids (``B001`` is
+    accepted by ``Manager.check_id`` but suppresses no test result). Falls back
+    to ``KNOWN_BANDIT_IDS`` only when Bandit is not installed and
     ``require_bandit`` is False (for Bandit-free unit tests).
     """
     try:
@@ -81,16 +94,21 @@ def get_known_test_ids(require_bandit=False):
             raise
         return KNOWN_BANDIT_IDS
     manager = extension_loader.MANAGER
-    return frozenset(manager.plugins_by_id) | frozenset(manager.blacklist_by_id)
+    return (frozenset(manager.plugins_by_id)
+            | frozenset(manager.blacklist_by_id)
+            | frozenset(manager.builtin))
 
 
 def get_exclude_patterns(ini_path=INI_PATH):
-    """Read the comma-separated ``[bandit] exclude`` patterns from the INI."""
+    """Read the comma-separated ``[bandit] exclude`` patterns from the INI.
+
+    A missing section or option is a hard error, not an empty exclusion list:
+    silently scanning the tests and experiments would make the gate slower
+    without anyone noticing the edit.
+    """
     parser = configparser.ConfigParser(strict=True)
     with Path(ini_path).open("r", encoding="utf-8") as handle:
         parser.read_file(handle)
-    if not parser.has_option("bandit", "exclude"):
-        return []
     raw = parser.get("bandit", "exclude")
     return [pattern.strip() for pattern in raw.split(",") if pattern.strip()]
 
@@ -163,7 +181,7 @@ def get_nosec_problems(targets, root=ROOT, valid_ids=None):
             continue
         for token in comments:
             comment = token.string
-            if not NOSEC_LINE.search(comment):
+            if not NOSEC_ANY_CASE.search(comment):
                 continue
             match = VALID_NOSEC_LINE.match(comment)
             if not match:
@@ -190,12 +208,13 @@ def get_problems(report, expected_targets=None):
     for error in errors:
         problems.append(
             "could not scan {filename}: {reason}".format(
-                filename=error.get("filename"), reason=error.get("reason")))
+                filename=_relative_report_path(error.get("filename") or ""),
+                reason=error.get("reason")))
     for result in report.get("results") or []:
         text = " ".join(str(result.get("issue_text") or "").split())
         problems.append(
             "{filename}:{line_number} {test_id} {severity}: {text}".format(
-                filename=result.get("filename"),
+                filename=_relative_report_path(result.get("filename") or ""),
                 line_number=result.get("line_number"),
                 test_id=result.get("test_id"),
                 severity=result.get("issue_severity"),
