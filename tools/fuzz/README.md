@@ -53,11 +53,15 @@ as malformed-input refusals; everything else crashes the run:
 - **Known library bugs** (`#2367`, `#2368`, `#2370`, `#2371`, `#2375`) are
   matched by the throwing function's source file and function name plus the
   exception type. Each filtered function has one reachable failure site (or,
-  for `get_epub_xhtml_text`, the two decode statements documented in #2368),
-  so no bytecode/`tb_lasti` inspection is used. Opcode names and call layouts
+  for `#2368`, the two decode statements documented in that bug), so no
+  bytecode/`tb_lasti` inspection is used. Opcode names and call layouts
   differ across CPython versions (`LOAD_METHOD` is gone in 3.12, `CALL_METHOD`
   in 3.13) and Atheris rewrites the code it instruments, so a bytecode window
-  would be a CPython-3.10-only assumption. The encoding-declaration filters
+  would be a CPython-3.10-only assumption. `get_epub_xhtml_text` delegates to
+  `alexandria_alignment.decode_epub_markup`, so #2368's two decode statements
+  now raise in `decode_epub_markup` (the resource decode) and
+  `_decode_head_encoding` (the declared name); the filter accepts either frame
+  and still accepts the old router frame. The encoding-declaration filters
   (`#2368`/`#2370`/`#2375`) cover every CPython 3.10 failure mode of those
   bugs: `LookupError` for an unknown codec plus `ValueError` for
   `multi-byte encodings are not supported` (`#2370`/`#2375`) and
@@ -98,7 +102,8 @@ name), `regression_2377_ipv6_manifest_href.epub` (a manifest `href` of
 stdlib `BytesIO.seek` refuse with `ValueError`).
 
 `tools/fuzz/corpus/epub_structured/` includes `seed_05_chapter_decode.bin`, a
-synthetic input whose generated EPUB has a spine chapter that reaches
-`get_epub_xhtml_text` and chapter decoding (the original `seed_01`/`seed_04`
+synthetic input whose generated EPUB has a spine chapter that reaches the XHTML
+decode (`get_epub_xhtml_text` → `alexandria_alignment.decode_epub_markup`) and
+chapter decoding (the original `seed_01`/`seed_04`
 only exercise container/OPF handling because their generated chapters are
 absent or non-HTML).

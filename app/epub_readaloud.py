@@ -49,6 +49,10 @@ import unicodedata
 import xml.etree.ElementTree as ET
 
 import utils  # inserts the repo root on sys.path for alexandria_alignment users
+from alexandria_alignment import (
+    html_hidden_handling_applies,
+    is_html_hidden_attrs,
+)
 from epub_package import get_epub_package, is_navigation_document
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from qwen_align import (get_normalized_stream, get_stream_chars,
@@ -175,6 +179,10 @@ def _namespace(tag):
     return ""
 
 
+def _is_hidden_element(element):
+    return is_html_hidden_attrs(element.attrib, element_namespace=_namespace(element.tag))
+
+
 def _text_node_text(node):
     return "".join(node.itertext())
 
@@ -274,11 +282,11 @@ def get_spine_documents(archive_bytes, *, max_xml_bytes=MAX_EPUB_READALOUD_XML_B
 
 
 def _visible_pieces(node):
-    """Yield visible text-node strings of a subtree in order (skip script/style)."""
+    """Yield visible text-node strings of a subtree in order (skip script/style/hidden)."""
     if node.text:
         yield node.text
     for child in node:
-        if _local(child.tag) in _EXCLUDE:
+        if _local(child.tag) in _EXCLUDE or _is_hidden_element(child):
             if child.tail:
                 yield child.tail
             continue
@@ -321,10 +329,20 @@ def _get_optional_titles(root, segments, toc, path):
     order = {id(element): position for position, element in enumerate(root.iter())}
     starts = [order.get(id(segment["element"]), -1) for segment in segments]
     by_id = {}
-    for element in root.iter():
+    stack = [root]
+    while stack:
+        element = stack.pop()
+        # Skip only hidden subtrees (hidden handling's scope). Ids inside
+        # script/style stay indexed exactly as origin/main indexed them, so a
+        # hidden-free book speaks the same navigation labels.
+        if _is_hidden_element(element):
+            continue
         for key in (element.get("id"), element.get("{http://www.w3.org/XML/1998/namespace}id")):
             if key and key not in by_id:
                 by_id[key] = element
+        children = list(element)
+        if children:
+            stack.extend(reversed(children))
     titles = {}
     for fragment, label in targets:
         index = 0
@@ -347,7 +365,7 @@ def _get_ruby_element_spoken_text(ruby):
 
     def _walk(node):
         tag = _local(node.tag)
-        if tag in _EXCLUDE or tag == RUBY_FALLBACK_TAG:
+        if tag in _EXCLUDE or tag == RUBY_FALLBACK_TAG or _is_hidden_element(node):
             return
         if tag == RUBY_READING_TAG:
             collector.start_reading()
@@ -376,7 +394,7 @@ def _direct_pieces(node, is_root=True):
     if node.text:
         out.append(node.text)
     for child in node:
-        if _local(child.tag) in _EXCLUDE:
+        if _local(child.tag) in _EXCLUDE or _is_hidden_element(child):
             if child.tail:
                 out.append(child.tail)
             continue
@@ -395,18 +413,81 @@ def _has_direct_text(node):
 
 
 def _has_block_descendant(node):
-    for desc in node.iter():
-        if desc is node:
+    # origin/main counted any block descendant, including one inside
+    # script/style (those subtrees are only skipped when narrating, not when
+    # deciding whether a block is a segment root). The one change here is that
+    # a hidden subtree and everything inside it does not count.
+    for child in node:
+        if _is_hidden_element(child):
             continue
-        if _local(desc.tag) in _BLOCK:
+        if _local(child.tag) in _BLOCK or _has_block_descendant(child):
             return True
     return False
 
 
-def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML_BYTES):
-    """Return (root_element, segments[{fragment, text}]) for one spine file."""
+def _spine_document_media_type(archive_bytes, path):
+    """Return the OPF media type for ``path``, or None when it is not a spine item."""
+    try:
+        _opf, _package, _namespace, _manifest, spine, _meta = get_spine_documents(archive_bytes)
+    except (ValueError, KeyError, ET.ParseError, zipfile.BadZipFile):
+        return None
+    for item in spine:
+        if item['path'] == path:
+            return item['media_type']
+    return None
+
+
+def _first_visible_body(root):
+    """Return ``(saw_body, body)``: the first ``<body>`` with no hidden ancestor.
+
+    ``get_xhtml_segments`` uses the first ``<body>`` in document order as the
+    segment root. A body inside a hidden ancestor must not become that root,
+    or its hidden text would be narrated; skip it and use the next visible
+    body. The shared predicate (:func:`_is_hidden_element`, the same one every
+    other read-aloud walk uses) decides hidden on the element itself and on
+    each ancestor, Rule 15.
+
+    ``saw_body`` distinguishes "this document has no ``<body>``" (segment the
+    root, as ``origin/main`` did) from "bodies exist but all are hidden"
+    (nothing may be segmented).
+    """
+    saw_body = False
+    stack = [(root, False)]
+    while stack:
+        element, hidden_ancestor = stack.pop()
+        element_hidden = hidden_ancestor or _is_hidden_element(element)
+        if _local(element.tag) == 'body':
+            saw_body = True
+            if not element_hidden:
+                return True, element
+        for child in reversed(list(element)):
+            stack.append((child, element_hidden))
+    return saw_body, None
+
+
+def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML_BYTES,
+                       *, media_type=None):
+    """Return (root_element, segments[{fragment, text}]) for one spine file.
+
+    Hidden handling is scoped by the one shared predicate
+    (:func:`alexandria_alignment.html_hidden_handling_applies`): it applies
+    only to a well-formed ``application/xhtml+xml`` spine item. The media type
+    comes from the OPF unless the caller (the read-aloud builder, which
+    already has it) passes ``media_type``. Every production caller passes it;
+    only tests go through the ``media_type=None`` path, where
+    ``_spine_document_media_type`` reparses the whole OPF (package and nav)
+    for each segment call. That is O(spine) in production and O(n^2) only for
+    a test or other caller that asks for every spine file without a media
+    type. Every other media type gets its
+    hidden attributes stripped before the walk, so the text is narrated
+    exactly as ``origin/main`` narrated it. Well-formedness is guaranteed
+    here: the document has already parsed as XML or this function raised.
+    """
     if path.startswith("../") or "\\" in path:
         raise ValueError("Spine path escapes the archive.")
+    if media_type is None:
+        media_type = _spine_document_media_type(archive_bytes, path)
+    apply_hidden = html_hidden_handling_applies(media_type, xml_well_formed=True)
     with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
         member_index = _get_archive_member_index(archive.infolist())
         if path not in member_index:
@@ -419,6 +500,16 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
         raise ValueError(f"Spine document is malformed: {path}") from error
     if _namespace(root.tag) != XHTML_NS:
         raise ValueError(f"Spine document is not in the XHTML namespace: {path}")
+    if not apply_hidden:
+        # No hidden handling for this document: drop the attributes so every
+        # downstream walker (segments, sentence spans, optional titles)
+        # narrates the text exactly as origin/main did.
+        for element in root.iter():
+            if not isinstance(element.tag, str):
+                continue
+            for key in [key for key in element.attrib
+                        if key.rsplit(':', 1)[-1].rsplit('}', 1)[-1].lower() == 'hidden']:
+                del element.attrib[key]
     seen_ids = set()
     for element in root.iter():
         element_ids = {element.get('id'),
@@ -428,11 +519,13 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
                 # Duplicate stable ids would make SMIL references ambiguous.
                 raise ValueError(f"Duplicate element id in spine document: {element_id}")
             seen_ids.add(element_id)
-    body = None
-    for element in root.iter():
-        if _local(element.tag) == 'body':
-            body = element
-            break
+    if _is_hidden_element(root):
+        return root, [], ""
+    saw_body, body = _first_visible_body(root)
+    if saw_body and body is None:
+        # Bodies exist, but every one sits inside a hidden subtree. There is
+        # no visible segment root, so there is nothing to narrate.
+        return root, [], ""
     start = body if body is not None else root
     segments = []
 
@@ -444,7 +537,7 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
 
     def _process(el):
         tag = _local(el.tag)
-        if tag in _EXCLUDE or tag == 'head':
+        if tag in _EXCLUDE or tag == 'head' or _is_hidden_element(el):
             return
         if tag in _BLOCK or tag in _CONTAINER or tag == 'html':
             if _has_direct_text(el):
@@ -1145,27 +1238,47 @@ def _inline_events(element):
     malformed book. Textless inline elements (img/br, empty <em>, and
     script/style) surface as atoms so they survive redistribution
     exactly once; their tails remain separate text events.
+
+    A hidden element is skipped exactly like ``_EXCLUDE``, so it emits no
+    atom and no clone. Adjacent text events are coalesced: removing the
+    hidden element leaves its text node's tail next to the preceding text,
+    where the same document with the hidden subtrees physically deleted has
+    one text node. Coalescing makes the event stream match that document
+    event for event, without changing any emitted span.
     """
     events = []
 
+    def add_text(value):
+        if events and events[-1][0] == "text":
+            events[-1] = ("text", events[-1][1] + value)
+        else:
+            events.append(("text", value))
+
     def walk(node):
         if node.text:
-            events.append(("text", node.text))
+            add_text(node.text)
         for child in node:
             tag = _local(child.tag)
-            if tag in _BLOCK or tag in _CONTAINER:
+            if tag in _INLINE_SKIP or not isinstance(child.tag, str):
+                events.append(("atom", child))
+            elif _is_hidden_element(child):
+                # A hidden subtree carries no spoken text. Skip it exactly
+                # like _EXCLUDE in _visible_pieces: no atom and no clone, so
+                # the span output matches origin/main on the tree with the
+                # hidden subtrees physically removed (only the tail stays).
+                pass
+            elif tag in _BLOCK or tag in _CONTAINER:
                 raise ValueError(
                     "Sentence spans are unsupported inside a coarsened "
                     "container with nested blocks; refusing to guess.")
-            if tag in _INLINE_SKIP or not isinstance(child.tag, str) \
-                    or _is_textless_element(child):
+            elif _is_textless_element(child):
                 events.append(("atom", child))
             else:
                 events.append(("open", child))
                 walk(child)
                 events.append(("close", child))
             if child.tail:
-                events.append(("text", child.tail))
+                add_text(child.tail)
 
     walk(element)
     return events
@@ -2203,7 +2316,8 @@ def build_epub_readaloud(*, retained_epub_bytes, audio_bytes, audio_filename, sc
                 raise ValueError(f"Retained EPUB spine item has no media type: {spine_item['path']}")
             # Cover / non-content spine items keep no overlay.
             continue
-        root, segments, _full = get_xhtml_segments(retained_epub_bytes, spine_item["path"])
+        root, segments, _full = get_xhtml_segments(
+            retained_epub_bytes, spine_item["path"], media_type=mtype)
         if not segments:
             # Image-only / empty XHTML (cover, title page): no narration
             # required and no chunks consumed; real visible text still maps.
