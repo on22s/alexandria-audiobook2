@@ -8080,6 +8080,17 @@
     , "tests.test_isolated_api_port.IsolatedApiPortTests.test_parent_failure_and_timeout_stop_only_owned_child_and_remove_state"
     , "tests.test_isolated_api_port.IsolatedApiPortTests.test_windows_receipt_open_denial_retries_until_readable_or_deadline"
   ]
+  , "test_issue_2331_single_quote_nesting": [
+    "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_a_double_quoted_book_with_nested_single_quotes_is_unchanged"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_an_unclosed_opener_does_not_run_past_its_paragraph_or_500_chars"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_apostrophes_elisions_and_wrong_direction_do_not_open_speech"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_double_quoted_decisions_and_gate_are_unchanged"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_first_issue_example_is_not_presegmented_inside_out"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_mixed_conventions_in_different_paragraphs_ask_and_split_both"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_second_issue_example_is_not_presegmented_inside_out"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_straight_quote_version_is_not_presegmented_inside_out"
+    , "tests.test_issue_2331_single_quote_nesting.SingleQuotedSpeechTests.test_the_same_text_without_nested_quotes_is_unchanged"
+  ]
   , "test_issue_628_whitespace_entries": [
     "tests.test_issue_628_whitespace_entries.DropWhitespaceEntries.test_an_empty_unit_standing_for_real_text_is_kept_for_the_gate"
     , "tests.test_issue_628_whitespace_entries.DropWhitespaceEntries.test_line_break_units_between_quotations_are_dropped"

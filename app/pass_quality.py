@@ -26,7 +26,8 @@ from script_preflight import find_adjacent_duplicate_blocks, find_seam_duplicate
 _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 # Derive every quote-mark set from dialogue_spans' single PAIRED table so the
 # source-map and the generator's segmenter cannot drift apart.
-from dialogue_spans import (PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
+from dialogue_spans import (BLANK_LINE as _BLANK_LINE,
+                            PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
                             get_guillemet_direction as _get_guillemet_direction,
                             is_inch_mark as _is_inch_mark,
                             is_number_char as _is_number_char)
@@ -41,6 +42,95 @@ _SENTENCE_END = set('.!?…。！？')
 _CURLY_AND_JAPANESE_CLOSE = ({closer for _opener, closer in _PAIRED
                               if closer not in ('"', '＂', '«', '»')} | {'”'})
 _SELF_PAIRED = {'"', '＂'}
+# A single-quoted speech span must close in its own paragraph and within this
+# many characters; an opener with no closer nearby is an apostrophe or a stray
+# mark, not dialogue. The crystal-coding-time fork found an unbounded `‘` ran to
+# the next stray apostrophe in a later paragraph.
+_SINGLE_QUOTE_MAX_SPAN = 500
+_SINGLE_QUOTE_OPEN_CLOSE = {"\u2018": "\u2019", "'": "'"}
+# A straight single quote also elides: 'tis, 'em, '90s open a word, not speech.
+_STRAIGHT_SINGLE_ELISION = re.compile(
+    r"(?:\d|tis|twas|twere|twill|em|cause|cos|round|bout|til|till|n)(?![A-Za-z])",
+    re.IGNORECASE)
+# The double-quote conventions a single-quoted speech can quote someone with.
+_DOUBLE_QUOTE_PAIRS = (('"', '"'), ("\u201c", "\u201d"), ("\u201e", "\u201c"),
+                       ("\u201e", "\u201d"), ("\uff02", "\uff02"))
+
+
+def _is_single_quote_opener(text, index):
+    """True when the mark at `index` can open single-quoted speech.
+
+    Curly and straight apostrophes are one character family: a mark after a
+    word character writes a possessive or contraction (`Anna’s`, `the Joneses’`,
+    `can't`) and a mark before `tis`/`em`/`90s` writes an elision. A `‘` after a
+    word character is a wrong-direction closer (`‚Hallo‘`), not an opener.
+    """
+    char = text[index]
+    if char not in _SINGLE_QUOTE_OPEN_CLOSE:
+        return False
+    previous = text[index - 1] if index else ""
+    if previous and (previous.isalnum()
+                     or previous in "\u2018\u2019'\u201a"):
+        return False
+    following = text[index + 1] if index + 1 < len(text) else ""
+    if not following or following.isspace():
+        return False
+    if char == "'" and _STRAIGHT_SINGLE_ELISION.match(text, index + 1):
+        return False
+    return True
+
+
+def _is_single_quote_closer(text, index):
+    """True when the mark at `index` closes the span it opened.
+
+    A letter or digit after the mark makes it an apostrophe inside a word
+    (`can't`, `Anna’s`), not the end of speech.
+    """
+    following = text[index + 1] if index + 1 < len(text) else ""
+    return not (following and following.isalnum())
+
+
+def single_quoted_speech_spans(text):
+    """-> [(opener, content_start, content_end, closer)] for single-quoted speech.
+
+    ONE function decides what a single-quoted speech span is, so the quote
+    decision and the segment gate cannot disagree (#2331). A span opens only on
+    a real opener and must close before the paragraph ends and within
+    `_SINGLE_QUOTE_MAX_SPAN` characters of that opener.
+    """
+    spans, index, length = [], 0, len(text)
+    while index < length:
+        closer = _SINGLE_QUOTE_OPEN_CLOSE.get(text[index])
+        if closer is None or not _is_single_quote_opener(text, index):
+            index += 1
+            continue
+        limit = min(index + _SINGLE_QUOTE_MAX_SPAN + 1, length)
+        paragraph = _BLANK_LINE.search(text, index + 1)
+        if paragraph and paragraph.start() < limit:
+            limit = paragraph.start()
+        cursor = index + 1
+        while cursor < limit:
+            if (text[cursor] == closer
+                    and _is_single_quote_closer(text, cursor)):
+                if text[index + 1:cursor].strip():
+                    spans.append((index, index + 1, cursor, cursor))
+                index = cursor + 1
+                break
+            cursor += 1
+        else:
+            index += 1
+    return spans
+
+
+def _span_contains_double_quote(text, start, end):
+    """Does the single-quoted speech between these content offsets quote
+    someone with a paired double-quoted phrase?"""
+    for opener, closer in _DOUBLE_QUOTE_PAIRS:
+        begin = text.find(opener, start, end)
+        if begin != -1 and text.find(closer, begin + 1, end) != -1:
+            return True
+    return False
+
 
 
 _REPORTING_VERBS = (
@@ -112,6 +202,23 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
         at = bisect_right(quote_positions, index)
         return quote_at[quote_positions[at]] if at < len(quote_positions) else None
 
+    # Single-quoted speech that quotes someone in double quotes (#2331). Its
+    # outer convention is the single quote, so the double quotes inside it are
+    # nested speech, not the mark that opens this chunk's speech. When one span
+    # nests a double-quoted phrase, the chunk's other single-quoted speeches are
+    # the same convention and are adopted with it. A double-quoted book with
+    # nested single quotes nests no double quote, so it keeps its analysis byte
+    # for byte.
+    single_spans = single_quoted_speech_spans(text)
+    single_openers, single_closers = {}, set()
+    if any(_span_contains_double_quote(text, content_start, content_end)
+           for _opener, content_start, content_end, _closer in single_spans):
+        for opener_at, _content_start, _content_end, closer_at in single_spans:
+            single_openers[opener_at] = closer_at
+            single_closers.add(closer_at)
+    nested_single = False
+    open_single_close = None
+
     def flush():
         nonlocal pending_source_label
         part = "".join(current).strip()
@@ -148,6 +255,23 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
             # next English “…” read as a nested German quote: its speech went
             # to NARRATOR, or the narration before it to SPOKEN.
             open_stack.clear()
+        if index in single_openers and depth == 0:
+            # The span is the book's speech here even though ‘ and ' are not
+            # in PAIRED. Its outer delimiters are omitted like any others.
+            flush()
+            depth = 1
+            outer_opener = char
+            open_single_close = single_openers[index]
+            nested_single = True
+            saw_quote = True
+            continue
+        if (open_single_close is not None and index == open_single_close
+                and depth == 1):
+            flush()
+            depth = 0
+            outer_opener = None
+            open_single_close = None
+            continue
         if char == "“" and open_stack and open_stack[-1] == "„":
             # `“` closes German, but also opens English. If a `”` follows it
             # next, this is an English quote nested inside the German speech.
@@ -183,6 +307,10 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                 depth = 1
                 outer_opener = char
                 saw_quote = True
+            elif outer_opener in _SINGLE_QUOTE_OPEN_CLOSE:
+                # A double quote nested inside single-quoted speech is inner
+                # speech, not a new top-level quote convention (#2331).
+                depth += 1
             elif not text[paragraph_start:index].strip():
                 # Publishers repeat an opening quote at the start of each
                 # paragraph in one continuous, multi-paragraph speech.
@@ -290,6 +418,17 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
                 current.append(char)
                 saw_quote = True
                 continue
+            if outer_opener in _SINGLE_QUOTE_OPEN_CLOSE:
+                # A straight double-quote pair nested in single-quoted speech
+                # opens and closes a nesting level instead of toggling the
+                # outer speech (#2331).
+                if open_stack and open_stack[-1] == char:
+                    depth -= 1
+                    open_stack.pop()
+                else:
+                    depth += 1
+                    open_stack.append(char)
+                continue
             if depth == 0 and _is_metadata_paragraph(current):
                 saw_quote = True
                 continue
@@ -319,7 +458,13 @@ def analyze_outer_quote_regions(text, initial_depth=0, allow_open_end=False):
     complete = depth == 0 or allow_open_end
     return {"regions": regions if saw_quote and complete else [],
             "repairs": repairs, "initial_depth": initial_depth,
-            "final_depth": depth}
+            "final_depth": depth,
+            # A chunk whose double-quoted speech is nested inside single-quoted
+            # speech: the double quotes are not this chunk's outer convention,
+            # so the quote decision must ask the model instead of trusting them
+            # (#2331). Kept beside the regions because the same analysis is the
+            # segment gate, which still needs the correct single-quote split.
+            "nested_single_quoted_speech": nested_single}
 
 
 def split_outer_quote_regions(text):
@@ -443,17 +588,22 @@ def _region_has_number_mark(region, token):
     return False
 
 
-def _has_quote_delimiter(text, region_texts):
-    """True unless every quote character in `text` is a kept inch mark.
+def _has_quote_delimiter(text, region_texts, allowed_marks=frozenset()):
+    """True unless every quote character in `text` is content, not a delimiter.
 
     An inch mark after a number (`6" wide`, `6” wide`) is speakable text, so
     a row carrying only those is not mixed (#2314). It counts as text only
     when the same number+mark appears in the analyzed region, which keeps
     measurements and drops delimiters: a row that kept a real closer after a
     digit has no such counterpart and stays mixed, as it was before #2314.
+
+    `allowed_marks` names the marks that are content for this row by a more
+    specific rule (a double-quoted phrase nested in single-quoted speech,
+    #2331); the caller only passes it for a row the source regions show inside
+    that speech.
     """
     for position, char in enumerate(text):
-        if char not in _QUOTE_CHARS:
+        if char not in _QUOTE_CHARS or char in allowed_marks:
             continue
         token = _number_mark_token(text, position)
         if (_is_inch_mark(text, position, char)
@@ -516,6 +666,17 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
                   if entry["type"] == "SPOKEN"]
     else:
         outside, inside = _split_quote_regions(source_text)
+    # A double-quoted phrase nested in single-quoted speech is content of that
+    # speech (#2331). The correct split keeps those marks as text, so they must
+    # not read as an outer delimiter on a row the source says is inside it.
+    nested_marks = {
+        char
+        for _opener, content_start, content_end, _closer
+        in single_quoted_speech_spans(source_text)
+        if _span_contains_double_quote(source_text, content_start, content_end)
+        for char in source_text[content_start:content_end]
+        if char in _QUOTE_CHARS
+    }
     findings = []
     for number, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
@@ -528,7 +689,10 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
         text = str(entry.get("text") or "")
         expected = inside if entry.get("type") == "SPOKEN" else outside
         other = outside if entry.get("type") == "SPOKEN" else inside
-        if _has_quote_delimiter(text, expected + other):
+        allowed = (nested_marks
+                   if nested_marks and _region_contains_entry(inside, text)
+                   else frozenset())
+        if _has_quote_delimiter(text, expected + other, allowed):
             findings.append({"code": "mixed_quote_region", "entry_number": number,
                              "message": "An entry combines quote delimiters with narration or dialogue; split at the quote boundary."})
             continue
