@@ -581,7 +581,7 @@ class RecoveryTests(unittest.TestCase):
         response, _, checkpoint_after, _, _ = self._inject_http([
             {"n": 0, "speaker": "SHERLOCK"},
             {"n": 1, "speaker": "NARRATOR"},
-            {"n": 2, "speaker": "WATSON"}],
+            {"n": 2, "speaker": "HOLMES"}],
             writer=self._fingerprinted_writer(source, cast=cast))
         self.assertEqual(200, response.status_code)
         self.assertEqual('HOLMES', json.loads(checkpoint_after)['named'][1]['speaker'])
@@ -634,7 +634,7 @@ class RecoveryTests(unittest.TestCase):
         response, _, _, _, _ = self._inject_http([
             {"n": 0, "speaker": "HOLMES"},
             {"n": 1, "speaker": "NARRATOR"},
-            {"n": 2, "speaker": "WATSON"}], writer=write)
+            {"n": 2, "speaker": "HOLMES"}], writer=write)
         self.assertEqual(200, response.status_code)
 
     def test_malformed_fingerprint_digest_is_not_downgraded(self):
@@ -703,7 +703,7 @@ class RecoveryTests(unittest.TestCase):
         response, _, checkpoint_after, _, manifest_after = self._inject_http([
             {"n": 0, "speaker": "HOLMES"},
             {"n": 1, "speaker": "NARRATOR"},
-            {"n": 2, "speaker": "WATSON"}], writer=writer)
+            {"n": 2, "speaker": "HOLMES"}], writer=writer)
         self.assertEqual(200, response.status_code)
         manifest = json.loads(manifest_after)
         checkpoint = json.loads(checkpoint_after)
@@ -1178,7 +1178,7 @@ class RecoveryTests(unittest.TestCase):
                 response, _, _, _, _ = self._inject_http([
                     {"n": 0, "speaker": "HOLMES"},
                     {"n": 1, "speaker": "NARRATOR"},
-                    {"n": 2, "speaker": "WATSON"}], writer=writer, setup=setup)
+                    {"n": 2, "speaker": "HOLMES"}], writer=writer, setup=setup)
                 self.assertEqual(expected, response.status_code)
 
     def test_cast_added_after_the_failed_batch_cannot_exempt_an_invented_name(self):
@@ -1320,7 +1320,7 @@ class RecoveryTests(unittest.TestCase):
                 response, checkpoint_before, checkpoint_after, manifest_before, manifest_after = self._inject_http([
                     {"n": 0, "speaker": "SHERLOCK"},
                     {"n": 1, "speaker": "NARRATOR"},
-                    {"n": 2, "speaker": "WATSON"}],
+                    {"n": 2, "speaker": "HOLMES"}],
                     writer=self._fingerprinted_writer(source, cast=cast), setup=setup)
                 self.assertEqual(expected, response.status_code)
                 if expected >= 400:
