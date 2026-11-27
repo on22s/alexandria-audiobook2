@@ -7748,6 +7748,7 @@
     "tests.test_hypothesis_profile.LocalConstantGuardTests.test_a_raising_module_added_after_the_profile_is_imported"
     , "tests.test_hypothesis_profile.LocalConstantGuardTests.test_a_raising_module_present_before_the_profile_is_imported"
     , "tests.test_hypothesis_profile.LocalConstantGuardTests.test_base_exception_from_module_getattr_is_hidden_while_interrupts_propagate"
+    , "tests.test_hypothesis_profile.LocalConstantGuardTests.test_keyboard_interrupt_during_collector_pass_is_not_hidden"
     , "tests.test_hypothesis_profile.LocalConstantGuardTests.test_keyboard_interrupt_mid_scan_leaves_sys_modules_identical_with_no_pop_window"
     , "tests.test_hypothesis_profile.LocalConstantGuardTests.test_retry_preserves_local_constants_from_modules_before_unreadable_one"
     , "tests.test_hypothesis_profile.ProfileTests.test_given_test_settings_covers_per_convention_properties_and_catches_stray_settings"
@@ -7755,6 +7756,7 @@
     , "tests.test_hypothesis_profile.ProfileTests.test_owned_temp_storage_directory_is_removed_at_exit"
     , "tests.test_hypothesis_profile.ProfileTests.test_preset_storage_directory_is_used_without_creating_temp_dir"
     , "tests.test_hypothesis_profile.ProfileTests.test_storage_is_redirected_even_if_resolved_before_profile_import"
+    , "tests.test_hypothesis_profile.ProfileTests.test_storage_redirect_guard_fails_loudly_if_the_api_disappears"
     , "tests.test_hypothesis_profile.ProfileTests.test_the_ci_profile_is_active"
     , "tests.test_hypothesis_profile.ProfileTests.test_the_local_constant_guard_is_installed"
   ]
@@ -14530,6 +14532,19 @@
     , "tests.test_saved_book_publication.SavedBookPublicationTests.test_saved_mutation_does_not_relabel_body_timeout_as_admission_error"
     , "tests.test_saved_book_publication.SavedBookPublicationTests.test_saved_mutations_do_not_wait_for_book_while_holding_task_mutex"
     , "tests.test_saved_book_publication.SavedBookPublicationTests.test_saved_mutations_do_not_wait_for_saved_book_lock"
+  ]
+  , "test_saved_book_source_reselection": [
+    "tests.test_saved_book_source_reselection.ReporterFlowTests.test_reporter_flow_keeps_rendered_rows_after_the_same_epub_is_reuploaded"
+    , "tests.test_saved_book_source_reselection.ReporterFlowTests.test_two_hop_saved_chain_keeps_rendered_rows"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_changed_origin_bytes_still_start_a_new_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_changed_saved_script_bytes_start_a_new_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_cycle_in_the_saved_binding_chain_starts_a_new_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_deleted_origin_with_identical_incoming_bytes_keeps_the_rendered_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_different_epub_starts_a_new_book_and_retains_the_old_rows"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_identical_epub_reupload_keeps_the_rendered_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_origin_binding_outside_the_library_directory_is_not_trusted"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_saved_binding_pointing_outside_the_library_logs_at_warning"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_sibling_binding_outside_the_library_is_not_trusted"
   ]
   , "test_saved_destination_ownership": [
     "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_claim_scope_is_copied_canonical_and_retired_with_its_exact_owner"

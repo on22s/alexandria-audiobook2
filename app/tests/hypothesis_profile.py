@@ -15,7 +15,11 @@ must cost a few seconds at most and must never flake. These settings buy that:
   exit via ``atexit``). Setting ``HYPOTHESIS_STORAGE_DIRECTORY`` works before
   the first storage access, and ``hypothesis.configuration.set_hypothesis_home_dir``
   also redirects storage if something already resolved it before this module
-  imported.
+  imported. That function has a public name but is NOT part of Hypothesis's
+  exported or documented API: ``hypothesis/__init__.py`` never mentions it and
+  there is no reference-doc page (Hypothesis's own tests use it). The version is
+  pinned, and this module raises ``RuntimeError`` at import if a bump removes or
+  renames it, rather than silently leaving storage in the checkout.
 * ``deadline=None``: a wall-clock deadline turns a paused CI runner into a
   failure that has nothing to do with the code under test.
 * ``max_examples`` is the cost knob (``DEFAULT_MAX_EXAMPLES`` for CI, roughly a
@@ -67,11 +71,30 @@ from pathlib import Path
 from hypothesis import HealthCheck, configuration, settings
 from hypothesis.internal.conjecture import providers as _providers
 
+# set_hypothesis_home_dir has a public name but is not exported from
+# ``hypothesis`` and is not in the documented API; Hypothesis's own tests use
+# it. It is the only way to redirect storage after something resolved it, so
+# keep the redirect and fail loudly if a version bump removes or renames it.
+try:
+    _set_hypothesis_home_dir = configuration.set_hypothesis_home_dir
+except AttributeError as error:  # pragma: no cover - version guard
+    raise RuntimeError(
+        "tests.hypothesis_profile redirects Hypothesis storage with "
+        "hypothesis.configuration.set_hypothesis_home_dir, a private/"
+        "undocumented function that this Hypothesis version does not provide; "
+        "review the storage redirect for this version"
+    ) from error
+if not callable(_set_hypothesis_home_dir):  # pragma: no cover - version guard
+    raise RuntimeError(
+        "hypothesis.configuration.set_hypothesis_home_dir is no longer "
+        "callable; review the storage redirect for this Hypothesis version"
+    )
+
 # Respect an explicit user preset without creating an unused temp directory.
 # Otherwise create a per-process temp directory and remove it on normal exit.
-# set_hypothesis_home_dir is Hypothesis's documented API and works even if
-# storage was already resolved before this module imported; setting the env var
-# as well keeps any child Python processes out of the checkout.
+# The redirect also works if storage was already resolved before this module
+# imported; setting the env var as well keeps child Python processes out of the
+# checkout.
 _preset_storage = os.environ.get("HYPOTHESIS_STORAGE_DIRECTORY")
 if _preset_storage:
     STORAGE_DIRECTORY = Path(_preset_storage)
@@ -79,7 +102,7 @@ else:
     STORAGE_DIRECTORY = Path(tempfile.mkdtemp(prefix="aa2-hypothesis-"))
     os.environ["HYPOTHESIS_STORAGE_DIRECTORY"] = str(STORAGE_DIRECTORY)
     atexit.register(shutil.rmtree, str(STORAGE_DIRECTORY), True)
-configuration.set_hypothesis_home_dir(STORAGE_DIRECTORY)
+_set_hypothesis_home_dir(STORAGE_DIRECTORY)
 
 DEFAULT_MAX_EXAMPLES = 30
 THOROUGH_MAX_EXAMPLES = 500

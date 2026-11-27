@@ -20,6 +20,7 @@ behaviour that the property tests depend on are pinned here:
 
 The generated text is synthetic; no book or person data is used.
 """
+import itertools
 import os
 import subprocess
 import sys
@@ -33,6 +34,28 @@ from hypothesis import given, settings, strategies as st
 from hypothesis.internal.conjecture import providers
 
 from tests import hypothesis_profile
+
+
+_RUN_NONCE = itertools.count()
+
+
+def _fresh_name(prefix):
+    """-> a module name that is unique within this process.
+
+    The marker modules are popped in cleanup, so a later test run can reuse
+    their ``id()``. Hypothesis tracks modules by ``id()``; a unique name keeps
+    failures readable and per-run ids genuinely fresh, and the guard tests also
+    clear ``_seen_modules`` in setUp.
+    """
+    return f"{prefix}_{next(_RUN_NONCE)}"
+
+
+def _fresh_magic_literal():
+    """-> a large int literal not yet in Hypothesis's local constants."""
+    while True:
+        literal = 918273645 + next(_RUN_NONCE) * 1_000_003
+        if literal not in providers._local_constants:
+            return literal
 
 
 class RaisingFileModule(types.ModuleType):
@@ -65,6 +88,29 @@ class ProfileTests(unittest.TestCase):
         # this fails instead of the suite silently losing the guard.
         self.assertIs(hypothesis_profile.safe_get_local_constants,
                       providers._get_local_constants)
+
+    def test_storage_redirect_guard_fails_loudly_if_the_api_disappears(self):
+        # set_hypothesis_home_dir is public-named but not exported/documented;
+        # the profile module must fail at import rather than silently leaving
+        # storage in the checkout if a Hypothesis bump removes or renames it.
+        app_directory = Path(__file__).resolve().parents[1]
+        script = textwrap.dedent("""
+            import sys
+            from hypothesis import configuration
+            del configuration.set_hypothesis_home_dir
+            try:
+                from tests import hypothesis_profile
+            except RuntimeError as error:
+                assert "set_hypothesis_home_dir" in str(error), error
+                sys.exit(0)
+            sys.exit("profile imported without set_hypothesis_home_dir")
+        """)
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=str(app_directory), capture_output=True, text=True,
+            timeout=120, env=os.environ.copy())
+        self.assertEqual(0, completed.returncode,
+                         completed.stdout + completed.stderr)
 
     def test_hypothesis_storage_is_outside_the_checkout(self):
         from hypothesis import configuration
@@ -233,11 +279,26 @@ class ProfileTests(unittest.TestCase):
 
 class LocalConstantGuardTests(unittest.TestCase):
     def setUp(self):
-        # Removing temporary test modules in addCleanup can leave
-        # providers._sys_modules_len equal to a later test's len(sys.modules),
-        # causing Hypothesis's length fast-path to skip scanning. Reset it on
-        # teardown so each test starts from a clean length check.
-        self.addCleanup(setattr, providers, "_sys_modules_len", None)
+        # Hypothesis's scan state is process-global. Start every test from a
+        # clean scan and restore the pre-test state afterwards, so this class
+        # can be run again in the same interpreter: a previous pass can leave
+        # the ids of marker modules (popped in cleanup) in _seen_modules, and a
+        # new marker can land on a recycled id and be silently skipped; a
+        # successful retry also unions its literal into _local_constants.
+        self._saved_seen_modules = set(providers._seen_modules)
+        self._saved_local_constants = providers._local_constants
+        self._saved_sys_modules_len = providers._sys_modules_len
+        providers._seen_modules.clear()
+        providers._sys_modules_len = None
+        self.addCleanup(self._restore_provider_state)
+
+    def _restore_provider_state(self):
+        # Cleanups run last-in first-out, so marker modules are popped from
+        # sys.modules before this restores the scan bookkeeping.
+        providers._seen_modules.clear()
+        providers._seen_modules.update(self._saved_seen_modules)
+        providers._local_constants = self._saved_local_constants
+        providers._sys_modules_len = self._saved_sys_modules_len
 
     def _assert_sys_modules_identical(self, snapshot):
         current = dict(sys.modules)
@@ -251,7 +312,7 @@ class LocalConstantGuardTests(unittest.TestCase):
                          f"sys.modules mutated: missing={missing}, extra={extra}, changed={changed}")
 
     def test_a_raising_module_added_after_the_profile_is_imported(self):
-        trap = RaisingFileModule("aa2_unreadable_after_profile")
+        trap = RaisingFileModule(_fresh_name("aa2_unreadable_after_profile"))
         self.addCleanup(sys.modules.pop, trap.__name__, None)
         sys.modules[trap.__name__] = trap
 
@@ -308,7 +369,7 @@ class LocalConstantGuardTests(unittest.TestCase):
         # Custom BaseException subclasses from a module's __getattr__ are
         # treated as unreadable and hidden from the scan.
         custom = RaisingFileModule(
-            "aa2_custom_base_exc_module",
+            _fresh_name("aa2_custom_base_exc_module"),
             exc_factory=lambda mod, attr: _CustomBaseException(f"{mod}.{attr}"))
         self.addCleanup(sys.modules.pop, custom.__name__, None)
         sys.modules[custom.__name__] = custom
@@ -325,7 +386,7 @@ class LocalConstantGuardTests(unittest.TestCase):
         # Real process interrupts (KeyboardInterrupt, SystemExit) are never
         # swallowed and leave sys.modules identical.
         for exc_cls in (KeyboardInterrupt, SystemExit):
-            name = f"aa2_interrupt_{exc_cls.__name__}_module"
+            name = _fresh_name(f"aa2_interrupt_{exc_cls.__name__}_module")
             interrupt_mod = RaisingFileModule(
                 name, exc_factory=lambda mod, attr, cls=exc_cls: cls(mod))
             self.addCleanup(sys.modules.pop, name, None)
@@ -337,8 +398,8 @@ class LocalConstantGuardTests(unittest.TestCase):
             sys.modules.pop(name, None)
 
     def test_keyboard_interrupt_mid_scan_leaves_sys_modules_identical_with_no_pop_window(self):
-        bad_1 = RaisingFileModule("aa2_canary_unreadable_1")
-        bad_2 = RaisingFileModule("aa2_canary_unreadable_2")
+        bad_1 = RaisingFileModule(_fresh_name("aa2_canary_unreadable_1"))
+        bad_2 = RaisingFileModule(_fresh_name("aa2_canary_unreadable_2"))
         self.addCleanup(sys.modules.pop, bad_1.__name__, None)
         self.addCleanup(sys.modules.pop, bad_2.__name__, None)
         sys.modules[bad_1.__name__] = bad_1
@@ -371,10 +432,10 @@ class LocalConstantGuardTests(unittest.TestCase):
         # Also verify an actual KeyboardInterrupt mid-scan leaves both
         # sys.modules identical and any earlier unscanned module unstranded in
         # Hypothesis's _seen_modules set.
-        earlier = types.ModuleType("aa2_canary_before_interrupt")
+        earlier = types.ModuleType(_fresh_name("aa2_canary_before_interrupt"))
         earlier.__file__ = None
         interrupter = RaisingFileModule(
-            "aa2_canary_mid_scan_interrupt",
+            _fresh_name("aa2_canary_mid_scan_interrupt"),
             exc_factory=lambda mod, attr: KeyboardInterrupt(mod))
         self.addCleanup(sys.modules.pop, earlier.__name__, None)
         self.addCleanup(sys.modules.pop, interrupter.__name__, None)
@@ -388,18 +449,45 @@ class LocalConstantGuardTests(unittest.TestCase):
         self._assert_sys_modules_identical(snapshot_before_ki)
         self.assertNotIn(id(earlier), providers._seen_modules)
 
+    def test_keyboard_interrupt_during_collector_pass_is_not_hidden(self):
+        # The unguarded scan fails on the ImportError module, so the guard
+        # enters _unreadable_modules() to collect it; that collector then
+        # reaches a module raising KeyboardInterrupt. The interrupt must
+        # propagate and neither module may be marked as seen. Without
+        # _UNRECOVERABLE_BASE_EXCEPTIONS in _unreadable_modules the collector
+        # swallows the interrupt, marks both, and the retry succeeds.
+        importing = RaisingFileModule(_fresh_name("aa2_collector_importerror"))
+        interrupting = RaisingFileModule(
+            _fresh_name("aa2_collector_interrupt"),
+            exc_factory=lambda mod, attr: KeyboardInterrupt(mod))
+        self.addCleanup(sys.modules.pop, importing.__name__, None)
+        self.addCleanup(sys.modules.pop, interrupting.__name__, None)
+        sys.modules[importing.__name__] = importing
+        sys.modules[interrupting.__name__] = interrupting
+        snapshot = dict(sys.modules)
+
+        with self.assertRaises(KeyboardInterrupt):
+            providers._get_local_constants()
+
+        self._assert_sys_modules_identical(snapshot)
+        self.assertNotIn(id(importing), providers._seen_modules)
+        self.assertNotIn(id(interrupting), providers._seen_modules)
+
     def test_retry_preserves_local_constants_from_modules_before_unreadable_one(self):
         # Avoid "test" / "tests" in path parts and "test_" filename prefix,
-        # which Hypothesis's is_local_module_file intentionally skips.
-        magic_literal = 918273645
+        # which Hypothesis's is_local_module_file intentionally skips. The
+        # literal is new on every run so a previous in-process pass cannot
+        # satisfy the assertion for this one.
+        magic_literal = _fresh_magic_literal()
         with tempfile.TemporaryDirectory(prefix="aa2_local_const_") as raw:
-            mod_path = Path(raw) / "sample_literals.py"
+            mod_path = Path(raw) / f"sample_literals_{next(_RUN_NONCE)}.py"
             mod_path.write_text(f"MAGIC = {magic_literal}\n", encoding="utf-8")
 
-            local_mod = types.ModuleType("aa2_local_before_unreadable")
+            local_mod = types.ModuleType(_fresh_name("aa2_local_before_unreadable"))
             local_mod.__file__ = str(mod_path)
             local_mod.MAGIC = magic_literal
-            unreadable = RaisingFileModule("aa2_unreadable_after_local")
+            unreadable = RaisingFileModule(
+                _fresh_name("aa2_unreadable_after_local"))
 
             self.addCleanup(sys.modules.pop, local_mod.__name__, None)
             self.addCleanup(sys.modules.pop, unreadable.__name__, None)
