@@ -426,33 +426,65 @@ class ReporterFlowTests(SelectionFixture):
         retained = next(self.uploads.glob('*.source.epub'))
         retained_bytes = retained.read_bytes()
         retained.unlink()
-        ok, message = readalong_export.build_epub_export(
-            ProjectManager(str(self.root)), lambda: False)
-        self.assertFalse(ok)
-        self.assertIn('Retained EPUB bytes are missing', message)
-        self.assertIn('re-upload the byte-identical EPUB', message)
-        self.assertNotIn('Do not re-import the book', message)
-        response = self.upload()
-        self.assertEqual(200, response.status_code, response.text)
-        self.assertTrue(response.json()['reused'])
-        self.assertEqual('book.source.epub', response.json()['retained_epub'])
-        state = self.state()
-        self.assertNotIn('script_selection_pending', state)
-        self.assertEqual('book', state['active_book_id'])
-        self.assertEqual(str(source), state['input_file_path'])
-        self.assertEqual(retained_bytes, retained.read_bytes())
-        status = self.chunk_status()
-        self.assertEqual(uids, [row['uid'] for row in status['chunks']])
-        self.assertTrue(all(row['status'] == 'done' for row in status['chunks']))
-        self.assertEqual([], self.stale_chunks())
-        # The read-aloud lookup reaches the restored retained bytes again
-        # (this fixture's synthetic publication text legitimately does not match
-        # the EPUB, so the full package build is not the assertion here).
-        located_bytes, located_source = readalong_export._locate_retained_epub(
-            ProjectManager(str(self.root)), lambda: False,
-            source_txt=state['input_file_path'])
-        self.assertEqual(retained_bytes, located_bytes)
-        self.assertEqual(str(source), located_source)
+        # The build imports core.UPLOADS_DIR at call time; keep the scan inside
+        # this fixture instead of the developer's real upload folder (#2355 N3).
+        with patch.object(core, 'UPLOADS_DIR', str(self.uploads)):
+            ok, message = readalong_export.build_epub_export(
+                ProjectManager(str(self.root)), lambda: False)
+            self.assertFalse(ok)
+            self.assertIn('Retained EPUB bytes are missing', message)
+            self.assertIn('re-upload the byte-identical EPUB', message)
+            self.assertNotIn('Do not re-import the book', message)
+            response = self.upload()
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertTrue(response.json()['reused'])
+            self.assertEqual('book.source.epub', response.json()['retained_epub'])
+            state = self.state()
+            self.assertNotIn('script_selection_pending', state)
+            self.assertEqual('book', state['active_book_id'])
+            self.assertEqual(str(source), state['input_file_path'])
+            self.assertEqual(retained_bytes, retained.read_bytes())
+            status = self.chunk_status()
+            self.assertEqual(uids, [row['uid'] for row in status['chunks']])
+            self.assertTrue(all(row['status'] == 'done' for row in status['chunks']))
+            self.assertEqual([], self.stale_chunks())
+            # The read-aloud lookup reaches the restored retained bytes again
+            # (this fixture's synthetic publication text legitimately does not
+            # match the EPUB, so the full package build is not the assertion
+            # here).
+            located_bytes, located_source = readalong_export._locate_retained_epub(
+                ProjectManager(str(self.root)), lambda: False,
+                source_txt=state['input_file_path'])
+            self.assertEqual(retained_bytes, located_bytes)
+            self.assertEqual(str(source), located_source)
+
+    def test_missing_publication_companion_offers_the_reupload_that_keeps_rows(self):
+        """A deleted `.publication.json` recovers by re-uploading identical bytes.
+
+        The saved script and its binding are intact, so the upload route
+        reattaches the identical source under the same book; following the
+        message's advice must keep every rendered row (#2355 L1).
+        """
+        source = self.publish_book()
+        self.save_and_load('Synthetic Saved')
+        uids = self.render_chunks()
+        saved = self.library / 'Synthetic Saved.json'
+        companion = saved.with_name(saved.name + '.publication.json')
+        self.assertTrue(companion.exists())
+        companion.unlink()
+        with patch.object(core, 'UPLOADS_DIR', str(self.uploads)):
+            ok, message = readalong_export.build_epub_export(
+                ProjectManager(str(self.root)), lambda: False)
+            self.assertFalse(ok)
+            self.assertIn("'.publication.json' companion is missing", message)
+            self.assertIn('re-upload the byte-identical source book', message)
+            self.assertIn('keeps rendered audio when the saved script is unchanged',
+                          message)
+            self.assertNotIn('cannot reattach this saved book', message)
+            response = self.upload()
+            self.assertEqual(200, response.status_code, response.text)
+            self.assertTrue(response.json()['reused'])
+            self.assert_rendered_book_kept(uids, source)
 
     def test_two_hop_saved_chain_keeps_rendered_rows(self):
         """Saved B, loaded while A was active, still resolves to A's origin text."""

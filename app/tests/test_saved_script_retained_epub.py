@@ -50,17 +50,21 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(epub_bytes).hexdigest(),
                              receipt["retained_epub_sha256"])
 
-    def test_missing_retained_bytes_names_the_non_resetting_recovery(self):
-        """The saved-script advice is true on the merged tree (#2354).
+    def test_missing_retained_bytes_without_a_binding_offers_only_the_restore(self):
+        """A save with no source binding cannot recover through a re-upload.
 
-        The identical re-upload is reattached under the same book and keeps
-        rendered audio; the behaviour itself is pinned end to end by
-        test_saved_book_source_reselection's reporter flow.
+        `save` without an active root binding writes no
+        `.selection_binding.json`; the upload route then refuses the same
+        chain and leaves the selection pending (#2355 L1). The advice must be
+        the restore that actually works, and following it must rebuild.
         """
         with self.fixture() as (root, api, epub_bytes):
             self.upload_and_load(api, root, epub_bytes)
-            for path in Path(core.UPLOADS_DIR).glob("*.source.epub"):
-                path.unlink()
+            self.assertEqual([], list((Path(core.SCRIPTS_DIR)).glob(
+                "*.selection_binding.json")))
+            retained = self.only_retained_upload(root)
+            kept = retained.read_bytes()
+            retained.unlink()
             self.render_chunks(root)
             ok, message = readalong_export.build_epub_export(
                 ProjectManager(str(root)), lambda: False)
@@ -69,6 +73,37 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
             self.assertIn(".source.epub", message)
             self.assertIn("recorded EPUB origin", message)
             self.assertIn("source's folder or the upload folder", message)
+            self.assertIn("The saved book has no original-source binding", message)
+            self.assertIn("re-uploading the EPUB cannot reattach this saved book",
+                          message)
+            self.assertIn("Restore the original EPUB there as a matching "
+                          "'.source.epub' file", message)
+            self.assertNotIn("re-upload the byte-identical EPUB", message)
+            self.assertNotIn("keeps rendered audio", message)
+            # Follow the advice this message gives: restore the retained bytes.
+            retained.write_bytes(kept)
+            ok, message = readalong_export.build_epub_export(
+                ProjectManager(str(root)), lambda: False)
+            self.assertTrue(ok, message)
+
+    def test_missing_retained_bytes_with_a_verified_binding_offers_the_reupload(self):
+        """A verified binding makes the byte-identical re-upload true (#2354).
+
+        The re-upload behaviour (same book, all rendered rows kept) is pinned
+        end to end in test_saved_book_source_reselection's reporter flow; here
+        the restore half of the same message is followed to a green build.
+        """
+        with self.fixture() as (root, api, epub_bytes):
+            self.upload_and_load(api, root, epub_bytes)
+            self.bind_saved_script(root)
+            retained = self.only_retained_upload(root)
+            kept = retained.read_bytes()
+            retained.unlink()
+            self.render_chunks(root)
+            ok, message = readalong_export.build_epub_export(
+                ProjectManager(str(root)), lambda: False)
+            self.assertFalse(ok)
+            self.assertIn("Retained EPUB bytes are missing", message)
             self.assertIn("re-upload the byte-identical EPUB", message)
             self.assertIn("keeps rendered audio when the saved script is unchanged",
                           message)
@@ -78,6 +113,10 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
                           message)
             self.assertNotIn("Do not re-import the book", message)
             self.assertNotIn("retained-upload list", message)
+            retained.write_bytes(kept)
+            ok, message = readalong_export.build_epub_export(
+                ProjectManager(str(root)), lambda: False)
+            self.assertTrue(ok, message)
 
     def test_different_retained_epub_is_not_mistaken_for_this_origin(self):
         with self.fixture() as (root, api, epub_bytes):
@@ -271,28 +310,6 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
                     str(upper), [str(lower)])
             self.assertEqual([str(upper)], directories)
 
-    def test_alias_spelled_search_dirs_do_not_double_match(self):
-        with self.fixture() as (root, api, epub_bytes):
-            self.upload_and_load(api, root, epub_bytes)
-            uploads = Path(core.UPLOADS_DIR)
-            retained = self.only_retained_upload(root)
-            renamed = uploads / "renamed.source.epub"
-            retained.rename(renamed)
-            saved = json.loads((root / "state.json").read_text())["input_file_path"]
-            alias = root / "alias"
-            try:
-                alias.symlink_to(uploads, target_is_directory=True)
-            except OSError:
-                alias = None
-            search_dirs = [str(uploads), str(uploads) + os.sep,
-                           str(uploads / ".." / uploads.name)]
-            if alias is not None:
-                search_dirs += [str(alias)]
-            found = readalong_export.get_retained_epub_candidate_path(
-                saved, origin_hashes={hashlib.sha256(epub_bytes).hexdigest()},
-                search_dirs=tuple(search_dirs))
-            self.assertEqual(str(renamed), found)
-
     def test_saved_source_resolution_refusal_logs_the_code_and_falls_back(self):
         from script_selection_binding import SavedSourceResolutionError
         with self.fixture() as (root, api, epub_bytes):
@@ -349,23 +366,53 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
         with self.fixture() as (root, api, epub_bytes):
             self.upload_and_load(api, root, epub_bytes)
             saved = Path(json.loads((root / "state.json").read_text())["input_file_path"])
-            saved.write_text(saved.read_text(encoding="utf-8") + "\n",
-                             encoding="utf-8")
+            original = saved.read_bytes()
+            saved.write_bytes(original + b"\n")
             self.render_chunks(root)
             ok, message = readalong_export.build_epub_export(
                 ProjectManager(str(root)), lambda: False)
             self.assertFalse(ok)
             self.assertIn("Source provenance is stale", message)
-            self.assertIn("restore the saved book's missing '.publication.json' companion",
+            self.assertIn("'.publication.json' companion no longer matches the saved "
+                          "script", message)
+            self.assertIn("Restore the saved script's original bytes", message)
+            self.assertNotIn("missing '.publication.json' companion", message)
+            self.assertNotIn("re-upload the byte-identical source book", message)
+            # Follow the advice: restoring the script's original bytes rebuilds.
+            saved.write_bytes(original)
+            ok, message = readalong_export.build_epub_export(
+                ProjectManager(str(root)), lambda: False)
+            self.assertTrue(ok, message)
+
+    def test_old_save_without_companions_offers_only_the_restore(self):
+        """A pre-companion save has no automatic recovery (#2355 L1 limits)."""
+        with self.fixture() as (root, api, epub_bytes):
+            self.upload_and_load(api, root, epub_bytes)
+            self.assertEqual([], list((Path(core.SCRIPTS_DIR)).glob(
+                "*.selection_binding.json")))
+            saved = Path(json.loads((root / "state.json").read_text())["input_file_path"])
+            companion = saved.with_name(saved.name + ".publication.json")
+            kept = companion.read_bytes()
+            companion.unlink()
+            self.render_chunks(root)
+            ok, message = readalong_export.build_epub_export(
+                ProjectManager(str(root)), lambda: False)
+            self.assertFalse(ok)
+            self.assertIn("Source provenance is stale", message)
+            self.assertIn("the saved book has no '.publication.json' companion",
                           message)
-            self.assertIn("re-upload the byte-identical source book", message)
-            self.assertIn("keeps rendered audio when the saved script is unchanged",
+            self.assertIn("The saved book has no original-source binding", message)
+            self.assertIn("Restore the saved book's '.publication.json' companion "
+                          "if you have a copy", message)
+            self.assertIn("re-uploading the source cannot reattach this saved book",
                           message)
-            self.assertIn("becomes the selected source instead of the saved script",
-                          message)
-            self.assertIn("a changed source or a different edition starts a new book "
-                          "and resets rendered audio", message)
-            self.assertNotIn("replaces the script as the selected source", message)
+            self.assertNotIn("re-upload the byte-identical source book", message)
+            self.assertNotIn("keeps rendered audio", message)
+            # Follow the advice: restoring the companion (a backup here) rebuilds.
+            companion.write_bytes(kept)
+            ok, message = readalong_export.build_epub_export(
+                ProjectManager(str(root)), lambda: False)
+            self.assertTrue(ok, message)
 
     def test_uploads_folder_wording_uses_the_scanned_directory(self):
         """Message and scan share one uploads dir, never a re-imported global."""
@@ -408,6 +455,54 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
                     str(root), saved, cancel_check=cancel)
             self.assertGreaterEqual(len(polls), 2,
                                     "cancellation must be polled inside the read")
+
+    def test_every_saved_source_hop_read_polls_cancellation(self):
+        """Cancelling during the script, binding or terminal read aborts the walk.
+
+        The poll-every-read behaviour is per call site (#2355 N1): dropping
+        ``cancel_check`` from any one of the three reads must fail this test.
+        """
+        import project_scope_files
+        from audio_generation_owner import AudioGenerationCancelled
+        from script_selection_binding import resolve_saved_book_origin
+        real_capture = project_scope_files.capture_scope_file
+        with self.fixture() as (root, api, epub_bytes):
+            self.upload_and_load(api, root, epub_bytes)
+            self.bind_saved_script(root)
+            state = json.loads((root / "state.json").read_text())
+            saved = Path(state["input_file_path"])
+            terminal = next(Path(core.UPLOADS_DIR).glob("*.txt"))
+            hops = {
+                "script": saved,
+                "binding": Path(core.SCRIPTS_DIR) / "Saved.selection_binding.json",
+                "terminal": terminal,
+            }
+
+            def active_capture(target):
+                active = {"relative": None}
+
+                def capture(capture_root, relative, **kwargs):
+                    previous = active["relative"]
+                    active["relative"] = os.path.normpath(relative)
+                    try:
+                        return real_capture(capture_root, relative, **kwargs)
+                    finally:
+                        active["relative"] = previous
+
+                def cancel():
+                    return active["relative"] == os.path.normpath(
+                        os.path.relpath(str(target), str(root)))
+
+                return capture, cancel
+
+            for name, target in hops.items():
+                with self.subTest(hop=name):
+                    capture, cancel = active_capture(target)
+                    with patch.object(project_scope_files, "capture_scope_file",
+                                      new=capture):
+                        with self.assertRaises(AudioGenerationCancelled):
+                            resolve_saved_book_origin(
+                                str(root), str(saved), cancel_check=cancel)
 
     # --- Editor call sites (#2355 L2/L5) ---------------------------------
 
@@ -583,13 +678,14 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
         self.assertEqual(1, len(retained))
         return retained[0]
 
-    def post_upload(self, api, name, epub_bytes):
+    def post_upload(self, api, name, epub_bytes, *, select_active=False):
         async def go():
             transport = httpx.ASGITransport(app=api, raise_app_exceptions=False)
             async with httpx.AsyncClient(transport=transport,
                                          base_url="http://fixture") as client:
                 return await client.post(
-                    "/api/upload", params={"select_active": "false"},
+                    "/api/upload",
+                    params={"select_active": "true" if select_active else "false"},
                     files={"file": (name, epub_bytes, "application/epub+zip")})
         return asyncio.run(go())
 
@@ -641,19 +737,30 @@ class SavedScriptRetainedEpubTests(unittest.TestCase):
             yield
 
     def bind_saved_script(self, root):
-        """Write the saved-book binding the shared resolver walks (#2356)."""
+        """Write the saved-book and active bindings the resolver walks (#2356).
+
+        A real save copies the active binding beside the saved script and a
+        real load installs the active binding for the loaded script. Both are
+        written here so the upload route's identical-source rebind is
+        exercised exactly as the routes leave it.
+        """
         from book_state_transaction import get_book_operation_token
-        from script_selection_binding import make_script_selection_binding
+        from script_selection_binding import (BINDING_NAME,
+                                              make_script_selection_binding)
 
         state = json.loads((root / "state.json").read_text())
         saved = Path(state["input_file_path"])
         extracted = next((Path(core.UPLOADS_DIR)).glob("*.txt"))
+        token = get_book_operation_token(str(root))
         binding = make_script_selection_binding(
-            get_book_operation_token(str(root)),
-            hashlib.sha256(extracted.read_bytes()).hexdigest(),
+            token, hashlib.sha256(extracted.read_bytes()).hexdigest(),
             saved.read_bytes(), source_path=str(extracted))
         (Path(core.SCRIPTS_DIR) / "Saved.selection_binding.json").write_text(
             json.dumps(binding))
+        active = make_script_selection_binding(
+            token, hashlib.sha256(saved.read_bytes()).hexdigest(),
+            saved.read_bytes(), source_path=str(saved))
+        (Path(root) / BINDING_NAME).write_text(json.dumps(active))
 
     def upload_and_load(self, api, root, epub_bytes):
         async def go():

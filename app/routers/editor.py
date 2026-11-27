@@ -2274,7 +2274,7 @@ def _save_readaloud_timing_preference(preference):
     return save_readaloud_timing_preference(preference, DATA_DIR)
 
 
-def _timing_language_unavailable(error):
+def get_timing_language_unavailable_detail(error):
     """One 409 detail for a timing-language lookup failure (#2355).
 
     Some shared refusals already end with their own rebuild advice; appending
@@ -2380,12 +2380,12 @@ def _require_readaloud_timing_current(receipt):
                     want_language = get_aligner_language_name(tag, capability.get("languages"))
                 except (ValueError, OSError) as error:
                     raise HTTPException(
-                        status_code=409, detail=_timing_language_unavailable(error)) from error
+                        status_code=409, detail=get_timing_language_unavailable_detail(error)) from error
         except HTTPException:
             raise
         except (ValueError, OSError) as error:
             raise HTTPException(
-                status_code=409, detail=_timing_language_unavailable(error)) from error
+                status_code=409, detail=get_timing_language_unavailable_detail(error)) from error
         if receipt.get("timing_language") != want_language:
             raise HTTPException(status_code=409, detail=(
                 "EPUB read-aloud timing language is no longer current. Rebuild it."))
