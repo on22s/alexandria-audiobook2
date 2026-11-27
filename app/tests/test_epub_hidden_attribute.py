@@ -460,6 +460,9 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                           b'<html><body><div><p>x</body></html>'):
             with self.subTest(malformed=malformed):
                 self.assertFalse(alignment.is_well_formed_xml(malformed))
+        # An unknown declared encoding must decline, not raise.
+        self.assertFalse(alignment.is_well_formed_xml(
+            b'<?xml version="1.0" encoding="bogus"?><html/>'))
 
     def test_xml_pass_handles_cdata_and_same_tag_self_closing_hidden_elements(self):
         # Literal </p> inside CDATA inside a hidden element would prematurely

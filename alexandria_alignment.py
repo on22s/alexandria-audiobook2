@@ -232,7 +232,7 @@ def is_well_formed_xml(content) -> bool:
         # without external entity/DTD resolution or network access; this call
         # only probes well-formedness and never returns a tree.
         ET.fromstring(content)  # nosec B314
-    except (ET.ParseError, ValueError, TypeError):
+    except (ET.ParseError, ValueError, TypeError, LookupError):
         return False
     return True
 
