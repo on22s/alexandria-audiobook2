@@ -1050,21 +1050,16 @@
  ],
  "provenance": {
   "script": "goal_evidence_audit.py",
-  "written": "2026-11-27T05:26:20",
+  "written": "2026-11-27T08:12:01",
   "host": "mitch-linux",
   "git": {
-   "commit": "a94343e2262a322e62fb6ec9f91de215b5055b8d",
-   "branch": "t3/pr2389-r1",
+   "commit": "ad8e6fce5baf0da4f0cc9b4d7f3fda98feec333a",
+   "branch": "t3/fix-issue-2365",
    "dirty": true,
-   "source_state": "dirty:1dc1e4438218",
+   "source_state": "dirty:997654daf2e4",
    "source_state_detail": null,
    "modified_tracked_files": [
-    "M  app/experiments/background_speakers_ab.py",
-    "M  app/pass_quality.py",
-    "M  app/tests/test_background_speakers.py",
-    "M  app/tests/test_unattested_speakers.py",
-    "M  app/tests/unit_test_inventory.json",
-    "M  app/three_pass_generate.py"
+    " M app/tests/test_apostrophe_repair.py"
    ],
    "untracked_harness_files": null,
    "harness_sha256": "44e4a8845963cd3ce8edf61ee2489f16976974dd3726a39a8d75f63a90cb2249",
