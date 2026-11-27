@@ -49,11 +49,13 @@ if not alexandria_alignment.EPUB_AVAILABLE:
     raise SystemExit("alexandria_alignment.load_epub requires EbookLib and beautifulsoup4")
 
 # atheris.Fuzz() terminates the process inside libFuzzer, so atexit handlers
-# and TemporaryDirectory finalizers never run. Use a plain scratch directory,
-# print its path, and leave removal to the caller.
-_TMP_DIR = tempfile.mkdtemp(prefix="aa2-fuzz-parity-")
-print(f"aa2-fuzz: parity scratch EPUB under {_TMP_DIR} (remove it when done)", file=sys.stderr)
-_TMP_EPUB = Path(_TMP_DIR) / "parity.epub"
+# and TemporaryDirectory finalizers never run. In fuzzing mode a single scratch
+# EPUB is created lazily and its directory left behind for removal by hand. In
+# replay mode (a positional input file) each call uses a throwaway directory
+# that is removed before the call returns, so replaying seeds or a crash
+# artifact leaves no aa2-fuzz-parity-* directories.
+_SCRATCH_DIR: str | None = None
+_SCRATCH_EPUB: Path | None = None
 
 _EXPECTED_EXTRACT_REFUSALS = (
     zipfile.BadZipFile,
@@ -67,10 +69,19 @@ _EXPECTED_LOAD_REFUSALS = (
 )
 
 
-def _write_temp_epub(raw: bytes) -> str:
-    with open(_TMP_EPUB, "wb") as handle:
-        handle.write(raw)
-    return str(_TMP_EPUB)
+def _load_epub_from_bytes(raw: bytes) -> str:
+    """Write ``raw`` to a file load_epub can read and return its text.
+
+    Fuzzing reuses the lazily-created scratch file; replay creates and removes
+    a private temporary directory per call so nothing is left behind.
+    """
+    if _SCRATCH_EPUB is not None:
+        _SCRATCH_EPUB.write_bytes(raw)
+        return alexandria_alignment.load_epub(str(_SCRATCH_EPUB))
+    with tempfile.TemporaryDirectory(prefix="aa2-fuzz-parity-") as directory:
+        payload = Path(directory) / "parity.epub"
+        payload.write_bytes(raw)
+        return alexandria_alignment.load_epub(str(payload))
 
 
 # Known-issue scope for parity mode (`build_structured_epub(..., parity_mode=True)`):
@@ -132,11 +143,10 @@ def test_one_input(data: bytes) -> None:
             raise
 
     # 2. Run alexandria_alignment.load_epub on the exact same bytes
-    epub_path = _write_temp_epub(spec.archive_bytes)
     load_error = None
     aligned_text = None
     try:
-        aligned_text = alexandria_alignment.load_epub(epub_path)
+        aligned_text = _load_epub_from_bytes(spec.archive_bytes)
     except UnicodeError:
         # UnicodeError subclasses ValueError; never swallow unexpected codec
         # errors as refusal ValueErrors.
@@ -234,8 +244,27 @@ def test_one_input(data: bytes) -> None:
             )
 
 
+def _is_replay(argv: list[str]) -> bool:
+    """Return whether libFuzzer is replaying explicit input files.
+
+    Replay passes existing files as positional arguments; fuzzing passes a
+    corpus directory (or nothing, in which case ``default_fuzz_argv`` adds a
+    scratch corpus). A directory is not a replay.
+    """
+    return any(
+        not arg.startswith("-") and Path(arg).is_file()
+        for arg in argv[1:]
+    )
+
+
 def main() -> None:
+    global _SCRATCH_DIR, _SCRATCH_EPUB
     argv = default_fuzz_argv(sys.argv, corpus_name="epub_parity")
+    if "-help=1" not in argv and not _is_replay(argv):
+        _SCRATCH_DIR = tempfile.mkdtemp(prefix="aa2-fuzz-parity-")
+        _SCRATCH_EPUB = Path(_SCRATCH_DIR) / "parity.epub"
+        print(f"aa2-fuzz: parity scratch EPUB under {_SCRATCH_DIR} "
+              "(remove it when done)", file=sys.stderr)
     atheris.Setup(argv, test_one_input)
     atheris.Fuzz()
 

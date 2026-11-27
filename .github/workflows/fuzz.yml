@@ -54,10 +54,13 @@ jobs:
       - name: Check target filter
         id: filter
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_TARGET: ${{ inputs.target }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] \
-             && [ "${{ inputs.target }}" != "all" ] \
-             && [ "${{ inputs.target }}" != "${{ matrix.target }}" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] \
+             && [ "$REQUESTED_TARGET" != "all" ] \
+             && [ "$REQUESTED_TARGET" != "${{ matrix.target }}" ]; then
             echo "run=false" >> "$GITHUB_OUTPUT"
           else
             echo "run=true" >> "$GITHUB_OUTPUT"

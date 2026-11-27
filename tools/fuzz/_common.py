@@ -11,6 +11,7 @@ from pathlib import Path
 import sys
 import tempfile
 import types
+import urllib.parse
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -23,6 +24,7 @@ _EPUB_PACKAGE_PATH = (APP_DIR / "epub_package.py").resolve()
 _ALEXANDRIA_ALIGNMENT_PATH = (REPO_ROOT / "alexandria_alignment.py").resolve()
 _ZIPFILE_PATH = Path(zipfile.__file__).resolve()
 _ELEMENTTREE_PATH = Path(ET.__file__).resolve()
+_URLLIB_PARSE_PATH = Path(urllib.parse.__file__).resolve()
 
 # Keep instrumentation scoped to the target importer/normalizer modules so
 # startup stays fast (~1 s) and coverage feedback stays focused instead of
@@ -375,6 +377,29 @@ def is_known_ebooklib_parse_nav_index_error(exc: IndexError) -> bool:
     )
 
 
+def is_known_href_ipv6_value_error(exc: BaseException) -> bool:
+    """Known bug #2377: _resolve_epub_href urlsplit() ValueError on a bad IPv6 authority.
+
+    A manifest or navigation href with an unbalanced IPv6 bracket (e.g.
+    ``http://[``) makes ``urllib.parse.urlsplit`` raise
+    ``ValueError("Invalid IPv6 URL")`` before ``_resolve_epub_href`` can reject
+    the external URL. Scoped to that one caller and message; anything else
+    raised while resolving an href must still crash the harness.
+    """
+    if not (isinstance(exc, ValueError) and str(exc) == "Invalid IPv6 URL"):
+        return False
+    frames = _traceback_frames(exc)
+    if len(frames) < 2:
+        return False
+    caller, last = frames[-2], frames[-1]
+    return (
+        _resolved_path(last.tb_frame.f_code.co_filename) == _URLLIB_PARSE_PATH
+        and last.tb_frame.f_code.co_name == "urlsplit"
+        and _resolved_path(caller.tb_frame.f_code.co_filename) == _SCRIPT_ROUTER_PATH
+        and caller.tb_frame.f_code.co_name == "_resolve_epub_href"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Documented ValueError refusals.
 #
@@ -397,18 +422,27 @@ _ARCHIVE_ADMISSION_VALUE_ERROR_PREFIXES = (
 )
 
 # routers.script.extract_epub_text and the helpers it reaches:
-# app.epub_package.get_epub_package (package structure), and its own resource
-# decoding / XHTML extraction refusals.
+# app.epub_package.get_epub_package (package structure), and its own bounded
+# refusals. The four per-resource parser messages are deliberately absent: the
+# extractor wraps them in a "Malformed EPUB resource ..." ValueError, and that
+# wrapper is accepted only when its ``__cause__`` is one of them (below).
 _EXTRACT_VALUE_ERROR_PREFIXES = _ARCHIVE_ADMISSION_VALUE_ERROR_PREFIXES + (
     "EPUB exceeds source upload limit",
     "Invalid EPUB package member",
     "Unsafe EPUB package member",
     "Invalid EPUB: no rootfile found in container.xml",
+)
+
+# extract_epub_text's per-spine-resource wrapper (app/routers/script.py). The
+# prefix alone is not a refusal: an unexpected ValueError from anywhere in the
+# XHTML extraction try block is wrapped in it too, so acceptance also requires
+# the documented inner message as ``__cause__``.
+_MALFORMED_RESOURCE_VALUE_ERROR_PREFIX = "Malformed EPUB resource at spine index "
+_EXTRACT_RESOURCE_VALUE_ERROR_PREFIXES = (
     "invalid Unicode: ",
     "invalid XML: ",
     "invalid XML while ",
     "unclosed <",
-    "Malformed EPUB resource at spine index ",
 )
 
 # alexandria_alignment.load_epub: archive admission, then its own two spine
@@ -423,14 +457,31 @@ _LOAD_EPUB_VALUE_ERROR_PREFIXES = _ARCHIVE_ADMISSION_VALUE_ERROR_PREFIXES + (
 def is_expected_epub_extract_value_error(exc: BaseException) -> bool:
     """Return whether a ValueError is a documented extract_epub_text refusal.
 
+    The per-resource wrapper is accepted only when its ``__cause__`` is one of
+    the four documented XHTML/XML parser messages; an unexpected ValueError
+    from the extraction try block is wrapped in the same prefix and must still
+    crash the harness.
+
     Beyond the production messages, the stdlib zipfile corrupt-offset refusal
     is accepted: it is a malformed-archive refusal like ``BadZipFile`` (raised
     from ``zipfile``'s read path, and the upload route already answers it with
-    HTTP 400), not an unexpected extractor failure.
+    HTTP 400), not an unexpected extractor failure. Known bug #2377's
+    urlsplit refusal is accepted only from ``_resolve_epub_href``.
     """
     if not isinstance(exc, ValueError):
         return False
-    return str(exc).startswith(_EXTRACT_VALUE_ERROR_PREFIXES) or is_expected_zip_value_error(exc)
+    message = str(exc)
+    if message.startswith(_MALFORMED_RESOURCE_VALUE_ERROR_PREFIX):
+        cause = exc.__cause__
+        return (
+            isinstance(cause, ValueError)
+            and str(cause).startswith(_EXTRACT_RESOURCE_VALUE_ERROR_PREFIXES)
+        )
+    return (
+        message.startswith(_EXTRACT_VALUE_ERROR_PREFIXES)
+        or is_expected_zip_value_error(exc)
+        or is_known_href_ipv6_value_error(exc)
+    )
 
 
 def is_expected_load_epub_value_error(exc: BaseException) -> bool:

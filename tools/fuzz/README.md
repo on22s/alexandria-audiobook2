@@ -22,7 +22,7 @@ app/env/bin/python -m pip install -r app/requirements-fuzz.txt
 Run any harness directly with libFuzzer `-flag=value` options (space-separated forms like `-max_total_time 60` are rejected with an error). When no positional corpus directory is passed, the harness automatically writes newly discovered inputs into a fresh temporary scratch directory while reading the checked-in seeds under `tools/fuzz/corpus/` read-only. `atheris.Fuzz()` exits inside libFuzzer, so `atexit` handlers and `finally` blocks never run: the harness prints the scratch directory path on startup and leaves it behind for you to remove (CI passes an explicit corpus directory instead):
 
 ```bash
-PYTHONPATH=app:. app/env/bin/python tools/fuzz/fuzz_epub_structured.py \
+app/env/bin/python tools/fuzz/fuzz_epub_structured.py \
   -max_total_time=600 -print_final_stats=1
 ```
 
@@ -32,7 +32,7 @@ Or pass an explicit scratch corpus and artifact directory (as `.github/workflows
 SCRATCH=$(mktemp -d /var/tmp/aa2-fuzz.XXXXXX)
 mkdir -p "$SCRATCH/corpus" "$SCRATCH/artifacts"
 cp tools/fuzz/corpus/epub_structured/* "$SCRATCH/corpus/"
-PYTHONPATH=app:. app/env/bin/python tools/fuzz/fuzz_epub_structured.py \
+app/env/bin/python tools/fuzz/fuzz_epub_structured.py \
   -max_total_time=600 -print_final_stats=1 \
   -artifact_prefix="$SCRATCH/artifacts/" "$SCRATCH/corpus"
 ```
@@ -42,7 +42,7 @@ PYTHONPATH=app:. app/env/bin/python tools/fuzz/fuzz_epub_structured.py \
 To replay a single crash artifact:
 
 ```bash
-PYTHONPATH=app:. app/env/bin/python tools/fuzz/fuzz_epub_raw.py /path/to/crash-artifact
+app/env/bin/python tools/fuzz/fuzz_epub_raw.py /path/to/crash-artifact
 ```
 
 ## Exception filters
@@ -64,14 +64,19 @@ as malformed-input refusals; everything else crashes the run:
   `embedded null character` (`#2368`).
 - **`ValueError`** is never caught wholesale. The EPUB harnesses accept only
   the documented message prefixes from `validate_epub_archive`,
-  `get_epub_package`, and `extract_epub_text` (`invalid XML: ...`,
-  `Malformed EPUB resource ...`, etc.); the parity harness does the same for
-  `load_epub`, whose documented refusals are the archive-admission messages
-  plus `EPUB has no readable spine documents` and
-  `EPUB spine references missing document: ...`. The stdlib `zipfile`
-  corrupt-offset `ValueError` (`negative seek value ...` / `seek out of
-  range`) is accepted only from the `zipfile` frame, as a malformed-archive
-  refusal. A `ValueError` with any other message fails the harness.
+  `get_epub_package`, and `extract_epub_text`; the parity harness does the same
+  for `load_epub`, whose documented refusals are the archive-admission
+  messages plus `EPUB has no readable spine documents` and
+  `EPUB spine references missing document: ...`. The extractor's
+  `Malformed EPUB resource at spine index ...` wrapper is accepted only when
+  its `__cause__` is one of the four documented inner parser messages
+  (`invalid XML: ...`, `invalid XML while ...`, `invalid Unicode: ...`,
+  `unclosed <...`), because an unexpected `ValueError` from the extraction
+  block is wrapped in the same prefix. The stdlib `zipfile` corrupt-offset
+  `ValueError` (`negative seek value ...` / `seek out of range`) is accepted
+  only from the `zipfile` frame, and #2377's `Invalid IPv6 URL` only from
+  `_resolve_epub_href` calling `urllib.parse.urlsplit`. A `ValueError` with
+  any other message fails the harness.
 - **ZIP/XML refusal exceptions** (`BadZipFile`, `ET.ParseError`, stdlib
   ZIP `RuntimeError`/`KeyError`/`OSError`/`UnicodeError` paths) are scoped to
   the exact stdlib `zipfile`/`ElementTree` frame; `UnicodeError` is always
@@ -87,5 +92,13 @@ as malformed-input refusals; everything else crashes the run:
 `regression_2375_container_multibyte_xml_encoding.epub` (#2375) and
 `regression_2370_nav_multibyte_xml_encoding.epub` (#2370), plus
 `regression_2368_embedded_null_encoding.epub` (NUL inside the declared codec
-name) and `seed_corrupt_zip_central_directory.epub` (a ZIP member offset that
-makes stdlib `BytesIO.seek` refuse with `ValueError`).
+name), `regression_2377_ipv6_manifest_href.epub` (a manifest `href` of
+`http://[`, which makes `urlsplit` raise `ValueError: Invalid IPv6 URL`), and
+`seed_corrupt_zip_central_directory.epub` (a ZIP member offset that makes
+stdlib `BytesIO.seek` refuse with `ValueError`).
+
+`tools/fuzz/corpus/epub_structured/` includes `seed_05_chapter_decode.bin`, a
+synthetic input whose generated EPUB has a spine chapter that reaches
+`get_epub_xhtml_text` and chapter decoding (the original `seed_01`/`seed_04`
+only exercise container/OPF handling because their generated chapters are
+absent or non-HTML).
