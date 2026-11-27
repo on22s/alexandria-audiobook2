@@ -376,7 +376,7 @@ id	group	file	line	angle	original_verdict	summary	disposition	root_id	evidence
 375	app-core-1	app/update_api_contract_snapshots.py	40	B	CONFIRMED	OpenAPI and route snapshots are written independently and non-atomically.	unreviewed		
 376	app-core-1	app/gold_set_builder.py	317	C	CONFIRMED	The merge CLI has no source or run inputs even though merge validation and provenance require both.	unreviewed		
 377	app-core-1	app/repair_source_llm.py	164	C	CONFIRMED	The repair utility bypasses the application's shared config-path resolver and hard-codes app/config.json.	unreviewed		
-378	app-core-1	app/pronunciation.py	142	C	CONFIRMED	character_forms defaults to repository-root data paths instead of the runtime DATA_DIR used by core.	unreviewed		
+378	app-core-1	app/pronunciation.py	142	C	CONFIRMED	character_forms defaults to repository-root data paths instead of the runtime DATA_DIR used by core.	cleanup_done		PR #2379: character_forms and its roster tests were deleted; is_key_match is the only boundary rule
 379	app-core-1	app/source_normalization.py	271	C	PLAUSIBLE	Two source-repair stacks use conflicting default residue policies, making the final text depend on call order.	unreviewed		
 380	app-core-1	app/repair_source_encoding.py	615	C	CONFIRMED	The CLI and shared generation preflight have drifted into different structural acceptance contracts.	unreviewed		
 381	app-core-1	app/utils.py	193	D	CONFIRMED	secure_filename caps characters rather than UTF-8 bytes despite promising a filesystem-safe component length.	unreviewed		
