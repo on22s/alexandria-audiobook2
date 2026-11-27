@@ -5942,14 +5942,21 @@
     "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_all_boolean_spellings_and_until_found_omitted_in_html_and_xhtml"
     , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_css_display_none_aria_hidden_and_foreign_namespace_are_not_dropped"
     , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_extraction_report_records_hidden_omission_without_leaking_text"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_hidden_on_html_and_body_across_all_paths_and_all_hidden_epub_consistency"
     , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_issue_reproduction_all_extraction_paths"
     , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_navigation_targets_inside_hidden_subtree_are_reported_and_not_inserted"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_prefixed_xhtml_hidden_applies_to_xml_paths_and_not_text_html"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_svg_and_mathml_hidden_attributes_are_not_dropped_across_all_paths"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_tolerant_html_implied_end_tags_and_ancestor_closes_never_over_drop"
     , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_void_self_closing_nested_and_malformed_markup_in_html_and_xhtml"
     , "tests.test_epub_hidden_attribute.HtmlHiddenExtractionTests.test_xml_pass_handles_cdata_and_same_tag_self_closing_hidden_elements"
     , "tests.test_epub_hidden_attribute.HtmlHiddenPredicateTests.test_predicate_accepts_all_boolean_case_until_found_and_xhtml_namespace_forms"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenPredicateTests.test_predicate_ignores_non_html_element_namespaces"
     , "tests.test_epub_hidden_attribute.HtmlHiddenPredicateTests.test_predicate_rejects_css_aria_data_and_foreign_namespaces"
     , "tests.test_epub_hidden_attribute.HtmlHiddenReadaloudParityTests.test_alignment_loader_handles_hidden_namespaces_and_out_of_scope_attrs"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenReadaloudParityTests.test_block_with_inline_text_and_hidden_block_descendant_keeps_visible_segment"
     , "tests.test_epub_hidden_attribute.HtmlHiddenReadaloudParityTests.test_end_to_end_script_and_readaloud_stay_in_sync_with_hidden_elements"
+    , "tests.test_epub_hidden_attribute.HtmlHiddenReadaloudParityTests.test_get_optional_titles_handles_deep_nesting_without_recursion_error"
   ]
   , "test_epub_navigation_document": [
     "tests.test_epub_navigation_document.EpubNavigationDocumentTests.test_a_nav_only_book_whose_nav_member_is_absent_is_not_navigation_only"
@@ -14514,6 +14521,19 @@
     , "tests.test_saved_book_publication.SavedBookPublicationTests.test_saved_mutation_does_not_relabel_body_timeout_as_admission_error"
     , "tests.test_saved_book_publication.SavedBookPublicationTests.test_saved_mutations_do_not_wait_for_book_while_holding_task_mutex"
     , "tests.test_saved_book_publication.SavedBookPublicationTests.test_saved_mutations_do_not_wait_for_saved_book_lock"
+  ]
+  , "test_saved_book_source_reselection": [
+    "tests.test_saved_book_source_reselection.ReporterFlowTests.test_reporter_flow_keeps_rendered_rows_after_the_same_epub_is_reuploaded"
+    , "tests.test_saved_book_source_reselection.ReporterFlowTests.test_two_hop_saved_chain_keeps_rendered_rows"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_changed_origin_bytes_still_start_a_new_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_changed_saved_script_bytes_start_a_new_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_cycle_in_the_saved_binding_chain_starts_a_new_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_deleted_origin_with_identical_incoming_bytes_keeps_the_rendered_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_different_epub_starts_a_new_book_and_retains_the_old_rows"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_identical_epub_reupload_keeps_the_rendered_book"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_origin_binding_outside_the_library_directory_is_not_trusted"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_saved_binding_pointing_outside_the_library_logs_at_warning"
+    , "tests.test_saved_book_source_reselection.SavedBookSourceReselectionTests.test_sibling_binding_outside_the_library_is_not_trusted"
   ]
   , "test_saved_destination_ownership": [
     "tests.test_saved_destination_ownership.SavedDestinationOwnershipTests.test_claim_scope_is_copied_canonical_and_retired_with_its_exact_owner"

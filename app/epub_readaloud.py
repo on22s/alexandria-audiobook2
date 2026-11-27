@@ -176,6 +176,10 @@ def _namespace(tag):
     return ""
 
 
+def _is_hidden_element(element):
+    return is_html_hidden_attrs(element.attrib, element_namespace=_namespace(element.tag))
+
+
 def _text_node_text(node):
     return "".join(node.itertext())
 
@@ -278,7 +282,7 @@ def _visible_pieces(node):
     if node.text:
         yield node.text
     for child in node:
-        if _local(child.tag) in _EXCLUDE or is_html_hidden_attrs(child.attrib):
+        if _local(child.tag) in _EXCLUDE or _is_hidden_element(child):
             if child.tail:
                 yield child.tail
             continue
@@ -321,18 +325,17 @@ def _get_optional_titles(root, segments, toc, path):
     order = {id(element): position for position, element in enumerate(root.iter())}
     starts = [order.get(id(segment["element"]), -1) for segment in segments]
     by_id = {}
-
-    def _collect_visible_ids(element):
-        tag = _local(element.tag)
-        if tag in _EXCLUDE or is_html_hidden_attrs(element.attrib):
-            return
+    stack = [root]
+    while stack:
+        element = stack.pop()
+        if _local(element.tag) in _EXCLUDE or _is_hidden_element(element):
+            continue
         for key in (element.get("id"), element.get("{http://www.w3.org/XML/1998/namespace}id")):
             if key and key not in by_id:
                 by_id[key] = element
-        for child in element:
-            _collect_visible_ids(child)
-
-    _collect_visible_ids(root)
+        children = list(element)
+        if children:
+            stack.extend(reversed(children))
     titles = {}
     for fragment, label in targets:
         index = 0
@@ -355,7 +358,7 @@ def _get_ruby_element_spoken_text(ruby):
 
     def _walk(node):
         tag = _local(node.tag)
-        if tag in _EXCLUDE or tag == RUBY_FALLBACK_TAG or is_html_hidden_attrs(node.attrib):
+        if tag in _EXCLUDE or tag == RUBY_FALLBACK_TAG or _is_hidden_element(node):
             return
         if tag == RUBY_READING_TAG:
             collector.start_reading()
@@ -384,7 +387,7 @@ def _direct_pieces(node, is_root=True):
     if node.text:
         out.append(node.text)
     for child in node:
-        if _local(child.tag) in _EXCLUDE or is_html_hidden_attrs(child.attrib):
+        if _local(child.tag) in _EXCLUDE or _is_hidden_element(child):
             if child.tail:
                 out.append(child.tail)
             continue
@@ -404,7 +407,7 @@ def _has_direct_text(node):
 
 def _has_block_descendant(node):
     for child in node:
-        if _local(child.tag) in _EXCLUDE or is_html_hidden_attrs(child.attrib):
+        if _local(child.tag) in _EXCLUDE or _is_hidden_element(child):
             continue
         if _local(child.tag) in _BLOCK or _has_block_descendant(child):
             return True
@@ -435,7 +438,7 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
                 # Duplicate stable ids would make SMIL references ambiguous.
                 raise ValueError(f"Duplicate element id in spine document: {element_id}")
             seen_ids.add(element_id)
-    if is_html_hidden_attrs(root.attrib):
+    if _is_hidden_element(root):
         return root, [], ""
     body = None
     for element in root.iter():
@@ -453,7 +456,7 @@ def get_xhtml_segments(archive_bytes, path, max_xml_bytes=MAX_EPUB_READALOUD_XML
 
     def _process(el):
         tag = _local(el.tag)
-        if tag in _EXCLUDE or tag == 'head' or is_html_hidden_attrs(el.attrib):
+        if tag in _EXCLUDE or tag == 'head' or _is_hidden_element(el):
             return
         if tag in _BLOCK or tag in _CONTAINER or tag == 'html':
             if _has_direct_text(el):
@@ -1162,7 +1165,7 @@ def _inline_events(element):
         for child in node:
             tag = _local(child.tag)
             if tag in _INLINE_SKIP or not isinstance(child.tag, str) \
-                    or is_html_hidden_attrs(child.attrib):
+                    or _is_hidden_element(child):
                 events.append(("atom", child))
             elif tag in _BLOCK or tag in _CONTAINER:
                 raise ValueError(

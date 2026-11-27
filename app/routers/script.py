@@ -109,7 +109,12 @@ from speaker_identity import stabilize_speaker_identities
 from generate_script import LLMGenParams
 from utils import file_lock, is_path_inside
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
-from alexandria_alignment import is_html_hidden_attrs, validate_epub_archive
+from alexandria_alignment import (
+    _XHTML_NS,
+    is_html_hidden_attrs,
+    resolve_html_element_namespace,
+    validate_epub_archive,
+)
 from epub_package import get_epub_package, is_navigation_document
 from epub_publication import get_epub_publication_candidate, get_epub_publication_origin
 from epub_extraction_report import EpubExtractionReport
@@ -490,18 +495,43 @@ class _HTMLTextExtractor(HTMLParser):
         'li', 'blockquote', 'br', 'hr', 'tr', 'td', 'th', 'section', 'article',
     })
     SKIP_TAGS = frozenset({'style', 'script', 'title'})
-    # HTML5 void elements have no end tag, so a hidden void element (e.g.
-    # <br hidden>, <img hidden>) must never push onto the hidden skip stack.
+    # HTML5 void elements have no end tag and never enter the open-element stack.
     VOID_TAGS = frozenset({
         'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
         'link', 'meta', 'param', 'source', 'track', 'wbr',
     })
-    # Block elements that implicitly close an open <p> in tolerant HTML.
+    # HTML5 start tags that implicitly close an open <p> in button/p scope.
     _P_AUTO_CLOSE_TAGS = frozenset({
-        'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote',
-        'hr', 'section', 'article', 'ul', 'ol', 'dl', 'table', 'pre',
-        'header', 'footer', 'aside', 'nav', 'main', 'figure',
+        'address', 'article', 'aside', 'blockquote', 'dd', 'details', 'dialog',
+        'div', 'dl', 'dt', 'fieldset', 'figcaption', 'figure', 'footer', 'form',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hgroup', 'hr', 'li',
+        'main', 'menu', 'nav', 'ol', 'p', 'pre', 'search', 'section', 'table',
+        'ul',
     })
+    _P_SCOPE_BOUNDARIES = frozenset({
+        'html', 'body', 'table', 'caption', 'thead', 'tbody', 'tfoot', 'tr',
+        'td', 'th', 'colgroup', 'button', 'object', 'marquee', 'applet',
+        'template', 'svg', 'math',
+    })
+    _BASE_SCOPE = frozenset({'html', 'body', 'template', 'svg', 'math'})
+    _CELL_SCOPE = _BASE_SCOPE | {'table', 'td', 'th'}
+    _ROW_SCOPE = _BASE_SCOPE | {'tr', 'thead', 'tbody', 'tfoot', 'table'}
+    _TSEC_RULE = (frozenset({'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption', 'colgroup'}), _BASE_SCOPE | {'table'})
+    _DL_RULE = (frozenset({'dd', 'dt'}), _CELL_SCOPE | {'dl'})
+    _CELL_RULE = (frozenset({'td', 'th'}), _ROW_SCOPE)
+    _RUBY_RULE = (frozenset({'rt', 'rp'}), _BASE_SCOPE | {'ruby'})
+    # Implied end-tag rules for tolerant HTML: start tag -> (tags_to_close, scope_boundaries).
+    _IMPLIED_CLOSE_RULES = {
+        'body': (frozenset({'head'}), frozenset({'html'})),
+        'li': (frozenset({'li'}), _CELL_SCOPE | {'ul', 'ol', 'menu', 'dir'}),
+        'dd': _DL_RULE, 'dt': _DL_RULE,
+        'td': _CELL_RULE, 'th': _CELL_RULE,
+        'tr': (frozenset({'tr', 'td', 'th'}), _BASE_SCOPE | {'thead', 'tbody', 'tfoot', 'table'}),
+        'thead': _TSEC_RULE, 'tbody': _TSEC_RULE, 'tfoot': _TSEC_RULE,
+        'option': (frozenset({'option'}), _BASE_SCOPE | {'optgroup', 'select', 'datalist'}),
+        'optgroup': (frozenset({'option', 'optgroup'}), _BASE_SCOPE | {'select'}),
+        'rt': _RUBY_RULE, 'rp': _RUBY_RULE,
+    }
     # In text/html these are RCDATA: their content is literal text, so markup
     # that looks like a skipped element inside them is not an element at all.
     RCDATA_TAGS = frozenset({'title', 'textarea'})
@@ -542,11 +572,13 @@ class _HTMLTextExtractor(HTMLParser):
         # element, and XHTML structure is owned by the XML parser before
         # this extractor runs, so no name-mismatch policy is needed here.
         self._skip_stack = []
-        # Open non-void element stack inside an HTML `hidden` subtree. Kept
-        # separate from `_skip_stack` so tolerant HTML unclosed hidden tags do
-        # not trip SKIP_TAGS EOF checks, while nested same-name elements inside
-        # a hidden subtree stay balanced.
-        self._hidden_stack = []
+        # Open non-void element stack `(tag, elem_ns, ns_map)` plus per-tag
+        # counts for O(1) miss checks. Drives HTML implied end tags, ancestor
+        # closes of unclosed hidden descendants, and SVG/MathML namespace
+        # scoping without altering non-hidden extraction output.
+        self._open_stack = []
+        self._open_counts = {}
+        self._hidden_root_depth = None
         self.hidden_elements = 0
         self.first_hidden_location = None
         self.hidden_anchors = set()
@@ -557,26 +589,66 @@ class _HTMLTextExtractor(HTMLParser):
         self._ruby = None
         self._ruby_fallback_depth = 0
 
+    def _pop_open_from(self, index):
+        for open_tag, _ns, _child_ns, _ns_map in self._open_stack[index:]:
+            remaining = self._open_counts[open_tag] - 1
+            if remaining:
+                self._open_counts[open_tag] = remaining
+            else:
+                del self._open_counts[open_tag]
+        del self._open_stack[index:]
+        if self._hidden_root_depth is not None and len(self._open_stack) <= self._hidden_root_depth:
+            self._hidden_root_depth = None
+
+    def _close_implied_targets(self, targets, boundaries):
+        if not any(self._open_counts.get(target) for target in targets):
+            return
+        match_index = None
+        for index in range(len(self._open_stack) - 1, -1, -1):
+            open_tag, open_ns, _child_ns, _ns_map = self._open_stack[index]
+            if open_ns and open_ns != _XHTML_NS:
+                break
+            if open_tag in boundaries:
+                break
+            if open_tag in targets:
+                match_index = index
+        if match_index is not None:
+            self._pop_open_from(match_index)
+
+    def _inherited_namespace(self):
+        if not self._open_stack:
+            return '', {}
+        _tag, _elem_ns, child_ns, ns_map = self._open_stack[-1]
+        return child_ns, ns_map
+
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
         is_skip = tag in self.SKIP_TAGS
         if is_skip:
             self._skip_stack.append(tag)
-        if (self._hidden_stack and self._hidden_stack[-1] == 'p'
-                and tag in self._P_AUTO_CLOSE_TAGS):
-            self._hidden_stack.pop()
-        is_hidden = False
-        if self._hidden_stack:
-            if not is_skip and tag not in self.VOID_TAGS:
-                self._hidden_stack.append(tag)
-            is_hidden = True
-        elif not is_skip and not self._skip_stack and is_html_hidden_attrs(attrs):
+        in_skip = is_skip or bool(self._skip_stack)
+        if not in_skip:
+            inherited_ns, _ = self._inherited_namespace()
+            if not inherited_ns or inherited_ns == _XHTML_NS:
+                if tag in self._P_AUTO_CLOSE_TAGS:
+                    self._close_implied_targets(frozenset({'p'}), self._P_SCOPE_BOUNDARIES)
+                rule = self._IMPLIED_CLOSE_RULES.get(tag)
+                if rule is not None:
+                    self._close_implied_targets(*rule)
+            inherited_ns, parent_ns_map = self._inherited_namespace()
+            elem_ns, child_ns, ns_map = resolve_html_element_namespace(
+                tag, attrs, inherited_ns, parent_ns_map)
+        is_hidden = self._hidden_root_depth is not None
+        if not is_hidden and not in_skip and is_html_hidden_attrs(attrs, element_namespace=elem_ns):
             is_hidden = True
             self.hidden_elements += 1
             if self.first_hidden_location is None:
                 self.first_hidden_location = f'line {self.getpos()[0]}, <{tag}>'
             if tag not in self.VOID_TAGS:
-                self._hidden_stack.append(tag)
+                self._hidden_root_depth = len(self._open_stack)
+        if not in_skip and tag not in self.VOID_TAGS:
+            self._open_stack.append((tag, elem_ns, child_ns, ns_map))
+            self._open_counts[tag] = self._open_counts.get(tag, 0) + 1
         if not self._skip_stack and not is_hidden:
             if tag == RUBY_TAG and self._ruby is None:
                 self._ruby = RubyCollector()
@@ -601,12 +673,18 @@ class _HTMLTextExtractor(HTMLParser):
         if tag in self.SKIP_TAGS and self._skip_stack:
             self._skip_stack.pop()
             return
-        if self._hidden_stack:
-            if tag in self._hidden_stack:
-                for index in range(len(self._hidden_stack) - 1, -1, -1):
-                    if self._hidden_stack[index] == tag:
-                        del self._hidden_stack[index:]
-                        break
+        if self._skip_stack:
+            return
+        was_hidden = self._hidden_root_depth is not None
+        popped_visible_ancestor = False
+        if self._open_counts.get(tag):
+            for index in range(len(self._open_stack) - 1, -1, -1):
+                if self._open_stack[index][0] == tag:
+                    if was_hidden and index < self._hidden_root_depth:
+                        popped_visible_ancestor = True
+                    self._pop_open_from(index)
+                    break
+        if was_hidden and not popped_visible_ancestor:
             return
         if self._ruby is not None:
             if tag == RUBY_READING_TAG:
@@ -619,7 +697,7 @@ class _HTMLTextExtractor(HTMLParser):
                     self._append_text(spoken)
 
     def handle_data(self, data):
-        if self._skip_stack or self._hidden_stack or self._ruby_fallback_depth:
+        if self._skip_stack or self._hidden_root_depth is not None or self._ruby_fallback_depth:
             return
         if self.cdata_elem == 'textarea':
             # RCDATA decodes character references; HTMLParser suppresses its
@@ -827,10 +905,12 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
         if start < 0:
             raise ValueError('invalid XML: element position unavailable')
         current_ns = ns_stack[-1]
-        if any(key.startswith('xmlns:') for key in attrs):
+        if 'xmlns' in attrs or any(key.startswith('xmlns:') for key in attrs):
             updated = dict(current_ns)
             for key, value in attrs.items():
-                if key.startswith('xmlns:'):
+                if key == 'xmlns':
+                    updated[''] = value
+                elif key.startswith('xmlns:'):
                     updated[key[6:]] = value
             current_ns = updated
         ns_stack.append(current_ns)
@@ -852,7 +932,10 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
                     stats['hidden_anchors'].add(anchor_id)
             return
         is_skip = is_skipped(name)
-        is_hidden = not is_skip and is_html_hidden_attrs(attrs, xml_namespaces=current_ns)
+        elem_ns = (current_ns.get(name.partition(':')[0], '')
+                   if ':' in name else current_ns.get('', ''))
+        is_hidden = not is_skip and is_html_hidden_attrs(
+            attrs, xml_namespaces=current_ns, element_namespace=elem_ns)
         if is_skip or is_hidden:
             candidate.extend(view[cursor:start])
             omitted = True

@@ -22,10 +22,12 @@ Callers build a per-book proper-noun lexicon and pass it to alignment helpers.
 The default empty lexicon preserves library callers' baseline behavior.
 """
 
+import codecs
 import re
 import io
 import difflib
 import functools
+from html.parser import HTMLParser
 import sys
 import os
 import zipfile
@@ -38,7 +40,7 @@ from typing import NamedTuple
 try:
     import ebooklib
     from ebooklib import epub
-    from bs4 import BeautifulSoup
+    from bs4 import BeautifulSoup, NavigableString
     EPUB_AVAILABLE = True
 except ImportError:
     EPUB_AVAILABLE = False
@@ -159,15 +161,24 @@ def get_source_word_lists(text: str) -> tuple:
 
 # ── HTML hidden attribute predicate (shared across all EPUB/XHTML paths) ──────
 _XHTML_NS = 'http://www.w3.org/1999/xhtml'
+_SVG_NS = 'http://www.w3.org/2000/svg'
+_MATHML_NS = 'http://www.w3.org/1998/Math/MathML'
+_ROOT_PROLOG_TAGS = frozenset({
+    'html', 'head', 'title', 'meta', 'link', 'style', 'script', 'base', 'noscript',
+})
 
 
-def is_html_hidden_attrs(attrs, *, xml_namespaces=None) -> bool:
+def is_html_hidden_attrs(attrs, *, xml_namespaces=None, element_namespace=None) -> bool:
     """Return whether an element's attributes carry the HTML ``hidden`` attribute.
 
-    ``hidden`` is matched by attribute presence: bare ``hidden``, ``hidden=""``,
+    ``hidden`` is an HTML-only global attribute: non-HTML elements (e.g. SVG or
+    MathML when ``element_namespace`` is set to a non-XHTML URI) return False.
+    ``hidden`` is matched by attribute presence (ASCII case-insensitive in both
+    HTML and XML for parity): bare ``hidden``, ``hidden=""``,
     ``hidden="hidden"``, uppercase/mixed-case spellings, and explicit XHTML-
     namespaced spellings (``{http://www.w3.org/1999/xhtml}hidden`` or a prefix
-    bound to that URI via ``xml_namespaces``) all return True.
+    bound to that URI via ``xml_namespaces``, used on XML/XHTML documents —
+    ``text/html`` attributes have no XML namespaces) all return True.
     ``hidden="until-found"`` is treated as hidden: in HTML it suppresses
     rendering (``content-visibility: hidden``) until interactive find-in-page
     or fragment reveal, which does not occur during linear audiobook narration.
@@ -177,7 +188,7 @@ def is_html_hidden_attrs(attrs, *, xml_namespaces=None) -> bool:
     One predicate for HTML/XHTML script extraction, XML subtree omission,
     EPUB read-aloud segmentation, and alignment EPUB loading (Rule 15).
     """
-    if not attrs:
+    if not attrs or (element_namespace and element_namespace != _XHTML_NS):
         return False
     names = attrs.keys() if hasattr(attrs, 'keys') else (name for name, _value in attrs)
     for name in names:
@@ -198,21 +209,48 @@ def is_html_hidden_attrs(attrs, *, xml_namespaces=None) -> bool:
     return False
 
 
-def _bs4_xml_namespaces(tag, *, base=None):
-    """Collect active ``xmlns:<prefix>`` bindings for a BeautifulSoup tag."""
-    namespaces = {}
-    node = tag
-    while node is not None:
-        node_attrs = getattr(node, 'attrs', None)
-        if node_attrs:
-            for key, value in node_attrs.items():
-                if isinstance(key, str) and key.startswith('xmlns:') and isinstance(value, str):
-                    namespaces.setdefault(key[6:], value)
-        node = getattr(node, 'parent', None)
-    if base:
-        for prefix, uri in base.items():
-            namespaces.setdefault(prefix, uri)
-    return namespaces
+class _RootContextParser(HTMLParser):
+    """Inspect only the opening ``<html>``/``<body>`` start tags of an EPUB item."""
+    CDATA_CONTENT_ELEMENTS = HTMLParser.CDATA_CONTENT_ELEMENTS + ('title',)
+
+    def __init__(self):
+        super().__init__()
+        self.namespaces = {}
+        self.doc_hidden = False
+        self.done = False
+
+    def handle_starttag(self, tag, attrs):
+        if self.done:
+            return
+        tag = tag.lower()
+        if tag in ('html', 'body'):
+            for key, value in attrs:
+                if not isinstance(key, str) or not isinstance(value, str):
+                    continue
+                if key == 'xmlns':
+                    self.namespaces[''] = value
+                elif key.startswith('xmlns:'):
+                    self.namespaces[key[6:]] = value
+            elem_ns = self.namespaces.get('', '')
+            if is_html_hidden_attrs(
+                    attrs, xml_namespaces=self.namespaces, element_namespace=elem_ns):
+                self.doc_hidden = True
+                self.done = True
+            elif tag == 'body':
+                self.done = True
+        elif tag not in _ROOT_PROLOG_TAGS:
+            self.done = True
+
+
+def _decode_head_encoding(raw: bytes) -> str:
+    if raw.startswith((b'\xff\xfe', b'\xfe\xff')):
+        return 'utf-16'
+    if raw.startswith(b'<\0'):
+        return 'utf-16-le'
+    if raw.startswith(b'\0<'):
+        return 'utf-16-be'
+    match = re.match(br'\s*<\?xml\b[^>]*\bencoding\s*=\s*[\'"]([^\'"]+)[\'"]', raw[:256])
+    return match.group(1).decode('ascii') if match else 'utf-8-sig'
 
 
 def _epub_item_root_context(item):
@@ -220,24 +258,96 @@ def _epub_item_root_context(item):
 
     ``ebooklib.EpubHtml.get_content()`` rebuilds ``<html>`` and ``<body>`` from
     a template, dropping root ``xmlns:*`` declarations and ``hidden`` attributes
-    on ``<html>``/``<body>``. Inspect ``item.content`` when available so
-    ``load_epub`` keeps the same namespace and root-hidden semantics as XHTML
-    extraction without altering ``get_content()`` for callers or mocks.
+    on ``<html>``/``<body>``. Feed ``item.content`` in small chunks and stop at
+    ``<body>`` (or the first body element) so large chapters never suffer a
+    second full-document parse.
     """
     raw = getattr(item, 'content', None)
     if not isinstance(raw, (bytes, str)) or not raw:
         return False, {}
-    raw_soup = BeautifulSoup(raw, 'html.parser')
-    namespaces = {}
-    for root_tag in (raw_soup.find('html'), raw_soup.find('body')):
-        if root_tag is None or not getattr(root_tag, 'attrs', None):
+    parser = _RootContextParser()
+    chunk_size = 4096
+    if isinstance(raw, str):
+        for offset in range(0, len(raw), chunk_size):
+            parser.feed(raw[offset:offset + chunk_size])
+            if parser.done:
+                break
+    else:
+        encoding = _decode_head_encoding(raw)
+        try:
+            decoder = codecs.getincrementaldecoder(encoding)(errors='replace')
+        except LookupError:
+            decoder = codecs.getincrementaldecoder('utf-8-sig')(errors='replace')
+        limit = len(raw)
+        for offset in range(0, limit, chunk_size):
+            chunk = raw[offset:offset + chunk_size]
+            parser.feed(decoder.decode(chunk, final=offset + chunk_size >= limit))
+            if parser.done:
+                break
+    return parser.doc_hidden, parser.namespaces
+
+
+def resolve_html_element_namespace(tag: str, attrs, inherited_ns: str, ns_map: dict):
+    """Return ``(element_ns, child_default_ns, updated_ns_map)`` for an HTML/XHTML tag."""
+    elem_ns_map = ns_map
+    explicit_xmlns = None
+    if attrs:
+        items = attrs.items() if hasattr(attrs, 'items') else attrs
+        for key, value in items:
+            if not isinstance(key, str) or not isinstance(value, str):
+                continue
+            if key == 'xmlns':
+                explicit_xmlns = value
+            elif key.startswith('xmlns:'):
+                if elem_ns_map is ns_map:
+                    elem_ns_map = dict(ns_map)
+                elem_ns_map[key[6:]] = value
+    if ':' in tag:
+        elem_ns = elem_ns_map.get(tag.partition(':')[0], inherited_ns)
+    elif explicit_xmlns is not None:
+        elem_ns = explicit_xmlns
+    elif tag == 'svg':
+        elem_ns = _SVG_NS
+    elif tag == 'math':
+        elem_ns = _MATHML_NS
+    else:
+        elem_ns = inherited_ns
+    child_ns = '' if (elem_ns == _SVG_NS and tag == 'foreignobject') else elem_ns
+    return elem_ns, child_ns, elem_ns_map
+
+
+def _extract_bs4_visible_text(soup, *, root_namespaces=None) -> tuple[str, bool]:
+    """Return ``(visible_text, saw_hidden)`` in one linear pass without ``decompose()``."""
+    string_types = soup.interesting_string_types or soup.MAIN_CONTENT_STRING_TYPES
+    base_ns = dict(root_namespaces) if root_namespaces else {}
+    initial_ns = base_ns.get('', '')
+    chunks = []
+    saw_hidden = False
+    stack = [(child, base_ns, initial_ns) for child in reversed(soup.contents)]
+    while stack:
+        node, ns_map, inherited_ns = stack.pop()
+        if isinstance(node, NavigableString):
+            if type(node) in string_types:
+                chunks.append(str(node))
             continue
-        for key, value in root_tag.attrs.items():
-            if isinstance(key, str) and key.startswith('xmlns:') and isinstance(value, str):
-                namespaces[key[6:]] = value
-        if is_html_hidden_attrs(root_tag.attrs, xml_namespaces=namespaces):
-            return True, namespaces
-    return False, namespaces
+        name = getattr(node, 'name', None)
+        if not isinstance(name, str):
+            continue
+        tag = name.lower()
+        if tag in ('script', 'style'):
+            continue
+        attrs = getattr(node, 'attrs', None)
+        elem_ns, child_ns, elem_ns_map = resolve_html_element_namespace(
+            tag, attrs, inherited_ns, ns_map)
+        if attrs and is_html_hidden_attrs(
+                attrs, xml_namespaces=elem_ns_map, element_namespace=elem_ns):
+            saw_hidden = True
+            continue
+        contents = getattr(node, 'contents', None)
+        if contents:
+            for child in reversed(contents):
+                stack.append((child, elem_ns_map, child_ns))
+    return ' '.join(chunks), saw_hidden
 
 
 # ── Source loaders ─────────────────────────────────────────────────────────────
@@ -290,6 +400,7 @@ def load_epub(path: str) -> str:
     validate_epub_archive(path)
     book = epub.read_epub(path)
     parts = []
+    saw_hidden = False
     for item_id, linear in book.spine:
         item = book.get_item_with_id(item_id)
         if item is None:
@@ -312,20 +423,15 @@ def load_epub(path: str) -> str:
             continue
         doc_hidden, root_namespaces = _epub_item_root_context(item)
         if doc_hidden:
+            saw_hidden = True
             continue
         soup = BeautifulSoup(item.get_content(), 'html.parser')
-        for tag in soup(['script', 'style']):
-            tag.decompose()
-        for tag in list(soup.find_all(True)):
-            attrs = getattr(tag, 'attrs', None)
-            if not attrs:
-                continue
-            namespaces = (_bs4_xml_namespaces(tag, base=root_namespaces)
-                          if any(isinstance(k, str) and ':' in k for k in attrs) else None)
-            if is_html_hidden_attrs(attrs, xml_namespaces=namespaces):
-                tag.decompose()
-        parts.append(soup.get_text(separator=' '))
-    if not parts:
+        text, item_hidden = _extract_bs4_visible_text(soup, root_namespaces=root_namespaces)
+        saw_hidden = saw_hidden or item_hidden
+        parts.append(text)
+    if not parts or (saw_hidden and not any(part.strip() for part in parts)):
+        if saw_hidden:
+            raise ValueError('EPUB has no readable text after omitting HTML hidden elements')
         raise ValueError('EPUB has no readable spine documents')
     return '\n'.join(parts)
 

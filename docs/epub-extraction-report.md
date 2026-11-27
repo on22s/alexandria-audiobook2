@@ -13,11 +13,22 @@ hidden subtrees (`target_in_hidden_subtree`), duplicate navigation,
 duplicate-anchor first-occurrence behavior, title insertion/suppression decisions,
 omitted HTML `hidden` content (`hidden_content` rows recording omitted element
 counts and first element location, never the hidden text), and skipped
-missing/non-HTML/empty resources. Elements carrying the HTML `hidden` attribute
-(in any boolean or XHTML-namespaced form, including `hidden="until-found"`, which
-hides content from linear reading until interactive find-in-page reveal) and all
-their descendants are omitted from narration; CSS `display:none` and
-`aria-hidden` are not inferred or dropped. Navigation targets pointing only to
+missing/non-HTML/empty resources. HTML elements carrying the HTML `hidden`
+attribute (ASCII case-insensitive in both HTML and XML for parity, in any
+boolean form including `hidden="until-found"`, which hides content from linear
+reading until interactive find-in-page reveal; XHTML-namespaced prefixed forms
+such as `h:hidden` apply to XML/XHTML documents — `application/xhtml+xml`,
+read-aloud, and `load_epub` — whereas `text/html` attributes have no XML
+namespaces so prefixed names are distinct attributes) and all their descendants
+are omitted from narration. Because `hidden` is an HTML-only global attribute,
+it is not applied to SVG or MathML elements; CSS `display:none` and
+`aria-hidden` are not inferred or dropped. In tolerant `text/html` resources,
+self-closing syntax on non-void elements (such as `<div hidden=""/>`) is
+treated as self-closing by Python's `HTMLParser`, preserving following text
+rather than over-dropping prose. When every spine document in an EPUB is hidden,
+script extraction returns empty text, read-aloud returns no segments, and
+`alexandria_alignment.load_epub` raises a `ValueError` naming hidden elements.
+Navigation targets pointing only to
 anchors inside a hidden subtree do not resolve into visible text and do not
 insert navigation labels; they are reported with reason
 `target_in_hidden_subtree`. A navigation document listed in the

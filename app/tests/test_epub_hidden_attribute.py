@@ -18,6 +18,7 @@ import utils  # noqa: F401  # inserts repo root on sys.path for alexandria_align
 import alexandria_alignment as alignment
 from epub_readaloud import (
     _get_optional_titles,
+    _inline_events,
     build_epub_readaloud,
     get_spoken_text,
     get_xhtml_segments,
@@ -82,6 +83,48 @@ def make_epub(body, *, media_type='application/xhtml+xml', toc_links=None,
     return buf.getvalue()
 
 
+def make_multi_epub(docs, *, media_type='application/xhtml+xml'):
+    """Build a minimal synthetic EPUB 3 archive with multiple raw spine documents."""
+    manifest_items = [
+        '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>',
+    ]
+    spine_refs = []
+    for idx, (href, _raw) in enumerate(docs):
+        manifest_items.append(f'<item id="c{idx}" href="{href}" media-type="{media_type}"/>')
+        spine_refs.append(f'<itemref idref="c{idx}"/>')
+    nav_doc = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<html xmlns="http://www.w3.org/1999/xhtml" '
+        'xmlns:epub="http://www.idpf.org/2007/ops">'
+        '<head><title>Nav</title></head><body>'
+        '<nav epub:type="toc"><ol></ol></nav></body></html>'
+    )
+    opf = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid">'
+        '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        '<dc:identifier id="uid">urn:test:2326-multi</dc:identifier>'
+        '<dc:title>Synthetic</dc:title><dc:language>en</dc:language></metadata>'
+        f'<manifest>{"".join(manifest_items)}</manifest>'
+        f'<spine>{"".join(spine_refs)}</spine></package>'
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr('mimetype', 'application/epub+zip', compress_type=zipfile.ZIP_STORED)
+        zf.writestr(
+            'META-INF/container.xml',
+            '<?xml version="1.0"?><container version="1.0" '
+            'xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+            '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+            'media-type="application/oebps-package+xml"/></rootfiles></container>',
+        )
+        zf.writestr('OEBPS/content.opf', opf)
+        zf.writestr('OEBPS/nav.xhtml', nav_doc)
+        for href, raw in docs:
+            zf.writestr(f'OEBPS/{href}', raw)
+    return buf.getvalue()
+
+
 class HtmlHiddenPredicateTests(unittest.TestCase):
     def test_predicate_accepts_all_boolean_case_until_found_and_xhtml_namespace_forms(self):
         xhtml_ns = {'h': 'http://www.w3.org/1999/xhtml'}
@@ -129,6 +172,19 @@ class HtmlHiddenPredicateTests(unittest.TestCase):
                 self.assertFalse(alignment.is_html_hidden_attrs(attrs))
         self.assertFalse(alignment.is_html_hidden_attrs(
             {'x:hidden': 'hidden'}, xml_namespaces={'x': 'urn:example'}))
+
+    def test_predicate_ignores_non_html_element_namespaces(self):
+        xhtml_ns = {'h': 'http://www.w3.org/1999/xhtml'}
+        for ns in ('http://www.w3.org/2000/svg', 'http://www.w3.org/1998/Math/MathML', 'urn:example'):
+            with self.subTest(element_namespace=ns):
+                self.assertFalse(alignment.is_html_hidden_attrs(
+                    {'hidden': ''}, element_namespace=ns))
+                self.assertFalse(alignment.is_html_hidden_attrs(
+                    {'h:hidden': 'hidden'}, xml_namespaces=xhtml_ns, element_namespace=ns))
+        for ns in (None, '', 'http://www.w3.org/1999/xhtml'):
+            with self.subTest(html_namespace=ns):
+                self.assertTrue(alignment.is_html_hidden_attrs(
+                    {'hidden': ''}, element_namespace=ns))
 
 
 class HtmlHiddenExtractionTests(unittest.TestCase):
@@ -429,6 +485,238 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                 self.assertEqual('insert_navigation_label', by_frag['dup']['reason'])
                 self.assertEqual('insert_navigation_label', by_frag['vis']['reason'])
 
+    def test_tolerant_html_implied_end_tags_and_ancestor_closes_never_over_drop(self):
+        cases = [
+            ('li_omitted_end',
+             '<ul><li hidden="">Secret item<li>Visible item</ul><p>After.</p>',
+             'Visible item\n\nAfter.'),
+            ('td_omitted_end',
+             '<table><tr><td hidden="">Secret<td>Visible</tr></table><p>After.</p>',
+             'Visible\n\nAfter.'),
+            ('th_omitted_end',
+             '<table><tr><th hidden="">Secret<th>Visible</tr></table><p>After.</p>',
+             'Visible\n\nAfter.'),
+            ('tr_omitted_end',
+             '<table><tr hidden=""><td>Secret<tr><td>Visible</table><p>After.</p>',
+             'Visible\n\nAfter.'),
+            ('dd_omitted_end',
+             '<dl><dt>T<dd hidden="">Secret<dd>Visible</dl><p>After.</p>',
+             'TVisible\n\nAfter.'),
+            ('dt_omitted_end',
+             '<dl><dt hidden="">Secret<dt>Visible</dl><p>After.</p>',
+             'Visible\n\nAfter.'),
+            ('option_omitted_end',
+             '<select><option hidden="">Secret<option>Visible</select><p>After.</p>',
+             'Visible\n\nAfter.'),
+            ('unclosed_hidden_span_closed_by_p',
+             '<p>Visible start. <span hidden="">secret</p><p>After paragraph.</p>',
+             'Visible start. \n\nAfter paragraph.'),
+            ('unclosed_hidden_span_closed_by_div',
+             '<div>Visible start. <span hidden="">secret</div><p>After paragraph.</p>',
+             'Visible start. \n\nAfter paragraph.'),
+            ('unclosed_hidden_em_closed_by_p',
+             '<p>Visible start. <em hidden="">secret</p><p>After paragraph.</p>',
+             'Visible start. \n\nAfter paragraph.'),
+            ('unclosed_hidden_span_closed_by_implied_p',
+             '<p>One <span hidden>x<p>Two.</p>',
+             'One \n\nTwo.'),
+            ('hidden_p_closed_by_form',
+             '<p hidden="">Secret<form><p>Visible form</p></form><p>After.</p>',
+             'Visible form\n\nAfter.'),
+            ('nested_list_inside_hidden_li_stays_hidden',
+             '<ul><li hidden="">Secret<ul><li>Nested secret</li></ul><li>Visible</ul><p>After.</p>',
+             'Visible\n\nAfter.'),
+            ('nested_table_inside_hidden_td_stays_hidden',
+             '<table><tr><td hidden="">Secret<table><tr><td>Nested secret</td></tr></table>'
+             '<td>Visible</tr></table><p>After.</p>',
+             'Visible\n\nAfter.'),
+            ('void_inside_hidden_container',
+             '<div hidden=""><br><img src="x.png"><p>Secret</p></div><p>After.</p>',
+             'After.'),
+        ]
+        for name, body, expected in cases:
+            with self.subTest(case=name):
+                raw = make_epub(body, media_type='text/html', toc_links=[])
+                self.assertEqual(expected,
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+
+        # Every HTML5 <p>-closing start tag closes an open <p hidden="">.
+        p_closers = (
+            'address', 'article', 'aside', 'blockquote', 'details', 'div', 'dl',
+            'fieldset', 'figcaption', 'figure', 'footer', 'form', 'h1', 'header',
+            'hgroup', 'hr', 'main', 'menu', 'nav', 'ol', 'p', 'pre', 'section',
+            'table', 'ul',
+        )
+        for tag in p_closers:
+            with self.subTest(p_closer=tag):
+                body = f'<p hidden="">Secret<{tag}>Visible</{tag}><p>After.'
+                raw = make_epub(body, media_type='text/html', toc_links=[])
+                self.assertEqual('Visible\n\nAfter.',
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+
+    def test_svg_and_mathml_hidden_attributes_are_not_dropped_across_all_paths(self):
+        cases = [
+            ('svg_text_hidden',
+             '<p>Before.</p><svg xmlns="http://www.w3.org/2000/svg">'
+             '<rect hidden="" width="5" height="5"/><text hidden="">SVG text</text></svg>'
+             '<p>After.</p>',
+             'SVG text'),
+            ('mathml_mi_hidden',
+             '<p>Before.</p><math xmlns="http://www.w3.org/1998/Math/MathML">'
+             '<mi hidden="">alpha</mi><mn>2</mn></math><p>After.</p>',
+             'alpha'),
+            ('mathml_root_hidden',
+             '<p>Before.</p><math xmlns="http://www.w3.org/1998/Math/MathML" hidden="">'
+             '<mi>beta</mi></math><p>After.</p>',
+             'beta'),
+        ]
+        for name, body, expected_token in cases:
+            with self.subTest(case=name):
+                for media_type in ('application/xhtml+xml', 'text/html'):
+                    raw = make_epub(body, media_type=media_type, toc_links=[])
+                    text, report = extract_epub_text('synthetic.epub', archive_bytes=raw, include_report=True)
+                    self.assertIn(expected_token, text)
+                    self.assertEqual([], [r for r in report['rows'] if r['kind'] == 'hidden_content'])
+                raw_x = make_epub(body, toc_links=[])
+                _root, segs, full = get_xhtml_segments(raw_x, 'OEBPS/ch1.xhtml')
+                self.assertIn(expected_token, full)
+                with tempfile.TemporaryDirectory() as tmp:
+                    epub_path = Path(tmp) / 'foreign.epub'
+                    epub_path.write_bytes(raw_x)
+                    loaded = alignment.load_epub(str(epub_path))
+                self.assertIn(expected_token, loaded)
+
+        # Bare HTML5 <svg>/<math> without xmlns on text/html path.
+        bare_html = (
+            '<p>Before.</p><svg><text hidden="">Bare SVG</text></svg>'
+            '<math><mi hidden="">Bare Math</mi></math><p>After.</p>'
+        )
+        raw_bare = make_epub(bare_html, media_type='text/html', toc_links=[])
+        bare_text = extract_epub_text('synthetic.epub', archive_bytes=raw_bare)
+        self.assertIn('Bare SVG', bare_text)
+        self.assertIn('Bare Math', bare_text)
+
+        # Qwen sentence-splitting inline events also keep SVG/MathML text.
+        p_svg = ET.fromstring(
+            '<p xmlns="http://www.w3.org/1999/xhtml">Before '
+            '<svg xmlns="http://www.w3.org/2000/svg"><text hidden="">SVG</text></svg>'
+            ' after.</p>'
+        )
+        inline_text = ''.join(val for kind, val in _inline_events(p_svg) if kind == 'text')
+        self.assertIn('SVG', inline_text)
+
+        # An HTML ancestor with hidden still omits embedded SVG/MathML, and an
+        # HTML element inside SVG <foreignObject> still obeys HTML hidden.
+        html_wrapped = (
+            '<p>Before.</p>'
+            '<div hidden=""><svg xmlns="http://www.w3.org/2000/svg"><text>Omitted SVG</text></svg></div>'
+            '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject>'
+            '<div xmlns="http://www.w3.org/1999/xhtml" hidden=""><p>Omitted foreign HTML</p></div>'
+            '</foreignObject></svg>'
+            '<p>After.</p>'
+        )
+        for media_type in ('application/xhtml+xml', 'text/html'):
+            raw = make_epub(html_wrapped, media_type=media_type, toc_links=[])
+            text = extract_epub_text('synthetic.epub', archive_bytes=raw)
+            self.assertEqual('Before.\n\nAfter.', text)
+        raw_x = make_epub(html_wrapped, toc_links=[])
+        _root, segs, _full = get_xhtml_segments(raw_x, 'OEBPS/ch1.xhtml')
+        self.assertEqual(['Before.', 'After.'], [s['text'] for s in segs])
+        with tempfile.TemporaryDirectory() as tmp:
+            epub_path = Path(tmp) / 'wrapped.epub'
+            epub_path.write_bytes(raw_x)
+            loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
+        self.assertEqual('Before. After.', loaded)
+
+    def test_prefixed_xhtml_hidden_applies_to_xml_paths_and_not_text_html(self):
+        body = '<p h:hidden="hidden">Prefixed secret.</p><p>Visible.</p>'
+        extra = ' xmlns:h="http://www.w3.org/1999/xhtml"'
+        raw_x = make_epub(body, extra_html_attrs=extra, toc_links=[])
+        raw_h = make_epub(body, media_type='text/html', extra_html_attrs=extra, toc_links=[])
+
+        self.assertEqual('Visible.', extract_epub_text('synthetic.epub', archive_bytes=raw_x))
+        self.assertEqual('Prefixed secret.\n\nVisible.',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw_h))
+        _root, segs, _full = get_xhtml_segments(raw_x, 'OEBPS/ch1.xhtml')
+        self.assertEqual(['Visible.'], [s['text'] for s in segs])
+        with tempfile.TemporaryDirectory() as tmp:
+            epub_path = Path(tmp) / 'prefixed.epub'
+            epub_path.write_bytes(raw_x)
+            loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
+        self.assertEqual('Visible.', loaded)
+
+    def test_hidden_on_html_and_body_across_all_paths_and_all_hidden_epub_consistency(self):
+        doc_tpl = '<?xml version="1.0" encoding="utf-8"?>\n<html xmlns="http://www.w3.org/1999/xhtml"{extra}>{inner}</html>'
+        all_hidden_shapes = [
+            ('html_hidden', doc_tpl.format(extra=' hidden="hidden"', inner='<head><title>T</title></head><body><p>Secret.</p></body>'), True),
+            ('body_hidden', doc_tpl.format(extra='', inner='<head><title>T</title></head><body hidden=""><p>Secret.</p></body>'), True),
+            ('body_h_hidden', doc_tpl.format(extra=' xmlns:h="http://www.w3.org/1999/xhtml"', inner='<head><title>T</title></head><body h:hidden=""><p>Secret.</p></body>'), False),
+            ('only_p_hidden', doc_tpl.format(extra='', inner='<head><title>T</title></head><body><p hidden="">Secret.</p></body>'), True),
+        ]
+        for name, raw_doc, also_html in all_hidden_shapes:
+            with self.subTest(shape=name):
+                raw_x = make_epub('', raw_document=raw_doc, toc_links=[])
+                self.assertEqual('', extract_epub_text('synthetic.epub', archive_bytes=raw_x))
+                if also_html:
+                    raw_h = make_epub('', raw_document=raw_doc, media_type='text/html', toc_links=[])
+                    self.assertEqual('', extract_epub_text('synthetic.epub', archive_bytes=raw_h))
+                _root, segs, full = get_xhtml_segments(raw_x, 'OEBPS/ch1.xhtml')
+                self.assertEqual([], segs)
+                self.assertEqual('', full)
+                with tempfile.TemporaryDirectory() as tmp:
+                    epub_path = Path(tmp) / f'{name}.epub'
+                    epub_path.write_bytes(raw_x)
+                    with self.assertRaisesRegex(ValueError, r'no readable text after omitting HTML hidden elements'):
+                        alignment.load_epub(str(epub_path))
+
+        # Nav-only EPUB (no hidden elements) keeps the original spine-documents message.
+        nav_only = make_multi_epub([])
+        with tempfile.TemporaryDirectory() as tmp:
+            epub_path = Path(tmp) / 'nav_only.epub'
+            epub_path.write_bytes(nav_only)
+            with self.assertRaisesRegex(ValueError, r'no readable spine documents'):
+                alignment.load_epub(str(epub_path))
+
+        # Multi-document EPUB: hidden <html> or <body> chapter is skipped while
+        # subsequent visible chapters survive in all paths (kills load_epub doc_hidden mutant).
+        visible_doc = doc_tpl.format(extra='', inner='<head><title>T</title></head><body><p>Chapter two visible.</p></body>')
+        for name, hidden_doc in (
+            ('multi_html_hidden', doc_tpl.format(extra=' hidden="hidden"', inner='<head><title>T</title></head><body><p>Chapter one secret.</p></body>')),
+            ('multi_body_hidden', doc_tpl.format(extra='', inner='<head><title>T</title></head><body hidden=""><p>Chapter one secret.</p></body>')),
+        ):
+            with self.subTest(case=name):
+                raw_multi = make_multi_epub([('ch1.xhtml', hidden_doc), ('ch2.xhtml', visible_doc)])
+                self.assertEqual('Chapter two visible.',
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw_multi))
+                _r1, segs1, _f1 = get_xhtml_segments(raw_multi, 'OEBPS/ch1.xhtml')
+                _r2, segs2, _f2 = get_xhtml_segments(raw_multi, 'OEBPS/ch2.xhtml')
+                self.assertEqual([], segs1)
+                self.assertEqual(['Chapter two visible.'], [s['text'] for s in segs2])
+                with tempfile.TemporaryDirectory() as tmp:
+                    epub_path = Path(tmp) / f'{name}.epub'
+                    epub_path.write_bytes(raw_multi)
+                    loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
+                self.assertEqual('Chapter two visible.', loaded)
+
+        # Direct _epub_item_root_context checks: detects hidden on <html>/<body>,
+        # ignores fake <body hidden> inside <style>/comments, and stops at <body>.
+        class _FakeItem:
+            def __init__(self, content):
+                self.content = content
+
+        self.assertTrue(alignment._epub_item_root_context(
+            _FakeItem(b'<html hidden="hidden"><body><p>S</p></body></html>'))[0])
+        self.assertTrue(alignment._epub_item_root_context(
+            _FakeItem(b'<html><body hidden=""><p>S</p></body></html>'))[0])
+        self.assertTrue(alignment._epub_item_root_context(
+            _FakeItem(b'<html xmlns:h="http://www.w3.org/1999/xhtml"><body h:hidden=""><p>S</p></body></html>'))[0])
+        hidden_flag, ns = alignment._epub_item_root_context(_FakeItem(
+            b'<html xmlns:h="http://www.w3.org/1999/xhtml"><head>'
+            b'<style>/* <body hidden> */</style><!-- <body hidden> --></head>'
+            b'<body><p hidden="">S</p></body></html>'))
+        self.assertFalse(hidden_flag)
+        self.assertEqual('http://www.w3.org/1999/xhtml', ns.get('h'))
+
 
 class HtmlHiddenReadaloudParityTests(unittest.TestCase):
     def _build_from_extracted_script(self, epub_bytes, *, qwen):
@@ -556,6 +844,39 @@ class HtmlHiddenReadaloudParityTests(unittest.TestCase):
         self.assertNotIn('Drop canonical.', loaded)
         self.assertNotIn('Drop until found.', loaded)
         self.assertNotIn('Drop xhtml prefixed.', loaded)
+
+    def test_block_with_inline_text_and_hidden_block_descendant_keeps_visible_segment(self):
+        # A block containing a container child plus a hidden block descendant
+        # (and no direct text on the block itself) must keep the block itself as
+        # the segment (preserving its id) rather than treating the hidden block
+        # as a live block descendant and descending into the inner container.
+        body = '<ul><li id="li1"><div>Visible item</div><p hidden="">Hidden note</p></li></ul>'
+        raw = make_epub(body, toc_links=[])
+        _root, segs, _full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+        self.assertEqual(['Visible item'], [s['text'] for s in segs])
+        self.assertEqual('li1', segs[0]['fragment'])
+
+    def test_get_optional_titles_handles_deep_nesting_without_recursion_error(self):
+        xhtml = '{http://www.w3.org/1999/xhtml}'
+        root = ET.Element(f'{xhtml}html')
+        body = ET.SubElement(root, f'{xhtml}body')
+        cur = body
+        for _ in range(1500):
+            cur = ET.SubElement(cur, f'{xhtml}div')
+        vis = ET.SubElement(cur, f'{xhtml}p', {'id': 'vis'})
+        vis.text = 'Deep visible.'
+        hid = ET.SubElement(cur, f'{xhtml}p', {'id': 'hid', 'hidden': ''})
+        hid.text = 'Deep hidden.'
+        titles = _get_optional_titles(
+            root,
+            [{'element': vis, 'fragment': 'vis', 'text': 'Deep visible.'}],
+            [
+                {'path': 'ch1.xhtml', 'fragment': 'vis', 'label': 'Visible Title'},
+                {'path': 'ch1.xhtml', 'fragment': 'hid', 'label': 'Hidden Title'},
+            ],
+            'ch1.xhtml',
+        )
+        self.assertEqual({0: ['Visible Title']}, titles)
 
 
 if __name__ == '__main__':
