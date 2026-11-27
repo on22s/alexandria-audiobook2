@@ -90,6 +90,9 @@ QUOTE_OPENERS = "".join(dict.fromkeys(opener for opener, _closer in PAIRED))
 # carry a trailing space, which left the cross-paragraph refusal below silently
 # optional on exactly those books.
 BLANK_LINE = re.compile(r"(?:\r\n|\r|\n)[ \t]*(?:\r\n|\r|\n)")
+# One non-whitespace character. An unclosed opener whose paragraph body holds
+# none of these is not speech: there are no words to speak.
+_NON_WHITESPACE = re.compile(r"\S")
 
 
 def _paragraph_breaks(text):
@@ -933,7 +936,8 @@ def get_other_speech_spans(text, convention):
 
     Only used to stop calling such a line narration; it is never marked spoken
     from this, because which convention carries a book's dialogue is counted
-    by detect_convention, not guessed here. Spans do not cross a blank line.
+    by detect_convention, not guessed here. Spans do not cross a blank line,
+    and an unclosed opener with no paragraph body yields no span.
     """
     if convention is None:
         return []
@@ -979,7 +983,16 @@ def get_other_speech_spans(text, convention):
                 # the absence of another break, as _paired_spans does.
                 if paragraph_break is None or 0 <= paragraph_break < start:
                     paragraph_break = _next_blank_line(text, start)
-                spans.append((start, len(text) if paragraph_break == -1 else paragraph_break))
+                end = len(text) if paragraph_break == -1 else paragraph_break
+                # An opener with no paragraph body is not speech. Without this
+                # an opener at the end of the text, or immediately before a
+                # blank line, comes back as the zero-length (start, start)
+                # range that validate_spoken_spans refuses. Whitespace-only
+                # counts as empty, the same way mark_entries' normalization
+                # drops it. The scan stops at the first non-whitespace
+                # character, so it costs nothing for ordinary speech.
+                if _NON_WHITESPACE.search(text, start, end):
+                    spans.append((start, end))
     return spans
 
 

@@ -7,7 +7,11 @@ from the model's own prose is what made today's attribution scorer wrong three
 times. The source still has the marks: arc4_volume10wn carries 6,925 of them
 while its generated entries kept 16.
 """
+import json
+import random
+import re
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import dialogue_spans
@@ -15,6 +19,64 @@ from dialogue_spans import (apply_dialogue_map, apply_source_narration, apply_so
                             detect_convention, get_other_speech_spans, mark_entries,
                             speaker_labels, spoken_spans, uses_speaker_labels,
                             validate_spoken_spans)
+
+
+def _main_get_other_speech_spans(text, convention):
+    """Frozen origin/main (c0085045) original, used only as a differential.
+
+    #2360 is the only known difference: this version appends an unclosed
+    opener even when its paragraph body is empty or whitespace-only, which
+    returns the zero-length (start, start) range validate_spoken_spans refuses.
+    """
+    if convention is None:
+        return []
+    pairs = sorted(dialogue_spans._paired_spans(text))
+    closed = {stop for _begin, stop in pairs}
+    merged = []
+    for begin, stop in pairs:
+        if merged and begin <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], stop))
+        else:
+            merged.append((begin, stop))
+    starts = [begin for begin, _stop in merged]
+
+    def inside_primary(start, end):
+        index = dialogue_spans.bisect_right(starts, start) - 1
+        return index >= 0 and merged[index][1] >= end
+
+    spans = [(match.start(1), match.end(1))
+             for pattern in dialogue_spans.OTHER_PAIRED
+             for match in pattern.finditer(text)
+             if dialogue_spans.BLANK_LINE.search(text, match.start(1), match.end(1)) is None
+             and not inside_primary(match.start(1), match.end(1))]
+    if convention != "dash_lines":
+        spans += [(match.start(1), match.end(1))
+                  for match in dialogue_spans.DASH_LINE.finditer(text)]
+    if convention != "paired_quotes":
+        spans += pairs
+    else:
+        for opener, closer in dialogue_spans.UNCLOSED_OPENERS.items():
+            paragraph_break = None
+            for match in re.finditer(re.escape(opener), text):
+                start = match.start() + 1
+                if text.startswith(closer, start):
+                    continue
+                if match.start() in closed:
+                    continue
+                index = dialogue_spans.bisect_right(starts, start) - 1
+                if index >= 0 and merged[index][1] >= start:
+                    continue
+                if paragraph_break is None or 0 <= paragraph_break < start:
+                    paragraph_break = dialogue_spans._next_blank_line(text, start)
+                spans.append((start, len(text) if paragraph_break == -1 else paragraph_break))
+    return spans
+
+
+def _has_paragraph_body(text, start, end):
+    return _NON_WHITESPACE.search(text, start, end) is not None
+
+
+_NON_WHITESPACE = re.compile(r"\S")
 
 
 class ConventionTest(unittest.TestCase):
@@ -1107,6 +1169,103 @@ class SpanTest(unittest.TestCase):
         # 2,000-character cap; nothing here claims that was wrong.
         text = '“This speech runs on.\n\nAnd on, in a second paragraph,\n\nand closes here.” he said.'
         self.assertEqual([], spoken_spans(text, "paired_quotes"))
+
+
+class UnclosedOpenerTest(unittest.TestCase):
+    """#2360: an unclosed opener with no paragraph body is not speech."""
+
+    OPENERS = ("“", "「", "『", "„")
+
+    def _no_body_texts(self):
+        for opener in self.OPENERS:
+            yield "alone", opener
+            yield "end of text", "text " + opener
+            yield "before a blank line", opener + "\n\nmore"
+            yield "before a whitespace-only paragraph", opener + "   \n\nmore"
+            yield "before trailing whitespace", opener + " \t "
+
+    def test_every_unclosed_opener_with_no_body_yields_no_span(self):
+        # The issue's three shapes, for each of the four openers the module
+        # treats as unclosed: alone, at the end of the text, and immediately
+        # before a blank line.
+        for opener in self.OPENERS:
+            for shape, text in (("alone", opener),
+                                ("end of text", "text " + opener),
+                                ("before a blank line", opener + "\n\nmore")):
+                with self.subTest(opener=opener, shape=shape):
+                    spans = get_other_speech_spans(text, "paired_quotes")
+                    self.assertEqual([], spans)
+                    self.assertIs(True, validate_spoken_spans(spans, text))
+
+    def test_an_opener_before_a_whitespace_only_paragraph_yields_no_span(self):
+        # mark_entries normalizes and strips whitespace before matching, so a
+        # whitespace-only body has no words to speak and is treated as empty.
+        for opener in self.OPENERS:
+            for body in (" ", "   ", "\t", " \t "):
+                for text in (f"{opener}{body}\n\nmore", f"{opener}{body}"):
+                    with self.subTest(opener=opener, body=body, text=text):
+                        self.assertEqual(
+                            [], get_other_speech_spans(text, "paired_quotes"))
+
+    def test_an_unclosed_opener_with_a_body_still_yields_its_span(self):
+        # Unchanged behaviour: the words after the mark are still another
+        # convention's speech, up to the paragraph end.
+        for text, expected in (("“Wait for me", "Wait for me"),
+                               ("“Wait for me\n\nNext paragraph.", "Wait for me"),
+                               ("「待って", "待って"),
+                               ("『まって", "まって"),
+                               ("„Warte", "Warte")):
+            with self.subTest(text=text):
+                spans = get_other_speech_spans(text, "paired_quotes")
+                self.assertEqual([expected], [text[start:end] for start, end in spans])
+                self.assertIs(True, validate_spoken_spans(spans, text))
+
+    @staticmethod
+    def _fixture_text(path):
+        raw = Path(path).read_bytes()
+        for encoding in ("utf-8", "cp1252"):
+            try:
+                return raw.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+        return raw.decode("utf-8", "replace")
+
+    def _repo_fixture_texts(self):
+        # Synthetic fixtures already in the repo: the text-import fuzz seeds,
+        # and the synthetic dialogue-continuity passage joined into one source.
+        root = Path(__file__).resolve().parents[2]
+        seeds = sorted((root / "tools" / "fuzz" / "corpus" / "txt_import").glob("*.txt"))
+        self.assertGreaterEqual(len(seeds), 4)
+        texts = [self._fixture_text(path) for path in seeds]
+        passage = root / "app" / "experiments" / "fixtures" / "dialogue_continuity_passage.json"
+        entries = json.loads(passage.read_text(encoding="utf-8"))["entries"]
+        texts.append("\n\n".join(entry["text"] for entry in entries))
+        return texts
+
+    _GENERATED_ALPHABET = ("abcXYZ.,;:!?…—–-'\"0123456789\t\n\r"
+                           + "".join(dict.fromkeys(
+                               mark for pair in dialogue_spans.PAIRED for mark in pair)))
+
+    def _generated_texts(self, count):
+        rng = random.Random(2360)
+        alphabet = self._GENERATED_ALPHABET
+        return ["".join(rng.choice(alphabet) for _ in range(rng.randint(0, 90)))
+                for _ in range(count)]
+
+    def test_non_empty_spans_are_byte_identical_to_origin_main(self):
+        # Differential against a frozen origin/main original. Only spans whose
+        # paragraph body is empty or whitespace-only may disappear; every other
+        # span must have the same offsets, in the same order.
+        texts = (self._repo_fixture_texts()
+                 + self._generated_texts(600)
+                 + [text for _shape, text in self._no_body_texts()])
+        self.assertGreaterEqual(len(texts), 500)
+        for index, text in enumerate(texts):
+            expected = [(start, end)
+                        for start, end in _main_get_other_speech_spans(text, "paired_quotes")
+                        if _has_paragraph_body(text, start, end)]
+            actual = get_other_speech_spans(text, "paired_quotes")
+            self.assertEqual(expected, actual, f"text #{index}: {text!r}")
 
 
 class MarkEntriesTest(unittest.TestCase):
