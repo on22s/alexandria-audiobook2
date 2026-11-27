@@ -782,6 +782,7 @@
     , "tests.test_attribution_source_tags.SourceTagTests.test_lady_husband_name_alias_does_not_claim_the_husbands_name"
     , "tests.test_attribution_source_tags.SourceTagTests.test_married_woman_alias_does_not_claim_the_husbands_name"
     , "tests.test_attribution_source_tags.SourceTagTests.test_married_woman_alias_stays_the_wife_without_the_husband_on_the_roster"
+    , "tests.test_attribution_source_tags.SourceTagTests.test_married_woman_title_alias_does_not_silence_the_husband"
     , "tests.test_attribution_source_tags.SourceTagTests.test_married_woman_title_prevents_same_words_label_join"
     , "tests.test_attribution_source_tags.SourceTagTests.test_matching_is_shared_across_the_batch"
     , "tests.test_attribution_source_tags.SourceTagTests.test_next_quote_guard_pins_ambiguous_split_quotes_and_keeps_clear_ones"
@@ -792,6 +793,8 @@
     , "tests.test_attribution_source_tags.SourceTagTests.test_tag_with_more_name_words_than_the_prediction_is_not_joined"
     , "tests.test_attribution_source_tags.SourceTagTests.test_uncertain_sources_abstain"
     , "tests.test_attribution_source_tags.SourceTagTests.test_unestablished_title_surname_abstains_against_a_first_name"
+    , "tests.test_attribution_source_tags.SourceTagTests.test_unnamed_sibling_join_discloses_silenced_wrong_sibling"
+    , "tests.test_attribution_source_tags.SourceTagTests.test_unnamed_sibling_negative_case_contradicts"
     , "tests.test_attribution_source_tags.SourceTagTests.test_unresolved_proposed_name_and_unknown_abstain"
     , "tests.test_attribution_source_tags.SourceTagTests.test_w1_names_ending_in_ly_unicode_and_abstentions"
   ]

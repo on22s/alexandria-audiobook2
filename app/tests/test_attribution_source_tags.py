@@ -218,26 +218,23 @@ class SourceTagTests(unittest.TestCase):
                 self.assertEqual({}, get_attribution_tag_evidence(entry, bad, {'ANNA', 'BEN'}))
 
     def test_next_quote_guard_pins_ambiguous_split_quotes_and_keeps_clear_ones(self):
-        # Subject-first tag after a finished sentence introducing the NEXT quote abstains.
-        # The ?/!/… cases are genuinely ambiguous: the tag can introduce the next
-        # quotation or continue this one. The guard abstains instead of guessing,
-        # and these subtests pin that ambiguity rather than discriminate it.
+        # Subject-first tag after a PERIOD-ended quote introducing the NEXT quote
+        # abstains. Only a quote that ends a full sentence with `.` can introduce
+        # the next quotation; a quote ending `?`/`!`/`…` with a following
+        # subject-first tag is more often a split quotation, so the guard does
+        # not over-abstain on it (#2388 finding 3).
         for text, source in (
-            ('Will you walk back?', '“Will you walk back?” Zella said, “I have the key.”'),
-            ('Will you walk back?', '"Will you walk back?" Zella said, "I have the key."'),
-            ('Do you hear that?', '“Do you hear that?” Anna said, “It came from the hall.”'),
             ('Mind the step.', '“Mind the step.” Zella said: “The lamp is lit.”'),
-            ('Look out!', '“Look out!” Zella whispered, “The floor is wet.”'),
             ('Keep the gate shut.', '«Keep the gate shut.» Zella said, «The wind is rising.»'),
             ('Keep the gate shut.', '„Keep the gate shut.“ Zella said, „The wind is rising.“'),
             # Gutenberg texts are hard-wrapped, and `‘` opens the next
             # quotation in them without being a PAIRED convention (#2388 gate 2).
-            ('Will you walk back?', '“Will you walk back?” Zella said,\n“I have the key.”'),
+            ('Mind the step.', '“Mind the step.” Zella said,\n“The lamp is lit.”'),
             # One blank line between the comma/colon and the next quotation is
             # still the same guard shape (#2388 gate 3).
-            ('Will you walk back?', '“Will you walk back?” Zella said,\n\n“I have the key.”'),
+            ('Mind the step.', '“Mind the step.” Zella said,\n\n“The lamp is lit.”'),
             ('Mind the step.', '“Mind the step.” Zella said:\n\n“The lamp is lit.”'),
-            ('Will you walk back?', '“Will you walk back?” Zella said, ‘I have the key.’'),
+            ('Mind the step.', '“Mind the step.” Zella said, ‘The lamp is lit.’'),
         ):
             with self.subTest(source=source):
                 self.assertEqual({}, get_attribution_tag_evidence(
@@ -257,6 +254,23 @@ class SourceTagTests(unittest.TestCase):
             with self.subTest(split=source):
                 self.assertEqual({0: 'ANNA'}, get_attribution_tag_evidence(
                     [{'type': 'SPOKEN', 'text': text}], source, {'ANNA', 'BEN'}))
+        # A split quotation whose first fragment ends `?`/`!`/`…` with a
+        # subject-first tag is not silenced by the next-quote guard (#2388
+        # finding 3: reduce needless abstention, stay safe).
+        for speaker, text, source in (
+            ('ANNA', 'Do you think so?', '“Do you think so?” Anna said, “I doubt it.”'),
+            ('ANNA', 'Do you think so?', '"Do you think so?" Anna said, "I doubt it."'),
+            ('ZELLA', 'Will you walk back?', '“Will you walk back?” Zella said, “I have the key.”'),
+            ('ZELLA', 'Look out!', '“Look out!” Zella whispered, “The floor is wet.”'),
+            ('ZELLA', 'Hold on…', '“Hold on…” Zella said, “The wind is rising.”'),
+            # Gutenberg hard wrap and one blank line still apply to the split.
+            ('ZELLA', 'Will you walk back?', '“Will you walk back?” Zella said,\n“I have the key.”'),
+            ('ZELLA', 'Will you walk back?', '“Will you walk back?” Zella said,\n\n“I have the key.”'),
+            ('ZELLA', 'Will you walk back?', '“Will you walk back?” Zella said, ‘I have the key.’'),
+        ):
+            with self.subTest(split=source):
+                self.assertEqual({0: speaker}, get_attribution_tag_evidence(
+                    [{'type': 'SPOKEN', 'text': text}], source, {'ANNA', 'ZELLA', 'BEN', 'BRAM'}))
 
     def test_alias_and_identity_joining_prevents_same_character_false_flags(self):
         # 1. Title-stripped full name resolves to the titled roster entry.
@@ -558,3 +572,82 @@ class SourceTagTests(unittest.TestCase):
             entry, [{'n': 0, 'speaker': 'JANE'}], source_text=source,
             known_names={'JANE', 'ELIZABETH'})
         self.assertTrue(report['passed'], report)
+
+    def test_unnamed_sibling_join_discloses_silenced_wrong_sibling(self):
+        # FINDING 1 (#2388 rev1 blocker). The unnamed-sibling join is KEPT (it
+        # removes 630 false flags on the measured recording) at the disclosed
+        # cost of silencing real contradictions it cannot see. An UNESTABLISHED
+        # title+surname tag ("said Miss Steele") cannot name which sibling
+        # speaks, so a wrong-sibling prediction is NOT contradicted. On the
+        # measured recording this silences 2 real catches (gold ANNE STEELE,
+        # model named LUCY, tag "said Miss Steele"). The trade-off is disclosed
+        # in the PR body and pinned here.
+        source = '“Let us go,” said Miss Steele. Ben waited.'
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        siblings = {'ANNE STEELE', 'LUCY', 'BEN'}
+        # The tag evidence is the unnamed sibling label itself...
+        self.assertEqual({0: 'MISS STEELE'},
+                         get_attribution_tag_evidence(entry, source, siblings))
+        # ...and a model that named the wrong sibling is not contradicted.
+        self.assertTrue(validate_attribution(
+            entry, [{'n': 0, 'speaker': 'LUCY'}], source_text=source,
+            known_names=siblings)['passed'])
+        self.assertTrue(validate_attribution(
+            entry, [{'n': 0, 'speaker': 'ANNE STEELE'}], source_text=source,
+            known_names=siblings)['passed'])
+        # But the trade-off is bounded: an ESTABLISHED sibling tag label still
+        # contradicts the other sibling, and a spelled-out first name + surname
+        # that differs is not silenced (see test_unnamed_sibling_negative...).
+        established = {'ANNE STEELE', 'LUCY', 'MISS STEELE', 'BEN'}
+        self.assertFalse(validate_attribution(
+            entry, [{'n': 0, 'speaker': 'LUCY'}], source_text=source,
+            known_names=established)['passed'])
+
+    def test_unnamed_sibling_negative_case_contradicts(self):
+        # FINDING 5 (#2388 rev1). Pin the sibling NEGATIVE case: an
+        # implementation that joins EVERY unestablished surname match would
+        # silence this. An unestablished tag that spells a different first name
+        # + surname names a different sibling and still contradicts; only a
+        # shorter title+surname / bare-surname tag joins (finding 1).
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        source = '“Let us go,” said Anne Vale. Ben waited.'
+        # Sibling spelled out, NOT on the roster, model names the other sibling.
+        roster = {'LUCY VALE', 'BEN'}
+        report = validate_attribution(
+            entry, [{'n': 0, 'speaker': 'LUCY VALE'}], source_text=source,
+            known_names=roster)
+        self.assertFalse(report['passed'], report)
+        self.assertEqual('speaker_contradicts_source_tag', report['findings'][0]['code'])
+        # And with the sibling also established.
+        report = validate_attribution(
+            entry, [{'n': 0, 'speaker': 'LUCY VALE'}], source_text=source,
+            known_names={'LUCY VALE', 'ANNE VALE', 'BEN'})
+        self.assertFalse(report['passed'], report)
+        self.assertEqual('speaker_contradicts_source_tag', report['findings'][0]['code'])
+        # Same result for a bare-surname-only comparison is NOT this case: an
+        # unnamed "said Miss Vale" sibling tag is the finding-1 trade-off, not
+        # the sibling negative; that is pinned separately.
+        self.assertTrue(validate_attribution(
+            entry, [{'n': 0, 'speaker': 'LUCY VALE'}],
+            source_text='“Let us go,” said Miss Vale. Ben waited.',
+            known_names={'LUCY VALE', 'BEN'})['passed'])
+
+    def test_married_woman_title_alias_does_not_silence_the_husband(self):
+        # FINDING 2 (#2388 rev1). A title-stripped full-name form must not turn
+        # "MRS. JOHN X -> wife" into an identity key for "JOHN X". The husband
+        # keeps his own evidence in the alias arm; the wife's tag stays hers.
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        roster = {'JOHN X', 'wife', 'BEN'}
+        aliases = {'MRS. JOHN X': 'wife'}
+        husband = '“Let us go,” said John X. Ben waited.'
+        # Husband's own tag resolves to him, not to the wife...
+        self.assertEqual({0: 'JOHN X'},
+                         get_attribution_tag_evidence(entry, husband, roster, aliases))
+        # ...and a model naming the husband is not silenced for the wife.
+        self.assertTrue(validate_attribution(
+            entry, [{'n': 0, 'speaker': 'JOHN X'}], source_text=husband,
+            known_names=roster, speaker_aliases=aliases)['passed'])
+        # A model naming the WIFE on the husband's tag still contradicts.
+        self.assertFalse(validate_attribution(
+            entry, [{'n': 0, 'speaker': 'wife'}], source_text=husband,
+            known_names=roster, speaker_aliases=aliases)['passed'])
