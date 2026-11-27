@@ -18,7 +18,7 @@ from speaker_identity import (build_speaker_consistency_report,
                               _CANDRABINDU_ANUSVARA, _IDENTITY_MARK_SCRIPTS,
                               _get_alias_roots, _identity_key,
                               _is_extended_person_name, _is_identity_mark,
-                              _uncertain_candidates)
+                              _OPTIONAL_IDENTITY_MARKS, _uncertain_candidates)
 
 
 def _entry(speaker):
@@ -703,6 +703,12 @@ class AliasRegistryBoundaryAndConflictTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             get_validated_alias_map({"A": "B", "a": "C"})
 
+    def test_alias_registry_rejects_empty_variant_or_target(self):
+        # Stripping happens before this check, so whitespace-only is empty too.
+        for value in ({"": "A"}, {" ": "A"}, {"A": ""}, {"A": " "}):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                get_validated_alias_map(value)
+
 
 class SpeakerIdentityEdgeAndAuditTests(unittest.TestCase):
     def test_empty_and_missing_speakers_pass_through_unchanged(self):
@@ -790,6 +796,8 @@ class SpeakerIdentityEdgeAndAuditTests(unittest.TestCase):
 
         self.assertEqual(["ROSWAAL", "BOB", "ALICE", "ROSWAL", "RUDEUS"],
                          out["speakers"])
+        # 0.9231 (and 0.9524/0.90 below) are the review payload's SequenceMatcher
+        # similarity values shown by the UI, pinned as a contract, not an internal detail.
         self.assertEqual(
             [{"entry_number": 5, "speaker": "ROSWAL",
               "candidates": [{"speaker": "ROSWAAL", "similarity": 0.9231}]}],
@@ -844,45 +852,81 @@ class SpeakerIdentityEdgeAndAuditTests(unittest.TestCase):
             report["review_suggestions"],
         )
 
+    def test_best_spelling_wins_when_the_split_spelling_was_seen_first(self):
+        # The canonicals best-spelling filter and the later final-speaker pass
+        # both keep the intact spelling: the split form is never a second speaker.
+        out = stabilize_speaker_identities([
+            {"speaker": "R UDEUS", "text": "a"},
+            {"speaker": "RUDEUS", "text": "b"},
+        ])
+        self.assertEqual(["RUDEUS"], out["speakers"])
+        self.assertEqual(["RUDEUS", "RUDEUS"],
+                         [entry["speaker"] for entry in out["entries"]])
+
 
 class UnicodeScriptTableAndProtectionTests(unittest.TestCase):
-    def test_every_unicode_13_identity_mark_script_preserves_its_mark(self):
-        # One real Mn/Mc mark per script row in _IDENTITY_MARK_SCRIPTS that has
-        # combining marks in Unicode 13.0 (Python 3.10's unicodedata).
-        script_marks = [
-            ("KHOJKI", "\U0001122c"),
-            ("KHUDAWADI", "\U000112df"),
-            ("MASARAM GONDI", "\U00011d31"),
-            ("GUNJALA GONDI", "\U00011d8a"),
-            ("SOYOMBO", "\U00011a51"),
-            ("NANDINAGARI", "\U000119d1"),
-            ("MODI", "\U00011630"),
-            ("TAKRI", "\U000116ab"),
-            ("AHOM", "\U0001171d"),
-            ("DOGRA", "\U0001182c"),
-            ("SYLOTI NAGRI", "\ua802"),
-            ("MEETEI MAYEK", "\uaaeb"),
-            ("KHAROSHTHI", "\U00010a01"),
-            ("LEPCHA", "\u1c24"),
-            ("BUGINESE", "\u1a17"),
-            ("REJANG", "\ua947"),
-            ("MAKASAR", "\U00011ef3"),
-            ("BALINESE", "\u1b00"),
-            ("JAVANESE", "\ua980"),
-            ("SUNDANESE", "\u1b80"),
-            ("BATAK", "\u1be6"),
-            ("CHAM", "\uaa29"),
-            ("TAGALOG", "\u1712"),
-            ("HANUNOO", "\u1732"),
-            ("BUHID", "\u1752"),
-            ("TAGBANWA", "\u1772"),
-            ("TAI THAM", "\u1a55"),
-            ("TAI VIET", "\uaab0"),
-        ]
-        for script, mark in script_marks:
-            with self.subTest(script=script, cp=hex(ord(mark))):
-                self.assertTrue(_is_identity_mark(mark))
-                self.assertNotEqual(_identity_key("a" + mark), _identity_key("a"))
+    # Every row of _IDENTITY_MARK_SCRIPTS that owns at least one Mn/Mc code
+    # point under the interpreter's Unicode tables. This drives the generated
+    # assertions and also keeps the historical row mutants killed: a mutant row
+    # name ("XXKHOJKIXX") stops matching its marks, so the exact name must still
+    # be present and own marks. MULTANI, KAWI, TULU-TIGALARI, GURUNG KHEMA and
+    # NEW TAI LUE own none (see NO_MARK_SCRIPTS).
+    MARKED_SCRIPTS = (
+        "DEVANAGARI", "BENGALI", "GURMUKHI", "GUJARATI", "ORIYA", "TAMIL",
+        "TELUGU", "KANNADA", "MALAYALAM", "SINHALA", "BRAHMI", "KAITHI",
+        "KHOJKI", "KHUDAWADI", "SHARADA", "SIDDHAM", "TIRHUTA", "GRANTHA",
+        "NEWA", "BHAIKSUKI", "MARCHEN", "MASARAM GONDI", "GUNJALA GONDI",
+        "SOYOMBO", "ZANABAZAR SQUARE", "NANDINAGARI", "DIVES AKURU", "CHAKMA",
+        "MODI", "TAKRI", "AHOM", "DOGRA", "SAURASHTRA", "SYLOTI NAGRI",
+        "MEETEI MAYEK", "KHAROSHTHI", "LEPCHA", "LIMBU", "BUGINESE", "REJANG",
+        "MAKASAR", "THAANA", "KAYAH LI", "MIAO", "WANCHO",
+        "NYIAKENG PUACHUE HMONG", "NKO", "BASSA VAH", "THAI", "LAO", "TIBETAN",
+        "MYANMAR", "KHMER", "BALINESE", "JAVANESE", "SUNDANESE", "BATAK",
+        "CHAM", "TAGALOG", "HANUNOO", "BUHID", "TAGBANWA", "TAI THAM",
+        "TAI VIET",
+    )
+    # The remaining rows (MULTANI, KAWI, TULU-TIGALARI, GURUNG KHEMA and
+    # NEW TAI LUE) own no Mn/Mc code points in Python 3.10's unicodedata
+    # (Unicode 13.0.0). The assertion below is deliberately version-sensitive:
+    # KAWI arrives in Unicode 15.0 and TULU-TIGALARI/GURUNG KHEMA in 16.0, so a
+    # newer interpreter fails here instead of silently invalidating the
+    # "equivalent (Unicode 13.0)" classification in the PR table.
+
+    def test_every_identity_mark_script_row_preserves_its_marks(self):
+        # Generated from _IDENTITY_MARK_SCRIPTS against the running
+        # interpreter's unicodedata: no hand-picked list of 28 scripts can drift
+        # away from the 69 rows again. Optional diacritics (nukta, stress
+        # accents, Tibetan decoration) still fold; every required mark of a row
+        # survives in the identity key.
+        named_marks = []
+        for code_point in range(0x110000):
+            char = chr(code_point)
+            if unicodedata.category(char) in ("Mn", "Mc"):
+                name = unicodedata.name(char, "")
+                if name:
+                    named_marks.append((char, name))
+
+        rows = set(_IDENTITY_MARK_SCRIPTS)
+        for script in self.MARKED_SCRIPTS:
+            self.assertIn(script, rows)
+            marks = [(char, name) for char, name in named_marks
+                     if name.startswith(script + " ")]
+            with self.subTest(script=script):
+                self.assertTrue(marks, f"{script} owns no Mn/Mc code point in this unicodedata")
+            for char, name in marks:
+                optional = any(word in name for word in _OPTIONAL_IDENTITY_MARKS)
+                with self.subTest(script=script, mark=name):
+                    if optional:
+                        self.assertFalse(_is_identity_mark(char))
+                    else:
+                        self.assertTrue(_is_identity_mark(char))
+                        self.assertNotEqual(_identity_key("a" + char),
+                                            _identity_key("a"))
+        for script in rows - set(self.MARKED_SCRIPTS):
+            marks = [name for _, name in named_marks
+                     if name.startswith(script + " ")]
+            with self.subTest(script=script):
+                self.assertEqual([], marks)
 
     def test_extended_person_name_rejects_all_relation_words_and_digits(self):
         for relation in ("mother", "father", "sister", "brother", "daughter", "son"):
@@ -1071,6 +1115,28 @@ class AliasGraphAndProposalTests(unittest.TestCase):
                     [{"A": "B"}],
                     roster=["NARRATOR"],
                     existing_aliases={"B": "NARRATOR"},
+                ),
+            )
+
+    def test_safe_alias_proposals_never_replace_a_human_root(self):
+        # The terminal root of a human alias is human-owned even when it is not
+        # itself a key in the registry, so no automatic edge may shadow it.
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(
+                {},
+                get_safe_alias_proposals(
+                    [{"B": "C"}],
+                    roster=["B", "C"],
+                    existing_aliases={"A": "B"},
+                ),
+            )
+            # A different variant may still target the same root.
+            self.assertEqual(
+                {"D": "C"},
+                get_safe_alias_proposals(
+                    [{"B": "C", "D": "C"}],
+                    roster=["B", "C", "D"],
+                    existing_aliases={"A": "B"},
                 ),
             )
 
