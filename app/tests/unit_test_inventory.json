@@ -3596,6 +3596,7 @@
     , "tests.test_chunk_quality.ChunkQualityTests.test_malformed_and_empty_entries_fail_structural_checks"
     , "tests.test_chunk_quality.ChunkQualityTests.test_missing_japanese_span_fails_recall"
     , "tests.test_chunk_quality.ChunkQualityTests.test_missing_japanese_span_reports_character_preview"
+    , "tests.test_chunk_quality.ChunkQualityTests.test_missing_speaker_matches_the_final_audit_for_invisible_only_labels"
     , "tests.test_chunk_quality.ChunkQualityTests.test_normal_repetition_and_authorial_elongation_are_untouched"
     , "tests.test_chunk_quality.ChunkQualityTests.test_passing_report_has_no_missing_spans"
     , "tests.test_chunk_quality.ChunkQualityTests.test_quality_manifest_persists_near_miss_accepted_chunks"

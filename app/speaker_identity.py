@@ -55,7 +55,7 @@ def get_validated_alias_map(value):
     return result
 
 
-def _normalize_speaker_label(value):
+def get_normalized_speaker_label(value):
     # Remove silent characters BEFORE collapsing whitespace: a silent character
     # between two spaces would otherwise survive the collapse as a lone " ".
     return " ".join(remove_silent_word_characters(str(value or "")).split())
@@ -92,7 +92,7 @@ def stabilize_speaker_identities(entries, established_speakers=None):
         # U+00AD/U+2060 are invisible inside a name (#2316), so the model's
         # "SON<SHY>YA" is the stored spelling "SONYA", never a second speaker.
         # Entry labels collapse to one space per gap, unlike roster labels above.
-        stripped = _normalize_speaker_label(original)
+        stripped = get_normalized_speaker_label(original)
         if stripped:
             seen.append(stripped)
         # An empty-looking label is never looked up or canonicalised, not even
@@ -144,7 +144,7 @@ def stabilize_speaker_identities(entries, established_speakers=None):
         current = str(entry.get("speaker") or "")
         # Empty-looking labels are never rewritten, whatever other spellings
         # share their folded identity key ("-" and "..." fold to "").
-        if not _normalize_speaker_label(current):
+        if not get_normalized_speaker_label(current):
             continue
         chosen = best.get(_identity_key(current), (None, None))[1]
         if chosen and chosen != current:
@@ -187,7 +187,7 @@ def stabilize_speaker_identities(entries, established_speakers=None):
             canonical_names.add(name)
     final_speakers = [str(entry["speaker"]) for entry in repaired
                       if isinstance(entry, dict)
-                      and _normalize_speaker_label(entry.get("speaker"))]
+                      and get_normalized_speaker_label(entry.get("speaker"))]
     final_names = set(final_speakers)
     canonicals = [name for name in canonicals
                   if _identity_key(name) in roster or name in final_names]
@@ -209,7 +209,7 @@ def build_speaker_consistency_report(entries, identity_review=None):
         speaker = str(entry.get("speaker") or "").strip()
         # The helper decides emptiness here, but the usage row keeps the
         # trimmed spelling: collapsing would merge "ALICE  BOB" and "ALICE BOB".
-        if not _normalize_speaker_label(speaker):
+        if not get_normalized_speaker_label(speaker):
             continue
         item = usage.setdefault(speaker, {"speaker": speaker, "entry_count": 0,
                                           "first_entry_numbers": []})
@@ -433,9 +433,9 @@ def is_speaker_merge_allowed(variant, canonical):
             or _identity_key(canonical) in protected_keys):
         return False
     if is_group_speaker_label(variant) or is_group_speaker_label(canonical):
-        first = _normalize_speaker_label(
+        first = get_normalized_speaker_label(
             unicodedata.normalize("NFC", variant).casefold())
-        second = _normalize_speaker_label(
+        second = get_normalized_speaker_label(
             unicodedata.normalize("NFC", canonical).casefold())
         return first == second
     return True
