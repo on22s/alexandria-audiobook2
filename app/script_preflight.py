@@ -45,10 +45,11 @@ _SCRIPT_PREFIXES = ("LATIN", "CYRILLIC", "HIRAGANA", "KATAKANA", "CJK",
 # the duplicate gate must not credit either fragment. Crossing a line is not
 # joining a numeral, though: a digit that opens a line after a line that ended
 # in a number is a new line, not the far half of a number (#2304 gate 3).
-# \n, \r, U+2028 and U+2029 are the project's line endings; \x0b, \x0c and
-# \x85 break lines in every reader although the paragraph iterator treats them
-# as horizontal space, so no numeral joins across any of the seven.
-_NUMBER_GAP_LINE_BREAKS = "\n\r\u2028\u2029\x0b\x0c\x85"
+# \n, \r, U+2028 and U+2029 are the project's line endings; \x0b, \x0c, \x85
+# and the three C0 information separators \x1c-\x1e break lines in every
+# reader (and in Python's ``str.splitlines``) although the paragraph iterator
+# treats them as horizontal space, so no numeral joins across any of them.
+_NUMBER_GAP_LINE_BREAKS = "\n\r\u2028\u2029\x0b\x0c\x85\x1c\x1d\x1e"
 # Range and clock marks join two digit tokens into one numeral ONLY when the
 # mark touches both digits. A SPACED mark is sentence punctuation, not a range
 # or a clock: "1914 — 5" is a year and a separate number, and "12: 5" is a
@@ -63,19 +64,21 @@ _NUMERAL_GAP_MARKS = frozenset((
     "~", "\u301c", "\uff5e", "/", ":"))
 # Whitespace that is NOT a line break: the same-line spacing the mark rule
 # rejects. Kept as its own list so narrowing the line-break guard cannot turn
-# a break into a horizontal space.
+# a break into a horizontal space. Python's ``str.strip`` removes \x1f as
+# whitespace too, so it is spacing here; leaving it out made a mark beside it
+# look glued (#2304 gate 6 N1).
 _HORIZONTAL_GAP_SPACES = frozenset(
     " \t\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008"
-    "\u2009\u200a\u202f\u205f\u3000")
+    "\u2009\u200a\u202f\u205f\u3000\x1f")
 
 
 def _number_gap_line_breaks(gap):
     """The line-break sequences inside a gap, CRLF counted as one break.
 
-    The seven characters are the project's line endings plus the vertical
-    controls readers break on (#2304 gate 3). ``\r\n`` is one ending even
-    though it is two characters, so a single Windows wrap is one break and not
-    the blank line a page number needs.
+    The characters are the project's line endings plus the vertical controls
+    and C0 information separators readers break on (#2304 gate 3, gate 6 L1).
+    ``\r\n`` is one ending even though it is two characters, so a single
+    Windows wrap is one break and not the blank line a page number needs.
     """
     breaks = []
     index = 0
@@ -314,9 +317,13 @@ def _comparison_offset_map(source_text, comparison_text, word_boundaries):
     can compose with it) so NFC sees the same cluster the whole text did. It is
     accepted only when it reproduces the comparison text's length exactly;
     otherwise None is returned and the caller keeps the comparison spacing
-    rather than risk a wrong slice. Only the offsets have to be right: a
-    context-dependent character fold (a word-final Greek sigma) maps to the
-    right source position even when its character differs.
+    rather than risk a wrong slice. A character that composes only with a
+    neighbour the cluster walk treats as a separate character - halfwidth
+    katakana with a voiced mark U+FF9E/U+FF9F (Lm, not M) and conjoining Hangul
+    jamo - is one such case: the map gives up (an under-block) rather than
+    guess. Only the offsets have to be right: a context-dependent character
+    fold (a word-final Greek sigma) maps to the right source position even when
+    its character differs.
     """
     positions = []
     folded_parts = []
@@ -1436,7 +1443,8 @@ def find_contained_source_duplicates(entries, source_text, *, source_normalized=
         A LINE BREAK IS NEVER A NUMERAL SEPARATOR - for any mark or break
         type. A digit that starts a line after a line ending in a number opens
         a new line, not the far half of a number, so a gap containing `\\n`,
-        `\\r`, U+2028, U+2029, `\\x0b`, `\\x0c` or `\\x85` never joins. A false
+        `\\r`, U+2028, U+2029, `\\x0b`, `\\x0c`, `\\x85`, `\\x1c`, `\\x1d` or
+        `\\x1e` never joins. A false
         block stops the user's audiobook while a missed duplicate does not, so
         a range wrapped across a line break (`5-\\n6`) is credited as two whole
         numbers and a duplicate of it can pass (documented under Limits). A
