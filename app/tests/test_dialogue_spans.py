@@ -1220,6 +1220,80 @@ class UnclosedOpenerTest(unittest.TestCase):
                 self.assertEqual([expected], [text[start:end] for start, end in spans])
                 self.assertIs(True, validate_spoken_spans(spans, text))
 
+    def test_a_line_straddling_a_no_body_opener_keeps_mains_verdict(self):
+        # Gate 1 (#2380 repair): mark_entries' overlap test is keyed on the
+        # ENTRY's end, so main marked a line straddling a zero-length span
+        # "other_convention", not narration. Returning no span must not change
+        # what reaches the audio, so the line is still ambiguous. The last two
+        # cases show the boundary: a line that stops at the mark is narration,
+        # and a line inside a real pair stays spoken.
+        for text, texts, verdicts in (
+                ('He said “\n\nHello there.',
+                 ["He said Hello there.", "said Hello"],
+                 ["other_convention", "other_convention"]),
+                ('He said “   \n\nHello there.', ["said Hello"],
+                 ["other_convention"]),
+                ('“A” he said “\n\n“B” she said.',
+                 ["A", "he said B", "she said."],
+                 ["spoken", "spoken", "narration"]),
+                ('He said “', ["He said"], ["narration"])):
+            with self.subTest(text=text):
+                self.assertEqual([], get_other_speech_spans(text, "paired_quotes"))
+                marked = mark_entries([{"text": entry_text} for entry_text in texts],
+                                      text, "paired_quotes")
+                actual = ["other_convention" if row.get("dialogue_ambiguity")
+                          else "spoken" if row.get("spoken") else "narration"
+                          for row in marked]
+                self.assertEqual(verdicts, actual)
+
+    _STRADDLE_PREFIXES = ("He said ", "She said ", "Tom muttered ", "Er sagte ",
+                          "“A” then ", "“A” he said ")
+    _STRADDLE_SUFFIXES = ("Hello there.", "Hello", "there.", "Wait for me",
+                          "Zimmer fünf", "A")
+
+    def _straddling_cases(self, count):
+        """-> (text, entries) pairs whose entries cross an empty unclosed opener."""
+        rng = random.Random(2380)
+        cases = [('He said “\n\nHello there.', [{"text": "He said Hello there."}]),
+                 ('He said “\n\nHello there.', [{"text": "said Hello"}]),
+                 ('He said “   \n\nHello there.', [{"text": "said Hello"}])]
+        for _ in range(count):
+            opener = rng.choice(self.OPENERS)
+            body = rng.choice(("", " ", "\t", "   ", " \t ", "　", "\u00a0"))
+            prefix = rng.choice(self._STRADDLE_PREFIXES)
+            suffix = rng.choice(self._STRADDLE_SUFFIXES)
+            text = (prefix + opener + body
+                    + rng.choice(("\n\n", "\n \n", ""))
+                    + suffix
+                    + rng.choice(("", "\n\n“B” she said.", "\n\nmore words.")))
+            cases.append((text, [
+                {"speaker": "A", "text": prefix.strip() + " " + suffix},
+                {"speaker": "A", "text": prefix.strip()},
+                {"speaker": "B", "text": suffix},
+            ]))
+        return cases
+
+    def test_mark_entries_matches_origin_main_on_straddling_lines(self):
+        # Gate 1 differential (#2380 repair): entries built deliberately to
+        # straddle an unclosed opener with no body. main marked these lines
+        # "other_convention"; the contract fix must leave every entry's output
+        # byte-identical, including source_span and speaker fields.
+        for index, (text, entries) in enumerate(self._straddling_cases(600)):
+            with self.subTest(index=index, text=text):
+                used = []
+
+                def frozen_main(value, convention, _used=used):
+                    _used.append(value)
+                    return _main_get_other_speech_spans(value, convention), []
+
+                with patch.object(dialogue_spans, "_other_speech_spans", frozen_main):
+                    expected = mark_entries([dict(entry) for entry in entries],
+                                            text, "paired_quotes")
+                actual = mark_entries([dict(entry) for entry in entries], text,
+                                      "paired_quotes")
+                self.assertTrue(used, "mark_entries did not read the span source")
+                self.assertEqual(expected, actual)
+
     @staticmethod
     def _fixture_text(path):
         raw = Path(path).read_bytes()

@@ -931,18 +931,55 @@ def spoken_spans(text, convention=None):
     return merged
 
 
-def get_other_speech_spans(text, convention):
-    """-> (start, end) offsets of speech marked other than by `convention`.
+def _unclosed_opener_spans(text, pairs):
+    """-> [(start, end)] for every unclosed opener, empty bodies included.
 
-    Only used to stop calling such a line narration; it is never marked spoken
-    from this, because which convention carries a book's dialogue is counted
-    by detect_convention, not guessed here. Spans do not cross a blank line,
-    and an unclosed opener with no paragraph body yields no span.
+    The range runs from just after the mark to the end of its paragraph. A body
+    of nothing but whitespace is still returned here, so that the one place
+    that knows which openers are unclosed is also the place mark_entries asks
+    about a line straddling such a mark. get_other_speech_spans drops those
+    ranges because they are not speech.
+    """
+    closed = {stop for _begin, stop in pairs}
+    merged = []
+    for begin, stop in pairs:
+        if merged and begin <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], stop))
+        else:
+            merged.append((begin, stop))
+    starts = [begin for begin, _stop in merged]
+    spans = []
+    # Openers are ordered: reuse this paragraph's end, including the absence
+    # of another break, as _paired_spans does.
+    for opener, closer in UNCLOSED_OPENERS.items():
+        paragraph_break = None
+        for match in re.finditer(re.escape(opener), text):
+            start = match.start() + 1
+            if text.startswith(closer, start):  # “” is closed, just empty
+                continue
+            if match.start() in closed:
+                continue
+            index = bisect_right(starts, start) - 1
+            if index >= 0 and merged[index][1] >= start:
+                continue
+            if paragraph_break is None or 0 <= paragraph_break < start:
+                paragraph_break = _next_blank_line(text, start)
+            spans.append((start, len(text) if paragraph_break == -1 else paragraph_break))
+    return spans
+
+
+def _other_speech_spans(text, convention):
+    """-> (spans, no_body_opener_spans) for speech marked another way.
+
+    `spans` is what get_other_speech_spans returns. `no_body_opener_spans` are
+    the unclosed opener ranges with no paragraph body: not speech, so not
+    returned, but mark_entries still tests a line against them so a line that
+    straddles such a mark keeps main's verdict ("other convention", not
+    narration).
     """
     if convention is None:
-        return []
+        return [], []
     pairs = sorted(_paired_spans(text))
-    closed = {stop for _begin, stop in pairs}
     merged = []
     for begin, stop in pairs:
         if merged and begin <= merged[-1][1]:
@@ -962,38 +999,37 @@ def get_other_speech_spans(text, convention):
         spans += [(m.start(1), m.end(1)) for m in DASH_LINE.finditer(text)]
     if convention != "paired_quotes":
         spans += pairs
-    else:
-        # An opening mark with no partner: speech to the end of its paragraph.
-        # Membership is one bisect into the merged pairs, not a scan of all of
-        # them per opener, which made well-formed books quadratic. The mark that
-        # CLOSES a real pair is skipped: `“` closes `„…“`, so without this every
-        # German speech ended in a phantom "unclosed opener".
-        for opener, closer in UNCLOSED_OPENERS.items():
-            paragraph_break = None
-            for match in re.finditer(re.escape(opener), text):
-                start = match.start() + 1
-                if text.startswith(closer, start):  # “” is closed, just empty
-                    continue
-                if match.start() in closed:
-                    continue
-                index = bisect_right(starts, start) - 1
-                if index >= 0 and merged[index][1] >= start:
-                    continue
-                # Openers are ordered: reuse this paragraph's end, including
-                # the absence of another break, as _paired_spans does.
-                if paragraph_break is None or 0 <= paragraph_break < start:
-                    paragraph_break = _next_blank_line(text, start)
-                end = len(text) if paragraph_break == -1 else paragraph_break
-                # An opener with no paragraph body is not speech. Without this
-                # an opener at the end of the text, or immediately before a
-                # blank line, comes back as the zero-length (start, start)
-                # range that validate_spoken_spans refuses. Whitespace-only
-                # counts as empty, the same way mark_entries' normalization
-                # drops it. The scan stops at the first non-whitespace
-                # character, so it costs nothing for ordinary speech.
-                if _NON_WHITESPACE.search(text, start, end):
-                    spans.append((start, end))
-    return spans
+        return spans, []
+    # An opening mark with no partner: speech to the end of its paragraph.
+    # Membership is one bisect into the merged pairs, not a scan of all of
+    # them per opener, which made well-formed books quadratic. The mark that
+    # CLOSES a real pair is skipped: `“` closes `„…“`, so without this every
+    # German speech ended in a phantom "unclosed opener".
+    no_body = []
+    for start, end in _unclosed_opener_spans(text, pairs):
+        # An opener with no paragraph body is not speech. Without this an
+        # opener at the end of the text, or immediately before a blank line,
+        # comes back as the zero-length (start, start) range that
+        # validate_spoken_spans refuses. Whitespace-only counts as empty.
+        # Characters mark_entries' normalization removes that are not
+        # whitespace (zero-width marks, U+00AD, ＂) are not covered here, so a
+        # body made only of them still yields a span. The scan stops at the
+        # first non-whitespace character, so it costs nothing for ordinary
+        # speech.
+        (spans if _NON_WHITESPACE.search(text, start, end) else no_body).append(
+            (start, end))
+    return spans, no_body
+
+
+def get_other_speech_spans(text, convention):
+    """-> (start, end) offsets of speech marked other than by `convention`.
+
+    Only used to stop calling such a line narration; it is never marked spoken
+    from this, because which convention carries a book's dialogue is counted
+    by detect_convention, not guessed here. Spans do not cross a blank line,
+    and an unclosed opener with no paragraph body yields no span.
+    """
+    return _other_speech_spans(text, convention)[0]
 
 
 def get_interior_dash_ambiguities(text, convention):
@@ -1129,7 +1165,12 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
     convention = detect_convention(source_text) if convention is None else convention
     spans = spoken_spans(source_text, convention)
     ambiguities = get_interior_dash_ambiguities(source_text, convention)
-    other_speech = get_other_speech_spans(source_text, convention)
+    other_speech, no_body_openers = _other_speech_spans(source_text, convention)
+    # A line that straddles an unclosed opener with no paragraph body is still
+    # "other convention", not narration: that was main's verdict, and this is a
+    # contract fix, not a change to what reaches the audio. Those ranges are
+    # no longer returned by get_other_speech_spans, so they are tested here.
+    other_speech = other_speech + no_body_openers
     entries = list(entries)
     if speaker_names is None:
         speaker_names = {str(entry.get('speaker') or '') for entry in entries}
@@ -1170,27 +1211,28 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
             if normalized_where != -1:
                 used_positions.setdefault(needle, set()).add(normalized_where)
                 cursor = normalized_where + len(needle)
-                where = raw_offsets[normalized_where]
-                end = raw_offsets[normalized_where + len(needle) - 1] + 1
-                overlap = any(start < end and where < stop
-                              for start, stop in spans)
-                if not overlap and any(start < end and where < stop
-                                       for start, stop in ambiguities):
+                entry_start = raw_offsets[normalized_where]
+                entry_end = raw_offsets[normalized_where + len(needle) - 1] + 1
+                overlap = any(span_start < entry_end and entry_start < span_stop
+                              for span_start, span_stop in spans)
+                if not overlap and any(span_start < entry_end and entry_start < span_stop
+                                       for span_start, span_stop in ambiguities):
                     row["dialogue_ambiguity"] = "interior_dash_turn"
-                elif not overlap and any(start < end and where < stop
-                                         for start, stop in other_speech):
+                elif not overlap and any(span_start < entry_end and entry_start < span_stop
+                                         for span_start, span_stop in other_speech):
                     # Outside the main quotes, inside speech marked another
                     # way: not established narration, so never voiced as it.
                     row["dialogue_ambiguity"] = "other_convention"
                 else:
                     row["spoken"] = bool(overlap)
-                row["source_span"] = [where, end]
+                row["source_span"] = [entry_start, entry_end]
                 # THE AUTHOR'S OWN ANSWER, where the book prints one. Checked
                 # against the model on arc4_volume10wn: they agree on 2,909 of
                 # 2,967 lines, and every disagreement is the model misspelling
                 # the printed name - "LONG HAILED GIRL" for "Long Haired
                 # Girl". So this is not a second opinion, it is the source.
-                printed = next((labels[p] for p in (where - 1, where - 2, where)
+                printed = next((labels[p] for p in (entry_start - 1, entry_start - 2,
+                                                    entry_start)
                                 if p in labels), None)
                 if printed:
                     row["source_speaker"] = printed
