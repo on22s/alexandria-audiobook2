@@ -40,6 +40,49 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # Fail here, with a message naming the bad input, instead of deep inside
+      # the wrapper (or as a "no files found" artifact error). The wrapper
+      # accepts the same spellings: x, x.py, app/x, app/x.py; tests: test_x,
+      # test_x.py, tests.test_x.
+      - name: Validate inputs
+        id: validate
+        env:
+          MODULE: ${{ inputs.module }}
+          TESTS: ${{ inputs.tests }}
+        run: |
+          set -euo pipefail
+          module=${MODULE#./}
+          module=${module#app/}
+          module=${module%.py}
+          if ! printf '%s\n' "$module" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
+            echo "::error::module must name one file in app/ (for example dialogue_spans or app/dialogue_spans.py), got: $MODULE"
+            exit 1
+          fi
+          if [ ! -f "app/$module.py" ]; then
+            echo "::error::no such module: app/$module.py"
+            exit 1
+          fi
+          read -ra test_names <<< "$TESTS"
+          if [ "${#test_names[@]}" -eq 0 ]; then
+            echo "::error::tests must list at least one test module (for example test_dialogue_spans)"
+            exit 1
+          fi
+          for t in "${test_names[@]}"; do
+            b=${t##*/}
+            b=${b%.py}
+            b=${b#tests.}
+            if ! printf '%s\n' "$b" | grep -Eq '^test_[A-Za-z0-9_]+$'; then
+              echo "::error::test module must start with test_ (for example test_dialogue_spans), got: $t"
+              exit 1
+            fi
+            if [ ! -f "app/tests/$b.py" ]; then
+              echo "::error::no such test module: app/tests/$b.py"
+              exit 1
+            fi
+          done
+          echo "module: app/$module.py"
+          echo "tests: ${test_names[*]}"
+
       - uses: actions/setup-python@v6
         with:
           python-version: "3.10"
@@ -76,7 +119,9 @@ jobs:
           tools/mutation_check.sh "$MODULE" $TESTS
 
       - name: Upload mutation report
-        if: always()
+        # Skip when input validation failed: there is no report, and the
+        # "no files found" artifact error would only hide the real message.
+        if: always() && steps.validate.outcome == 'success'
         uses: actions/upload-artifact@v6
         with:
           name: mutation-report-${{ github.run_id }}

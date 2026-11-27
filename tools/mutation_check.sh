@@ -7,12 +7,17 @@
 # WHY A SCRATCH COPY. mutmut writes each mutant into the source file and restores
 # it afterwards. The GPU queue runs jobs from the live checkout (CLAUDE.md Rule
 # 24), so mutating that tree in place - even for a second - is not acceptable.
-# This script copies app/, the repo-root modules (utils.py puts the repo root on
-# sys.path for gpu_stats.py and friends) and builtin_lora/ into a scratch tree
-# and runs mutmut there. The checkout is only read.
+# This script copies app/, the tracked repo-root modules and packages (utils.py
+# puts the repo root on sys.path for gpu_stats.py, tools.audit, ...) and
+# builtin_lora/ into a scratch tree and runs mutmut there. The checkout is only
+# read; user data under app/uploads and app/logs is never copied.
 #
 # NOT PART OF THE REQUIRED CI PATH. Mutation testing is minutes-to-hours per
 # module; .github/workflows/mutation.yml runs it manually (workflow_dispatch).
+#
+# SCOPE: POSIX with bash only (Linux, macOS, CI). The wrapper uses process
+# groups and bash traps for signal cleanup; Windows is not supported. (mutmut
+# 2.4.5 starts its workers with multiprocessing's spawn method, not fork.)
 #
 # Python: mutmut must be installed in the interpreter named by
 # AA2_MUTATION_PYTHON, or in app/env (local dev), or in python3 on PATH:
@@ -30,12 +35,18 @@
 #   AA2_MUTATION_KEEP=1    keep the scratch tree (and .mutmut-cache) for debugging
 #
 # Limitations:
-#   - Inside a Git repository, only tracked top-level root files (`git ls-files`)
-#     are copied into the scratch tree; untracked root-level .py modules are not
-#     copied.
+#   - Inside a Git repository, only tracked repo-root files and packages
+#     (`git ls-files`) are copied into the scratch tree; untracked root-level
+#     .py modules are not copied.
 #   - Normal exit, SIGINT and SIGTERM remove the scratch tree automatically, but
 #     SIGKILL cannot run traps and will leave $tmp_parent/aa2-mutation.* behind
 #     for manual cleanup.
+#   - PYTHONHASHSEED is pinned to 0 for repeatable results. In particular,
+#     mutant 414 in dialogue_spans._next_plain_mark flips between killed and
+#     survived across hash seeds because the test iterates an unordered set.
+#   - mutmut 2.4.5 aborts its spawn worker on SIGINT and can then deadlock in
+#     results_queue.get(). The wrapper therefore runs mutmut in its own process
+#     group and kills that group on INT/TERM rather than forwarding the signal.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -134,6 +145,8 @@ else
     report_dir=$tmp_parent/aa2-mutation-reports/$module
 fi
 cleanup() {
+    [ "${cleaned:-0}" = 1 ] && return 0
+    cleaned=1
     if [ "${AA2_MUTATION_KEEP:-0}" = 1 ]; then
         echo "mutation_check: scratch kept at $WORK" >&2
     else
@@ -142,8 +155,28 @@ cleanup() {
 }
 # Note: SIGKILL cannot run traps and will leave $WORK behind for manual removal.
 trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+# mutmut 2.4.5 runs its workers with multiprocessing spawn. On SIGINT it aborts
+# a worker and can then block forever in results_queue.get(). Signals are
+# therefore handled here: the mutmut job runs in its own process group, and
+# stop_child kills that whole group so the wrapper always exits and cleanup runs.
+child=
+stop_child() {
+    sig=$1
+    if [ -n "${child:-}" ] && kill -0 "$child" 2>/dev/null; then
+        kill -TERM -- "-$child" 2>/dev/null || kill -TERM "$child" 2>/dev/null || true
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+            kill -0 "$child" 2>/dev/null || break
+            sleep 0.2
+        done
+        kill -KILL -- "-$child" 2>/dev/null || kill -KILL "$child" 2>/dev/null || true
+        wait "$child" 2>/dev/null || true
+    fi
+    child=
+    cleanup
+    exit $((128 + sig))
+}
+trap 'stop_child 2' INT
+trap 'stop_child 15' TERM
 
 publish_report() {
     mkdir -p "$report_dir"
@@ -163,6 +196,9 @@ while IFS= read -r -d '' entry; do
     name=${entry##*/}
     case "$name" in
         env|venv|.venv|__pycache__|.mutmut-cache|.pytest_cache) continue ;;
+        # User/runtime data, never part of a test run (Rule 27): uploads,
+        # application logs and generated audio output.
+        uploads|logs|output_audio|output_audio_cloned) continue ;;
     esac
     if [ -d "$entry" ] && { [ -f "$entry/pyvenv.cfg" ] || [ -d "$entry/conda-meta" ]; }; then
         continue
@@ -171,26 +207,61 @@ while IFS= read -r -d '' entry; do
 done < <(find "$ROOT/app" -mindepth 1 -maxdepth 1 -print0)
 find "$REPO/app" -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true
 find "$REPO/app" \( -name '*.pyc' -o -name '.mutmut-cache' -o -name '.pytest_cache' \) -delete 2>/dev/null || true
-# Root-level modules (gpu_stats.py, alexandria_file_lock.py, ...) and the one
-# small package the app imports from the repo root. In a Git repo only tracked
-# top-level files are copied; untracked root-level modules are not copied.
+# Root-level modules and packages the app/tests import from the repo root:
+# gpu_stats.py and alexandria_file_lock.py (bare root modules), and
+# `from tools.audit...` / `from tools.voice_lab...` in the tests. Only TRACKED
+# paths are copied, so a local untracked root module is not silently picked up.
+# Large data/asset trees and app/ (copied from the working tree above) are
+# skipped; tools/listening_lab is 6.8 MB of JavaScript assets with no Python
+# imports from the test suite.
 if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
     while IFS= read -r -d '' f; do
-        case "$f" in */*) continue ;; esac
-        [ -f "$ROOT/$f" ] && cp -p "$ROOT/$f" "$REPO/$f"
+        case "$f" in
+            app/*|ab_test_runtime/*|docs/*|codebase-analysis-docs/*| \
+            run_chains/*|fork-adoption-evidence/*|reports/*| \
+            .github/*|.githooks/*|.claude/*|tools/listening_lab/*) continue ;;
+        esac
+        dir=$(dirname "$f")
+        [ "$dir" = . ] || mkdir -p "$REPO/$dir"
+        cp -p "$ROOT/$f" "$REPO/$f"
     done < <(git -C "$ROOT" ls-files -z)
 else
     for f in "$ROOT"/*.py; do [ -f "$f" ] && cp -p "$f" "$REPO/"; done
+    [ -d "$ROOT/tools" ] && cp -a "$ROOT/tools" "$REPO/tools"
+    [ -d "$ROOT/builtin_lora" ] && cp -a "$ROOT/builtin_lora" "$REPO/builtin_lora"
 fi
-if [ -d "$ROOT/builtin_lora" ]; then
-    cp -a "$ROOT/builtin_lora" "$REPO/builtin_lora"
+
+# Small tracked data files that the selected test modules name literally (for
+# example test_attribution_phonetic_identity reads one closed_set JSON under
+# ab_test_runtime/experiments). The full ab_test_runtime tree is ~1 GB of
+# tracked run artifacts, so only files the tests actually name are copied.
+for t in "${test_modules[@]}"; do
+    test_file=$ROOT/app/tests/${t#tests.}.py
+    [ -f "$test_file" ] || continue
+    while IFS= read -r ref; do
+        [ -f "$ROOT/$ref" ] || continue
+        git -C "$ROOT" ls-files --error-unmatch -- "$ref" >/dev/null 2>&1 || continue
+        dir=$(dirname "$ref")
+        [ "$dir" = . ] || mkdir -p "$REPO/$dir"
+        cp -p "$ROOT/$ref" "$REPO/$ref"
+    done < <(grep -oE 'ab_test_runtime/[A-Za-z0-9_./-]+' "$test_file" | sort -u)
+done
+
+# The audit helpers confirm gold fixtures against the Git index (tracked link
+# targets), so a scratch copy with no metadata fails read_gold_fixture. Give
+# the scratch its own index. -f overrides .gitignore, which is also copied.
+if command -v git >/dev/null 2>&1; then
+    git -C "$REPO" init -q
+    git -C "$REPO" add -A -f
 fi
 
 # --- mutmut config. The runner is the same invocation GUIDE.md uses: from app/,
 #     `python -m unittest tests.test_x ...`, so tests keep their package import
-#     context. setup.cfg is written into the scratch copy only, and the same
-#     options are also passed on the CLI because mutmut 2 reads pyproject.toml
-#     [tool.mutmut] before setup.cfg while CLI flags override both. ---
+#     context. setup.cfg is written into the scratch copy only. mutmut 2 reads
+#     pyproject.toml [tool.mutmut] before setup.cfg, so paths_to_mutate,
+#     tests_dir and runner are also passed on the CLI, which overrides those
+#     three keys in any future app/pyproject.toml [tool.mutmut] section. Other
+#     keys in such a section (e.g. dict_synonyms) would still apply. ---
 runner="$PY -m unittest ${test_modules[*]}"
 cat > "$REPO/app/setup.cfg" <<EOF
 [mutmut]
@@ -203,6 +274,10 @@ export PYTHONPATH="$REPO/app:$REPO"
 unset ARGV0 PYTHONHOME PYTHONSTARTUP LD_LIBRARY_PATH APPDIR APPIMAGE GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 export ALEXANDRIA_GPU_LOCK_HELD=0 CUDA_VISIBLE_DEVICES=-1 HIP_VISIBLE_DEVICES=-1 ROCR_VISIBLE_DEVICES=-1
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+# Pin the hash seed so repeated runs classify the same mutants the same way.
+# dialogue_spans mutant 414 iterates _CLOSERS_BY_OPENER["„"], an unordered set,
+# and flips between killed and survived across seeds.
+export PYTHONHASHSEED=0
 
 mkdir -p "$WORK/report"
 report=$WORK/report/report.txt
@@ -223,13 +298,21 @@ echo "mutation_check: app/$module.py with ${test_modules[*]}" >&2
 echo "mutation_check: scratch copy at $REPO (checkout is not modified)" >&2
 
 start=$(date +%s)
+# Job control puts mutmut in its own process group (PGID == $child), so
+# stop_child can terminate the spawn workers too. set +m immediately restores
+# the non-interactive default.
+set -m
 set +e
-( cd "$REPO/app" && "$PY" -m mutmut run \
+( cd "$REPO/app" && exec "$PY" -m mutmut run \
     --paths-to-mutate "$module.py" \
     --tests-dir tests \
     --runner "$runner" \
-    --simple-output --no-progress ) > "$log" 2>&1
+    --simple-output --no-progress ) > "$log" 2>&1 &
+child=$!
+set +m
+wait "$child"
 rc=$?
+child=
 set -e
 elapsed=$(( $(date +%s) - start ))
 
