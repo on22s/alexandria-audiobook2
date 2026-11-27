@@ -46,6 +46,10 @@ PAIRED = [
 DASH_LINE = re.compile(r"^[ \t]*[—–][ \t]*(\S.*)$", re.M)
 # Closed reporting-verb list (English, Spanish, French — past and present)
 # used to recognise narrator speech tags inside a dash-opened line (#2329).
+# It is one source of truth for the dash rule only: `pass_quality`'s
+# `_REPORTING_VERBS` is English-only and drives the different paired-quote
+# prefix/suffix repair, so the two lists are intentionally not merged
+# (#2390 review 3 nit 10).
 _DASH_REPORTING_VERBS = (
     # English (past and 3sg present; bare infinitives omitted so spoken
     # imperatives like "don't ask" do not trigger a split)
@@ -106,10 +110,25 @@ _DASH_REPORTING_VERBS = (
     "avoua|avouait|avouaient|avoue|déclara|déclarait|déclaraient|déclare|"
     "annonça|annonçait|annonçaient|annonce|conclut|concluait|fit|remarqua|"
     "remarquait|remarquaient|remarque|hasarda|hasardait|hasarde|"
-    "bredouilla|bredouillait|bredouille|"
-    "pensa|pensait|pensaient|pensé|songea|songeait|songé|"
+    "bredouilla|bredouillait|bredouille|faisait|faisaient|firent|"
+    "concéda|concédait|concédaient|concède|repartit|repartait|"
+    # `pensé`/`songé` are deliberately absent: the bare participles are never
+    # tags on their own, and Spanish `pensé` is first-person speech
+    # (#2390 review 3 finding 1). `pensa`/`pensait` are French tags.
+    "pensa|pensait|pensaient|songea|songeait|"
     "objecta|objectait|objectaient|objecte|objectent"
 )
+# Spanish compound tags: auxiliary `ha`/`había` + participle (`ha dicho Ana`)
+# is one verb phrase, not the auxiliary alone (#2390 review 3 finding 5).
+# First-person `he`/`hemos` stay out, like every other first-person form.
+_DASH_COMPOUND_AUXILIARIES = frozenset("ha había habían han".split())
+_DASH_COMPOUND_PARTICIPLES = frozenset(
+    "dicho contestado respondido preguntado susurrado murmurado gritado "
+    "exclamado añadido agregado continuado seguido proseguido repuesto "
+    "repetido replicado interrumpido insistido explicado comentado "
+    "suspirado musitado inquirido balbuceado gruñido espetado suplicado "
+    "protestado advertido ordenado confesado aclarado concluido declarado "
+    "manifestado observado objetado indicado".split())
 # One reporting verb as a whole word, with an optional Spanish enclitic
 # pronoun (`preguntóle`, `contestóles`, `díjole`).
 _DASH_TAG_TOKEN = re.compile(r"[^\W\d_]+")
@@ -155,7 +174,11 @@ _DASH_TAG_OBJECTS = frozenset(
 # also refuses them if one is tabled later (#2390 review 6).
 _DASH_FIRST_PERSON = frozenset(
     "dije digo dijimos dijiste decíamos dis disais écriai écrivis répondis "
-    "demandai murmurai criai".split())
+    "demandai murmurai criai pensé contesté respondí pregunté susurré murmuré "
+    "grité exclamé añadí agregué continué seguí proseguí repuse repetí "
+    "repliqué interrumpí insistí expliqué comenté suspiré musité inquirí "
+    "balbuceé gruñí espeté supliqué protesté advertí ordené confesé aclaré "
+    "concluí declaré manifesté observé objeté indiqué".split())
 _DASH_BREAK = re.compile(r"\.{3}|[—–,!?…]")
 _DASH_TAG_INTRODUCERS = "!?…"
 # A possible turn after narration, with a second dash introducing its tag.
@@ -1063,8 +1086,6 @@ def _dash_preverb_is_subject(words):
     """
     if not words:
         return True
-    if len(words) > 3:
-        return False
     lowered = [word.lower() for word in words]
     if any(word in _DASH_TAG_STOPWORDS or word in _DASH_OTHER_PERSON
            for word in lowered):
@@ -1114,6 +1135,42 @@ def _dash_introducer_precedes_verb(text, words, verb_index):
             and text[words[0].start()].islower())
 
 
+def _dash_tabled_tag_word(words, index):
+    """Is `words[index]` a tabled reporting verb that can open a tag?
+
+    The `dit-on` idiom is excluded here, once, so the candidate and evidence
+    scans cannot disagree about what counts as a tag verb (#2390 review 3
+    finding 6).
+    """
+    if not _DASH_VERB.fullmatch(words[index].group()):
+        return False
+    return not (words[index].group().lower() == "dit"
+                and index + 1 < len(words)
+                and words[index + 1].group().lower() == "on")
+
+
+def _dash_tag_verb(words):
+    """-> (verb_index, subject_index) for the tag verb in `words`, or None.
+
+    A Spanish compound tag (`ha dicho Ana`) starts at its auxiliary and its
+    participle is part of the verb phrase, so the subject starts after both
+    (#2390 review 3 finding 5).
+    """
+    for index in range(min(len(words), 4)):
+        if _dash_tabled_tag_word(words, index):
+            return index, index + 1
+        if (words[index].group().lower() in _DASH_COMPOUND_AUXILIARIES
+                and index + 1 < len(words)
+                and words[index + 1].group().lower()
+                in _DASH_COMPOUND_PARTICIPLES
+                # A compound tag names its subject (`ha dicho Ana`). Without
+                # one, `ha dicho:` is reported speech inside a speech line,
+                # not a tag (#2390 review 3, measured Vergara line).
+                and index + 2 < len(words)):
+            return index, index + 2
+    return None
+
+
 def _dash_tag_candidate(text, pos, limit, introducer):
     """Could a reporting-verb tag start at `pos`?
 
@@ -1125,18 +1182,14 @@ def _dash_tag_candidate(text, pos, limit, introducer):
     """
     clause_end, _delimiter = _dash_tag_clause_end(text, pos, limit)
     words = _dash_tag_tokens(text, pos, clause_end)
-    for index, word in enumerate(words[:4]):
-        if _DASH_VERB.fullmatch(word.group()):
-            # `dit-on` is the French idiom "they say", not a narrator tag
-            # (#2390 review 5). Decided here, once, like the introducer rule.
-            if (word.group().lower() == "dit" and index + 1 < len(words)
-                    and words[index + 1].group().lower() == "on"):
-                continue
-            if introducer in _DASH_TAG_INTRODUCERS or introducer == "...":
-                first = _dash_introducer_precedes_verb(text, words, index)
-                return first and text[words[0].start()].islower()
-            return True
-    return False
+    found = _dash_tag_verb(words)
+    if found is None:
+        return False
+    index = found[0]
+    if introducer in _DASH_TAG_INTRODUCERS or introducer == "...":
+        first = _dash_introducer_precedes_verb(text, words, index)
+        return first and text[words[0].start()].islower()
+    return True
 
 
 def _dash_tag_evidence(text, pos, limit, introducer):
@@ -1148,14 +1201,11 @@ def _dash_tag_evidence(text, pos, limit, introducer):
     """
     clause_end, _delimiter = _dash_tag_clause_end(text, pos, limit)
     words = _dash_tag_tokens(text, pos, clause_end)
-    verb_index = None
-    for index, word in enumerate(words[:4]):
-        if _DASH_VERB.fullmatch(word.group()):
-            verb_index = index
-            break
-    if verb_index is None:
+    found = _dash_tag_verb(words)
+    if found is None:
         return False
-    tail = [word.group() for word in words[verb_index + 1:]]
+    verb_index, subject_index = found
+    tail = [word.group() for word in words[subject_index:]]
     if words[verb_index].group().lower() in _DASH_FIRST_PERSON:
         return False
     prefixed = _dash_prefixed_clitic(text, words, verb_index)
@@ -1188,6 +1238,17 @@ def _split_dash_line_with_break(text, start, end):
     split_any, unverified, first_break = False, False, None
     unverified_ranges = []
     pending_unverified = False
+    # Text after the last unverified break, closed at the next evidenced tag:
+    # a later real tag is vouched for and must not be swallowed by the range
+    # (#2390 review 3 finding 4).
+    open_range_start = None
+
+    def close_unverified(until):
+        nonlocal open_range_start
+        if open_range_start is not None:
+            unverified_ranges.append((open_range_start, until))
+            open_range_start = None
+
     while scan < limit:
         match = _DASH_BREAK.search(text, scan, limit)
         if match is None:
@@ -1211,7 +1272,8 @@ def _split_dash_line_with_break(text, start, end):
                     first_break = (start, match.start())
                 if split_any:
                     unverified = True
-                    unverified_ranges.append((match.start(), limit))
+                    if open_range_start is None:
+                        open_range_start = match.start()
                 else:
                     pending_unverified = True
             scan = match.end()
@@ -1228,11 +1290,13 @@ def _split_dash_line_with_break(text, start, end):
             # and the line must stay ambiguous (#2329 finding 6).
             if split_any:
                 unverified = True
-                unverified_ranges.append((match.start(), limit))
+                if open_range_start is None:
+                    open_range_start = match.start()
             else:
                 pending_unverified = True
             scan = match.end()
             continue
+        close_unverified(match.start())
         split_any = True
         pending_unverified = False
         parts.append(("SPOKEN", speech_start, speech_end))
@@ -1282,6 +1346,7 @@ def _split_dash_line_with_break(text, start, end):
         break
     if not split_any:
         return [("SPOKEN", start, end)], pending_unverified, first_break, []
+    close_unverified(limit)
     while speech_start < limit and text[speech_start] in " \t":
         speech_start += 1
     if speech_start < limit:
@@ -1334,6 +1399,27 @@ def dash_line_unverified_tails(text):
             text, match.start(1), match.end(1))
         if ambiguous:
             ranges.extend(tails)
+    return ranges
+
+
+def dash_line_unverified_ranges(text):
+    """-> ranges on ambiguous dash lines whose speaker is not vouched for.
+
+    The quote gate checks one line at a time (#2390 review 3 finding 3): every
+    ambiguous line contributes the text from its first unverified break to the
+    line end, including a whole-line break where no tag split the line at all.
+    Confident lines elsewhere in the chunk keep full region validation.
+    """
+    ranges = []
+    for match in DASH_LINE.finditer(text):
+        _parts, ambiguous, first_break, tails = _split_dash_line_with_break(
+            text, match.start(1), match.end(1))
+        if not ambiguous:
+            continue
+        if tails:
+            ranges.extend(tails)
+        elif first_break is not None:
+            ranges.append((first_break[1], match.end(1)))
     return ranges
 
 

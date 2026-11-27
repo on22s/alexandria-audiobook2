@@ -2026,6 +2026,130 @@ class DashDialogueTagTests(unittest.TestCase):
                 self.assertFalse(ambiguous)
                 self.assertEqual([("SPOKEN", line[2:].strip())], parts)
 
+    def test_dit_on_exclusion_is_shared_with_the_evidence_scan(self):
+        """One predicate decides "tabled tag token" for both scans.
+
+        `dit-on` is never the split point, even when a real tag shares the
+        clause; the line is then routed whole instead of splitting at the
+        idiom (#2390 review 3 finding 6).
+        """
+        ambiguous, parts = self._parts("— Rien, dit-on et dit-elle.")
+        self.assertTrue(ambiguous)
+        self.assertEqual([("SPOKEN", "Rien, dit-on et dit-elle.")], parts)
+        self.assertNotIn("NARRATOR", [kind for kind, _text in parts])
+        # A comma after the idiom still lets the real tag be found.
+        ambiguous, parts = self._parts("— Rien, dit-on, dit-elle.")
+        self.assertFalse(ambiguous)
+        self.assertEqual(
+            [("SPOKEN", "Rien, dit-on,"), ("NARRATOR", "dit-elle.")], parts)
+
+    def test_spanish_pense_participle_is_speech_not_a_tag(self):
+        """The tabled Spanish 1sg `pensé` must not become a confident tag.
+
+        Bare French participles (`pensé`, `songé`) are not tags either
+        (#2390 review 3 finding 1).
+        """
+        for line in (
+            "— No, pensé, es tarde.",
+            "— Buena persona, pensé, y me fui.",
+            "— Buena persona, pensé para mí.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        # The French past simple is still a tag, including the inverted form.
+        ambiguous, parts = self._parts("— Oui, pensa-t-elle.")
+        self.assertFalse(ambiguous)
+        self.assertEqual(
+            [("SPOKEN", "Oui,"), ("NARRATOR", "pensa-t-elle.")], parts)
+
+    def test_whole_line_reporting_verbs_from_the_measured_books(self):
+        """`faisait`, `fit`, `concéda`, `repartit` are tags (#2390 finding 2)."""
+        cases = (
+            ("— Oh! c'est vrai! faisait l'autre en caressant sa mâchoire, "
+             "avec un air de dédain mêlé de satisfaction.",
+             "faisait l'autre en caressant sa mâchoire,"),
+            ("— C'est vrai! c'est vrai! concéda le bonhomme en se rasseyant "
+             "sur sa chaise.",
+             "concéda le bonhomme en se rasseyant sur sa chaise."),
+            ("— Non, repartit-il.", "repartit-il."),
+            ("— Bon, fit-elle.", "fit-elle."),
+            ("— Non, concédait-il.", "concédait-il."),
+        )
+        for line, expected_tag in cases:
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertIn(("NARRATOR", expected_tag), parts)
+
+    def test_spanish_compound_tags_need_a_subject_shape(self):
+        """`ha dicho Ana` is a tag; `ha dicho:` inside speech is not.
+
+        (#2390 review 3 finding 5.)
+        """
+        for line, expected_tag in (
+            ("— Sí, ha dicho Ana.", "ha dicho Ana."),
+            ("— Sí, había dicho Ana.", "había dicho Ana."),
+            ("— Sí, habían contestado ellas.", "habían contestado ellas."),
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(
+                    [("SPOKEN", line[2:].split(",")[0] + ","),
+                     ("NARRATOR", expected_tag)], parts)
+        for line in (
+            "— Me ha dicho que vengas.",
+            "— Sí, ha dicho que viene.",
+            "— Sí, lo ha dicho.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        # The measured Vergara shape: a colon announces reported speech.
+        ambiguous, parts = self._parts(
+            "— El señor Arias, ha dicho: «Señor, los brutos llevarán a "
+            "Vuestra Majestad a Madrid».")
+        self.assertNotIn("NARRATOR", [kind for kind, _text in parts])
+
+    def test_a_later_evidenced_tag_is_not_swallowed_by_an_unverified_range(self):
+        """The unverified range stops at the next evidenced split.
+
+        (#2390 review 3 finding 4.)
+        """
+        line = (
+            "— Donc, reprit celle-ci faisant une révérence, si ce n'était pas "
+            "trop vous demander..., — elle salua encore une fois, — quand "
+            "vous voudrez, — et son regard suppliait, — un cruchon "
+            "d'eau-de-vie, dit-elle enfin, et j'en frotterai les pieds de "
+            "votre petite, qui les a tendres comme la langue.")
+        ambiguous, parts = self._parts(line)
+        self.assertTrue(ambiguous)
+        self.assertIn(("NARRATOR", "dit-elle enfin,"), parts)
+        tails = [line[a:b].strip() for a, b in
+                 dialogue_spans.dash_line_unverified_tails(line)]
+        self.assertTrue(tails)
+        self.assertFalse(any("dit-elle" in tail for tail in tails))
+        source = line + "\n" + "\n".join(f"— Turn {i}." for i in range(5))
+        entries = []
+        speaker = 0
+        for kind, a, b in dialogue_spans.split_dash_line(line, 1, len(line))[0]:
+            text = line[a:b].strip()
+            if not text:
+                continue
+            if kind == "SPOKEN":
+                speaker += 1
+                entries.append({"speaker": f"CHAR{speaker}", "text": text})
+            else:
+                entries.append({"speaker": "NARRATOR", "text": text})
+        mapped = apply_dialogue_map(entries, source)["entries"]
+        tag = next(row for row in mapped if row["text"].startswith("dit-elle"))
+        self.assertEqual("NARRATOR", tag["speaker"])
+        self.assertIs(False, tag["spoken"])
+        self.assertNotIn("dialogue_ambiguity", tag)
+
+
     def test_first_person_reporting_forms_stay_speech_in_the_comma_path(self):
         # `dije` is absent from the table; `decíamos` is tabled and is still
         # refused by the first-person guard, so the rule has one test that

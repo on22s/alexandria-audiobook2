@@ -28,6 +28,7 @@ _VALID_SEGMENT_TYPES = {"NARRATOR", "SPOKEN"}
 # source-map and the generator's segmenter cannot drift apart.
 from dialogue_spans import (PAIRED as _PAIRED, QUOTE_MARKS as _DS_QUOTE_MARKS,
                             dash_line_unverified_prefixes as _dash_prefixes,
+                            dash_line_unverified_ranges as _dash_ranges,
                             get_guillemet_direction as _get_guillemet_direction,
                             is_inch_mark as _is_inch_mark,
                             is_number_char as _is_number_char,
@@ -48,6 +49,12 @@ _SELF_PAIRED = {'"', '＂'}
 _REPORTING_VERBS = (
     r"(?:murmured|whispered|said|replied|answered|asked|cried|shouted|exclaimed)"
 )
+# English-only, and deliberately separate from
+# `dialogue_spans._DASH_REPORTING_VERBS`: this one repairs a reporting verb
+# beside PAIRED quotes (prefix/suffix inference, #1216), where the verb list
+# must stay conservative and monolingual. The dash-tag decision has its own
+# multilingual, closed table there (#2390 review 3 nit 10). Changing one does
+# not change the other, by design.
 _REPORTING_VERB_TAIL = re.compile(
     rf"\b{_REPORTING_VERBS},?\s+([^\n]{{1,120}})$", re.IGNORECASE)
 _SOURCE_LABEL_TAIL = re.compile(r"(?:^|\n\n)([^\n]{1,60})$")
@@ -509,6 +516,25 @@ def _contiguous_spoken_groups(entries):
     return groups
 
 
+def _entry_in_unverified_tail(entry_text, source_text, ranges):
+    """Is this entry inside text the segmenter could not vouch for?
+
+    The comparison is normalized-word containment in either direction: a model
+    may split an unverified tail into sentences (entry inside the tail) or
+    merge it with adjacent vouched speech (tail inside the entry). Both are
+    left to the model, as decided for #2329 finding 5; the tail's own tag text
+    is not what this gate is about.
+    """
+    needle = normalize_text(entry_text)
+    if not needle:
+        return True
+    for start, end in ranges:
+        tail = normalize_text(source_text[start:end])
+        if tail and (needle in tail or tail in needle):
+            return True
+    return False
+
+
 def _quote_region_findings(source_text, entries, quote_analysis=None,
                            quoted_must_be_spoken=True,
                            unquoted_must_be_narrator=True):
@@ -533,10 +559,14 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
     project three separate measurements ([[Rule 8]]).
     """
     unverified_prefixes = None
+    unverified_ranges = []
     if quote_analysis and quote_analysis.get("unverified_dash"):
         unverified_prefixes = (quote_analysis.get("unverified_dash_prefixes")
                                or _dash_prefixes(source_text))
-        quote_analysis = None
+        # The downgrade is per LINE, not per chunk: only the ambiguous line's
+        # unverified tail is unchecked, and every confident line in the same
+        # chunk keeps full region validation (#2390 review 3 finding 3).
+        unverified_ranges = _dash_ranges(source_text)
     if quote_analysis and not quote_analysis.get("regions"):
         quote_analysis = None
     if not quote_analysis and unverified_prefixes is None and \
@@ -551,12 +581,12 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
             except Exception as exc:                        # noqa: BLE001
                 return [], "skipped:error:" + type(exc).__name__
             return [], "skipped:" + (convention or "none_detected")
+    findings = []
     if unverified_prefixes is not None:
         # Only the text before the first interior break is unambiguous; the
         # model owns the rest of an unverified line (#2329 finding 5). A model
         # may split that opening speech into consecutive SPOKEN entries, so the
         # prefix passes when its words lie in order across them (#2390 review 2).
-        findings = []
         for prefix in unverified_prefixes:
             if not prefix or any(_region_contains_entry([group], prefix)
                                  for group in _contiguous_spoken_groups(entries)):
@@ -569,16 +599,16 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
             findings.append({
                 "code": "quote_region_misclassified", "entry_number": entry_number,
                 "message": "The opening speech of an unverified dash line must be SPOKEN; the rest of the line is unchecked."})
-        return findings, "ran"
-    if quote_analysis:
+    if not quote_analysis:
+        if unverified_prefixes is not None:
+            return findings, "ran"
+        outside, inside = _split_quote_regions(source_text)
+    else:
         source_regions = quote_analysis["regions"]
         outside = [entry["text"] for entry in source_regions
                    if entry["type"] == "NARRATOR"]
         inside = [entry["text"] for entry in source_regions
                   if entry["type"] == "SPOKEN"]
-    else:
-        outside, inside = _split_quote_regions(source_text)
-    findings = []
     for number, entry in enumerate(entries, 1):
         if not isinstance(entry, dict):
             continue
@@ -588,6 +618,9 @@ def _quote_region_findings(source_text, entries, quote_analysis=None,
         if not enforce_entry:
             continue
         text = str(entry.get("text") or "")
+        if unverified_ranges and _entry_in_unverified_tail(
+                text, source_text, unverified_ranges):
+            continue
         expected = inside if entry.get("type") == "SPOKEN" else outside
         other = outside if entry.get("type") == "SPOKEN" else inside
         if _has_quote_delimiter(text, expected + other):

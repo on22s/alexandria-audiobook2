@@ -2077,6 +2077,49 @@ class DashDialogueTagSegmenterTests(unittest.TestCase):
         self.assertTrue(report["passed"], report["findings"])
         self.assertEqual("ran", report["quote_gate"])
 
+    def test_one_ambiguous_line_does_not_disable_validation_of_confident_lines(self):
+        """The downgrade is per line: a confident line keeps its gate.
+
+        (#2390 review 3 finding 3.)
+        """
+        confident = "— Oui, répondit-il."
+        ambiguous = "— Wait — I forgot the keys."
+        chunk = confident + "\n\n" + ambiguous
+        analysis = analyze_outer_quote_regions(chunk)
+        self.assertTrue(analysis.get("unverified_dash"))
+        merged = [
+            {"type": "SPOKEN", "text": "Oui, répondit-il."},
+            {"type": "SPOKEN", "text": "Wait"},
+            {"type": "NARRATOR", "text": "I forgot the keys."},
+        ]
+        report = validate_segment_quality(chunk, merged, quote_analysis=analysis)
+        self.assertFalse(report["passed"])
+        self.assertIn("crosses_quote_boundary",
+                      [finding["code"] for finding in report["findings"]])
+        alone = validate_segment_quality(
+            confident, merged[:1],
+            quote_analysis=analyze_outer_quote_regions(confident))
+        self.assertFalse(alone["passed"])
+        # The ambiguous line's unverified tail, and only that tail, is left to
+        # the model; the opening speech is still checked.
+        correct = [
+            {"type": "SPOKEN", "text": "Oui,"},
+            {"type": "NARRATOR", "text": "répondit-il."},
+            {"type": "SPOKEN", "text": "Wait I forgot the keys."},
+        ]
+        report = validate_segment_quality(chunk, correct, quote_analysis=analysis)
+        self.assertTrue(report["passed"], report["findings"])
+        wrong_prefix = [
+            {"type": "SPOKEN", "text": "Oui,"},
+            {"type": "NARRATOR", "text": "répondit-il. Wait"},
+            {"type": "NARRATOR", "text": "I forgot the keys."},
+        ]
+        report = validate_segment_quality(
+            chunk, wrong_prefix, quote_analysis=analysis)
+        self.assertFalse(report["passed"])
+        self.assertIn("quote_region_misclassified",
+                      [finding["code"] for finding in report["findings"]])
+
     def test_opening_speech_across_a_narrator_entry_still_rejects(self):
         chunk = "She smiled.\n— It is late. The road is long — I forgot the keys."
         analysis = analyze_outer_quote_regions(chunk)
