@@ -28,8 +28,8 @@ def _call_with_deadline(call, label, timeout=5.0):
 
     CI runs the unit shard without a per-test timeout, so a mutation that makes
     a scanner loop forever would hold the whole shard instead of failing it.
-    This helper is what turns the #651/#94/#671 hang class into an ordinary
-    test failure.
+    This helper bounds every scanner call the new tests make, so such a mutant
+    fails the test instead of the job.
 
     POSIX uses SIGALRM so the call is interrupted in place, leaving no thread
     behind. A thread-based deadline was tried first and is NOT safe here: the
@@ -1965,10 +1965,11 @@ class ScannerBoundaryAndMeasurementTests(unittest.TestCase):
             with self.subTest(label=label):
                 # Deadline: a reverse-scan off-by-one on `_paired_spans` (#651)
                 # loops on the two EMPTY straight pairs below, and CI has no
-                # per-test timeout. This turns that regression into a failure
-                # instead of a hang. It is not counted as assertion coverage:
-                # mutmut still books #651 as a timeout because the suite spends
-                # the deadline deliberately (see the PR body's scope note).
+                # per-test timeout. #651 no longer reaches them (the plain-pair
+                # guard at the top raises IndexError first, so mutmut kills it
+                # as an ordinary failure), but any other mutant that hangs on
+                # an empty pair still fails within the deadline instead of
+                # holding the shard.
                 self.assertEqual(
                     expected,
                     _call_with_deadline(lambda: spoken_spans(text, "paired_quotes"),
