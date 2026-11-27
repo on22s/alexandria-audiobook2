@@ -362,9 +362,9 @@ class ShippedLexiconTest(unittest.TestCase):
         self.assertIsInstance(doc["names"], dict)
 
 
-class RosterDerivationTest(unittest.TestCase):
-    """The name list comes from the roster, and aliases inform it WITHOUT
-    leaking one character's pronunciation onto another's spelling."""
+class RosterSpellingTest(unittest.TestCase):
+    """A roster alias and a lowercase twin are different written forms: a
+    respelling applies to the form it names and to no other spelling."""
 
     def test_a_nickname_does_not_inherit_the_canonical_pronunciation(self):
         """THE TRAP. character_aliases maps 'BETTY' -> 'BEATRICE' because they
