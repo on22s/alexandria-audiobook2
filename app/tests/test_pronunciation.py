@@ -102,11 +102,109 @@ class LexiconTest(unittest.TestCase):
         p = self.write({"राम": "Raam"})
         self.assertEqual("Raam। ने", apply_pronunciation("राम। ने", p)[0])
 
+    def test_a_single_character_unspaced_key_needs_same_script_neighbours(self):
+        """One character is not evidence of a whole word: a single-character
+        key must not fire inside a run of its own script. Longer keys still
+        match inside a run (the next test); the issue's 太郎/王明 rows survive."""
+        p = self.write({"中": "Naka", "王": "Oh"})
+        self.assertEqual(("中国の王国", []), apply_pronunciation("中国の王国", p))
+        self.assertEqual("Ohは来た", apply_pronunciation("王は来た", p)[0])
+        self.assertEqual("Naka。", apply_pronunciation("中。", p)[0])
+        self.assertEqual("Naka 国", apply_pronunciation("中 国", p)[0])
+        p = self.write({"ロ": "Ro", "ヒ": "Hi"})
+        self.assertEqual(("ローマとヒーロー", []),
+                         apply_pronunciation("ローマとヒーロー", p))
+        p = self.write({"ท": "T"})
+        self.assertEqual(("ประเทศไทย", []), apply_pronunciation("ประเทศไทย", p))
+        self.assertEqual("T", apply_pronunciation("ท", p)[0])
+
+    def test_a_multi_character_unspaced_key_matches_inside_a_run(self):
+        """The documented remaining false-match class: a longer, unrelated
+        word is not protected unless it is itself an entry. An identity entry
+        wins longest-first and absorbs the match."""
+        p = self.write({"タイ": "Tai"})
+        self.assertEqual("Taiトル", apply_pronunciation("タイトル", p)[0])
+        p = self.write({"タイ": "Tai", "タイトル": "タイトル"})
+        self.assertEqual(("タイトル", [{"name": "タイトル", "spoken": "タイトル"}]),
+                         apply_pronunciation("タイトル", p))
+
+    def test_iteration_and_ideographic_marks_count_as_unspaced(self):
+        """々/〆/〻 are Script=Han and the vertical kana repeat marks are
+        Hiragana, so a key containing them must not keep word bounds."""
+        for key in ("〆", "〻", "〱"):
+            self.assertTrue(pronunciation.is_unspaced_key(key))
+        for key, text in (("時々", "時々は"), ("〆香", "〆香は")):
+            with self.subTest(key=key):
+                p = self.write({key: "Spoken"})
+                self.assertEqual("Spokenは", apply_pronunciation(text, p)[0])
+        p = self.write({"中": "Naka"})
+        self.assertEqual("中々", apply_pronunciation("中々", p)[0])
+
+    def test_digits_are_neutral_when_classifying_an_unspaced_key(self):
+        """Letters decide: 3月 is unspaced because 月 is Han, while 3rd is not
+        and a digit-only key is not. The neutral digit is deliberate, so 3月
+        also fires between Latin characters (the documented cost)."""
+        self.assertTrue(pronunciation.is_unspaced_key("3月"))
+        self.assertFalse(pronunciation.is_unspaced_key("3rd"))
+        self.assertFalse(pronunciation.is_unspaced_key("3"))
+        p = self.write({"3月": "Sangatsu"})
+        self.assertEqual("Sangatsuは", apply_pronunciation("3月は", p)[0])
+        self.assertEqual("Sangatsu", apply_pronunciation("3月", p)[0])
+
+    def test_a_variation_selector_after_a_key_does_not_block(self):
+        """An ideographic/emoji variation selector modifies the preceding
+        character, so 葛+IVS is still 葛 and must not be refused as a mark."""
+        p = self.write({"葛": "Kuzu"})
+        self.assertEqual("Kuzu\U000E0100は",
+                         apply_pronunciation("葛\U000E0100は", p)[0])
+        p = self.write({"絵": "E"})
+        self.assertEqual("E\uFE0F", apply_pronunciation("絵\uFE0F", p)[0])
+
+    def test_a_leading_left_quote_blocks_like_an_apostrophe(self):
+        """Some texts use U+2018 as an apostrophe: ‘tis must stay unchanged,
+        exactly as ’tis and 'tis do for a key for tis."""
+        p = self.write({"tis": "tiz"})
+        self.assertEqual(("‘tis", []), apply_pronunciation("‘tis", p))
+        self.assertEqual("tiz", apply_pronunciation("tis", p)[0])
+
+    def test_halfwidth_katakana_and_the_prolonged_sound_mark_inside_a_run(self):
+        p = self.write({"ﾀﾝ": "Tan"})
+        self.assertEqual("Tanが来た", apply_pronunciation("ﾀﾝが来た", p)[0])
+        p = self.write({"コー": "Koh"})
+        self.assertEqual("Kohヒー", apply_pronunciation("コーヒー", p)[0])
+
+    def test_latin_combining_accents_block_in_nfc_and_nfd(self):
+        """A precomposed é is a word letter and é as e+U+0301 is a combining
+        mark: neither may let a key for Cafe fire inside Café."""
+        p = self.write({"Cafe": "Kafay"})
+        self.assertEqual("Café", apply_pronunciation("Café", p)[0])
+        self.assertEqual("Cafe\u0301", apply_pronunciation("Cafe\u0301", p)[0])
+        p = self.write({"Café": "Kafay"})
+        self.assertEqual("Kafay", apply_pronunciation("Café", p)[0])
+
+    def test_korean_keeps_word_bounds(self):
+        """Hangul is written with spaces between words, so a single-character
+        key must not fire inside a Hangul word."""
+        p = self.write({"김": "Kim"})
+        self.assertEqual("김밥", apply_pronunciation("김밥", p)[0])
+        self.assertEqual("Kim 밥", apply_pronunciation("김 밥", p)[0])
+
+    def test_a_mixed_latin_and_han_key_keeps_word_bounds(self):
+        """One spaced-script letter is enough: A太郎 is not unspaced."""
+        p = self.write({"A太郎": "Ataro"})
+        self.assertEqual("A太郎は", apply_pronunciation("A太郎は", p)[0])
+        self.assertEqual("Ataro", apply_pronunciation("A太郎", p)[0])
+
     def test_a_changed_match_changes_render_identity_only_on_affected_lines(self):
-        """Prepared speech is the render identity: a take publication records
-        its digest as pronunciation_sha256, and restoration refuses a saved
-        take whose preparation differs. The straight-apostrophe possessive now
-        prepares differently; the curly form (already matching) does not."""
+        """This pins the PRONUNCIATION COMPONENT of render identity, not a take.
+
+        A take publication stores get_recovery_digest(preparation) as
+        pronunciation_sha256, and this test proves that digest changes for the
+        straight-apostrophe possessive line and not for the already-matching
+        curly control. It stores no take. The serving fingerprint also hashes
+        the pronunciation module code, so every older take becomes audition-only
+        after this change regardless of whether its line's preparation changed;
+        that is the same behaviour as any pronunciation.py update."""
         from speech_text import get_speech_normalization
         from synthesis_recovery_identity import get_recovery_digest
         p = self.write({"Mara": "Mahra"})

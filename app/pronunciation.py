@@ -28,10 +28,27 @@ say the name properly and the ASR then transcribes it as "Soo bah roo", WER
 gets WORSE while the audio gets BETTER. A lexicon is judged by listening, or by
 an ASR comparison that normalises the name on both sides. Optimising it against
 raw WER would select for names that are easy to transcribe rather than right.
+
+MATCHING LIMIT IN UNSPACED SCRIPTS. A key written in a script that does not
+separate words with spaces (Han, kana, Thai, Lao, Khmer, Myanmar, Tibetan) has
+no letter boundary to consult, so a MULTI-CHARACTER key can still fire inside
+a longer, unrelated word: a two-character Katakana key hits the first two
+characters of a longer Katakana name. Protect the word by adding it as its own
+identity entry (the word on both sides of the map). Keys are tried longest
+first, so the identity entry absorbs the match instead of the shorter key.
+SINGLE-character keys are stricter: one fires only when neither neighbour is a
+character of the same script class, because one character carries no evidence
+that it is a whole word. Every identity entry is a deliberate exception, so
+adding one is always a decision about this book's text.
+
+Script classification is read from the running interpreter's Unicode database
+(`unicodedata`), so it depends on the Unicode version that ships with Python.
+Characters unassigned in that database classify as ordinary (spaced) text.
 """
 from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
+from functools import lru_cache
 import hashlib
 import io
 import json
@@ -80,50 +97,150 @@ logger = logging.getLogger(__name__)
 _audition_matcher = ContextVar("pronunciation_audition_matcher", default=None)
 
 
-_UNSPACED_SCRIPT_PREFIXES = (
-    "CJK UNIFIED IDEOGRAPH", "CJK COMPATIBILITY IDEOGRAPH",
-    "HIRAGANA", "KATAKANA", "HALFWIDTH KATAKANA",
-    "THAI", "LAO", "KHMER", "MYANMAR", "TIBETAN",
+_HAN = frozenset(("Han",))
+_HIRAGANA = frozenset(("Hiragana",))
+_KATAKANA = frozenset(("Katakana",))
+_KANA = frozenset(("Hiragana", "Katakana"))
+_THAI = frozenset(("Thai",))
+_LAO = frozenset(("Lao",))
+_KHMER = frozenset(("Khmer",))
+_MYANMAR = frozenset(("Myanmar",))
+_TIBETAN = frozenset(("Tibetan",))
+
+# Unicode scripts that do not separate words with spaces. Classification reads
+# the character name, which is the only script-property data `unicodedata`
+# exposes; the value is the script class used for the single-character rule.
+_UNSPACED_SCRIPT_NAME_PREFIXES = (
+    ("CJK UNIFIED IDEOGRAPH", _HAN),
+    ("CJK COMPATIBILITY IDEOGRAPH", _HAN),
+    ("KANGXI RADICAL", _HAN),
+    ("CJK RADICAL", _HAN),
+    ("HIRAGANA", _HIRAGANA),
+    ("HALFWIDTH KATAKANA", _KATAKANA),
+    ("KATAKANA", _KATAKANA),
+    ("THAI", _THAI),
+    ("LAO", _LAO),
+    ("KHMER", _KHMER),
+    ("MYANMAR", _MYANMAR),
+    ("TIBETAN", _TIBETAN),
 )
+
+# Characters whose Script property is Han/Common or Common in a CJK run and
+# whose English name does not name that script. Checked against the Unicode
+# script property, not just the name: 々, 〆, 〇 and 〻 are Han; the vertical
+# kana repeat marks are Hiragana; ー is Script=Common but prolongs the syllable
+# in both kana. They occur inside the same unspaced run, so a single-character
+# key must not fire next to them. Separators (CJK punctuation, ・, ゠) are
+# deliberately absent: they end a word, so a single-character key may match
+# beside them.
+_CJK_SCRIPT_OVERRIDES = {
+    "\u3005": _HAN,        # 々 IDEOGRAPHIC ITERATION MARK (Script=Han)
+    "\u3006": _HAN,        # 〆 IDEOGRAPHIC CLOSING MARK (Script=Han)
+    "\u3007": _HAN,        # 〇 IDEOGRAPHIC NUMBER ZERO (Script=Han)
+    "\u303b": _HAN,        # 〻 VERTICAL IDEOGRAPHIC ITERATION MARK (Script=Han)
+    "\u3031": _HIRAGANA,   # 〱 VERTICAL KANA REPEAT MARK (Script=Hiragana)
+    "\u3032": _HIRAGANA,   # 〲 VERTICAL KANA REPEAT MARK WITH VOICED SOUND
+    "\u3033": _HIRAGANA,   # 〳 VERTICAL KANA REPEAT MARK UPPER HALF
+    "\u3034": _HIRAGANA,   # 〴 ... WITH VOICED SOUND
+    "\u3035": _HIRAGANA,   # 〵 VERTICAL KANA REPEAT MARK LOWER HALF
+    "\u30fc": _KANA,       # ー KATAKANA-HIRAGANA PROLONGED SOUND MARK (Common)
+}
+
 _STRAIGHT_AND_TYPOGRAPHIC_APOSTROPHES = "'\u2019\u02bc"
+_LEADING_APOSTROPHES = _STRAIGHT_AND_TYPOGRAPHIC_APOSTROPHES + "\u2018"
 _COMBINING_CATEGORIES = frozenset(("Mn", "Mc", "Me"))
+_VARIATION_SELECTORS = frozenset(
+    tuple(chr(codepoint) for codepoint in range(0xFE00, 0xFE10))
+    + tuple(chr(codepoint) for codepoint in range(0xE0100, 0xE01F0))
+)
 
 
+@lru_cache(maxsize=4096)
+def _unspaced_script_classes(char):
+    """-> frozenset of unspaced script classes `char` belongs to (empty if none).
+
+    Pure, so it is memoised per character. `ー` and the CJK marks above belong
+    to more than one class; an empty result means an ordinary (spaced) script.
+    """
+    override = _CJK_SCRIPT_OVERRIDES.get(char)
+    if override is not None:
+        return override
+    category = unicodedata.category(char)
+    if not (category.startswith("L") or category.startswith("M") or category == "Nd"):
+        return frozenset()   # punctuation/separators end a word; not a script neighbour
+    name = unicodedata.name(char, "")
+    for prefix, classes in _UNSPACED_SCRIPT_NAME_PREFIXES:
+        if name.startswith(prefix):
+            return classes
+    return frozenset()
+
+
+@lru_cache(maxsize=4096)
 def is_unspaced_key(key):
     """Whether a key is written in a script that does not separate words with spaces.
 
-    Derived from Unicode character names (Unicode script data), not a table of
-    ranges, so the letter bound follows the script a name is written in. A key
-    with any Latin letter, a digit-only key or one containing whitespace keeps
-    the normal word bounds.
+    Decided from the Unicode script class of the key's LETTERS (see
+    _unspaced_script_classes); digits and punctuation are neutral, so `3月`
+    is unspaced while `3rd` is not. A key with any spaced-script letter, no
+    letters at all (a digit-only key), or whitespace keeps the normal word
+    bounds. The input is a string key, so the result is memoised.
     """
     letters = [char for char in key if unicodedata.category(char).startswith("L")]
-    return (bool(letters) and not any(char.isspace() for char in key) and all(
-        unicodedata.name(char, "").startswith(_UNSPACED_SCRIPT_PREFIXES)
-        for char in letters))
+    return (bool(letters) and not any(char.isspace() for char in key)
+            and all(_unspaced_script_classes(char) for char in letters))
+
+
+def _blocks_following(following, *, combining_only=False):
+    """Whether `following` belongs to the key rather than the next word.
+
+    A variation selector never blocks: it modifies the preceding character
+    (葛 + IVS is still 葛), so it must not make an otherwise valid key miss.
+    """
+    if not following or following in _VARIATION_SELECTORS:
+        return False
+    if unicodedata.category(following) in _COMBINING_CATEGORIES:
+        return True
+    return not combining_only and (following.isalnum() or following == "_")
 
 
 def is_key_match(text, start, end, key):
     """THE ONE DECISION: may `key` match this exact span of `text`?
 
     Every caller reaches this through _compile, so no second copy of the
-    boundary rules can drift from this one. A leading apostrophe always blocks
-    (a name inside O'Brien is not the name), a trailing apostrophe never does
-    (Mara's is the same name), and a following combining mark always blocks
-    (राम is not the word रामा).
+    boundary rules can drift from this one.
+
+    A leading apostrophe always blocks (a name inside O'Brien is not the name;
+    U+2018 is treated as a quote used as one). A trailing apostrophe never
+    blocks (Mara's is the same name), and a following combining mark blocks
+    (राम is not the word रामा) unless it is a variation selector.
+
+    An unspaced key drops the word bound. A SINGLE-character unspaced key is
+    stricter: it also refuses a neighbour in its own script class, so 中 does
+    not fire in 中国 and ロ does not fire in ローマ. A multi-character key may
+    still fire inside a longer word; add that word as an identity entry to
+    protect it (longest-first). A key that is not unspaced keeps normal bounds,
+    and so does every key with any spaced-script letter.
     """
     previous = text[start - 1] if start else ""
     following = text[end] if end < len(text) else ""
-    if previous and previous in _STRAIGHT_AND_TYPOGRAPHIC_APOSTROPHES:
+    if previous and previous in _LEADING_APOSTROPHES:
         return False
     if is_unspaced_key(key):
-        return not (following and unicodedata.category(following) in _COMBINING_CATEGORIES)
+        if len(key) == 1:
+            classes = _unspaced_script_classes(key)
+            if classes and previous and (_unspaced_script_classes(previous) & classes):
+                return False
+            if classes and following and (_unspaced_script_classes(following) & classes):
+                return False
+        return not _blocks_following(following, combining_only=True)
     if previous and (previous.isalnum() or previous == "_"):
         return False
+    # Before the combining-mark test on purpose: a possessive apostrophe is not
+    # part of the following word, so it is allowed even if a mark follows it
+    # (Mara'́). Tightening that rule later means moving this check.
     if following and following in _STRAIGHT_AND_TYPOGRAPHIC_APOSTROPHES:
-        return True                       # possessive/plural, never a word character
-    return not (following and (following.isalnum() or following == "_"
-                               or unicodedata.category(following) in _COMBINING_CATEGORIES))
+        return True
+    return not _blocks_following(following)
 
 
 class _PronunciationMatcher:
@@ -162,8 +279,9 @@ def _compile(entries, ignore_case=False):
     Longest-first matters: with both "Natsuki" and "Natsuki Subaru" present,
     alternation would otherwise match the shorter key inside the longer name
     and leave a half-substituted phrase. Sorting the alternation by length is
-    also what keeps a shorter key from firing inside a longer matching key in
-    a script without word spaces.
+    also what keeps a shorter key from firing inside a longer key THAT IS ALSO
+    AN ENTRY in a script without word spaces; a longer word with no entry of
+    its own is not protected (see the module docstring's matching limit).
     """
     keys = sorted((k for k in entries if k), key=lambda key: (-len(key), key))
     if not keys:
