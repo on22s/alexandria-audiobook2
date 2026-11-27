@@ -632,7 +632,8 @@ class DownloadCurrencyTests(_FixtureMixin):
             qwen_asr_version="0.0.6", torch_version=cap["torch_version"],
             device="cpu", dtype="float32", identity=cap["runtime"]))
         receipt = dict(timing_mode="qwen", timing_device="cpu",
-                       timing_language="English", timing_provider=provider)
+                       timing_language="English", timing_provider=provider,
+                       retained_epub_sha256=hashlib.sha256(corrupt).hexdigest())
         with patch.object(qr, "get_qwen_capability", lambda _r, **k: dict(cap)), \
                 patch.object(qr, "get_qwen_model_candidates",
                              return_value=[cap["model_dir"]]), \

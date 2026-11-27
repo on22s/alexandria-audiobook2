@@ -39,6 +39,7 @@ the process survives to restore prior bytes.
 import copy
 import hashlib
 import json
+import logging
 import os
 import re
 from contextlib import contextmanager
@@ -58,6 +59,8 @@ from audio_generation_owner import AudioGenerationCancelled, ensure_audio_genera
 
 _HEX64_RE = re.compile(r"[0-9a-f]{64}")
 MAX_RETAINED_EPUB_BYTES = 2 * 1024**3
+
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -1093,9 +1096,11 @@ def get_saved_book_retained_epub_path(data_dir, source_txt):
     ``<origin stem>.source.epub`` can be tried directly instead of scanning
     the upload folder and refusing an otherwise unambiguous duplicate (#2355).
 
-    Returns ``None`` for anything the resolver cannot verify. Callers keep the
-    bounded, hash-gated fallback, which owns the user-facing recovery message;
-    this helper deliberately never raises for a damaged or missing chain.
+    Returns ``None`` for a chain the resolver refuses (missing, damaged,
+    changed, outside the library, looped, over the hop limit) and logs the
+    refusal code at debug so a future resolver regression stays visible.
+    Callers keep the bounded, hash-gated fallback, which owns the user-facing
+    recovery message.
     """
     try:
         source_name = os.fspath(source_txt)
@@ -1104,21 +1109,173 @@ def get_saved_book_retained_epub_path(data_dir, source_txt):
     if not isinstance(source_name, str) or not source_name.lower().endswith('.json'):
         return None
     try:
-        from script_selection_binding import resolve_saved_book_origin
+        from script_selection_binding import (SavedSourceResolutionError,
+                                              resolve_saved_book_origin)
         origin = resolve_saved_book_origin(
             data_dir, source_txt, require_terminal_file=True)
-    except Exception:
-        # Any unverifiable chain is a fallback case, never a build failure.
-        return None
-    source_path = origin.get('source_path') if isinstance(origin, dict) else None
-    if not isinstance(source_path, str) or not source_path:
-        return None
-    from source_upload_publication import get_retained_epub_path
-    try:
+        source_path = origin.get('source_path') if isinstance(origin, dict) else None
+        if not isinstance(source_path, str) or not source_path:
+            logger.debug("retained EPUB: saved-source resolver returned no source path")
+            return None
+        from source_upload_publication import get_retained_epub_path
         retained_path = get_retained_epub_path(source_path)
         return retained_path if os.path.isfile(retained_path) else None
-    except (OSError, ValueError, TypeError):
+    except SavedSourceResolutionError as error:
+        # An unverifiable chain is a fallback case, never a build failure; the
+        # code names why (missing_binding, changed_source, ...) for diagnosis.
+        logger.debug("retained EPUB: saved-source resolution refused (%s)", error.code)
         return None
+    except (OSError, ValueError) as error:
+        logger.debug("retained EPUB: saved-source resolution failed (%s)",
+                     type(error).__name__)
+        return None
+
+
+def get_retained_epub_receipt_sha256(receipt):
+    """The receipt's retained-EPUB digest, one access shape for every consumer.
+
+    ``get_validated_epub_receipt`` always supplies the key, but the Editor's
+    timing check is also reachable with a synthetic receipt in tests. A missing
+    digest refuses loudly instead of silently skipping the hash gate.
+    """
+    digest = receipt.get("retained_epub_sha256") if isinstance(receipt, dict) else None
+    if not isinstance(digest, str) or _HEX64_RE.fullmatch(digest) is None:
+        raise ValueError("EPUB read-aloud receipt has no retained EPUB digest; rebuild it.")
+    return digest
+
+
+def _source_folder_is_uploads(source_txt):
+    """True when the source already lives in the upload folder.
+
+    Only then does the upload route reuse the canonical TXT (and reattach a
+    missing retained file) for byte-identical bytes, which is what makes the
+    re-upload advice safe. An outside source (batch/library file) is not
+    reachable by that reuse path.
+    """
+    try:
+        from core import UPLOADS_DIR
+        folder = os.path.dirname(os.path.abspath(os.fspath(source_txt)))
+        return (_retained_scan_key(folder)
+                == _retained_scan_key(os.path.abspath(UPLOADS_DIR)))
+    except (ImportError, OSError, TypeError, ValueError):
+        return False
+
+
+def _retained_epub_missing_message(source_txt):
+    """The missing-bytes refusal, honest for both source kinds (#2355).
+
+    The upload route reattaches the retained file for byte-identical bytes
+    under the same book, so re-uploading the identical EPUB is valid recovery
+    for a source that lives in the upload folder. For a loaded saved script the
+    upload replaces the script as the selected source and resets rendered
+    audio, so the message only offers restoring the file there.
+    """
+    saved_script = isinstance(source_txt, str) and source_txt.lower().endswith('.json')
+    if saved_script:
+        return ("Retained EPUB bytes are missing for this book: no '.source.epub' file "
+                "matching its recorded EPUB origin was found in the source's folder or "
+                "the upload folder. Restore the original EPUB there as a matching "
+                "'.source.epub' file. Do not re-import the book for this loaded saved "
+                "script: the upload replaces the script as the selected source and "
+                "resets rendered audio.")
+    head = ("Retained EPUB bytes are missing for this book: no '.source.epub' file "
+            "matching its recorded EPUB origin was found in the source's folder.")
+    if _source_folder_is_uploads(source_txt):
+        return (head + " Restore the original EPUB there as a matching '.source.epub' "
+                "file, or re-upload the byte-identical EPUB: it is reattached under the "
+                "same book, so the retained bytes are restored. Re-uploading a different "
+                "edition resets rendered audio.")
+    return (head + " Restore the original EPUB there as a matching '.source.epub' "
+            "file. Re-uploading the EPUB imports a new book and does not restore this one.")
+
+
+def _stale_source_provenance_message(source_txt):
+    """The stale-provenance refusal with a recovery that does not lie (#2355)."""
+    if isinstance(source_txt, str) and source_txt.lower().endswith('.json'):
+        return ("Source provenance is stale; re-upload the source book to rebind it "
+                "before EPUB read-aloud export. For a loaded saved script the upload "
+                "replaces the script as the selected source and resets rendered audio.")
+    if _source_folder_is_uploads(source_txt):
+        return ("Source provenance is stale; re-upload the byte-identical source file "
+                "to rebind it without creating a new book or resetting rendered audio "
+                "before EPUB read-aloud export. Re-uploading a changed source resets "
+                "rendered audio.")
+    return ("Source provenance is stale; restore the source's '.publication.json' "
+            "beside it before EPUB read-aloud export. Re-uploading the source imports "
+            "a new book.")
+
+
+def _retained_scan_key(path):
+    """One spelling per directory: symlinks resolved, case folded (Windows)."""
+    return os.path.normcase(os.path.realpath(path))
+
+
+def _dedupe_retained_scan_dirs(primary_dir, extras, key=None):
+    """Primary directory plus extras, one spelling each.
+
+    ``key`` is injectable only so tests can prove the case-folding contract on
+    a case-sensitive filesystem; production always uses the realpath+normcase
+    key. A duplicate spelling would otherwise match every retained file twice
+    and report a false "Multiple retained EPUB files".
+    """
+    key = key or _retained_scan_key
+    directories = [primary_dir]
+    known = {key(primary_dir)}
+    for directory in extras:
+        if not isinstance(directory, str) or not directory or not os.path.isdir(directory):
+            continue
+        marker = key(directory)
+        if marker in known:
+            continue
+        known.add(marker)
+        directories.append(directory)
+    return directories
+
+
+def get_verified_retained_epub(source_txt, expected_sha256, cancel_check=None, *,
+                               data_dir=None, search_dirs=(), read_bytes=False):
+    """Return ``(path, bytes_or_None)`` whose bytes carry an expected sha.
+
+    One resolver -> hash gate -> bounded fallback sequence shared by the
+    read-aloud build and both Editor lookup sites (Rule 15, #2355). A saved
+    script's binding may name the canonical retained EPUB, but it only
+    supplies a candidate: the bytes read from it must hash to one of
+    ``expected_sha256``, and anything missing, unreadable or mismatching falls
+    through to the origin-gated scan. ``read_bytes`` returns the exact verified
+    bytes for the build, which must never re-read the retained file; the
+    Editor streams the same version-fenced hash instead.
+
+    Raises ValueError (the caller-owned refusal, including the recovery
+    message) when nothing verifies.
+    """
+    if isinstance(expected_sha256, str):
+        expected_sha256 = (expected_sha256,)
+    wants = frozenset(value for value in (expected_sha256 or ())
+                      if isinstance(value, str) and _HEX64_RE.fullmatch(value))
+    if not wants:
+        raise ValueError("This book has no retained EPUB provenance.")
+
+    def verify(path):
+        if read_bytes:
+            content = get_retained_epub_bytes(path, cancel_check)
+            return hashlib.sha256(content).hexdigest(), content
+        return get_retained_epub_sha256(path, cancel_check), None
+
+    candidate = (get_saved_book_retained_epub_path(data_dir, source_txt)
+                 if data_dir else None)
+    if candidate is not None:
+        try:
+            digest, content = verify(candidate)
+        except (OSError, ValueError):
+            digest, content = None, None
+        if digest in wants:
+            return candidate, content
+    retained_path = get_retained_epub_candidate_path(
+        source_txt, cancel_check, origin_hashes=wants, search_dirs=search_dirs)
+    digest, content = verify(retained_path)
+    if digest not in wants:
+        raise ValueError("Retained EPUB bytes do not match the source provenance; refusing to export.")
+    return retained_path, content
 
 
 def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_hashes=None,
@@ -1129,8 +1286,11 @@ def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_ha
     requires current provenance and exhaustive, bounded ambiguity checks.
     ``search_dirs`` adds the upload folder for a loaded saved script, whose
     ``input_file_path`` is the script, not the extracted TXT beside which the
-    retained EPUB lives (#2349). The bytes still have to match the recorded
-    origin hashes there.
+    retained EPUB lives (#2349). A direct TXT already has its own folder as the
+    primary directory, so extra directories are ignored for it; otherwise an
+    identical copy in uploads could turn an unambiguous batch source into a
+    false duplicate. The bytes still have to match the recorded origin hashes
+    there.
     """
     import stat
     from archive_utils import MAX_ARCHIVE_MEMBERS, MAX_ARCHIVE_BYTES
@@ -1144,7 +1304,7 @@ def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_ha
     if origin_hashes is None:
         captured = get_publication_source_capture(source_txt)
         if captured is None or captured.get("binding_status") != "current":
-            raise ValueError("Source provenance is stale; re-upload the source book.")
+            raise ValueError(_stale_source_provenance_message(source_txt))
         origin_hashes = {row["origin"]["sha256"] for row in captured["document"].get("candidates", [])}
     wants = frozenset(origin_hashes)
     if not wants:
@@ -1152,15 +1312,10 @@ def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_ha
     matches = []
     scanned = 0
     scanned_bytes = 0
-    directories = [os.path.dirname(retained_path)]
-    known = {os.path.abspath(directory) for directory in directories}
-    for directory in search_dirs:
-        if (not isinstance(directory, str) or not directory
-                or not os.path.isdir(directory)
-                or os.path.abspath(directory) in known):
-            continue
-        known.add(os.path.abspath(directory))
-        directories.append(directory)
+    extras = (search_dirs if isinstance(source_txt, str)
+              and source_txt.lower().endswith('.json') else ())
+    directories = _dedupe_retained_scan_dirs(
+        os.path.dirname(retained_path), extras)
     for directory in directories:
         with os.scandir(directory) as candidates:
             for entry in candidates:
@@ -1194,11 +1349,7 @@ def get_retained_epub_candidate_path(source_txt, cancel_check=None, *, origin_ha
         return matches[0]
     if len(matches) > 1:
         raise ValueError("Multiple retained EPUB files match this source provenance; refusing to guess. Resolve the duplicate retained files first.")
-    raise ValueError(
-        "Retained EPUB bytes are missing for this book: no '.source.epub' file matching its "
-        "recorded EPUB origin was found in the upload folder. Restore the original EPUB there as "
-        "a matching '.source.epub' file (see the retained-upload list); do not re-import the "
-        "book, which resets rendered audio.")
+    raise ValueError(_retained_epub_missing_message(source_txt))
 
 
 def _locate_retained_epub(manager, cancel_check, source_txt=None, *, uploads_dir=None):
@@ -1226,33 +1377,19 @@ def _locate_retained_epub(manager, cancel_check, source_txt=None, *, uploads_dir
         raise ValueError("No source book is selected. Select a book that came from an EPUB upload.")
     captured = get_publication_source_capture(source_txt)
     if captured is None or captured.get("binding_status") != "current":
-        raise ValueError("Source provenance is stale; re-upload the source book before EPUB read-aloud export.")
+        raise ValueError(_stale_source_provenance_message(source_txt))
     origins = captured["document"].get("candidates", [])
     if not origins:
         raise ValueError("This book did not come from an EPUB upload; EPUB read-aloud needs the retained source EPUB.")
     wants = {row["origin"]["sha256"] for row in origins}
-    # A saved script's binding names the original source, so try its canonical
-    # retained EPUB before the bounded upload-folder fallback (#2355). The
-    # binding only supplies a candidate: the origin hash below remains the
-    # final authority, and a missing or mismatching candidate still falls back
-    # to the hash-gated upload scan.
-    retained_bytes = None
-    retained_path = get_saved_book_retained_epub_path(manager.root_dir, source_txt)
-    if retained_path is not None:
-        try:
-            candidate_bytes = get_retained_epub_bytes(retained_path, cancel_check)
-        except (OSError, ValueError):
-            candidate_bytes = None
-        if (candidate_bytes is not None
-                and hashlib.sha256(candidate_bytes).hexdigest() in wants):
-            retained_bytes = candidate_bytes
-    if retained_bytes is None:
-        retained_path = get_retained_epub_candidate_path(
-            source_txt, cancel_check, origin_hashes=wants,
-            search_dirs=(uploads_dir,) if uploads_dir else ())
-        retained_bytes = get_retained_epub_bytes(retained_path, cancel_check)
-        if hashlib.sha256(retained_bytes).hexdigest() not in wants:
-            raise ValueError("Retained EPUB bytes do not match the source provenance; refusing to export.")
+    # One shared lookup for the build and both Editor sites (#2355): a saved
+    # script's binding may name the canonical retained EPUB first, but the
+    # origin hashes remain the final authority and a missing or mismatching
+    # candidate still falls back to the hash-gated upload scan. The returned
+    # bytes are the immutable provenance used for the build.
+    _, retained_bytes = get_verified_retained_epub(
+        source_txt, wants, cancel_check, data_dir=manager.root_dir,
+        search_dirs=(uploads_dir,) if uploads_dir else (), read_bytes=True)
     # Script text staleness: extracted TXT must still hash to the binding.
     from project_scope_files import capture_scope_file, MAX_SCRIPT_BYTES
     source_path = Path(source_txt)

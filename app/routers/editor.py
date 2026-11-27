@@ -2352,22 +2352,14 @@ def _require_readaloud_timing_current(receipt):
                 if not isinstance(input_path, str) or not input_path:
                     raise HTTPException(status_code=409, detail=(
                         "EPUB read-aloud source is unavailable. Rebuild it."))
-                from readalong_export import (get_retained_epub_candidate_path,
-                                             get_retained_epub_sha256,
-                                             get_saved_book_retained_epub_path)
-                retained_path = get_saved_book_retained_epub_path(DATA_DIR, input_path)
-                if retained_path is not None:
-                    try:
-                        if (get_retained_epub_sha256(retained_path)
-                                != receipt.get("retained_epub_sha256")):
-                            # The receipt hash decides; a mismatching binding
-                            # candidate still falls through to the upload scan.
-                            retained_path = None
-                    except (ValueError, OSError):
-                        retained_path = None
-                if retained_path is None:
-                    retained_path = get_retained_epub_candidate_path(
-                        input_path, search_dirs=(UPLOADS_DIR,))
+                from readalong_export import (get_retained_epub_receipt_sha256,
+                                              get_verified_retained_epub)
+                # resolve_saved_book_origin is lock-free; this runs outside the
+                # book lock. The download caller's identity/provenance fence
+                # re-checks book state afterwards and fails closed on a change.
+                retained_path, _retained_bytes = get_verified_retained_epub(
+                    input_path, get_retained_epub_receipt_sha256(receipt),
+                    data_dir=DATA_DIR, search_dirs=(UPLOADS_DIR,))
                 from epub_readaloud import get_epub_language_from_path
                 try:
                     tag = get_epub_language_from_path(retained_path)
@@ -3135,36 +3127,17 @@ def _validated_epub_bytes():
             "EPUB read-aloud timing settings changed during download; rebuild it."))
     # Resolve/hash outside the book lock; the final identity and provenance
     # fence below rejects concurrent book or source-publication changes.
-    from readalong_export import (get_retained_epub_candidate_path,
-                                  get_retained_epub_sha256,
-                                  get_saved_book_retained_epub_path)
+    # resolve_saved_book_origin is lock-free; the receipt hash, not the binding,
+    # remains the authority (the binding only supplies a candidate), and a
+    # mismatch falls back to the bounded scan inside the shared lookup.
+    from readalong_export import (get_retained_epub_receipt_sha256,
+                                  get_verified_retained_epub)
     try:
-        retained_path = get_saved_book_retained_epub_path(DATA_DIR, input_path)
-        retained_sha = None
-        if retained_path is not None:
-            try:
-                retained_sha = get_retained_epub_sha256(retained_path)
-            except (ValueError, OSError):
-                retained_sha = None
-            if retained_sha != receipt["retained_epub_sha256"]:
-                # A binding supplies a candidate only; the receipt hash still
-                # decides, and a mismatch must still reach the upload scan.
-                retained_path = None
-                retained_sha = None
-        if retained_path is None:
-            retained_path = get_retained_epub_candidate_path(
-                input_path, search_dirs=(UPLOADS_DIR,))
+        get_verified_retained_epub(
+            input_path, get_retained_epub_receipt_sha256(receipt),
+            data_dir=DATA_DIR, search_dirs=(UPLOADS_DIR,))
     except (ValueError, OSError) as error:
         raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is unavailable: %s" % error) from error
-    if not os.path.isfile(retained_path):
-        raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is missing. Re-upload the EPUB and rebuild.")
-    if retained_sha is None:
-        try:
-            retained_sha = get_retained_epub_sha256(retained_path)
-        except (ValueError, OSError) as error:
-            raise HTTPException(status_code=409, detail="EPUB read-aloud retained source is unavailable.") from error
-    if retained_sha != receipt["retained_epub_sha256"]:
-        raise HTTPException(status_code=409, detail="EPUB read-aloud does not match its retained source. Re-upload the EPUB and rebuild.")
     with ensure_book_state(DATA_DIR):
         _require_readalong_identity_current(receipt, "EPUB read-aloud")
         if _get_readaloud_timing_preference() != _timing_preference_after:
