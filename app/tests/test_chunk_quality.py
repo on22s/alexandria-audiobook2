@@ -948,5 +948,179 @@ class AcceptedNearMissResumeTests(unittest.TestCase):
                     self.assertEqual(before, checkpoint.read_bytes())
 
 
+_FILLER = (
+    "amber birch cedar dune ember fjord glacier harbour island juniper kettle lantern "
+    "meadow nectar orchard pebble quartz river saddle timber umber valley willow xenon "
+    "yellow zephyr").split() * 12
+
+
+class ContainedSeparateDuplicateGateTests(unittest.TestCase):
+    LINE = "Where is the train?"
+
+    def _source(self, occurrences=1):
+        quotes = " ".join('"%s" she asked.' % self.LINE for _ in range(occurrences))
+        return " ".join(_FILLER) + " " + quotes
+
+    def _entries(self):
+        return ([_entry(word) for word in _FILLER[:120]]
+                + [_entry(self.LINE, "MARTA")]
+                + [_entry(word) for word in _FILLER[120:]]
+                + [_entry(self.LINE, "PORTER")])
+
+    def test_separate_character_duplicate_fails_chunk_quality(self):
+        report = validate_chunk_quality(self._source(), self._entries())
+
+        codes = {finding["code"] for finding in report["findings"]}
+        self.assertIn("source_unsupported_contained_duplicate", codes)
+        self.assertEqual({"source_unsupported_contained_duplicate"}, codes)
+        self.assertFalse(report["passed"])
+
+    def test_source_backed_repeat_passes_chunk_quality(self):
+        report = validate_chunk_quality(self._source(occurrences=2), self._entries())
+
+        self.assertEqual([], report["findings"])
+        self.assertTrue(report["passed"])
+
+    def test_final_generation_gate_blocks_the_separate_duplicate(self):
+        entries = self._entries()
+        source = self._source()
+
+        self.assertFalse(generate_script.passes_final_generation_gate(
+            validate_chunk_quality(source, entries),
+            generate_script.audit_script(entries, source)))
+        self.assertTrue(generate_script.passes_final_generation_gate(
+            validate_chunk_quality(self._source(occurrences=2), entries),
+            generate_script.audit_script(entries, self._source(occurrences=2))))
+
+    def test_mixed_unicode_normalisation_of_a_faithful_line_passes(self):
+        composed, decomposed = "caf\u00e9", "cafe\u0301"
+        source = (" ".join(_FILLER)
+                  + ' "%s" she asked. "%s" he said.' % (composed, decomposed))
+        entries = ([_entry(word) for word in _FILLER[:120]]
+                   + [_entry(composed, "MARTA")]
+                   + [_entry(word) for word in _FILLER[120:]]
+                   + [_entry(composed, "PORTER")])
+
+        report = validate_chunk_quality(source, entries)
+
+        self.assertEqual([], report["findings"])
+        self.assertTrue(report["passed"])
+
+    def test_combining_marks_do_not_block_a_faithful_fused_thai_split(self):
+        # The source fuses "\u0e41\u0e25\u0e49\u0e27" and
+        # "\u0e40\u0e0a\u0e49\u0e32" (\u0e41\u0e25\u0e49\u0e27\u0e40\u0e0a\u0e49\u0e32)
+        # beside the same marked word on its own; the split output reproduces
+        # each copy once. A mark used to end the token, so the source looked
+        # like it carried one copy and the faithful split blocked.
+        source = " ".join(_FILLER) + " \u0e41\u0e25\u0e49\u0e27 \u0e41\u0e25\u0e49\u0e27\u0e40\u0e0a\u0e49\u0e32"
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("\u0e41\u0e25\u0e49\u0e27", "MARTA"),
+                      _entry("\u0e41\u0e25\u0e49\u0e27", "PORTER"),
+                      _entry("\u0e40\u0e0a\u0e49\u0e32", "ANNA")])
+
+        report = validate_chunk_quality(source, entries)
+
+        self.assertEqual([], report["findings"])
+        self.assertTrue(report["passed"])
+
+    def test_combining_marks_do_not_excuse_a_true_thai_repeat(self):
+        source = " ".join(_FILLER) + " \u0e43\u0e0a\u0e48"
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("\u0e43\u0e0a\u0e48", "MARTA"),
+                      _entry("\u0e43\u0e0a\u0e48", "PORTER")])
+
+        report = validate_chunk_quality(source, entries)
+
+        self.assertEqual({"source_unsupported_contained_duplicate"},
+                         {finding["code"] for finding in report["findings"]})
+        self.assertFalse(report["passed"])
+
+    def test_unsegmented_reduplication_does_not_fail_chunk_quality(self):
+        source = " ".join(_FILLER) + " \u306f\u3044 \u306f\u3044\u306f\u3044"
+        # A faithful split of the fused token is adjacent; the old fixture was
+        # non-adjacent because the whole-count rule ignored adjacency.
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("\u306f\u3044", "MARTA"), _entry("\u306f\u3044", "PORTER")])
+
+        report = validate_chunk_quality(source, entries)
+
+        self.assertNotIn("source_unsupported_contained_duplicate",
+                         {finding["code"] for finding in report["findings"]})
+
+    def test_final_generation_gate_blocks_a_duplicate_hidden_by_a_longer_word(self):
+        source = (" ".join(_FILLER)
+                  + " \u300c\u306f\u3044\u300d\u3068\u5f7c\u306f\u8a00\u3063\u305f\u3002 \u306f\u3044\u3051\u3044")
+        entries = ([_entry(word) for word in _FILLER[:120]]
+                   + [_entry("\u306f\u3044", "MARTA")]
+                   + [_entry(word) for word in _FILLER[120:]]
+                   + [_entry("\u306f\u3044", "PORTER")])
+
+        chunk = validate_chunk_quality(source, entries)
+        audit = generate_script.audit_script(entries, source)
+
+        self.assertIn("source_unsupported_contained_duplicate",
+                      {finding["code"] for finding in chunk["findings"]})
+        self.assertEqual(1, audit["counts"]["blocking"])
+        self.assertFalse(generate_script.passes_final_generation_gate(chunk, audit))
+
+    def test_final_generation_gate_passes_a_faithful_fused_source_word(self):
+        source = " ".join(_FILLER) + " \u5f7c\u306f\u306f\u3044\u3001\u306f\u3044\u3002"
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("\u5f7c\u306f"), _entry("\u306f\u3044", "MARTA"),
+                      _entry("\u306f\u3044", "PORTER"), _entry("\u3002")])
+
+        chunk = validate_chunk_quality(source, entries)
+        audit = generate_script.audit_script(entries, source)
+
+        self.assertNotIn("source_unsupported_contained_duplicate",
+                         {finding["code"] for finding in chunk["findings"]})
+        self.assertEqual(0, audit["counts"]["blocking"])
+        self.assertTrue(generate_script.passes_final_generation_gate(chunk, audit))
+
+    def test_final_generation_gate_blocks_a_run_emitted_whole_plus_split(self):
+        source = " ".join(_FILLER) + " \u306f\u3044 \u306f\u3044\u306f\u3044"
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("\u306f\u3044", "MARTA"), _entry("\u306f\u3044", "PORTER"),
+                      _entry("\u306f\u3044\u306f\u3044", "ANNA")])
+
+        chunk = validate_chunk_quality(source, entries)
+        audit = generate_script.audit_script(entries, source)
+
+        self.assertIn("source_unsupported_contained_duplicate",
+                      {finding["code"] for finding in chunk["findings"]})
+        self.assertEqual(1, audit["counts"]["blocking"])
+        self.assertFalse(generate_script.passes_final_generation_gate(chunk, audit))
+
+    def test_final_generation_gate_blocks_a_dropped_word_hiding_a_duplicate(self):
+        source = (" ".join(_FILLER)
+                  + " he found nothing there and the thing was gone . No .")
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("he found there and the thing was gone"),
+                      _entry("No.", "MARTA"), _entry("No.", "PORTER")])
+
+        chunk = validate_chunk_quality(source, entries)
+        audit = generate_script.audit_script(entries, source)
+
+        self.assertIn("source_unsupported_contained_duplicate",
+                      {finding["code"] for finding in chunk["findings"]})
+        self.assertEqual(1, audit["counts"]["blocking"])
+        self.assertFalse(generate_script.passes_final_generation_gate(chunk, audit))
+
+    def test_final_generation_gate_blocks_a_remainder_emitted_elsewhere(self):
+        source = (" ".join(_FILLER)
+                  + " he went somit home with mit the dog . So .")
+        entries = ([_entry(word) for word in _FILLER]
+                   + [_entry("he went home with mit the dog"),
+                      _entry("So.", "MARTA"), _entry("So.", "PORTER")])
+
+        chunk = validate_chunk_quality(source, entries)
+        audit = generate_script.audit_script(entries, source)
+
+        self.assertIn("source_unsupported_contained_duplicate",
+                      {finding["code"] for finding in chunk["findings"]})
+        self.assertEqual(1, audit["counts"]["blocking"])
+        self.assertFalse(generate_script.passes_final_generation_gate(chunk, audit))
+
+
 if __name__ == "__main__":
     unittest.main()

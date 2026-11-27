@@ -1,0 +1,140 @@
+name: mutation
+
+# On-demand mutation testing (mutmut) for ONE app module and its test modules.
+# Deliberately not in the required path: mutation runs take minutes to hours and
+# depend on the module chosen. Trigger it from the Actions tab or:
+#
+#   gh workflow run mutation.yml -f module=dialogue_spans \
+#       -f tests="test_dialogue_spans test_pass_quality"
+#
+# The report (report.txt, results.txt, survivors.diff, run.log) is uploaded as
+# an artifact. tools/mutation_check.sh can be run locally with the same
+# arguments; it copies app/ to a scratch tree, so the checkout is never mutated
+# in place.
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: "app/ module to mutate (e.g. dialogue_spans or app/dialogue_spans.py)"
+        required: true
+        type: string
+      tests:
+        description: "space-separated test modules (e.g. test_dialogue_spans test_pass_quality)"
+        required: true
+        type: string
+
+run-name: mutation (${{ inputs.module }} / ${{ github.ref_name }})
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-${{ github.ref }}-${{ inputs.module }}
+  cancel-in-progress: false
+
+jobs:
+  mutation:
+    runs-on: ubuntu-24.04
+    # A pathological module can take longer; raise this per run if needed.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+
+      # Fail here, with a message naming the bad input, instead of deep inside
+      # the wrapper (or as a "no files found" artifact error). The wrapper
+      # accepts the same spellings: x, x.py, app/x, app/x.py; tests: test_x,
+      # test_x.py, tests.test_x.
+      - name: Validate inputs
+        id: validate
+        env:
+          MODULE: ${{ inputs.module }}
+          TESTS: ${{ inputs.tests }}
+        run: |
+          set -euo pipefail
+          module=${MODULE#./}
+          module=${module#app/}
+          module=${module%.py}
+          if ! printf '%s\n' "$module" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*$'; then
+            echo "::error::module must name one file in app/ (for example dialogue_spans or app/dialogue_spans.py), got: $MODULE"
+            exit 1
+          fi
+          if [ ! -f "app/$module.py" ]; then
+            echo "::error::no such module: app/$module.py"
+            exit 1
+          fi
+          read -ra test_names <<< "$TESTS"
+          if [ "${#test_names[@]}" -eq 0 ]; then
+            echo "::error::tests must list at least one test module (for example test_dialogue_spans)"
+            exit 1
+          fi
+          for t in "${test_names[@]}"; do
+            b=${t##*/}
+            b=${b%.py}
+            b=${b#tests.}
+            if ! printf '%s\n' "$b" | grep -Eq '^test_[A-Za-z0-9_]+$'; then
+              echo "::error::test module must start with test_ (for example test_dialogue_spans), got: $t"
+              exit 1
+            fi
+            if [ ! -f "app/tests/$b.py" ]; then
+              echo "::error::no such test module: app/tests/$b.py"
+              exit 1
+            fi
+          done
+          echo "module: app/$module.py"
+          echo "tests: ${test_names[*]}"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: |
+            app/requirements.txt
+            app/requirements-test.txt
+            app/requirements-mutation.txt
+
+      # The mutated test imports real app modules (generate_script, project,
+      # routers, ...) and unit-test helpers (e.g. httpx from requirements-test.txt),
+      # so install the same Python dependency set the unit shards use in
+      # .github/workflows/tests.yml (CPU Torch first, requirements.txt, and
+      # requirements-test.txt) plus requirements-mutation.txt.
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'torch==2.10.0+cpu' 'torchaudio==2.10.0+cpu' --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r app/requirements.txt
+          python -m pip install -r app/requirements-test.txt
+          python -m pip install -r app/requirements-mutation.txt
+
+      # Exercise the wrapper's safety invariants in throwaway repositories
+      # (inherited GIT_DIR, tracked-only copying, signal cleanup, report/tmp
+      # refusal, interpreter paths with spaces) before the real module run.
+      # The self-test creates its own repositories under $TMPDIR; it never
+      # points a Git call at this checkout.
+      - name: Test the wrapper
+        env:
+          AA2_MUTATION_PYTHON: python
+        run: tools/mutation_check_selftest.sh
+
+      - name: Run mutation check
+        env:
+          AA2_MUTATION_PYTHON: python
+          AA2_MUTATION_REPORT_DIR: ${{ runner.temp }}/mutation-report
+          MODULE: ${{ inputs.module }}
+          TESTS: ${{ inputs.tests }}
+        run: |
+          set -euo pipefail
+          # Word splitting is intended: TESTS is a space-separated list. The
+          # wrapper accepts app/x.py, x.py and x for the module.
+          # shellcheck disable=SC2086
+          tools/mutation_check.sh "$MODULE" $TESTS
+
+      - name: Upload mutation report
+        # Skip when input validation failed: there is no report, and the
+        # "no files found" artifact error would only hide the real message.
+        if: always() && steps.validate.outcome == 'success'
+        uses: actions/upload-artifact@v6
+        with:
+          name: mutation-report-${{ github.run_id }}
+          path: ${{ runner.temp }}/mutation-report
+          if-no-files-found: error
+          retention-days: 30

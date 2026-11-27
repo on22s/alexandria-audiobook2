@@ -4,6 +4,8 @@ import unicodedata
 from itertools import chain, zip_longest
 
 from silent_word_characters import (SILENT_WORD_CHARACTERS,
+                                    ZERO_WIDTH_JOINER,
+                                    ZERO_WIDTH_NON_JOINER,
                                     remove_silent_word_characters)
 
 # Keep case and lexical apostrophes; punctuation/emphasis delimiters are not
@@ -78,7 +80,11 @@ def _word_spans(value):
                     raise UnverifiableLexeme('Combining mark without a lexical base')
                 start = index
             continue
-        if char in ('\u200c', '\u200d'):
+        # Both joiners stay inside the literal word: a literal word is compared
+        # character for character, so deleting a glyph-joining hint would change
+        # it. The comparison key deletes ZWJ instead (silent_word_characters),
+        # because there the two spellings are the same word.
+        if char in (ZERO_WIDTH_NON_JOINER, ZERO_WIDTH_JOINER):
             if start is None or index + 1 == len(value):
                 raise UnverifiableLexeme('Unattached lexical joiner')
             following = value[index + 1]
