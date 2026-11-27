@@ -105,6 +105,16 @@ jobs:
           python -m pip install -r app/requirements-test.txt
           python -m pip install -r app/requirements-mutation.txt
 
+      # Exercise the wrapper's safety invariants in throwaway repositories
+      # (inherited GIT_DIR, tracked-only copying, signal cleanup, report/tmp
+      # refusal, interpreter paths with spaces) before the real module run.
+      # The self-test creates its own repositories under $TMPDIR; it never
+      # points a Git call at this checkout.
+      - name: Test the wrapper
+        env:
+          AA2_MUTATION_PYTHON: python
+        run: tools/mutation_check_selftest.sh
+
       - name: Run mutation check
         env:
           AA2_MUTATION_PYTHON: python

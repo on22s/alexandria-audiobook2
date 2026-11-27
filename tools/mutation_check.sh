@@ -7,13 +7,19 @@
 # WHY A SCRATCH COPY. mutmut writes each mutant into the source file and restores
 # it afterwards. The GPU queue runs jobs from the live checkout (CLAUDE.md Rule
 # 24), so mutating that tree in place - even for a second - is not acceptable.
-# This script copies app/, the tracked repo-root modules and packages (utils.py
-# puts the repo root on sys.path for gpu_stats.py, tools.audit, ...) and
-# builtin_lora/ into a scratch tree and runs mutmut there. The checkout is only
-# read; user data under app/uploads and app/logs is never copied.
+# This script copies ONLY TRACKED files - app/ and the repo-root modules and
+# packages (utils.py puts the repo root on sys.path for gpu_stats.py,
+# tools.audit, ...) - into a scratch tree and runs mutmut there. Untracked and
+# ignored files are never copied: no .env, config.json, dataset_temp/, voice
+# directory or app/env reaches the scratch or the report. The checkout is only
+# read.
+#
+# The checkout must be a Git work tree (tracked-only copying needs it).
 #
 # NOT PART OF THE REQUIRED CI PATH. Mutation testing is minutes-to-hours per
 # module; .github/workflows/mutation.yml runs it manually (workflow_dispatch).
+# Its self-test, tools/mutation_check_selftest.sh, runs in throwaway Git
+# repositories before the module run.
 #
 # SCOPE: POSIX with bash only (Linux, macOS, CI). The wrapper uses process
 # groups and bash traps for signal cleanup; Windows is not supported. (mutmut
@@ -28,19 +34,26 @@
 #   AA2_MUTATION_PYTHON    interpreter with mutmut installed (default: app/env
 #                          python, else python3); bare names and relative paths
 #                          are resolved to absolute paths before cd into scratch
-#   AA2_MUTATION_TMP       parent for the scratch tree (default: $TMPDIR or /tmp)
+#   AA2_MUTATION_TMP       parent for the scratch tree (default: $TMPDIR or /tmp);
+#                          it must be OUTSIDE the checkout
 #   AA2_MUTATION_REPORT_DIR  where to copy report.txt, results.txt,
 #                          survivors.diff and run.log (default:
-#                          $AA2_MUTATION_TMP/aa2-mutation-reports/<module>)
+#                          $AA2_MUTATION_TMP/aa2-mutation-reports/<module>);
+#                          it must be OUTSIDE the checkout
 #   AA2_MUTATION_KEEP=1    keep the scratch tree (and .mutmut-cache) for debugging
 #
 # Limitations:
-#   - Inside a Git repository, only tracked repo-root files and packages
-#     (`git ls-files`) are copied into the scratch tree; untracked root-level
-#     .py modules are not copied.
-#   - Normal exit, SIGINT and SIGTERM remove the scratch tree automatically, but
-#     SIGKILL cannot run traps and will leave $tmp_parent/aa2-mutation.* behind
-#     for manual cleanup.
+#   - Only tracked files are copied (`git ls-files`). A test that needs a
+#     fixture must track it; an untracked local edit to a tracked file is what
+#     runs, which is the point of testing a working tree.
+#   - Normal exit, SIGINT, SIGTERM and SIGHUP remove the scratch tree
+#     automatically, and the wrapper kills the mutmut process group it started.
+#     SIGKILL cannot run traps: it leaves $tmp_parent/aa2-mutation.* behind and
+#     mutmut keeps running in its own group. The wrapper prints that group id at
+#     start; stop it with `kill -- -<pgid>`.
+#   - SIGINT is ignored when this script is started as a background job from a
+#     non-interactive shell without job control (POSIX sets SIGINT to ignore for
+#     asynchronous commands). Start it with `set -m`, or send SIGTERM/SIGHUP.
 #   - PYTHONHASHSEED is pinned to 0 for repeatable results. In particular,
 #     mutant 414 in dialogue_spans._next_plain_mark flips between killed and
 #     survived across hash seeds because the test iterates an unordered set.
@@ -48,6 +61,23 @@
 #     results_queue.get(). The wrapper therefore runs mutmut in its own process
 #     group and kills that group on INT/TERM rather than forwarding the signal.
 set -euo pipefail
+
+# CLEAR INHERITED GIT STATE BEFORE THE FIRST git CALL.
+# `git -C DIR` does not override GIT_DIR and friends. A Git hook can export
+# GIT_DIR (and the index/config variables), and then `git -C "$ROOT" ls-files`
+# reads the hook's repository while `git -C "$SCRATCH" init` and
+# `git add -A -f` write to it: during review this staged the scratch tree into
+# the LIVE repository's index. `git rev-parse --local-env-vars` lists the names
+# Git documents; the glob also covers GIT_CONFIG_KEY_*/VALUE_*,
+# GIT_CONFIG_GLOBAL/SYSTEM/NOSYSTEM, GIT_NAMESPACE, GIT_CEILING_DIRECTORIES and
+# any other GIT_* a caller exports.
+for _git_env in ${!GIT_@}; do
+    unset "$_git_env"
+done
+unset _git_env
+# The same applies to a caller's interpreter and loader environment: these are
+# cleared before the first "$PY" call below, not only before mutmut runs.
+unset ARGV0 PYTHONHOME PYTHONSTARTUP LD_LIBRARY_PATH APPDIR APPIMAGE
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
@@ -66,11 +96,18 @@ Examples:
 Environment:
   AA2_MUTATION_PYTHON      interpreter with mutmut installed (default: app/env
                            python, else python3)
-  AA2_MUTATION_TMP         parent for the scratch tree (default: $TMPDIR or /tmp)
+  AA2_MUTATION_TMP         parent for the scratch tree (default: $TMPDIR or /tmp;
+                           must be outside the checkout)
   AA2_MUTATION_REPORT_DIR  where to copy report.txt, results.txt, survivors.diff
                            and run.log (default: $AA2_MUTATION_TMP/
-                           aa2-mutation-reports/<module>)
+                           aa2-mutation-reports/<module>; must be outside the
+                           checkout)
   AA2_MUTATION_KEEP=1      keep the scratch tree (and .mutmut-cache) for debugging
+
+Signals: INT, TERM and HUP stop mutmut's process group and remove the scratch
+tree. After SIGKILL, run `kill -- -<pgid>` with the group id printed at start.
+SIGINT is ignored if the script is backgrounded by a non-interactive shell
+without job control; use `set -m` or send TERM/HUP instead.
 EOF
     exit 2
 }
@@ -135,15 +172,39 @@ if ! "$PY" -c 'import mutmut' >/dev/null 2>&1; then
 fi
 MUTMUT_VERSION=$("$PY" -c 'import mutmut; print(getattr(mutmut, "__version__", "unknown"))' 2>/dev/null || echo unknown)
 
-# --- Scratch tree. Nothing below ever writes to $ROOT. ---
+# --- Refuse to write inside the checkout. The scratch tree and the report are
+#     the only things this script writes; either one inside $ROOT would put
+#     mutmut output, a Git index and reports into the live tree. Resolve
+#     symlinks so a link outside the tree that points into it is refused too. ---
+ROOT_REAL=$(cd "$ROOT" && pwd -P)
+canonical_path() {
+    "$PY" -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"
+}
+inside_checkout() {
+    case "$1/" in
+        "$ROOT_REAL"/*) return 0 ;;
+    esac
+    return 1
+}
+
 tmp_parent=${AA2_MUTATION_TMP:-${TMPDIR:-/tmp}}
-mkdir -p "$tmp_parent"
-WORK=$(mktemp -d "$tmp_parent/aa2-mutation.XXXXXX") || die "cannot create scratch dir"
+tmp_parent_real=$(canonical_path "$tmp_parent") || die "cannot resolve AA2_MUTATION_TMP: $tmp_parent"
+if inside_checkout "$tmp_parent_real"; then
+    die "AA2_MUTATION_TMP must be outside the checkout ($ROOT); got $tmp_parent"
+fi
 if [ -n "${AA2_MUTATION_REPORT_DIR:-}" ]; then
     report_dir=$AA2_MUTATION_REPORT_DIR
 else
     report_dir=$tmp_parent/aa2-mutation-reports/$module
 fi
+report_dir_real=$(canonical_path "$report_dir") || die "cannot resolve AA2_MUTATION_REPORT_DIR: $report_dir"
+if inside_checkout "$report_dir_real"; then
+    die "AA2_MUTATION_REPORT_DIR must be outside the checkout ($ROOT); got $report_dir"
+fi
+
+# --- Scratch tree. Nothing below ever writes to $ROOT. ---
+mkdir -p "$tmp_parent"
+WORK=$(mktemp -d "$tmp_parent/aa2-mutation.XXXXXX") || die "cannot create scratch dir"
 cleanup() {
     [ "${cleaned:-0}" = 1 ] && return 0
     cleaned=1
@@ -177,6 +238,9 @@ stop_child() {
 }
 trap 'stop_child 2' INT
 trap 'stop_child 15' TERM
+# HUP on a terminal close must clean up exactly like TERM: without it mutmut
+# survives in its own group with a deleted cwd.
+trap 'stop_child 1' HUP
 
 publish_report() {
     mkdir -p "$report_dir"
@@ -189,47 +253,35 @@ publish_report() {
 
 REPO=$WORK/repo
 mkdir -p "$REPO/app"
-# app/ is the working tree (so a local edit under test is what runs), minus
-# virtualenvs (app/env is ~15 GB in a live Pinokio checkout; the runner invokes
-# the absolute $PY directly) and caches that would only confuse mutmut.
-while IFS= read -r -d '' entry; do
-    name=${entry##*/}
-    case "$name" in
-        env|venv|.venv|__pycache__|.mutmut-cache|.pytest_cache) continue ;;
-        # User/runtime data, never part of a test run (Rule 27): uploads,
-        # application logs and generated audio output.
-        uploads|logs|output_audio|output_audio_cloned) continue ;;
+
+# ONLY TRACKED FILES ENTER THE SCRATCH - app/, tools/, root modules.
+# A name-based exclusion cannot be safe: app/.env, app/config.json,
+# app/dataset_temp/ and arbitrary voice directories are untracked or ignored,
+# and a new user-data directory would be copied by a name nobody anticipated.
+# `git ls-files` copies exactly what a clone would, and a local edit to a
+# tracked file IS copied, so the working tree under test is what runs.
+git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 || \
+    die "$ROOT is not a Git work tree; only tracked files are copied, so run from a clone"
+tracked_list=$WORK/tracked-files
+git -C "$ROOT" ls-files -z > "$tracked_list" || die "cannot list tracked files"
+while IFS= read -r -d '' f; do
+    # Runtime/user data stays out even in the impossible case that an ignore
+    # rule was broken and one of these paths is tracked (Rule 27). The large
+    # data/asset trees have no Python imports from the test suite;
+    # tools/listening_lab is 6.8 MB of JavaScript assets.
+    case "$f" in
+        app/env/*|app/venv/*|app/.venv/*|app/uploads/*|app/logs/*| \
+        app/output_audio/*|app/output_audio_cloned/*| \
+        ab_test_runtime/*|docs/*|codebase-analysis-docs/*|run_chains/*| \
+        fork-adoption-evidence/*|reports/*|.github/*|.githooks/*| \
+        .claude/*|tools/listening_lab/*) continue ;;
     esac
-    if [ -d "$entry" ] && { [ -f "$entry/pyvenv.cfg" ] || [ -d "$entry/conda-meta" ]; }; then
-        continue
-    fi
-    cp -a "$entry" "$REPO/app/$name"
-done < <(find "$ROOT/app" -mindepth 1 -maxdepth 1 -print0)
+    dir=$(dirname "$f")
+    [ "$dir" = . ] || mkdir -p "$REPO/$dir"
+    cp -a "$ROOT/$f" "$REPO/$f" || die "cannot copy tracked file: $f"
+done < "$tracked_list"
 find "$REPO/app" -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true
 find "$REPO/app" \( -name '*.pyc' -o -name '.mutmut-cache' -o -name '.pytest_cache' \) -delete 2>/dev/null || true
-# Root-level modules and packages the app/tests import from the repo root:
-# gpu_stats.py and alexandria_file_lock.py (bare root modules), and
-# `from tools.audit...` / `from tools.voice_lab...` in the tests. Only TRACKED
-# paths are copied, so a local untracked root module is not silently picked up.
-# Large data/asset trees and app/ (copied from the working tree above) are
-# skipped; tools/listening_lab is 6.8 MB of JavaScript assets with no Python
-# imports from the test suite.
-if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
-    while IFS= read -r -d '' f; do
-        case "$f" in
-            app/*|ab_test_runtime/*|docs/*|codebase-analysis-docs/*| \
-            run_chains/*|fork-adoption-evidence/*|reports/*| \
-            .github/*|.githooks/*|.claude/*|tools/listening_lab/*) continue ;;
-        esac
-        dir=$(dirname "$f")
-        [ "$dir" = . ] || mkdir -p "$REPO/$dir"
-        cp -p "$ROOT/$f" "$REPO/$f"
-    done < <(git -C "$ROOT" ls-files -z)
-else
-    for f in "$ROOT"/*.py; do [ -f "$f" ] && cp -p "$f" "$REPO/"; done
-    [ -d "$ROOT/tools" ] && cp -a "$ROOT/tools" "$REPO/tools"
-    [ -d "$ROOT/builtin_lora" ] && cp -a "$ROOT/builtin_lora" "$REPO/builtin_lora"
-fi
 
 # Small tracked data files that the selected test modules name literally (for
 # example test_attribution_phonetic_identity reads one closed_set JSON under
@@ -262,7 +314,12 @@ fi
 #     tests_dir and runner are also passed on the CLI, which overrides those
 #     three keys in any future app/pyproject.toml [tool.mutmut] section. Other
 #     keys in such a section (e.g. dict_synonyms) would still apply. ---
-runner="$PY -m unittest ${test_modules[*]}"
+# Quote the interpreter for mutmut's runner string: mutmut 2 parses the command
+# with shlex.split(posix=True), so a path containing a space must be shell
+# escaped. printf %q emits a POSIX-backslash escape for a space. setup.cfg
+# values and the CLI option are plain text, so the escape survives both.
+printf -v PY_RUNNER '%q' "$PY"
+runner="$PY_RUNNER -m unittest ${test_modules[*]}"
 cat > "$REPO/app/setup.cfg" <<EOF
 [mutmut]
 paths_to_mutate = $module.py
@@ -271,7 +328,6 @@ runner = $runner
 EOF
 
 export PYTHONPATH="$REPO/app:$REPO"
-unset ARGV0 PYTHONHOME PYTHONSTARTUP LD_LIBRARY_PATH APPDIR APPIMAGE GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 export ALEXANDRIA_GPU_LOCK_HELD=0 CUDA_VISIBLE_DEVICES=-1 HIP_VISIBLE_DEVICES=-1 ROCR_VISIBLE_DEVICES=-1
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 # Pin the hash seed so repeated runs classify the same mutants the same way.
@@ -300,7 +356,9 @@ echo "mutation_check: scratch copy at $REPO (checkout is not modified)" >&2
 start=$(date +%s)
 # Job control puts mutmut in its own process group (PGID == $child), so
 # stop_child can terminate the spawn workers too. set +m immediately restores
-# the non-interactive default.
+# the non-interactive default. If THIS wrapper is SIGKILLed, its traps cannot
+# run and mutmut survives in that group: the pgid is printed so the caller can
+# finish the job with `kill -- -<pgid>`.
 set -m
 set +e
 ( cd "$REPO/app" && exec "$PY" -m mutmut run \
@@ -310,6 +368,7 @@ set +e
     --simple-output --no-progress ) > "$log" 2>&1 &
 child=$!
 set +m
+echo "mutation_check: mutmut process group $child; if this wrapper is SIGKILLed, stop it with: kill -- -$child" >&2
 wait "$child"
 rc=$?
 child=
