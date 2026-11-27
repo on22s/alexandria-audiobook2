@@ -72,7 +72,7 @@ _DASH_REPORTING_VERBS = (
     "susurró|susurraba|susurra|murmuró|murmuraba|murmura|"
     "gritó|gritaba|gritaban|grita|exclamó|exclamaba|exclama|"
     "añadió|añadía|añade|agregó|agregaba|agrega|"
-    "continuó|continuaba|continúa|siguió|seguía|seguir|"
+    "continuó|continuaba|continúa|siguió|seguía|"
     "prosiguió|proseguía|prosigue|repuso|reponía|reponen|"
     "repitió|repetía|repite|replicó|replicaba|replica|"
     "interrumpió|interrumpía|interrumpe|insistió|insistía|insiste|"
@@ -180,6 +180,32 @@ _DASH_FIRST_PERSON = frozenset(
     "repliqué interrumpí insistí expliqué comenté suspiré musité inquirí "
     "balbuceé gruñí espeté supliqué protesté advertí ordené confesé aclaré "
     "concluí declaré manifesté observé objeté indiqué".split())
+# Present-tense 3sg forms that are also the `tú`/`tu` imperative, in the
+# table above. In Spanish and in French -er verbs the imperative has the same
+# spelling as the 3sg present (`contesta`, `avoue`), so a comma-introduced
+# subjectless form is far more likely the character continuing their command
+# than a narrator tag (#2390 gate 1 G1). The set is deliberately narrow:
+#   - `dit`, `répond`, `reprend`, `poursuit`, `interrompt` are -re/-ir
+#     presents whose imperative differs (`dis`, `réponds`, ...), and they are
+#     the common real tags on the measured books;
+#   - `dice`/`dicen`/`repone` have a different or no `tú` imperative;
+#   - a form that is also a French passé simple (`murmura`, `exclama`,
+#     `protesta`, `declara`, `observa`) stays out, because the table is
+#     language-agnostic and `observa le clerc` is a real French tag on
+#     Bovary.
+# First-person forms are absent on purpose: they are speech even when they
+# are grammatically present (`digo`).
+_DASH_PRESENT_IMPERATIVE = frozenset(
+    # Spanish 3sg present = tú imperative
+    "contesta contestan pregunta preguntan responde responden susurra "
+    "grita añade agrega continúa prosigue repite replica interrumpe insiste "
+    "explica comenta suspira musita inquiere balbucea gruñe espeta suplica "
+    "advierte ordena confiesa aclara concluye manifiesta objeta indica "
+    # French 3sg present = tu imperative (-er verbs)
+    "murmure chuchote crie écrie exclame ajoute répète réplique rétorque "
+    "insiste explique questionne interroge hurle souffle soupire balbutie "
+    "bégaie bégaye grommelle grogne supplie proteste avoue déclare annonce "
+    "remarque hasarde bredouille concède objecte objectent".split())
 _DASH_BREAK = re.compile(r"\.{3}|[—–,!?…]")
 _DASH_TAG_INTRODUCERS = "!?…"
 # A possible turn after narration, with a second dash introducing its tag.
@@ -1097,6 +1123,34 @@ def _dash_preverb_is_subject(words):
             or last[:1].isupper())
 
 
+def _dash_preverb_is_real_subject(words):
+    """Is the last word before the verb a name or third-person pronoun?
+
+    A clitic (`lui`, `se`) is not a subject: `lui dit-il` and `se disait-il`
+    are inverted tags, and their real subject follows the verb (#2390 gate 1
+    G2).
+    """
+    last = words[-1]
+    return last.lower() in _DASH_THIRD_PERSON or last[:1].isupper()
+
+
+def _dash_present_tense_is_subjectless(words, verb_index, subject_index):
+    """Is a comma-introduced present form a subjectless imperative?
+
+    The `tú`/`tu` imperative of a tabled Spanish/French verb shares the 3sg
+    present spelling (`contesta`, `avoue`). With no subject before the verb
+    and no name or pronoun after it, the form is the character continuing
+    their command, not a narrator tag, so the line must be routed
+    (#2390 gate 1 G1). A determiner + noun after the verb (`contesta la
+    carta`) is an object here, not a subject.
+    """
+    if words[verb_index].group().lower() not in _DASH_PRESENT_IMPERATIVE:
+        return False
+    window = [word.group() for word in words[subject_index:subject_index + 3]]
+    return not any(word.lower() in _DASH_THIRD_PERSON or word[:1].isupper()
+                   for word in window)
+
+
 def _dash_inverted_is_tag(tail):
     """Is the text after an inverted reporting verb a subject, not speech?
 
@@ -1219,7 +1273,18 @@ def _dash_tag_evidence(text, pos, limit, introducer):
     else:
         before = [word.group() for word in words[:verb_index]]
     if not before:
+        if (introducer == ","
+                and _dash_present_tense_is_subjectless(
+                    words, verb_index, subject_index)):
+            return False
         return _dash_inverted_is_tag(tail)
+    if _dash_preverb_is_real_subject(before) and tail:
+        # A real subject before the verb leaves nothing after it in a tag but
+        # adverbs; any word here is an object, so the clause is speech and the
+        # line is routed (#2390 gate 1 G2). The inverted half (`dijo lo mismo`
+        # vs `dijo Ana`) stays decided by the object list in
+        # `_dash_inverted_is_tag`.
+        return False
     return _dash_preverb_is_subject(before) and _dash_inverted_is_tag(tail)
 
 

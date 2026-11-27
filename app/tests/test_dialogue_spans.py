@@ -2166,6 +2166,10 @@ class DashDialogueTagTests(unittest.TestCase):
         self.assertFalse(ambiguous)
         self.assertIn(("NARRATOR", "faisait l'autre en caressant sa mâchoire,"),
                       parts)
+        # Inverted, so G2 cannot help: the object list is what refuses `cela`.
+        ambiguous, parts = self._parts("— Oui, fit cela.")
+        self.assertTrue(ambiguous)
+        self.assertEqual([("SPOKEN", "Oui, fit cela.")], parts)
 
     def test_segun_and_a_relative_clause_are_not_subjects(self):
         """`según me dijo` is speech inside the line, not a narrator tag.
@@ -2177,6 +2181,100 @@ class DashDialogueTagTests(unittest.TestCase):
         ambiguous, parts = self._parts("— Era, según me dijo, amigo.")
         self.assertTrue(ambiguous)
         self.assertEqual([("SPOKEN", "Era, según me dijo, amigo.")], parts)
+
+    def test_subjectless_present_imperatives_are_routed(self):
+        """A tabled imperative is not a narrator tag after a comma.
+
+        The Spanish `tú` imperative and the French `tu` imperative of an -er
+        verb share the 3sg present spelling, so `— Vamos, continúa.` must be
+        routed rather than split at `continúa` (#2390 gate 1 G1). A real
+        subjectless past-tense tag is still a tag.
+        """
+        for line in (
+            "— Vamos, continúa.",
+            "— Anda, contesta la carta.",
+            "— Allons, avoue!",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        ambiguous, parts = self._parts("— Vamos, dijo.")
+        self.assertFalse(ambiguous)
+        self.assertEqual([("SPOKEN", "Vamos,"), ("NARRATOR", "dijo.")], parts)
+        # A present -re/-ir form is not an imperative, so a real inverted tag
+        # with a determiner subject still splits.
+        ambiguous, parts = self._parts("— Oui, dit le pharmacien.")
+        self.assertFalse(ambiguous)
+        self.assertEqual(
+            [("SPOKEN", "Oui,"), ("NARRATOR", "dit le pharmacien.")], parts)
+
+    def test_the_imperative_present_set_is_a_subset_of_the_tag_table(self):
+        """The G1 classification must not drift from the one verb table.
+
+        `_DASH_PRESENT_IMPERATIVE` is a property of a subset of the tabled
+        forms, not a second verb list; a form removed from the table must not
+        linger here.
+        """
+        table = set(dialogue_spans._DASH_REPORTING_VERBS.split("|"))
+        self.assertLessEqual(dialogue_spans._DASH_PRESENT_IMPERATIVE, table)
+
+    def test_a_real_subject_with_words_after_the_verb_is_routed(self):
+        """Subject + tabled verb + object is a clause, not a tag.
+
+        A tag with a real subject before the verb has nothing after it but
+        adverbs; any word here is an object, so the line is routed
+        (#2390 gate 1 G2). The inverted halves still split.
+        """
+        for line in (
+            "— Oui, il disait des bêtises.",
+            "— Sí, Ana contestó la carta.",
+            "— Yes, he called the police.",
+        ):
+            with self.subTest(routed=line):
+                ambiguous, parts = self._parts(line)
+                self.assertTrue(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+        for line, expected in (
+            ("— Oui, dit-il.", [("SPOKEN", "Oui,"),
+                                ("NARRATOR", "dit-il.")]),
+            ("— Sí —dijo Ana—.", [("SPOKEN", "Sí"),
+                                  ("NARRATOR", "dijo Ana")]),
+        ):
+            with self.subTest(split=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual(expected, parts)
+
+    def test_a_bare_infinitive_is_not_a_reporting_verb(self):
+        """`seguir` was a table slip: `seguir adelante` is a subject.
+
+        (#2390 gate 1 G3.)
+        """
+        for line in (
+            "— Bueno, seguir adelante es lo mejor.",
+            "— Ahora, seguir es inútil.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
+
+    def test_speech_punctuation_introducer_requires_a_lower_case_verb(self):
+        """`!`/`?`/`…` before an upper-case word starts a new sentence.
+
+        Without the lower-case rule these confident splits appear
+        (#2390 gate 1 N-a).
+        """
+        for line in (
+            "— Arrête! Demande-lui pardon.",
+            "— Ah! Répète-le.",
+            "— Assez! Explique-toi.",
+        ):
+            with self.subTest(line=line):
+                ambiguous, parts = self._parts(line)
+                self.assertFalse(ambiguous)
+                self.assertEqual([("SPOKEN", line[2:].strip())], parts)
 
     def test_a_later_evidenced_tag_is_not_swallowed_by_an_unverified_range(self):
         """The unverified range stops at the next evidenced split.
