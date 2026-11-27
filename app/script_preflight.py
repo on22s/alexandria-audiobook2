@@ -13,6 +13,7 @@ from heapq import heappop, heappush
 from silent_word_characters import (
     SILENT_WORD_CHARACTERS, WORD_BOUNDARIES, ZERO_WIDTH_JOINER,
     ZERO_WIDTH_NON_JOINER, remove_silent_word_characters)
+from speaker_identity import get_normalized_speaker_label
 from source_normalization import iter_source_paragraph_ranges
 from speech_text import get_speech_normalization
 from utils import get_unsafe_text_controls
@@ -1964,7 +1965,9 @@ def audit_script(entries, source_text=None, is_generic_speaker_fn=None):
 
         if not text:
             findings.append(_finding("blocking", "empty_text", "Entry has no speakable text.", [index]))
-        if not speaker:
+        # One emptiness rule with `stabilize_speaker_identities`: a label made
+        # only of whitespace and/or silent word characters is missing.
+        if not get_normalized_speaker_label(speaker):
             findings.append(_finding("blocking", "missing_speaker", "Entry has no speaker.", [index]))
         if not instruct:
             findings.append(_finding("manual_review", "missing_instruction", "Entry has no delivery instruction.", [index]))

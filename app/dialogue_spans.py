@@ -1153,6 +1153,10 @@ def get_source_match_positions(source, needles):
     return positions
 
 
+def _entry_needle(entry):
+    return _normalize(str(entry.get("text") or ""))
+
+
 def mark_entries(entries, source_text, convention=None, speaker_names=None):
     """-> a NEW list of entries carrying `spoken` and `source_span`.
 
@@ -1190,15 +1194,14 @@ def mark_entries(entries, source_text, convention=None, speaker_names=None):
         row.pop('source_span', None)
         row.pop('spoken', None)
         row.pop('dialogue_ambiguity', None)
-        needle = _normalize(str(entry.get("text", "")))
+        needle = _entry_needle(entry)
         if needle:
             if match_positions is None:
                 normalized_where = normalized_source.find(needle, cursor)
                 if normalized_where == -1:
                     match_positions = get_source_match_positions(
                         normalized_source,
-                        (_normalize(str(item.get("text", "")))
-                         for item in entries[entry_index:]))
+                        (_entry_needle(item) for item in entries[entry_index:]))
             if match_positions is not None:
                 occurrences = match_positions.get(needle, [])
                 position = bisect_left(occurrences, cursor)
