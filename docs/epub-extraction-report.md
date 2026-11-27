@@ -85,10 +85,10 @@ outside `<body>` counts as visible (though `load_epub`'s own text stays
 body-only, as before), a head `<title>` does not, and a body `<title>` does.
 The shape does not matter: a hidden root, a hidden body with nothing visible
 beside it, or all text inside hidden elements. In that case script extraction
-returns no chapter text (with no
-navigation target it returns `''`; a navigation entry that targets the hidden
-document still contributes its visible table-of-contents label, exactly as it
-already did for an otherwise-empty chapter), read-aloud returns no segments,
+returns no chapter text (with no navigation target it returns `''`; a
+navigation entry that targets the hidden document still contributes its
+visible table-of-contents label, exactly as it already did for an
+otherwise-empty chapter), read-aloud returns no segments,
 and `alexandria_alignment.load_epub` raises a `ValueError` naming hidden
 elements.
 A document whose only hidden elements are void elements (for example

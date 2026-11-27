@@ -420,7 +420,6 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
     hidden_text_removed = False
     visible_text_remains = False
     ns_stack = [{}]
-    elements = []
     seen_root = False
     doctype_hazard_found = False
     pending_ignored = None
@@ -474,10 +473,7 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
                 candidate.clear()
                 cursor = start
                 omitted = True
-        parent = elements[-1] if elements else None
         local = name.rpartition(':')[2].lower()
-        elem_ns = current_ns.get(name.partition(':')[0] if ':' in name else '', '')
-        elements.append((local, elem_ns))
         if local == 'head':
             head_depth += 1
         elif local == 'title' and head_depth:
@@ -519,8 +515,6 @@ def cut_xml_subtrees(content, *, skip_tags=(), omit_hidden=True,
             head_title_depth -= 1
         elif local == 'head' and head_depth:
             head_depth -= 1
-        if elements:
-            elements.pop()
         if ignored_depth == 0:
             return
         ignored_depth -= 1
