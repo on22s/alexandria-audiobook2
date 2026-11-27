@@ -1,34 +1,3 @@
-"""Script generation and EPUB text extraction routes.
-
-Governing rule for the tolerant ``text/html`` extractor (``_HTMLTextExtractor``):
-this is an audiobook, so losing visible text is worse than narrating hidden
-text. When the extractor meets structure it does not model, it must FAIL OPEN -
-the hidden region ends no later than the browser would end it, and it never
-silences text the browser would show. A hidden leak in invalid markup is a
-documented limit; a visible drop is a bug.
-
-The fail-open guarantee is STRUCTURAL, not a list of known-bad tags (Rule 15).
-A `hidden` element opens a hidden region only when the tolerant model can
-prove where that region ends:
-
-* the element is not void, not a token the model/browser ignores, and not
-  foster-parented out of a table (the model cannot place a fostered element
-  where the browser does, so it treats that element's `hidden` as absent);
-* and either its end is one the implemented spec rules close (the HTML5
-  optional-end-tag elements, including headings), or a prepass proves the
-  model will pop that element (an explicit matching end tag that nests
-  properly, an implemented implied close, or an ancestor close).
-
-Otherwise the element is treated as NOT hidden: the region is never opened,
-so text can only be narrated that the browser would hide (a documented leak),
-never dropped. Once a region is open it also ends wherever the model pops its
-root element for any reason. If the prepass sees an unmodelled insertion-mode
-anomaly anywhere in the document (nested or poisoned `select`, an ignored table
-token or nested `form`, an adoption-agency formatting shape, a blocked
-ancestor end tag), it trusts no hidden region in that document and narrates
-every hidden element.
-"""
-
 from book_state_transaction import ensure_saved_book_state, reuse_book_state
 from script_recovery_guard import RECOVERY_CAST_INVALIDATED, get_fenced_recovery_status
 from script_recovery_facts import get_saved_script_recovery_manifest
@@ -141,13 +110,7 @@ from generate_script import LLMGenParams
 from utils import file_lock, is_path_inside
 from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollector
 from alexandria_alignment import (
-    # Shared with this module's tolerant text/html extractor; a single
-    # implementation is preferred over a copy (repo precedent for `_` imports).
-    _TABLE_SECTIONS,
-    _XHTML_NS,
-    _is_fostered_table_child,
     is_html_hidden_attrs,
-    resolve_html_element_namespace,
     validate_epub_archive,
 )
 from epub_package import get_epub_package, is_navigation_document
@@ -530,182 +493,6 @@ class _HTMLTextExtractor(HTMLParser):
         'li', 'blockquote', 'br', 'hr', 'tr', 'td', 'th', 'section', 'article',
     })
     SKIP_TAGS = frozenset({'style', 'script', 'title'})
-    # HTML5 void elements have no end tag and never enter the open-element stack.
-    VOID_TAGS = frozenset({
-        'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
-        'link', 'meta', 'param', 'source', 'track', 'wbr',
-    })
-    # Sentinel for "this open-element frame was not foster-parented".
-    _NO_RESTORE = object()
-    # HTML5 start tags that implicitly close an open <p> (in button scope).
-    # Exhaustive against the spec's "close a p element" set: the
-    # address/article/aside/blockquote/center/details/dialog/dir/div/dl/
-    # fieldset/figcaption/figure/footer/header/hgroup/main/menu/nav/ol/p/
-    # search/section/summary/ul list, h1-h6, pre/listing, form, plaintext,
-    # table, hr and xmp, plus li/dd/dt (their own rules close a p as their
-    # first step).
-    _P_AUTO_CLOSE_TAGS = frozenset({
-        'address', 'article', 'aside', 'blockquote', 'center', 'dd', 'details',
-        'dialog', 'dir', 'div', 'dl', 'dt', 'fieldset', 'figcaption', 'figure',
-        'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header',
-        'hgroup', 'hr', 'li', 'listing', 'main', 'menu', 'nav', 'ol', 'p',
-        'plaintext', 'pre', 'search', 'section', 'summary', 'table', 'ul',
-        'xmp',
-    })
-    # Scope boundaries from the HTML5 parsing algorithm. Only the elements in
-    # "has an element in scope" (plus the integration points, approximated by
-    # local name) are boundaries; body/thead/tbody/tfoot/tr/colgroup are not
-    # in that list and must not stop a scope scan.
-    _IN_SCOPE = frozenset({
-        'applet', 'caption', 'html', 'table', 'td', 'th', 'marquee', 'object',
-        'template', 'svg', 'math',
-    })
-    _TABLE_SCOPE = frozenset({'html', 'table', 'template'})
-    _BUTTON_SCOPE = _IN_SCOPE | {'button'}
-    _LIST_ITEM_SCOPE = _IN_SCOPE | {'ol', 'ul'}
-    _RUBY_SCOPE = _IN_SCOPE | {'ruby'}
-    _P_SCOPE_BOUNDARIES = _BUTTON_SCOPE
-    _P_TARGETS = frozenset({'p'})
-    # The spec's "special" category (HTML elements; MathML/SVG integration
-    # points by local name). The li/dd/dt close algorithms stop at these
-    # except for their listed exceptions.
-    _SPECIAL_TAGS = frozenset({
-        'address', 'applet', 'area', 'article', 'aside', 'base', 'basefont',
-        'bgsound', 'blockquote', 'body', 'br', 'button', 'caption', 'center',
-        'col', 'colgroup', 'dd', 'details', 'dir', 'div', 'dl', 'dt', 'embed',
-        'fieldset', 'figcaption', 'figure', 'footer', 'form', 'frame',
-        'frameset', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'header',
-        'hgroup', 'hr', 'html', 'iframe', 'img', 'input', 'keygen', 'li',
-        'link', 'listing', 'main', 'marquee', 'menu', 'meta', 'nav',
-        'noembed', 'noframes', 'noscript', 'object', 'ol', 'p', 'param',
-        'plaintext', 'pre', 'script', 'search', 'section', 'select', 'source',
-        'style', 'summary', 'table', 'tbody', 'td', 'template', 'textarea',
-        'tfoot', 'th', 'thead', 'title', 'tr', 'track', 'ul', 'wbr', 'xmp',
-        # MathML / SVG integration points.
-        'mi', 'mo', 'mn', 'ms', 'mtext', 'annotation-xml', 'foreignobject',
-        'desc',
-    })
-    # End tags whose HTML5 rules pop through special elements. Every other
-    # end tag follows the generic "any other end tag" rule and is ignored
-    # when a special element is above its target. The first group is the
-    # spec's block-container end-tag rule (generate implied end tags, then
-    # pop until the matching element).
-    _SCOPED_END_TAGS = frozenset({
-        'address', 'article', 'aside', 'blockquote', 'button', 'center',
-        'details', 'dialog', 'dir', 'div', 'dl', 'fieldset', 'figcaption',
-        'figure', 'footer', 'header', 'hgroup', 'listing', 'main', 'menu',
-        'nav', 'ol', 'pre', 'search', 'section', 'summary', 'ul',
-        'applet', 'marquee', 'object', 'template', 'form',
-        'p', 'li', 'dd', 'dt', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'td',
-        'th', 'tr', 'tbody', 'thead', 'tfoot', 'caption', 'colgroup', 'table',
-        'select', 'option', 'optgroup', 'body', 'html', 'br',
-    })
-    _TSEC_RULE = (frozenset({'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption', 'colgroup'}), _TABLE_SCOPE)
-    _LI_RULE = (frozenset({'li'}), _LIST_ITEM_SCOPE, frozenset({'address', 'div', 'p'}))
-    _DD_DT_RULE = (frozenset({'dd', 'dt'}), _IN_SCOPE, frozenset({'address', 'div', 'p'}))
-    # In caption/column-group insertion modes a cell or row start tag closes
-    # the open caption/colgroup in table scope and is reprocessed in table
-    # mode, so those elements must be close targets too.
-    _CELL_RULE = (frozenset({'td', 'th', 'caption', 'colgroup'}), _TABLE_SCOPE)
-    _ROW_RULE = (frozenset({'tr', 'td', 'th', 'caption', 'colgroup'}), _TABLE_SCOPE)
-    _RUBY_RULE = (frozenset({'rt', 'rp'}), _RUBY_SCOPE)
-    _HEADING_TAGS = frozenset({'h1', 'h2', 'h3', 'h4', 'h5', 'h6'})
-    # Elements whose end the tolerant model implements as a spec rule: the
-    # HTML5 optional-end-tag set (their next start tag or an ancestor end
-    # closes them) plus the r3 heading rule. A `hidden` region opened by one
-    # of these ends no later than the browser ends it, so it is safe to open
-    # even when the document leaves the element unclosed at EOF.
-    _OPTIONAL_END_TAGS = frozenset({
-        'p', 'li', 'dd', 'dt', 'option', 'optgroup', 'rt', 'rp',
-        'tr', 'td', 'th', 'thead', 'tbody', 'tfoot', 'caption', 'colgroup',
-    }) | _HEADING_TAGS
-    # Legacy tokens a browser never inserts as a normal element in a spine
-    # document: `image` is an alias of the void `img`, `keygen`/`frame` are
-    # void, and `frameset` is ignored in body content. They have no modelled
-    # end, so a `hidden` on them must never open a region (Rule 15).
-    _HIDDEN_IGNORED_TAGS = frozenset({'image', 'keygen', 'frame', 'frameset',
-                                      # A colgroup has no renderable text of its
-                                      # own; text inside one is fostered out by
-                                      # every browser, so hiding it would only
-                                      # ever drop visible words.
-                                      'colgroup'})
-    # Prose/inline content that the tolerant model nests exactly as a browser
-    # does. A hidden inline element may hide a subtree built only from these
-    # (plus text); anything else can restructure the region (a block start
-    # closes a p, adoption agency moves formatting content), so it is a leak.
-    _HIDDEN_PHRASING_TAGS = frozenset({
-        'a', 'abbr', 'b', 'bdi', 'bdo', 'br', 'cite', 'code', 'data', 'dfn',
-        'em', 'i', 'img', 'input', 'kbd', 'label', 'mark', 'nobr', 'q', 'rp',
-        'rt', 'ruby', 's', 'samp', 'small', 'span', 'strong', 'sub', 'sup',
-        'time', 'u', 'var', 'wbr',
-    })
-    # Start tags whose browser insertion mode the tolerant model does not
-    # implement (select error recovery, foster hand-off, nested form, legacy
-    # raw-text tokens). Seeing one inside a hidden region means the browser may
-    # move text out of it, so the region must not be opened. Table structure is
-    # not in this set: the model has a foster/table model, and a document-level
-    # prepass anomaly (ignored table token, nested table) poisons the whole
-    # document instead.
-    _HIDDEN_REORDERING_TAGS = frozenset({
-        'select', 'option', 'optgroup', 'form', 'button', 'frameset', 'frame',
-        'image', 'keygen', 'xmp', 'listing', 'plaintext', 'ruby',
-    })
-    # Table-structure tokens: inside a hidden table part only the tokens that
-    # belong to that part are safe; anything else is table error recovery.
-    _HIDDEN_TABLE_TOKENS = frozenset({
-        'table', 'tbody', 'thead', 'tfoot', 'tr', 'td', 'th', 'caption',
-        'colgroup', 'col',
-    })
-    # Formatting elements whose end tags run the HTML5 adoption agency. An
-    # end tag for one of these that matches an element outside the hidden
-    # region can restructure the region, so it makes the region unsafe.
-    _FORMATTING_TAGS = frozenset({
-        'a', 'b', 'big', 'code', 'em', 'font', 'i', 'nobr', 's', 'small',
-        'strike', 'strong', 'tt', 'u',
-    })
-    # Table-part roots own a fixed child vocabulary; anything else in their
-    # subtree is a table error-recovery shape.
-    _HIDDEN_TABLE_PART_CHILDREN = {
-        'table': frozenset({'caption', 'colgroup', 'col', 'thead', 'tbody',
-                            'tfoot', 'tr', 'td', 'th', 'table'}),
-        'tbody': frozenset({'tr', 'td', 'th', 'table'}),
-        'thead': frozenset({'tr', 'td', 'th', 'table'}),
-        'tfoot': frozenset({'tr', 'td', 'th', 'table'}),
-        'tr': frozenset({'td', 'th', 'table'}),
-        'caption': frozenset(),
-        'colgroup': frozenset({'col'}),
-        # Not table parts, but the same fixed child vocabulary: a hidden
-        # select/optgroup may contain only its own option tokens (plus text).
-        'select': frozenset({'option', 'optgroup'}),
-        'optgroup': frozenset({'option'}),
-        'option': frozenset(),
-    }
-    # HTML5 body-mode tokens with no element in the tree at that point: the
-    # table-structure tags are only inserted in a table context, and a nested
-    # <form> start tag is ignored while a form element is open. The browser
-    # processes no token, so the extractor neither opens a hidden root from
-    # their `hidden` attribute, nor runs their implied end tags, nor pushes a
-    # frame (a pushed frame would later stop an implied-close scan at a special
-    # element the browser never created).
-    _TABLE_CONTEXT_ONLY_TAGS = frozenset({
-        'caption', 'col', 'colgroup', 'td', 'th', 'tbody', 'tfoot', 'thead',
-        'tr',
-    })
-    # Implied end-tag rules for tolerant HTML: start tag -> (tags_to_close,
-    # scope_boundaries[, special-stop exceptions]).
-    _IMPLIED_CLOSE_RULES = {
-        'body': (frozenset({'head'}), frozenset({'html'})),
-        'li': _LI_RULE,
-        'dd': _DD_DT_RULE, 'dt': _DD_DT_RULE,
-        'td': _CELL_RULE, 'th': _CELL_RULE,
-        'tr': _ROW_RULE,
-        'thead': _TSEC_RULE, 'tbody': _TSEC_RULE, 'tfoot': _TSEC_RULE,
-        'caption': (frozenset({'caption'}), _TABLE_SCOPE),
-        'colgroup': (frozenset({'colgroup'}), _TABLE_SCOPE),
-        'option': (frozenset({'option'}), _IN_SCOPE | {'optgroup', 'select', 'datalist'}),
-        'optgroup': (frozenset({'option', 'optgroup'}), _IN_SCOPE | {'select'}),
-        'rt': _RUBY_RULE, 'rp': _RUBY_RULE,
-    }
     # In text/html these are RCDATA: their content is literal text, so markup
     # that looks like a skipped element inside them is not an element at all.
     RCDATA_TAGS = frozenset({'title', 'textarea'})
@@ -726,7 +513,7 @@ class _HTMLTextExtractor(HTMLParser):
         'li', 'blockquote', 'hr', 'tr', 'section', 'article',
     })
 
-    def __init__(self, anchor_ids=None, *, html_rcdata=False, _hidden_probe=False):
+    def __init__(self, anchor_ids=None, *, html_rcdata=False):
         super().__init__()
         if html_rcdata:
             # HTMLParser only treats <script>/<style> as raw text by default.
@@ -746,41 +533,6 @@ class _HTMLTextExtractor(HTMLParser):
         # element, and XHTML structure is owned by the XML parser before
         # this extractor runs, so no name-mismatch policy is needed here.
         self._skip_stack = []
-        self._html_name_heuristic = bool(html_rcdata)
-        # Open non-void element stack
-        # `(tag, elem_ns, child_ns, ns_map, table_env_hidden, foster_restore,
-        # hidden_probe_key, hidden_probe_state)` plus per-tag counts for O(1)
-        # miss checks. Drives HTML implied end tags, ancestor closes of
-        # unclosed hidden descendants, SVG/MathML namespace scoping and table
-        # foster-parenting without altering non-hidden extraction output.
-        # `table_env_hidden` is the hidden-root stack depth outside the
-        # enclosing table (None when not in a table part); `foster_restore` is
-        # `_NO_RESTORE` unless the frame was foster-parented, in which case it
-        # is the hidden-root depth to restore when the frame is popped;
-        # `hidden_probe_key`/`hidden_probe_state` are the start-tag position
-        # and structural safety record of a hidden element in prepass mode
-        # (Rule 15).
-        self._open_stack = []
-        self._open_counts = {}
-        self._hidden_root_depth = None
-        # Structural hidden gate (Rule 15). The prepass runs once on the first
-        # fed document when a `hidden` attribute may be present; the main pass
-        # opens a hidden region only at positions it proved the model pops (or
-        # that are optional-end-tag elements left open at EOF). Probe mode
-        # reuses the exact same tree-construction code with output off.
-        self._hidden_probe = _hidden_probe
-        self._hidden_gate_ready = _hidden_probe
-        self._hidden_eligible_positions = frozenset()
-        self._hidden_probe_popped = set()
-        # Set when the document shows an unmodelled insertion-mode anomaly
-        # (nested/poisoned select, ignored table token or nested form, an
-        # adoption-agency formatting shape, a stray or blocked end tag inside
-        # a hidden region). The prepass cannot trust any hidden region in such
-        # a document, so it opens none: the safe, leak-only direction.
-        self._hidden_probe_poisoned = False
-        self.hidden_elements = 0
-        self.first_hidden_location = None
-        self.hidden_anchors = set()
         self._anchor_ids = frozenset(anchor_ids or ())
         self.anchor_counts = {}
         # Ruby is narrated by ruby_text's rule (a kana reading replaces its
@@ -788,410 +540,31 @@ class _HTMLTextExtractor(HTMLParser):
         self._ruby = None
         self._ruby_fallback_depth = 0
 
-    def _pop_open_from(self, index):
-        restore_hidden = self._NO_RESTORE
-        for frame in self._open_stack[index:]:
-            open_tag = frame[0]
-            if self._hidden_probe and frame[6] is not None:
-                # The model pops the hidden element for some reason (explicit
-                # end, implied close or ancestor close). The prepass proves the
-                # main pass can end that hidden region, so it may open it.
-                if self._hidden_probe_frame_safe(frame):
-                    self._hidden_probe_popped.add(frame[6])
-            remaining = self._open_counts[open_tag] - 1
-            if remaining:
-                self._open_counts[open_tag] = remaining
-            else:
-                del self._open_counts[open_tag]
-            if restore_hidden is self._NO_RESTORE and frame[5] is not self._NO_RESTORE:
-                restore_hidden = frame[5]
-        del self._open_stack[index:]
-        if restore_hidden is not self._NO_RESTORE:
-            # A popped foster frame returns to the table it was fostered out
-            # of; if that table (or the hidden root itself) went with it, the
-            # restored depth is no longer open.
-            self._hidden_root_depth = (
-                None if restore_hidden is None or restore_hidden >= len(self._open_stack)
-                else restore_hidden)
-        elif (self._hidden_root_depth is not None
-              and len(self._open_stack) <= self._hidden_root_depth):
-            self._hidden_root_depth = None
-
-    def _close_implied_targets(self, targets, boundaries, special_exceptions=None):
-        if not any(self._open_counts.get(target) for target in targets):
-            return
-        match_index = None
-        for index in range(len(self._open_stack) - 1, -1, -1):
-            open_tag, open_ns = self._open_stack[index][0], self._open_stack[index][1]
-            if open_ns and open_ns != _XHTML_NS:
-                break
-            if open_tag in targets:
-                # Keep the outermost match: the table rules "clear the stack
-                # back to a table (body) context" before inserting the new
-                # element, so a <tr>/<td> token closes the enclosing cell and
-                # row rather than only the innermost same-name element.
-                match_index = index
-                continue
-            if open_tag in boundaries:
-                break
-            if (special_exceptions is not None
-                    and open_tag in self._SPECIAL_TAGS
-                    and open_tag not in special_exceptions):
-                # The li/dd/dt "close" algorithms stop at any special element
-                # except their listed exceptions (HTML5 tree construction).
-                break
-        if match_index is not None:
-            self._pop_open_from(match_index)
-
-    def _table_context(self):
-        if self._open_stack and self._open_stack[-1][0] in _TABLE_SECTIONS:
-            return self._open_stack[-1]
-        return None
-
-    def _inherited_namespace(self):
-        if not self._open_stack:
-            return '', {}
-        frame = self._open_stack[-1]
-        return frame[2], frame[3]
-
-    def _table_env_outside(self):
-        """Hidden-root depth of the nearest open table's parent context.
-
-        Falls back to the current hidden-root depth when no table is open,
-        which is the context a new table is created in.
-        """
-        for frame in reversed(self._open_stack):
-            if frame[0] == 'table':
-                return frame[4]
-        return self._hidden_root_depth
-
-    def feed(self, data):
-        """Parse a document, deciding hidden eligibility structurally.
-
-        The prepass (Rule 15) runs the same tree construction with output off
-        and records every `hidden` start tag the model will pop, plus the
-        optional-end-tag elements it leaves open at EOF. Hidden markup is not
-        the common case, so documents without a possible `hidden` attribute
-        pay one regex scan and no second parse.
-        """
-        if not self._hidden_gate_ready:
-            self._hidden_gate_ready = True
-            if _POTENTIAL_HIDDEN_ATTR_RE.search(data) or _POTENTIAL_BARE_HIDDEN_RE.search(data):
-                probe = _HTMLTextExtractor(
-                    html_rcdata=self._html_name_heuristic, _hidden_probe=True)
-                probe.feed(data)
-                self._hidden_eligible_positions = probe.hidden_eligible_positions()
-        super().feed(data)
-
-    def hidden_eligible_positions(self):
-        """Start-tag positions where a `hidden` element may open a region.
-
-        Probe result: positions the model popped during the scan, plus the
-        optional-end-tag elements still open at EOF whose end the implemented
-        rules own (a browser also keeps those open to EOF, and the model can
-        end them when the document would). Fostered elements never qualify:
-        the model cannot prove where the browser placed their content.
-        """
-        eligible = set(self._hidden_probe_popped)
-        if self._hidden_probe_poisoned:
-            # An unmodelled insertion-mode anomaly anywhere in the document
-            # means no hidden region can be proved against the browser; leak
-            # every hidden element instead of risking a visible drop.
-            return frozenset()
-        for frame in self._open_stack:
-            if (frame[6] is not None and frame[0] in self._OPTIONAL_END_TAGS
-                    and self._hidden_probe_frame_safe(frame)):
-                eligible.add(frame[6])
-        return frozenset(eligible)
-
-    def _hidden_probe_context_risk(self, tag):
-        """Whether a hidden element starts in an unmodelled insertion mode.
-
-        Inside a `<select>` the browser ignores or relocates most tokens, and
-        inside a table the model's foster hand-off places content differently
-        from a browser whenever the start tag is not a kept table token. A
-        region opened there could hide text the browser shows, so it is not
-        opened (Rule 15, leak direction).
-        """
-        nearest_table = None
-        for frame in self._open_stack:
-            if frame[0] == 'select':
-                return tag not in ('option', 'optgroup')
-        for frame in reversed(self._open_stack):
-            if frame[0] in ('td', 'th'):
-                # A cell is rendered content: flow content inserted there is
-                # not foster-parented. No table boundary above it can move the
-                # new element out (invalid select/cell soup is handled first).
-                return False
-            if frame[0] in _TABLE_SECTIONS:
-                nearest_table = frame[0]
-                break
-        return (nearest_table is not None
-                and _is_fostered_table_child(nearest_table, tag))
-
-    def _hidden_probe_frame_safe(self, frame):
-        state = frame[7]
-        if state is None or state['context_risk']:
-            return False
-        tags = state['tags']
-        root = frame[0]
-        if root in self._HIDDEN_TABLE_PART_CHILDREN:
-            allowed = self._HIDDEN_TABLE_PART_CHILDREN[root]
-            risk = (self._HIDDEN_REORDERING_TAGS
-                    | self._HIDDEN_TABLE_TOKENS) - allowed
-            return not (tags & risk)
-        if root in self._HIDDEN_PHRASING_TAGS:
-            # A phrasing root is safe only over phrasing content; any block,
-            # table, select or form descendant can restructure it.
-            if any(tag not in self._HIDDEN_PHRASING_TAGS for tag in tags):
-                return False
-            return not (state['anchor_open'] and (tags & {'a', 'nobr'}))
-        risk = self._HIDDEN_REORDERING_TAGS
-        if state['anchor_open']:
-            risk = risk | {'a', 'nobr'}
-        return not (tags & risk)
-
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
-        # Bind unconditionally: an ignored subtree short-circuits every later
-        # use, but a missing binding would be a latent UnboundLocalError.
-        elem_ns = ''
-        child_ns = ''
-        ns_map = {}
-        is_skip = tag in self.SKIP_TAGS
-        if is_skip:
+        if tag == RUBY_TAG and self._ruby is None and not self._skip_stack:
+            self._ruby = RubyCollector()
+        elif tag == RUBY_READING_TAG and self._ruby is not None:
+            self._ruby.start_reading()
+        elif tag == RUBY_FALLBACK_TAG and self._ruby is not None:
+            self._ruby_fallback_depth += 1
+        if tag in self.SKIP_TAGS:
             self._skip_stack.append(tag)
-        in_skip = is_skip or bool(self._skip_stack)
-        foster_restore = self._NO_RESTORE
-        table_env_hidden = None
-        ignored_start_tag = False
-        if not in_skip:
-            inherited_ns, _ = self._inherited_namespace()
-            html_context = not inherited_ns or inherited_ns == _XHTML_NS
-            # HTML5 ignores these start tags in the body insertion mode when
-            # they cannot be inserted (table structure outside a table, a
-            # nested form). An ignored token creates no element, so its
-            # `hidden` attribute must not open a hidden root, and it must not
-            # trigger an implied end tag either - the browser processes no
-            # token at all. Both omissions previously silenced the rest of the
-            # chapter (`<caption hidden>`/`<td hidden>` outside a table).
-            if (self._html_name_heuristic and html_context
-                    and ((tag in self._TABLE_CONTEXT_ONLY_TAGS
-                          and (not self._open_counts.get('table')
-                               or ((self._hidden_probe
-                                    or self._hidden_root_depth is not None
-                                    or self._hidden_eligible_positions)
-                                   and (not self._open_stack
-                                        or self._open_stack[-1][0] not in (
-                                            'table', 'tbody', 'thead', 'tfoot',
-                                            'tr', 'td', 'th', 'caption',
-                                            'colgroup')))))
-                         or (tag == 'form' and self._open_counts.get('form')))):
-                ignored_start_tag = True
-            if html_context and not ignored_start_tag:
-                if ((self._hidden_probe or self._hidden_root_depth is not None)
-                        and self._open_stack
-                        and self._open_stack[-1][0] == 'colgroup'
-                        and tag not in ('col', 'template')):
-                    # HTML5 "in column group" mode: any other start tag pops
-                    # the colgroup and is reprocessed in table mode (where it
-                    # is foster-parented). Only done while a structural hidden
-                    # decision is live, so hidden-free extraction is unchanged.
-                    self._pop_open_from(len(self._open_stack) - 1)
-                if self._open_counts.get('p') and tag in self._P_AUTO_CLOSE_TAGS:
-                    self._close_implied_targets(self._P_TARGETS, self._P_SCOPE_BOUNDARIES)
-                if (tag in self._HEADING_TAGS and self._open_stack
-                        and self._open_stack[-1][0] in self._HEADING_TAGS):
-                    # HTML5 heading start tag: pop the current node when it is
-                    # a heading (only the current node, not a scope scan).
-                    # Omitting </h2> before another heading is valid HTML5, so
-                    # an unmodelled close used to silence the rest of a
-                    # chapter after `<h2 hidden>Draft<h2>Chapter 2`.
-                    self._pop_open_from(len(self._open_stack) - 1)
-                rule = self._IMPLIED_CLOSE_RULES.get(tag)
-                if rule is not None:
-                    self._close_implied_targets(*rule)
-            inherited_ns, parent_ns_map = self._inherited_namespace()
-            elem_ns, child_ns, ns_map = resolve_html_element_namespace(
-                tag, attrs, inherited_ns, parent_ns_map,
-                html_name_heuristic=self._html_name_heuristic)
-            table_ctx = self._table_context()
-            if (table_ctx is not None and self._html_name_heuristic
-                    and tag == 'table'):
-                # HTML5: a <table> start tag in a table insertion mode closes
-                # the enclosing table ("pop until a table has been popped")
-                # before the new table is inserted, so the new table is a
-                # sibling of the hidden one, not a descendant.
-                for index in range(len(self._open_stack) - 1, -1, -1):
-                    if self._open_stack[index][0] == 'table':
-                        self._pop_open_from(index)
-                        break
-                table_ctx = self._table_context()
-                inherited_ns, parent_ns_map = self._inherited_namespace()
-                elem_ns, child_ns, ns_map = resolve_html_element_namespace(
-                    tag, attrs, inherited_ns, parent_ns_map,
-                    html_name_heuristic=self._html_name_heuristic)
-            if (table_ctx is not None and self._html_name_heuristic
-                    and _is_fostered_table_child(table_ctx[0], tag)):
-                # HTML5 foster-parents this element before the table in the
-                # rendered tree, so the table's own hidden state (and that of
-                # its table sections/rows) does not reach it. Enter the
-                # table's parent context until the frame is popped.
-                foster_restore = self._hidden_root_depth
-                self._hidden_root_depth = table_ctx[4]
-                table_env_hidden = table_ctx[4]
-            elif tag in _TABLE_SECTIONS:
-                # The table's own hidden state must not reach a row whose
-                # parent context is outside the table. When the current node
-                # is a foster-parented element rather than the table itself,
-                # the nearest open table still owns the environment.
-                table_env_hidden = (table_ctx[4] if table_ctx is not None
-                                    else self._table_env_outside())
-        is_hidden = self._hidden_root_depth is not None
-        hidden_probe_key = None
-        hidden_probe_state = None
-        hidden_attr = (
-            not in_skip and not ignored_start_tag
-            and tag not in self.VOID_TAGS
-            and tag not in self._HIDDEN_IGNORED_TAGS
-            and is_html_hidden_attrs(attrs, element_namespace=elem_ns))
-        if self._hidden_probe:
-            if self._open_counts.get('select') and tag not in ('option', 'optgroup'):
-                # "In select" mode ignores or relocates almost every other
-                # token; the model does not implement it.
-                self._hidden_probe_poisoned = True
-            if (tag in ('a', 'nobr') and self._open_counts.get(tag)):
-                # A nested a/nobr start runs the adoption agency.
-                self._hidden_probe_poisoned = True
-            if ignored_start_tag:
-                # An ignored table token or nested form is an error-recovery
-                # shape the model cannot place.
-                self._hidden_probe_poisoned = True
-            if hidden_attr:
-                hidden_probe_key = self.getpos()
-                hidden_probe_state = {
-                    'tags': set(),
-                    'context_risk': self._hidden_probe_context_risk(tag),
-                    'anchor_open': (tag in ('a', 'nobr')
-                                    or bool(self._open_counts.get('a')
-                                            or self._open_counts.get('nobr'))),
-                }
-            # Every enclosing hidden probe region sees this start tag; a
-            # descendant that its browser insertion mode relocates makes the
-            # region unsafe, so it will not open in the main pass. Ignored
-            # tokens are included too: they are still evidence that the
-            # surrounding structure is not the model's.
-            for frame in self._open_stack:
-                state = frame[7]
-                if state is not None:
-                    state['tags'].add(tag)
-        elif (not is_hidden and hidden_attr
-              and self.getpos() in self._hidden_eligible_positions):
-            # Open a hidden region only where the prepass proved the model
-            # ends it (or where an optional-end-tag rule owns the end). Any
-            # other hidden markup is treated as visible, never as a drop.
-            is_hidden = True
-            self.hidden_elements += 1
-            if self.first_hidden_location is None:
-                self.first_hidden_location = f'line {self.getpos()[0]}, <{tag}>'
-            self._hidden_root_depth = len(self._open_stack)
-        elif (not is_hidden and tag in self.VOID_TAGS and not in_skip
-              and not ignored_start_tag
-              and is_html_hidden_attrs(attrs, element_namespace=elem_ns)):
-            # A hidden void element (br/img/...) opens no region and omits no
-            # text, but it is still hidden for block-newline purposes.
-            is_hidden = True
-        if not in_skip and tag not in self.VOID_TAGS and not ignored_start_tag:
-            self._open_stack.append((tag, elem_ns, child_ns, ns_map,
-                                     table_env_hidden, foster_restore,
-                                     hidden_probe_key, hidden_probe_state))
-            self._open_counts[tag] = self._open_counts.get(tag, 0) + 1
-        if not self._skip_stack and not is_hidden and not self._hidden_probe:
-            if tag == RUBY_TAG and self._ruby is None:
-                self._ruby = RubyCollector()
-            elif tag == RUBY_READING_TAG and self._ruby is not None:
-                self._ruby.start_reading()
-            elif tag == RUBY_FALLBACK_TAG and self._ruby is not None:
-                self._ruby_fallback_depth += 1
-            if tag in self.BLOCK_TAGS:
-                self._pending_newline = max(
-                    self._pending_newline, 2 if tag in self.PARAGRAPH_TAGS else 1)
-        if self._anchor_ids and not ignored_start_tag:
-            anchor_id = _get_anchor_id(tag, attrs)
+        elif tag in self.BLOCK_TAGS:
+            self._pending_newline = max(
+                self._pending_newline, 2 if tag in self.PARAGRAPH_TAGS else 1)
+        if not self._skip_stack and self._anchor_ids:
+            attributes = dict(attrs)
+            anchor_id = (attributes.get('id') or attributes.get('xml:id')
+                         or (attributes.get('name') if tag == 'a' else None))
             if anchor_id in self._anchor_ids:
-                if is_hidden:
-                    self.hidden_anchors.add(anchor_id)
-                elif not self._skip_stack:
-                    self.anchor_counts[anchor_id] = self.anchor_counts.get(anchor_id, 0) + 1
-                    self.parts.append(('anchor', anchor_id))
+                self.anchor_counts[anchor_id] = self.anchor_counts.get(anchor_id, 0) + 1
+                self.parts.append(('anchor', anchor_id))
 
     def handle_endtag(self, tag):
         tag = tag.lower()
         if tag in self.SKIP_TAGS and self._skip_stack:
             self._skip_stack.pop()
-            return
-        if self._skip_stack:
-            return
-        probe_ancestor_keys = None
-        if self._hidden_probe:
-            if tag in self._FORMATTING_TAGS:
-                for index in range(len(self._open_stack) - 1, -1, -1):
-                    if self._open_stack[index][0] == tag:
-                        if index != len(self._open_stack) - 1:
-                            # A formatting end tag not at the current node is
-                            # the adoption-agency shape.
-                            self._hidden_probe_poisoned = True
-                        break
-            # An end tag inside a hidden probe region must either match the
-            # region's root, match an open descendant, or close a structural
-            # ancestor. A formatting end tag that only matches an ancestor
-            # runs the adoption agency (it can move text out of the region),
-            # and a tag that matches nothing is a stray close: both make the
-            # region unsafe to open in the main pass.
-            probe_ancestor_keys = set()
-            for index, frame in enumerate(self._open_stack):
-                state = frame[7]
-                if state is None or tag == frame[0] or tag in self.VOID_TAGS:
-                    # Void elements (and a self-closing slash on one) have no
-                    # open-stack frame, so their end token is not a stray.
-                    continue
-                if any(self._open_stack[j][0] == tag
-                       for j in range(index + 1, len(self._open_stack))):
-                    continue
-                if tag in self._FORMATTING_TAGS:
-                    self._hidden_probe_poisoned = True
-                elif any(self._open_stack[j][0] == tag
-                         for j in range(index)):
-                    # An ancestor end tag is safe only if the model actually
-                    # pops the region with it; if a special element blocks the
-                    # token the browser may still close the ancestor, leaving
-                    # hidden text the browser shows. Checked after the pop.
-                    probe_ancestor_keys.add(frame[6])
-                else:
-                    self._hidden_probe_poisoned = True
-        was_hidden = self._hidden_root_depth is not None
-        popped_visible_ancestor = False
-        if self._open_counts.get(tag):
-            generic = tag not in self._SCOPED_END_TAGS
-            for index in range(len(self._open_stack) - 1, -1, -1):
-                open_tag = self._open_stack[index][0]
-                if open_tag == tag:
-                    if was_hidden and index < self._hidden_root_depth:
-                        popped_visible_ancestor = True
-                    self._pop_open_from(index)
-                    break
-                if generic and open_tag in self._SPECIAL_TAGS:
-                    # HTML5 "any other end tag": stop at a special element and
-                    # ignore the token, so a stray </span> inside <p> or
-                    # </ruby> inside <ol> never closes a hidden ancestor.
-                    break
-        if self._hidden_probe and probe_ancestor_keys:
-            still_open = {frame[6]: frame for frame in self._open_stack
-                          if frame[6] is not None}
-            if probe_ancestor_keys & still_open.keys():
-                self._hidden_probe_poisoned = True
-        if was_hidden and not popped_visible_ancestor:
-            return
         if self._ruby is not None:
             if tag == RUBY_READING_TAG:
                 self._ruby.end_reading()
@@ -1203,24 +576,8 @@ class _HTMLTextExtractor(HTMLParser):
                     self._append_text(spoken)
 
     def handle_data(self, data):
-        if self._hidden_probe:
-            return
         if self._skip_stack or self._ruby_fallback_depth:
             return
-        if self._hidden_root_depth is not None:
-            if (self._open_stack and self._open_stack[-1][0] == 'colgroup'
-                    and not self._hidden_probe):
-                # HTML5 "in column group" mode: character data pops the
-                # colgroup and is reprocessed in table mode. Every browser
-                # therefore fosters it out of the table.
-                self._pop_open_from(len(self._open_stack) - 1)
-            table_ctx = self._table_context()
-            # Character data directly in a table mode is foster-parented
-            # before the table: only the table's parent context can hide it.
-            # XHTML is XML (no foster parenting), so only text/html applies.
-            if (not self._html_name_heuristic or table_ctx is None
-                    or table_ctx[4] is not None):
-                return
         if self.cdata_elem == 'textarea':
             # RCDATA decodes character references; HTMLParser suppresses its
             # own unescape in raw-text mode (script/style stay raw), so apply
@@ -1254,16 +611,6 @@ class _HTMLTextExtractor(HTMLParser):
             self.handle_data(pending)
         self.cdata_elem = None
 
-    def _finalize_pending_ruby(self):
-        # RubyCollector emits only on </ruby>. An unclosed <ruby> at EOF would
-        # silently lose its base text, which the browser shows, so flush it
-        # (fail open) instead of dropping visible text.
-        if self._ruby is not None:
-            spoken, self._ruby = self._ruby.get_spoken_text(), None
-            self._ruby_fallback_depth = 0
-            if spoken:
-                self._append_text(spoken)
-
     def _ensure_skipped_elements_closed(self):
         # Balance is validated here, in the text accessors, rather than by
         # flushing the parser with close(): feed() alone leaves any skipped
@@ -1278,14 +625,12 @@ class _HTMLTextExtractor(HTMLParser):
 
     def get_text(self):
         self._finalize_pending_rcdata()
-        self._finalize_pending_ruby()
         self._ensure_skipped_elements_closed()
         return ''.join(part for part in self.parts if isinstance(part, str))
 
     def get_text_with_anchor_positions(self):
         """Return extracted text and character offsets for requested anchors."""
         self._finalize_pending_rcdata()
-        self._finalize_pending_ruby()
         self._ensure_skipped_elements_closed()
         text_parts = []
         positions = {}
@@ -1315,12 +660,12 @@ _POTENTIAL_SKIP_OPEN_RE = re.compile(
 _POTENTIAL_HIDDEN_ATTR_RE = re.compile(
     r'<(?:[^<>"\']|"[^"]*"|\'[^\']*\')*[\t\n\r\f :]hidden[\t\n\r\f ]*=',
     re.IGNORECASE | re.ASCII)
-# Same gate for HTML boolean `hidden` (no value), which the XML hint above
-# cannot match. The attribute must begin the name and sit inside a tag, so
-# `aria-hidden`, `data-hidden`, `class="hidden"` and prose do not trigger it.
-_POTENTIAL_BARE_HIDDEN_RE = re.compile(
-    r'<(?:[^<>"\']|"[^"]*"|\'[^\']*\')*[\t\n\r\f /]hidden[\t\n\r\f />=]',
-    re.IGNORECASE | re.ASCII)
+# HTML void elements omit no text of their own, so a hidden void element is
+# not counted as an omitted element in the extraction report.
+_XML_VOID_TAGS = frozenset({
+    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+    'link', 'meta', 'param', 'source', 'track', 'wbr',
+})
 
 
 def _xml_start_tag_end(data: bytes, start: int) -> tuple[int, bool]:
@@ -1368,11 +713,12 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
     cursor/depth/omission-flag state is retained. Only ignored elements
     are counted, so no per-tag retained records accumulate for ordinary
     elements (transient name strings from the parser callbacks aside).
-    This helper is invoked only for application/xhtml+xml resources
-    (see extract_epub_text): if the resource is not XML well-formed, a
-    genuine ExpatError rejects actionably with the pending ignored
-    element named when one is open. Ordinary HTML media never reaches
-    this helper and keeps the legacy tolerant HTML path. No partial
+    This helper is invoked for application/xhtml+xml resources (see
+    extract_epub_text): if the resource is not XML well-formed, a genuine
+    ExpatError rejects actionably with the pending ignored element named
+    when one is open. Non-XHTML media types also call it, but only as a
+    well-formedness probe: ``_omit_xml_hidden_for_non_xhtml`` catches the
+    error and keeps the legacy tolerant HTML path untouched. No partial
     transformed output is ever fed on XML failure.
     """
     if not _POTENTIAL_SKIP_OPEN_RE.search(html_content) and not _POTENTIAL_HIDDEN_ATTR_RE.search(html_content):
@@ -1485,7 +831,7 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
             if is_hidden:
                 in_hidden = True
                 if stats is not None:
-                    if name.lower() not in _HTMLTextExtractor.VOID_TAGS:
+                    if name.lower() not in _XML_VOID_TAGS:
                         # A hidden void element (br/img/...) omits no text,
                         # so it is not an omitted element in the report.
                         stats['hidden_elements'] += 1
@@ -1569,6 +915,43 @@ def _omit_xml_ignored_subtrees(html_content: str, *, anchor_ids=None, stats=None
         raise ValueError(
             'invalid Unicode: transformed resource cannot be decoded '
             'as UTF-8') from error
+
+
+def _omit_xml_hidden_for_non_xhtml(html_content, *, anchor_ids=None, stats=None):
+    """Omit hidden subtrees from a non-XHTML resource only when it is well-formed XML.
+
+    Standards EPUB3 spine items declare ``application/xhtml+xml`` and take the
+    strict XML path. Legacy or nonstandard HTML media types take the tolerant
+    ``_HTMLTextExtractor`` path, which has no hidden handling of its own: this
+    helper first tries the same strict XML parse the XHTML path uses.
+
+    * Well-formed XML: the XML hidden path omits hidden subtrees exactly as it
+      does for XHTML, and the tolerant extractor then formats the remainder.
+    * Not well-formed XML: the resource is returned unchanged, so extraction is
+      byte-identical to the code before this feature. Hidden content in such a
+      document is narrated; this is a documented leak, never a visible drop.
+
+    The call is skipped when no ``hidden="..."`` attribute can be present.
+    Because the XML pass also omits skipped subtrees, a run that omits no
+    hidden element returns the input unchanged, keeping hidden-free output
+    identical to the tolerant path.
+    """
+    if not _POTENTIAL_HIDDEN_ATTR_RE.search(html_content):
+        return html_content
+    try:
+        candidate = _omit_xml_ignored_subtrees(
+            html_content, anchor_ids=anchor_ids, stats=stats)
+    except ValueError:
+        # The strict pass can update stats before failing. Nothing was
+        # omitted from the output, so the report must not claim otherwise.
+        if stats is not None:
+            stats['hidden_elements'] = 0
+            stats['first_hidden_location'] = None
+            stats['hidden_anchors'].clear()
+        return html_content
+    if stats is None or stats['hidden_elements']:
+        return candidate
+    return html_content
 
 
 def _resolve_epub_href(base_path, href):
@@ -1904,13 +1287,19 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
             xml_stats = {'hidden_elements': 0, 'first_hidden_location': None, 'hidden_anchors': set()}
             try:
                 # XHTML resources are XML: omit true ignored subtrees via
-                # the strict XML path. Ordinary HTML media keeps the
-                # legacy tolerant HTML formatter semantics untouched.
+                # the strict XML path (a malformed XHTML resource rejects
+                # actionably). Other HTML media types first try the same
+                # strict XML parse: a well-formed document gets the same
+                # hidden handling, while a malformed one keeps the legacy
+                # tolerant HTML output byte for byte (a documented leak).
                 # Rebind so the original string is released before the
                 # HTML parser accumulates its parts; html_bytes (used for
                 # report hashes) is unchanged by this.
                 if media_type == 'application/xhtml+xml':
                     html_content = _omit_xml_ignored_subtrees(
+                        html_content, anchor_ids=anchor_ids, stats=xml_stats)
+                else:
+                    html_content = _omit_xml_hidden_for_non_xhtml(
                         html_content, anchor_ids=anchor_ids, stats=xml_stats)
                 extractor.feed(html_content)
                 # The text accessor validates skipped-element balance.
@@ -1929,9 +1318,9 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                 raise ValueError(
                     f'Malformed EPUB resource at spine index {spine_index}: '
                     f'{error} (resource {href!r})') from error
-            hidden_count = xml_stats['hidden_elements'] + extractor.hidden_elements
-            first_hidden_location = xml_stats['first_hidden_location'] or extractor.first_hidden_location
-            hidden_anchors = xml_stats['hidden_anchors'] | extractor.hidden_anchors
+            hidden_count = xml_stats['hidden_elements']
+            first_hidden_location = xml_stats['first_hidden_location']
+            hidden_anchors = xml_stats['hidden_anchors']
             body_characters = len(text.strip())
             processed_paths.add(href)
             decisions = (_get_epub_toc_title_decisions(text, anchor_positions, targets,

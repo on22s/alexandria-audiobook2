@@ -167,43 +167,6 @@ _ROOT_PROLOG_TAGS = frozenset({
     'html', 'head', 'title', 'meta', 'link', 'style', 'script', 'base',
     'basefont', 'bgsound', 'noscript', 'noframes', 'template', 'textarea',
 })
-# HTML5 table insertion modes ("in table", "in table body", "in row") keep
-# only these tokens inside the table; everything else is foster-parented
-# before the table and is therefore not hidden by the table's own ``hidden``
-# attribute (nor by a hidden table section/row).
-_TABLE_SECTIONS = frozenset({'table', 'tbody', 'tfoot', 'thead', 'tr'})
-_TABLE_KEPT_TOKENS = {
-    'table': frozenset({
-        'caption', 'colgroup', 'col', 'tbody', 'tfoot', 'thead', 'td', 'th',
-        'tr', 'style', 'script', 'template', 'input',
-    }),
-    'tbody': frozenset({
-        'tr', 'td', 'th', 'caption', 'colgroup', 'col', 'tbody', 'tfoot',
-        'thead', 'style', 'script', 'template', 'input',
-    }),
-    'thead': frozenset({
-        'tr', 'td', 'th', 'caption', 'colgroup', 'col', 'tbody', 'tfoot',
-        'thead', 'style', 'script', 'template', 'input',
-    }),
-    'tfoot': frozenset({
-        'tr', 'td', 'th', 'caption', 'colgroup', 'col', 'tbody', 'tfoot',
-        'thead', 'style', 'script', 'template', 'input',
-    }),
-    'tr': frozenset({
-        'tr', 'td', 'th', 'caption', 'colgroup', 'col', 'tbody', 'tfoot',
-        'thead', 'style', 'script', 'template', 'input',
-    }),
-}
-
-
-def _is_fostered_table_child(table_tag, child_tag):
-    """Return whether ``child_tag`` is foster-parented out of a table context.
-
-    ``child_tag`` is ``None`` for character data. A fostered node is inserted
-    before the table in the rendered tree, so the table's ``hidden`` attribute
-    does not reach it.
-    """
-    return child_tag is None or child_tag not in _TABLE_KEPT_TOKENS.get(table_tag, ())
 
 
 def is_html_hidden_attrs(attrs, *, xml_namespaces=None, element_namespace=None) -> bool:
@@ -215,8 +178,9 @@ def is_html_hidden_attrs(attrs, *, xml_namespaces=None, element_namespace=None) 
     HTML and XML for parity): bare ``hidden``, ``hidden=""``,
     ``hidden="hidden"``, uppercase/mixed-case spellings, and explicit XHTML-
     namespaced spellings (``{http://www.w3.org/1999/xhtml}hidden`` or a prefix
-    bound to that URI via ``xml_namespaces``, used on XML/XHTML documents —
-    ``text/html`` attributes have no XML namespaces) all return True.
+    bound to that URI via ``xml_namespaces``, used wherever the document is
+    parsed as XML — including a ``text/html`` document that is well-formed XML)
+    all return True.
     ``hidden="until-found"`` is treated as hidden: in HTML it suppresses
     rendering (``content-visibility: hidden``) until interactive find-in-page
     or fragment reveal, which does not occur during linear audiobook narration.
@@ -385,10 +349,9 @@ def resolve_html_element_namespace(tag: str, attrs, inherited_ns: str, ns_map: d
     ``html_name_heuristic`` selects how a *bare* ``<svg>``/``<math>`` is read:
     in ``text/html`` the tag name itself creates the foreign namespace, while
     XHTML (``application/xhtml+xml``) is XML, so without ``xmlns`` the element
-    stays in the inherited XHTML namespace and ``hidden`` still applies. The
-    two ``html.parser`` readers (``_extract_bs4_visible_text`` and
-    ``_HTMLTextExtractor``) pass True only for tolerant ``text/html`` media so
-    they agree with the real XML paths.
+    stays in the inherited XHTML namespace and ``hidden`` still applies.
+    ``_extract_bs4_visible_text`` passes it for non-XHTML media so it agrees
+    with the real XML paths.
 
     The child namespace re-enters HTML at the HTML integration points:
     SVG ``foreignObject`` and MathML ``annotation-xml`` whose ``encoding`` is
@@ -443,10 +406,8 @@ def _extract_bs4_visible_text(soup, *, root_namespaces=None,
 
     This walker runs over ``load_epub``'s items, and ebooklib only builds
     ``EpubHtml``/``ITEM_DOCUMENT`` items for ``application/xhtml+xml``
-    resources, so the walk sees XML/XHTML here. It therefore applies the
-    element-namespace and ``hidden`` rules only; the HTML table
-    foster-parenting model lives in the ``text/html`` extractor
-    (``routers/script.py:_HTMLTextExtractor``), where it is reachable.
+    resources, so the walk sees XML/XHTML here. It applies the
+    element-namespace and ``hidden`` rules only.
     """
     string_types = soup.interesting_string_types or soup.MAIN_CONTENT_STRING_TYPES
     base_ns = dict(root_namespaces) if root_namespaces else {}
@@ -531,7 +492,8 @@ def load_epub(path: str) -> str:
     validate_epub_archive(path)
     book = epub.read_epub(path)
     parts = []
-    saw_hidden = False
+    considered_documents = 0
+    every_document_entirely_hidden = True
     for item_id, linear in book.spine:
         item = book.get_item_with_id(item_id)
         if item is None:
@@ -553,20 +515,27 @@ def load_epub(path: str) -> str:
             # (&#9;, &#10;, &#13;, &#12;) stays unsplit inside EpubHtml.properties.
             continue
         doc_hidden, root_namespaces = _epub_item_root_context(item)
+        considered_documents += 1
         if doc_hidden:
-            saw_hidden = True
             continue
         media_type = (getattr(item, 'media_type', '') or '').split(';', 1)[0].strip().lower()
         soup = BeautifulSoup(item.get_content(), 'html.parser')
         text, item_hidden = _extract_bs4_visible_text(
             soup, root_namespaces=root_namespaces,
             html_name_heuristic=media_type != 'application/xhtml+xml')
-        saw_hidden = saw_hidden or item_hidden
+        if not (item_hidden and not text.strip()):
+            # A document with no readable text and no hidden content (an empty
+            # visible chapter) is not entirely hidden; it keeps origin/main's
+            # behavior below instead of being folded into the hidden-specific
+            # refusal.
+            every_document_entirely_hidden = False
         parts.append(text)
-    if not parts or (saw_hidden and not any(part.strip() for part in parts)):
-        if saw_hidden:
-            raise ValueError('EPUB has no readable text after omitting HTML hidden elements')
+    if not considered_documents:
         raise ValueError('EPUB has no readable spine documents')
+    if every_document_entirely_hidden:
+        # Every spine document was hidden entirely (its root, or all of its
+        # text, carried the hidden attribute), so no visible text exists.
+        raise ValueError('EPUB has no readable text after omitting HTML hidden elements')
     return '\n'.join(parts)
 
 

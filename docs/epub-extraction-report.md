@@ -14,62 +14,34 @@ duplicate-anchor first-occurrence behavior, title insertion/suppression decision
 omitted HTML `hidden` content (`hidden_content` rows recording omitted element
 counts and first element location, never the hidden text), and skipped
 missing/non-HTML/empty resources. HTML elements carrying the HTML `hidden`
-attribute (ASCII case-insensitive in both HTML and XML for parity, in any
-boolean form including `hidden="until-found"`, which hides content from linear
-reading until interactive find-in-page reveal; XHTML-namespaced prefixed forms
-such as `h:hidden` apply to XML/XHTML documents — `application/xhtml+xml`,
-read-aloud, and `load_epub` — whereas `text/html` attributes have no XML
-namespaces so prefixed names are distinct attributes) and all their descendants
-are omitted from narration. Because `hidden` is an HTML-only global attribute,
-it is not applied to SVG or MathML elements; CSS `display:none` and
-`aria-hidden` are not inferred or dropped. Tolerant `text/html` processing
-follows one governing rule: this is an audiobook, so losing visible text is
-worse than narrating hidden text. When it meets structure it does not model, it
-fails open - the hidden region ends no later than the browser would end it, and
-it never silences text the browser would show. The guarantee is **structural**
-(Rule 15), not a list of known-bad tags: a prepass runs the same tree
-construction with output off and a `hidden` element opens a region only when
-the model can prove where that region ends. The element must not be void, an
-element the browser ignores (`image`, `keygen`, `frame`, `frameset`, table
-structure outside a table, a nested `form`), or foster-parented out of a table;
-and either its end is one the implemented optional-end-tag rules close (`p`,
-`li`, `dd`, `dt`, `option`, `optgroup`, `rt`, `rp`, `tr`, `td`, `th`, `thead`,
-`tbody`, `tfoot`, `caption`, and headings), or the prepass proves the model
-pops it through an explicit matching end tag, an implemented implied close or
-an ancestor close. A region also ends wherever the model pops its root element
-for any reason. If the prepass sees an unmodelled insertion-mode anomaly
-anywhere in the document (nested or poisoned `select`, an ignored table token
-or nested `form`, an adoption-agency formatting shape, a blocked ancestor end
-tag), it trusts no hidden region in that document and treats every hidden
-element as visible. Anything not proved is narrated: `hidden` leaks in invalid
-markup are documented limits; a visible drop is a bug. In tolerant `text/html`
-resources, self-closing syntax on non-void elements
-(such as `<div hidden=""/>`) is treated as self-closing by Python's
-`HTMLParser`, so the following text is narrated. This is a deliberate
-divergence *from* browsers, not parity: HTML ignores the slash on non-void
-elements, so a browser hides that following text. It is kept because the cost
-of the divergence is narrating hidden text (the safe direction for an
-audiobook), not losing visible text. Tolerant `text/html` also models the HTML5
-tree-construction rules that decide whether a hidden element still wraps later
-prose: the complete `<p>`-closing start-tag set (including `center`, `dir`,
-`listing`, `summary`, `xmp` and `plaintext`), the heading rule (a heading start
-tag closes an open `p` and pops a current heading, so an omitted `</h2>` before
-`<h2>Chapter 2` never drops the chapter), the `li`/`dd`/`dt` implied closes
-(which stop at the spec's special elements except `address`/`div`/`p`),
-table cells/rows/sections/`caption`/`colgroup` (a cell or row start tag closes
-an open `caption`/`colgroup` in table scope), select options, ruby
-annotations, and `head`/`body`. Start tags the browser ignores in body mode
-(table structure outside a table, a nested `form`) create no element, so their
-`hidden` attribute never opens a hidden root; end tags the browser ignores (a
-stray `</span>` above a `<p>`, `</ruby>` above `<ol>`) never close a hidden
-ancestor, but they do make the prepass distrust the document. Content
-the HTML5 parser foster-parents out of a table (character data, prose or an
-unexpected element directly inside a table, table section or row) is rendered
-before the table, so a hidden table does not hide it and it is narrated; XHTML
-is parsed as XML there, where no foster-parenting occurs, so the XML paths keep
-the text inside the hidden table. `omitted_elements` counts outermost hidden
-elements that can omit text; a hidden void element (`<br hidden>`,
-`<img hidden>`) is not counted because it omits no text.
+attribute (ASCII case-insensitive, in any form including `hidden="until-found"`,
+which hides content from linear reading until interactive find-in-page reveal;
+XHTML-namespaced prefixed forms such as `h:hidden` apply wherever the document
+is parsed as XML) and all their descendants are omitted from narration.
+Because `hidden` is an HTML-only global attribute, it is not applied to SVG or
+MathML elements; CSS `display:none` and `aria-hidden` are not inferred or
+dropped.
+
+Hidden handling applies only where the document can be parsed as XML. XHTML
+spine items (`application/xhtml+xml`) are always parsed by the strict XML path.
+Every other HTML media type (`text/html` and any other non-XHTML type) keeps
+the legacy tolerant HTML extractor, but first tries the same strict XML parse:
+if the document is well-formed XML, its hidden elements are omitted through the
+XML path; if it is not well-formed XML, no hidden handling is applied and the
+extraction output is byte-identical to the code before this feature. Hidden
+content in a malformed `text/html` document is therefore narrated. That
+includes documents with bare boolean attributes (`<p hidden>` without a value),
+unclosed tags, and HTML-only entities such as `&nbsp;`, none of which are
+well-formed XML. This is a documented leak, chosen because dropping visible
+text is worse than narrating hidden text; it is never a visible drop.
+Because a well-formed `text/html` document is parsed as XML, HTML5
+tree-construction error recovery is not applied to it. A document that is
+XML-well-formed but not valid HTML5 (for example a hidden table cell containing
+a `caption`) follows XML containment, so text a browser would render outside
+the hidden region can be omitted.
+`omitted_elements` counts outermost hidden elements that can omit text; a
+hidden void element (`<br hidden>`, `<img hidden>`) is not counted because it
+omits no text.
 `load_epub`'s `<html>`/`<body>` root detection decodes UTF-8/UTF-16 and skips
 comments, PIs, DOCTYPE internal subsets, RCDATA head content (`title`,
 `textarea`, `noscript`), and `<template>` fragments, so literal `<body hidden>`
@@ -77,11 +49,17 @@ text in any of them is not mistaken for the document body. `load_epub`'s
 existing `BeautifulSoup` text path still returns `''` for a UTF-16 chapter
 (unchanged from before this feature); this is pre-existing and out of scope,
 so encoding support is not claimed end-to-end. When every spine document in an
-EPUB is hidden, script extraction returns no chapter text (with no navigation
-target it returns `''`; a navigation entry that targets the hidden document
-still contributes its visible table-of-contents label, exactly as it already
-did for an otherwise-empty chapter), read-aloud returns no segments, and
+EPUB is entirely hidden (its root carries `hidden`, or all of its text is
+inside hidden elements), script extraction returns no chapter text (with no
+navigation target it returns `''`; a navigation entry that targets the hidden
+document still contributes its visible table-of-contents label, exactly as it
+already did for an otherwise-empty chapter), read-aloud returns no segments, and
 `alexandria_alignment.load_epub` raises a `ValueError` naming hidden elements.
+An EPUB with one entirely hidden chapter and one empty visible chapter is not
+in that class: `load_epub` returns the empty visible text, as it did before
+this feature, instead of raising the hidden-specific error. A book with no
+considered spine documents keeps the existing `no readable spine documents`
+refusal.
 Navigation targets pointing only to
 anchors inside a hidden subtree do not resolve into visible text and do not
 insert navigation labels; they are reported with reason

@@ -1,9 +1,15 @@
 """EPUB elements marked with the HTML ``hidden`` attribute are not narrated (#2326).
 
-Synthetic EPUB/XHTML fixtures only. Covers the single shared predicate
-(``alexandria_alignment.is_html_hidden_attrs``), ``_HTMLTextExtractor``,
-``_omit_xml_ignored_subtrees``, ``extract_epub_text`` (with extraction report
-and navigation targets), ``epub_readaloud`` (chunk-timed and Qwen modes), and
+Synthetic EPUB/XHTML fixtures only. Hidden handling lives on the strict XML
+paths: ``application/xhtml+xml`` always uses them, and every other HTML media
+type first tries the same strict XML parse. A well-formed ``text/html``
+document therefore gets the XML hidden path; a malformed one gets no hidden
+handling and keeps the legacy tolerant output byte for byte (a documented
+leak). Covers the shared predicate
+(``alexandria_alignment.is_html_hidden_attrs``),
+``_omit_xml_ignored_subtrees``, ``_omit_xml_hidden_for_non_xhtml``,
+``extract_epub_text`` (with extraction report and navigation targets),
+``epub_readaloud`` (chunk-timed and Qwen modes), and
 ``alexandria_alignment.load_epub``.
 """
 import io
@@ -25,7 +31,12 @@ from epub_readaloud import (
     validate_epub_readaloud,
 )
 from routers import script
-from routers.script import _HTMLTextExtractor, _omit_xml_ignored_subtrees, extract_epub_text
+from routers.script import (
+    _HTMLTextExtractor,
+    _omit_xml_hidden_for_non_xhtml,
+    _omit_xml_ignored_subtrees,
+    extract_epub_text,
+)
 from tests.test_readaloud_extraction_followups import _clips, _script, _tokens
 
 
@@ -189,10 +200,10 @@ class HtmlHiddenPredicateTests(unittest.TestCase):
 
 class HtmlHiddenExtractionTests(unittest.TestCase):
     def test_issue_reproduction_all_extraction_paths(self):
-        # Direct _HTMLTextExtractor
+        # Direct _HTMLTextExtractor (no hidden handling of its own).
         ext = _HTMLTextExtractor()
         ext.feed(ISSUE_SNIPPET)
-        self.assertEqual('Seen first.\n\nSeen last.',
+        self.assertEqual('Seen first.\n\nNever shown.\n\nNever shown either.\n\nSeen last.',
                          script.normalize_extracted_text(ext.get_text()))
 
         # Full XHTML EPUB extraction
@@ -200,7 +211,8 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         self.assertEqual('Seen first.\n\nSeen last.',
                          extract_epub_text('synthetic.epub', archive_bytes=raw))
 
-        # Full text/html EPUB extraction
+        # Full text/html EPUB extraction: the document is well-formed XML, so
+        # it takes the same XML hidden path.
         raw_html = make_epub(ISSUE_SNIPPET, media_type='text/html', toc_links=[])
         self.assertEqual('Seen first.\n\nSeen last.',
                          extract_epub_text('synthetic.epub', archive_bytes=raw_html))
@@ -216,45 +228,43 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
         self.assertEqual('Seen first. Seen last.', loaded)
 
-    def test_all_boolean_spellings_and_until_found_omitted_in_html_and_xhtml(self):
-        # HTML spellings including bare attribute, mixed case, and until-found
-        # (until-found hides content until interactive find-in-page, so linear
-        # narration omits it).
-        html_cases = [
-            ('bare', '<p>Start.</p><p hidden>Secret.</p><p>End.</p>'),
+    def test_well_formed_text_html_hidden_is_omitted_like_xhtml(self):
+        doc_cases = [
             ('empty', '<p>Start.</p><p hidden="">Secret.</p><p>End.</p>'),
             ('canonical', '<p>Start.</p><p hidden="hidden">Secret.</p><p>End.</p>'),
             ('until_found', '<p>Start.</p><p hidden="until-found">Secret.</p><p>End.</p>'),
             ('until_found_upper', '<p>Start.</p><p hidden="UNTIL-FOUND">Secret.</p><p>End.</p>'),
-            ('upper_attr', '<p>Start.</p><p HIDDEN>Secret.</p><p>End.</p>'),
+            ('upper_attr', '<p>Start.</p><p HIDDEN="HIDDEN">Secret.</p><p>End.</p>'),
             ('mixed_case', '<p>Start.</p><p HiDdEn="Hidden">Secret.</p><p>End.</p>'),
             ('false_still_hidden', '<p>Start.</p><p hidden="false">Secret.</p><p>End.</p>'),
         ]
-        for name, body in html_cases:
-            with self.subTest(path='text/html', case=name):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
+        for name, body in doc_cases:
+            for media_type in ('application/xhtml+xml', 'text/html'):
+                with self.subTest(case=name, media_type=media_type):
+                    raw = make_epub(body, media_type=media_type, toc_links=[])
+                    self.assertEqual(
+                        'Start.\n\nEnd.',
+                        extract_epub_text('synthetic.epub', archive_bytes=raw))
+
+        # XHTML-namespaced prefixed form applies on both paths: a well-formed
+        # text/html document is parsed as XML too.
+        prefixed = '<p>Start.</p><p h:hidden="hidden">Secret.</p><p>End.</p>'
+        extra = ' xmlns:h="http://www.w3.org/1999/xhtml"'
+        for media_type in ('application/xhtml+xml', 'text/html'):
+            with self.subTest(case='prefixed', media_type=media_type):
+                raw = make_epub(prefixed, media_type=media_type,
+                                extra_html_attrs=extra, toc_links=[])
                 self.assertEqual('Start.\n\nEnd.',
                                  extract_epub_text('synthetic.epub', archive_bytes=raw))
 
-        xhtml_cases = [
-            ('empty', '<p>Start.</p><p hidden="">Secret.</p><p>End.</p>', ''),
-            ('canonical', '<p>Start.</p><p hidden="hidden">Secret.</p><p>End.</p>', ''),
-            ('until_found', '<p>Start.</p><p hidden="until-found">Secret.</p><p>End.</p>', ''),
-            ('upper_attr', '<p>Start.</p><p HIDDEN="HIDDEN">Secret.</p><p>End.</p>', ''),
-            ('xhtml_prefixed_attr',
-             '<p>Start.</p><p h:hidden="hidden">Secret.</p><p>End.</p>',
-             ' xmlns:h="http://www.w3.org/1999/xhtml"'),
-            ('xhtml_prefixed_until_found',
-             '<p>Start.</p><p h:hidden="until-found">Secret.</p><p>End.</p>',
-             ' xmlns:h="http://www.w3.org/1999/xhtml"'),
-        ]
-        for name, body, extra_ns in xhtml_cases:
-            with self.subTest(path='xhtml', case=name):
-                raw = make_epub(body, extra_html_attrs=extra_ns, toc_links=[])
-                self.assertEqual('Start.\n\nEnd.',
+        # Nested hidden elements and hidden descendants.
+        nested = ('<p>Before.</p><div hidden=""><p hidden="">Double hidden</p>'
+                  '<p>Still inside outer hidden.</p></div><p>After.</p>')
+        for media_type in ('application/xhtml+xml', 'text/html'):
+            with self.subTest(case='nested', media_type=media_type):
+                raw = make_epub(nested, media_type=media_type, toc_links=[])
+                self.assertEqual('Before.\n\nAfter.',
                                  extract_epub_text('synthetic.epub', archive_bytes=raw))
-                _root, segments, _full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
-                self.assertEqual(['Start.', 'End.'], [s['text'] for s in segments])
 
         # Unnamespaced XHTML root document
         raw_unns = make_epub(
@@ -264,6 +274,91 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         )
         self.assertEqual('Start.\n\nEnd.',
                          extract_epub_text('synthetic.epub', archive_bytes=raw_unns))
+
+    def test_bare_boolean_hidden_in_text_html_is_narrated_documented_leak(self):
+        # A bare HTML boolean attribute is not well-formed XML, so the document
+        # gets no hidden handling: the XML parse is not attempted and the
+        # tolerant extractor narrates the text. This is the documented leak.
+        for body in (
+            '<p>Start.</p><p hidden>Secret.</p><p>End.</p>',
+            '<p>Start.</p><p HIDDEN>Secret.</p><p>End.</p>',
+        ):
+            with self.subTest(body=body):
+                raw = make_epub(body, media_type='text/html', toc_links=[])
+                self.assertEqual(
+                    'Start.\n\nSecret.\n\nEnd.',
+                    extract_epub_text('synthetic.epub', archive_bytes=raw))
+
+    def test_malformed_text_html_has_no_hidden_handling_and_narrates_hidden(self):
+        # Every document below is well-formed HTML soup but not well-formed
+        # XML. Output must be the legacy tolerant output: hidden text is
+        # narrated (a documented leak), never dropped, and no hidden_content
+        # report row is emitted.
+        cases = [
+            ('unclosed_hidden_div',
+             '<p>Before.</p><div hidden=""><p>Unclosed child</div><p>After.</p>',
+             'Before.\n\nUnclosed child\n\nAfter.'),
+            ('implicit_p_close',
+             '<p>Before.</p><p hidden="">Hidden without close<p>After.</p>',
+             'Before.\n\nHidden without close\n\nAfter.'),
+            ('stray_close',
+             '<p>Before.</p><div hidden=""><p>Secret</span>Still secret</p></div><p>After.</p>',
+             'Before.\n\nSecretStill secret\n\nAfter.'),
+            ('unclosed_hidden_at_eof',
+             '<p>Before.</p><div hidden=""><p>Hidden until EOF',
+             'Before.\n\nHidden until EOF'),
+            ('unclosed_void',
+             '<p>Start.</p><p hidden="">Secret.</p><br><p>End.</p>',
+             'Start.\n\nSecret.\n\nEnd.'),
+            ('html_entity',
+             '<p>Start.</p><p hidden="">A&nbsp;B.</p><p>End.</p>',
+             'Start.\n\nA B.\n\nEnd.'),
+            ('malformed_script',
+             '<p>Start.</p><script>if (a < b) {}</script><p hidden="">Secret.</p><p>End.</p>',
+             'Start.\n\nSecret.\n\nEnd.'),
+        ]
+        for name, body, expected in cases:
+            with self.subTest(case=name):
+                raw = make_epub(body, media_type='text/html', toc_links=[])
+                self.assertEqual(expected,
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+                text, report = extract_epub_text(
+                    'synthetic.epub', archive_bytes=raw, include_report=True)
+                self.assertEqual(expected, text)
+                self.assertEqual([], [r for r in report['rows']
+                                      if r['kind'] == 'hidden_content'])
+
+        # Hidden-free malformed documents are unchanged too.
+        raw = make_epub('<p>One.<p>Two <b>bold',
+                        media_type='text/html', toc_links=[])
+        self.assertEqual('One.\n\nTwo bold',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw))
+
+    def test_well_formed_routing_helper_contract(self):
+        # Well-formed XML with hidden content: stripped and counted.
+        stats = {'hidden_elements': 0, 'first_hidden_location': None,
+                 'hidden_anchors': set()}
+        stripped = _omit_xml_hidden_for_non_xhtml(
+            '<div><p hidden="">Secret.</p><p>Visible.</p></div>', stats=stats)
+        self.assertNotIn('Secret.', stripped)
+        self.assertIn('Visible.', stripped)
+        self.assertEqual(1, stats['hidden_elements'])
+
+        # Malformed XML: returned unchanged and no report claim survives a
+        # partial parse.
+        stats = {'hidden_elements': 0, 'first_hidden_location': None,
+                 'hidden_anchors': set()}
+        malformed = '<p hidden="">Secret.<p>Visible.'
+        self.assertEqual(
+            malformed, _omit_xml_hidden_for_non_xhtml(malformed, stats=stats))
+        self.assertEqual(0, stats['hidden_elements'])
+        self.assertIsNone(stats['first_hidden_location'])
+        self.assertEqual(set(), stats['hidden_anchors'])
+
+        # No possible hidden attribute: no XML pass at all.
+        self.assertEqual(
+            '<p>Visible.</p>',
+            _omit_xml_hidden_for_non_xhtml('<p>Visible.</p>', stats={}))
 
     def test_xml_pass_handles_cdata_and_same_tag_self_closing_hidden_elements(self):
         # Literal </p> inside CDATA inside a hidden element would prematurely
@@ -307,17 +402,19 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                 raw_case = make_epub('', raw_document=source, toc_links=[])
                 self.assertIn('After.', extract_epub_text('synthetic.epub', archive_bytes=raw_case))
 
-    def test_void_self_closing_nested_and_malformed_markup_in_html_and_xhtml(self):
-        # Hidden void elements in HTML must not unbalance the skip stack.
+    def test_hidden_void_nested_and_malformed_markup_paths(self):
+        # Well-formed hidden void elements on both XML-backed paths.
         html_void = (
             '<p>First.</p>'
-            '<br hidden><img hidden src="a.png"><hr hidden=""><input hidden type="text">'
-            '<br hidden/><p hidden=""/>'
+            '<br hidden=""/><img hidden="" src="a.png"/><hr hidden=""/>'
+            '<input hidden="" type="text"/><p hidden=""/>'
             '<p>Second.</p>'
         )
-        raw_void = make_epub(html_void, media_type='text/html', toc_links=[])
-        self.assertEqual('First.\n\nSecond.',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw_void))
+        for media_type in ('application/xhtml+xml', 'text/html'):
+            with self.subTest(case='void', media_type=media_type):
+                raw = make_epub(html_void, media_type=media_type, toc_links=[])
+                self.assertEqual('First.\n\nSecond.',
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
 
         # Nested hidden inside hidden and nested same-tag elements inside hidden.
         nested = (
@@ -332,34 +429,6 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             with self.subTest(case='nested', media_type=media_type):
                 raw = make_epub(nested, media_type=media_type, toc_links=[])
                 self.assertEqual('Before.\n\nAfter.',
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-        # Malformed/unclosed HTML cases on text/html path.
-        malformed_html_cases = [
-            ('unclosed_child_in_hidden_div',
-             '<p>Before.</p><div hidden=""><p>Unclosed child</div><p>After.</p>',
-             'Before.\n\nAfter.'),
-            ('implicit_p_close_on_hidden_p',
-             '<p>Before.</p><p hidden>Hidden without close<p>After.</p>',
-             'Before.\n\nAfter.'),
-            ('stray_close_inside_hidden',
-             '<p>Before.</p><div hidden=""><p>Secret</span>Still secret</p></div><p>After.</p>',
-             # A stray close makes the prepass distrust the region (Rule 15):
-             # the hidden div is treated as visible, a leak, not a drop.
-             'Before.\n\nSecretStill secret\n\nAfter.'),
-            ('unclosed_hidden_at_eof',
-             '<p>Before.</p><div hidden=""><p>Hidden until EOF',
-             'Before.'),
-            ('hidden_textarea_at_eof',
-             '<p>Before.</p><textarea hidden>Hidden form text',
-             # An unclosed textarea is RCDATA to EOF and never popped, so the
-             # structural gate treats its `hidden` as absent and narrates it.
-             'Before.Hidden form text\n</body></html>'),
-        ]
-        for name, body, expected in malformed_html_cases:
-            with self.subTest(case=name):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
-                self.assertEqual(expected,
                                  extract_epub_text('synthetic.epub', archive_bytes=raw))
 
         # Malformed unclosed hidden element in strict XHTML rejects actionably
@@ -489,496 +558,6 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                 self.assertEqual('insert_navigation_label', by_frag['dup']['reason'])
                 self.assertEqual('insert_navigation_label', by_frag['vis']['reason'])
 
-    def test_tolerant_html_implied_end_tags_and_ancestor_closes_never_over_drop(self):
-        cases = [
-            ('li_omitted_end',
-             '<ul><li hidden="">Secret item<li>Visible item</ul><p>After.</p>',
-             'Visible item\n\nAfter.'),
-            ('td_omitted_end',
-             '<table><tr><td hidden="">Secret<td>Visible</tr></table><p>After.</p>',
-             'Visible\n\nAfter.'),
-            ('th_omitted_end',
-             '<table><tr><th hidden="">Secret<th>Visible</tr></table><p>After.</p>',
-             'Visible\n\nAfter.'),
-            ('tr_omitted_end',
-             '<table><tr hidden=""><td>Secret<tr><td>Visible</table><p>After.</p>',
-             'Visible\n\nAfter.'),
-            ('dd_omitted_end',
-             '<dl><dt>T<dd hidden="">Secret<dd>Visible</dl><p>After.</p>',
-             'TVisible\n\nAfter.'),
-            ('dt_omitted_end',
-             '<dl><dt hidden="">Secret<dt>Visible</dl><p>After.</p>',
-             'Visible\n\nAfter.'),
-            ('option_omitted_end',
-             '<select><option hidden="">Secret<option>Visible</select><p>After.</p>',
-             'Visible\n\nAfter.'),
-            ('unclosed_hidden_span_closed_by_p',
-             '<p>Visible start. <span hidden="">secret</p><p>After paragraph.</p>',
-             'Visible start. \n\nAfter paragraph.'),
-            ('unclosed_hidden_span_closed_by_div',
-             '<div>Visible start. <span hidden="">secret</div><p>After paragraph.</p>',
-             'Visible start. \n\nAfter paragraph.'),
-            ('unclosed_hidden_em_closed_by_p',
-             '<p>Visible start. <em hidden="">secret</p><p>After paragraph.</p>',
-             'Visible start. \n\nAfter paragraph.'),
-            ('unclosed_hidden_span_closed_by_implied_p',
-             '<p>One <span hidden>x<p>Two.</p>',
-             'One \n\nTwo.'),
-            ('hidden_p_closed_by_form',
-             '<p hidden="">Secret<form><p>Visible form</p></form><p>After.</p>',
-             'Visible form\n\nAfter.'),
-            ('nested_list_inside_hidden_li_stays_hidden',
-             '<ul><li hidden="">Secret<ul><li>Nested secret</li></ul><li>Visible</ul><p>After.</p>',
-             'Visible\n\nAfter.'),
-            ('nested_table_inside_hidden_td_stays_hidden',
-             '<table><tr><td hidden="">Secret<table><tr><td>Nested secret</td></tr></table>'
-             '<td>Visible</tr></table><p>After.</p>',
-             'Visible\n\nAfter.'),
-            ('void_inside_hidden_container',
-             '<div hidden=""><br><img src="x.png"><p>Secret</p></div><p>After.</p>',
-             'After.'),
-        ]
-        for name, body, expected in cases:
-            with self.subTest(case=name):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
-                self.assertEqual(expected,
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-        # Every HTML5 <p>-closing start tag closes an open <p hidden="">.
-        # The case list is generated from the extractor's own table so a tag
-        # added to (or dropped from) the table cannot silently skip its test,
-        # and the table itself is pinned to the spec's exhaustive set.
-        spec_p_closers = frozenset({
-            'address', 'article', 'aside', 'blockquote', 'center', 'dd',
-            'details', 'dialog', 'dir', 'div', 'dl', 'dt', 'fieldset',
-            'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4',
-            'h5', 'h6', 'header', 'hgroup', 'hr', 'li', 'listing', 'main',
-            'menu', 'nav', 'ol', 'p', 'plaintext', 'pre', 'search', 'section',
-            'summary', 'table', 'ul', 'xmp',
-        })
-        self.assertEqual(spec_p_closers, _HTMLTextExtractor._P_AUTO_CLOSE_TAGS)
-        for tag in sorted(_HTMLTextExtractor._P_AUTO_CLOSE_TAGS):
-            with self.subTest(p_closer=tag):
-                if tag == 'plaintext':
-                    raw = make_epub(
-                        '', media_type='text/html', toc_links=[],
-                        raw_document='<html><body><p hidden="">Secret<plaintext>Visible')
-                    expected = 'Visible'
-                else:
-                    body = f'<p hidden="">Secret<{tag}>Visible</{tag}><p>After.'
-                    expected = 'Visible\n\nAfter.'
-                    raw = make_epub(body, media_type='text/html', toc_links=[])
-                self.assertEqual(expected,
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-        # A second <caption>/<colgroup> closes the first in table scope.
-        self.assertEqual('VisibleTail.', extract_epub_text(
-            'synthetic.epub', archive_bytes=make_epub(
-                '<table><caption hidden="">Secret<caption>Visible</table>Tail.',
-                media_type='text/html', toc_links=[])))
-        colgroup_extractor = _HTMLTextExtractor({'g'})
-        colgroup_extractor.feed(
-            '<table><colgroup hidden=""><col><colgroup id="g"><col></table>')
-        self.assertEqual(set(), colgroup_extractor.hidden_anchors)
-
-        # An unclosed <ruby> at EOF fails open: its base text is narrated
-        # instead of being lost with the collector, and a kana reading still
-        # replaces its base.
-        for body, expected in (
-            ('<p>Before.</p><ruby>BaseWithoutClose', 'Before.BaseWithoutClose'),
-            ('<ruby>Base<rt>reading', 'Base'),
-            ('<p>V</p><ruby>漢字<rt>かんじ', 'V漢字'),
-        ):
-            with self.subTest(unclosed_ruby=body):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
-                self.assertEqual(expected,
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-    def test_li_dd_dt_implied_close_stops_at_special_elements(self):
-        # HTML5 "close a li/dd/dt element" stops at any special element
-        # except the rule's own exceptions, so a hidden list item stays open
-        # across <section>/<blockquote> (the new item is hidden too).
-        hidden_cases = [
-            ('li_section',
-             '<ul><li hidden="">Secret<section><li>Visible item</section></ul><p>After.</p>'),
-            ('li_blockquote',
-             '<ul><li hidden="">Secret<blockquote><li>Visible item</blockquote></ul><p>After.</p>'),
-            ('dd_section',
-             '<dl><dd hidden="">Secret<section><dd>Visible item</section></dl><p>After.</p>'),
-            ('dt_blockquote',
-             '<dl><dt hidden="">Secret<blockquote><dt>Visible item</blockquote></dl><p>After.</p>'),
-        ]
-        for name, body in hidden_cases:
-            with self.subTest(case=name):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
-                self.assertEqual('After.',
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-        # address/div/p are the li rule's exceptions (address/div/p for
-        # dd/dt too): the scan continues and the hidden item is closed.
-        self.assertEqual(frozenset({'dd', 'dt'}), _HTMLTextExtractor._DD_DT_RULE[0])
-        self.assertEqual(frozenset({'address', 'div', 'p'}),
-                         _HTMLTextExtractor._DD_DT_RULE[2])
-        visible_cases = [
-            ('li_div_exception',
-             '<ul><li hidden="">Secret<div><li>Visible item</div></ul><p>After.</p>'),
-            ('li_p_exception',
-             '<ul><li hidden="">Secret<p><li>Visible item</ul><p>After.</p>'),
-            ('dd_div_exception',
-             '<dl><dd hidden="">Secret<div><dd>Visible item</div></dl><p>After.</p>'),
-            # dd/dt's spec exception list includes p: an open p (inserted into
-            # the hidden dd) does not stop the close scan.
-            ('dd_p_exception',
-             '<dl><dd hidden="">Secret<p>Hidden para<dd>Visible item</dl><p>After.</p>'),
-            ('dt_p_exception',
-             '<dl><dt hidden="">Secret<p>Hidden para<dt>Visible item</dl><p>After.</p>'),
-        ]
-        for name, body in visible_cases:
-            with self.subTest(case=name):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
-                self.assertEqual('Visible item\n\nAfter.',
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-    def test_heading_start_tag_closes_open_heading_on_valid_html5(self):
-        # Omitting </h2> before another heading is valid HTML5. The heading
-        # start tag closes the open p and pops a current heading, so a hidden
-        # heading with an omitted end tag can never silence the next chapter.
-        raw = make_epub(
-            '<h1>Chapter 1</h1><h2 hidden="">Draft heading<h2>Chapter 2</h2>'
-            '<p>This paragraph is visible prose that must be narrated.</p>',
-            media_type='text/html', toc_links=[])
-        self.assertEqual(
-            'Chapter 1\n\nChapter 2\n\n'
-            'This paragraph is visible prose that must be narrated.',
-            extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # One case per heading pair, generated from the extractor's own set so
-        # the coverage cannot drift from the rule.
-        self.assertEqual(
-            frozenset({'h1', 'h2', 'h3', 'h4', 'h5', 'h6'}),
-            _HTMLTextExtractor._HEADING_TAGS)
-        for outer in sorted(_HTMLTextExtractor._HEADING_TAGS):
-            for inner in sorted(_HTMLTextExtractor._HEADING_TAGS):
-                with self.subTest(outer=outer, inner=inner):
-                    raw = make_epub(f'<{outer} hidden="">Secret<{inner}>Visible</{inner}>'
-                                    '<p>After.</p>',
-                                    media_type='text/html', toc_links=[])
-                    self.assertEqual('Visible\n\nAfter.',
-                                     extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-    def test_ignored_start_tags_do_not_open_hidden_roots(self):
-        # HTML5 ignores table-structure tokens outside a table and a nested
-        # <form> start tag. An ignored token creates no element, so its
-        # `hidden` attribute must not hide the rest of the chapter.
-        self.assertEqual(
-            frozenset({'caption', 'col', 'colgroup', 'td', 'th', 'tbody',
-                       'tfoot', 'thead', 'tr'}),
-            _HTMLTextExtractor._TABLE_CONTEXT_ONLY_TAGS)
-        cases = [
-            ('caption_outside_table',
-             '<p>VISIBLEONE</p><caption hidden="">SECRETHID<p>VISIBLETWO</p>',
-             'VISIBLEONESECRETHID\n\nVISIBLETWO'),
-            ('td_outside_table',
-             '<p>VISIBLEONE</p><td hidden="">SECRETHID<p>VISIBLETWO</p>',
-             'VISIBLEONE\nSECRETHID\n\nVISIBLETWO'),
-            ('th_outside_table',
-             '<p>VISIBLEONE</p><th hidden="">SECRETHID<p>VISIBLETWO</p>',
-             'VISIBLEONE\nSECRETHID\n\nVISIBLETWO'),
-            ('tr_outside_table_with_cell',
-             '<p>VISIBLEONE</p><tr hidden=""><td>SECRETHID</td><p>VISIBLETWO</p>',
-             'VISIBLEONE\n\nSECRETHID\n\nVISIBLETWO'),
-            ('tbody_outside_table',
-             '<p>VISIBLEONE</p><tbody hidden="">SECRETHID<p>VISIBLETWO</p>',
-             'VISIBLEONESECRETHID\n\nVISIBLETWO'),
-            ('nested_form',
-             '<form><form hidden="">SECRETHID<fieldset>VISIBLEONE</fieldset></form></form>',
-             'SECRETHIDVISIBLEONE'),
-            # A <tr>/<td> closes an open caption/colgroup in table scope, so
-            # the caption's hidden region ends where the browser ends it.
-            ('unclosed_caption_before_tr',
-             '<table><caption hidden="">SECRETCAP<tr><td>VISIBLECELL</td></tr></table>',
-             'VISIBLECELL'),
-            ('unclosed_caption_before_td',
-             '<table><caption hidden="">SECRETCAP<td>VISIBLECELL</table>',
-             'VISIBLECELL'),
-            ('unclosed_colgroup_before_tr',
-             '<table><colgroup hidden=""><col><tr><td>VISIBLECELL</td></tr></table>',
-             'VISIBLECELL'),
-            # An ignored token is not pushed onto the open-element stack, so it
-            # cannot stop a later implied-close scan at a special element the
-            # browser never created.
-            ('ignored_td_does_not_stop_dt_scan',
-             '<dt><div hidden=""><td><dt>VisibleText', 'VisibleText'),
-            ('ignored_caption_does_not_stop_p_scan',
-             '<p><caption><span hidden=""><center>VisibleText', 'VisibleText'),
-            # A nested (ignored) <form> must not run the <p>-closing rule, so
-            # the open hidden <p> stays open in the model exactly as in the
-            # browser; because a nested form is unmodelled error recovery, the
-            # structural prepass distrusts the document and leaks it instead
-            # of proving the region (Rule 15, safe direction).
-            ('ignored_nested_form_poisons_hidden_decision',
-             '<form><p hidden="">SECRETHID<span>X<form hidden="">VISIBLEONE',
-             'SECRETHIDXVISIBLEONE'),
-            ('ignored_tr_does_not_close_hidden_li',
-             '<caption><li hidden=""><tr><blockquote hidden=""></li>VisibleText',
-             'VisibleText'),
-        ]
-        self.assertEqual(
-            frozenset({'tr', 'td', 'th', 'caption', 'colgroup'}),
-            _HTMLTextExtractor._ROW_RULE[0])
-        self.assertEqual(
-            frozenset({'td', 'th', 'caption', 'colgroup'}),
-            _HTMLTextExtractor._CELL_RULE[0])
-        for name, body, expected in cases:
-            with self.subTest(case=name):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
-                self.assertEqual(expected,
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # A hidden caption/colgroup still hides its own content inside a table.
-        raw = make_epub('<table><caption hidden="">SECRETCAP<tr><td>VisibleCell</td></tr></table>',
-                        media_type='text/html', toc_links=[])
-        self.assertEqual('VisibleCell', extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # The ignored tokens are not counted as omitted elements either.
-        extractor = _HTMLTextExtractor(html_rcdata=True)
-        extractor.feed('<p>V</p><caption hidden="">S<p>W</p>')
-        self.assertEqual(0, extractor.hidden_elements)
-        self.assertEqual('VS\n\nW', extractor.get_text())
-
-    def test_leak_direction_limits_are_pinned(self):
-        # Documented limits (findings 3 and 4): both narrate hidden text, the
-        # safe direction for an audiobook, and neither drops visible text.
-        # 1. Formatting reconstruction (adoption agency) is not modelled: a
-        #    hidden <b>/<a> left open across a block is not reconstructed in
-        #    the next block, so its text is narrated.
-        for body in (
-            '<p><b hidden="">SECRETHID<p>VISIBLEONE</p>',
-            '<p><a hidden="">SECRETHID<header>VISIBLEONE</header></a></p>',
-            '<p><b hidden="">SECRETHID<div>VISIBLEONE</div></b></p>',
-        ):
-            with self.subTest(adoption=body):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
-                # The browser reconstructs the hidden formatting element in the
-                # new block and hides VISIBLEONE; this extractor narrates it.
-                self.assertEqual('VISIBLEONE',
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # 2. Python's HTMLParser honours the self-closing slash on a non-void
-        #    HTML element; a browser ignores it. This is a divergence *from*
-        #    browsers in the leak direction, kept because narrating text is
-        #    safer than dropping it.
-        raw = make_epub('<p>VISIBLEONE</p><div hidden=""/>SECRETHID<p>VISIBLETWO</p>',
-                        media_type='text/html', toc_links=[])
-        self.assertEqual('VISIBLEONESECRETHID\n\nVISIBLETWO',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-    def test_structural_gate_legacy_ignored_tokens_never_open_hidden_regions(self):
-        # HTML's <image> is <img> (void), <keygen>/<frame> are void, and
-        # <frameset> is ignored in body content. None creates a modelled
-        # element, so a `hidden` on one must never silence later prose.
-        for tag in ('image', 'keygen', 'frame', 'frameset'):
-            with self.subTest(tag=tag):
-                raw = make_epub(f'<p>ONE</p><{tag} hidden="">TWO<p>THREE</p>',
-                                media_type='text/html', toc_links=[])
-                self.assertEqual('ONETWO\n\nTHREE',
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-                # A close after the token must not turn it into a region that
-                # hides its content: the browser never inserted the element.
-                raw = make_epub(f'<{tag} hidden="">SECRET</{tag}>VISWORD',
-                                media_type='text/html', toc_links=[])
-                self.assertEqual('SECRETVISWORD',
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # A colgroup has no renderable text: browser-fostered text leaks.
-        raw = make_epub('<table><colgroup hidden="">SECRET</colgroup>'
-                        '<tr><td>VISWORD</td></tr></table>',
-                        media_type='text/html', toc_links=[])
-        self.assertEqual('SECRET\n\nVISWORD',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # A table token at an in-body current node is ignored, not inserted.
-        raw = make_epub('<table><summary><td hidden="">SECRET</td></summary>'
-                        'VISWORD</table>', media_type='text/html', toc_links=[])
-        self.assertEqual('SECRETVISWORD',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # Character data inside a column group is fostered out of the table.
-        raw = make_epub('<table hidden=""><colgroup>VISWORD</colgroup></table>',
-                        media_type='text/html', toc_links=[])
-        self.assertEqual('VISWORD',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw))
-        raw = make_epub('<table hidden=""><colgroup><p>VISWORD</p></colgroup></table>',
-                        media_type='text/html', toc_links=[])
-        self.assertEqual('VISWORD',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-    def test_unmodelled_closes_and_table_modes_are_leaks_never_drops(self):
-        # Every review-4 drop repro, asserted on the full extraction: the
-        # visible words are present. The secret may also be narrated (a
-        # documented leak); a missing visible word would be a bug.
-        cases = [
-            ('b_before_p_close', '<b hidden="">SECRETHID<p></b>VISWORD'),
-            ('em_before_p_close', '<em hidden="">SECRETHID<p></em>VISWORD'),
-            ('nested_a', '<a hidden=""><a>VISWORD'),
-            ('b_before_div_close', '<b hidden="">SECRETHID<div></b>VISWORD'),
-            ('nested_button', '<button hidden="">SECRETHID<button>VISWORD'),
-            ('nested_select', '<select hidden="">SECRETHID<select>VISWORD'),
-            ('nested_nobr', '<nobr hidden="">SECRETHID<nobr>VISWORD'),
-            ('table_form', '<table><form hidden="">VISWORD'),
-            ('table_hidden_form', '<table hidden=""><form hidden="">VISWORD'),
-            ('table_dt_colgroup', '<table><dt hidden=""><colgroup>VISWORD'),
-            ('table_dd_tbody', '<table><dd hidden=""><tbody></tbody>VISWORD'),
-        ]
-        for name, body in cases:
-            with self.subTest(case=name):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
-                text = extract_epub_text('synthetic.epub', archive_bytes=raw)
-                self.assertIn('VISWORD', text)
-        # The same shapes at least never drop the prose before them.
-        for name, body in cases:
-            with self.subTest(prefix=name):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
-                self.assertTrue(extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-    def test_heading_rule_pops_only_the_current_node(self):
-        # The spec's heading close is "current node only": an intervening span
-        # means the second heading does not pop the hidden one. A scope scan
-        # would narrate VISWORD; the browser hides it, so this pins the leak
-        # direction against the surviving mutant. The raw document has no
-        # closing body tag, so the h2 is only ended by the optional-end EOF
-        # rule (not by an ancestor close).
-        raw = make_epub('', media_type='text/html', toc_links=[],
-                        raw_document='<h2 hidden="">SECRETHID<span><h3>VISWORD</h3></span>')
-        self.assertEqual('', extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-    def test_prepass_poison_and_limits_are_pinned(self):
-        # Unmodelled insertion-mode anomalies anywhere poison the whole
-        # document: even a hidden region that closed cleanly before the
-        # anomaly is treated as visible (leak) so no later restructure can
-        # turn it into a drop.
-        poisoned = [
-            ('nested_select', '<p hidden="">SECRETHID</p><select><select>VISWORD'),
-            ('nested_form', '<p hidden="">SECRETHID</p><form><form>VISWORD'),
-            ('nested_anchor', '<p hidden="">SECRETHID</p><a><a>VISWORD'),
-        ]
-        for name, body in poisoned:
-            with self.subTest(case=name):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
-                self.assertEqual('SECRETHIDVISWORD',
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # An ancestor end tag blocked by a special element leaves the hidden
-        # region open in the model, but the browser may close the ancestor:
-        # the prepass distrusts it and narrates (leak), never dropping the
-        # following prose.
-        raw = make_epub('<p hidden="">SECRETHID<blockquote><ruby>'
-                        '<summary hidden=""><b>HIDDENWORD</ruby>VISWORD',
-                        media_type='text/html', toc_links=[])
-        self.assertEqual('SECRETHID\n\nHIDDENWORDVISWORD',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # Balanced hidden regions are still proved and omitted.
-        raw = make_epub('<p>VISIBLEONE</p><div hidden="">SECRETHID</div>'
-                        '<p>VISIBLETWO</p>', media_type='text/html', toc_links=[])
-        self.assertEqual('VISIBLEONE\n\nVISIBLETWO',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # UTF-16 limitation (pre-existing, out of scope): load_epub's
-        # BeautifulSoup text path yields no words for a UTF-16 chapter
-        # (whitespace only) while extract_epub_text decodes it. Pinned so the
-        # PR body's Limit cannot drift from the code.
-        utf16_doc = (
-            '<?xml version="1.0" encoding="utf-16"?>'
-            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title></head>'
-            '<body><p>VisibleOne.</p><p hidden="">Secret.</p>'
-            '<p>VisibleTwo.</p></body></html>')
-        raw = make_epub('', media_type='application/xhtml+xml', toc_links=[],
-                        raw_document=utf16_doc.encode('utf-16'))
-        self.assertEqual('VisibleOne.\n\nVisibleTwo.',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw))
-        with tempfile.TemporaryDirectory() as tmp:
-            epub_path = Path(tmp) / 'utf16.epub'
-            epub_path.write_bytes(raw)
-            self.assertEqual([], alignment.load_epub(str(epub_path)).split())
-
-    def test_ignored_end_tags_make_a_hidden_region_unsafe(self):
-        # HTML5 "any other end tag" stops at a special element and ignores the
-        # token: </span> above <p> and </ruby> above <ol> do not close the
-        # hidden element. The structural prepass cannot prove where that
-        # region ends, so Rule 15 treats the hidden element as visible (a
-        # leak) instead of keeping the region open and dropping visible text.
-        bodies = [
-            ('<span hidden="">Secret<p>para</span>Visible</p><p>After.</p>',
-             'Secret\n\nparaVisible\n\nAfter.'),
-            ('<ruby hidden="">Secret<ol></ruby>Visible', 'SecretVisible'),
-            ('<div hidden="">Secret<p>para</span>Visible</p></div><p>After.</p>',
-             'Secret\n\nparaVisible\n\nAfter.'),
-        ]
-        for body, expected in bodies:
-            with self.subTest(body=body):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
-                self.assertEqual(expected,
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # Control: a non-special descendant is closed by the ancestor's end
-        # tag exactly as in a browser, so the region is proved and stays
-        # hidden.
-        raw = make_epub('<div>Visible start. <span hidden="">secret</div><p>After.</p>',
-                        media_type='text/html', toc_links=[])
-        self.assertEqual('Visible start. \n\nAfter.',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw))
-
-    def test_table_foster_parented_content_stays_visible(self):
-        # HTML5 foster-parents non-table content before the table, so it is
-        # rendered outside a hidden table and must be narrated.
-        cases = [
-            ('fostered_text',
-             '<table hidden="">Fostered visible<tr><td>Cell</td></tr></table><p>After.</p>',
-             'Fostered visible\n\nAfter.'),
-            ('fostered_block',
-             '<table hidden=""><div>Fostered visible</div><tr><td>Cell</td></tr></table>'
-             '<p>After.</p>',
-             'Fostered visible\n\nAfter.'),
-            ('fostered_from_hidden_tbody',
-             '<table><tbody hidden="">Fostered in tbody<tr><td>Cell</td></tr></tbody></table>'
-             '<p>After.</p>',
-             'Fostered in tbody\n\nAfter.'),
-            ('fostered_from_hidden_row',
-             '<table><tr hidden="">Fostered in row<td>Cell</td></tr></table><p>After.</p>',
-             'Fostered in row\n\nAfter.'),
-            # A hidden element foster-parented out of the table (and left
-            # unclosed) does not become the table's outside environment. The
-            # prepass cannot prove where the browser placed it, so its
-            # `hidden` is treated as absent and its text is narrated (a leak).
-            ('fostered_element_above_table',
-             '<table><ruby hidden="">Reading<tr>FosteredVisible</tr></table>',
-             'ReadingFosteredVisible'),
-            ('nested_table_closes_hidden_table',
-             '<table hidden=""><table><tr><td>Inner</td></tr></table>'
-             '<tr><td>Cell</td></tr></table><p>After.</p>',
-             'Inner\n\nCell\n\nAfter.'),
-            # Non-fostered table content stays hidden.
-            ('hidden_cell',
-             '<table hidden=""><tr><td>Cell</td></tr></table>', ''),
-            # A hidden ancestor outside the table still hides fostered content.
-            ('hidden_ancestor_outside_table',
-             '<div hidden=""><table>Fostered inside hidden div<tr><td>Cell</td></tr>'
-             '</table></div><p>After.</p>',
-             'After.'),
-        ]
-        for name, body, expected in cases:
-            with self.subTest(case=name):
-                raw = make_epub(body, media_type='text/html', toc_links=[])
-                self.assertEqual(expected,
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
-        # XHTML is XML: there is no foster parenting, so the same invalid
-        # markup keeps the text inside the hidden table and every XML path
-        # (extract, read-aloud, load_epub) omits it.
-        raw_x = make_epub(
-            '<table hidden="">Fostered visible<tr><td>Cell</td></tr></table>'
-            '<div hidden=""><table>Fostered inside hidden div<tr><td>Cell</td></tr>'
-            '</table></div><p>After.</p>',
-            toc_links=[])
-        self.assertEqual('After.',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw_x))
-        _root, segs, _full = get_xhtml_segments(raw_x, 'OEBPS/ch1.xhtml')
-        self.assertEqual(['After.'], [s['text'] for s in segs])
-        with tempfile.TemporaryDirectory() as tmp:
-            epub_path = Path(tmp) / 'foster.epub'
-            epub_path.write_bytes(raw_x)
-            loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
-        self.assertEqual('After.', loaded)
-
     def test_root_context_skips_template_doctype_subset_and_noscript(self):
         class _FakeItem:
             def __init__(self, content):
@@ -1033,18 +612,22 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             self.assertEqual('Visible.', ' '.join(
                 alignment.load_epub(str(epub_path)).split()))
 
-    def test_bare_svg_and_math_in_xhtml_use_xml_namespace_on_every_path(self):
-        # XHTML without xmlns is still XML: a bare <svg>/<math> stays in the
-        # inherited XHTML namespace, so hidden applies and every path agrees.
+    def test_bare_svg_and_math_without_xmlns_use_the_xhtml_namespace(self):
+        # XHTML is XML: a bare <svg>/<math> without xmlns stays in the
+        # inherited XHTML namespace, so hidden applies. A well-formed
+        # text/html document takes the same XML path, so every path agrees.
         bodies = [
             ('bare_svg', '<p>Before.</p><svg><text hidden="">SVG</text></svg><p>After.</p>'),
             ('bare_math', '<p>Before.</p><math hidden=""><mi>x</mi></math><p>After.</p>'),
         ]
         for name, body in bodies:
             with self.subTest(case=name):
+                for media_type in ('application/xhtml+xml', 'text/html'):
+                    raw = make_epub(body, media_type=media_type, toc_links=[])
+                    self.assertEqual(
+                        'Before.\n\nAfter.',
+                        extract_epub_text('synthetic.epub', archive_bytes=raw))
                 raw_x = make_epub(body, toc_links=[])
-                self.assertEqual('Before.\n\nAfter.',
-                                 extract_epub_text('synthetic.epub', archive_bytes=raw_x))
                 _root, segs, _full = get_xhtml_segments(raw_x, 'OEBPS/ch1.xhtml')
                 self.assertEqual(['Before.', 'After.'], [s['text'] for s in segs])
                 with tempfile.TemporaryDirectory() as tmp:
@@ -1053,22 +636,13 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                     loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
                 self.assertEqual('Before. After.', loaded)
 
-                # In text/html the tag name itself creates the foreign
-                # namespace, so the same markup is narrated by the html.parser
-                # reader (load_epub only reads XHTML items, and read-aloud is
-                # XML, so neither applies to text/html media).
-                raw_h = make_epub(body, media_type='text/html', toc_links=[])
-                text_h = extract_epub_text('synthetic.epub', archive_bytes=raw_h)
-                if name == 'bare_svg':
-                    self.assertIn('SVG', text_h)
-                else:
-                    self.assertIn('x', text_h)
-
     def test_mathml_annotation_xml_html_integration_point(self):
         # annotation-xml with encoding text/html or application/xhtml+xml is
-        # an HTML integration point: a hidden HTML <p> inside it is omitted by
-        # both html.parser paths, matching the XML/read-aloud paths.
-        for encoding in ('text/html', 'application/xhtml+xml'):
+        # an HTML integration point. Because these test documents put <math>
+        # in the inherited XHTML namespace, the strict XML path applies to the
+        # hidden <p> for all three encodings and both media types; the XML
+        # paths agree.
+        for encoding in ('text/html', 'application/xhtml+xml', 'application/xml'):
             body = (
                 '<p>Before.</p><math><annotation-xml encoding="' + encoding + '">'
                 '<p hidden="">Note</p></annotation-xml><mi>x</mi></math>'
@@ -1078,52 +652,38 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                     raw = make_epub(body, media_type=media_type, toc_links=[])
                     self.assertEqual('Before.x\n\nAfter.',
                                      extract_epub_text('synthetic.epub', archive_bytes=raw))
-            # The XML paths agree (load_epub reads XHTML items only).
             raw_x = make_epub(body, media_type='application/xhtml+xml', toc_links=[])
             with tempfile.TemporaryDirectory() as tmp:
                 epub_path = Path(tmp) / 'annotation.epub'
                 epub_path.write_bytes(raw_x)
                 loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
             self.assertEqual('Before. x After.', loaded)
-        # Non-HTML encodings are not integration points. Known pinned
-        # divergence: the html.parser readers model the two integration
-        # encodings but not the generic "start tag that breaks out of foreign
-        # content" rule, so this hidden <p> is narrated rather than omitted.
-        body = ('<p>Before.</p><math><annotation-xml encoding="application/xml">'
-                '<p hidden="">Note</p></annotation-xml><mi>x</mi></math>'
-                '<p>After.</p>')
-        raw = make_epub(body, media_type='text/html', toc_links=[])
-        self.assertIn('Note',
-                      extract_epub_text('synthetic.epub', archive_bytes=raw))
 
     def test_hidden_void_elements_are_not_counted_as_omitted_elements(self):
         body = (
             '<p>Visible.</p>'
-            '<p hidden=""><br hidden><img hidden src="x.png">Secret.</p>'
-            '<hr hidden><br hidden>')
-        raw = make_epub(body, media_type='text/html', toc_links=[])
-        text, report = extract_epub_text('synthetic.epub', archive_bytes=raw,
-                                         include_report=True)
-        self.assertEqual('Visible.', text)
-        rows = [row for row in report['rows'] if row['kind'] == 'hidden_content']
-        self.assertEqual(1, len(rows))
-        self.assertEqual(1, rows[0]['omitted_elements'])
+            '<p hidden=""><br hidden=""/><img hidden="" src="x.png"/>Secret.</p>'
+            '<hr hidden=""/><br hidden=""/>'
+        )
+        for media_type in ('application/xhtml+xml', 'text/html'):
+            with self.subTest(media_type=media_type):
+                raw = make_epub(body, media_type=media_type, toc_links=[])
+                text, report = extract_epub_text('synthetic.epub', archive_bytes=raw,
+                                                 include_report=True)
+                self.assertEqual('Visible.', text)
+                rows = [row for row in report['rows'] if row['kind'] == 'hidden_content']
+                self.assertEqual(1, len(rows))
+                self.assertEqual(1, rows[0]['omitted_elements'])
         # Only hidden void elements: nothing omits text, so no hidden row.
-        raw_voids = make_epub('<p>Visible.</p><br hidden><img hidden src="x.png">',
-                              media_type='text/html', toc_links=[])
-        _text, report_voids = extract_epub_text(
-            'synthetic.epub', archive_bytes=raw_voids, include_report=True)
-        self.assertEqual([], [row for row in report_voids['rows']
-                              if row['kind'] == 'hidden_content'])
-        # Same rule on the strict XML path.
-        raw_xml = make_epub(
-            '<p>Visible.</p><br hidden=""/><img hidden="" src="x.png"/>'
-            '<div hidden=""><br hidden=""/></div>', toc_links=[])
-        _text_x, report_x = extract_epub_text(
-            'synthetic.epub', archive_bytes=raw_xml, include_report=True)
-        rows_x = [row for row in report_x['rows'] if row['kind'] == 'hidden_content']
-        self.assertEqual(1, len(rows_x))
-        self.assertEqual(1, rows_x[0]['omitted_elements'])
+        for media_type in ('application/xhtml+xml', 'text/html'):
+            with self.subTest(case='voids', media_type=media_type):
+                raw_voids = make_epub(
+                    '<p>Visible.</p><br hidden=""/><img hidden="" src="x.png"/>',
+                    media_type=media_type, toc_links=[])
+                _text, report_voids = extract_epub_text(
+                    'synthetic.epub', archive_bytes=raw_voids, include_report=True)
+                self.assertEqual([], [row for row in report_voids['rows']
+                                      if row['kind'] == 'hidden_content'])
 
     def test_svg_and_mathml_hidden_attributes_are_not_dropped_across_all_paths(self):
         cases = [
@@ -1157,16 +717,6 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                     loaded = alignment.load_epub(str(epub_path))
                 self.assertIn(expected_token, loaded)
 
-        # Bare HTML5 <svg>/<math> without xmlns on text/html path.
-        bare_html = (
-            '<p>Before.</p><svg><text hidden="">Bare SVG</text></svg>'
-            '<math><mi hidden="">Bare Math</mi></math><p>After.</p>'
-        )
-        raw_bare = make_epub(bare_html, media_type='text/html', toc_links=[])
-        bare_text = extract_epub_text('synthetic.epub', archive_bytes=raw_bare)
-        self.assertIn('Bare SVG', bare_text)
-        self.assertIn('Bare Math', bare_text)
-
         # Qwen sentence-splitting inline events also keep SVG/MathML text.
         p_svg = ET.fromstring(
             '<p xmlns="http://www.w3.org/1999/xhtml">Before '
@@ -1199,15 +749,16 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
         self.assertEqual('Before. After.', loaded)
 
-    def test_prefixed_xhtml_hidden_applies_to_xml_paths_and_not_text_html(self):
+    def test_prefixed_xhtml_hidden_applies_on_every_xml_path(self):
+        # A well-formed text/html document is parsed as XML, so the
+        # XHTML-namespaced prefixed form applies there too.
         body = '<p h:hidden="hidden">Prefixed secret.</p><p>Visible.</p>'
         extra = ' xmlns:h="http://www.w3.org/1999/xhtml"'
+        for media_type in ('application/xhtml+xml', 'text/html'):
+            with self.subTest(media_type=media_type):
+                raw = make_epub(body, media_type=media_type, extra_html_attrs=extra, toc_links=[])
+                self.assertEqual('Visible.', extract_epub_text('synthetic.epub', archive_bytes=raw))
         raw_x = make_epub(body, extra_html_attrs=extra, toc_links=[])
-        raw_h = make_epub(body, media_type='text/html', extra_html_attrs=extra, toc_links=[])
-
-        self.assertEqual('Visible.', extract_epub_text('synthetic.epub', archive_bytes=raw_x))
-        self.assertEqual('Prefixed secret.\n\nVisible.',
-                         extract_epub_text('synthetic.epub', archive_bytes=raw_h))
         _root, segs, _full = get_xhtml_segments(raw_x, 'OEBPS/ch1.xhtml')
         self.assertEqual(['Visible.'], [s['text'] for s in segs])
         with tempfile.TemporaryDirectory() as tmp:
@@ -1219,18 +770,17 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
     def test_hidden_on_html_and_body_across_all_paths_and_all_hidden_epub_consistency(self):
         doc_tpl = '<?xml version="1.0" encoding="utf-8"?>\n<html xmlns="http://www.w3.org/1999/xhtml"{extra}>{inner}</html>'
         all_hidden_shapes = [
-            ('html_hidden', doc_tpl.format(extra=' hidden="hidden"', inner='<head><title>T</title></head><body><p>Secret.</p></body>'), True),
-            ('body_hidden', doc_tpl.format(extra='', inner='<head><title>T</title></head><body hidden=""><p>Secret.</p></body>'), True),
-            ('body_h_hidden', doc_tpl.format(extra=' xmlns:h="http://www.w3.org/1999/xhtml"', inner='<head><title>T</title></head><body h:hidden=""><p>Secret.</p></body>'), False),
-            ('only_p_hidden', doc_tpl.format(extra='', inner='<head><title>T</title></head><body><p hidden="">Secret.</p></body>'), True),
+            ('html_hidden', doc_tpl.format(extra=' hidden="hidden"', inner='<head><title>T</title></head><body><p>Secret.</p></body>')),
+            ('body_hidden', doc_tpl.format(extra='', inner='<head><title>T</title></head><body hidden=""><p>Secret.</p></body>')),
+            ('body_h_hidden', doc_tpl.format(extra=' xmlns:h="http://www.w3.org/1999/xhtml"', inner='<head><title>T</title></head><body h:hidden=""><p>Secret.</p></body>')),
+            ('only_p_hidden', doc_tpl.format(extra='', inner='<head><title>T</title></head><body><p hidden="">Secret.</p></body>')),
         ]
-        for name, raw_doc, also_html in all_hidden_shapes:
+        for name, raw_doc in all_hidden_shapes:
             with self.subTest(shape=name):
+                for media_type in ('application/xhtml+xml', 'text/html'):
+                    raw = make_epub('', raw_document=raw_doc, media_type=media_type, toc_links=[])
+                    self.assertEqual('', extract_epub_text('synthetic.epub', archive_bytes=raw))
                 raw_x = make_epub('', raw_document=raw_doc, toc_links=[])
-                self.assertEqual('', extract_epub_text('synthetic.epub', archive_bytes=raw_x))
-                if also_html:
-                    raw_h = make_epub('', raw_document=raw_doc, media_type='text/html', toc_links=[])
-                    self.assertEqual('', extract_epub_text('synthetic.epub', archive_bytes=raw_h))
                 _root, segs, full = get_xhtml_segments(raw_x, 'OEBPS/ch1.xhtml')
                 self.assertEqual([], segs)
                 self.assertEqual('', full)
@@ -1268,6 +818,36 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                     epub_path.write_bytes(raw_multi)
                     loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
                 self.assertEqual('Chapter two visible.', loaded)
+
+        # Finding 6: the hidden-specific refusal fires only when every spine
+        # document is entirely hidden. One hidden chapter plus one empty
+        # visible chapter behaves as origin/main (empty text, no refusal).
+        empty_visible_doc = doc_tpl.format(
+            extra='', inner='<head><title>T</title></head><body></body>')
+        hidden_doc = doc_tpl.format(
+            extra='', inner='<head><title>T</title></head><body hidden=""><p>Secret.</p></body>')
+        raw_mixed = make_multi_epub([('ch1.xhtml', hidden_doc), ('ch2.xhtml', empty_visible_doc)])
+        self.assertEqual('', extract_epub_text('synthetic.epub', archive_bytes=raw_mixed))
+        with tempfile.TemporaryDirectory() as tmp:
+            epub_path = Path(tmp) / 'mixed.epub'
+            epub_path.write_bytes(raw_mixed)
+            # origin/main returns the empty visible chapter's whitespace
+            # rather than the hidden-specific refusal.
+            self.assertFalse(alignment.load_epub(str(epub_path)).strip())
+        # Two hidden chapters: the hidden-specific refusal does fire.
+        raw_all_hidden = make_multi_epub([('ch1.xhtml', hidden_doc), ('ch2.xhtml', hidden_doc)])
+        with tempfile.TemporaryDirectory() as tmp:
+            epub_path = Path(tmp) / 'all_hidden.epub'
+            epub_path.write_bytes(raw_all_hidden)
+            with self.assertRaisesRegex(ValueError, r'no readable text after omitting HTML hidden elements'):
+                alignment.load_epub(str(epub_path))
+        # A single empty visible chapter (no hidden content) keeps the generic
+        # empty result, not the hidden-specific refusal.
+        raw_empty = make_multi_epub([('ch1.xhtml', empty_visible_doc)])
+        with tempfile.TemporaryDirectory() as tmp:
+            epub_path = Path(tmp) / 'empty_visible.epub'
+            epub_path.write_bytes(raw_empty)
+            self.assertFalse(alignment.load_epub(str(epub_path)).strip())
 
         # Direct _epub_item_root_context checks: detects hidden on <html>/<body>,
         # ignores fake <body hidden> inside <style>/comments, and stops at <body>.
