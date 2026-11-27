@@ -39,6 +39,7 @@ import logging
 import os
 import re
 import threading
+import unicodedata
 
 from silent_word_characters import remove_silent_word_characters
 
@@ -79,18 +80,95 @@ logger = logging.getLogger(__name__)
 _audition_matcher = ContextVar("pronunciation_audition_matcher", default=None)
 
 
-def _compile(entries):
-    """One regex over all keys, longest first.
+_UNSPACED_SCRIPT_PREFIXES = (
+    "CJK UNIFIED IDEOGRAPH", "CJK COMPATIBILITY IDEOGRAPH",
+    "HIRAGANA", "KATAKANA", "HALFWIDTH KATAKANA",
+    "THAI", "LAO", "KHMER", "MYANMAR", "TIBETAN",
+)
+_STRAIGHT_AND_TYPOGRAPHIC_APOSTROPHES = "'\u2019\u02bc"
+_COMBINING_CATEGORIES = frozenset(("Mn", "Mc", "Me"))
+
+
+def is_unspaced_key(key):
+    """Whether a key is written in a script that does not separate words with spaces.
+
+    Derived from Unicode character names (Unicode script data), not a table of
+    ranges, so the letter bound follows the script a name is written in. A key
+    with any Latin letter, a digit-only key or one containing whitespace keeps
+    the normal word bounds.
+    """
+    letters = [char for char in key if unicodedata.category(char).startswith("L")]
+    return (bool(letters) and not any(char.isspace() for char in key) and all(
+        unicodedata.name(char, "").startswith(_UNSPACED_SCRIPT_PREFIXES)
+        for char in letters))
+
+
+def is_key_match(text, start, end, key):
+    """THE ONE DECISION: may `key` match this exact span of `text`?
+
+    Every caller reaches this through _compile, so no second copy of the
+    boundary rules can drift from this one. A leading apostrophe always blocks
+    (a name inside O'Brien is not the name), a trailing apostrophe never does
+    (Mara's is the same name), and a following combining mark always blocks
+    (राम is not the word रामा).
+    """
+    previous = text[start - 1] if start else ""
+    following = text[end] if end < len(text) else ""
+    if previous and previous in _STRAIGHT_AND_TYPOGRAPHIC_APOSTROPHES:
+        return False
+    if is_unspaced_key(key):
+        return not (following and unicodedata.category(following) in _COMBINING_CATEGORIES)
+    if previous and (previous.isalnum() or previous == "_"):
+        return False
+    if following and following in _STRAIGHT_AND_TYPOGRAPHIC_APOSTROPHES:
+        return True                       # possessive/plural, never a word character
+    return not (following and (following.isalnum() or following == "_"
+                               or unicodedata.category(following) in _COMBINING_CATEGORIES))
+
+
+class _PronunciationMatcher:
+    """One alternation scan whose every candidate is adjudicated by is_key_match."""
+
+    def __init__(self, keys, ignore_case=False):
+        self._regex = re.compile("(" + "|".join(re.escape(key) for key in keys) + ")",
+                                 re.IGNORECASE if ignore_case else 0)
+
+    def finditer(self, text):
+        position = 0
+        while position < len(text):
+            match = self._regex.search(text, position)
+            if match is None:
+                return
+            start, end = match.span()
+            if is_key_match(text, start, end, match.group(0)):
+                yield match
+                position = end
+            else:
+                position = start + 1
+
+    def sub(self, replacement, text):
+        pieces, last = [], 0
+        for match in self.finditer(text):
+            pieces.append(text[last:match.start()])
+            pieces.append(replacement(match))
+            last = match.end()
+        pieces.append(text[last:])
+        return "".join(pieces)
+
+
+def _compile(entries, ignore_case=False):
+    """One matcher over all keys, longest first.
 
     Longest-first matters: with both "Natsuki" and "Natsuki Subaru" present,
     alternation would otherwise match the shorter key inside the longer name
-    and leave a half-substituted phrase.
+    and leave a half-substituted phrase. Sorting the alternation by length is
+    also what keeps a shorter key from firing inside a longer matching key in
+    a script without word spaces.
     """
-    keys = sorted((k for k in entries if k), key=len, reverse=True)
+    keys = sorted((k for k in entries if k), key=lambda key: (-len(key), key))
     if not keys:
         return None
-    return re.compile(r"(?<![\w'])(" + "|".join(re.escape(k) for k in keys)
-                      + r")(?![\w'])")
+    return _PronunciationMatcher(keys, ignore_case=ignore_case)
 
 
 def load_lexicon(path=None, force=False):
@@ -567,9 +645,7 @@ def get_occurrence_pronunciation_candidates(prepared, uid, text, query, *, ignor
         raise ValueError('Choose an exact spelling of 1–128 characters.')
     if len(text) > 131072:
         raise ValueError('This line exceeds the occurrence editor text limit.')
-    pattern = _compile({query: query})
-    if ignore_case:
-        pattern = re.compile(pattern.pattern, pattern.flags | re.IGNORECASE)
+    pattern = _compile({query: query}, ignore_case=ignore_case)
     anchors = {'coordinate_space': OCCURRENCE_COORDINATE_SPACE,
                'offset_unit': 'unicode_codepoint', 'uid': uid,
                'text_sha256': get_pronunciation_text_digest(text),

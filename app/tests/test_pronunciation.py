@@ -7,6 +7,7 @@ leaves no trace, so the listener hears one thing and the script says another.
 """
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -67,14 +68,90 @@ class LexiconTest(unittest.TestCase):
         out, applied = apply_pronunciation("a Romance from Rome", p)
         self.assertEqual(out, "a Romance from Rome")
         self.assertEqual(applied, [])
+        p = self.write({"Dr": "Doctor"})
+        self.assertEqual("Drake saw Doctor Who", apply_pronunciation("Drake saw Dr Who", p)[0])
 
-    def test_it_does_not_fire_across_an_apostrophe(self):
-        """`Subaru's` is the same name and would be broken by a naive swap
-        that ignored the trailing possessive."""
-        p = self.write({"Subaru": "Soo-bah-roo"})
-        out, applied = apply_pronunciation("Subaru's hand", p)
-        self.assertEqual(out, "Subaru's hand")
-        self.assertEqual(applied, [])
+    def test_a_unspaced_script_key_matches_inside_a_run(self):
+        """In Han/kana/Thai text the next letter cannot be a boundary: it is
+        almost always the next word. Longest-first keeps a shorter key from
+        splitting a longer one."""
+        p = self.write({"太郎": "Taro"})
+        for text in ("太郎は来た", "太郎が来た", "太郎。来た"):
+            with self.subTest(text=text):
+                self.assertEqual(text.replace("太郎", "Taro"),
+                                 apply_pronunciation(text, p)[0])
+        p = self.write({"王明": "Wang Ming"})
+        self.assertEqual("Wang Ming走了", apply_pronunciation("王明走了", p)[0])
+        p = self.write({"王": "W", "王明": "Wang Ming"})
+        self.assertEqual("Wang Ming走了", apply_pronunciation("王明走了", p)[0])
+        p = self.write({"太郎": "Taro", "郎": "Rou"})
+        self.assertEqual("Taroは", apply_pronunciation("太郎は", p)[0])
+        p = self.write({"ไทย": "Thai"})
+        self.assertEqual("ประเทศThai", apply_pronunciation("ประเทศไทย", p)[0])
+
+    def test_a_combining_mark_after_a_key_blocks_it(self):
+        """A vowel sign belongs to the word: राम must not fire in रामा."""
+        for key, blocked, allowed in (("राम", "रामा ने", "राम ने"),
+                                      ("রাম", "রামা", "রাম "),
+                                      ("ராம", "ராமா", "ராம ")):
+            with self.subTest(key=key):
+                p = self.write({key: "Raam"})
+                self.assertEqual(blocked, apply_pronunciation(blocked, p)[0])
+                self.assertEqual(allowed.replace(key, "Raam"),
+                                 apply_pronunciation(allowed, p)[0])
+        p = self.write({"राम": "Raam"})
+        self.assertEqual("Raam। ने", apply_pronunciation("राम। ने", p)[0])
+
+    def test_a_changed_match_changes_render_identity_only_on_affected_lines(self):
+        """Prepared speech is the render identity: a take publication records
+        its digest as pronunciation_sha256, and restoration refuses a saved
+        take whose preparation differs. The straight-apostrophe possessive now
+        prepares differently; the curly form (already matching) does not."""
+        from speech_text import get_speech_normalization
+        from synthesis_recovery_identity import get_recovery_digest
+        p = self.write({"Mara": "Mahra"})
+        legacy = re.compile(r"(?<![\w'])(Mara)(?![\w'])")
+        original_path = pronunciation.DEFAULT_PATH
+        original_resolver = pronunciation.get_pronunciation_path
+        pronunciation.DEFAULT_PATH = p
+        pronunciation.get_pronunciation_path = lambda path=None: p
+        reset = dict(path=None, fingerprint=None, entries={}, pattern=None)
+        try:
+            for text, affected in (("Mara's hat", True), ("Mara\u2019s hat", False)):
+                with self.subTest(text=text):
+                    pronunciation._cache.update(reset)
+                    after = get_recovery_digest(get_speech_normalization(text))
+                    pronunciation._cache.update(reset)
+                    with patch.object(pronunciation, "_compile", return_value=legacy):
+                        before = get_recovery_digest(get_speech_normalization(text))
+                    if affected:
+                        self.assertNotEqual(before, after)
+                    else:
+                        self.assertEqual(before, after)
+        finally:
+            pronunciation.DEFAULT_PATH = original_path
+            pronunciation.get_pronunciation_path = original_resolver
+            pronunciation._cache.update(reset)
+
+    def test_it_fires_on_a_possessive_but_not_across_a_leading_apostrophe(self):
+        """`Subaru's` is the same name: the trailing possessive is kept rather
+        than blocking the substitution, and both apostrophes behave the same.
+        A LEADING apostrophe still blocks, so a name inside O'Brien is never
+        split by an entry for Brien."""
+        p = self.write({"Subaru": "Soo-bah-roo", "Brien": "Bry-en"})
+        for apostrophe in ("'", "\u2019", "\u02bc"):
+            with self.subTest(apostrophe=apostrophe):
+                out, applied = apply_pronunciation("Subaru" + apostrophe + "s hand", p)
+                self.assertEqual("Soo-bah-roo" + apostrophe + "s hand", out)
+                self.assertEqual([{"name": "Subaru", "spoken": "Soo-bah-roo"}], applied)
+                leading = "O" + apostrophe + "Brien"
+                self.assertEqual((leading, []), apply_pronunciation(leading, p))
+
+    def test_a_plural_s_still_blocks_a_shorter_key_but_not_its_own_key(self):
+        p = self.write({"Mara": "Mahra"})
+        self.assertEqual(("Maras' hat", []), apply_pronunciation("Maras' hat", p))
+        p = self.write({"Maras": "Mahras"})
+        self.assertEqual("Mahras' hat", apply_pronunciation("Maras' hat", p)[0])
 
     def test_an_empty_respelling_is_ignored(self):
         """The shipped file lists every name with an empty value, so the
