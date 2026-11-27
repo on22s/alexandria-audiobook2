@@ -164,8 +164,46 @@ _XHTML_NS = 'http://www.w3.org/1999/xhtml'
 _SVG_NS = 'http://www.w3.org/2000/svg'
 _MATHML_NS = 'http://www.w3.org/1998/Math/MathML'
 _ROOT_PROLOG_TAGS = frozenset({
-    'html', 'head', 'title', 'meta', 'link', 'style', 'script', 'base', 'noscript',
+    'html', 'head', 'title', 'meta', 'link', 'style', 'script', 'base',
+    'basefont', 'bgsound', 'noscript', 'noframes', 'template', 'textarea',
 })
+# HTML5 table insertion modes ("in table", "in table body", "in row") keep
+# only these tokens inside the table; everything else is foster-parented
+# before the table and is therefore not hidden by the table's own ``hidden``
+# attribute (nor by a hidden table section/row).
+_TABLE_SECTIONS = frozenset({'table', 'tbody', 'tfoot', 'thead', 'tr'})
+_TABLE_KEPT_TOKENS = {
+    'table': frozenset({
+        'caption', 'colgroup', 'col', 'tbody', 'tfoot', 'thead', 'td', 'th',
+        'tr', 'style', 'script', 'template', 'input',
+    }),
+    'tbody': frozenset({
+        'tr', 'td', 'th', 'caption', 'colgroup', 'col', 'tbody', 'tfoot',
+        'thead', 'style', 'script', 'template', 'input',
+    }),
+    'thead': frozenset({
+        'tr', 'td', 'th', 'caption', 'colgroup', 'col', 'tbody', 'tfoot',
+        'thead', 'style', 'script', 'template', 'input',
+    }),
+    'tfoot': frozenset({
+        'tr', 'td', 'th', 'caption', 'colgroup', 'col', 'tbody', 'tfoot',
+        'thead', 'style', 'script', 'template', 'input',
+    }),
+    'tr': frozenset({
+        'tr', 'td', 'th', 'caption', 'colgroup', 'col', 'tbody', 'tfoot',
+        'thead', 'style', 'script', 'template', 'input',
+    }),
+}
+
+
+def _is_fostered_table_child(table_tag, child_tag):
+    """Return whether ``child_tag`` is foster-parented out of a table context.
+
+    ``child_tag`` is ``None`` for character data. A fostered node is inserted
+    before the table in the rendered tree, so the table's ``hidden`` attribute
+    does not reach it.
+    """
+    return child_tag is None or child_tag not in _TABLE_KEPT_TOKENS.get(table_tag, ())
 
 
 def is_html_hidden_attrs(attrs, *, xml_namespaces=None, element_namespace=None) -> bool:
@@ -210,19 +248,65 @@ def is_html_hidden_attrs(attrs, *, xml_namespaces=None, element_namespace=None) 
 
 
 class _RootContextParser(HTMLParser):
-    """Inspect only the opening ``<html>``/``<body>`` start tags of an EPUB item."""
-    CDATA_CONTENT_ELEMENTS = HTMLParser.CDATA_CONTENT_ELEMENTS + ('title',)
+    """Inspect only the opening ``<html>``/``<body>`` start tags of an EPUB item.
+
+    Only the document's own ``<html>``/``<body>`` tags are considered. Literal
+    ``<body hidden>`` text inside head-only content cannot become a false
+    positive: ``title``/``textarea``/``noscript`` are RCDATA/raw text,
+    ``<template>`` content is a separate fragment (its markup is skipped),
+    comments/PIs/CDATA are tokenizer-level constructs, and
+    :meth:`parse_html_declaration` skips a DOCTYPE internal subset as a unit.
+    """
+    CDATA_CONTENT_ELEMENTS = HTMLParser.CDATA_CONTENT_ELEMENTS + (
+        'title', 'textarea', 'noscript')
 
     def __init__(self):
         super().__init__()
         self.namespaces = {}
         self.doc_hidden = False
         self.done = False
+        self.template_depth = 0
+
+    def parse_html_declaration(self, index):
+        # HTMLParser stops a DOCTYPE at the first ``>``, so
+        # ``<!DOCTYPE html [ ... <body hidden> ... ]>`` leaves the rest of
+        # the subset to be read as markup (a fake document body). The subset
+        # can never contain the document element, so skip the whole
+        # declaration, quotes and bracket depth included, in one step.
+        rawdata = self.rawdata
+        if rawdata[index:index + 9].lower() != '<!doctype':
+            return super().parse_html_declaration(index)
+        depth = 0
+        quote = None
+        cursor = index + 9
+        while cursor < len(rawdata):
+            char = rawdata[cursor]
+            if quote is not None:
+                if char == quote:
+                    quote = None
+            elif char in '"\'':
+                quote = char
+            elif char == '[':
+                depth += 1
+            elif char == ']' and depth:
+                depth -= 1
+            elif char == '>' and not depth:
+                self.handle_decl(rawdata[index + 2:cursor])
+                return cursor + 1
+            cursor += 1
+        return -1  # incomplete declaration: wait for the next chunk
 
     def handle_starttag(self, tag, attrs):
         if self.done:
             return
         tag = tag.lower()
+        if tag == 'template':
+            self.template_depth += 1
+            return
+        if self.template_depth:
+            # Template content is parsed into a separate DocumentFragment;
+            # a <body> inside it is not the document body.
+            return
         if tag in ('html', 'body'):
             for key, value in attrs:
                 if not isinstance(key, str) or not isinstance(value, str):
@@ -240,6 +324,10 @@ class _RootContextParser(HTMLParser):
                 self.done = True
         elif tag not in _ROOT_PROLOG_TAGS:
             self.done = True
+
+    def handle_endtag(self, tag):
+        if tag.lower() == 'template' and self.template_depth:
+            self.template_depth -= 1
 
 
 def _decode_head_encoding(raw: bytes) -> str:
@@ -287,47 +375,92 @@ def _epub_item_root_context(item):
     return parser.doc_hidden, parser.namespaces
 
 
-def resolve_html_element_namespace(tag: str, attrs, inherited_ns: str, ns_map: dict):
-    """Return ``(element_ns, child_default_ns, updated_ns_map)`` for an HTML/XHTML tag."""
+_HTML_INTEGRATION_ENCODINGS = frozenset({'text/html', 'application/xhtml+xml'})
+
+
+def resolve_html_element_namespace(tag: str, attrs, inherited_ns: str, ns_map: dict,
+                                   *, html_name_heuristic: bool = False):
+    """Return ``(element_ns, child_default_ns, updated_ns_map)`` for an HTML/XHTML tag.
+
+    ``html_name_heuristic`` selects how a *bare* ``<svg>``/``<math>`` is read:
+    in ``text/html`` the tag name itself creates the foreign namespace, while
+    XHTML (``application/xhtml+xml``) is XML, so without ``xmlns`` the element
+    stays in the inherited XHTML namespace and ``hidden`` still applies. The
+    two ``html.parser`` readers (``_extract_bs4_visible_text`` and
+    ``_HTMLTextExtractor``) pass True only for tolerant ``text/html`` media so
+    they agree with the real XML paths.
+
+    The child namespace re-enters HTML at the HTML integration points:
+    SVG ``foreignObject`` and MathML ``annotation-xml`` whose ``encoding`` is
+    ``text/html`` or ``application/xhtml+xml``.
+    """
+    if (not attrs and ':' not in tag and inherited_ns in ('', _XHTML_NS)
+            and not (html_name_heuristic and tag in ('svg', 'math'))):
+        # Fast path: an unprefixed HTML element with no attributes inherits
+        # the HTML namespace; nothing below can change that.
+        return inherited_ns, inherited_ns, ns_map
     elem_ns_map = ns_map
     explicit_xmlns = None
-    if attrs:
-        items = attrs.items() if hasattr(attrs, 'items') else attrs
-        for key, value in items:
-            if not isinstance(key, str) or not isinstance(value, str):
-                continue
-            if key == 'xmlns':
-                explicit_xmlns = value
-            elif key.startswith('xmlns:'):
-                if elem_ns_map is ns_map:
-                    elem_ns_map = dict(ns_map)
-                elem_ns_map[key[6:]] = value
+    attr_items = list(attrs.items()) if hasattr(attrs, 'items') else list(attrs or ())
+    for key, value in attr_items:
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        if key == 'xmlns':
+            explicit_xmlns = value
+        elif key.startswith('xmlns:'):
+            if elem_ns_map is ns_map:
+                elem_ns_map = dict(ns_map)
+            elem_ns_map[key[6:]] = value
     if ':' in tag:
         elem_ns = elem_ns_map.get(tag.partition(':')[0], inherited_ns)
     elif explicit_xmlns is not None:
         elem_ns = explicit_xmlns
-    elif tag == 'svg':
+    elif html_name_heuristic and tag == 'svg':
         elem_ns = _SVG_NS
-    elif tag == 'math':
+    elif html_name_heuristic and tag == 'math':
         elem_ns = _MATHML_NS
     else:
         elem_ns = inherited_ns
-    child_ns = '' if (elem_ns == _SVG_NS and tag == 'foreignobject') else elem_ns
+    child_ns = elem_ns
+    if elem_ns == _SVG_NS and tag == 'foreignobject':
+        child_ns = ''
+    elif elem_ns == _MATHML_NS and tag == 'annotation-xml':
+        for key, value in attr_items:
+            if (isinstance(key, str) and key.isascii() and key.lower() == 'encoding'
+                    and isinstance(value, str)
+                    and value.strip().lower() in _HTML_INTEGRATION_ENCODINGS):
+                child_ns = ''
+                break
     return elem_ns, child_ns, elem_ns_map
 
 
-def _extract_bs4_visible_text(soup, *, root_namespaces=None) -> tuple[str, bool]:
-    """Return ``(visible_text, saw_hidden)`` in one linear pass without ``decompose()``."""
+def _extract_bs4_visible_text(soup, *, root_namespaces=None,
+                              html_name_heuristic=True) -> tuple[str, bool]:
+    """Return ``(visible_text, saw_hidden)`` in one linear pass without ``decompose()``.
+
+    ``html_name_heuristic`` is passed through to
+    :func:`resolve_html_element_namespace` (True only for ``text/html`` media).
+
+    Table foster-parenting: HTML5 renders non-table content found directly in
+    a table, table section or table row *before* the table, so a hidden table
+    does not hide it. BeautifulSoup's ``html.parser`` keeps that content in
+    place, so this walker models the rendered tree itself: a table-mode child
+    that is not table structure is emitted with the hidden state of the
+    table's parent context, and character data directly in a table mode is
+    treated the same way.
+    """
     string_types = soup.interesting_string_types or soup.MAIN_CONTENT_STRING_TYPES
     base_ns = dict(root_namespaces) if root_namespaces else {}
     initial_ns = base_ns.get('', '')
     chunks = []
     saw_hidden = False
-    stack = [(child, base_ns, initial_ns) for child in reversed(soup.contents)]
+    # (node, ns_map, inherited_ns, hidden, table_env_hidden)
+    stack = [(child, base_ns, initial_ns, False, None)
+             for child in reversed(soup.contents)]
     while stack:
-        node, ns_map, inherited_ns = stack.pop()
+        node, ns_map, inherited_ns, hidden, table_env = stack.pop()
         if isinstance(node, NavigableString):
-            if type(node) in string_types:
+            if type(node) in string_types and not hidden:
                 chunks.append(str(node))
             continue
         name = getattr(node, 'name', None)
@@ -338,15 +471,39 @@ def _extract_bs4_visible_text(soup, *, root_namespaces=None) -> tuple[str, bool]
             continue
         attrs = getattr(node, 'attrs', None)
         elem_ns, child_ns, elem_ns_map = resolve_html_element_namespace(
-            tag, attrs, inherited_ns, ns_map)
-        if attrs and is_html_hidden_attrs(
-                attrs, xml_namespaces=elem_ns_map, element_namespace=elem_ns):
+            tag, attrs, inherited_ns, ns_map, html_name_heuristic=html_name_heuristic)
+        node_hidden = hidden or bool(attrs and is_html_hidden_attrs(
+            attrs, xml_namespaces=elem_ns_map, element_namespace=elem_ns))
+        if node_hidden:
             saw_hidden = True
-            continue
-        contents = getattr(node, 'contents', None)
-        if contents:
+        contents = getattr(node, 'contents', None) or ()
+        if tag in _TABLE_SECTIONS and html_name_heuristic:
+            env = table_env if table_env is not None else hidden
+            children = list(contents)
+            # A nested <table> start tag closes the enclosing table in HTML5,
+            # so everything from that token on is outside it in the rendered
+            # tree (BeautifulSoup keeps it nested).
+            nested_table_at = None
+            for position, child in enumerate(children):
+                child_name = getattr(child, 'name', None)
+                if isinstance(child_name, str) and child_name.lower() == 'table':
+                    nested_table_at = position
+                    break
+            for position in reversed(range(len(children))):
+                child = children[position]
+                if nested_table_at is not None and position > nested_table_at:
+                    stack.append((child, elem_ns_map, child_ns, env, None))
+                    continue
+                child_name = getattr(child, 'name', None)
+                child_tag = child_name.lower() if isinstance(child_name, str) else None
+                fostered = _is_fostered_table_child(tag, child_tag)
+                child_in_table = child_tag in _TABLE_SECTIONS
+                stack.append((child, elem_ns_map, child_ns,
+                              env if fostered else node_hidden,
+                              env if child_in_table else None))
+        elif not node_hidden:
             for child in reversed(contents):
-                stack.append((child, elem_ns_map, child_ns))
+                stack.append((child, elem_ns_map, child_ns, False, None))
     return ' '.join(chunks), saw_hidden
 
 
@@ -425,8 +582,11 @@ def load_epub(path: str) -> str:
         if doc_hidden:
             saw_hidden = True
             continue
+        media_type = (getattr(item, 'media_type', '') or '').split(';', 1)[0].strip().lower()
         soup = BeautifulSoup(item.get_content(), 'html.parser')
-        text, item_hidden = _extract_bs4_visible_text(soup, root_namespaces=root_namespaces)
+        text, item_hidden = _extract_bs4_visible_text(
+            soup, root_namespaces=root_namespaces,
+            html_name_heuristic=media_type != 'application/xhtml+xml')
         saw_hidden = saw_hidden or item_hidden
         parts.append(text)
     if not parts or (saw_hidden and not any(part.strip() for part in parts)):

@@ -25,9 +25,31 @@ it is not applied to SVG or MathML elements; CSS `display:none` and
 `aria-hidden` are not inferred or dropped. In tolerant `text/html` resources,
 self-closing syntax on non-void elements (such as `<div hidden=""/>`) is
 treated as self-closing by Python's `HTMLParser`, preserving following text
-rather than over-dropping prose. When every spine document in an EPUB is hidden,
-script extraction returns empty text, read-aloud returns no segments, and
-`alexandria_alignment.load_epub` raises a `ValueError` naming hidden elements.
+rather than over-dropping prose. Tolerant `text/html` also models the HTML5
+tree-construction rules that decide whether a hidden element still wraps later
+prose: the complete `<p>`-closing start-tag set (including `center`, `dir`,
+`listing`, `summary`, `xmp` and `plaintext`), the `li`/`dd`/`dt` implied
+closes (which stop at the spec's special elements except `address`/`div`/`p`),
+table cells/rows/sections/`caption`/`colgroup`, select options, ruby
+annotations, and `head`/`body`. End tags the browser ignores (a stray `</span>`
+above a `<p>`, `</ruby>` above `<ol>`) never close a hidden ancestor. Content
+the HTML5 parser foster-parents out of a table (character data, prose or an
+unexpected element directly inside a table, table section or row) is rendered
+before the table, so a hidden table does not hide it and it is narrated; XHTML
+is parsed as XML there, where no foster-parenting occurs, so the XML paths keep
+the text inside the hidden table. `omitted_elements` counts outermost hidden
+elements that can omit text; a hidden void element (`<br hidden>`,
+`<img hidden>`) is not counted because it omits no text.
+`load_epub`'s `<html>`/`<body>` root detection decodes UTF-8/UTF-16 and skips
+comments, PIs, DOCTYPE internal subsets, RCDATA head content (`title`,
+`textarea`, `noscript`), and `<template>` fragments, so literal `<body hidden>`
+text in any of them is not mistaken for the document body. `load_epub`'s
+existing `BeautifulSoup` text path still returns `''` for a UTF-16 chapter
+(unchanged from before this feature); this is pre-existing and out of scope,
+so encoding support is not claimed end-to-end. When every spine document in an
+EPUB is hidden, script extraction returns empty text, read-aloud returns no
+segments, and `alexandria_alignment.load_epub` raises a `ValueError` naming
+hidden elements.
 Navigation targets pointing only to
 anchors inside a hidden subtree do not resolve into visible text and do not
 insert navigation labels; they are reported with reason
