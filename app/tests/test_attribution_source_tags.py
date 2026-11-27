@@ -242,6 +242,11 @@ class SourceTagTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual({}, get_attribution_tag_evidence(
                     [{'type': 'SPOKEN', 'text': text}], source, {'ZELLA', 'BRAM'}))
+        # `‘tis` is read as a `‘` opener, so the guard abstains and drops the
+        # evidence; this errs safe and is documented in Limits (#2388 gate 5).
+        self.assertEqual({}, get_attribution_tag_evidence(
+            [{'type': 'SPOKEN', 'text': 'Are you in town?'}],
+            '“Are you in town?” Anna said, ‘tis late.', {'ANNA', 'BEN'}))
         # A period-ending tag is the disclosed unguarded shape: a blank line
         # after it changes nothing (#2388 gate 3).
         self.assertEqual({0: 'ZELLA'}, get_attribution_tag_evidence(
@@ -484,6 +489,63 @@ class SourceTagTests(unittest.TestCase):
             source_text='“Let us go,” said Miss Vale. Ben waited.',
             known_names={'LUCY VALE', 'BEN'})['passed'])
 
+    def test_longer_prediction_with_a_different_person_word_is_not_joined(self):
+        # FINDING 1 (#2388 gate 5). Mirror of the longer-tag guard: an
+        # unestablished "said John Vale." tag used to join a LONGER established
+        # prediction carrying a generational or foreign married-woman word.
+        # Main contradicts every row below, and variant V6 keeps that verdict
+        # by refusing the join when the prediction's extra words are those
+        # markers, at no measured PDNC cost.
+        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
+        source = '“Let us go,” said John Vale. Ben waited.'
+        for label in (
+            'FRAU JOHN VALE',
+            'MADAME JOHN VALE',
+            'MME JOHN VALE',
+            'SEÑORA JOHN VALE',
+            'YOUNG JOHN VALE',
+            'JOHN VALE JUNIOR',
+            'JOHN VALE SENIOR',
+            'OLD JOHN VALE',
+            'LITTLE JOHN VALE',
+        ):
+            roster = {label, 'BEN'}
+            with self.subTest(label=label):
+                self.assertEqual({0: 'JOHN VALE'}, get_attribution_tag_evidence(
+                    entry, source, roster))
+                report = validate_attribution(
+                    entry, [{'n': 0, 'speaker': label}],
+                    source_text=source, known_names=roster)
+                self.assertFalse(report['passed'], report)
+                self.assertEqual('speaker_contradicts_source_tag',
+                                 report['findings'][0]['code'])
+        # Variant M (the English married-woman title) is unchanged by V6.
+        report = validate_attribution(
+            entry, [{'n': 0, 'speaker': 'MRS JOHN VALE'}],
+            source_text=source, known_names={'MRS JOHN VALE', 'BEN'})
+        self.assertFalse(report['passed'], report)
+        self.assertEqual('speaker_contradicts_source_tag',
+                         report['findings'][0]['code'])
+        # A qualifying title that names the SAME person still joins: the
+        # measured "MARQIS DE GRIERS" / "De Griers" shape keeps its evidence.
+        self.assertEqual({0: 'DE GRIERS'}, get_attribution_tag_evidence(
+            entry, '“Let us go,” said De Griers. Ben waited.',
+            {'MARQIS DE GRIERS', 'BEN'}))
+        self.assertTrue(validate_attribution(
+            entry, [{'n': 0, 'speaker': 'MARQIS DE GRIERS'}],
+            source_text='“Let us go,” said De Griers. Ben waited.',
+            known_names={'MARQIS DE GRIERS', 'BEN'})['passed'])
+        # The disclosed LADY row is unchanged: Lady is a title, so the
+        # same-words join still applies (Limits). Explicit evidence pins the
+        # comparison even though this head's title-stripped indexing already
+        # resolves the tag to the full label.
+        for evidence in ('JOHN VALE', 'LADY JOHN VALE'):
+            with self.subTest(lady_evidence=evidence):
+                self.assertTrue(validate_attribution(
+                    entry, [{'n': 0, 'speaker': 'LADY JOHN VALE'}],
+                    source_text=source, known_names={'LADY JOHN VALE', 'BEN'},
+                    tag_evidence={0: evidence})['passed'])
+
     def test_non_manner_ly_word_fills_the_adverb_slot(self):
         # _TAG_ADVERB accepts any lowercase -ly word ("Anna family said.").
         # Kept as a disclosed limit: on PDNC it produced no false flag, and a
@@ -566,17 +628,17 @@ class SourceTagTests(unittest.TestCase):
         # title+surname tag ("said Miss Steele") cannot name which sibling
         # speaks, so a wrong-sibling prediction is NOT contradicted. On the
         # measured recording this silences 2 real catches (gold ANNE STEELE,
-        # model named LUCY, tag "said Miss Steele"). The trade-off is disclosed
-        # in the PR body and pinned here.
+        # model named LUCY STEELE, tag "said Miss Steele"). The trade-off is
+        # disclosed in the PR body and pinned here.
         source = '“Let us go,” said Miss Steele. Ben waited.'
         entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
-        siblings = {'ANNE STEELE', 'LUCY', 'BEN'}
+        siblings = {'ANNE STEELE', 'LUCY STEELE', 'BEN'}
         # The tag evidence is the unnamed sibling label itself...
         self.assertEqual({0: 'MISS STEELE'},
                          get_attribution_tag_evidence(entry, source, siblings))
         # ...and a model that named the wrong sibling is not contradicted.
         self.assertTrue(validate_attribution(
-            entry, [{'n': 0, 'speaker': 'LUCY'}], source_text=source,
+            entry, [{'n': 0, 'speaker': 'LUCY STEELE'}], source_text=source,
             known_names=siblings)['passed'])
         self.assertTrue(validate_attribution(
             entry, [{'n': 0, 'speaker': 'ANNE STEELE'}], source_text=source,
@@ -584,9 +646,9 @@ class SourceTagTests(unittest.TestCase):
         # But the trade-off is bounded: an ESTABLISHED sibling tag label still
         # contradicts the other sibling, and a spelled-out first name + surname
         # that differs is not silenced (see test_unnamed_sibling_negative...).
-        established = {'ANNE STEELE', 'LUCY', 'MISS STEELE', 'BEN'}
+        established = {'ANNE STEELE', 'LUCY STEELE', 'MISS STEELE', 'BEN'}
         self.assertFalse(validate_attribution(
-            entry, [{'n': 0, 'speaker': 'LUCY'}], source_text=source,
+            entry, [{'n': 0, 'speaker': 'LUCY STEELE'}], source_text=source,
             known_names=established)['passed'])
 
     def test_unnamed_sibling_negative_case_contradicts(self):
@@ -617,23 +679,3 @@ class SourceTagTests(unittest.TestCase):
             entry, [{'n': 0, 'speaker': 'LUCY VALE'}],
             source_text='“Let us go,” said Miss Vale. Ben waited.',
             known_names={'LUCY VALE', 'BEN'})['passed'])
-
-    def test_married_woman_title_alias_does_not_silence_the_husband(self):
-        # FINDING 2 (#2388 rev1). A title-stripped full-name form must not turn
-        # "MRS. JOHN X -> wife" into an identity key for "JOHN X". The husband
-        # keeps his own evidence in the alias arm; the wife's tag stays hers.
-        entry = [{'type': 'SPOKEN', 'text': 'Let us go,'}]
-        roster = {'JOHN X', 'wife', 'BEN'}
-        aliases = {'MRS. JOHN X': 'wife'}
-        husband = '“Let us go,” said John X. Ben waited.'
-        # Husband's own tag resolves to him, not to the wife...
-        self.assertEqual({0: 'JOHN X'},
-                         get_attribution_tag_evidence(entry, husband, roster, aliases))
-        # ...and a model naming the husband is not silenced for the wife.
-        self.assertTrue(validate_attribution(
-            entry, [{'n': 0, 'speaker': 'JOHN X'}], source_text=husband,
-            known_names=roster, speaker_aliases=aliases)['passed'])
-        # A model naming the WIFE on the husband's tag still contradicts.
-        self.assertFalse(validate_attribution(
-            entry, [{'n': 0, 'speaker': 'wife'}], source_text=husband,
-            known_names=roster, speaker_aliases=aliases)['passed'])

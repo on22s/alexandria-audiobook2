@@ -861,6 +861,21 @@ NAME_TITLE_PREFIXES = frozenset({
 # an identity key for John. These are the married-woman entries of the title
 # data above; add a title here when it joins the same convention.
 _MARRIED_WOMAN_TITLES = frozenset({"mrs"})
+# Prediction words the tag does not carry that name a DIFFERENT person from the
+# tag's plain name, so the prefix/suffix identity join must refuse them
+# (#2388 gate 5, variant V6):
+#   - generational words: junior, senior, young, old, little distinguish a son,
+#     an elder or a child from the bare name ("John Vale Junior" is not the
+#     father "John Vale");
+#   - foreign married-woman titles: frau, madame, mme, señora/senora, signora
+#     name the wife, like the English "mrs" handled by _MARRIED_WOMAN_TITLES.
+# An extra title that only qualifies the SAME person is deliberately absent:
+# "MARQIS DE GRIERS" against a "De Griers" tag is measured and must keep
+# joining. Keys are compared through _get_title_key (casefold, trailing ".").
+_DIFFERENT_PERSON_EXTRA_WORDS = frozenset({
+    "junior", "senior", "young", "old", "little",
+    "frau", "madame", "mme", "señora", "senora", "signora",
+})
 
 
 # These words are routinely capitalised by sentence position alone. They may
@@ -1107,7 +1122,7 @@ _TAG_NEXT_QUOTE_OPENERS = frozenset(QUOTE_MARKS) | {"‘"}
 _TAG_NEXT_QUOTE_WRAP = re.compile(r"[ \t]*\r?\n(?:[ \t]*\r?\n)?[ \t]*")
 
 
-def _title_key(word):
+def _get_title_key(word):
     """One title-token normalizer, shared by tag-name rejection and stripping."""
     return word.casefold().rstrip(".")
 
@@ -1116,7 +1131,7 @@ def _is_valid_tag_name(value):
     return bool(
         value
         and value.casefold() not in _NON_PERSON_NAME_WORDS
-        and _title_key(value) not in NAME_TITLE_PREFIXES
+        and _get_title_key(value) not in NAME_TITLE_PREFIXES
         and not any(word.casefold().endswith(("'s", "’s", "'", "’"))
                     for word in value.split())
         and all(word[:1].isupper() for word in value.split())
@@ -1142,8 +1157,8 @@ def _get_speaker_title_and_words(label):
     """Split a label into its leading titles and the remaining words."""
     words = remove_silent_word_characters(str(label or "")).split()
     titles = []
-    while words and _title_key(words[0]) in NAME_TITLE_PREFIXES:
-        titles.append(_title_key(words[0]))
+    while words and _get_title_key(words[0]) in NAME_TITLE_PREFIXES:
+        titles.append(_get_title_key(words[0]))
         words = words[1:]
     return titles, words
 
@@ -1153,7 +1168,9 @@ def _is_same_tag_identity(speaker, expected, established_pool):
 
     Distinct established roster labels with different personal words (e.g.
     MARY MUSGROVE vs MRS MUSGROVE) and labels with conflicting titles (MR. vs
-    MRS.) still contradict.
+    MRS.) still contradict, as does a prediction whose extra word is a
+    generational or foreign married-woman marker (JOHN VALE JUNIOR, FRAU JOHN
+    VALE) against the tag's plain name.
     """
     from speaker_identity import get_speaker_identity_key, resolve_speaker_label
     if resolve_speaker_label(speaker, [expected]):
@@ -1192,6 +1209,16 @@ def _is_same_tag_identity(speaker, expected, established_pool):
         # first name plus surname against a bare first name - not the same
         # identity (#2388 gate 3). The shorter-tag join below still lets an
         # unestablished "Miss Vale" label join a predicted "LUCY VALE".
+        return False
+    if any(_get_title_key(word) in _DIFFERENT_PERSON_EXTRA_WORDS
+           for word in sp_words if word not in exp_words):
+        # The prediction carries a word the tag's name does not. A generational
+        # word ("JOHN VALE JUNIOR", "YOUNG JOHN VALE") or a foreign married-
+        # woman title ("FRAU JOHN VALE") makes it a different person from the
+        # tag's plain name; the shorter-tag join below would otherwise accept
+        # it as a suffix/prefix match (#2388 gate 5, variant V6). An extra
+        # honorific ("MARQIS DE GRIERS" vs "De Griers") is not listed and
+        # keeps joining.
         return False
     short, full = ((exp_words, sp_words) if len(exp_words) <= len(sp_words)
                    else (sp_words, exp_words))
