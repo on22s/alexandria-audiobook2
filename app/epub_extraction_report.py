@@ -15,6 +15,14 @@ class EpubExtractionReport:
         self.omitted_rows = 0
         self.omitted_rows_by_kind = {}
         self.row_bytes_by_group = {'identity': 0, 'detail': 0}
+        # Set only when hidden omission actually applied to an included
+        # resource, so a hidden-free or non-XHTML book keeps origin/main's
+        # content_policy instead of claiming a policy it never exercised.
+        self.html_hidden_omitted = False
+
+    def note_html_hidden_omitted(self):
+        """Record that hidden omission applied to an included resource."""
+        self.html_hidden_omitted = True
 
     def apply_row(self, kind, **values):
         row = {'kind': kind}
@@ -37,6 +45,9 @@ class EpubExtractionReport:
             self.row_bytes_by_group[group] += size
 
     def get_report(self, text):
+        content_policy = ('spine_order; style_script_title_not_spoken; '
+                          + ('html_hidden_not_spoken; ' if self.html_hidden_omitted else '')
+                          + 'navigation_document_not_spoken; no_front_back_matter_exclusion')
         return {
             'schema_version': 1,
             'source_sha256': self.source_sha256,
@@ -45,8 +56,7 @@ class EpubExtractionReport:
             'identity_scope': 'captured_archive_and_import_text_not_current_editor',
             'normalization': 'existing_invisible_character_space_and_blank_line_normalization',
             'title_policy': 'navigation_label_when_not_already_near_target; no_html_title_or_generated_title',
-            'content_policy': ('spine_order; style_script_title_not_spoken; '
-                               'navigation_document_not_spoken; no_front_back_matter_exclusion'),
+            'content_policy': content_policy,
             'formatting': 'plain_text_only; emphasis_not_attached; xhtml_uses_tolerant_html_parser',
             'rows': list(self.rows),
             'omitted_rows': self.omitted_rows,
