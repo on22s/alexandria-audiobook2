@@ -45,7 +45,6 @@ Script classification is read from the running interpreter's Unicode database
 (`unicodedata`), so it depends on the Unicode version that ships with Python.
 Characters unassigned in that database classify as ordinary (spaced) text.
 """
-from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import lru_cache
@@ -113,8 +112,6 @@ _TIBETAN = frozenset(("Tibetan",))
 _UNSPACED_SCRIPT_NAME_PREFIXES = (
     ("CJK UNIFIED IDEOGRAPH", _HAN),
     ("CJK COMPATIBILITY IDEOGRAPH", _HAN),
-    ("KANGXI RADICAL", _HAN),
-    ("CJK RADICAL", _HAN),
     ("HIRAGANA", _HIRAGANA),
     ("HALFWIDTH KATAKANA", _KATAKANA),
     ("KATAKANA", _KATAKANA),
@@ -127,22 +124,28 @@ _UNSPACED_SCRIPT_NAME_PREFIXES = (
 
 # Characters whose Script property is Han/Common or Common in a CJK run and
 # whose English name does not name that script. Checked against the Unicode
-# script property, not just the name: 々, 〆, 〇 and 〻 are Han; the vertical
-# kana repeat marks are Hiragana; ー is Script=Common but prolongs the syllable
-# in both kana. They occur inside the same unspaced run, so a single-character
-# key must not fire next to them. Separators (CJK punctuation, ・, ゠) are
-# deliberately absent: they end a word, so a single-character key may match
-# beside them.
+# script property, not just the name: 々, 〆, 〇, 〼, 𖿣 and 〻 are Han; the
+# vertical kana repeat marks and spacing voiced marks occur in both kana runs;
+# ー is Script=Common but prolongs the syllable in both kana. They occur inside
+# the same unspaced run, so a single-character key must not fire next to them.
+# Separators (CJK punctuation, ・, ゠) are deliberately absent: they end a word,
+# so a single-character key may match beside them. Kangxi/CJK radicals
+# (U+2E80–U+2FDF) are symbols, not Han: they are deliberately absent, so a
+# single-character key may match beside them.
 _CJK_SCRIPT_OVERRIDES = {
     "\u3005": _HAN,        # 々 IDEOGRAPHIC ITERATION MARK (Script=Han)
     "\u3006": _HAN,        # 〆 IDEOGRAPHIC CLOSING MARK (Script=Han)
-    "\u3007": _HAN,        # 〇 IDEOGRAPHIC NUMBER ZERO (Script=Han)
+    "\u3007": _HAN,        # 〇 IDEOGRAPHIC NUMBER ZERO (Script=Han, category Nl)
     "\u303b": _HAN,        # 〻 VERTICAL IDEOGRAPHIC ITERATION MARK (Script=Han)
-    "\u3031": _HIRAGANA,   # 〱 VERTICAL KANA REPEAT MARK (Script=Hiragana)
-    "\u3032": _HIRAGANA,   # 〲 VERTICAL KANA REPEAT MARK WITH VOICED SOUND
-    "\u3033": _HIRAGANA,   # 〳 VERTICAL KANA REPEAT MARK UPPER HALF
-    "\u3034": _HIRAGANA,   # 〴 ... WITH VOICED SOUND
-    "\u3035": _HIRAGANA,   # 〵 VERTICAL KANA REPEAT MARK LOWER HALF
+    "\u303c": _HAN,        # 〼 MASU MARK (Script=Han)
+    "\U00016fe3": _HAN,    # 𖿣 OLD CHINESE ITERATION MARK (Script=Han)
+    "\u3031": _KANA,       # 〱 VERTICAL KANA REPEAT MARK (Script=Hiragana; runs)
+    "\u3032": _KANA,       # 〲 VERTICAL KANA REPEAT MARK WITH VOICED SOUND
+    "\u3033": _KANA,       # 〳 VERTICAL KANA REPEAT MARK UPPER HALF
+    "\u3034": _KANA,       # 〴 ... WITH VOICED SOUND
+    "\u3035": _KANA,       # 〵 VERTICAL KANA REPEAT MARK LOWER HALF
+    "\u309b": _KANA,       # ゛ KATAKANA-HIRAGANA VOICED SOUND MARK (Common)
+    "\u309c": _KANA,       # ゜ KATAKANA-HIRAGANA SEMI-VOICED SOUND MARK (Common)
     "\u30fc": _KANA,       # ー KATAKANA-HIRAGANA PROLONGED SOUND MARK (Common)
 }
 
@@ -166,7 +169,8 @@ def _unspaced_script_classes(char):
     if override is not None:
         return override
     category = unicodedata.category(char)
-    if not (category.startswith("L") or category.startswith("M") or category == "Nd"):
+    if not (category.startswith("L") or category.startswith("M")
+            or category in ("Nd", "Nl")):
         return frozenset()   # punctuation/separators end a word; not a script neighbour
     name = unicodedata.name(char, "")
     for prefix, classes in _UNSPACED_SCRIPT_NAME_PREFIXES:
@@ -181,11 +185,14 @@ def is_unspaced_key(key):
 
     Decided from the Unicode script class of the key's LETTERS (see
     _unspaced_script_classes); digits and punctuation are neutral, so `3月`
-    is unspaced while `3rd` is not. A key with any spaced-script letter, no
-    letters at all (a digit-only key), or whitespace keeps the normal word
-    bounds. The input is a string key, so the result is memoised.
+    is unspaced while `3rd` is not. Letter Numbers count as letters here, so
+    one `〇` (category Nl) is unspaced on its own. A key with any spaced-script
+    letter, no letters at all (a digit-only key), or whitespace keeps the
+    normal word bounds. The input is a string key, so the result is memoised.
     """
-    letters = [char for char in key if unicodedata.category(char).startswith("L")]
+    letters = [char for char in key
+               if unicodedata.category(char).startswith("L")
+               or unicodedata.category(char) == "Nl"]
     return (bool(letters) and not any(char.isspace() for char in key)
             and all(_unspaced_script_classes(char) for char in letters))
 
@@ -413,99 +420,6 @@ def ensure_pronunciation_audition(entries):
         yield
     finally:
         _audition_matcher.reset(token)
-
-
-# ── keeping the name list honest ─────────────────────────────────────────
-
-def character_forms(script_path=None, aliases_path=None, voice_config_path=None):
-    """Every written form of every character that ACTUALLY OCCURS in the text.
-
-    WHY DERIVED RATHER THAN LISTED. The first version of this file carried a
-    hardcoded list of thirteen names typed from memory. It included Ram and
-    Rem, who do not appear in this book at all, and it would silently have no
-    entry for a character it forgot or for any other book. The roster already
-    exists in character_aliases.json and voice_config.json; a second list
-    beside them is the parallel-maintenance problem this repo has been bitten
-    by before.
-
-    ALIASES ARE USED FOR DISCOVERY, NEVER FOR SUBSTITUTION. The alias map
-    records IDENTITY - 'BETTY' -> 'BEATRICE' is one character - while a
-    lexicon records SOUND, and those come apart. Speaking "Betty" as
-    "Beatrice" would put a word in the audio that is not in the book, which is
-    worse than mispronouncing it. So every written form gets its own entry and
-    the canonical name confers nothing on its variants.
-
-    CASE IS LOAD-BEARING. `Felt` is a character here and `felt` is a verb:
-    242 and 65 occurrences in the same book. Matching case-insensitively would
-    rewrite the verb. Only forms that occur with their own capitalisation are
-    returned.
-    """
-    import json as _json
-    from utils import get_runtime_data_dir
-    root = get_runtime_data_dir(REPO)
-    script_path = script_path or os.path.join(root, "chunks.json")
-    aliases_path = aliases_path or os.path.join(root, "character_aliases.json")
-    voice_config_path = voice_config_path or os.path.join(root,
-                                                          "voice_config.json")
-
-    def _read(path):
-        try:
-            with open(path, encoding="utf-8") as fh:
-                return _json.load(fh)
-        except (OSError, ValueError):
-            return None
-
-    candidates = set()
-    aliases = _read(aliases_path)
-    if isinstance(aliases, dict):
-        for variant, canonical in aliases.items():
-            candidates.add(str(variant))
-            candidates.add(str(canonical))
-    vc = _read(voice_config_path)
-    if isinstance(vc, dict):
-        chars = vc.get("characters") if isinstance(vc.get("characters"), dict) else vc
-        candidates.update(str(k) for k in chars)
-
-    chunks = _read(script_path)
-    if not isinstance(chunks, list):
-        return {}
-    text = "\n".join(str(c.get("text") or "") for c in chunks
-                      if isinstance(c, dict))
-    if isinstance(chunks, list):
-        candidates.update(str(c.get("speaker")) for c in chunks
-                          if isinstance(c, dict) and c.get("speaker"))
-
-    # A speaker label is usually upper case while prose uses natural case, so
-    # try the label AND its title-cased form - but count each spelling
-    # separately, because that is what the substitution will match.
-    token_counts = Counter(re.findall(r"[\w']+", text))
-
-    def count_occurrences(form):
-        if re.fullmatch(r"\w+", form):
-            return token_counts[form]
-        return len(re.findall(r"(?<![\w'])" + re.escape(form) + r"(?![\w'])", text))
-
-    forms = {}
-    for name in candidates:
-        name = name.strip()
-        if len(name) < 2:
-            continue
-        for form in {name, name.title()}:
-            n = count_occurrences(form)
-            if not n:
-                continue
-            # A form whose LOWERCASE also occurs is a name that collides with
-            # an ordinary word: Felt/felt (242/65), Man/man (11/95), Cat/cat
-            # (1/22). Case-sensitive matching already protects the verb, but
-            # an editor filling this file in deserves to be warned before
-            # giving "Man" a respelling.
-            lower = count_occurrences(form.lower())
-            forms[form] = {"occurrences": n,
-                           "collides_with_common_word": bool(lower and
-                                                             form != form.lower()),
-                           "lowercase_occurrences": lower}
-    return dict(sorted(forms.items(),
-                       key=lambda kv: -kv[1]["occurrences"]))
 
 
 MAX_OCCURRENCE_RULES = 32
