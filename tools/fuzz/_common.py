@@ -290,15 +290,25 @@ def is_known_empty_zip_member_index_error(exc: IndexError) -> bool:
 # bytes.decode, so this is the same tracked bug as #2368.
 _EMBEDDED_NULL_VALUE_ERROR = "embedded null character"
 
+# get_epub_xhtml_text delegates to alexandria_alignment's one encoding sniff
+# (Rule 15), so the declaration decode now raises inside these two functions.
+# Both are the same #2368 failure; the router frame is kept for older trees.
+_ALIGNMENT_XHTML_DECODE_FUNCTIONS = frozenset(
+    {"decode_epub_markup", "_decode_head_encoding"})
+
 
 def is_known_xhtml_encoding_error(exc: BaseException) -> bool:
-    """Known bug #2368: get_epub_xhtml_text decode error on a bad XML encoding declaration.
+    """Known bug #2368: XHTML decode error on a bad XML encoding declaration.
 
-    Both documented failure sites (the ``encoding="..."`` declaration decode
-    and the resource ``data.decode(...)``) live in this one function, and it has
-    no other language-level decode failure, so the function frame is the scope.
-    Besides LookupError/UnicodeError, ``codecs`` raises ``ValueError("embedded
-    null character")`` when the declaration-supplied codec name contains NUL.
+    The declaration decode and the resource ``data.decode(...)`` run in
+    ``alexandria_alignment.decode_epub_markup`` (its ``_decode_head_encoding``
+    helper decodes the declared name) since the router's
+    ``get_epub_xhtml_text`` became a thin delegate to that shared sniff. Both
+    live in those two functions, which have no other language-level decode
+    failure, so file+function is the scope; the old
+    ``get_epub_xhtml_text`` site is still accepted. Besides
+    LookupError/UnicodeError, ``codecs`` raises ``ValueError("embedded null
+    character")`` when the declaration-supplied codec name contains NUL.
     """
     if not isinstance(exc, (LookupError, UnicodeError)):
         if not (isinstance(exc, ValueError) and str(exc) == _EMBEDDED_NULL_VALUE_ERROR):
@@ -307,10 +317,12 @@ def is_known_xhtml_encoding_error(exc: BaseException) -> bool:
     if not frames:
         return False
     last = frames[-1]
-    return (
-        _resolved_path(last.tb_frame.f_code.co_filename) == _SCRIPT_ROUTER_PATH
-        and last.tb_frame.f_code.co_name == "get_epub_xhtml_text"
-    )
+    name = last.tb_frame.f_code.co_name
+    path = _resolved_path(last.tb_frame.f_code.co_filename)
+    if path == _SCRIPT_ROUTER_PATH:
+        return name == "get_epub_xhtml_text"
+    return (path == _ALEXANDRIA_ALIGNMENT_PATH
+            and name in _ALIGNMENT_XHTML_DECODE_FUNCTIONS)
 
 
 # ET.fromstring(bytes) refuses an XML encoding declaration it cannot process in

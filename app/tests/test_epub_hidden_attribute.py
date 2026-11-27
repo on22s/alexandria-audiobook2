@@ -14,6 +14,7 @@ shared predicates (``alexandria_alignment.is_html_hidden_attrs`` and
 import contextlib
 import io
 import json
+import sys
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -1543,6 +1544,38 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             extract_epub_text('synthetic.epub', archive_bytes=raw)
         self.assertIn('SECRET', _load_bytes(raw))
 
+    def test_bad_encoding_name_load_stays_byte_identical_to_origin_main(self):
+        # Merge gate 3 finding 1: a hidden-free XHTML item whose declaration
+        # names a non-ASCII or NUL encoding is refused by extraction (#2368)
+        # but was narrated by origin/main's load_epub. Hidden handling must
+        # decline on the decode failure and leave ebooklib's path unchanged.
+        rows = {
+            'non_ascii_name': (
+                b'<?xml version="1.0" encoding="\xe9"?>',
+                UnicodeDecodeError,
+                "ascii' codec can't decode byte 0xe9"),
+            'nul_name': (
+                b'<?xml version="1.0" encoding="ut\x00f-8"?>',
+                ValueError,
+                'embedded null character'),
+        }
+        body = (
+            b'<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+            b'</head><body><p>Hello world.</p></body></html>')
+        for name, (declaration, extraction_error, message) in rows.items():
+            with self.subTest(case=name):
+                raw = make_epub('', raw_document=declaration + body,
+                                toc_links=[])
+                # origin/main's literal load_epub output, pinned byte for byte.
+                self.assertEqual(
+                    '\n \n \n \n \n Hello world. \n \n \n', _load_bytes(raw))
+                with self.assertRaisesRegex(extraction_error, message):
+                    extract_epub_text('synthetic.epub', archive_bytes=raw)
+                with self.assertRaisesRegex(
+                        ValueError, '^Spine document is malformed: '
+                                    'OEBPS/ch1.xhtml$'):
+                    get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+
     def test_load_epub_hidden_script_only_is_not_entirely_hidden(self):
         # `script` text was never narrated, so hiding it removed no narrated
         # text: this is origin/main's empty result, not the hidden refusal.
@@ -1639,6 +1672,51 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
             '<p>TAIL</p></body></html>')
         self.assertEqual(expected, alignment.cut_xml_subtrees(document).visible)
         self.assertEqual(expected, _omit_xml_ignored_subtrees(document))
+
+
+class FuzzKnownBugFilterTests(unittest.TestCase):
+    """The fuzz harness's #2368 filter must follow the shared decode helper."""
+
+    def test_known_bug_filter_accepts_the_shared_xhtml_decode_frames(self):
+        fuzz_dir = str(Path(__file__).resolve().parents[2] / 'tools' / 'fuzz')
+        if fuzz_dir not in sys.path:
+            sys.path.insert(0, fuzz_dir)
+        import _common  # noqa: PLC0415 - tools/fuzz is not on the test path
+
+        # The three review-gate-3 inputs: a non-ASCII declared name (raised in
+        # _decode_head_encoding), NUL inside the name (decode_epub_markup), and
+        # an unknown codec (decode_epub_markup). All are open bug #2368.
+        # Catch by hand: unittest's assertRaises strips the traceback, which
+        # the predicate needs.
+        for data in (b'<?xml version="1.0" encoding="\xe9"?><a/>',
+                     b'<?xml version="1.0" encoding="ut\x00f-8"?><a/>',
+                     b'<?xml version="1.0" encoding="bogus"?><a/>'):
+            with self.subTest(data=data):
+                try:
+                    script.get_epub_xhtml_text(data)
+                except (LookupError, ValueError, UnicodeError) as exc:
+                    self.assertTrue(
+                        _common.is_known_xhtml_encoding_error(exc),
+                        f'{type(exc).__name__} not filtered')
+                else:
+                    self.fail('expected a declared-encoding decode error')
+
+        # Same type and message, but raised outside the two #2368 sites.
+        try:
+            b'x'.decode('ut\x00f-8', errors='replace')
+        except ValueError as exc:
+            self.assertFalse(_common.is_known_xhtml_encoding_error(exc))
+        else:
+            self.fail('expected ValueError("embedded null character")')
+
+        # A real UnicodeError from another alexandria_alignment function: same
+        # file, but not one of the decode sites.
+        try:
+            alignment._utf8_markup('\ud800')
+        except UnicodeEncodeError as exc:
+            self.assertFalse(_common.is_known_xhtml_encoding_error(exc))
+        else:
+            self.fail('expected UnicodeEncodeError from _utf8_markup')
 
 
 class HtmlHiddenReadaloudParityTests(unittest.TestCase):

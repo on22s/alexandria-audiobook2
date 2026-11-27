@@ -600,9 +600,12 @@ def strip_hidden_xml(content):
     if not isinstance(content, str):
         try:
             content = decode_epub_markup(content)
-        except LookupError:
-            # Unknown declared encoding: extraction's decoder also declines
-            # this document, so hidden handling must not apply.
+        except (LookupError, ValueError):
+            # The declared encoding is unknown, or its name cannot be decoded
+            # as ASCII (UnicodeDecodeError) or names a codec with NUL
+            # (ValueError). Extraction's decoder refuses the same documents, so
+            # hidden handling must decline and let origin/main's ebooklib path
+            # narrate unchanged.
             return None
     try:
         return cut_xml_subtrees(content)
