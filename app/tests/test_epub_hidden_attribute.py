@@ -464,6 +464,68 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         self.assertFalse(alignment.is_well_formed_xml(
             b'<?xml version="1.0" encoding="bogus"?><html/>'))
 
+    def test_well_formed_probe_matches_the_extraction_parser(self):
+        # Rule 15: extraction and load_epub must agree on "well-formed". The
+        # probe uses the extraction pass's own Expat configuration, so for any
+        # document a skip opening makes the pass parse, both accept or both
+        # reject (undefined entity included).
+        documents = [
+            '<html><head><title>T</title></head><body><p>x</p></body></html>',
+            '<html><head><title>A&nbsp;B</title></head><body><p>x</p></body></html>',
+            '<html><head><title>T</title></head><body><p hidden>x</p></body></html>',
+            '<html><head><title>T</title></head><body><div><p>x</body></html>',
+            '<html><head><title>T</title></head><body><p hidden="x">a</p></body></html>',
+            # A declared external entity is well-formed and is never fetched
+            # or expanded; the extraction pass accepts the same bytes.
+            ('<?xml version="1.0"?><!DOCTYPE html ['
+             '<!ENTITY xxe SYSTEM "file:///nonexistent">]>'
+             '<html><head><title>&xxe;</title></head><body><p>x</p></body></html>'),
+        ]
+        for document in documents:
+            with self.subTest(document=document):
+                well_formed = alignment.is_well_formed_xml(document)
+                if well_formed:
+                    self.assertIsInstance(_omit_xml_ignored_subtrees(document), str)
+                else:
+                    with self.assertRaises(ValueError):
+                        _omit_xml_ignored_subtrees(document)
+
+        # Internal entities are reported to the default handler, not expanded:
+        # a DTD bomb that ElementTree refuses for amplification is simply
+        # well-formed here, and the extraction pass accepts the same bytes.
+        # Because both use the same non-expanding configuration, neither path
+        # can materialise the expansion (review 7 finding 2).
+        entities = ['<!ENTITY lol "lol">']
+        for level in range(1, 7):
+            entities.append('<!ENTITY lol%d "%s">' % (
+                level, ('&lol;' if level == 1 else f'&lol{level - 1};') * 10))
+        bomb = ('<?xml version="1.0"?><!DOCTYPE html [%s]>'
+                '<html xmlns="http://www.w3.org/1999/xhtml"><head>'
+                '<title>&lol6;</title></head><body><p>x</p></body></html>'
+                % ''.join(entities))
+        self.assertTrue(alignment.is_well_formed_xml(bomb))
+        with self.assertRaises(ET.ParseError):
+            ET.fromstring(bomb.encode('utf-8'))
+        self.assertIsInstance(_omit_xml_ignored_subtrees(bomb), str)
+
+    def test_undefined_entity_keeps_main_narration_of_hidden_content(self):
+        # &nbsp; is undefined in XML, so the probe and the extraction pass both
+        # decline hidden handling. load_epub then narrates the hidden text
+        # exactly as origin/main did (review 7 finding 2).
+        document = (
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head>'
+            '<title>A&nbsp;B</title></head>'
+            '<body><p hidden="x">Secret.</p><p>Visible.</p></body></html>')
+        raw = make_epub('', raw_document=document, toc_links=[], head='')
+        with self.assertRaisesRegex(ValueError, r'undefined entity'):
+            extract_epub_text('synthetic.epub', archive_bytes=raw)
+        with tempfile.TemporaryDirectory() as tmp:
+            epub_path = Path(tmp) / 'entity.epub'
+            epub_path.write_bytes(raw)
+            loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
+        self.assertIn('Secret.', loaded)
+        self.assertIn('Visible.', loaded)
+
     def test_xml_pass_handles_cdata_and_same_tag_self_closing_hidden_elements(self):
         # Literal </p> inside CDATA inside a hidden element would prematurely
         # close HTMLParser if _omit_xml_ignored_subtrees did not omit it first.
@@ -531,15 +593,29 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         self.assertEqual('Before.\n\nAfter.',
                          extract_epub_text('synthetic.epub', archive_bytes=raw))
 
-        # Malformed unclosed hidden element in strict XHTML rejects actionably
-        # without leaking hidden content.
+        # Review 7 finding 1: a malformed XHTML document with no skip-tag
+        # opening is narrated exactly as origin/main narrated it, even when a
+        # quoted hidden attribute is present. The hidden attribute may engage
+        # the strict parse only for a document the shared predicate accepts
+        # (well-formed), so this is main's output byte for byte.
         bad_xhtml = (
             '<html><body><p>Before.</p>'
             '<div hidden=""><p>Unclosed hidden secret</body></html>'
         )
-        raw_bad = make_epub('', raw_document=bad_xhtml, toc_links=[])
-        with self.assertRaisesRegex(ValueError, r'invalid XML') as caught:
-            extract_epub_text('synthetic.epub', archive_bytes=raw_bad)
+        raw_bad = make_epub('', raw_document=bad_xhtml, toc_links=[], head='')
+        self.assertEqual('Before.\n\nUnclosed hidden secret',
+                         extract_epub_text('synthetic.epub', archive_bytes=raw_bad))
+        # Control: the same malformed document with a <title> opening already
+        # took the strict parse on origin/main, and still rejects with the
+        # same error (no hidden-specific message).
+        bad_with_title = (
+            '<html><head><title>T</title></head><body><p>Before.</p>'
+            '<div hidden=""><p>Unclosed hidden secret</body></html>'
+        )
+        raw_title = make_epub('', raw_document=bad_with_title, toc_links=[], head='')
+        with self.assertRaisesRegex(ValueError, r'invalid XML: mismatched tag') as caught:
+            extract_epub_text('synthetic.epub', archive_bytes=raw_title)
+        self.assertNotIn('element is open', str(caught.exception))
         self.assertNotIn('Unclosed hidden secret', str(caught.exception))
 
         # Tolerant malformed XHTML whose prose merely mentions "hidden" stays accepted.
@@ -620,6 +696,34 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
         self.assertIn(secret, text_html)
         self.assertEqual([], [r for r in report_html['rows']
                               if r['kind'] == 'hidden_content'])
+
+    def test_content_policy_claims_hidden_only_when_omission_applied(self):
+        # Review 7 finding 5: the policy line is emitted only when hidden
+        # omission applied to an included resource. A hidden-free or
+        # non-XHTML book therefore keeps origin/main's exact content_policy.
+        origin_main_policy = ('spine_order; style_script_title_not_spoken; '
+                              'navigation_document_not_spoken; no_front_back_matter_exclusion')
+        hidden_body = '<p>One.</p><p hidden="x">Secret.</p>'
+
+        _text, hidden_free = extract_epub_text(
+            'synthetic.epub', archive_bytes=make_epub('<p>One.</p><p>Two.</p>', toc_links=[]),
+            include_report=True)
+        self.assertEqual(origin_main_policy, hidden_free['content_policy'])
+        self.assertEqual([], [r for r in hidden_free['rows'] if r['kind'] == 'hidden_content'])
+
+        _text, text_html = extract_epub_text(
+            'synthetic.epub',
+            archive_bytes=make_epub(hidden_body, media_type='text/html', toc_links=[]),
+            include_report=True)
+        self.assertEqual(origin_main_policy, text_html['content_policy'])
+        self.assertEqual([], [r for r in text_html['rows'] if r['kind'] == 'hidden_content'])
+
+        _text, hidden_xhtml = extract_epub_text(
+            'synthetic.epub', archive_bytes=make_epub(hidden_body, toc_links=[]),
+            include_report=True)
+        self.assertIn('html_hidden_not_spoken', hidden_xhtml['content_policy'])
+        self.assertEqual(1, len([r for r in hidden_xhtml['rows']
+                                 if r['kind'] == 'hidden_content']))
 
     def test_navigation_targets_inside_hidden_subtree_are_reported_and_not_inserted(self):
         body = (
@@ -758,11 +862,12 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                     'PRE.SEC\n\nVIS',
                     extract_epub_text('synthetic.epub', archive_bytes=raw_html))
 
-    def test_mathml_annotation_xml_html_integration_point(self):
-        # annotation-xml with encoding text/html or application/xhtml+xml is
-        # an HTML integration point. Because these test documents put <math>
-        # in the inherited XHTML namespace, the strict XML path applies to the
-        # hidden <p>, so the XHTML paths agree. text/html narrates it.
+    def test_annotation_xml_in_inherited_xhtml_namespace_obeys_hidden(self):
+        # A bare <math> without xmlns stays in the inherited XHTML namespace
+        # in XML, so its annotation-xml child and the hidden <p> are XHTML
+        # elements and hidden applies (exactly as a browser's XML parser
+        # reads the document). This is namespace inheritance, not an HTML
+        # integration point. text/html gets no hidden handling.
         for encoding in ('text/html', 'application/xhtml+xml', 'application/xml'):
             body = (
                 '<p>Before.</p><math><annotation-xml encoding="' + encoding + '">'
@@ -780,6 +885,46 @@ class HtmlHiddenExtractionTests(unittest.TestCase):
                 raw_html = make_epub(body, media_type='text/html', toc_links=[])
                 self.assertEqual('Before.\n\nNotex\n\nAfter.',
                                  extract_epub_text('synthetic.epub', archive_bytes=raw_html))
+
+    def test_foreign_content_children_do_not_reenter_html(self):
+        # Review 7 finding 3: XML has no HTML integration points. A child of an
+        # explicitly namespaced SVG foreignObject / MathML annotation-xml
+        # without its own xmlns stays in the foreign namespace, where hidden is
+        # not an HTML attribute. Extraction and load_epub therefore agree and
+        # narrate it, as origin/main did.
+        cases = [
+            ('foreignObject', 'FO',
+             '<p>Before.</p><svg xmlns="http://www.w3.org/2000/svg"><foreignObject>'
+             '<p hidden="x">FO</p></foreignObject></svg><p>After.</p>',
+             'Before.\n\nFO\n\nAfter.', 'Before. FO After.'),
+            ('annotation_xml', 'AX',
+             '<p>Before.</p><math xmlns="http://www.w3.org/1998/Math/MathML">'
+             '<annotation-xml encoding="text/html"><p hidden="x">AX</p></annotation-xml>'
+             '<mi>m</mi></math><p>After.</p>',
+             'Before.\n\nAXm\n\nAfter.', 'Before. AX m After.'),
+        ]
+        for name, token, body, expected_extract, expected_load in cases:
+            with self.subTest(case=name):
+                raw = make_epub(body, toc_links=[])
+                self.assertEqual(expected_extract,
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw))
+                _root, segments, full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
+                self.assertIn(token, full)
+                with tempfile.TemporaryDirectory() as tmp:
+                    epub_path = Path(tmp) / f'{name}.epub'
+                    epub_path.write_bytes(raw)
+                    loaded = ' '.join(alignment.load_epub(str(epub_path)).split())
+                self.assertEqual(expected_load, loaded)
+                # An explicit XHTML child still obeys hidden on both paths.
+                explicit = body.replace('<p hidden="x">', '<p xmlns="http://www.w3.org/1999/xhtml" hidden="x">')
+                raw_explicit = make_epub(explicit, toc_links=[])
+                self.assertNotIn('FO' if name == 'foreignObject' else 'AX',
+                                 extract_epub_text('synthetic.epub', archive_bytes=raw_explicit))
+                with tempfile.TemporaryDirectory() as tmp:
+                    epub_path = Path(tmp) / f'{name}_explicit.epub'
+                    epub_path.write_bytes(raw_explicit)
+                    loaded_explicit = ' '.join(alignment.load_epub(str(epub_path)).split())
+                self.assertNotIn('FO' if name == 'foreignObject' else 'AX', loaded_explicit)
 
     def test_hidden_void_elements_are_not_counted_as_omitted_elements(self):
         body = (
@@ -1203,6 +1348,25 @@ class HtmlHiddenReadaloudParityTests(unittest.TestCase):
         _root, segs, _full = get_xhtml_segments(raw, 'OEBPS/ch1.xhtml')
         self.assertEqual(['Visible item'], [s['text'] for s in segs])
         self.assertEqual('li1', segs[0]['fragment'])
+
+    def test_optional_titles_keep_ids_inside_script_and_style_as_origin_main(self):
+        # Review 7 finding 4: hidden handling's scope is hidden subtrees only.
+        # Ids inside script/style stay indexed exactly as origin/main indexed
+        # them, so a hidden-free book speaks the same navigation labels.
+        xhtml = '{http://www.w3.org/1999/xhtml}'
+        root = ET.fromstring(
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title>'
+            '<style id="s1">p{}</style><script id="sc1">x()</script></head>'
+            '<body><p id="p1">One.</p><p id="p2">Two.</p></body></html>')
+        body = root.find(f'{xhtml}body')
+        segments = [{'element': p, 'text': ''.join(p.itertext())} for p in body]
+        toc = [
+            {'path': 'ch1.xhtml', 'fragment': 's1', 'label': 'StyleLabel'},
+            {'path': 'ch1.xhtml', 'fragment': 'sc1', 'label': 'ScriptLabel'},
+            {'path': 'ch1.xhtml', 'fragment': 'p2', 'label': 'Two'},
+        ]
+        self.assertEqual({0: ['StyleLabel', 'ScriptLabel'], 1: ['Two']},
+                         _get_optional_titles(root, segments, toc, 'ch1.xhtml'))
 
     def test_get_optional_titles_handles_deep_nesting_without_recursion_error(self):
         xhtml = '{http://www.w3.org/1999/xhtml}'

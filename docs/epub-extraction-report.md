@@ -23,14 +23,22 @@ attribute (ASCII case-insensitive, in any form including `hidden="until-found"`,
 which hides content from linear reading until interactive find-in-page reveal;
 XHTML-namespaced prefixed forms such as `h:hidden` apply too) and all their
 descendants are omitted from narration. Because `hidden` is an HTML-only global
-attribute, it is not applied to SVG or MathML elements; CSS `display:none` and
-`aria-hidden` are not inferred or dropped.
+attribute, it is not applied to SVG or MathML elements with an explicit
+`xmlns` (a bare `<svg>`/`<math>` inherits the XHTML namespace in XML and does
+take it); CSS `display:none` and `aria-hidden` are not inferred or dropped.
+XML has no HTML integration points either: an unprefixed child of an
+explicitly namespaced SVG `foreignObject` or MathML `annotation-xml` stays in
+the SVG/MathML namespace, so its `hidden` is not applied.
 
 Every other media type (`text/html` and any other non-XHTML type), and malformed
-XHTML, gets no hidden handling. Its output is byte-identical to the code before
-this feature and hidden content is narrated. That includes documents with bare
+XHTML, gets no hidden handling. Its output or refusal is byte-identical to the
+code before this feature: hidden content is narrated whenever that code
+narrated the document. That includes documents with bare
 boolean attributes (`<p hidden>` without a value), unclosed tags, and HTML-only
-entities such as `&nbsp;`, none of which are well-formed XML. This is a
+entities such as `&nbsp;`, none of which are well-formed XML, so a quoted
+`hidden` attribute cannot newly engage the strict parse. A malformed XHTML
+document that already had a `script`/`style`/`title` opening is rejected by the
+same strict parse as before, with the same error. This is a
 documented leak, chosen because dropping visible text is worse than narrating
 hidden text; it is never a visible drop. A well-formed `text/html` document
 therefore keeps HTML5 tree construction: a hidden table cell containing a
@@ -38,7 +46,9 @@ therefore keeps HTML5 tree construction: a hidden table cell containing a
 a browser renders, exactly as before.
 `omitted_elements` counts outermost hidden elements that can omit text; a
 hidden void element (`<br hidden>`, `<img hidden>`) is not counted because it
-omits no text.
+omits no text. `content_policy` names `html_hidden_not_spoken` only when hidden
+omission actually applied to an included resource, so a hidden-free or
+non-XHTML import keeps the previous policy string unchanged.
 `load_epub`'s `<html>`/`<body>` root detection decodes UTF-8/UTF-16 and skips
 comments, PIs, DOCTYPE internal subsets, RCDATA head content (`title`,
 `textarea`, `noscript`), and `<template>` fragments, so literal `<body hidden>`

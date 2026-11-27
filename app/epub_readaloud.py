@@ -332,7 +332,10 @@ def _get_optional_titles(root, segments, toc, path):
     stack = [root]
     while stack:
         element = stack.pop()
-        if _local(element.tag) in _EXCLUDE or _is_hidden_element(element):
+        # Skip only hidden subtrees (hidden handling's scope). Ids inside
+        # script/style stay indexed exactly as origin/main indexed them, so a
+        # hidden-free book speaks the same navigation labels.
+        if _is_hidden_element(element):
             continue
         for key in (element.get("id"), element.get("{http://www.w3.org/XML/1998/namespace}id")):
             if key and key not in by_id:

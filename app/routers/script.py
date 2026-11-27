@@ -112,6 +112,7 @@ from ruby_text import RUBY_FALLBACK_TAG, RUBY_READING_TAG, RUBY_TAG, RubyCollect
 from alexandria_alignment import (
     html_hidden_handling_applies,
     is_html_hidden_attrs,
+    is_well_formed_xml,
     validate_epub_archive,
 )
 from epub_package import get_epub_package, is_navigation_document
@@ -1262,22 +1263,33 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
             xml_stats = {'hidden_elements': 0, 'first_hidden_location': None, 'hidden_anchors': set()}
             try:
                 # XHTML resources are XML: omit true ignored subtrees via
-                # the strict XML path (a malformed XHTML resource rejects
-                # actionably). Hidden omission is gated by the one shared
-                # predicate (Rule 15), whose well-formedness half is the
-                # strict parse itself here: it rejects malformed XHTML before
-                # any output exists. Every other HTML media type keeps the
-                # legacy tolerant extractor and is byte-identical to
-                # origin/main: hidden content there is narrated (a documented
-                # leak), never omitted.
+                # the strict XML path (a malformed XHTML resource with a
+                # skip-tag opening rejects actionably, exactly as before this
+                # feature). Hidden omission is gated by the one shared
+                # predicate (Rule 15): well-formed application/xhtml+xml.
+                # The probe below uses the extraction pass's own Expat
+                # configuration (DefaultHandler, no entity expansion), so
+                # extraction and load_epub agree on "well-formed". Only a
+                # document the predicate accepts may let a hidden attribute
+                # engage the strict pass; a malformed one keeps origin/main's
+                # gate exactly (skip-tag openings only), so its output or
+                # refusal is byte-identical to origin/main and a hidden-only
+                # document is narrated, never newly refused. Every other HTML
+                # media type keeps the legacy tolerant extractor and is
+                # byte-identical to origin/main as well: hidden content there
+                # is narrated (a documented leak), never omitted.
                 # Rebind so the original string is released before the
                 # HTML parser accumulates its parts; html_bytes (used for
                 # report hashes) is unchanged by this.
+                apply_hidden = False
                 if media_type == 'application/xhtml+xml':
+                    if _POTENTIAL_HIDDEN_ATTR_RE.search(html_content):
+                        apply_hidden = html_hidden_handling_applies(
+                            media_type,
+                            xml_well_formed=is_well_formed_xml(html_content))
                     html_content = _omit_xml_ignored_subtrees(
                         html_content, anchor_ids=anchor_ids, stats=xml_stats,
-                        omit_hidden=html_hidden_handling_applies(
-                            media_type, xml_well_formed=True))
+                        omit_hidden=apply_hidden)
                 extractor.feed(html_content)
                 # The text accessor validates skipped-element balance.
                 # close() is deliberately not called here: it would flush
@@ -1312,6 +1324,7 @@ def extract_epub_text(epub_path: str, *, archive_bytes: bytes | None = None, inc
                                      anchor_occurrences=extractor.anchor_counts.get(decision['fragment'], 0),
                                      **decision)
                 if hidden_count:
+                    report.note_html_hidden_omitted()
                     report.apply_row('hidden_content', resource=href, spine_index=spine_index,
                                      reason='html_hidden_attribute',
                                      omitted_elements=hidden_count,

@@ -32,7 +32,7 @@ import sys
 import os
 import zipfile
 import unicodedata
-import xml.etree.ElementTree as ET
+import xml.parsers.expat as expat
 from pathlib import Path
 from collections import Counter
 from typing import NamedTuple
@@ -162,8 +162,6 @@ def get_source_word_lists(text: str) -> tuple:
 
 # ── HTML hidden attribute predicate (shared across all EPUB/XHTML paths) ──────
 _XHTML_NS = 'http://www.w3.org/1999/xhtml'
-_SVG_NS = 'http://www.w3.org/2000/svg'
-_MATHML_NS = 'http://www.w3.org/1998/Math/MathML'
 _ROOT_PROLOG_TAGS = frozenset({
     'html', 'head', 'title', 'meta', 'link', 'style', 'script', 'base',
     'basefont', 'bgsound', 'noscript', 'noframes', 'template', 'textarea',
@@ -221,19 +219,40 @@ def _normalized_media_type(media_type) -> str:
 
 
 def is_well_formed_xml(content) -> bool:
-    """Return whether ``content`` (bytes, or text without an XML declaration) is XML.
+    """Return whether ``content`` (bytes, or decoded text) parses as XML.
 
-    Uses the same Expat-backed parser family as the extraction route. Anything
-    the parser rejects - malformed nesting, bare HTML boolean attributes such
-    as ``<p hidden>``, HTML-only entities such as ``&nbsp;`` - returns False.
+    Uses exactly the configuration of the extraction XML pass
+    (``_omit_xml_ignored_subtrees`` in ``routers/script.py``): stdlib Expat
+    with a ``DefaultHandler`` and no external entity/DTD handler, so
+    extraction and ``load_epub`` agree on "well-formed". ``DefaultHandler``
+    (not ``DefaultHandlerExpand``) reports internal entity references instead
+    of expanding them, so a small DTD bomb cannot amplify here. Anything the
+    parser rejects - malformed nesting, bare HTML boolean attributes such as
+    ``<p hidden>``, undefined entities such as ``&nbsp;`` - returns False,
+    exactly as the extraction pass rejects it.
+
+    Decoded text is encoded as UTF-8 and parsed with an explicit UTF-8
+    encoding: the extraction pass works on the same decoded string and
+    overrides any XML declaration the same way.
     """
+    if isinstance(content, str):
+        try:
+            content = content.encode('utf-8')
+        except UnicodeEncodeError:
+            return False
+        encoding = 'utf-8'
+    else:
+        encoding = None
+    parser = expat.ParserCreate(encoding=encoding)
+    # Match the extraction pass: no entity expansion, no external fetches.
+    parser.DefaultHandler = lambda _data: None
     try:
-        # Reviewed: EPUB text is untrusted, but ElementTree's parser runs
-        # without external entity/DTD resolution or network access; this call
-        # only probes well-formedness and never returns a tree.
-        ET.fromstring(content)  # nosec B314
-    except (ET.ParseError, ValueError, TypeError, LookupError):
+        parser.Parse(content, True)
+    except (expat.ExpatError, ValueError, TypeError, LookupError):
         return False
+    finally:
+        # Break the parser->handler cycle so completed buffers release.
+        parser.DefaultHandler = None
     return True
 
 
@@ -379,20 +398,18 @@ def _epub_item_root_context(item):
     return parser.doc_hidden, parser.namespaces
 
 
-_HTML_INTEGRATION_ENCODINGS = frozenset({'text/html', 'application/xhtml+xml'})
-
-
 def resolve_html_element_namespace(tag: str, attrs, inherited_ns: str, ns_map: dict):
     """Return ``(element_ns, child_default_ns, updated_ns_map)`` for an XHTML tag.
 
     This walk is XHTML-only (see :func:`_extract_bs4_visible_text`): a bare
     ``<svg>``/``<math>`` without ``xmlns`` therefore stays in the inherited
     XHTML namespace, exactly as a browser's XML parser reads it, so ``hidden``
-    applies to it. Only an explicit ``xmlns`` moves an element out of XHTML.
-
-    The child namespace re-enters HTML at the HTML integration points:
-    SVG ``foreignObject`` and MathML ``annotation-xml`` whose ``encoding`` is
-    ``text/html`` or ``application/xhtml+xml``.
+    applies to it. Only an explicit ``xmlns`` moves an element out of XHTML,
+    and children inherit that namespace: XML has no HTML integration points,
+    so an unprefixed child of an explicitly namespaced SVG ``foreignObject``
+    or MathML ``annotation-xml`` stays in the SVG/MathML namespace and its
+    ``hidden`` is not an HTML attribute. Extraction (Expat, explicit
+    ``xmlns`` only) reads the document the same way.
     """
     if (not attrs and ':' not in tag and inherited_ns in ('', _XHTML_NS)):
         # Fast path: an unprefixed HTML element with no attributes inherits
@@ -416,17 +433,9 @@ def resolve_html_element_namespace(tag: str, attrs, inherited_ns: str, ns_map: d
         elem_ns = explicit_xmlns
     else:
         elem_ns = inherited_ns
-    child_ns = elem_ns
-    if elem_ns == _SVG_NS and tag == 'foreignobject':
-        child_ns = ''
-    elif elem_ns == _MATHML_NS and tag == 'annotation-xml':
-        for key, value in attr_items:
-            if (isinstance(key, str) and key.isascii() and key.lower() == 'encoding'
-                    and isinstance(value, str)
-                    and value.strip().lower() in _HTML_INTEGRATION_ENCODINGS):
-                child_ns = ''
-                break
-    return elem_ns, child_ns, elem_ns_map
+    # XML has no HTML integration points: children stay in this element's
+    # namespace unless they declare their own ``xmlns``.
+    return elem_ns, elem_ns, elem_ns_map
 
 
 def _hidden_subtree_has_text(node, string_types) -> bool:
