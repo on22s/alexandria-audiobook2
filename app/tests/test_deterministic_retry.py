@@ -20,10 +20,13 @@ legitimate second sample, and stopping there would remove a retry that can
 genuinely succeed. The guard is `not params.temperature`, so any non-zero value
 keeps the old behaviour.
 """
+import io
+import json
 import os
 import tempfile
 import types
 import unittest
+from contextlib import redirect_stdout
 
 import generate_script
 
@@ -134,6 +137,139 @@ class DeterministicRetryTest(unittest.TestCase):
         self.assertNotEqual(seen[0], seen[1])
 
 
+
+
+class RepeatGuardSalvageTest(unittest.TestCase):
+    """#2336: stopping a repeat must not skip the last-attempt salvage.
+
+    The guard prevents a request that cannot differ, not the quality-gated
+    recovery of the reply that is already here. A reply clean_json_string
+    refuses as ambiguous (two object arrays separated by prose) can still be
+    accepted by the same raw-array salvage a final attempt would use.
+    """
+
+    setUp = DeterministicRetryTest.setUp
+    _restore = DeterministicRetryTest._restore
+
+    SPLIT = (json.dumps([{"speaker": "NARRATOR", "text": "one two three",
+                          "instruct": "neutral"}])
+             + "\ncommentary\n"
+             + json.dumps([{"speaker": "NARRATOR", "text": "four five six",
+                            "instruct": "neutral"}]))
+
+    @staticmethod
+    def _passed(entries):
+        return {"passed": True, "findings": []}
+
+    def _run(self, content, temperature=0.0, retries=3, validate=None):
+        client = _CountingClient(content)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            result = generate_script.call_llm_for_entries(
+                client, "m", "sys", "user", _params(temperature),
+                max_retries=retries, log_name="retry.log", label="ATTRIBUTE",
+                validate_entries=validate or self._passed)
+        return client.prompts, result, output.getvalue()
+
+    def test_temperature_zero_salvages_before_the_guard_stops(self):
+        prompts, result, output = self._run(self.SPLIT)
+
+        self.assertEqual(1, len(prompts))
+        self.assertEqual(["one two three", "four five six"],
+                         [entry["text"] for entry in result])
+        self.assertIn("further retries cannot differ", output)
+        self.assertIn("Trying quality-gated raw-array salvage", output)
+
+    def test_salvaged_first_attempt_does_not_claim_to_be_a_retry(self):
+        """#2336: the blocked retry must not fake the loop index.
+
+        The salvage accepts on the first request. Faking `attempt` as the retry
+        limit made the accept path print "Succeeded on retry 1"; the log must
+        report the salvage instead, not a retry that never happened.
+        """
+        prompts, result, output = self._run(self.SPLIT)
+
+        self.assertEqual(1, len(prompts))
+        self.assertEqual(2, len(result))
+        self.assertIn("Trying quality-gated raw-array salvage", output)
+        self.assertNotIn("Succeeded on retry", output)
+
+    def test_salvage_that_fails_the_quality_gate_still_stops(self):
+        def reject(entries):
+            return {"passed": False,
+                    "findings": [{"code": "missing_source_content"}]}
+
+        prompts, result, output = self._run(self.SPLIT, validate=reject)
+
+        self.assertEqual(1, len(prompts))
+        self.assertEqual([], result)
+        self.assertIn("further retries cannot differ", output)
+        self.assertIn("failed quality validation", output)
+
+    def test_nonzero_temperature_still_retries_before_salvaging(self):
+        prompts, result, output = self._run(self.SPLIT, temperature=0.7)
+
+        self.assertEqual(4, len(prompts))
+        self.assertEqual(["one two three", "four five six"],
+                         [entry["text"] for entry in result])
+        self.assertIn("Trying quality-gated raw-array salvage", output)
+
+    def test_bare_object_after_a_note_is_accepted_at_both_temperatures(self):
+        """#2336 decision: `[0] {"speaker": ...}` has no array payload at all.
+
+        clean_json_string returns None (the note is skipped and no array
+        follows), so the last-attempt repair extracts the bare object. Kept at
+        0.0 (one call, guard then salvage) and 0.7 (all four calls, unchanged
+        retry budget). The quality gates still decide whether it is accepted.
+        """
+        content = '[0] {"speaker": "N", "text": "one", "instruct": "neutral"}'
+
+        for temperature, expected_calls in ((0.0, 1), (0.7, 4)):
+            with self.subTest(temperature=temperature):
+                prompts, result, _output = self._run(content, temperature=temperature)
+                self.assertEqual(expected_calls, len(prompts))
+                self.assertEqual([{"speaker": "N", "text": "one",
+                                   "instruct": "neutral"}], result)
+
+
+class ChangedRequestAfterTruncationTest(unittest.TestCase):
+    """The pre-retry check must test the request the NEXT attempt would send.
+
+    A truncated reply raises the completion budget and clears validator
+    feedback, so the retry's (prompt, budget) key has never been sent and must
+    go out. This pins a membership test on the loop's own key construction; a
+    predicate re-derived from finish_reason, or a check against the current
+    attempt's key, would be a second policy that can disagree (Rule 10/Rule 15).
+    """
+
+    setUp = DeterministicRetryTest.setUp
+    _restore = DeterministicRetryTest._restore
+
+    def test_changed_prompt_and_budget_is_sent_at_temperature_zero(self):
+        calls = []
+
+        class _TruncatesThenSucceeds(_CountingClient):
+            def _create(self, **kwargs):
+                calls.append(kwargs["messages"][-1]["content"])
+                if len(calls) == 1:
+                    # No array payload at all, so this reaches the
+                    # missing-payload branch after the length handling has
+                    # cleared feedback and raised the budget.
+                    r = _Response('{"n": 0, "speaker": "NARR')
+                    r.choices[0].finish_reason = "length"
+                    return r
+                return _Response('[{"n": 0, "speaker": "NARRATOR"}]')
+
+        out = generate_script.call_llm_for_entries(
+            _TruncatesThenSucceeds(), "m", "sys", "user", _params(0.0),
+            max_retries=3, log_name="retry.log", label="ATTRIBUTE",
+            _resume_state={"retry_feedback": "prior failure",
+                           "requested_max": 100})
+
+        self.assertEqual(2, len(calls))
+        self.assertIn("Failures: prior failure", calls[0])
+        self.assertEqual("user", calls[1])
+        self.assertEqual([{"n": 0, "speaker": "NARRATOR"}], out)
 
 
 class BudgetEscalationIsNotARepeatTest(DeterministicRetryTest):

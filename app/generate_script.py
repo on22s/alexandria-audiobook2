@@ -373,8 +373,25 @@ def _get_boundary_overlap(left_entries, right_entries, minimum_words=3):
 
 
 def clean_json_string(text):
-    """Clean and combine adjacent complete JSON arrays from an LLM response."""
+    """Clean and combine adjacent complete JSON arrays from an LLM response,
+    skipping bracketed preamble notes that cannot hold the answer."""
+    def fix_control_chars(match):
+        s = match.group(0)
+        # Replace unescaped control characters
+        s = s.replace('\n', '\\n')
+        s = s.replace('\r', '\\r')
+        s = s.replace('\t', '\\t')
+        return s
+
+    def escape_control_characters(value):
+        # Escape literal newlines/tabs inside JSON strings (common LLM issue).
+        return re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"', fix_control_chars, value)
+
     def parse_array_span(value):
+        # Judge the span the same way the final payload is parsed: control
+        # characters inside strings are escaped below, so a reply that only
+        # needs that repair must not be mistaken for a bracketed note.
+        value = escape_control_characters(value)
         try:
             parsed = json.loads(value)
         except json.JSONDecodeError:
@@ -409,6 +426,25 @@ def clean_json_string(text):
         # keeps it only if every object in it is complete (#1111); cutting
         # back to the last "}," here silently dropped the final entry.
         return text[start:]
+
+    # A preamble may carry a bracketed note - "[Note]", "Labels [0]:",
+    # "Entry [0] is ANNA." - that is not the answer. A span that does not
+    # parse as an array holding at least one object cannot be the payload, so
+    # skip it and the prose around it (#2336). Only arrays that hold objects
+    # can make the reply ambiguous.
+    def holds_answer_objects(value):
+        return value is not None and any(isinstance(item, dict) for item in value)
+
+    while not holds_answer_objects(parse_array_span(span)):
+        next_start = text.find('[', start + len(span))
+        if next_start == -1:
+            return None
+        next_span = extract_balanced(text, '[', ']', next_start)
+        if next_span is None:
+            # Same rule as the leading span: let the parser judge a remainder
+            # that never closes instead of discarding a complete answer in it.
+            return text[next_start:]
+        start, span = next_start, next_span
 
     spans = [span]
     cursor = start + len(span)
@@ -446,17 +482,7 @@ def clean_json_string(text):
         item.strip()[1:-1] for item in spans) + "]"
 
     # Clean control characters inside strings (common LLM issue)
-    # Replace literal newlines/tabs inside JSON strings with escaped versions
-    def fix_control_chars(match):
-        s = match.group(0)
-        # Replace unescaped control characters
-        s = s.replace('\n', '\\n')
-        s = s.replace('\r', '\\r')
-        s = s.replace('\t', '\\t')
-        return s
-
-    # Fix control characters inside string values
-    json_text = re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"', fix_control_chars, json_text)
+    json_text = escape_control_characters(json_text)
 
     return json_text
 
@@ -1275,10 +1301,79 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             retry_decider=retry_decider, near_miss_sink=near_miss_sink, codec=codec,
             _resume_state=state, _schema_rejected_by=schema_rejected_by)
 
+    def _stop_identical_retry():
+        print(f"  {label}: identical prompt and budget already "
+              f"rejected at temperature 0; further retries cannot "
+              f"differ", flush=True)
+
+    base_messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_prompt}
+    ]
+
+    def _attempt_prompt(feedback):
+        """The user prompt the next attempt would send, feedback included."""
+        prompt = user_prompt
+        if feedback:
+            prompt += ("\n\nYour previous response was rejected by deterministic "
+                       "quality checks. Return the complete result in the required output format. "
+                       f"Failures: {feedback}")
+        return prompt
+
+    def _prepare_attempt(feedback, max_tokens):
+        """The prompt, messages, completion budget and temperature-0 guard key.
+
+        The prompt is derived HERE from `feedback`, so the messages, the guard
+        key and the prompt a caller logs cannot disagree about what was sent
+        (Rule 15). One function so the loop and the pre-retry check cannot
+        disagree about what "the same request" means either: the key is the
+        prompt AND the completion budget, because a truncated response raises
+        requested_max for the retry and that retry is a different request even
+        though its prompt is byte-identical.
+        """
+        prompt = _attempt_prompt(feedback)
+        prepared = base_messages if not feedback else [
+            base_messages[0], {"role": "user", "content": prompt}
+        ]
+        effective = get_effective_max_tokens(
+            max_tokens, params.context_length, prepared,
+            params.hard_max_tokens, scale_to_context=False,
+            max_input_tokens=params.max_input_tokens)
+        return prompt, prepared, effective, (prompt, effective)
+
+    def _identical_retry_would_be_blocked():
+        """True when the retry the loop would send now was already rejected.
+
+        Re-sending is useless only when the exact (prompt, budget) pair the
+        next attempt would carry is already in attempted_prompts. Feedback can
+        change the prompt and a truncation can raise the budget; either makes
+        the retry a different question that must still go out. This is a
+        membership test on the same key the guard at the top of the loop uses.
+        """
+        if params.temperature:
+            return False
+        _prompt, _messages, _effective, key = _prepare_attempt(
+            retry_feedback, requested_max)
+        return key in attempted_prompts
+
     attempt = resume_state.get("quality_attempt", 0) - 1
     advance_quality = True
     api_failures = 0
     request_attempt = 0
+    retry_blocked = False
+
+    def _may_retry():
+        """Whether this reply may still spend a retry request.
+
+        False when the loop's own budget is spent, and also when the
+        missing-payload branch stopped the retry because the deterministic
+        repeat guard would block the identical request one iteration later.
+        The reply is still parsed, transformed and quality-gated - and the
+        last-attempt salvage still runs - but no second identical request is
+        sent, and the log does not pretend this attempt was a retry.
+        """
+        return attempt < max_retries and not retry_blocked
+
     while True:
         if advance_quality:
             attempt += 1
@@ -1295,23 +1390,10 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
         attempt_record = None
         effective_max = None
         request_id = None
+        attempt_prompt = None
         try:
-            base_messages = [
-                {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            attempt_prompt = user_prompt
-            if retry_feedback:
-                attempt_prompt += ("\n\nYour previous response was rejected by deterministic "
-                                   "quality checks. Return the complete result in the required output format. "
-                                   f"Failures: {retry_feedback}")
-            messages = base_messages if not retry_feedback else [
-                base_messages[0], {"role": "user", "content": attempt_prompt}
-            ]
-            effective_max = get_effective_max_tokens(
-                requested_max, params.context_length, messages,
-                params.hard_max_tokens, scale_to_context=False,
-                max_input_tokens=params.max_input_tokens)
+            attempt_prompt, messages, effective_max, attempt_key = _prepare_attempt(
+                retry_feedback, requested_max)
             # Only when the sampler is deterministic. Above 0 a repeated prompt
             # is a legitimate second sample and must still be sent. The key is
             # the prompt AND the completion budget: a truncated response raises
@@ -1320,12 +1402,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             # prompt alone, this guard cancelled every budget escalation at
             # temperature 0 - measured 2026-09-12 on Muse at batch 25, where
             # 70% of windows hit max_tokens and none was ever re-sent larger.
-            attempt_key = (attempt_prompt, effective_max)
             if not params.temperature:
                 if attempt_key in attempted_prompts:
-                    print(f"  {label}: identical prompt and budget already "
-                          f"rejected at temperature 0; further retries cannot "
-                          f"differ", flush=True)
+                    _stop_identical_retry()
                     break
             # Close the prepared request block before provider work, so a
             # timeout or terminated worker does not erase what was asked.
@@ -1563,7 +1642,9 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                                   "request": {
                                       "model": model_name,
                                       "system_prompt": sys_prompt,
-                                      "user_prompt": attempt_prompt,
+                                      "user_prompt": (attempt_prompt
+                                                      if attempt_prompt is not None
+                                                      else _attempt_prompt(retry_feedback)),
                                       "temperature": params.temperature,
                                       "top_p": params.top_p,
                                       "presence_penalty": params.presence_penalty,
@@ -1629,8 +1710,17 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             print(f"Warning: Could not find {codec.name} payload in {label} "
                   f"response (attempt {attempt_number})")
             if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
-                print(retry_line(attempt, max_retries))
-                continue
+                if _identical_retry_would_be_blocked():
+                    # The guard would stop this retry before sending it. Stop
+                    # it here instead, but keep the reply: the last-attempt
+                    # raw-array salvage below is still allowed to run. Do not
+                    # fake the loop index - the acceptance log must not claim
+                    # this was a retry.
+                    _stop_identical_retry()
+                    retry_blocked = True
+                else:
+                    print(retry_line(attempt, max_retries))
+                    continue
             # Last-attempt recovery: clean_json_string deliberately rejects
             # ambiguous multi-array structure, but repair_json_array can still
             # extract complete objects from the raw array region. It remains
@@ -1669,7 +1759,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                     retry_feedback = "unresolved_safe_repair"
                     print(f"Warning: {label} has unresolved deterministic repairs "
                           f"(attempt {attempt_number}): {transformed['unresolved']}")
-                    if attempt < max_retries:
+                    if _may_retry():
                         print(retry_line(attempt, max_retries))
                         continue
                     return []
@@ -1706,14 +1796,14 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                         consecutive_severe += 1
                     else:
                         consecutive_severe = 0
-                    if attempt < max_retries and retry_policy == "increase_tokens":
+                    if _may_retry() and retry_policy == "increase_tokens":
                         next_max = get_next_retry_max_tokens(
                             requested_max, "incomplete_output", params.hard_max_tokens)
                         if next_max != requested_max:
                             print(f"  Increasing token budget after incomplete output: "
                                   f"{requested_max} -> {next_max}")
                             requested_max = next_max
-                    elif attempt < max_retries:
+                    elif _may_retry():
                         if is_overlong_index_response(quality):
                             # The length finish above already raised the budget;
                             # an overlong answer was not cut short, so undo it.
@@ -1727,7 +1817,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                             and retry_decider(quality, retry_evidence) == "split"):
                         print("  Repeated unproductive response; switching to adaptive split")
                         return []
-                    if attempt < max_retries:
+                    if _may_retry():
                         print(retry_line(attempt, max_retries))
                         continue
                     return []
@@ -1735,7 +1825,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
                 if attempt_record is not None:
                     attempt_record["outcome"] = "response_rejected"
                     attempt_record["failure_codes"] = ["token_truncated"]
-                if attempt < max_retries and truncation_retry_available:
+                if _may_retry() and truncation_retry_available:
                     print("Retrying truncated response with a larger token budget...")
                     continue
                 return []
@@ -1756,7 +1846,7 @@ def call_llm_for_entries(client, model_name, sys_prompt, user_prompt, params,
             attempt_record["failure_codes"] = ["malformed_json"]
         print(f"JSON preview: {json_text[:300]}...")
 
-        if attempt < max_retries and (finish_reason != "length" or truncation_retry_available):
+        if _may_retry() and (finish_reason != "length" or truncation_retry_available):
             print(retry_line(attempt, max_retries))
             continue
         if finish_reason == "length":
