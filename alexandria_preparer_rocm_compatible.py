@@ -631,9 +631,11 @@ def transcribe_with_wav2vec2(audio_16k: np.ndarray, language: str = "en", limit:
         # supposed to be loud (see resolve_cuda_device).
         device_str = resolve_cuda_device(torch_module)
 
-        processor = Wav2Vec2Processor.from_pretrained(
+        # revision pinned to a 40-hex SHA constant.
+        processor = Wav2Vec2Processor.from_pretrained(  # nosec B615
             "facebook/wav2vec2-large-960h", revision=WAV2VEC2_MODEL_REVISION)
-        model = Wav2Vec2ForCTC.from_pretrained(
+        # revision pinned to a 40-hex SHA constant.
+        model = Wav2Vec2ForCTC.from_pretrained(  # nosec B615
             "facebook/wav2vec2-large-960h", revision=WAV2VEC2_MODEL_REVISION)
         model = model.to(device_str)
         model.eval()

@@ -1,0 +1,5 @@
+# Security-lint tooling. CI installs this (see .github/workflows/bandit.yml);
+# it is NOT part of the Pinokio runtime install, so never add it to
+# requirements.txt. Pin the exact version so a new release cannot silently
+# change which findings are reported; bump it together with any nosec review.
+bandit==1.8.6

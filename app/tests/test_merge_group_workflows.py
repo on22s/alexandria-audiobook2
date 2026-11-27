@@ -16,7 +16,7 @@ class MergeGroupWorkflowTests(unittest.TestCase):
                 with self.subTest(workflow=path.name):
                     self.assertRegex(text, r'(?m)^  merge_group:\s*$')
                 checked.append(path.name)
-        self.assertEqual(9, len(checked))
+        self.assertEqual(10, len(checked))
         manual = (ROOT / '.github/workflows/windows-export-staging-evidence.yml').read_text(encoding='utf-8')
         self.assertRegex(manual, r'(?m)^  workflow_dispatch:')
         self.assertNotRegex(manual, r'(?m)^  (pull_request|merge_group):')
